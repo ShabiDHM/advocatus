@@ -1,0 +1,9 @@
+# rerank-service/requirements.txt
+# DEFINITIVE VERSION 5.0: Downgrades FastAPI to resolve spacy/typer conflict.
+
+fastapi==0.109.2
+uvicorn==0.29.0
+passlib==1.7.4
+bcrypt==4.0.1
+sentence-transformers==2.7.0
+torch==2.3.0

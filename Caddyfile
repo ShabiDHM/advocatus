@@ -1,0 +1,31 @@
+# FILE: Caddyfile
+# PHOENIX PROTOCOL DEFINITIVE VERSION 2.0 (WEBSOCKET SUPPORT):
+# 1. CRITICAL FIX: Added `header_up Connection {header.Connection}` and `header_up Upgrade {header.Upgrade}`
+#    to the reverse_proxy configuration.
+# 2. This is the definitive fix for the WebSocket connection failure. It allows Caddy to
+#    correctly proxy the protocol upgrade handshake to the backend FastAPI application.
+
+advocatus-prod-api.duckdns.org {
+    # Automatic HTTPS via Let's Encrypt
+    tls shabanbala@gmail.com
+
+    # Standard security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+    }
+
+    # Reverse proxy ALL traffic to the backend service, now with WebSocket support.
+    reverse_proxy backend:8000 {
+        # Standard headers for backend application to understand the original request.
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+
+        # --- PHOENIX PROTOCOL FIX: Headers required for WebSocket proxying ---
+        header_up Connection {header.Connection}
+        header_up Upgrade {header.Upgrade}
+    }
+}

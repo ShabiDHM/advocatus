@@ -1,0 +1,10 @@
+# ======================================================================
+# == Definitive .gitattributes for The Phoenix Protocol               ==
+# ======================================================================
+#
+# Enforce consistent line endings for all text files.
+# This prevents cross-platform issues and suppresses CRLF/LF warnings.
+# On checkout, text files will be converted to the OS's native line ending.
+# On commit, they will be normalized to LF in the repository.
+
+* text=auto eol=lf

@@ -1,0 +1,108 @@
+# FILE: docker-compose.yml
+# DEFINITIVE VERSION 6.0 (PHENIX PROTOCOL: STANDARD PORT ALIGNMENT)
+# 1. CRITICAL FIX: The 'caddy' service port mappings have been changed to the standard
+#    "80:80" and "443:443". This is the definitive fix to allow Caddy to obtain
+#    an SSL certificate from Let's Encrypt and resolve the ERR_SSL_PROTOCOL_ERROR.
+
+services:
+  caddy:
+    image: caddy:latest
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    networks: [phoenix_net]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  backend:
+    build: { context: ./backend }
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers
+    env_file: ./.env
+    networks: [phoenix_net]
+    depends_on: { mongo: { condition: service_healthy }, redis: { condition: service_healthy } }
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+
+  celery:
+    build: { context: ./backend }
+    restart: unless-stopped
+    command: celery -A app.worker.celery_app worker --loglevel=info
+    env_file: ./.env
+    networks: [phoenix_net]
+    depends_on: { redis: { condition: service_healthy }, mongo: { condition: service_healthy }, backend: { condition: service_started } }
+
+  embedding-service:
+    build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: embedding_service } }
+    networks: [phoenix_net]
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
+
+  albanian-embedding-service:
+    build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: albanian_embedding_service } }
+    networks: [phoenix_net]
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    environment: ["EMBEDDING_MODEL=${ALBANIAN_EMBEDDING_MODEL}"]
+    healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 20, start_period: 300s }
+
+  rerank-service:
+    build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: rerank_service } }
+    networks: [phoenix_net]
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
+
+  ner-service:
+    build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: ner_service } }
+    networks: [phoenix_net]
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 10, start_period: 60s }
+
+  categorization-service:
+    build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: categorization_service } }
+    networks: [phoenix_net]
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
+
+  mongo:
+    image: mongo:6.0
+    restart: unless-stopped
+    env_file: ./.env
+    networks: [phoenix_net]
+    volumes: [mongo_data:/data/db]
+    healthcheck: { test: echo 'db.runCommand("ping").ok' | mongosh --quiet, interval: 15s, timeout: 10s, retries: 5 }
+    stop_grace_period: 20s
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    volumes: [redis_data:/data]
+    networks: [phoenix_net]
+    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 15s, timeout: 10s, retries: 5 }
+    stop_grace_period: 20s
+
+  chroma:
+    image: chromadb/chroma:latest
+    restart: unless-stopped
+    ports: ["8002:8000"]
+    networks: [phoenix_net]
+    volumes: [chroma_data:/data/db]
+    depends_on: [backend]
+
+volumes:
+  mongo_data: {}
+  chroma_data: {}
+  redis_data: {}
+  caddy_data: {}
+
+networks:
+  phoenix_net:
+    driver: bridge

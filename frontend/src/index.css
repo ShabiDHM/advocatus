@@ -1,0 +1,37 @@
+/* /home/user/advocatus-frontend/src/index.css */
+/* DEFINITIVE VERSION 2.0: Corrected base layer to use new design system classes */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles for the Revolutionary Design Transformation */
+@layer base {
+  body {
+    /* FIX: Replaced deprecated bg-background and text-text-dark with new design palette */
+    @apply bg-background-dark text-text-secondary font-sans;
+  }
+  h1, h2, h3, h4 {
+    /* FIX: Replaced deprecated text-text-light with new design palette */
+    @apply text-text-primary font-bold;
+  }
+}
+
+/* Re-implementing a utility from the old codebase that our components might rely on */
+@layer utilities {
+  .compact-line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  /* New custom scrollbar class for chat/document panels to keep dark aesthetic */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-background-light/50 rounded-full;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-background-dark;
+  }
+}

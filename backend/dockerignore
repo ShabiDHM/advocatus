@@ -1,0 +1,18 @@
+# backend/.dockerignore
+# DEFINITIVE PRODUCTION VERSION V1.0
+
+# Ignore common Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore local environment files
+.env
+
+# =======================================================================
+# == DEFINITIVE FIX: Explicitly do NOT ignore the app directory.       ==
+# == The '!' negates any matching rule, ensuring our source code is    ==
+# == ALWAYS included in the build context.                             ==
+# =======================================================================
+!app/

@@ -1,0 +1,69 @@
+# FILE: backend/requirements.txt (UNIFIED & PINNED - V4.3 with Corrected Compatibility Fix)
+# This file contains all dependencies for ALL Python services.
+
+# --- Core Web Framework & Async ---
+fastapi==0.109.2
+uvicorn[standard]==0.29.0
+starlette==0.36.3
+websockets
+anyio==4.10.0
+
+# --- Pydantic & Settings ---
+pydantic==2.7.1
+pydantic-settings==2.10.1
+python-dotenv==1.1.1
+
+# --- Authentication ---
+passlib==1.7.4
+bcrypt==4.0.1
+python-jose[cryptography]
+email-validator==2.3.0
+
+# --- Database & Cache ---
+# PHOENIX PROTOCOL FIX: Pinned pymongo AND motor to a known compatible pair to resolve startup ImportError.
+pymongo==4.6.1
+redis==5.0.4
+motor==3.3.2
+
+# --- Task Queue ---
+celery==5.4.0
+kombu==5.5.4
+billiard==4.2.1
+vine==5.1.0
+amqp==5.3.1
+
+# --- Logging & Utilities ---
+structlog
+python-multipart==0.0.20
+click==8.2.1
+typing_extensions==4.15.0
+boto3==1.40.32
+Jinja2==3.1.4
+requests
+dateparser==1.2.0
+
+# --- Document Processing ---
+pdf2image==1.17.0
+pdfminer.six==20250506
+PyMuPDF==1.26.4
+pypdf==6.0.0
+python-docx==1.2.0
+pytesseract==0.3.13
+pillow==11.3.0
+reportlab==4.4.3
+pandas
+openpyxl
+opencv-python-headless==4.9.0.80
+
+# --- AI & ML Dependencies (UNIFIED) ---
+groq==0.31.1
+chromadb-client==1.1.0
+langchain
+langdetect==1.0.9
+numpy<2,>=1.26.4
+
+# AI Service Specific Libraries
+torch --index-url https://download.pytorch.org/whl/cpu
+transformers
+sentence-transformers
+spacy==3.7.4

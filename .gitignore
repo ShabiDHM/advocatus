@@ -1,0 +1,17 @@
+# Dependencies & Virtual Environments
+/node_modules
+/frontend/node_modules
+/backend/node_modules
+/.venv
+/venv
+.env*
+
+# Build artifacts & Caches
+/dist
+/frontend/dist
+/backend/dist
+__pycache__/
+
+# IDE and OS files
+.DS_Store
+.vscode/
