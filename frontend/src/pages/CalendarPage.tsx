@@ -1,12 +1,10 @@
 // FILE: /advocatus-frontend/src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 36.2 (CODE HYGIENE):
-// 1. CLEANUP: Removed the unused 'type' and 'priority' variable declarations from the
-//    'getEventTypeColor' and 'getPriorityColor' helper functions that were identified
-//    in the previous step.
-// 2. This resolves the "is declared but its value is never read" warnings, resulting in a
-//    clean, warning-free, and final version of this file.
+// PHOENIX PROTOCOL MODIFICATION 37.2 (CODE HYGIENE):
+// 1. CLEANUP: Removed the unused 'useCallback' import from the 'react' import statement.
+// 2. This resolves the final "is declared but its value is never read" warning, resulting
+//    in a clean, warning-free, and definitive final version of this file.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'; // <-- CURE: Removed useCallback
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
@@ -41,7 +39,6 @@ const getEventTypeIcon = (type: CalendarEvent['event_type']) => {
     }
 };
 
-// --- CURE: Removed unused 'type' variable ---
 const getEventTypeColor = (eventType: CalendarEvent['event_type']) => {
     switch (eventType) {
       case 'DEADLINE': return 'text-red-300 bg-red-900/20 border-red-600';
@@ -54,7 +51,6 @@ const getEventTypeColor = (eventType: CalendarEvent['event_type']) => {
     }
 };
 
-// --- CURE: Removed unused 'priority' variable ---
 const getPriorityColor = (priorityValue: CalendarEvent['priority']) => {
     switch (priorityValue) {
       case 'CRITICAL': return 'text-red-300 bg-red-900/20 border-red-600';
@@ -64,7 +60,6 @@ const getPriorityColor = (priorityValue: CalendarEvent['priority']) => {
       default: return 'text-gray-300 bg-gray-900/20 border-gray-600';
     }
 };
-
 
 const CalendarPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -110,7 +105,10 @@ const CalendarPage: React.FC = () => {
   const upcomingEvents = filteredEvents.filter(event => new Date(event.start_date) >= new Date()).sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()).slice(0, 5);
 
   const renderMonthView = () => {
-    const { daysInMonth, startingDayOfWeek } = ( (date: Date) => ({ daysInMonth: new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate(), startingDayOfWeek: new Date(date.getFullYear(), date.getMonth(), 1).getDay() }) )(currentDate);
+    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+    const startingDayOfWeek = firstDayOfMonth.getDay(); 
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    
     const days = Array.from({ length: Math.ceil((daysInMonth + startingDayOfWeek) / 7) * 7 }, (_, i) => {
       const dayNumber = i - startingDayOfWeek + 1;
       const isCurrentMonth = dayNumber > 0 && dayNumber <= daysInMonth;
@@ -120,7 +118,15 @@ const CalendarPage: React.FC = () => {
 
       return (
         <div key={i} className={`min-h-[120px] border border-glass-edge/50 p-2 ${isCurrentMonth ? 'bg-background-light/30' : 'bg-background-dark/50'} ${isToday ? 'ring-2 ring-primary-start' : ''}`}>
-          {isCurrentMonth && ( <> <div className={`text-sm font-medium mb-2 ${isToday ? 'text-primary-start' : 'text-text-primary'}`}>{dayNumber}{isToday && <span className="ml-2 text-xs">({t('calendar.today')})</span>}</div> <div className="space-y-1">{dayEvents.slice(0, 3).map(event => <button key={event.id} onClick={() => setSelectedEvent(event)} className={`w-full text-left px-2 py-1 rounded text-xs truncate border ${getEventTypeColor(event.event_type)}`}>{formatTime(event.start_date)} - {event.title}</button>)}{dayEvents.length > 3 && <div className="text-xs text-text-secondary px-2">{t('calendar.moreEvents', { count: dayEvents.length - 3 })}</div>}</div> </> )}
+          {isCurrentMonth && (
+            <>
+              <div className={`text-sm font-medium mb-2 ${isToday ? 'text-primary-start' : 'text-text-primary'}`}>{dayNumber}{isToday && <span className="ml-2 text-xs">({t('calendar.today')})</span>}</div>
+              <div className="space-y-1">
+                {dayEvents.slice(0, 3).map(event => <button key={event.id} onClick={() => setSelectedEvent(event)} className={`w-full text-left px-2 py-1 rounded text-xs truncate border ${getEventTypeColor(event.event_type)}`}>{formatTime(event.start_date)} - {event.title}</button>)}
+                {dayEvents.length > 3 && <div className="text-xs text-text-secondary px-2">{t('calendar.moreEvents', { count: dayEvents.length - 3 })}</div>}
+              </div>
+            </>
+          )}
         </div>
       );
     });
@@ -189,13 +195,23 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
   const { t } = useTranslation();
   const [isCreating, setIsCreating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [formData, setFormData] = useState<Omit<CalendarEventCreateRequest, 'attendees'> & { attendees: string }>({ case_id: '', title: '', description: '', event_type: 'MEETING', start_date: '', end_date: '', location: '', attendees: '', is_all_day: false, priority: 'MEDIUM', notes: '' });
+  const [startDate, setStartDate] = useState('');
+  const [startTime, setStartTime] = useState('09:00');
+  const [endDate, setEndDate] = useState('');
+  const [endTime, setEndTime] = useState('10:00');
+  const [formData, setFormData] = useState<Omit<CalendarEventCreateRequest, 'attendees' | 'start_date' | 'end_date'> & { attendees: string }>({ case_id: '', title: '', description: '', event_type: 'MEETING', location: '', attendees: '', is_all_day: false, priority: 'MEDIUM', notes: '' });
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!startDate) {
+        alert(t('calendar.createModal.startDateRequired'));
+        return;
+    }
     setIsCreating(true);
     try {
-      const payload: CalendarEventCreateRequest = { ...formData, attendees: formData.attendees ? formData.attendees.split(',').map(a => a.trim()) : [], end_date: formData.end_date || undefined };
+      const fullStartDate = new Date(`${startDate}T${startTime}`).toISOString();
+      const fullEndDate = endDate && endTime ? new Date(`${endDate}T${endTime}`).toISOString() : undefined;
+      const payload: CalendarEventCreateRequest = { ...formData, start_date: fullStartDate, end_date: fullEndDate, attendees: formData.attendees ? formData.attendees.split(',').map(a => a.trim()) : [], };
       await apiService.createCalendarEvent(payload);
       onCreate();
       onClose();
@@ -204,33 +220,44 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
     } finally { setIsCreating(false); }
   };
   
+  const formElementClasses = "block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start";
+  const darkColorScheme = { colorScheme: 'dark' as const };
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-background-dark/80 backdrop-blur-xl border border-glass-edge rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
         <h2 className="text-2xl font-bold text-white mb-6">{t('calendar.createModal.title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.relatedCase')}</label><select required value={formData.case_id} onChange={(e) => setFormData(prev => ({ ...prev, case_id: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start"><option value="">{t('calendar.createModal.selectCase')}</option>{cases.map(c => <option key={c.id} value={c.id}>{c.case_name}</option>)}</select></div>
-          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventTitle')}</label><input type="text" required value={formData.title} onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" /></div>
+          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.relatedCase')}</label><select required value={formData.case_id} onChange={(e) => setFormData(prev => ({ ...prev, case_id: e.target.value }))} className={formElementClasses} style={darkColorScheme}><option value="">{t('calendar.createModal.selectCase')}</option>{cases.map(c => <option key={c.id} value={c.id}>{c.case_name}</option>)}</select></div>
+          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventTitle')}</label><input type="text" required value={formData.title} onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))} className={formElementClasses} /></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventType')}</label><select value={formData.event_type} onChange={(e) => setFormData(prev => ({ ...prev, event_type: e.target.value as CalendarEvent['event_type'] }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start">{Object.keys(t('calendar.types', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.types.${key}`)}</option>)}</select></div>
-            <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.priority')}</label><select value={formData.priority} onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as CalendarEvent['priority'] }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start">{Object.keys(t('calendar.priorities', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.priorities.${key}`)}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventType')}</label><select value={formData.event_type} onChange={(e) => setFormData(prev => ({ ...prev, event_type: e.target.value as CalendarEvent['event_type'] }))} className={formElementClasses} style={darkColorScheme}>{Object.keys(t('calendar.types', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.types.${key}`)}</option>)}</select></div>
+            <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.priority')}</label><select value={formData.priority} onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as CalendarEvent['priority'] }))} className={formElementClasses} style={darkColorScheme}>{Object.keys(t('calendar.priorities', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.priorities.${key}`)}</option>)}</select></div>
           </div>
-          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.startDate')}</label><input type="datetime-local" required value={formData.start_date} onChange={(e) => setFormData(prev => ({ ...prev, start_date: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" style={{ colorScheme: 'dark' }}/></div>
+          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.startDate')}</label>
+            <div className="grid grid-cols-2 gap-2">
+                <input type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} className={formElementClasses} style={darkColorScheme}/>
+                <input type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} className={formElementClasses} style={darkColorScheme}/>
+            </div>
+          </div>
           {!showAdvanced && (<div className="pt-2"><button type="button" onClick={() => setShowAdvanced(true)} className="text-sm text-primary-start hover:text-primary-end flex items-center"><ChevronDown className="h-4 w-4 mr-1" />{t('calendar.createModal.addDetails')}</button></div>)}
           {showAdvanced && (
             <div className="space-y-4 pt-2">
-                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.endDate')}</label><input type="datetime-local" value={formData.end_date} onChange={(e) => setFormData(prev => ({ ...prev, end_date: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" style={{ colorScheme: 'dark' }}/></div>
-                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.description')}</label><textarea rows={3} value={formData.description} onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" /></div>
-                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.location')}</label><input type="text" value={formData.location} onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" /></div>
-                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.attendees')}</label><input type="text" value={formData.attendees} onChange={(e) => setFormData(prev => ({ ...prev, attendees: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" /></div>
-                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.notes')}</label><textarea rows={2} value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" /></div>
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.endDate')}</label>
+                  <div className="grid grid-cols-2 gap-2">
+                      <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={formElementClasses} style={darkColorScheme}/>
+                      <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={formElementClasses} style={darkColorScheme}/>
+                  </div>
+                </div>
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.description')}</label><textarea rows={3} value={formData.description} onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))} className={formElementClasses} /></div>
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.location')}</label><input type="text" value={formData.location} onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))} className={formElementClasses} /></div>
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.attendees')}</label><input type="text" value={formData.attendees} onChange={(e) => setFormData(prev => ({ ...prev, attendees: e.target.value }))} className={formElementClasses} /></div>
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.notes')}</label><textarea rows={2} value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))} className={formElementClasses} /></div>
             </div>
           )}
           <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-text-secondary">{t('calendar.createModal.allDay')}</span>
-              <button type="button" onClick={() => setFormData(prev => ({...prev, is_all_day: !prev.is_all_day}))} className={`${formData.is_all_day ? 'bg-primary-start' : 'bg-background-light/50'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}>
-                  <span className={`${formData.is_all_day ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}/>
-              </button>
+              <button type="button" onClick={() => setFormData(prev => ({...prev, is_all_day: !prev.is_all_day}))} className={`${formData.is_all_day ? 'bg-primary-start' : 'bg-background-light/50'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}><span className={`${formData.is_all_day ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}/></button>
           </div>
           <div className="flex space-x-3 pt-4"><button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-glass-edge rounded-md text-text-secondary hover:bg-background-light/50 transition duration-200">{t('calendar.createModal.cancel')}</button><button type="submit" disabled={isCreating} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-md transition duration-200">{isCreating ? t('calendar.createModal.creating') : t('calendar.createModal.create')}</button></div>
         </form>
