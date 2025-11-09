@@ -1,27 +1,72 @@
 // FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 17.0 (FINAL DATA CONTRACT ALIGNMENT):
-// 1. CRITICAL FIX: Aligned the document sorting logic in `handleDocumentUploaded` with
-//    the refactored 'Document' data contract from types.ts.
-// 2. All references to the obsolete `uploadedAt` property have been replaced with the
-//    correct `created_at` property, resolving the final TypeScript build errors.
-// 3. This completes the system-wide refactoring, ensuring the entire frontend codebase
-//    is now consistent with the authoritative data contract.
-//
-// PHOENIX PROTOCOL MODIFICATION 16.0 (STATE MACHINE ALIGNMENT)
-// ...
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Case, Document, Finding } from '../data/types'; 
-import { apiService } from '../services/api'; 
-import DocumentsPanel from '../components/DocumentsPanel'; 
+import { Case, Document, Finding } from '../data/types';
+import { apiService } from '../services/api';
+import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import useAuth from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle, User, Briefcase, Info } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
+
+// --- NEW COMPONENT: CaseHeader ---
+const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string) => string; }> = ({ caseDetails, t }) => (
+  <motion.div
+    className="mb-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
+    initial={{ opacity: 0, y: -20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.5 }}
+  >
+    <h1 className="text-2xl font-bold text-text-primary mb-2">{caseDetails.case_name}</h1>
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-text-secondary">
+      <div className="flex items-center" title={t('caseCard.client')}>
+        <User className="h-4 w-4 mr-2 text-primary-start" />
+        <span>{caseDetails.client?.name || 'N/A'}</span>
+      </div>
+      <div className="flex items-center" title={t('caseView.status')}>
+        <Briefcase className="h-4 w-4 mr-2 text-primary-start" />
+        <span className="capitalize">{caseDetails.status.toLowerCase()}</span>
+      </div>
+      <div className="flex items-center" title={t('caseCard.createdOn')}>
+        <Info className="h-4 w-4 mr-2 text-primary-start" />
+        <span>{new Date(caseDetails.created_at).toLocaleDateString()}</span>
+      </div>
+    </div>
+  </motion.div>
+);
+
+// --- NEW COMPONENT: FindingsPanel ---
+const FindingsPanel: React.FC<{ findings: Finding[]; t: (key: string) => string; }> = ({ findings, t }) => {
+    if (findings.length === 0) {
+        return null; // Don't render the panel if there are no findings
+    }
+
+    return (
+        <motion.div
+            className="mt-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+        >
+            <h3 className="text-xl font-bold text-text-primary mb-4">{t('caseView.findingsTitle')}</h3>
+            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                {findings.map((finding) => (
+                    <div key={finding.id} className="p-3 bg-background-dark/30 rounded-lg border border-glass-edge/50">
+                        <p className="text-sm text-text-secondary">{finding.summary}</p>
+                        <span className="text-xs text-text-secondary/60 mt-2 block">
+                            Source: {finding.document_id} {/* This could be improved to show document name if available */}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </motion.div>
+    );
+};
+
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -38,14 +83,14 @@ const CaseViewPage: React.FC = () => {
 
   const fetchFindings = useCallback(async (cId: string) => {
     try {
-        const response: any = await apiService.getFindings(cId); 
-        const findingsArray = response.findings || [];
-        setCaseFindings(findingsArray);
+        // The API returns an object { findings: [], count: number }
+        const response: { findings: Finding[] } = await apiService.getFindings(cId) as any;
+        setCaseFindings(response.findings || []);
     } catch (err) {
         console.error(`Failed to load findings for case ${cId}:`, err);
-        setCaseFindings([]); 
+        setCaseFindings([]);
     }
-  }, []); 
+  }, []);
 
   const handleDocumentDeleted = useCallback((documentId: string) => {
     setDocuments(prev => prev.filter(doc => doc.id !== documentId));
@@ -53,7 +98,6 @@ const CaseViewPage: React.FC = () => {
   }, [setDocuments, setCaseFindings]);
 
   const handleDocumentUploaded = useCallback((newDocument: Document) => {
-    // --- PHOENIX PROTOCOL FIX: Use correct field `created_at` ---
     setDocuments(prev => [sanitizeDocument(newDocument), ...prev].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
   }, [setDocuments]);
 
@@ -61,17 +105,17 @@ const CaseViewPage: React.FC = () => {
     if (!caseId) {
         setError(t('error.no_case_id'));
         setIsLoading(false);
-        return; 
+        return;
     }
     setIsLoading(true);
     setError(null);
     try {
       const details = await apiService.getCaseDetails(caseId);
       setCaseDetails(details);
-      
+
       const rawDocs = await apiService.getDocuments(caseId);
       const initialDocs = (rawDocs || []).map(sanitizeDocument);
-      
+
       const updatedDocs = await Promise.all(initialDocs.map(async doc => {
           if (doc.status !== 'READY' && doc.id && !doc.id.startsWith('temp-')) {
               try {
@@ -91,17 +135,17 @@ const CaseViewPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [caseId, t, setDocuments, fetchFindings]); 
+  }, [caseId, t, setDocuments, fetchFindings]);
 
   useEffect(() => {
     if (!isAuthLoading && caseId) {
         fetchCaseDetails();
     }
   }, [caseId, isAuthLoading, fetchCaseDetails]);
-  
-  
+
+
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
-  
+
   if (error || !caseDetails) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -129,53 +173,63 @@ const CaseViewPage: React.FC = () => {
   }
 
   return (
-    <motion.div 
-        className="w-full min-h-[90vh]" 
+    <motion.div
+        className="w-full min-h-[90vh]"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3 }}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
+
         <div className="mb-8">
-          <div className="flex items-center space-x-4 mb-4">
-            <Link
-              to="/dashboard"
-              className="inline-flex items-center text-gray-400 hover:text-white transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              {t('caseView.backToDashboard')}
-            </Link>
-          </div>
+          <Link
+            to="/dashboard"
+            className="inline-flex items-center text-gray-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            {t('caseView.backToDashboard')}
+          </Link>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch h-full grid-rows-[1fr]">
-          <div className="h-full min-h-0">
-            <DocumentsPanel
-              caseId={caseDetails.id}
-              documents={documents}
-              findings={caseFindings}
-              t={t}
-              connectionStatus={connectionStatus}
-              reconnect={reconnect}
-              onDocumentDeleted={handleDocumentDeleted}
-              onDocumentUploaded={handleDocumentUploaded} 
-            />
-          </div>
+        {/* --- NEW LAYOUT STRUCTURE --- */}
+        <div className="flex flex-col space-y-6">
 
-          <div className="h-full min-h-0">
-            <ChatPanel
-              messages={messages}
-              connectionStatus={connectionStatus}
-              reconnect={reconnect}
-              onSendMessage={sendChatMessage}
-              isSendingMessage={isSendingMessage}
-              caseId={caseDetails.id}
-              t={t}
-            />
-          </div>
+            {/* 1. Case Header (NEW) */}
+            <CaseHeader caseDetails={caseDetails} t={t} />
+
+            {/* 2. Main Panels */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch h-full">
+                <div className="h-full min-h-0">
+                    <DocumentsPanel
+                    caseId={caseDetails.id}
+                    documents={documents}
+                    findings={caseFindings} // Note: DocumentsPanel still receives this
+                    t={t}
+                    connectionStatus={connectionStatus}
+                    reconnect={reconnect}
+                    onDocumentDeleted={handleDocumentDeleted}
+                    onDocumentUploaded={handleDocumentUploaded}
+                    />
+                </div>
+
+                <div className="h-full min-h-0">
+                    <ChatPanel
+                    messages={messages}
+                    connectionStatus={connectionStatus}
+                    reconnect={reconnect}
+                    onSendMessage={sendChatMessage}
+                    isSendingMessage={isSendingMessage}
+                    caseId={caseDetails.id}
+                    t={t}
+                    />
+                </div>
+            </div>
+
+            {/* 3. Findings Panel (NEW) */}
+            <FindingsPanel findings={caseFindings} t={t} />
+
         </div>
-        
+
       </div>
     </motion.div>
   );
