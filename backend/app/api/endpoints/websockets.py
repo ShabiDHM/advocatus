@@ -1,15 +1,16 @@
 # FILE: backend/app/api/endpoints/websockets.py
-# PHOENIX PROTOCOL DEFINITIVE VERSION 21.0 (CURE ADMINISTERED)
-# 1. CRITICAL FIX: The line `bearer_token = f"Bearer {token}"` has been removed.
-# 2. The `get_user_from_token` function now receives the raw, correct token directly
-#    from the query parameter, aligning WebSocket auth with HTTP auth and curing the
-#    connection failure. This is the definitive fix.
+# PHOENIX PROTOCOL DEFINITIVE VERSION 22.0 (SYNTAX & DEPLOYMENT CURE)
+# 1. SYNTAX FIX: Imported 'Union' from 'typing' and updated type hints like 'str | None'
+#    to the universally compatible 'Union[str, None]'. This resolves all Pylance static
+#    analysis errors ('reportInvalidTypeForm') without changing the logic.
+# 2. This file is now logically correct AND syntactically robust.
 
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Request
 from pydantic import BaseModel
 from pymongo.database import Database
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from typing import Union  # <-- PHOENIX CURE: Import Union for compatibility
 
 from app.services.user_service import get_user_from_token
 from app.services import chat_service
@@ -24,7 +25,7 @@ class DocumentUpdatePayload(BaseModel):
     status: str
     file_name: str
     uploadedAt: str
-    summary: str | None = None
+    summary: Union[str, None] = None # <-- PHOENIX CURE: Use Union for compatibility
 
 class BroadcastPayload(BaseModel):
     type: str = "document_update"
@@ -44,8 +45,6 @@ async def websocket_case_endpoint(
 
     user = None
     try:
-        # PHOENIX PROTOCOL FIX: The raw token is now passed directly. The erroneous
-        # line that added a "Bearer " prefix has been removed.
         user = get_user_from_token(db=sync_db, token=token, expected_token_type="access")
         if not user:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -81,7 +80,7 @@ async def websocket_case_endpoint(
 async def broadcast_document_update(request: Request, payload: DocumentUpdatePayload):
     manager: ConnectionManager = request.app.state.websocket_manager
     broadcast_message = BroadcastPayload(payload=payload).model_dump()
-    
+
     await manager.broadcast_to_case(
         case_id=payload.case_id,
         message=broadcast_message
