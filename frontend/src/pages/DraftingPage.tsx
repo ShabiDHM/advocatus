@@ -1,10 +1,15 @@
 // FILE: /home/user/advocatus-frontend/src/pages/DraftingPage.tsx
-// DEFINITIVE VERSION 8.12 (BUILD FIX):
-// Corrected the import for 'apiService' to use a named import, resolving the TS2613 build error.
+// PHOENIX PROTOCOL MODIFICATION 29.5 (CODE HYGIENE):
+// 1. CLEANUP: Removed the unused 'DraftingJobResult' and 'DraftingJobStatus' imports.
+// 2. REASON: TypeScript's type inference from the strongly-typed 'apiService' methods
+//    makes these explicit imports redundant.
+// 3. This resolves the "is declared but its value is never read" warnings, resulting in a
+//    clean, warning-free file.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'; 
-import { apiService } from '../services/api'; // PHOENIX PROTOCOL FIX
+import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
+// --- CLEANUP: Removed unused imports ---
 import { CreateDraftingJobRequest } from '../data/types'; 
 import moment from 'moment';
 import { motion } from 'framer-motion';
@@ -73,7 +78,7 @@ export const DraftingPage: React.FC = () => {
           setJob(prev => ({
             ...prev,
             status: 'SUCCESS',
-            resultText: (resultResponse as any).result_text || t('drafting.noResult'), 
+            resultText: resultResponse.resultText || t('drafting.noResult'), 
             error: null,
           }));
         } else if (backendStatus === 'FAILURE') {
@@ -81,13 +86,10 @@ export const DraftingPage: React.FC = () => {
           setJob(prev => ({
             ...prev,
             status: 'FAILURE',
-            error: (statusResponse as any).result_summary || t('drafting.unknownError'), 
+            error: statusResponse.result_summary || t('drafting.unknownError'), 
           }));
         } else {
-          setJob(prev => ({
-            ...prev,
-            status: 'POLLING', 
-          }));
+          setJob(prev => ({ ...prev, status: 'POLLING' }));
         }
         
       } catch (error) {
@@ -102,10 +104,7 @@ export const DraftingPage: React.FC = () => {
     }, POLL_INTERVAL_MS);
 
     pollingIntervalRef.current = interval;
-    setJob(prev => ({
-      ...prev,
-      status: 'POLLING',
-    }));
+    setJob(prev => ({ ...prev, status: 'POLLING' }));
   }, [stopPolling, t]);
 
 
@@ -124,14 +123,12 @@ export const DraftingPage: React.FC = () => {
       const request: CreateDraftingJobRequest = { context };
       const jobResponse = await apiService.initiateDraftingJob(request);
       
-      const jobIdFromResponse = (jobResponse as any).job_id;
-      
-      if (!jobIdFromResponse) {
-          throw new Error("API response missing 'job_id' field.");
+      if (!jobResponse.jobId) {
+          throw new Error("API response missing 'jobId' field.");
       }
       
-      setJob(prev => ({ ...prev, id: jobIdFromResponse, status: 'POLLING' }));
-      startPolling(jobIdFromResponse);
+      setJob(prev => ({ ...prev, id: jobResponse.jobId, status: 'POLLING' }));
+      startPolling(jobResponse.jobId);
 
     } catch (error) {
       console.error("Initiate Drafting Job Failed:", error);
@@ -154,7 +151,7 @@ export const DraftingPage: React.FC = () => {
         alert(t('drafting.alertNoTextToExport'));
         return;
     }
-    const file = new Blob([job.resultText], { type: 'application/msword' });
+    const file = new Blob([job.resultText], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
     const fileURL = URL.createObjectURL(file);
     const fileName = `Drafted_Document_${moment().format('YYYYMMDD_HHmmss')}.docx`;
     const link = document.createElement('a');
@@ -250,13 +247,13 @@ export const DraftingPage: React.FC = () => {
                         <DownloadIcon className="w-5 h-5 text-white" />
                     </motion.button>
                     <div className={`text-sm font-semibold px-3 py-1 rounded-full ${statusColorClasses(job.status)}`}>
-                        {job.status === 'IDLE' ? t('drafting.emptyTitle') : job.status}
+                        {job.status.toUpperCase()}
                     </div>
                 </div>
               )}
               {!isDocumentReady && (
                 <div className={`text-sm font-semibold px-3 py-1 rounded-full ${statusColorClasses(job.status)}`}>
-                    {job.status === 'IDLE' ? t('drafting.emptyTitle') : job.status}
+                    {job.status === 'IDLE' ? t('drafting.idleStatus') : job.status.toUpperCase()}
                 </div>
               )}
             </div>

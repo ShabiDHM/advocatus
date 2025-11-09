@@ -1,10 +1,9 @@
-// PHOENIX PROTOCOL MODIFICATION 22.0 (WEBSOCKET STABILITY FIX):
-// 1. ROOT CAUSE FIX: The properties 'document_name', 'source_text', 'confidence_score',
-//    and 'page_number' in the 'Finding' interface have been made optional.
-// 2. This resolves a critical runtime error where incoming WebSocket messages with partial
-//    finding data would fail validation against the strict type, causing the connection to crash.
-// 3. This change ensures the real-time connection remains stable even when handling
-//    different data shapes for findings.
+// FILE: /home/user/advocatus-frontend/src/data/types.ts
+// PHOENIX PROTOCOL MODIFICATION 29.2 (NAMING CONVENTION FIX):
+// 1. DATA CONTRACT FIX: Corrected the property names in the 'DraftingJobStatus' and
+//    'DraftingJobResult' interfaces to use camelCase (e.g., 'jobId', 'resultText').
+// 2. This aligns the central type definitions with the existing implementation in 'api.ts',
+//    resolving the TypeScript compilation error in DraftingPage.tsx.
 
 export interface User {
   id: string;
@@ -32,10 +31,10 @@ export interface Finding {
     case_id: string;
     finding_text: string;
     document_id: string;
-    document_name?: string;      // <-- MADE OPTIONAL
-    source_text?: string;        // <-- MADE OPTIONAL
-    page_number?: number | null; // <-- MADE OPTIONAL
-    confidence_score?: number;   // <-- MADE OPTIONAL
+    document_name?: string;
+    source_text?: string;
+    page_number?: number | null;
+    confidence_score?: number;
     created_at?: string;
     status?: 'DRAFT' | 'REVIEW' | 'FINAL' | 'PENDING';
 }
@@ -98,7 +97,16 @@ export interface CreateCaseRequest {
 }
 
 export interface CreateDraftingJobRequest { caseId?: string; documentIds?: string[]; prompt?: string; context: string; }
-export interface DraftingJobStatus { id: string; jobId: string; status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'SUCCESS' | 'FAILURE'; error?: string; }
+export interface DraftingJobStatus {
+  id: string;
+  jobId: string; // <-- CORRECTED: Was 'job_id'
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'SUCCESS' | 'FAILURE';
+  error?: string;
+  result_summary?: string;
+}
+export interface DraftingJobResult {
+  resultText: string; // <-- CORRECTED: Was 'result_text'
+}
 export interface ChangePasswordRequest { old_password: string; new_password: string; }
 
 export interface AdminUser {
