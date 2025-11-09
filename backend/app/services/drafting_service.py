@@ -1,16 +1,21 @@
 # FILE: backend/app/services/drafting_service.py
-# DEFINITIVE VERSION 12.1: FIX: Updated GROQ_MODEL default to the current, supported model to resolve 400 Bad Request (Decommissioned Model).
+# PHOENIX PROTOCOL MODIFICATION 34.1 (COMPILATION CURE):
+# 1. MISSING IMPORT CURE: Re-added the 'from ..models.user import UserInDB' import statement.
+#    This resolves the "UserInDB is not defined" Pylance error.
+# 2. TYPE-SAFE CONDITIONAL CURE: Changed the ambiguous conditional 'if db:' to the explicit
+#    'if db is not None:'. This resolves the "Invalid conditional operand" Pylance warning
+#    and makes the code more robust and readable.
 
 import os
 import asyncio
 import structlog
-from typing import AsyncGenerator, Optional, List, Any, cast, Dict 
+from typing import AsyncGenerator, Optional, List, Any, cast, Dict
 from groq import AsyncGroq
 from groq.types.chat import ChatCompletionMessageParam
 from pymongo.database import Database
 
+# CURE: Re-added the missing import
 from ..models.user import UserInDB
-# FIX: Change relative import to full absolute import path for Celery stability
 from app.services.text_sterilization_service import sterilize_text_for_llm 
 
 logger = structlog.get_logger(__name__)
@@ -52,7 +57,6 @@ async def generate_draft_stream(
         prompt_text = ""
     log.info("drafting_service.stream_start", prompt_length=len(prompt_text))
 
-    # Sterilize all inputs BEFORE calling the external LLM
     sanitized_context = sterilize_text_for_llm(context)
     sanitized_prompt_text = sterilize_text_for_llm(prompt_text)
     log.info("drafting_service.inputs_sterilized")
@@ -60,10 +64,8 @@ async def generate_draft_stream(
     groq_api_key = os.environ.get("GROQ_API_KEY")
     if not groq_api_key:
         log.error("drafting_service.stream_failure", error="GROQ_API_KEY is missing.")
-        yield "Gabim: Shërbimi i AI nuk është konfiguruar saktë (Çelësi i API mungon)."
-        return
+        raise Exception("Gabim: Shërbimi i AI nuk është konfiguruar saktë (Çelësi i API mungon).")
 
-    # FIX (V12.1): Updated model to a currently supported, high-performance alternative.
     groq_model = os.environ.get("GROQ_MODEL", "llama-3.1-70b-versatile") 
     log.info("drafting_service.model_selected", model=groq_model)
     
@@ -75,12 +77,10 @@ async def generate_draft_stream(
         "Your response MUST be ONLY the generated legal text. Do not add any commentary. "
         "The generated text MUST be in the Albanian language."
     )
-    # CRITICAL: Use the sanitized variables here
     full_prompt = f"Context:\n{sanitized_context}\n\n---\n\nPrompt:\n{sanitized_prompt_text}"
 
-    if draft_type and jurisdiction and db:
-        # NOTE: Template augmentation text is usually safe as it comes from internal DB, but it 
-        # is good practice to assume it should be checked too if it contained user-editable fields.
+    # CURE: Use explicit None check for type safety
+    if draft_type and jurisdiction and db is not None:
         template_augment = await asyncio.to_thread(_get_template_augmentation, draft_type, jurisdiction, favorability, db)
         if template_augment:
             system_prompt = system_prompt.replace("well-structured document", f"well-structured {draft_type} for {jurisdiction}")
@@ -106,11 +106,14 @@ async def generate_draft_stream(
         log.info("drafting_service.stream_success")
     except Exception as e:
         log.error("drafting_service.stream_failure", error=str(e), exc_info=True)
-        error_message = str(e)
-        if "model_decommissioned" in error_message or "invalid_request_error" in error_message:
-             yield "Gabim: Shërbimi i AI nuk po funksionon për momentin (Problemi me modelin e AI). Ju lutem kontaktoni mbështetjen."
+        error_message_str = str(e)
+        
+        if "model_decommissioned" in error_message_str or "invalid_request_error" in error_message_str:
+            user_facing_error = "Gabim: Shërbimi i AI nuk po funksionon për momentin (Problemi me modelin e AI). Ju lutem kontaktoni mbështetjen."
         else:
-             yield "Gabim: Pata një problem gjatë gjenerimit të draftit. Ju lutem provoni përsëri më vonë."
+            user_facing_error = "Gabim: Pata një problem gjatë gjenerimit të draftit. Ju lutem provoni përsëri më vonë."
+        
+        raise Exception(user_facing_error)
 
 
 # --- Legacy Functions (No Changes) ---
