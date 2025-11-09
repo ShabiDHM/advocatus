@@ -1,7 +1,10 @@
 # FILE: backend/app/api/endpoints/drafting_v2.py
-# DEFINITIVE VERSION 18.4 (ARCHITECTURAL CORRECTION):
-# Corrected the import path for 'get_db' to align with the centralized
-# dependency architecture, resolving the 'ImportError' startup crash.
+# PHOENIX PROTOCOL MODIFICATION 31.0 (ROUTING CURE):
+# 1. DISEASE IDENTIFIED: A "double prefix" was causing all routes in this file to be
+#    registered at an incorrect URL (e.g., /api/v2/api/v2/drafting/jobs).
+# 2. THE CURE: The redundant '/api/v2' prefix has been removed from this file's APIRouter
+#    definition. The router now correctly builds upon the '/api/v2' prefix defined in main.py.
+# 3. This is the definitive fix for the 404 Not Found error on the Drafting Page.
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import Annotated
@@ -11,12 +14,12 @@ import logging
 
 from ...models.user import UserInDB
 from ...models.drafting import DraftRequest
-# --- PHOENIX PROTOCOL FIX: Import all dependencies from the correct, centralized location ---
 from .dependencies import get_current_active_user, get_db
 from ...tasks.drafting_tasks import process_drafting_job
 from ...celery_app import celery_app
 
-router = APIRouter(prefix="/api/v2/drafting", tags=["Drafting V2"])
+# --- CURE: Removed the redundant '/api/v2' prefix ---
+router = APIRouter(prefix="/drafting", tags=["Drafting V2"])
 logger = logging.getLogger(__name__)
 
 
