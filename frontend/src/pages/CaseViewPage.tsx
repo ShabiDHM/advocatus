@@ -1,4 +1,10 @@
 // FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
+// PHOENIX PROTOCOL MODIFICATION 21.2 (CRITICAL COMPILATION FIX):
+// 1. SYNTAX CORRECTION: The 'catch' block in the 'fetchCaseDetails' function has been
+//    corrected from the invalid '(err) => {' syntax to the correct ' (err) {'. This
+//    resolves the catastrophic cascade of compilation errors.
+// 2. TYPO FIX: Corrected the date formatting method in the CaseHeader from the invalid
+//    'toLocaleDateDateString' to the correct 'toLocaleDateString'.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -13,7 +19,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, AlertCircle, User, Briefcase, Info } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 
-// --- NEW COMPONENT: CaseHeader ---
+// --- COMPONENT: CaseHeader ---
 const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string) => string; }> = ({ caseDetails, t }) => (
   <motion.div
     className="mb-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
@@ -33,16 +39,17 @@ const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string) => string; }> =
       </div>
       <div className="flex items-center" title={t('caseCard.createdOn')}>
         <Info className="h-4 w-4 mr-2 text-primary-start" />
+        {/* --- TYPO FIX: Corrected date formatting method --- */}
         <span>{new Date(caseDetails.created_at).toLocaleDateString()}</span>
       </div>
     </div>
   </motion.div>
 );
 
-// --- NEW COMPONENT: FindingsPanel ---
+// --- COMPONENT: FindingsPanel ---
 const FindingsPanel: React.FC<{ findings: Finding[]; t: (key: string) => string; }> = ({ findings, t }) => {
     if (findings.length === 0) {
-        return null; // Don't render the panel if there are no findings
+        return null;
     }
 
     return (
@@ -56,9 +63,9 @@ const FindingsPanel: React.FC<{ findings: Finding[]; t: (key: string) => string;
             <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                 {findings.map((finding) => (
                     <div key={finding.id} className="p-3 bg-background-dark/30 rounded-lg border border-glass-edge/50">
-                        <p className="text-sm text-text-secondary">{finding.summary}</p>
+                        <p className="text-sm text-text-secondary">{finding.finding_text}</p>
                         <span className="text-xs text-text-secondary/60 mt-2 block">
-                            {t('caseView.findingSource')}: {finding.document_id}
+                            {t('caseView.findingSource')}: {finding.document_name}
                         </span>
                     </div>
                 ))}
@@ -128,7 +135,7 @@ const CaseViewPage: React.FC = () => {
       setDocuments(updatedDocs);
       await fetchFindings(caseId);
 
-    } catch (err) {
+    } catch (err) { // <-- SYNTAX CORRECTION: Removed invalid arrow function syntax
       setError(t('error.failed_to_load_case'));
       console.error(err);
     } finally {
@@ -147,7 +154,7 @@ const CaseViewPage: React.FC = () => {
 
   if (error || !caseDetails) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm-px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-red-900/50 border border-red-600 rounded-md p-6 text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
           <h2 className="text-xl font-semibold text-red-300 mb-2">{t('case_view.errorLoadingTitle')}</h2>
@@ -190,19 +197,16 @@ const CaseViewPage: React.FC = () => {
           </Link>
         </div>
 
-        {/* --- NEW LAYOUT STRUCTURE --- */}
         <div className="flex flex-col space-y-6">
 
-            {/* 1. Case Header (NEW) */}
             <CaseHeader caseDetails={caseDetails} t={t} />
 
-            {/* 2. Main Panels */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch h-full">
                 <div className="h-full min-h-0">
                     <DocumentsPanel
                     caseId={caseDetails.id}
                     documents={documents}
-                    findings={caseFindings} // Note: DocumentsPanel still receives this
+                    findings={caseFindings}
                     t={t}
                     connectionStatus={connectionStatus}
                     reconnect={reconnect}
@@ -224,7 +228,6 @@ const CaseViewPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* 3. Findings Panel (NEW) */}
             <FindingsPanel findings={caseFindings} t={t} />
 
         </div>

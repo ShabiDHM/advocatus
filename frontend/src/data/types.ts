@@ -1,10 +1,9 @@
-// PHOENIX PROTOCOL MODIFICATION 18.0 (DEFINITIVE DATA CONTRACT SYNC):
-// 1. FINAL ALIGNMENT: The 'Case' interface has been updated to include the 'owner_id' and
-//    'finding_count' properties.
-// 2. ROOT CAUSE FIX: This change makes the frontend data contract a perfect mirror of the
-//    backend API response from 'case_service.py', eliminating the final data misalignment.
-// 3. This completes the system-wide data integrity refactoring, ensuring full stability and
-//    preventing future errors related to incomplete type definitions.
+// PHOENIX PROTOCOL MODIFICATION 21.0 (FINDINGS DATA CONTRACT CORRECTION):
+// 1. ROOT CAUSE FIX: The 'Finding' interface has been corrected to match the backend API.
+//    The 'summary' property has been renamed to 'finding_text'.
+// 2. DATA ENRICHMENT: Added 'document_name', 'source_text', 'page_number', and
+//    'confidence_score' to the interface, making it a complete representation of the
+//    backend model and preventing future misalignments.
 
 export interface User {
   id: string;
@@ -16,7 +15,7 @@ export interface User {
 
 export interface Case {
   id: string;
-  owner_id: string; // <-- ADDED: Aligned with backend service response
+  owner_id: string;
   case_name: string;
   client: { name: string | null; email: string | null; phone: string | null; } | null;
   status: 'OPEN' | 'PENDING' | 'Open' | 'Closed' | 'Archived' | 'active';
@@ -24,16 +23,20 @@ export interface Case {
   document_count: number;
   alert_count: number;
   event_count: number;
-  finding_count: number; // <-- ADDED: Aligned with backend service response
+  finding_count: number;
 }
 
 export interface Finding {
     id: string;
-    document_id: string;
-    summary: string;
     case_id: string;
-    created_at: string;
-    status: 'DRAFT' | 'REVIEW' | 'FINAL' | 'PENDING';
+    finding_text: string;       // <-- CORRECTED: Was 'summary'
+    document_id: string;
+    document_name: string;      // <-- ADDED: For better UI
+    source_text: string;        // <-- ADDED: For future use
+    page_number: number | null; // <-- ADDED: For future use
+    confidence_score: number;   // <-- ADDED: For future use
+    created_at?: string;        // Optional as not always present from all sources
+    status?: 'DRAFT' | 'REVIEW' | 'FINAL' | 'PENDING'; // Optional
 }
 
 
