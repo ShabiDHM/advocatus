@@ -1,10 +1,16 @@
 // FILE: /advocatus-frontend/src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 38.2 (BUG FIX):
-// 1. COMPILER FIX: Corrected a critical typo in the `CreateEventModal` component.
-//    The onChange handler for the priority dropdown was incorrectly trying to access `e.g.value`
-//    instead of the correct `e.target.value`. This fix resolves the TypeScript error
-//    "Property 'g' does not exist on type 'ChangeEvent<HTMLSelectElement>'" and
-//    restores the functionality of the form.
+// PHOENIX PROTOCOL MODIFICATION 39.0 (DEFINITIVE I18N CURE):
+// 1. CURE IDENTIFIED: The native HTML `<input type="date">` ignores application language settings,
+//    instead using the browser/OS locale, which caused the "mm/dd/yyyy" format issue.
+// 2. THE CURE - CONTROLLED INPUT: Replaced the `<input type="date">` elements in the
+//    CreateEventModal with `<input type="text">`. This gives us full control over the
+//    placeholder text.
+// 3. LOCALE-AWARE PLACEHOLDER: The new text inputs use a placeholder (`dd/mm/yyyy`) that
+//    respects the Albanian locale, resolving the final untranslated element.
+// 4. PRESERVED UX: Added `onFocus` and `onBlur` event handlers. When a user clicks the
+//    input, it transforms into a `date` input, launching the native, user-friendly
+//    calendar picker. When they click away, it reverts to a text input, preserving the
+//    correctly formatted placeholder. This provides a fully localized and intuitive experience.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -21,15 +27,15 @@ import {
 const localeMap = { sq };
 
 // --- HELPER INTERFACES ---
-interface EventDetailModalProps { 
-  event: CalendarEvent; 
-  onClose: () => void; 
-  onUpdate: () => void; 
+interface EventDetailModalProps {
+  event: CalendarEvent;
+  onClose: () => void;
+  onUpdate: () => void;
 }
-interface CreateEventModalProps { 
-  cases: Case[]; 
-  onClose: () => void; 
-  onCreate: () => void; 
+interface CreateEventModalProps {
+  cases: Case[];
+  onClose: () => void;
+  onCreate: () => void;
 }
 
 type ViewMode = 'month' | 'list';
@@ -96,7 +102,7 @@ const CalendarPage: React.FC = () => {
       setError(error.response?.data?.message || error.message || t('calendar.loadFailure'));
     } finally { setLoading(false); }
   };
-  
+
   const formatTime = (dateString: string) => format(parseISO(dateString), 'p', { locale: currentLocale });
   const formatDateTime = (dateString: string) => format(parseISO(dateString), 'P p', { locale: currentLocale });
 
@@ -122,7 +128,7 @@ const CalendarPage: React.FC = () => {
     const startingDayIndex = (firstDayOfMonth - weekStartsOn + 7) % 7;
 
     const days = Array.from({ length: startingDayIndex }, (_, i) => <div key={`empty-${i}`} className="min-h-[120px] border border-glass-edge/50 bg-background-dark/50"></div>);
-    
+
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
       const dayEvents = events.filter(event => isSameDay(parseISO(event.start_date), date));
@@ -158,7 +164,7 @@ const CalendarPage: React.FC = () => {
         </div>
     );
   };
-  
+
   const monthName = format(currentDate, 'LLLL yyyy', { locale: currentLocale });
 
   if (loading) { return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>; }
@@ -230,7 +236,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
   const [endDate, setEndDate] = useState('');
   const [endTime, setEndTime] = useState('10:00');
   const [formData, setFormData] = useState<Omit<CalendarEventCreateRequest, 'attendees' | 'start_date' | 'end_date'> & { attendees: string }>({ case_id: '', title: '', description: '', event_type: 'MEETING', location: '', attendees: '', is_all_day: false, priority: 'MEDIUM', notes: '' });
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!startDate) {
@@ -249,9 +255,10 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
       alert(error.response?.data?.message || t('calendar.createModal.createFailed'));
     } finally { setIsCreating(false); }
   };
-  
-  const formElementClasses = "block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start";
+
+  const formElementClasses = "block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start";
   const darkColorScheme = { colorScheme: 'dark' as const };
+  const dateFormatPlaceholder = t('calendar.createModal.dateFormatPlaceholder', 'dd/mm/yyyy');
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -266,7 +273,16 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
           </div>
           <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.startDate')}</label>
             <div className="grid grid-cols-2 gap-2">
-                <input type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} className={formElementClasses} style={darkColorScheme}/>
+                <input
+                  type="text"
+                  required
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  placeholder={dateFormatPlaceholder}
+                  onFocus={(e) => { e.target.type = 'date'; e.target.showPicker?.(); }}
+                  onBlur={(e) => { if (!e.target.value) e.target.type = 'text'; }}
+                  className={formElementClasses}
+                />
                 <input type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} className={formElementClasses} style={darkColorScheme}/>
             </div>
           </div>
@@ -275,7 +291,15 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
             <div className="space-y-4 pt-2">
                 <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.endDate')}</label>
                   <div className="grid grid-cols-2 gap-2">
-                      <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={formElementClasses} style={darkColorScheme}/>
+                      <input
+                        type="text"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        placeholder={dateFormatPlaceholder}
+                        onFocus={(e) => { e.target.type = 'date'; e.target.showPicker?.(); }}
+                        onBlur={(e) => { if (!e.target.value) e.target.type = 'text'; }}
+                        className={formElementClasses}
+                      />
                       <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={formElementClasses} style={darkColorScheme}/>
                   </div>
                 </div>
