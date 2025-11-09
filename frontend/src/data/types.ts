@@ -1,9 +1,10 @@
-// PHOENIX PROTOCOL MODIFICATION 21.0 (FINDINGS DATA CONTRACT CORRECTION):
-// 1. ROOT CAUSE FIX: The 'Finding' interface has been corrected to match the backend API.
-//    The 'summary' property has been renamed to 'finding_text'.
-// 2. DATA ENRICHMENT: Added 'document_name', 'source_text', 'page_number', and
-//    'confidence_score' to the interface, making it a complete representation of the
-//    backend model and preventing future misalignments.
+// PHOENIX PROTOCOL MODIFICATION 22.0 (WEBSOCKET STABILITY FIX):
+// 1. ROOT CAUSE FIX: The properties 'document_name', 'source_text', 'confidence_score',
+//    and 'page_number' in the 'Finding' interface have been made optional.
+// 2. This resolves a critical runtime error where incoming WebSocket messages with partial
+//    finding data would fail validation against the strict type, causing the connection to crash.
+// 3. This change ensures the real-time connection remains stable even when handling
+//    different data shapes for findings.
 
 export interface User {
   id: string;
@@ -29,14 +30,14 @@ export interface Case {
 export interface Finding {
     id: string;
     case_id: string;
-    finding_text: string;       // <-- CORRECTED: Was 'summary'
+    finding_text: string;
     document_id: string;
-    document_name: string;      // <-- ADDED: For better UI
-    source_text: string;        // <-- ADDED: For future use
-    page_number: number | null; // <-- ADDED: For future use
-    confidence_score: number;   // <-- ADDED: For future use
-    created_at?: string;        // Optional as not always present from all sources
-    status?: 'DRAFT' | 'REVIEW' | 'FINAL' | 'PENDING'; // Optional
+    document_name?: string;      // <-- MADE OPTIONAL
+    source_text?: string;        // <-- MADE OPTIONAL
+    page_number?: number | null; // <-- MADE OPTIONAL
+    confidence_score?: number;   // <-- MADE OPTIONAL
+    created_at?: string;
+    status?: 'DRAFT' | 'REVIEW' | 'FINAL' | 'PENDING';
 }
 
 

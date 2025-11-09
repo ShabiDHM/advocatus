@@ -1,10 +1,9 @@
 // FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 21.2 (CRITICAL COMPILATION FIX):
-// 1. SYNTAX CORRECTION: The 'catch' block in the 'fetchCaseDetails' function has been
-//    corrected from the invalid '(err) => {' syntax to the correct ' (err) {'. This
-//    resolves the catastrophic cascade of compilation errors.
-// 2. TYPO FIX: Corrected the date formatting method in the CaseHeader from the invalid
-//    'toLocaleDateDateString' to the correct 'toLocaleDateString'.
+// PHOENIX PROTOCOL MODIFICATION 22.1 (UI ROBUSTNESS):
+// 1. UI FALLBACK: The FindingsPanel has been updated to handle the now-optional 'document_name'
+//    property on the Finding type.
+// 2. It now displays 'finding.document_name' if it exists, otherwise it falls back to displaying
+//    the raw 'finding.document_id', ensuring the UI is robust and always displays a source.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -39,7 +38,6 @@ const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string) => string; }> =
       </div>
       <div className="flex items-center" title={t('caseCard.createdOn')}>
         <Info className="h-4 w-4 mr-2 text-primary-start" />
-        {/* --- TYPO FIX: Corrected date formatting method --- */}
         <span>{new Date(caseDetails.created_at).toLocaleDateString()}</span>
       </div>
     </div>
@@ -65,7 +63,8 @@ const FindingsPanel: React.FC<{ findings: Finding[]; t: (key: string) => string;
                     <div key={finding.id} className="p-3 bg-background-dark/30 rounded-lg border border-glass-edge/50">
                         <p className="text-sm text-text-secondary">{finding.finding_text}</p>
                         <span className="text-xs text-text-secondary/60 mt-2 block">
-                            {t('caseView.findingSource')}: {finding.document_name}
+                            {/* --- UI FALLBACK: Use document_name or fallback to document_id --- */}
+                            {t('caseView.findingSource')}: {finding.document_name || finding.document_id}
                         </span>
                     </div>
                 ))}
@@ -135,7 +134,7 @@ const CaseViewPage: React.FC = () => {
       setDocuments(updatedDocs);
       await fetchFindings(caseId);
 
-    } catch (err) { // <-- SYNTAX CORRECTION: Removed invalid arrow function syntax
+    } catch (err) {
       setError(t('error.failed_to_load_case'));
       console.error(err);
     } finally {
