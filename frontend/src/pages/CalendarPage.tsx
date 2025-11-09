@@ -1,12 +1,15 @@
 // FILE: /advocatus-frontend/src/pages/CalendarPage.tsx
-// DEFINITIVE VERSION 1.7 (PHOENIX PROTOCOL FIX: Data Contract Alignment)
-// Corrected the display use of 'case_name' to 'name' within the CreateEventModal select component.
+// PHOENIX PROTOCOL MODIFICATION 14.0 (SYSTEM-WIDE DATA CONTRACT ALIGNMENT):
+// 1. DATA CONTRACT FIX: Corrected the case select dropdown in the CreateEventModal to use
+//    'c.case_name' instead of 'c.name'.
+// 2. This aligns the component with the corrected 'Case' interface in 'types.ts' and
+//    resolves the build error.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { 
+import {
   Calendar as CalendarIcon, Clock, MapPin, Users, AlertCircle, Plus, ChevronLeft, ChevronRight,
   Search, FileText, Gavel, Briefcase, AlertTriangle, XCircle, Bell
 } from 'lucide-react';
@@ -182,7 +185,7 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
       <div className="bg-background-dark/80 backdrop-blur-xl border border-glass-edge rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
         <h2 className="text-2xl font-bold text-white mb-6">{t('calendar.createModal.title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.relatedCase')}</label><select required value={formData.case_id} onChange={(e) => setFormData(prev => ({ ...prev, case_id: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start"><option value="">{t('calendar.createModal.selectCase')}</option>{cases.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div> {/* PHOENIX FIX: Changed c.case_name to c.name */}
+          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.relatedCase')}</label><select required value={formData.case_id} onChange={(e) => setFormData(prev => ({ ...prev, case_id: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start"><option value="">{t('calendar.createModal.selectCase')}</option>{cases.map(c => <option key={c.id} value={c.id}>{c.case_name}</option>)}</select></div>
           <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventTitle')}</label><input type="text" required value={formData.title} onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" placeholder={t('calendar.createModal.eventTitle')}/></div>
           <div className="grid grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventType')}</label><select value={formData.event_type} onChange={(e) => setFormData(prev => ({ ...prev, event_type: e.target.value as CalendarEvent['event_type'] }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start">{Object.keys(t('calendar.types', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.types.${key}`)}</option>)}</select></div>
