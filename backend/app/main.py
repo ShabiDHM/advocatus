@@ -1,8 +1,12 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL DEFINITIVE CURE (ROUTER IMPORT FIX)
-# 1. CRITICAL FIX: Corrected websockets router import to use absolute path
-# 2. IMPORT CLEANUP: Removed unnecessary imports and simplified structure
-# 3. ADDED ERROR HANDLING: Better error handling for router imports
+# PHOENIX PROTOCOL DEFINITIVE CURE (CORS & ROUTER FIX)
+# 1. CRITICAL CORS FIX: Modified the VERCEL_PREVIEW_REGEX to make the subdomain part
+#    optional (e.g., `([a-zA-Z0-9-]+\.)?`). This ensures the regex matches both
+#    preview URLs (like `my-branch.advocatus-ai.vercel.app`) AND the root production
+#    domain (`advocatus-ai.vercel.app`), permanently fixing the 401 refresh error.
+# 2. ROUTER IMPORT FIX: Corrected websockets router import to use absolute path.
+# 3. CLEANUP & ERROR HANDLING: Removed unnecessary imports and added better error
+#    handling for router imports.
 
 from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.responses import JSONResponse
@@ -34,11 +38,11 @@ logger = logging.getLogger(__name__)
 
 # Middleware to ensure FastAPI recognizes HTTPS scheme behind a reverse proxy.
 class ForceHTTPSMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: ASGIApp) -> None: 
+    def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
-    
+
     async def dispatch(self, request: Request, call_next):
-        if request.headers.get("x-forwarded-proto") == "https": 
+        if request.headers.get("x-forwarded-proto") == "https":
             request.scope["scheme"] = "https"
         return await call_next(request)
 
@@ -46,7 +50,9 @@ app = FastAPI(title="The Phoenix Protocol API", lifespan=lifespan)
 
 # --- CORS Configuration ---
 ALLOWED_ORIGINS = settings.BACKEND_CORS_ORIGINS
-VERCEL_PREVIEW_REGEX = r"^https:\/\/(localhost:\d+|[a-zA-Z0-9-]+\.(vercel\.app|shabans-projects-31c11eb7\.vercel\.app|advocatus-ai\.vercel\.app))"
+
+# PHOENIX CURE: Regex updated to make subdomain optional, matching root and preview domains.
+VERCEL_PREVIEW_REGEX = r"^https:\/\/(localhost:\d+|([a-zA-Z0-9-]+\.)?(vercel\.app|shabans-projects-31c11eb7\.vercel\.app|advocatus-ai\.vercel\.app))"
 
 try:
     re.compile(VERCEL_PREVIEW_REGEX)
@@ -64,6 +70,8 @@ app.add_middleware(
     expose_headers=["Content-Disposition"]
 )
 logger.info(f"FastAPI CORS middleware enabled for origins: {ALLOWED_ORIGINS}")
+logger.info(f"CORS Regex: {VERCEL_PREVIEW_REGEX}")
+
 
 app.add_middleware(ForceHTTPSMiddleware)
 
@@ -71,7 +79,7 @@ app.add_middleware(ForceHTTPSMiddleware)
 async def universal_exception_handler(request: Request, exc: Exception):
     traceback.print_exc()
     return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Internal server error"}
     )
 
@@ -96,9 +104,9 @@ app.include_router(drafting_v2.router, prefix="/api/v2", tags=["Drafting V2"])
 app.include_router(websockets_router)
 
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Health Check"])
-def health_check(): 
+def health_check():
     return {"message": "ok"}
 
 @app.get("/", tags=["Root"])
-async def read_root(): 
+async def read_root():
     return {"message": "Phoenix Protocol Backend is operational."}
