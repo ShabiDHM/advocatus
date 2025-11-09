@@ -66,14 +66,25 @@
     "days": { "sun": "Die", "mon": "Hën", "tue": "Mar", "wed": "Mër", "thu": "Enj", "fri": "Pre", "sat": "Sht" },
     "types": { "DEADLINE": "Afati", "HEARING": "Seancë", "MEETING": "Takim", "FILING": "Dorëzim", "COURT_DATE": "Datë Gjykate", "CONSULTATION": "Konsultim", "OTHER": "Tjetër" },
     "priorities": { "CRITICAL": "Kritike", "HIGH": "Lartë", "MEDIUM": "Mesatare", "LOW": "Ulët" },
-    "detailModal": { "deleteConfirm": "A jeni i sigurt që dëshironi ta fshini këtë ngjarje?", "deleteFailed": "Dështoi fshirja e ngjarjes", "description": "Përshkrimi", "startDate": "Data e Fillimit", "endDate": "Data e Mbarimit", "location": "Vendndodhja", "attendees": "Pjesëmarrësit", "notes": "Shënime", "close": "Mbyll", "delete": "Fshij", "deleting": "Duke fshirë..." },
-    "createModal": { "title": "Krijo Ngjarje të Re", "relatedCase": "Rasti i Lidhur *", "selectCase": "Zgjidhni një rast", "eventTitle": "Titulli i Ngjarjes *", "eventType": "Lloji i Ngjarjes *", "priority": "Prioriteti *", "description": "Përshkrimi", "startDate": "Data e Fillimit *", "endDate": "Data e Mbarimit", "location": "Vendndodhja", "attendees": "Pjesëmarrësit (të ndarë me presje)", "notes": "Shënime", "allDay": "Gjithë ditën", "cancel": "Anulo", "create": "Krijo Ngjarje", "creating": "Duke krijuar...", "createFailed": "Dështoi krijimi i ngjarjes" }
+    "detailModal": { "deleteConfirm": "A jeni i sigurt që dëshironi ta fshini këtë ngjarje?", "deleteFailed": "Dështoi fshirja e ngjarjes", "description": "Përshkrimi", "startDate": "Data e Fillimit", "endDate": "Data e Mbarimit", "location": "Vendndhodja", "attendees": "Pjesëmarrësit", "notes": "Shënime", "close": "Mbyll", "delete": "Fshij", "deleting": "Duke fshirë..." },
+    "createModal": { "title": "Krijo Ngjarje të Re", "relatedCase": "Rasti i Lidhur *", "selectCase": "Zgjidhni një rast", "eventTitle": "Titulli i Ngjarjes *", "eventType": "Lloji i Ngjarjes *", "priority": "Prioriteti *", "description": "Përshkrimi", "startDate": "Data e Fillimit *", "endDate": "Data e Mbarimit", "location": "Vendndhodja", "attendees": "Pjesëmarrësit (të ndarë me presje)", "notes": "Shënime", "allDay": "Gjithë ditën", "cancel": "Anulo", "create": "Krijo Ngjarje", "creating": "Duke krijuar...", "createFailed": "Dështoi krijimi i ngjarjes" }
   },
   "auth": { "title": "Advocatus AI", "subtitle": "Platforma e Juristëve", "username": "Emri i Përdoruesit", "password": "Fjalëkalimi", "loginButton": "Hyni në Platformë", "required": "Ky fushë është e detyrueshme.", "registerTitle": "Krijoni Llogari të Re", "registerSubtitle": "Regjistrohuni për të filluar me Protokollin Feniks", "email": "Email Adresa", "registerButton": "Regjistrohuni", "switchToLogin": "Keni llogari? Hyni këtu.", "switchToRegister": "Nuk keni llogari? Regjistrohuni.", "passwordConfirm": "Konfirmoni Fjalëkalimin", "invalidEmail": "Email adresa nuk është valide.", "passwordMismatch": "Fjalëkalimet nuk përputhen.", "passwordTooShort": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.", "loginFailed": "Hyrja dështoi. Ju lutemi kontrolloni kredencialet.", "registerFailed": "Regjistrimi dështoi. Ju lutemi provoni përsëri.", "networkError": "Gabim në Rrjet. Ju lutemi kontaktoni mbështetjen." },
   "dashboard": { "newCase": "Rast i Ri", "noCasesFound": "Nuk u gjet asnjë rast. Filloni duke krijuar një rast të ri.", "loadingCases": "Duke ngarkuar rastet...",
   "createCaseTitle": "Krijoni Rast të Ri Ligjor", "caseTitlePlaceholder": "Titulli i rastit (p.sh. Lënda e Shabanit vs Kompania X)", "clientNamePlaceholder": "Emri i Klientit (p.sh. Shaban Dhimni)", "clientEmailPlaceholder": "Emaili i Klientit (opsionale)", "clientPhonePlaceholder": "Telefoni i Klientit (opsionale)", "cancelButton": "Anulo", "createButton": "Krijo Rastin", "fetchCasesFailure": "Dështoi ngarkimi i rasteve. Ju lutemi kontaktoni mbështetjen.", "createCaseFailure": "Dështoi krijimi i rastit.", "deleteCaseFailure": "Fshirja e rastit dështoi.", "confirmDeleteCase": "Jeni i sigurt që doni ta fshini këtë rast?" },
   "caseCard": { "client": "Klienti", "viewDetails": "Shiko Detajet", "createdOn": "Krijuar më", "deleteCase": "Fshij Rastin", "documents": "dokumente", "alerts": "alarme", "events": "ngjarje" },
-  "caseView": { "backToDashboard": "Kthehu te Paneli", "client": "Klienti", "caseNotFound": "Rasti nuk u gjet.", "sidebarTitle": "Gjetjet Kryesore", "sidebarContent": "Gjetjet e rëndësishme dhe afatet kohore të nxjerra nga dokumentet do të shfaqen këtu.", "uploadedLabel": "Ngarkuar", "moreFindings": "dhe {count} më shumë", "page": "faqe {page}" },
+  "caseView": {
+    "backToDashboard": "Kthehu te Paneli",
+    "client": "Klienti",
+    "caseNotFound": "Rasti nuk u gjet.",
+    "sidebarTitle": "Gjetjet Kryesore",
+    "sidebarContent": "Gjetjet e rëndësishme dhe afatet kohore të nxjerra nga dokumentet do të shfaqen këtu.",
+    "uploadedLabel": "Ngarkuar",
+    "moreFindings": "dhe {count} më shumë",
+    "page": "faqe {page}",
+    "findingsTitle": "Gjetjet",
+    "findingSource": "Burimi"
+  },
   "documentView": {
     "backToCase": "Kthehu te Rasti",
     "details": "Detajet",

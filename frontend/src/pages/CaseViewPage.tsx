@@ -58,7 +58,7 @@ const FindingsPanel: React.FC<{ findings: Finding[]; t: (key: string) => string;
                     <div key={finding.id} className="p-3 bg-background-dark/30 rounded-lg border border-glass-edge/50">
                         <p className="text-sm text-text-secondary">{finding.summary}</p>
                         <span className="text-xs text-text-secondary/60 mt-2 block">
-                            Source: {finding.document_id} {/* This could be improved to show document name if available */}
+                            {t('caseView.findingSource')}: {finding.document_id}
                         </span>
                     </div>
                 ))}
@@ -83,7 +83,6 @@ const CaseViewPage: React.FC = () => {
 
   const fetchFindings = useCallback(async (cId: string) => {
     try {
-        // The API returns an object { findings: [], count: number }
         const response: { findings: Finding[] } = await apiService.getFindings(cId) as any;
         setCaseFindings(response.findings || []);
     } catch (err) {
@@ -148,7 +147,7 @@ const CaseViewPage: React.FC = () => {
 
   if (error || !caseDetails) {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm-px-6 lg:px-8 py-8">
         <div className="bg-red-900/50 border border-red-600 rounded-md p-6 text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
           <h2 className="text-xl font-semibold text-red-300 mb-2">{t('case_view.errorLoadingTitle')}</h2>
