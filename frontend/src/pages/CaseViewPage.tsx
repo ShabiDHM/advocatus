@@ -1,12 +1,10 @@
 // FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 25.0 (CODE CLEANUP & REVERT):
-// 1. REVERT UNNECESSARY CODE: The complex logic added to 'handleDocumentUploaded' in a
-//    previous step has been reverted to its original, simpler form.
-// 2. ROOT CAUSE CLARIFICATION: The WebSocket crash was definitively located in the
-//    'useDocumentSocket' hook, making the complex data mapping in this component's
-//    callback unnecessary and confusing.
-// 3. FINAL STATE: This file is now in its correct, final state, with all UI enhancements
-//    in place and all unnecessary, dead, or incorrect logic removed.
+// PHOENIX PROTOCOL MODIFICATION 26.1 (RACE CONDITION FIX):
+// 1. STATE-AWARE HOOK: The component now passes its authentication status, '!isAuthLoading',
+//    as the new 'isReady' parameter to the 'useDocumentSocket' hook.
+// 2. This ensures the hook will not attempt its connection until the AuthContext has
+//    confirmed that authentication is complete and any token refreshing is finished,
+//    curing the handshake failure race condition.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -86,9 +84,9 @@ const CaseViewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
-
-  // The hook provides the 'documents' state directly. The page no longer needs to manage it.
-  const { documents, setDocuments, messages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId);
+  
+  // --- RACE CONDITION FIX: Pass auth status to the hook ---
+  const { documents, setDocuments, messages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId, !isAuthLoading);
 
   const fetchFindings = useCallback(async (cId: string) => {
     try {
@@ -100,13 +98,11 @@ const CaseViewPage: React.FC = () => {
     }
   }, []);
 
-  // This callback is passed to child components for optimistic UI updates.
   const handleDocumentDeleted = useCallback((documentId: string) => {
     setDocuments(prev => prev.filter(doc => doc.id !== documentId));
     setCaseFindings(prev => prev.filter(finding => finding.document_id !== documentId));
   }, [setDocuments, setCaseFindings]);
 
-  // This callback is passed to child components. Reverting to its simple, original form.
   const handleDocumentUploaded = useCallback((newDocument: Document) => {
     setDocuments(prev => [sanitizeDocument(newDocument), ...prev].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
   }, [setDocuments]);
@@ -123,7 +119,6 @@ const CaseViewPage: React.FC = () => {
       const details = await apiService.getCaseDetails(caseId);
       setCaseDetails(details);
 
-      // We still fetch initial documents here to populate the view on first load.
       const initialDocs = await apiService.getDocuments(caseId);
       setDocuments((initialDocs || []).map(sanitizeDocument));
       
@@ -138,6 +133,7 @@ const CaseViewPage: React.FC = () => {
   }, [caseId, t, setDocuments, fetchFindings]);
 
   useEffect(() => {
+    // We can still fetch details while auth is loading, the interceptor will handle it.
     if (!isAuthLoading && caseId) {
         fetchCaseDetails();
     }

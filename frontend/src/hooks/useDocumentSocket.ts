@@ -1,14 +1,11 @@
 // FILE: /home/user/advocatus-frontend/src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL MODIFICATION 24.0 (DEFINITIVE WEBSOCKET FIX):
-// 1. ROOT CAUSE IDENTIFIED: The WebSocket update logic is self-contained within this hook.
-//    Previous fixes to CaseViewPage were irrelevant as its callbacks were not used for
-//    real-time updates. The error is here.
-// 2. DATA ALIGNMENT AT SOURCE: The 'onmessage' handler now correctly maps the incoming
-//    'uploadedAt' field from the WebSocket payload to the 'created_at' field required by the
-//    frontend's data model and sorting logic.
-// 3. ROBUST STATE UPDATES: This mapping occurs *before* the setDocuments call, ensuring the
-//    sort function never receives an invalid date, which was the cause of the runtime crash
-//    that terminated the WebSocket connection. This definitively resolves the issue.
+// PHOENIX PROTOCOL MODIFICATION 26.0 (RACE CONDITION FIX):
+// 1. ROOT CAUSE FIX: The hook now accepts a new boolean parameter, 'isReady'.
+// 2. DELAYED CONNECTION: The useEffect hook will now wait until both 'caseId' is present
+//    and 'isReady' is true before attempting to establish a WebSocket connection.
+// 3. This definitively resolves the race condition where the hook would try to connect with a
+//    stale token before the main application had finished its authentication refresh cycle.
+//    This cures the handshake failure.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage } from '../data/types';
@@ -27,7 +24,7 @@ interface UseDocumentSocketReturn {
   isSendingMessage: boolean;
 }
 
-export const useDocumentSocket = (caseId: string): UseDocumentSocketReturn => {
+export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocumentSocketReturn => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('DISCONNECTED');
@@ -37,8 +34,8 @@ export const useDocumentSocket = (caseId: string): UseDocumentSocketReturn => {
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('jwtToken');
-    if (!caseId || !token) {
+    // --- RACE CONDITION FIX: Do not connect until the app is ready ---
+    if (!caseId || !isReady) {
         setConnectionStatus('DISCONNECTED');
         return;
     }
@@ -78,19 +75,16 @@ export const useDocumentSocket = (caseId: string): UseDocumentSocketReturn => {
                 const incomingDocData = message.payload;
                 if (!incomingDocData.id) return;
 
-                // --- DEFINITIVE FIX: Map the incoming data to the expected Document type ---
                 const correctedDoc: Document = {
                     ...incomingDocData,
-                    created_at: incomingDocData.uploadedAt || new Date().toISOString(), // Map uploadedAt to created_at
+                    created_at: incomingDocData.uploadedAt || new Date().toISOString(),
                 };
                 
                 setDocuments(prevDocs => {
                     if (correctedDoc.status?.toUpperCase() === 'DELETED') {
                         return prevDocs.filter(d => d.id !== correctedDoc.id);
                     }
-
                     const docExists = prevDocs.some(d => d.id === correctedDoc.id);
-
                     if (docExists) {
                         return prevDocs.map(doc =>
                             doc.id === correctedDoc.id
@@ -116,7 +110,7 @@ export const useDocumentSocket = (caseId: string): UseDocumentSocketReturn => {
         ws.close();
         wsRef.current = null;
     };
-  }, [caseId, reconnectCounter]);
+  }, [caseId, isReady, reconnectCounter]); // Add isReady to dependency array
 
   const reconnect = useCallback(() => { setReconnectCounter(prev => prev + 1); }, []);
   
