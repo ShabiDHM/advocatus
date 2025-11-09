@@ -1,6 +1,8 @@
 // FILE: /home/user/advocatus-frontend/src/components/CaseCard.tsx
-// DEFINITIVE VERSION 2.19 (PHOENIX PROTOCOL FIX: Data Contract Alignment)
-// Corrected the use of 'case_name' to 'name' to align with the central 'Case' interface in types.ts.
+// PHOENIX PROTOCOL MODIFICATION 13.0 (SYSTEM-WIDE DATA CONTRACT ALIGNMENT):
+// 1. DATA CONTRACT FIX: Corrected the component to use 'caseData.case_name' instead of 'caseData.name'.
+// 2. This aligns the component with the corrected 'Case' interface in 'types.ts', resolving the
+//    bug where case titles were not appearing on the dashboard.
 
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -47,9 +49,8 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         {/* 1. Header Section */}
         <div className="flex flex-col mb-4">
           <h2 className="text-xl font-bold text-text-primary compact-line-clamp-2 pr-4">
-            {caseData.name} {/* PHOENIX FIX: Changed caseData.case_name to caseData.name */}
+            {caseData.case_name} {/* <<< DEFINITIVE FIX: Aligned with the 'Case' interface. */}
           </h2>
-          {/* PHOENIX PROTOCOL FIX: Use the correct translation key */}
           <p className="text-xs text-text-secondary/70 mt-1">
             {t('caseCard.createdOn')}: {formattedDate}
           </p>
@@ -91,7 +92,6 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
 
         {/* 4. Footer: Actions */}
         <div className="mt-4 pt-4 border-t border-glass-edge/50 flex items-center justify-between text-xs text-text-secondary/70">
-          {/* PHOENIX PROTOCOL FIX: Moved View Details link to the left and hid the ID */}
           <div className="text-primary-start hover:text-primary-end transition-colors font-medium">
             {t('caseCard.viewDetails')} →
           </div>

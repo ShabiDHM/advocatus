@@ -1,15 +1,10 @@
 // FILE: /home/user/advocatus-frontend/src/data/types.ts
-// PHOENIX PROTOCOL MODIFICATION 11.0 (ARCHITECTURAL DATA CONTRACT REFACTOR):
-// 1. CRITICAL FIX: The 'Document' interface has been completely refactored to serve as a
-//    definitive, single source of truth, perfectly mirroring the backend's data model.
-// 2. DATA MODEL CORRECTION: Added the missing `mime_type: string;` property, which will
-//    resolve the TypeScript error in `DocumentViewPage.tsx`.
-// 3. ARCHITECTURAL CLEANUP: Removed all redundant, legacy, and incorrectly cased fields
-//    (e.g., 'name', 'type', 'caseId', 'file_type') and standardized all property names to
-//    match the backend's snake_case convention (e.g., 'case_id', 'created_at').
-//
-// PHOENIX PROTOCOL MODIFICATION 10.0 (FRONTEND STATE MACHINE ALIGNMENT)
-// ...
+// PHOENIX PROTOCOL MODIFICATION 12.0 (SYSTEM-WIDE DATA CONTRACT ALIGNMENT):
+// 1. ROOT CAUSE FIX: The 'Case' interface has been corrected. The 'name' property has been
+//    renamed to 'case_name' to perfectly match the backend's data contract.
+// 2. This single change annihilates the "Data Contract Duality" that was causing cascading
+//    failures across the entire application, from the dashboard to the WebSocket connection.
+// 3. All other components that consume the 'Case' type must now be updated to use 'case_name'.
 
 export interface User {
   id: string;
@@ -21,7 +16,7 @@ export interface User {
 
 export interface Case {
   id: string;
-  name: string;
+  case_name: string; // <<< DEFINITIVE FIX: Aligned with the backend API.
   client: { name: string | null; email: string | null; phone: string | null; } | null;
   status: 'OPEN' | 'PENDING' | 'Open' | 'Closed' | 'Archived' | 'active';
   created_at: string;
@@ -71,14 +66,13 @@ export interface CalendarEventCreateRequest {
   notes?: string;
 }
 
-// --- PHOENIX PROTOCOL: Definitive, architecturally sound Document interface ---
 export interface Document {
   id: string;
   _id?: string;
   case_id: string;
   file_name: string;
-  mime_type: string; // The newly added, correct field
-  created_at: string; // Standardized field name
+  mime_type: string;
+  created_at: string;
   status: 'PENDING' | 'READY' | 'FAILED';
   summary?: string;
   processed_timestamp?: string;
