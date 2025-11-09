@@ -1,7 +1,13 @@
 # FILE: backend/app/tasks/drafting_tasks.py
-# DEFINITIVE VERSION 2.1 (FINAL CORRECTION):
-# Removed the invalid 'get_database' import, resolving the 'ImportError'
-# startup crash and aligning the file with the final db.py architecture.
+# PHOENIX PROTOCOL DEFINITIVE CURE (EXPLICIT CONDITIONAL):
+# 1. DISEASE IDENTIFIED: The `except` block contained an ambiguous conditional check ('if db:')
+#    which is forbidden by the PyMongo driver and was causing a secondary crash, overriding
+#    the original, user-friendly error message.
+# 2. THE CURE: The conditional has been changed to the explicit, type-safe check:
+#    'if db is not None:'.
+# 3. This is the definitive fix. It allows the error handling logic to execute correctly,
+#    ensuring that when a drafting job fails, the true cause is properly logged and the
+#    job is marked as a "FAILURE" in the database, curing the final bug.
 
 import asyncio
 from bson import ObjectId
@@ -10,7 +16,6 @@ from datetime import datetime
 
 from ..celery_app import celery_app
 from ..services import drafting_service
-# --- PHOENIX PROTOCOL FIX: Remove the non-existent 'get_database' from imports ---
 from ..core.db import connect_to_mongo, close_mongo_connections
 from ..models.user import UserInDB
 
@@ -28,7 +33,6 @@ def process_drafting_job(self, user_id: str, request_data_dict: dict):
     mongo_client = None
     db = None
     try:
-        # This function correctly returns both the client and db object
         mongo_client, db = connect_to_mongo()
         
         user_doc = db.users.find_one({"_id": ObjectId(user_id)})
@@ -65,12 +69,14 @@ def process_drafting_job(self, user_id: str, request_data_dict: dict):
 
     except Exception as e:
         logger.error(f"[JOB:{job_id}] A critical error occurred during drafting: {e}", exc_info=True)
-        if db:
+        # --- THE CURE: Use explicit 'is not None' check ---
+        if db is not None:
             db.drafting_results.update_one(
                 {"job_id": job_id},
                 {"$set": {"status": "FAILURE", "error_message": str(e), "finished_at": datetime.utcnow()}},
                 upsert=True
             )
+        # Re-raise the original exception so Celery marks the task as failed
         raise
     finally:
         if mongo_client:
