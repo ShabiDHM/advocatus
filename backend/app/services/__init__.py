@@ -1,2 +1,5 @@
-# File: backend/app/services/__init__.py
-# Intentionally left blank. Services should be imported directly from their specific modules.
+# FILE: backend/app/services/__init__.py
+from .user_service import get_user_from_token
+from . import chat_service
+
+__all__ = ["get_user_from_token", "chat_service"]

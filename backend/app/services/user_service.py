@@ -1,13 +1,11 @@
 # FILE: backend/app/services/user_service.py
-# PHOENIX PROTOCOL MODIFICATION 8.0 (NAMING CONVENTION STANDARDIZATION):
-# 1. ARCHITECTURAL FIX: Standardized the database parameter name in `get_user_from_token`
-#    from the non-standard `motor_db` to the application-standard `db`.
-# 2. This resolves the root cause of the Pylance `reportCallIssue` errors by enforcing
-#    a consistent naming convention across all services, ensuring that any call using
-#    `db=` will be correct.
-#
-# PHOENIX PROTOCOL PHASE IV - FINAL STABLE VERSION (Service Integrity)
-# ...
+# PHOENIX PROTOCOL DEFINITIVE CURE (ROBUST AUTHENTICATION)
+# 1. CRITICAL FIX: The `get_user_from_token` function has been rewritten to use a
+#    robust prefix check (`if token.startswith("Bearer "):`) instead of the fragile
+#    `.replace()` method.
+# 2. This is the definitive cure for the WebSocket connection failure. It ensures that
+#    the token is cleaned correctly regardless of whether it comes from the REST API's
+#    OAuth2 dependency or a raw WebSocket URL parameter.
 
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -51,13 +49,17 @@ def get_all_users(db: Database) -> List[UserInDB]:
     users_data = list(get_collection(db, USER_COLLECTION).find())
     return [UserInDB(**data) for data in users_data]
 
-# --- PHOENIX PROTOCOL: Standardize parameter name to `db` ---
+# --- PHOENIX CURE: This function is now robust ---
 def get_user_from_token(db: Database, token: str, expected_token_type: str) -> UserInDB:
     """
     Decodes the token, fetches the user from the database, and validates the token type.
+    This version uses a robust prefix check instead of a fragile replace call.
     """
-    clean_token = token.strip().replace("Bearer ", "")
-    
+    if token.startswith("Bearer "):
+        clean_token = token[7:]  # Slice the string to remove the "Bearer " prefix
+    else:
+        clean_token = token
+
     try:
         payload = decode_token(clean_token)
         

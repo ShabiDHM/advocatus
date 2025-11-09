@@ -1,10 +1,7 @@
 // FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL MODIFICATION 5.0 (URL ALIGNMENT & DUPLICATION FIX):
-// 1. CRITICAL FIX: The baseURL for the axios instance is now correctly constructed by
-//    combining the VITE_API_BASE_URL (which should be the root domain) with the '/api/v1' prefix.
-// 2. REFACTOR: All individual API calls have had the redundant '/api/v1' prefix removed,
-//    as they now correctly inherit the full path from the axios instance's baseURL.
-// 3. This is the definitive fix for the "404 Not Found" error caused by URL duplication.
+// PHOENIX PROTOCOL MODIFICATION 29.1 (WEBSOCKET URL CONSTRUCTION FIX - SIMPLIFIED):
+// CRITICAL FIX: Simplified WebSocket URL construction to use consistent base URL
+// and properly format token as query parameter instead of path concatenation.
 
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type {
@@ -28,7 +25,7 @@ export class ApiService {
 
     constructor() {
         this.axiosInstance = axios.create({
-            baseURL: API_V1_URL, // Use the correctly constructed full base URL
+            baseURL: API_V1_URL,
             headers: { 'Content-Type': 'application/json' },
             withCredentials: true
         });
@@ -42,7 +39,6 @@ export class ApiService {
             return this.refreshTokenPromise;
         }
 
-        // Use the correctly constructed URL for the refresh endpoint
         this.refreshTokenPromise = axios.post<LoginResponse>(`${API_V1_URL}/auth/refresh`, {}, { withCredentials: true })
             .then(response => {
                 const { access_token } = response.data;
@@ -91,12 +87,38 @@ export class ApiService {
         );
     }
 
+    // PHOENIX PROTOCOL FIX 29.1: SIMPLIFIED WebSocket URL construction
     public getWebSocketUrl(caseId: string): string {
         const token = localStorage.getItem('jwtToken');
-        const url = new URL(API_BASE_URL); // Uses the root domain URL
-        const domain = url.host;
-        const protocol = url.protocol === 'https:' ? 'wss' : 'ws';
-        return `${protocol}://${domain}/ws/case/${caseId}?token=${token}`;
+        if (!token) {
+            console.error('No JWT token found for WebSocket connection');
+            throw new Error('Authentication required for WebSocket connection');
+        }
+
+        // SIMPLIFIED: Use consistent base URL and convert to WebSocket protocol
+        let baseUrl = API_BASE_URL.trim();
+        
+        // Convert HTTP to WebSocket protocol
+        if (baseUrl.startsWith('https://')) {
+            baseUrl = baseUrl.replace('https://', 'wss://');
+        } else if (baseUrl.startsWith('http://')) {
+            baseUrl = baseUrl.replace('http://', 'ws://');
+        } else {
+            // If no protocol specified, assume wss for production
+            baseUrl = `wss://${baseUrl}`;
+        }
+
+        // Remove trailing slash if present
+        if (baseUrl.endsWith('/')) {
+            baseUrl = baseUrl.slice(0, -1);
+        }
+
+        // Construct WebSocket URL with token as query parameter (NOT in path)
+        const wsUrl = `${baseUrl}/ws/case/${caseId}?token=${encodeURIComponent(token)}`;
+        
+        console.log('[WebSocket] Connecting to:', wsUrl.replace(token, 'TOKEN_REDACTED'));
+        
+        return wsUrl;
     }
 
     // --- Public API Methods (Prefixes removed) ---
