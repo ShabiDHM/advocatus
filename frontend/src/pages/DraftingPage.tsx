@@ -1,15 +1,13 @@
-// FILE: /home/user/advocatus-frontend/src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 29.5 (CODE HYGIENE):
-// 1. CLEANUP: Removed the unused 'DraftingJobResult' and 'DraftingJobStatus' imports.
-// 2. REASON: TypeScript's type inference from the strongly-typed 'apiService' methods
-//    makes these explicit imports redundant.
-// 3. This resolves the "is declared but its value is never read" warnings, resulting in a
-//    clean, warning-free file.
+// PHOENIX PROTOCOL MODIFICATION 33.2 (DRAFTING COMPONENT CURE):
+// 1. DATA BINDING CURE: The component now correctly uses the snake_case properties
+//    ('job_id', 'result_text') to align with the cured data contract.
+// 2. TYPE SAFETY CURE: The component now correctly handles the possibility of an undefined
+//    result from the API, satisfying the TypeScript compiler and preventing runtime errors.
+// 3. This is the definitive and final version of this component.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'; 
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-// --- CLEANUP: Removed unused imports ---
 import { CreateDraftingJobRequest } from '../data/types'; 
 import moment from 'moment';
 import { motion } from 'framer-motion';
@@ -78,7 +76,7 @@ export const DraftingPage: React.FC = () => {
           setJob(prev => ({
             ...prev,
             status: 'SUCCESS',
-            resultText: resultResponse.resultText || t('drafting.noResult'), 
+            resultText: resultResponse.result_text || t('drafting.noResult'), 
             error: null,
           }));
         } else if (backendStatus === 'FAILURE') {
@@ -86,6 +84,7 @@ export const DraftingPage: React.FC = () => {
           setJob(prev => ({
             ...prev,
             status: 'FAILURE',
+            resultText: '', // CURE: Ensure resultText is a string
             error: statusResponse.result_summary || t('drafting.unknownError'), 
           }));
         } else {
@@ -98,6 +97,7 @@ export const DraftingPage: React.FC = () => {
         setJob(prev => ({
           ...prev,
           status: 'FAILURE',
+          resultText: '', // CURE: Ensure resultText is a string
           error: t('drafting.apiPollingFailure'), 
         }));
       }
@@ -123,12 +123,12 @@ export const DraftingPage: React.FC = () => {
       const request: CreateDraftingJobRequest = { context };
       const jobResponse = await apiService.initiateDraftingJob(request);
       
-      if (!jobResponse.jobId) {
-          throw new Error("API response missing 'jobId' field.");
+      if (!jobResponse.job_id) {
+          throw new Error("API response missing 'job_id' field.");
       }
       
-      setJob(prev => ({ ...prev, id: jobResponse.jobId, status: 'POLLING' }));
-      startPolling(jobResponse.jobId);
+      setJob(prev => ({ ...prev, id: jobResponse.job_id, status: 'POLLING' }));
+      startPolling(jobResponse.job_id);
 
     } catch (error) {
       console.error("Initiate Drafting Job Failed:", error);

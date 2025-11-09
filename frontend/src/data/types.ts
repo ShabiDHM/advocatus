@@ -1,9 +1,7 @@
-// FILE: /home/user/advocatus-frontend/src/data/types.ts
-// PHOENIX PROTOCOL MODIFICATION 29.2 (NAMING CONVENTION FIX):
-// 1. DATA CONTRACT FIX: Corrected the property names in the 'DraftingJobStatus' and
-//    'DraftingJobResult' interfaces to use camelCase (e.g., 'jobId', 'resultText').
-// 2. This aligns the central type definitions with the existing implementation in 'api.ts',
-//    resolving the TypeScript compilation error in DraftingPage.tsx.
+// PHOENIX PROTOCOL MODIFICATION 33.1 (DRAFTING DATA CONTRACT CURE):
+// 1. DATA CONTRACT CURE: The 'DraftingJobStatus' and 'DraftingJobResult' interfaces have
+//    been corrected to use snake_case ('job_id', 'result_text') to perfectly match the
+//    JSON response from the Python backend. This is the definitive contract.
 
 export interface User {
   id: string;
@@ -98,14 +96,14 @@ export interface CreateCaseRequest {
 
 export interface CreateDraftingJobRequest { caseId?: string; documentIds?: string[]; prompt?: string; context: string; }
 export interface DraftingJobStatus {
-  id: string;
-  jobId: string; // <-- CORRECTED: Was 'job_id'
+  id?: string;
+  job_id: string; // <-- CURE: Align with backend
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'SUCCESS' | 'FAILURE';
   error?: string;
   result_summary?: string;
 }
 export interface DraftingJobResult {
-  resultText: string; // <-- CORRECTED: Was 'result_text'
+  result_text: string; // <-- CURE: Align with backend
 }
 export interface ChangePasswordRequest { old_password: string; new_password: string; }
 

@@ -1,13 +1,16 @@
 // FILE: frontend/src/services/api.ts
-// CRITICAL SSL FIX - Replace your current api.ts with this:
+// PHOENIX PROTOCOL MODIFICATION 33.0 (DRAFTING API CURE):
+// 1. DATA CONTRACT CURE: The return type for 'getDraftingJobResult' has been corrected
+//    from '{ resultText: string }' to 'DraftingJobResult' from 'types.ts'.
+// 2. This forces the API service to adhere to the central, snake_case data contract,
+//    curing the 'result_text' vs 'resultText' conflict that was causing build failures.
 
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding } from '../data/types';
+import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult } from '../data/types';
 
 interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
 
-// FORCE HTTPS - Hardcoded fix for SSL issue
 const API_BASE_URL = 'https://advocatus-prod-api.duckdns.org';
 const API_V1_URL = `${API_BASE_URL}/api/v1`;
 
@@ -17,13 +20,11 @@ export class ApiService {
     private refreshTokenPromise: Promise<LoginResponse> | null = null;
 
     constructor() {
-        console.log('🔧 API Service Initialized with:', API_BASE_URL); // Debug log
-        
         this.axiosInstance = axios.create({
             baseURL: API_V1_URL,
             headers: { 'Content-Type': 'application/json' },
             withCredentials: true,
-            timeout: 10000, // Added timeout
+            timeout: 10000,
         });
         this.setupInterceptors();
     }
@@ -35,14 +36,7 @@ export class ApiService {
             return this.refreshTokenPromise;
         }
 
-        this.refreshTokenPromise = axios.post<LoginResponse>(
-            `${API_V1_URL}/auth/refresh`, 
-            {}, 
-            { 
-                withCredentials: true,
-                timeout: 5000 
-            }
-        )
+        this.refreshTokenPromise = axios.post<LoginResponse>(`${API_V1_URL}/auth/refresh`, {}, { withCredentials: true, timeout: 5000 })
             .then(response => {
                 const { access_token } = response.data;
                 localStorage.setItem('jwtToken', access_token);
@@ -50,13 +44,10 @@ export class ApiService {
                 return response.data;
             })
             .catch(error => {
-                console.error('Refresh token failed:', error);
                 if (this.onUnauthorized) this.onUnauthorized();
                 return Promise.reject(error);
             })
-            .finally(() => {
-                this.refreshTokenPromise = null;
-            });
+            .finally(() => { this.refreshTokenPromise = null; });
 
         return this.refreshTokenPromise;
     }
@@ -77,9 +68,7 @@ export class ApiService {
             (response: AxiosResponse) => response,
             async (error) => {
                 const originalRequest = error.config;
-                const isRefreshEndpoint = originalRequest?.url?.includes('/auth/refresh');
-
-                if (error.response?.status === 401 && !isRefreshEndpoint && originalRequest) {
+                if (error.response?.status === 401 && !originalRequest?.url?.includes('/auth/refresh') && originalRequest) {
                     try {
                         const { access_token } = await this.refreshAccessToken();
                         originalRequest.headers['Authorization'] = `Bearer ${access_token}`;
@@ -96,17 +85,10 @@ export class ApiService {
 
     public getWebSocketUrl(caseId: string): string {
         const token = localStorage.getItem('jwtToken');
-        if (!token) {
-            throw new Error('Authentication required for WebSocket connection');
-        }
-
-        // Use hardcoded HTTPS WebSocket URL
-        const wsUrl = `wss://advocatus-prod-api.duckdns.org/ws/case/${caseId}?token=${encodeURIComponent(token)}`;
-        console.log('[WebSocket] Connecting to:', wsUrl.replace(token, 'TOKEN_REDACTED'));
-        return wsUrl;
+        if (!token) throw new Error('Authentication required for WebSocket connection');
+        return `wss://advocatus-prod-api.duckdns.org/ws/case/${caseId}?token=${encodeURIComponent(token)}`;
     }
 
-    // --- All your existing API methods remain the same ---
     public getAxiosInstance(): AxiosInstance { return this.axiosInstance; }
     public async login(data: LoginRequest): Promise<LoginResponse> { return (await this.axiosInstance.post('/auth/login', data)).data; }
     public async register(data: RegisterRequest): Promise<any> { return (await this.axiosInstance.post('/auth/register', data)).data; }
@@ -120,10 +102,7 @@ export class ApiService {
     public async getDocuments(caseId: string): Promise<Document[]> { return (await this.axiosInstance.get(`/cases/${caseId}/documents`)).data; }
     public async getDocument(caseId: string, documentId: string): Promise<Document> { return (await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}`)).data; }
     public async getDocumentContent(caseId: string, documentId: string): Promise<DocumentContentResponse> { return (await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/content`)).data; }
-    public async downloadDocumentReport(caseId: string, documentId: string): Promise<Blob> {
-        const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/report`, { responseType: 'blob' });
-        return response.data;
-    }
+    public async downloadDocumentReport(caseId: string, documentId: string): Promise<Blob> { return (await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/report`, { responseType: 'blob' })).data; }
     public async uploadDocument(caseId: string, file: File): Promise<Document> { 
         const formData = new FormData(); 
         formData.append('file', file); 
@@ -139,7 +118,10 @@ export class ApiService {
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
     public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> { return (await this.axiosInstance.post(`${API_BASE_URL}/api/v2/drafting/jobs`, data)).data; }
     public async getDraftingJobStatus(jobId: string): Promise<DraftingJobStatus> { return (await this.axiosInstance.get(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/status`)).data; }
-    public async getDraftingJobResult(jobId: string): Promise<{ resultText: string }> { return (await this.axiosInstance.get(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/result`)).data; }
+    
+    // --- CURE: Corrected the return type to use the central type definition ---
+    public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> { return (await this.axiosInstance.get(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/result`)).data; }
+    
     public async getUserApiKeys(): Promise<ApiKey[]> { return (await this.axiosInstance.get<ApiKey[]>('/keys')).data; }
     public async addApiKey(data: ApiKeyCreateRequest): Promise<ApiKey> { return (await this.axiosInstance.post<ApiKey>('/keys', data)).data; }
     public async deleteApiKey(keyId: string): Promise<void> { await this.axiosInstance.delete(`/keys/${keyId}`); }
