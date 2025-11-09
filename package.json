@@ -1,7 +1,9 @@
 {
   "dependencies": {
+    "@types/react-datepicker": "^6.2.0",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.545.0",
+    "react-datepicker": "^8.8.0",
     "react-router-dom": "^7.9.1"
   }
 }
