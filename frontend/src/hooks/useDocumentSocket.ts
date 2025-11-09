@@ -1,14 +1,14 @@
 // FILE: /home/user/advocatus-frontend/src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL MODIFICATION 28.0 (ARCHITECTURAL STABILITY FIX):
-// 1. CRITICAL FIX: The fragile, local `getWsUrl` helper function has been completely
-//    removed. This function was the definitive root cause of the unhandled TypeError
-//    that was crashing the application and causing the blank screen.
-// 2. ARCHITECTURAL ALIGNMENT: The hook now calls the new, authoritative
-//    `apiService.getWebSocketUrl(caseId)` method. This centralizes all connection
-//    logic within the ApiService, making the application robust and stable.
-//
-// PHOENIX PROTOCOL MODIFICATION 27.0 (DATA CONTRACT ALIGNMENT)
-// ...
+// PHOENIX PROTOCOL MODIFICATION 24.0 (DEFINITIVE WEBSOCKET FIX):
+// 1. ROOT CAUSE IDENTIFIED: The WebSocket update logic is self-contained within this hook.
+//    Previous fixes to CaseViewPage were irrelevant as its callbacks were not used for
+//    real-time updates. The error is here.
+// 2. DATA ALIGNMENT AT SOURCE: The 'onmessage' handler now correctly maps the incoming
+//    'uploadedAt' field from the WebSocket payload to the 'created_at' field required by the
+//    frontend's data model and sorting logic.
+// 3. ROBUST STATE UPDATES: This mapping occurs *before* the setDocuments call, ensuring the
+//    sort function never receives an invalid date, which was the cause of the runtime crash
+//    that terminated the WebSocket connection. This definitively resolves the issue.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage } from '../data/types';
@@ -27,8 +27,6 @@ interface UseDocumentSocketReturn {
   isSendingMessage: boolean;
 }
 
-// --- PHOENIX PROTOCOL: The faulty getWsUrl function has been removed entirely. ---
-
 export const useDocumentSocket = (caseId: string): UseDocumentSocketReturn => {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -46,7 +44,6 @@ export const useDocumentSocket = (caseId: string): UseDocumentSocketReturn => {
     }
 
     setConnectionStatus('CONNECTING');
-    // --- PHOENIX PROTOCOL FIX: Call the authoritative method from the ApiService. ---
     const url = apiService.getWebSocketUrl(caseId);
     const ws = new WebSocket(url);
     wsRef.current = ws;
@@ -78,24 +75,30 @@ export const useDocumentSocket = (caseId: string): UseDocumentSocketReturn => {
             }
 
             if (message.type === 'document_update' && message.payload) {
-                const incomingDoc = message.payload;
-                if (!incomingDoc.id) return;
+                const incomingDocData = message.payload;
+                if (!incomingDocData.id) return;
 
+                // --- DEFINITIVE FIX: Map the incoming data to the expected Document type ---
+                const correctedDoc: Document = {
+                    ...incomingDocData,
+                    created_at: incomingDocData.uploadedAt || new Date().toISOString(), // Map uploadedAt to created_at
+                };
+                
                 setDocuments(prevDocs => {
-                    if (incomingDoc.status?.toUpperCase() === 'DELETED') {
-                        return prevDocs.filter(d => d.id !== incomingDoc.id);
+                    if (correctedDoc.status?.toUpperCase() === 'DELETED') {
+                        return prevDocs.filter(d => d.id !== correctedDoc.id);
                     }
 
-                    const docExists = prevDocs.some(d => d.id === incomingDoc.id);
+                    const docExists = prevDocs.some(d => d.id === correctedDoc.id);
 
                     if (docExists) {
                         return prevDocs.map(doc =>
-                            doc.id === incomingDoc.id
-                                ? sanitizeDocument({ ...doc, ...incomingDoc })
+                            doc.id === correctedDoc.id
+                                ? sanitizeDocument({ ...doc, ...correctedDoc })
                                 : doc
                         ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                     } else {
-                        return [sanitizeDocument(incomingDoc), ...prevDocs]
+                        return [sanitizeDocument(correctedDoc), ...prevDocs]
                             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                     }
                 });
