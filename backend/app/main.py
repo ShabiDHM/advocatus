@@ -1,8 +1,9 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL VALIDATION V2.1 (CODE HYGIENE):
-# 1. RETAINED: The critical `expose_headers` fix for CORS on file downloads.
-# 2. RETAINED: The robust regex-based origin validation for Vercel previews.
-# 3. REFINED: Removed a duplicate inclusion of the `websockets.router` for improved code clarity.
+# PHOENIX PROTOCOL DEFINITIVE CURE (CONFIGURATION ALIGNMENT)
+# 1. CRITICAL FIX: The entire manual parsing block for CORS origins has been removed.
+# 2. The `allow_origins` parameter now correctly and directly uses `settings.BACKEND_CORS_ORIGINS`.
+# 3. This resolves the fundamental conflict between the Pydantic settings parser and the
+#    application logic, permanently curing the CORS and WebSocket connection failures.
 
 from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.responses import JSONResponse
@@ -35,19 +36,10 @@ class ForceHTTPSMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="The Phoenix Protocol API", lifespan=lifespan)
 
-# --- CORS Configuration ---
-# Dynamically build the list of allowed origins from environment settings.
-cors_origins_config = settings.BACKEND_CORS_ORIGINS
-origin_list: List[str] = []
-
-if isinstance(cors_origins_config, str):
-    origin_list = [o.strip() for o in cors_origins_config.split(',') if o.strip()]
-elif cors_origins_config is not None:
-    origin_list = cors_origins_config
-else:
-    origin_list = []
-
-ALLOWED_ORIGINS = [origin.strip() for origin in origin_list if origin.strip()]
+# --- PHOENIX CURE: Simplified and Corrected CORS Configuration ---
+# The settings object already parses the JSON string from .env into a Python list.
+# We now use that list directly, eliminating the conflict.
+ALLOWED_ORIGINS = settings.BACKEND_CORS_ORIGINS
 VERCEL_PREVIEW_REGEX = r"^https:\/\/(localhost:\d+|[a-zA-Z0-9-]+\.(vercel\.app|shabans-projects-31c11eb7\.vercel\.app|advocatus-ai\.vercel\.app))"
 
 try:
@@ -63,10 +55,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     allow_origin_regex=VERCEL_PREVIEW_REGEX,
-    # CRITICAL: Expose the Content-Disposition header for file downloads.
     expose_headers=["Content-Disposition"]
 )
 logger.info(f"FastAPI CORS middleware enabled for origins: {ALLOWED_ORIGINS} and regex: {VERCEL_PREVIEW_REGEX}")
+# --- End of Cure ---
 
 app.add_middleware(ForceHTTPSMiddleware)
 
@@ -91,7 +83,7 @@ api_router.include_router(admin.router, prefix="/admin", tags=["Administrator"])
 
 app.include_router(api_router)
 app.include_router(drafting_v2.router, prefix="/api/v2", tags=["Drafting V2"])
-app.include_router(websockets.router) # Websocket router included once.
+app.include_router(websockets.router)
 
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Health Check"])
 def health_check(): return {"message": "ok"}
