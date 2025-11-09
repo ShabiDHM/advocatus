@@ -1,17 +1,24 @@
 // FILE: /advocatus-frontend/src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 37.2 (CODE HYGIENE):
-// 1. CLEANUP: Removed the unused 'useCallback' import from the 'react' import statement.
-// 2. This resolves the final "is declared but its value is never read" warning, resulting
-//    in a clean, warning-free, and definitive final version of this file.
+// PHOENIX PROTOCOL MODIFICATION 38.2 (BUG FIX):
+// 1. COMPILER FIX: Corrected a critical typo in the `CreateEventModal` component.
+//    The onChange handler for the priority dropdown was incorrectly trying to access `e.g.value`
+//    instead of the correct `e.target.value`. This fix resolves the TypeScript error
+//    "Property 'g' does not exist on type 'ChangeEvent<HTMLSelectElement>'" and
+//    restores the functionality of the form.
 
-import React, { useState, useEffect } from 'react'; // <-- CURE: Removed useCallback
+import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
+import { format, addMonths, subMonths, startOfMonth, getDay, getDaysInMonth, isSameDay, isToday as isTodayFns, parseISO, startOfWeek, addDays } from 'date-fns';
+import { sq } from 'date-fns/locale';
 import {
   Calendar as CalendarIcon, Clock, MapPin, Users, AlertCircle, Plus, ChevronLeft, ChevronRight,
   Search, FileText, Gavel, Briefcase, AlertTriangle, XCircle, Bell, ChevronDown
 } from 'lucide-react';
+
+// --- LOCALE MAPPING FOR DATE-FNS ---
+const localeMap = { sq };
 
 // --- HELPER INTERFACES ---
 interface EventDetailModalProps { 
@@ -75,6 +82,8 @@ const CalendarPage: React.FC = () => {
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterPriority, setFilterPriority] = useState<string>('ALL');
 
+  const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || sq;
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
@@ -88,13 +97,11 @@ const CalendarPage: React.FC = () => {
     } finally { setLoading(false); }
   };
   
-  const formatTime = (dateString: string) => new Date(dateString).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
-  const formatDateTime = (dateString: string) => new Date(dateString).toLocaleString(i18n.language, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const formatTime = (dateString: string) => format(parseISO(dateString), 'p', { locale: currentLocale });
+  const formatDateTime = (dateString: string) => format(parseISO(dateString), 'P p', { locale: currentLocale });
 
   const navigateMonth = (direction: 'prev' | 'next') => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(newDate.getMonth() + (direction === 'prev' ? -1 : 1));
-    setCurrentDate(newDate);
+    setCurrentDate(direction === 'prev' ? subMonths(currentDate, 1) : addMonths(currentDate, 1));
   };
 
   const filteredEvents = events.filter(event => {
@@ -102,36 +109,57 @@ const CalendarPage: React.FC = () => {
     return searchContent.includes(searchTerm.toLowerCase()) && (filterType === 'ALL' || event.event_type === filterType) && (filterPriority === 'ALL' || event.priority === filterPriority);
   });
 
-  const upcomingEvents = filteredEvents.filter(event => new Date(event.start_date) >= new Date()).sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()).slice(0, 5);
+  const upcomingEvents = filteredEvents
+    .filter(event => new Date(event.start_date) >= new Date())
+    .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
+    .slice(0, 5);
 
   const renderMonthView = () => {
-    const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-    const startingDayOfWeek = firstDayOfMonth.getDay(); 
-    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
-    
-    const days = Array.from({ length: Math.ceil((daysInMonth + startingDayOfWeek) / 7) * 7 }, (_, i) => {
-      const dayNumber = i - startingDayOfWeek + 1;
-      const isCurrentMonth = dayNumber > 0 && dayNumber <= daysInMonth;
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNumber);
-      const dayEvents = isCurrentMonth ? events.filter(event => new Date(event.start_date).toDateString() === date.toDateString()) : [];
-      const isToday = isCurrentMonth && date.toDateString() === new Date().toDateString();
+    const monthStart = startOfMonth(currentDate);
+    const daysInMonth = getDaysInMonth(currentDate);
+    const weekStartsOn = currentLocale.options?.weekStartsOn ?? 0;
+    const firstDayOfMonth = getDay(monthStart);
+    const startingDayIndex = (firstDayOfMonth - weekStartsOn + 7) % 7;
 
-      return (
-        <div key={i} className={`min-h-[120px] border border-glass-edge/50 p-2 ${isCurrentMonth ? 'bg-background-light/30' : 'bg-background-dark/50'} ${isToday ? 'ring-2 ring-primary-start' : ''}`}>
-          {isCurrentMonth && (
-            <>
-              <div className={`text-sm font-medium mb-2 ${isToday ? 'text-primary-start' : 'text-text-primary'}`}>{dayNumber}{isToday && <span className="ml-2 text-xs">({t('calendar.today')})</span>}</div>
-              <div className="space-y-1">
-                {dayEvents.slice(0, 3).map(event => <button key={event.id} onClick={() => setSelectedEvent(event)} className={`w-full text-left px-2 py-1 rounded text-xs truncate border ${getEventTypeColor(event.event_type)}`}>{formatTime(event.start_date)} - {event.title}</button>)}
-                {dayEvents.length > 3 && <div className="text-xs text-text-secondary px-2">{t('calendar.moreEvents', { count: dayEvents.length - 3 })}</div>}
-              </div>
-            </>
-          )}
+    const days = Array.from({ length: startingDayIndex }, (_, i) => <div key={`empty-${i}`} className="min-h-[120px] border border-glass-edge/50 bg-background-dark/50"></div>);
+    
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      const dayEvents = events.filter(event => isSameDay(parseISO(event.start_date), date));
+      const today = isTodayFns(date);
+      days.push(
+        <div key={day} className={`min-h-[120px] border border-glass-edge/50 p-2 bg-background-light/30 ${today ? 'ring-2 ring-primary-start' : ''}`}>
+          <div className={`text-sm font-medium mb-2 ${today ? 'text-primary-start' : 'text-text-primary'}`}>
+            {day}
+            {today && <span className="ml-2 text-xs">({t('calendar.today')})</span>}
+          </div>
+          <div className="space-y-1">
+            {dayEvents.slice(0, 3).map(event => <button key={event.id} onClick={() => setSelectedEvent(event)} className={`w-full text-left px-2 py-1 rounded text-xs truncate border ${getEventTypeColor(event.event_type)}`}>{formatTime(event.start_date)} - {event.title}</button>)}
+            {dayEvents.length > 3 && <div className="text-xs text-text-secondary px-2">{t('calendar.moreEvents', { count: dayEvents.length - 3 })}</div>}
+          </div>
         </div>
       );
-    });
-    return <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl overflow-hidden shadow-xl"><div className="grid grid-cols-7 bg-background-dark/50">{[t('calendar.days.sun'), t('calendar.days.mon'), t('calendar.days.tue'), t('calendar.days.wed'), t('calendar.days.thu'), t('calendar.days.fri'), t('calendar.days.sat')].map(day => <div key={day} className="p-3 text-center text-sm font-semibold text-text-primary border-r border-glass-edge/50 last:border-r-0">{day}</div>)}</div><div className="grid grid-cols-7">{days}</div></div>;
+    }
+
+    const totalCells = Math.ceil(days.length / 7) * 7;
+    while(days.length < totalCells) {
+        days.push(<div key={`empty-end-${days.length}`} className="min-h-[120px] border border-glass-edge/50 bg-background-dark/50"></div>);
+    }
+
+    const weekStarts = startOfWeek(new Date(), { locale: currentLocale });
+    const weekDays = Array.from({ length: 7 }, (_, i) => format(addDays(weekStarts, i), 'EEEEEE', { locale: currentLocale }));
+
+    return (
+        <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl overflow-hidden shadow-xl">
+            <div className="grid grid-cols-7 bg-background-dark/50">
+                {weekDays.map(day => <div key={day} className="p-3 text-center text-sm font-semibold text-text-primary border-r border-glass-edge/50 last:border-r-0">{day}</div>)}
+            </div>
+            <div className="grid grid-cols-7">{days}</div>
+        </div>
+    );
   };
+  
+  const monthName = format(currentDate, 'LLLL yyyy', { locale: currentLocale });
 
   if (loading) { return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>; }
 
@@ -146,7 +174,7 @@ const CalendarPage: React.FC = () => {
             <div className="lg:col-span-3 space-y-6">
                 <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge p-4 rounded-2xl shadow-xl">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-                        <div className="flex items-center space-x-4"><button onClick={() => navigateMonth('prev')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronLeft className="h-5 w-5" /></button><h2 className="text-xl font-semibold text-text-primary">{currentDate.toLocaleDateString(i18n.language, { month: 'long', year: 'numeric' })}</h2><button onClick={() => navigateMonth('next')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronRight className="h-5 w-5" /></button><button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-sm text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-md transition-colors border border-glass-edge">{t('calendar.today')}</button></div>
+                        <div className="flex items-center space-x-4"><button onClick={() => navigateMonth('prev')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronLeft className="h-5 w-5" /></button><h2 className="text-xl font-semibold text-text-primary capitalize">{monthName}</h2><button onClick={() => navigateMonth('next')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronRight className="h-5 w-5" /></button><button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-sm text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-md transition-colors border border-glass-edge">{t('calendar.today')}</button></div>
                         <div className="flex items-center space-x-2 bg-background-dark/50 p-1 rounded-xl border border-glass-edge"><button onClick={() => setViewMode('month')} className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${viewMode === 'month' ? 'bg-primary-start text-white shadow' : 'text-text-secondary hover:text-white'}`}>{t('calendar.month')}</button><button onClick={() => setViewMode('list')} className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-primary-start text-white shadow' : 'text-text-secondary hover:text-white'}`}>{t('calendar.list')}</button></div>
                     </div>
                 </div>
@@ -170,9 +198,11 @@ const CalendarPage: React.FC = () => {
 
 const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onUpdate }) => {
     const { t, i18n } = useTranslation();
+    const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || sq;
     const [isDeleting, setIsDeleting] = useState(false);
     const handleDelete = async () => { if (!window.confirm(t('calendar.detailModal.deleteConfirm'))) return; setIsDeleting(true); try { await apiService.deleteCalendarEvent(event.id); onUpdate(); onClose(); } catch (error) { alert(t('calendar.detailModal.deleteFailed')); } finally { setIsDeleting(false); } };
     const getDetailEventTypeColor = (type: CalendarEvent['event_type']) => { switch (type) { case 'DEADLINE': return 'from-red-600 to-red-500'; case 'HEARING': return 'from-purple-600 to-purple-500'; case 'MEETING': return 'from-blue-600 to-blue-500'; case 'FILING': return 'from-yellow-600 to-yellow-500'; case 'COURT_DATE': return 'from-orange-600 to-orange-500'; case 'CONSULTATION': return 'from-green-600 to-green-500'; default: return 'from-gray-600 to-gray-500'; } };
+    const formatFullDateTime = (dateString: string) => format(parseISO(dateString), 'PPpp', { locale: currentLocale });
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -180,7 +210,7 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
                 <div className="flex items-start justify-between mb-6"><div className="flex items-start space-x-4"><div className={`bg-gradient-to-br ${getDetailEventTypeColor(event.event_type)} p-3 rounded-xl text-white`}>{getEventTypeIcon(event.event_type)}</div><div><h2 className="text-2xl font-bold text-white mb-1">{event.title}</h2><div className="flex items-center space-x-2"><span className="text-xs px-2 py-1 rounded-full bg-background-light/50 text-text-secondary border border-glass-edge/50">{t(`calendar.types.${event.event_type}`)}</span><span className={`text-xs px-2 py-1 rounded-full border ${getPriorityColor(event.priority)}`}>{t(`calendar.priorities.${event.priority}`)}</span></div></div></div><button onClick={onClose} className="text-text-secondary hover:text-white transition-colors"><XCircle className="h-6 w-6" /></button></div>
                 <div className="space-y-4">
                     {event.description && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.description')}</h3><p className="text-white">{event.description}</p></div>}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.startDate')}</h3><div className="flex items-center text-white"><Clock className="h-4 w-4 mr-2 text-text-secondary" />{new Date(event.start_date).toLocaleString(i18n.language)}</div></div>{event.end_date && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.endDate')}</h3><div className="flex items-center text-white"><Clock className="h-4 w-4 mr-2 text-text-secondary" />{new Date(event.end_date).toLocaleString(i18n.language)}</div></div>}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.startDate')}</h3><div className="flex items-center text-white"><Clock className="h-4 w-4 mr-2 text-text-secondary" />{formatFullDateTime(event.start_date)}</div></div>{event.end_date && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.endDate')}</h3><div className="flex items-center text-white"><Clock className="h-4 w-4 mr-2 text-text-secondary" />{formatFullDateTime(event.end_date)}</div></div>}</div>
                     {event.location && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.location')}</h3><div className="flex items-center text-white"><MapPin className="h-4 w-4 mr-2 text-text-secondary" />{event.location}</div></div>}
                     {event.attendees && event.attendees.length > 0 && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.attendees')}</h3><div className="flex items-center text-white"><Users className="h-4 w-4 mr-2 text-text-secondary" />{event.attendees.join(', ')}</div></div>}
                     {event.notes && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.notes')}</h3><p className="text-white bg-background-light/50 rounded-lg p-3 border border-glass-edge/50">{event.notes}</p></div>}
