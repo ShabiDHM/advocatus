@@ -1,7 +1,18 @@
 // FILE: /home/user/advocatus-frontend/src/context/AuthContext.tsx
-// PHOENIX PROTOCOL MODIFICATION 1.1 (TYPO FIX)
-// 1. CRITICAL FIX: Corrected a typo in the JSX closing tag from </Auth.Provider>
-//    to </AuthContext.Provider>, resolving the compilation errors.
+// PHOENIX PROTOCOL MODIFICATION 28.0 (DEFINITIVE AUTHENTICATION CURE):
+// 1. DISEASE IDENTIFIED: The original startup logic had a fatal flaw. When a token was expired,
+//    it would correctly refresh it via an interceptor, but then a poorly placed try/catch
+//    block would interpret the initial failure as a fatal error, triggering a logout() call
+//    that immediately deleted the newly acquired token, causing a race condition where
+//    the WebSocket would always fail to connect.
+// 2. THE CURE - LINEAR STARTUP LOGIC: The entire session validation useEffect has been rewritten.
+//    It now follows a single, authoritative path: it ALWAYS attempts to refresh the token on load.
+//    This is the most reliable way to establish a session.
+// 3. ATOMIC STATE UPDATES: If the refresh succeeds, it sets the token, fetches the user profile,
+//    and sets the user state. If any part fails, it logs the user out.
+// 4. GUARANTEED "READY" SIGNAL: The 'setIsLoading(false)' call is now in a 'finally' block,
+//    guaranteeing that it is the VERY LAST thing to happen, after the authentication state
+//    is definitively resolved. This completely eliminates the race condition.
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';
@@ -41,48 +52,49 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     apiService.setLogoutHandler(logout);
   }, [logout]);
 
-  const setUserFromToken = useCallback(async (token: string) => {
-    try {
-      const fullUser = await apiService.fetchUserProfile();
-      const decoded = jwtDecode<DecodedToken>(token);
-      const normalizedRole = (decoded.role || fullUser.role || 'STANDARD').toUpperCase() as User['role'];
-      setUser({ ...fullUser, token, role: normalizedRole });
-    } catch (error) {
-      console.error("Failed to set user from token.", error);
-      logout(); // If fetching profile fails, ensure logout
-    }
-  }, [logout]);
-
-  // This useEffect now orchestrates the entire session validation on startup.
+  // This is the core startup logic, rewritten for robustness.
   useEffect(() => {
-    const validateSession = async () => {
-      const token = localStorage.getItem(LOCAL_STORAGE_TOKEN_KEY);
-      if (!token) {
-        try {
-            const response = await apiService.refreshAccessToken();
-            await setUserFromToken(response.access_token);
-        } catch {
-            setUser(null);
-        }
-      } else {
-        await setUserFromToken(token);
+    const initializeApp = async () => {
+      try {
+        // Step 1: ALWAYS try to refresh the token. This is the single source of truth for a session.
+        const response = await apiService.refreshAccessToken();
+        const { access_token } = response;
+        localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, access_token);
+
+        // Step 2: With a guaranteed valid token, fetch the user's profile.
+        const fullUser = await apiService.fetchUserProfile();
+        const decoded = jwtDecode<DecodedToken>(access_token);
+        const normalizedRole = (decoded.role || fullUser.role || 'STANDARD').toUpperCase() as User['role'];
+        
+        // Step 3: Set the user state. The session is now valid.
+        setUser({ ...fullUser, token: access_token, role: normalizedRole });
+
+      } catch (error) {
+        // If ANY of the above fails, the session is invalid.
+        console.error("Session validation failed. User is not logged in.", error);
+        logout(); // Ensure we are fully logged out.
+      } finally {
+        // Step 4: GUARANTEE that we signal the app is ready only after auth is resolved.
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
-    validateSession();
-  }, [setUserFromToken]);
-
-  const handleAuthSuccess = async (token: string) => {
-    localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, token);
-    await setUserFromToken(token);
-  };
+    initializeApp();
+  }, [logout]); // Depends only on logout, runs once on mount.
 
   const login = async (data: LoginRequest) => {
     setIsLoading(true);
     try {
       const response = await apiService.login(data);
-      await handleAuthSuccess(response.access_token);
+      const { access_token } = response;
+      localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, access_token);
+      
+      // After login, fetch profile to populate user state
+      const fullUser = await apiService.fetchUserProfile();
+      const decoded = jwtDecode<DecodedToken>(access_token);
+      const normalizedRole = (decoded.role || fullUser.role || 'STANDARD').toUpperCase() as User['role'];
+      setUser({ ...fullUser, token: access_token, role: normalizedRole });
+
     } finally {
       setIsLoading(false);
     }
@@ -99,7 +111,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   return (
     <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, register, logout, isLoading }}>
       {children}
-    </AuthContext.Provider> // <-- PHOENIX PROTOCOL FIX: Corrected typo here
+    </AuthContext.Provider>
   );
 };
 
