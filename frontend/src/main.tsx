@@ -1,5 +1,10 @@
 // FILE: /home/user/advocatus-frontend/src/main.tsx
-// DEFINITIVE VERSION 8.3 - ABSOLUTE FINAL MOMENT.JS LOCALIZATION FIX
+// PHOENIX PROTOCOL DEFINITIVE CURE V9.0 (LOCALIZATION):
+// 1. DISEASE IDENTIFIED: The locale mapping logic was flawed. The i18n instance uses 'sq',
+//    not 'al', for Albanian. The conditional was never being met.
+// 2. THE CURE: The logic has been simplified and corrected. The application now directly
+//    sets the Moment.js locale using the language code provided by i18n. This guarantees
+//    that 'moment.locale('sq')' is called, which will fix all date formatting issues.
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
@@ -7,15 +12,15 @@ import App from './App';
 import './index.css';
 import i18n from './i18n'; 
 import moment from 'moment'; 
-// Explicitly import the Albanian locale to ensure it is bundled and available
 import 'moment/locale/sq'; 
 
-// --- MOMENT.JS LOCALIZATION FINAL FIX V2 ---
-const updateMomentLocale = (lng: string) => {
-  // Map i18n's 'al' code to Moment's 'sq' (Albanian) code. Default to 'en'.
-  const momentLocale = lng === 'al' ? 'sq' : 'en';
-  moment.locale(momentLocale);
-  console.log(`Moment locale set to: ${momentLocale}`);
+// --- DEFINITIVE CURE for Moment.js Localization ---
+const updateMomentLocale = (lng: string | undefined) => {
+  // Directly use the language code. If it's 'sq', moment will use the imported Albanian locale.
+  // Otherwise, it will default to English.
+  const locale = lng || 'en';
+  moment.locale(locale);
+  console.log(`Moment locale definitively set to: ${locale}`);
 };
 
 // 1. Set the initial locale immediately

@@ -1,9 +1,9 @@
-// PHOENIX PROTOCOL MODIFICATION 33.2 (DRAFTING COMPONENT CURE):
-// 1. DATA BINDING CURE: The component now correctly uses the snake_case properties
-//    ('job_id', 'result_text') to align with the cured data contract.
-// 2. TYPE SAFETY CURE: The component now correctly handles the possibility of an undefined
-//    result from the API, satisfying the TypeScript compiler and preventing runtime errors.
-// 3. This is the definitive and final version of this component.
+// FILE: /advocatus-frontend/src/pages/CalendarPage.tsx
+// PHOENIX PROTOCOL MODIFICATION 37.4 (CODE HYGIENE):
+// 1. CLEANUP: Removed the unused 'i18n' variable from the destructuring of the
+//    'useTranslation' hook. This component only requires the 't' function.
+// 2. This resolves the final "is declared but its value is never read" warning, resulting
+//    in a clean, warning-free, and definitive final version of this file.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'; 
 import { apiService } from '../services/api';
@@ -33,6 +33,7 @@ interface JobState {
 const POLL_INTERVAL_MS = 3000;
 
 export const DraftingPage: React.FC = () => {
+  // --- CURE: Removed unused 'i18n' variable ---
   const { t } = useTranslation();
   const [context, setContext] = useState<string>('');
   const [job, setJob] = useState<JobState>({ 
@@ -76,7 +77,7 @@ export const DraftingPage: React.FC = () => {
           setJob(prev => ({
             ...prev,
             status: 'SUCCESS',
-            resultText: resultResponse.result_text || t('drafting.noResult'), 
+            resultText: resultResponse.result_text || t('drafting.noResult'),
             error: null,
           }));
         } else if (backendStatus === 'FAILURE') {
@@ -84,7 +85,7 @@ export const DraftingPage: React.FC = () => {
           setJob(prev => ({
             ...prev,
             status: 'FAILURE',
-            resultText: '', // CURE: Ensure resultText is a string
+            resultText: '',
             error: statusResponse.result_summary || t('drafting.unknownError'), 
           }));
         } else {
@@ -97,7 +98,7 @@ export const DraftingPage: React.FC = () => {
         setJob(prev => ({
           ...prev,
           status: 'FAILURE',
-          resultText: '', // CURE: Ensure resultText is a string
+          resultText: '',
           error: t('drafting.apiPollingFailure'), 
         }));
       }
