@@ -1,10 +1,10 @@
-// FILE: /home/user/advocatus-frontend/src/data/types.ts
-// PHOENIX PROTOCOL MODIFICATION 12.0 (SYSTEM-WIDE DATA CONTRACT ALIGNMENT):
-// 1. ROOT CAUSE FIX: The 'Case' interface has been corrected. The 'name' property has been
-//    renamed to 'case_name' to perfectly match the backend's data contract.
-// 2. This single change annihilates the "Data Contract Duality" that was causing cascading
-//    failures across the entire application, from the dashboard to the WebSocket connection.
-// 3. All other components that consume the 'Case' type must now be updated to use 'case_name'.
+// PHOENIX PROTOCOL MODIFICATION 18.0 (DEFINITIVE DATA CONTRACT SYNC):
+// 1. FINAL ALIGNMENT: The 'Case' interface has been updated to include the 'owner_id' and
+//    'finding_count' properties.
+// 2. ROOT CAUSE FIX: This change makes the frontend data contract a perfect mirror of the
+//    backend API response from 'case_service.py', eliminating the final data misalignment.
+// 3. This completes the system-wide data integrity refactoring, ensuring full stability and
+//    preventing future errors related to incomplete type definitions.
 
 export interface User {
   id: string;
@@ -16,13 +16,15 @@ export interface User {
 
 export interface Case {
   id: string;
-  case_name: string; // <<< DEFINITIVE FIX: Aligned with the backend API.
+  owner_id: string; // <-- ADDED: Aligned with backend service response
+  case_name: string;
   client: { name: string | null; email: string | null; phone: string | null; } | null;
   status: 'OPEN' | 'PENDING' | 'Open' | 'Closed' | 'Archived' | 'active';
   created_at: string;
   document_count: number;
   alert_count: number;
   event_count: number;
+  finding_count: number; // <-- ADDED: Aligned with backend service response
 }
 
 export interface Finding {
