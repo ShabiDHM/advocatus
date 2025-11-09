@@ -1,11 +1,11 @@
 // FILE: /home/user/advocatus-frontend/src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL MODIFICATION 18.0 (FINAL CLEANUP):
-// 1. CODE HYGIENE: Removed the unused 'Download' icon from the `lucide-react` import
-//    statement, resolving the final TypeScript warning.
-// 2. This file is now complete, correct, and architecturally sound.
-//
-// PHOENIX PROTOCOL MODIFICATION 17.0 (FINAL UI POLISH)
-// ...
+// PHOENIX PROTOCOL MODIFICATION 27.0 (RESPONSIVE UI FIX):
+// 1. RESPONSIVE HEADER: The panel header is now a responsive flex container. It will wrap
+//    its contents onto multiple lines on small screens ('flex-wrap') and stack vertically
+//    on very small screens ('flex-col sm:flex-row'), preventing overflow.
+// 2. ADAPTIVE BUTTON: The "Upload Document" button now has responsive padding. It is smaller
+//    on mobile ('px-2') and larger on desktops ('sm:px-4'), ensuring it fits correctly.
+// 3. This resolves the layout deviation issue on mobile viewports.
 
 import React, { useState, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
@@ -13,7 +13,6 @@ import { Document, Finding } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-// --- PHOENIX PROTOCOL FIX: Removed unused Download import ---
 import { FolderOpen, Eye, Repeat, Trash } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -135,9 +134,10 @@ const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
 
   return (
     <div className="documents-panel bg-background-dark p-6 rounded-2xl shadow-xl flex flex-col h-full">
-      <div className="flex justify-between items-center border-b border-background-light/50 pb-3 mb-4 flex-shrink-0">
-        <h2 className="text-xl font-bold text-text-primary">{t('documentsPanel.title')}</h2>
-        <div className="flex items-center space-x-3">
+      {/* --- RESPONSIVE HEADER --- */}
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-background-light/50 pb-3 mb-4 flex-shrink-0">
+        <h2 className="text-xl font-bold text-text-primary flex-shrink-0">{t('documentsPanel.title')}</h2>
+        <div className="flex flex-wrap items-center justify-start sm:justify-end gap-3">
           <span className="flex items-center text-sm text-text-secondary">
             <span className={`h-2 w-2 rounded-full mr-2 ${connectionColor()}`}></span>
             {connectionStatusText(connectionStatus)}
@@ -148,9 +148,10 @@ const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
             )}
           </span>
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} accept=".pdf,.docx,.txt" />
+          {/* --- ADAPTIVE BUTTON --- */}
           <motion.button
             onClick={() => fileInputRef.current?.click()}
-            className="text-white font-semibold py-2 px-4 rounded-xl transition-all duration-300 shadow-lg glow-primary bg-gradient-to-r from-primary-start to-primary-end"
+            className="text-white font-semibold py-2 px-3 sm:px-4 rounded-xl transition-all duration-300 shadow-lg glow-primary bg-gradient-to-r from-primary-start to-primary-end"
             disabled={isUploading} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} >
             {isUploading ? t('documentsPanel.uploading') : `+ ${t('documentsPanel.uploadDocument')}`}
           </motion.button>

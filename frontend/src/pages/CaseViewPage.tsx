@@ -1,10 +1,9 @@
 // FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 26.1 (RACE CONDITION FIX):
-// 1. STATE-AWARE HOOK: The component now passes its authentication status, '!isAuthLoading',
-//    as the new 'isReady' parameter to the 'useDocumentSocket' hook.
-// 2. This ensures the hook will not attempt its connection until the AuthContext has
-//    confirmed that authentication is complete and any token refreshing is finished,
-//    curing the handshake failure race condition.
+// PHOENIX PROTOCOL MODIFICATION 27.1 (RESPONSIVE UI FIX):
+// 1. RESPONSIVE LAYOUT: The main content area is now a responsive grid. It defaults to a
+//    single column for mobile and expands to a two-column layout on large screens ('lg:grid-cols-2').
+// 2. This ensures the Documents and Chat panels stack vertically on mobile devices, providing
+//    a clean and usable layout.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -85,7 +84,6 @@ const CaseViewPage: React.FC = () => {
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   
-  // --- RACE CONDITION FIX: Pass auth status to the hook ---
   const { documents, setDocuments, messages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId, !isAuthLoading);
 
   const fetchFindings = useCallback(async (cId: string) => {
@@ -133,7 +131,6 @@ const CaseViewPage: React.FC = () => {
   }, [caseId, t, setDocuments, fetchFindings]);
 
   useEffect(() => {
-    // We can still fetch details while auth is loading, the interceptor will handle it.
     if (!isAuthLoading && caseId) {
         fetchCaseDetails();
     }
@@ -191,6 +188,7 @@ const CaseViewPage: React.FC = () => {
 
             <CaseHeader caseDetails={caseDetails} t={t} />
 
+            {/* --- RESPONSIVE LAYOUT --- */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch h-full">
                 <div className="h-full min-h-0">
                     <DocumentsPanel
