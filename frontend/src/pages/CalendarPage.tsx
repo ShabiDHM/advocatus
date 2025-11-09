@@ -1,9 +1,10 @@
 // FILE: /advocatus-frontend/src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 14.0 (SYSTEM-WIDE DATA CONTRACT ALIGNMENT):
-// 1. DATA CONTRACT FIX: Corrected the case select dropdown in the CreateEventModal to use
-//    'c.case_name' instead of 'c.name'.
-// 2. This aligns the component with the corrected 'Case' interface in 'types.ts' and
-//    resolves the build error.
+// PHOENIX PROTOCOL MODIFICATION 36.2 (CODE HYGIENE):
+// 1. CLEANUP: Removed the unused 'type' and 'priority' variable declarations from the
+//    'getEventTypeColor' and 'getPriorityColor' helper functions that were identified
+//    in the previous step.
+// 2. This resolves the "is declared but its value is never read" warnings, resulting in a
+//    clean, warning-free, and final version of this file.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -11,8 +12,20 @@ import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import {
   Calendar as CalendarIcon, Clock, MapPin, Users, AlertCircle, Plus, ChevronLeft, ChevronRight,
-  Search, FileText, Gavel, Briefcase, AlertTriangle, XCircle, Bell
+  Search, FileText, Gavel, Briefcase, AlertTriangle, XCircle, Bell, ChevronDown
 } from 'lucide-react';
+
+// --- HELPER INTERFACES ---
+interface EventDetailModalProps { 
+  event: CalendarEvent; 
+  onClose: () => void; 
+  onUpdate: () => void; 
+}
+interface CreateEventModalProps { 
+  cases: Case[]; 
+  onClose: () => void; 
+  onCreate: () => void; 
+}
 
 type ViewMode = 'month' | 'list';
 
@@ -28,8 +41,9 @@ const getEventTypeIcon = (type: CalendarEvent['event_type']) => {
     }
 };
 
-const getEventTypeColor = (type: CalendarEvent['event_type']) => {
-    switch (type) {
+// --- CURE: Removed unused 'type' variable ---
+const getEventTypeColor = (eventType: CalendarEvent['event_type']) => {
+    switch (eventType) {
       case 'DEADLINE': return 'text-red-300 bg-red-900/20 border-red-600';
       case 'HEARING': return 'text-purple-300 bg-purple-900/20 border-purple-600';
       case 'MEETING': return 'text-blue-300 bg-blue-900/20 border-blue-600';
@@ -40,8 +54,9 @@ const getEventTypeColor = (type: CalendarEvent['event_type']) => {
     }
 };
 
-const getPriorityColor = (priority: CalendarEvent['priority']) => {
-    switch (priority) {
+// --- CURE: Removed unused 'priority' variable ---
+const getPriorityColor = (priorityValue: CalendarEvent['priority']) => {
+    switch (priorityValue) {
       case 'CRITICAL': return 'text-red-300 bg-red-900/20 border-red-600';
       case 'HIGH': return 'text-orange-300 bg-orange-900/20 border-orange-600';
       case 'MEDIUM': return 'text-yellow-300 bg-yellow-900/20 border-yellow-600';
@@ -50,8 +65,9 @@ const getPriorityColor = (priority: CalendarEvent['priority']) => {
     }
 };
 
+
 const CalendarPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [cases, setCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,9 +92,9 @@ const CalendarPage: React.FC = () => {
       setError(error.response?.data?.message || error.message || t('calendar.loadFailure'));
     } finally { setLoading(false); }
   };
-
-  const formatTime = (dateString: string) => new Date(dateString).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  const formatDateTime = (dateString: string) => new Date(dateString).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  
+  const formatTime = (dateString: string) => new Date(dateString).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
+  const formatDateTime = (dateString: string) => new Date(dateString).toLocaleString(i18n.language, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
@@ -88,10 +104,7 @@ const CalendarPage: React.FC = () => {
 
   const filteredEvents = events.filter(event => {
     const searchContent = `${event.title} ${event.description || ''}`.toLowerCase();
-    const matchesSearch = searchContent.includes(searchTerm.toLowerCase());
-    const matchesType = filterType === 'ALL' || event.event_type === filterType;
-    const matchesPriority = filterPriority === 'ALL' || event.priority === filterPriority;
-    return matchesSearch && matchesType && matchesPriority;
+    return searchContent.includes(searchTerm.toLowerCase()) && (filterType === 'ALL' || event.event_type === filterType) && (filterPriority === 'ALL' || event.priority === filterPriority);
   });
 
   const upcomingEvents = filteredEvents.filter(event => new Date(event.start_date) >= new Date()).sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()).slice(0, 5);
@@ -107,7 +120,7 @@ const CalendarPage: React.FC = () => {
 
       return (
         <div key={i} className={`min-h-[120px] border border-glass-edge/50 p-2 ${isCurrentMonth ? 'bg-background-light/30' : 'bg-background-dark/50'} ${isToday ? 'ring-2 ring-primary-start' : ''}`}>
-          {isCurrentMonth && ( <> <div className={`text-sm font-medium mb-2 ${isToday ? 'text-primary-start' : 'text-text-primary'}`}>{dayNumber}{isToday && <span className="ml-2 text-xs">({t('calendar.today')})</span>}</div> <div className="space-y-1">{dayEvents.slice(0, 3).map(event => <button key={event.id} onClick={() => setSelectedEvent(event)} className={`w-full text-left px-2 py-1 rounded text-xs truncate border ${getEventTypeColor(event.event_type)}`}>{formatTime(event.start_date)} - {event.title}</button>)}{dayEvents.length > 3 && <div className="text-xs text-text-secondary px-2">+{dayEvents.length - 3} more</div>}</div> </> )}
+          {isCurrentMonth && ( <> <div className={`text-sm font-medium mb-2 ${isToday ? 'text-primary-start' : 'text-text-primary'}`}>{dayNumber}{isToday && <span className="ml-2 text-xs">({t('calendar.today')})</span>}</div> <div className="space-y-1">{dayEvents.slice(0, 3).map(event => <button key={event.id} onClick={() => setSelectedEvent(event)} className={`w-full text-left px-2 py-1 rounded text-xs truncate border ${getEventTypeColor(event.event_type)}`}>{formatTime(event.start_date)} - {event.title}</button>)}{dayEvents.length > 3 && <div className="text-xs text-text-secondary px-2">{t('calendar.moreEvents', { count: dayEvents.length - 3 })}</div>}</div> </> )}
         </div>
       );
     });
@@ -127,7 +140,7 @@ const CalendarPage: React.FC = () => {
             <div className="lg:col-span-3 space-y-6">
                 <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge p-4 rounded-2xl shadow-xl">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
-                        <div className="flex items-center space-x-4"><button onClick={() => navigateMonth('prev')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronLeft className="h-5 w-5" /></button><h2 className="text-xl font-semibold text-text-primary">{currentDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h2><button onClick={() => navigateMonth('next')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronRight className="h-5 w-5" /></button><button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-sm text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-md transition-colors border border-glass-edge">{t('calendar.today')}</button></div>
+                        <div className="flex items-center space-x-4"><button onClick={() => navigateMonth('prev')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronLeft className="h-5 w-5" /></button><h2 className="text-xl font-semibold text-text-primary">{currentDate.toLocaleDateString(i18n.language, { month: 'long', year: 'numeric' })}</h2><button onClick={() => navigateMonth('next')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronRight className="h-5 w-5" /></button><button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-sm text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-md transition-colors border border-glass-edge">{t('calendar.today')}</button></div>
                         <div className="flex items-center space-x-2 bg-background-dark/50 p-1 rounded-xl border border-glass-edge"><button onClick={() => setViewMode('month')} className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${viewMode === 'month' ? 'bg-primary-start text-white shadow' : 'text-text-secondary hover:text-white'}`}>{t('calendar.month')}</button><button onClick={() => setViewMode('list')} className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-primary-start text-white shadow' : 'text-text-secondary hover:text-white'}`}>{t('calendar.list')}</button></div>
                     </div>
                 </div>
@@ -149,9 +162,8 @@ const CalendarPage: React.FC = () => {
   );
 };
 
-interface EventDetailModalProps { event: CalendarEvent; onClose: () => void; onUpdate: () => void; }
 const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onUpdate }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [isDeleting, setIsDeleting] = useState(false);
     const handleDelete = async () => { if (!window.confirm(t('calendar.detailModal.deleteConfirm'))) return; setIsDeleting(true); try { await apiService.deleteCalendarEvent(event.id); onUpdate(); onClose(); } catch (error) { alert(t('calendar.detailModal.deleteFailed')); } finally { setIsDeleting(false); } };
     const getDetailEventTypeColor = (type: CalendarEvent['event_type']) => { switch (type) { case 'DEADLINE': return 'from-red-600 to-red-500'; case 'HEARING': return 'from-purple-600 to-purple-500'; case 'MEETING': return 'from-blue-600 to-blue-500'; case 'FILING': return 'from-yellow-600 to-yellow-500'; case 'COURT_DATE': return 'from-orange-600 to-orange-500'; case 'CONSULTATION': return 'from-green-600 to-green-500'; default: return 'from-gray-600 to-gray-500'; } };
@@ -162,7 +174,7 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
                 <div className="flex items-start justify-between mb-6"><div className="flex items-start space-x-4"><div className={`bg-gradient-to-br ${getDetailEventTypeColor(event.event_type)} p-3 rounded-xl text-white`}>{getEventTypeIcon(event.event_type)}</div><div><h2 className="text-2xl font-bold text-white mb-1">{event.title}</h2><div className="flex items-center space-x-2"><span className="text-xs px-2 py-1 rounded-full bg-background-light/50 text-text-secondary border border-glass-edge/50">{t(`calendar.types.${event.event_type}`)}</span><span className={`text-xs px-2 py-1 rounded-full border ${getPriorityColor(event.priority)}`}>{t(`calendar.priorities.${event.priority}`)}</span></div></div></div><button onClick={onClose} className="text-text-secondary hover:text-white transition-colors"><XCircle className="h-6 w-6" /></button></div>
                 <div className="space-y-4">
                     {event.description && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.description')}</h3><p className="text-white">{event.description}</p></div>}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.startDate')}</h3><div className="flex items-center text-white"><Clock className="h-4 w-4 mr-2 text-text-secondary" />{new Date(event.start_date).toLocaleString()}</div></div>{event.end_date && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.endDate')}</h3><div className="flex items-center text-white"><Clock className="h-4 w-4 mr-2 text-text-secondary" />{new Date(event.end_date).toLocaleString()}</div></div>}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.startDate')}</h3><div className="flex items-center text-white"><Clock className="h-4 w-4 mr-2 text-text-secondary" />{new Date(event.start_date).toLocaleString(i18n.language)}</div></div>{event.end_date && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.endDate')}</h3><div className="flex items-center text-white"><Clock className="h-4 w-4 mr-2 text-text-secondary" />{new Date(event.end_date).toLocaleString(i18n.language)}</div></div>}</div>
                     {event.location && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.location')}</h3><div className="flex items-center text-white"><MapPin className="h-4 w-4 mr-2 text-text-secondary" />{event.location}</div></div>}
                     {event.attendees && event.attendees.length > 0 && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.attendees')}</h3><div className="flex items-center text-white"><Users className="h-4 w-4 mr-2 text-text-secondary" />{event.attendees.join(', ')}</div></div>}
                     {event.notes && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.notes')}</h3><p className="text-white bg-background-light/50 rounded-lg p-3 border border-glass-edge/50">{event.notes}</p></div>}
@@ -173,33 +185,53 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
     );
 };
 
-interface CreateEventModalProps { cases: Case[]; onClose: () => void; onCreate: () => void; }
 const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onCreate }) => {
   const { t } = useTranslation();
   const [isCreating, setIsCreating] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [formData, setFormData] = useState<Omit<CalendarEventCreateRequest, 'attendees'> & { attendees: string }>({ case_id: '', title: '', description: '', event_type: 'MEETING', start_date: '', end_date: '', location: '', attendees: '', is_all_day: false, priority: 'MEDIUM', notes: '' });
-  const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); setIsCreating(true); try { const payload: CalendarEventCreateRequest = { ...formData, attendees: formData.attendees ? formData.attendees.split(',').map(a => a.trim()) : [], end_date: formData.end_date || undefined }; await apiService.createCalendarEvent(payload); onCreate(); onClose(); } catch (error: any) { alert(error.response?.data?.message || t('calendar.createModal.createFailed')); } finally { setIsCreating(false); } };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreating(true);
+    try {
+      const payload: CalendarEventCreateRequest = { ...formData, attendees: formData.attendees ? formData.attendees.split(',').map(a => a.trim()) : [], end_date: formData.end_date || undefined };
+      await apiService.createCalendarEvent(payload);
+      onCreate();
+      onClose();
+    } catch (error: any) {
+      alert(error.response?.data?.message || t('calendar.createModal.createFailed'));
+    } finally { setIsCreating(false); }
+  };
   
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-background-dark/80 backdrop-blur-xl border border-glass-edge rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div className="bg-background-dark/80 backdrop-blur-xl border border-glass-edge rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
         <h2 className="text-2xl font-bold text-white mb-6">{t('calendar.createModal.title')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.relatedCase')}</label><select required value={formData.case_id} onChange={(e) => setFormData(prev => ({ ...prev, case_id: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start"><option value="">{t('calendar.createModal.selectCase')}</option>{cases.map(c => <option key={c.id} value={c.id}>{c.case_name}</option>)}</select></div>
-          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventTitle')}</label><input type="text" required value={formData.title} onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" placeholder={t('calendar.createModal.eventTitle')}/></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventTitle')}</label><input type="text" required value={formData.title} onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" /></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventType')}</label><select value={formData.event_type} onChange={(e) => setFormData(prev => ({ ...prev, event_type: e.target.value as CalendarEvent['event_type'] }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start">{Object.keys(t('calendar.types', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.types.${key}`)}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.priority')}</label><select value={formData.priority} onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as CalendarEvent['priority'] }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start">{Object.keys(t('calendar.priorities', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.priorities.${key}`)}</option>)}</select></div>
           </div>
-          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.description')}</label><textarea rows={3} value={formData.description} onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" placeholder={t('calendar.createModal.description')}/></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.startDate')}</label><input type="datetime-local" required value={formData.start_date} onChange={(e) => setFormData(prev => ({ ...prev, start_date: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start"/></div>
-            <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.endDate')}</label><input type="datetime-local" value={formData.end_date} onChange={(e) => setFormData(prev => ({ ...prev, end_date: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start"/></div>
+          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.startDate')}</label><input type="datetime-local" required value={formData.start_date} onChange={(e) => setFormData(prev => ({ ...prev, start_date: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" style={{ colorScheme: 'dark' }}/></div>
+          {!showAdvanced && (<div className="pt-2"><button type="button" onClick={() => setShowAdvanced(true)} className="text-sm text-primary-start hover:text-primary-end flex items-center"><ChevronDown className="h-4 w-4 mr-1" />{t('calendar.createModal.addDetails')}</button></div>)}
+          {showAdvanced && (
+            <div className="space-y-4 pt-2">
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.endDate')}</label><input type="datetime-local" value={formData.end_date} onChange={(e) => setFormData(prev => ({ ...prev, end_date: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" style={{ colorScheme: 'dark' }}/></div>
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.description')}</label><textarea rows={3} value={formData.description} onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" /></div>
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.location')}</label><input type="text" value={formData.location} onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" /></div>
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.attendees')}</label><input type="text" value={formData.attendees} onChange={(e) => setFormData(prev => ({ ...prev, attendees: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" /></div>
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.notes')}</label><textarea rows={2} value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" /></div>
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-text-secondary">{t('calendar.createModal.allDay')}</span>
+              <button type="button" onClick={() => setFormData(prev => ({...prev, is_all_day: !prev.is_all_day}))} className={`${formData.is_all_day ? 'bg-primary-start' : 'bg-background-light/50'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}>
+                  <span className={`${formData.is_all_day ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}/>
+              </button>
           </div>
-          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.location')}</label><input type="text" value={formData.location} onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" placeholder={t('calendar.createModal.location')}/></div>
-          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.attendees')}</label><input type="text" value={formData.attendees} onChange={(e) => setFormData(prev => ({ ...prev, attendees: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" placeholder={t('calendar.createModal.attendees')}/></div>
-          <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.notes')}</label><textarea rows={2} value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" placeholder={t('calendar.createModal.notes')}/></div>
-          <div className="flex items-center"><input type="checkbox" id="is_all_day" checked={formData.is_all_day} onChange={(e) => setFormData(prev => ({ ...prev, is_all_day: e.target.checked }))} className="h-4 w-4 text-blue-600 focus:ring-primary-start border-glass-edge rounded bg-background-dark/50"/><label htmlFor="is_all_day" className="ml-2 text-sm text-text-secondary">{t('calendar.createModal.allDay')}</label></div>
           <div className="flex space-x-3 pt-4"><button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-glass-edge rounded-md text-text-secondary hover:bg-background-light/50 transition duration-200">{t('calendar.createModal.cancel')}</button><button type="submit" disabled={isCreating} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-md transition duration-200">{isCreating ? t('calendar.createModal.creating') : t('calendar.createModal.create')}</button></div>
         </form>
       </div>
