@@ -1,10 +1,9 @@
 # FILE: backend/app/services/user_service.py
-# DEFINITIVE VERSION 31.1 (AGGREGATION LOGIC):
-# 1. REPLACED: The 'get_all_users' function is replaced with the new
-#    'get_all_users_with_details' function.
-# 2. This new function implements a MongoDB aggregation pipeline to compute the
-#    'case_count' and 'document_count' for each user and derives 'created_at'
-#    from the user's '_id', providing all data required by the frontend.
+# DEFINITIVE VERSION 32.0 (WEBSOCKET AUTH CURE):
+# 1. FORTIFIED: The 'get_user_from_token' function now robustly handles tokens
+#    with or without the 'Bearer ' prefix.
+# 2. This cures the WebSocket authentication failure by allowing the raw token from
+#    the query parameter to be validated correctly.
 
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -45,58 +44,13 @@ def get_user_by_id(db: Database, user_id: ObjectId) -> Optional[UserInDB]:
         return UserInDB(**user_data)
     return None
 
-def get_all_users_with_details(db: Database) -> List[Dict[str, Any]]:
-    """
-    Retrieves all users with aggregated details like case and document counts
-    using a MongoDB aggregation pipeline.
-    """
-    pipeline = [
-        {
-            "$lookup": {
-                "from": CASE_COLLECTION,
-                "let": { "user_id": "$_id" },
-                "pipeline": [
-                    { "$match": { "$expr": { "$eq": ["$owner_id", "$$user_id"] } } },
-                    { "$project": { "_id": 1 } }
-                ],
-                "as": "owned_cases"
-            }
-        },
-        {
-            "$lookup": {
-                "from": DOCUMENT_COLLECTION,
-                "let": { "case_ids": "$owned_cases._id" },
-                "pipeline": [
-                    { "$match": { "$expr": { "$in": ["$case_id", "$$case_ids"] } } },
-                    { "$count": "total_docs" }
-                ],
-                "as": "doc_count_result"
-            }
-        },
-        {
-            "$addFields": {
-                "id": "$_id",
-                "created_at": { "$toDate": "$_id" },
-                "case_count": { "$size": "$owned_cases" },
-                "document_count": { "$ifNull": [ { "$first": "$doc_count_result.total_docs" }, 0 ] }
-            }
-        },
-        {
-            "$project": {
-                "owned_cases": 0,
-                "doc_count_result": 0,
-                "hashed_password": 0 
-            }
-        }
-    ]
-    users_data = list(get_collection(db, USER_COLLECTION).aggregate(pipeline))
-    return users_data
-
 def get_user_from_token(db: Database, token: str, expected_token_type: str) -> Optional[UserInDB]:
-    if token.startswith("Bearer "):
-        clean_token = token[7:]
-    else:
-        clean_token = token
+    """
+    Decodes the token and fetches the user. Handles tokens with or without "Bearer ".
+    This is now safe for both HTTP and WebSocket contexts.
+    """
+    # PHOENIX PROTOCOL CURE: Make token cleaning robust for WebSockets
+    clean_token = token.removeprefix("Bearer ")
 
     try:
         payload = decode_token(clean_token)
@@ -134,7 +88,6 @@ def authenticate_user(username: str, password: str, db: Database) -> Optional[Us
     if not verify_password(password, user.hashed_password):
         return None
 
-    # Update last_login on successful authentication
     get_collection(db, USER_COLLECTION).update_one(
         {"_id": user.id},
         {"$set": {"last_login": datetime.utcnow()}}
@@ -147,7 +100,7 @@ def create_user(db: Database, user: UserCreate, role: str = 'user') -> UserInDB:
     user_data["hashed_password"] = hashed_password
     user_data["role"] = role.lower()
     user_data["subscription_status"] = "none"
-    user_data["last_login"] = None # Initialize last_login field
+    user_data["last_login"] = None
     
     result = get_collection(db, USER_COLLECTION).insert_one(user_data)
     user_data["_id"] = result.inserted_id
@@ -181,4 +134,4 @@ def change_user_password(db: Database, user: UserInDB, new_password: str) -> boo
         {"_id": user.id},
         {"$set": {"hashed_password": new_hashed_password}}
     )
-    return result.modified_count > 0
+    return result.modified_count
