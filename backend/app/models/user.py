@@ -1,6 +1,10 @@
 # FILE: backend/app/models/user.py
-# DEFINITIVE VERSION 1.4: ARCHITECTURAL FIX: Added validator to uppercase 'role' in UserOut and UserLoginResponse 
-# to align with frontend TypeScript type definitions ('ADMIN', 'LAWYER', 'STANDARD', etc.).
+# DEFINITIVE VERSION 1.5 (ADMIN DATA CONTRACT):
+# 1. ADDED: New 'AdminUserOut' Pydantic model to serve as the specific, validated
+#    data contract for the admin dashboard.
+# 2. This model includes the required computed fields: 'created_at', 'last_login',
+#    'case_count', and 'document_count', ensuring the backend provides exactly
+#    what the frontend component requires.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict, field_validator
 from typing import Optional, Literal, Any
@@ -27,6 +31,7 @@ class UserInDBBase(UserBase):
     last_payment_date: Optional[float] = None # Adjusted type for last_payment_amount to match common float storage
     last_payment_amount: Optional[float] = None
     admin_notes: Optional[str] = None
+    last_login: Optional[datetime] = None # Added field for tracking last login
     
     model_config = ConfigDict(
         populate_by_name = True,
@@ -43,14 +48,41 @@ class UserOut(BaseModel):
     subscription_status: str
     subscription_expiry_date: Optional[datetime] = None
     
-    # FINAL FIX: Add a validator to ensure the '_id' (PyObjectId) from the database
-    # is converted to a string before the model is validated for the response.
     @field_validator('id', mode='before')
     @classmethod
     def id_to_str(cls, v: Any) -> str:
         return str(v)
 
-    # --- PHOENIX PROTOCOL FIX 1: Uppercase the role for the frontend contract ---
+    @field_validator('role', mode='before')
+    @classmethod
+    def role_to_uppercase(cls, v: str) -> str:
+        return v.upper()
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
+
+class AdminUserOut(BaseModel):
+    """
+    Data model for the admin dashboard user list, including aggregated counts.
+    """
+    id: str = Field(alias="_id")
+    username: str
+    email: EmailStr
+    role: str
+    subscription_status: str
+    created_at: datetime
+    last_login: Optional[datetime] = None
+    case_count: int
+    document_count: int
+
+    @field_validator('id', mode='before')
+    @classmethod
+    def id_to_str(cls, v: Any) -> str:
+        return str(v)
+
     @field_validator('role', mode='before')
     @classmethod
     def role_to_uppercase(cls, v: str) -> str:
@@ -74,14 +106,11 @@ class UserLoginResponse(BaseModel):
     role: str
     subscription_status: str
     
-    # FINAL FIX: Add a validator to ensure the '_id' (PyObjectId) from the database
-    # is converted to a string before the model is validated for the response.
     @field_validator('id', mode='before')
     @classmethod
     def id_to_str(cls, v: Any) -> str:
         return str(v)
 
-    # --- PHOENIX PROTOCOL FIX 2: Uppercase the role for the frontend contract ---
     @field_validator('role', mode='before')
     @classmethod
     def role_to_uppercase(cls, v: str) -> str:

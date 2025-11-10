@@ -1,7 +1,8 @@
 // FILE: /home/user/advocatus-frontend/src/pages/AdminDashboardPage.tsx
-// DEFINITIVE VERSION 3.3 (SIGNATURE CORRECTION):
-// Corrected the 'onUpdate' prop signature in the EditUserModal and its handler
-// to accept two arguments, resolving the 'ts(2554)' build error.
+// DEFINITIVE VERSION 3.4 (PRESENTATION REFINEMENT):
+// Refactored the 'formatDate' utility to be more robust. It now uses a standard
+// em-dash '—' for null/undefined dates instead of 'Never' and enforces a
+// consistent 'DD Mon YYYY' format to improve UI clarity and professionalism.
 
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
@@ -16,7 +17,28 @@ import {
 // --- HELPER FUNCTIONS ---
 const getRoleColor = (role: AdminUser['role']) => { switch (role) { case 'ADMIN': return 'text-purple-300 bg-purple-900/20 border-purple-600'; case 'LAWYER': return 'text-blue-300 bg-blue-900/20 border-blue-600'; default: return 'text-gray-300 bg-gray-900/20 border-gray-600'; } };
 const getStatusColor = (status: AdminUser['subscription_status']) => { switch (status) { case 'ACTIVE': return 'text-green-300 bg-green-900/20 border-green-600'; case 'TRIAL': return 'text-blue-300 bg-blue-900/20 border-blue-600'; case 'expired': return 'text-red-300 bg-red-900/20 border-red-600'; default: return 'text-gray-300 bg-gray-900/20 border-gray-600'; } };
-const formatDate = (dateString?: string) => { if (!dateString) return 'Never'; try { return new Date(dateString).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); } catch { return 'Invalid Date'; } };
+
+// PHOENIX PROTOCOL MODIFICATION: Replaced 'Never' with '—' for missing dates and standardized format.
+const formatDate = (dateString?: string) => {
+  if (!dateString) return '—';
+  try {
+    const date = new Date(dateString);
+    // An invalid date string (e.g., from an empty DB field) results in an invalid Date object.
+    // The getTime() method returns NaN for invalid dates.
+    if (isNaN(date.getTime())) {
+      return '—';
+    }
+    // Use a consistent, non-ambiguous format. e.g., "10 Nov 2025"
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit', 
+      month: 'short', 
+      year: 'numeric'
+    });
+  } catch {
+    return 'Invalid Date';
+  }
+};
+
 
 // --- SUB-COMPONENTS ---
 
@@ -77,8 +99,7 @@ const AdminDashboardPage: React.FC = () => {
 
   const handleEditUser = (userToEdit: AdminUser) => { setSelectedUser(userToEdit); setIsEditModalOpen(true); };
   const handleDeleteUser = (userToDelete: AdminUser) => { setSelectedUser(userToDelete); setIsDeleteModalOpen(true); };
-
-  // PHOENIX PROTOCOL FIX: Ensure handler signature matches the prop type
+  
   const handleUpdateUser = async (userId: string, updateData: UpdateUserRequest) => {
     setUpdatingUserId(userId);
     try { const updatedUser = await apiService.updateUser(userId, updateData); setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u)); setIsEditModalOpen(false); setSelectedUser(null); } 
