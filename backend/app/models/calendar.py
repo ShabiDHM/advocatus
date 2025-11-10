@@ -1,13 +1,16 @@
 # FILE: backend/app/models/calendar.py
-# DEFINITIVE VERSION 1.0 (FEATURE IMPLEMENTATION):
-# Defines the database model and API schemas for Calendar Events.
+# DEFINITIVE VERSION (ARCHITECTURAL CONSISTENCY):
+# 1. Changed the import for PyObjectId from a relative path to an absolute path.
+#    This resolves the "unknown import symbol" error by creating a robust and
+#    unambiguous import path from the application root.
+# 2. All ID fields continue to be consistently typed with the robust 'PyObjectId'.
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
 
-from .common import PyObjectId
+from app.models.common import PyObjectId # CURE: Changed to absolute import path.
 
 class EventType(str, Enum):
     DEADLINE = "DEADLINE"
@@ -52,16 +55,9 @@ class CalendarEventInDB(CalendarEventBase):
     status: EventStatus = EventStatus.PENDING
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    model_config = ConfigDict(populate_by_name=True)
 
 class CalendarEventOut(CalendarEventInDB):
-    id: str = Field(..., alias="_id")
-    user_id: str
-    case_id: str
-
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {
-            PyObjectId: str,
-            datetime: lambda dt: dt.isoformat()
-        }
+    # The new PyObjectId class's serialization logic handles the conversion.
+    pass
