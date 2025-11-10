@@ -1,9 +1,9 @@
 # FILE: backend/Dockerfile
-# PHOENIX PROTOCOL CURE 49.2 (OPTIMIZED BUILD PROCESS):
-# 1. Split COPY commands to properly leverage Docker's build cache. Dependency
-#    installation is now separate from source code copying.
-# 2. This ensures source code changes ALWAYS result in a fresh application
-#    layer, while dependencies are only re-installed if requirements.txt changes.
+# PHOENIX PROTOCOL CURE 50.1 (COMPLETE BUILD MANIFEST):
+# 1. ADDED SCRIPTS: A 'COPY ./scripts ./scripts' command has been added.
+# 2. This ensures that the 'scripts' directory is included in the Docker image,
+#    making the utility scripts available for execution within the container and
+#    resolving the 'No such file or directory' error.
 
 FROM python:3.11
 
@@ -29,8 +29,9 @@ COPY requirements.txt .
 # 5. Install Python dependencies. This step will only re-run if requirements.txt changes.
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 6. Copy the application source code. This will be a fresh copy on every code change.
+# 6. Copy the application source code AND utility scripts.
 COPY ./app ./app
+COPY ./scripts ./scripts
 
 # 7. Expose the port that the Uvicorn server will run on.
 EXPOSE 8000
