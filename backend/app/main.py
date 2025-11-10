@@ -1,12 +1,10 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL DEFINITIVE CURE (CORS & ROUTER FIX)
-# 1. CRITICAL CORS FIX: Modified the VERCEL_PREVIEW_REGEX to make the subdomain part
-#    optional (e.g., `([a-zA-Z0-9-]+\.)?`). This ensures the regex matches both
-#    preview URLs (like `my-branch.advocatus-ai.vercel.app`) AND the root production
-#    domain (`advocatus-ai.vercel.app`), permanently fixing the 401 refresh error.
-# 2. ROUTER IMPORT FIX: Corrected websockets router import to use absolute path.
-# 3. CLEANUP & ERROR HANDLING: Removed unnecessary imports and added better error
-#    handling for router imports.
+# PHOENIX PROTOCOL MODIFICATION 47.1 (ROUTING CURE):
+# 1. CALENDAR ROUTER PREFIX: Corrected the prefix for the calendar router from
+#    "/calendar/events" to "/calendar". This removes the redundant path segment
+#    that caused the backend to expect ".../events/events".
+# 2. This change ensures the final assembled URL matches the frontend API call,
+#    permanently resolving the 404 Not Found error.
 
 from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.responses import JSONResponse
@@ -94,7 +92,7 @@ api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 api_router.include_router(search.router, prefix="/search", tags=["Search"])
 api_router.include_router(findings.router, prefix="/findings", tags=["Findings"])
 api_router.include_router(api_keys.router, prefix="/keys", tags=["API Keys"])
-api_router.include_router(calendar.router, prefix="/calendar/events", tags=["Calendar"])
+api_router.include_router(calendar.router, prefix="/calendar", tags=["Calendar"])
 api_router.include_router(admin.router, prefix="/admin", tags=["Administrator"])
 
 app.include_router(api_router)
