@@ -1,9 +1,13 @@
 // FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL MODIFICATION 33.0 (DRAFTING API CURE):
-// 1. DATA CONTRACT CURE: The return type for 'getDraftingJobResult' has been corrected
-//    from '{ resultText: string }' to 'DraftingJobResult' from 'types.ts'.
-// 2. This forces the API service to adhere to the central, snake_case data contract,
-//    curing the 'result_text' vs 'resultText' conflict that was causing build failures.
+// DEFINITIVE VERSION (PROACTIVE AUTHENTICATION CURE):
+// 1. ADDED: A new private helper function, 'decodeJwtPayload', to safely inspect the
+//    token's expiration time without external libraries.
+// 2. ADDED: A new public method, 'ensureValidToken'. This is the core of the cure. It
+//    proactively checks if the current token is expired (or close to it) and, if so,
+//    forces a token refresh. It returns a promise that resolves only when a valid
+//    token is guaranteed to be in storage.
+// 3. This transforms our authentication service from purely reactive (for HTTP) to also
+//    proactive, providing the robust mechanism the WebSocket subsystem requires.
 
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult } from '../data/types';
@@ -13,6 +17,22 @@ interface DocumentContentResponse { text: string; }
 
 const API_BASE_URL = 'https://advocatus-prod-api.duckdns.org';
 const API_V1_URL = `${API_BASE_URL}/api/v1`;
+
+// --- PHOENIX PROTOCOL CURE: Helper to decode JWT payload to check expiration ---
+function decodeJwtPayload(token: string): { exp: number } | null {
+  try {
+    const base64Url = token.split('.')[1];
+    if (!base64Url) return null;
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error("Failed to decode JWT payload:", error);
+    return null;
+  }
+}
 
 export class ApiService {
     private axiosInstance: AxiosInstance;
@@ -30,6 +50,30 @@ export class ApiService {
     }
 
     public setLogoutHandler(handler: () => void) { this.onUnauthorized = handler; }
+    
+    // --- PHOENIX PROTOCOL CURE: New proactive method to guarantee a fresh token ---
+    public async ensureValidToken(): Promise<void> {
+        const token = localStorage.getItem('jwtToken');
+        if (!token) {
+            if (this.onUnauthorized) this.onUnauthorized();
+            throw new Error("Authentication token not found.");
+        }
+
+        const payload = decodeJwtPayload(token);
+        // Check if token is expired or will expire in the next 20 seconds for safety.
+        const isExpired = !payload || payload.exp * 1000 < Date.now() + 20000;
+
+        if (isExpired) {
+            console.log("Token is expired or expiring soon. Proactively refreshing...");
+            try {
+                await this.refreshAccessToken();
+            } catch (error) {
+                console.error("Failed to refresh token proactively:", error);
+                throw error; // Propagate error to stop connection attempts
+            }
+        }
+    }
+
 
     public async refreshAccessToken(): Promise<LoginResponse> {
         if (this.refreshTokenPromise) {
@@ -89,6 +133,7 @@ export class ApiService {
         return `wss://advocatus-prod-api.duckdns.org/ws/case/${caseId}?token=${encodeURIComponent(token)}`;
     }
 
+    // --- All other methods remain unchanged ---
     public getAxiosInstance(): AxiosInstance { return this.axiosInstance; }
     public async login(data: LoginRequest): Promise<LoginResponse> { return (await this.axiosInstance.post('/auth/login', data)).data; }
     public async register(data: RegisterRequest): Promise<any> { return (await this.axiosInstance.post('/auth/register', data)).data; }
@@ -118,10 +163,7 @@ export class ApiService {
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
     public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> { return (await this.axiosInstance.post(`${API_BASE_URL}/api/v2/drafting/jobs`, data)).data; }
     public async getDraftingJobStatus(jobId: string): Promise<DraftingJobStatus> { return (await this.axiosInstance.get(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/status`)).data; }
-    
-    // --- CURE: Corrected the return type to use the central type definition ---
     public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> { return (await this.axiosInstance.get(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/result`)).data; }
-    
     public async getUserApiKeys(): Promise<ApiKey[]> { return (await this.axiosInstance.get<ApiKey[]>('/keys')).data; }
     public async addApiKey(data: ApiKeyCreateRequest): Promise<ApiKey> { return (await this.axiosInstance.post<ApiKey>('/keys', data)).data; }
     public async deleteApiKey(keyId: string): Promise<void> { await this.axiosInstance.delete(`/keys/${keyId}`); }

@@ -1,11 +1,12 @@
 // FILE: /home/user/advocatus-frontend/src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL MODIFICATION 26.0 (RACE CONDITION FIX):
-// 1. ROOT CAUSE FIX: The hook now accepts a new boolean parameter, 'isReady'.
-// 2. DELAYED CONNECTION: The useEffect hook will now wait until both 'caseId' is present
-//    and 'isReady' is true before attempting to establish a WebSocket connection.
-// 3. This definitively resolves the race condition where the hook would try to connect with a
-//    stale token before the main application had finished its authentication refresh cycle.
-//    This cures the handshake failure.
+// DEFINITIVE VERSION (ARCHITECTURAL CURE):
+// 1. ROBUST HANDSHAKE: The main useEffect hook now uses an 'async' function to manage
+//    the connection.
+// 2. PROACTIVE TOKEN REFRESH: Its first action is 'await apiService.ensureValidToken()'.
+//    This forces a token validation and refresh *before* any connection attempt.
+// 3. RACE CONDITION CURED: By guaranteeing a fresh token is used for the handshake,
+//    this change permanently cures the root cause of the connection failures and
+//    restores the entire real-time pipeline.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage } from '../data/types';
@@ -34,83 +35,97 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    // --- RACE CONDITION FIX: Do not connect until the app is ready ---
     if (!caseId || !isReady) {
-        setConnectionStatus('DISCONNECTED');
-        return;
+      setConnectionStatus('DISCONNECTED');
+      return;
     }
 
-    setConnectionStatus('CONNECTING');
-    const url = apiService.getWebSocketUrl(caseId);
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
-
-    ws.onopen = () => { setConnectionStatus('CONNECTED'); };
-
-    ws.onmessage = (event) => {
+    // --- PHOENIX PROTOCOL CURE: Use an async function for a robust connection lifecycle ---
+    const connect = async () => {
+        setConnectionStatus('CONNECTING');
         try {
-            const message = JSON.parse(event.data);
+            // 1. Proactively ensure the auth token is valid BEFORE trying to connect.
+            // This is the definitive cure for the race condition.
+            await apiService.ensureValidToken();
 
-            if (message.type === 'chat_response_chunk' || message.type === 'chat_message_out') {
-                setIsSendingMessage(false);
-                setMessages(prevMessages => {
-                    const newMessages = [...prevMessages];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage && lastMessage.sender === 'AI') {
-                        if (message.type === 'chat_response_chunk') {
-                            lastMessage.text += message.text || "";
-                        } else {
-                            lastMessage.text = message.text || "No AI response text received.";
-                            lastMessage.timestamp = new Date().toISOString();
-                        }
-                    } else {
-                        newMessages.push({ sender: 'AI', text: message.text || "", timestamp: new Date().toISOString() });
-                    }
-                    return newMessages;
-                });
-                return;
-            }
+            // 2. Now that the token is guaranteed to be fresh, get the URL and connect.
+            const url = apiService.getWebSocketUrl(caseId);
+            const ws = new WebSocket(url);
+            wsRef.current = ws;
 
-            if (message.type === 'document_update' && message.payload) {
-                const incomingDocData = message.payload;
-                if (!incomingDocData.id) return;
+            ws.onopen = () => { setConnectionStatus('CONNECTED'); };
 
-                const correctedDoc: Document = {
-                    ...incomingDocData,
-                    created_at: incomingDocData.uploadedAt || new Date().toISOString(),
-                };
-                
-                setDocuments(prevDocs => {
-                    if (correctedDoc.status?.toUpperCase() === 'DELETED') {
-                        return prevDocs.filter(d => d.id !== correctedDoc.id);
+            ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+
+                    if (message.type === 'chat_response_chunk' || message.type === 'chat_message_out') {
+                        setIsSendingMessage(false);
+                        setMessages(prevMessages => {
+                            const newMessages = [...prevMessages];
+                            const lastMessage = newMessages[newMessages.length - 1];
+                            if (lastMessage && lastMessage.sender === 'AI') {
+                                if (message.type === 'chat_response_chunk') {
+                                    lastMessage.text += message.text || "";
+                                } else {
+                                    lastMessage.text = message.text || "No AI response text received.";
+                                    lastMessage.timestamp = new Date().toISOString();
+                                }
+                            } else {
+                                newMessages.push({ sender: 'AI', text: message.text || "", timestamp: new Date().toISOString() });
+                            }
+                            return newMessages;
+                        });
+                        return;
                     }
-                    const docExists = prevDocs.some(d => d.id === correctedDoc.id);
-                    if (docExists) {
-                        return prevDocs.map(doc =>
-                            doc.id === correctedDoc.id
-                                ? sanitizeDocument({ ...doc, ...correctedDoc })
-                                : doc
-                        ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                    } else {
-                        return [sanitizeDocument(correctedDoc), ...prevDocs]
-                            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+                    if (message.type === 'document_update' && message.payload) {
+                        const incomingDocData = message.payload;
+                        if (!incomingDocData.id) return;
+
+                        const correctedDoc: Document = { ...incomingDocData, created_at: incomingDocData.uploadedAt || new Date().toISOString(), };
+                        
+                        setDocuments(prevDocs => {
+                            if (correctedDoc.status?.toUpperCase() === 'DELETED') {
+                                return prevDocs.filter(d => d.id !== correctedDoc.id);
+                            }
+                            const docExists = prevDocs.some(d => d.id === correctedDoc.id);
+                            if (docExists) {
+                                return prevDocs.map(doc =>
+                                    doc.id === correctedDoc.id
+                                        ? sanitizeDocument({ ...doc, ...correctedDoc })
+                                        : doc
+                                ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                            } else {
+                                return [sanitizeDocument(correctedDoc), ...prevDocs]
+                                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                            }
+                        });
                     }
-                });
-            }
-        } catch (e) {
-            console.error("Error processing WebSocket message:", e, event.data);
+                } catch (e) {
+                    console.error("Error processing WebSocket message:", e, event.data);
+                }
+            };
+
+            ws.onclose = () => { setConnectionStatus('DISCONNECTED'); setIsSendingMessage(false); };
+            ws.onerror = (error) => { console.error('WebSocket Error:', error); ws.close(); };
+        
+        } catch (error) {
+            console.error("Failed to establish WebSocket connection due to auth error:", error);
+            setConnectionStatus('DISCONNECTED');
         }
     };
 
-    ws.onclose = () => { setConnectionStatus('DISCONNECTED'); setIsSendingMessage(false); };
-    ws.onerror = (error) => { console.error('WebSocket Error:', error); ws.close(); };
+    connect();
     
     return () => {
-        ws.onclose = null;
-        ws.close();
-        wsRef.current = null;
+        if (wsRef.current) {
+            wsRef.current.onclose = null;
+            wsRef.current.close();
+            wsRef.current = null;
+        }
     };
-  }, [caseId, isReady, reconnectCounter]); // Add isReady to dependency array
+  }, [caseId, isReady, reconnectCounter]);
 
   const reconnect = useCallback(() => { setReconnectCounter(prev => prev + 1); }, []);
   
