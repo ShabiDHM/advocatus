@@ -1,5 +1,10 @@
 /* FILE: /advocatus-frontend/src/styles/DatePicker.css */
-/* PHOENIX PROTOCOL THEME INTEGRATION FOR REACT-DATEPICKER */
+/* PHOENIX PROTOCOL MODIFICATION 44.2 (THEME INTEGRATION):
+/* 1. TIME PICKER POLISHING: Added specific, high-priority styles for the time
+/*    container, list, and items to ensure they correctly inherit the dark theme,
+/*    resolving the unreadable text issue.
+/* 2. SCROLLBAR: Added dark theme scrollbar for time list.
+*/
 
 /* This portal div is where the calendar will be rendered. */
 #react-datepicker-portal {
@@ -93,13 +98,40 @@
   color: #606060; /* Dimmed text */
 }
 
-/* Time selection container */
+/* --- TIME SELECTION CONTAINER --- */
 .react-datepicker__time-container {
   border-left: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: #1a1a2e; /* Ensure dark background */
 }
 
+.react-datepicker__time {
+  background-color: transparent;
+}
+
+.react-datepicker__time-box {
+  width: 100% !important;
+}
+
+/* --- TIME LIST --- */
+.react-datepicker__time-list {
+  scrollbar-width: thin;
+  scrollbar-color: #4c51bf #1a1a2e;
+}
+.react-datepicker__time-list::-webkit-scrollbar {
+  width: 8px;
+}
+.react-datepicker__time-list::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+.react-datepicker__time-list::-webkit-scrollbar-thumb {
+  background-color: #4c51bf;
+  border-radius: 4px;
+  border: 2px solid #1a1a2e;
+}
+
+/* Individual time list items */
 .react-datepicker__time-list-item {
-  color: #e0e0e0;
+  color: #e0e0e0 !important; /* Force light text */
   background-color: transparent !important; /* Override inline styles */
   transition: background-color 0.2s ease;
 }

@@ -1,9 +1,11 @@
 // FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 27.1 (RESPONSIVE UI FIX):
-// 1. RESPONSIVE LAYOUT: The main content area is now a responsive grid. It defaults to a
-//    single column for mobile and expands to a two-column layout on large screens ('lg:grid-cols-2').
-// 2. This ensures the Documents and Chat panels stack vertically on mobile devices, providing
-//    a clean and usable layout.
+// PHOENIX PROTOCOL MODIFICATION 45.2 (INTERNATIONALIZATION):
+// 1. I18N INTEGRATION: All user-facing strings have been replaced with `t()`
+//    function calls, sourcing text from the translation file.
+// 2. STATUS LOCALIZATION: Case status is now translated using a lookup in the
+//    translation file, providing a robust, non-English-dependent display.
+// 3. ERROR MESSAGES: Error handling and display now use centralized translation keys
+//    for a consistent user experience.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -19,7 +21,7 @@ import { ArrowLeft, AlertCircle, User, Briefcase, Info } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 
 // --- COMPONENT: CaseHeader ---
-const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string) => string; }> = ({ caseDetails, t }) => (
+const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string, fallback?: any) => string; }> = ({ caseDetails, t }) => (
   <motion.div
     className="mb-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
     initial={{ opacity: 0, y: -20 }}
@@ -30,11 +32,11 @@ const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string) => string; }> =
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-text-secondary">
       <div className="flex items-center" title={t('caseCard.client')}>
         <User className="h-4 w-4 mr-2 text-primary-start" />
-        <span>{caseDetails.client?.name || 'N/A'}</span>
+        <span>{caseDetails.client?.name || t('general.notAvailable')}</span>
       </div>
-      <div className="flex items-center" title={t('caseView.status')}>
+      <div className="flex items-center" title={t('caseView.statusLabel')}>
         <Briefcase className="h-4 w-4 mr-2 text-primary-start" />
-        <span className="capitalize">{caseDetails.status.toLowerCase()}</span>
+        <span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`, caseDetails.status)}</span>
       </div>
       <div className="flex items-center" title={t('caseCard.createdOn')}>
         <Info className="h-4 w-4 mr-2 text-primary-start" />
@@ -107,7 +109,7 @@ const CaseViewPage: React.FC = () => {
 
   const fetchCaseDetails = useCallback(async () => {
     if (!caseId) {
-        setError(t('error.no_case_id'));
+        setError(t('error.noCaseId'));
         setIsLoading(false);
         return;
     }
@@ -123,7 +125,7 @@ const CaseViewPage: React.FC = () => {
       await fetchFindings(caseId);
 
     } catch (err) {
-      setError(t('error.failed_to_load_case'));
+      setError(t('error.failedToLoadCase'));
       console.error(err);
     } finally {
       setIsLoading(false);
@@ -144,14 +146,14 @@ const CaseViewPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-red-900/50 border border-red-600 rounded-md p-6 text-center">
           <AlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
-          <h2 className="text-xl font-semibold text-red-300 mb-2">{t('case_view.errorLoadingTitle')}</h2>
-          <p className="text-red-300 mb-4">{error || t('case_view.caseNotFound')}</p>
+          <h2 className="text-xl font-semibold text-red-300 mb-2">{t('caseView.errorLoadingTitle')}</h2>
+          <p className="text-red-300 mb-4">{error || t('caseView.genericError')}</p>
           <div className="space-x-3">
             <button
               onClick={fetchCaseDetails}
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition duration-200"
             >
-              {t('case_view.tryAgain')}
+              {t('caseView.tryAgain')}
             </button>
             <Link
               to="/dashboard"

@@ -1,8 +1,10 @@
 // FILE: /advocatus-frontend/src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 40.4 (FINAL CLEANUP):
-// 1. DEAD CODE REMOVAL: The unused `setHours` and `setMinutes` functions have been
-//    removed from the `date-fns` import statement. This resolves all remaining
-//    compiler warnings and ensures perfect code hygiene. The file is now pristine.
+// PHOENIX PROTOCOL MODIFICATION 44.3 (LOCALIZATION & POLISHING):
+// 1. DATE FORMAT: The `dateFormat` prop for DatePicker is now explicitly set to
+//    "dd.MM.yyyy HH:mm" to enforce Albanian 24-hour time format.
+// 2. PLACEHOLDER: The `placeholderText` now uses a single, clean translation key
+//    `calendar.createModal.dateTimePlaceholder` for proper internationalization.
+// 3. CLEANUP: Removed unused placeholder construction variables.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -262,7 +264,6 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
   };
 
   const formElementClasses = "block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start";
-  const dateFormatPlaceholder = t('calendar.createModal.dateFormatPlaceholder', 'dd/mm/yyyy');
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
@@ -282,8 +283,8 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
                     selected={startDate}
                     onChange={(date: Date | null) => setStartDate(date)}
                     locale={currentLocale}
-                    dateFormat="P p"
-                    placeholderText={`${dateFormatPlaceholder} ${t('calendar.createModal.timeFormatPlaceholder', 'hh:mm aa')}`}
+                    dateFormat="dd.MM.yyyy HH:mm"
+                    placeholderText={t('calendar.createModal.dateTimePlaceholder')}
                     className={formElementClasses}
                     portalId="react-datepicker-portal"
                     showTimeSelect
@@ -297,8 +298,8 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
                     selected={endDate}
                     onChange={(date: Date | null) => setEndDate(date)}
                     locale={currentLocale}
-                    dateFormat="P p"
-                    placeholderText={`${dateFormatPlaceholder} ${t('calendar.createModal.timeFormatPlaceholder', 'hh:mm aa')}`}
+                    dateFormat="dd.MM.yyyy HH:mm"
+                    placeholderText={t('calendar.createModal.dateTimePlaceholder')}
                     className={formElementClasses}
                     portalId="react-datepicker-portal"
                     showTimeSelect
