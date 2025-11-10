@@ -1,4 +1,3 @@
-# FILE: backend/app/main.py
 # PHOENIX PROTOCOL CURE 52.2 (SYSTEM RESTORATION):
 # 1. All routers have been re-enabled, restoring full application functionality.
 # 2. The `cases.router` is now included with an empty prefix, deferring to the
