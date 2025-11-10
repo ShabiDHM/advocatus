@@ -1,8 +1,9 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL CURE 51.2 (REFINED ROUTER ISOLATION DIAGNOSTIC):
-# 1. AUTH and USERS routers have been re-enabled to allow login and testing.
-# 2. CALENDAR router remains enabled.
-# 3. All other routers remain disabled to continue the path collision test.
+# PHOENIX PROTOCOL CURE 51.3 (MINIMAL VIABLE APPLICATION DIAGNOSTIC):
+# 1. CASES router has been re-enabled to satisfy the application's core
+#    dependency for creating a calendar event.
+# 2. This creates the minimal functional state to test the calendar POST endpoint
+#    while keeping the most likely conflicting routers disabled.
 
 from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.responses import JSONResponse
@@ -17,7 +18,7 @@ from app.core.lifespan import lifespan
 from app.core.config import settings
 
 # Import the necessary routers for this diagnostic
-from app.api.endpoints import auth, users, calendar
+from app.api.endpoints import auth, users, calendar, cases
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ class ForceHTTPSMiddleware(BaseHTTPMiddleware):
             request.scope["scheme"] = "https"
         return await call_next(request)
 
-app = FastAPI(title="The Phoenix Protocol API - REFINED DIAGNOSTIC MODE", lifespan=lifespan)
+app = FastAPI(title="The Phoenix Protocol API - MINIMAL VIABLE DIAGNOSTIC", lifespan=lifespan)
 ALLOWED_ORIGINS = settings.BACKEND_CORS_ORIGINS
 VERCEL_PREVIEW_REGEX = r"^https:\/\/(localhost:\d+|([a-zA-Z0-9-]+\.)?(vercel\.app|shabans-projects-31c11eb7\.vercel\.app|advocatus-ai\.vercel\.app))"
 
@@ -44,15 +45,15 @@ async def universal_exception_handler(request: Request, exc: Exception):
 
 api_router = APIRouter(prefix="/api/v1")
 
-# --- REFINED ROUTER ISOLATION ---
-# Login, User, and Calendar routers are enabled. All others are disabled.
+# --- MINIMAL VIABLE APPLICATION ---
+# Login, User, Cases, and Calendar routers are enabled. All others are disabled.
 api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+api_router.include_router(cases.router, prefix="/cases", tags=["Cases"])
 api_router.include_router(calendar.router, prefix="/calendar", tags=["Calendar"])
 
 # --- Potentially Conflicting Routers (DISABLED) ---
-# from app.api.endpoints import cases, documents, chat, admin, search, findings, api_keys
-# api_router.include_router(cases.router, prefix="/cases", tags=["Cases"])
+# from app.api.endpoints import documents, chat, admin, search, findings, api_keys
 # api_router.include_router(documents.router, prefix="/documents", tags=["Documents"])
 # api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 # api_router.include_router(search.router, prefix="/search", tags=["Search"])
