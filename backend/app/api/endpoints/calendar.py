@@ -1,6 +1,9 @@
-# FILE: backend/app/api/endpoints/calendar.py
-# DEFINITIVE VERSION 1.0 (FEATURE IMPLEMENTATION):
-# Defines the API routes for managing calendar events.
+# FILE: backend/app/routers/calendar.py
+# PHOENIX PROTOCOL MODIFICATION 46.1 (API ROUTE ALIGNMENT):
+# 1. ROUTE CORRECTION: The paths for creating, getting, and deleting events have
+#    been corrected to include the '/events' segment.
+# 2. This aligns the backend routes with the frontend API calls in api.ts,
+#    resolving the '404 Not Found' error and restoring functionality.
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import List
@@ -13,7 +16,7 @@ from app.models.common import PyObjectId
 router = APIRouter()
 
 @router.post(
-    "",
+    "/events",
     response_model=CalendarEventOut,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new calendar event"
@@ -29,7 +32,7 @@ async def create_new_event(
     return await calendar_service.create_event(event_data=event_data, user_id=current_user.id)
 
 @router.get(
-    "",
+    "/events",
     response_model=List[CalendarEventOut],
     summary="Get all calendar events for the current user"
 )
@@ -43,7 +46,7 @@ async def get_all_user_events(
     return await calendar_service.get_events_for_user(user_id=current_user.id)
 
 @router.delete(
-    "/{event_id}",
+    "/events/{event_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a calendar event"
 )
