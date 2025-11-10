@@ -1,4 +1,3 @@
-
 {
   "general": {
     "login": "Hyrja",
@@ -13,6 +12,41 @@
     "contactSupport": "Kontakto Mbështetjen",
     "privacyPolicy": "Politika e Privatësisë",
     "notAvailable": "N/A"
+  },
+  "admin": {
+    "pageTitle": "Paneli i Administratorit",
+    "pageSubtitle": "Menaxhoni përdoruesit, rolet dhe cilësimet e sistemit.",
+    "refresh": "Rifresko",
+    "totalUsers": "Total Përdorues",
+    "activeUsers": "Përdorues Aktivë",
+    "administrators": "Administratorë",
+    "totalDocs": "Total Dokumente",
+    "searchPlaceholder": "Kërko përdorues sipas emrit ose emailit...",
+    "allStatuses": "Të gjithë Statuset",
+    "allRoles": "Të gjithë Rolet",
+    "users": "Përdoruesit",
+    "user": "Përdoruesi",
+    "role": "Roli",
+    "status": "Statusi",
+    "casesDocs": "Raste / Dokumente",
+    "created": "Krijuar Më",
+    "lastLogin": "Hyrja e Fundit",
+    "actions": "Veprimet",
+    "noUsersFound": "Nuk u Gjetën Përdorues",
+    "noUsersInSystem": "Nuk ka përdorues në sistem.",
+    "adjustFilters": "Provoni të rregulloni filtrat tuaj.",
+    "fetchUsersFailure": "Dështoi ngarkimi i listës së përdoruesve.",
+    "updateUserFailure": "Dështoi përditësimi i përdoruesit.",
+    "deleteUserFailure": "Dështoi fshirja e përdoruesit.",
+    "noEmail": "Pa email",
+    "never": "Asnjëherë",
+    "editUserTitle": "Redakto Përdoruesin: {{username}}",
+    "updateUser": "Përditëso Përdoruesin",
+    "updating": "Duke Përditësuar...",
+    "deleteUserTitle": "Fshij Përdoruesin",
+    "confirmDeleteUserMessage": "Jeni i sigurt që doni të fshini përdoruesin '{{username}}'? Ky veprim është i pakthyeshëm.",
+    "deleteUser": "Fshij Përdoruesin",
+    "deleting": "Duke Fshirë..."
   },
   "calendar": {
     "pageTitle": "Kalendari & Afatet",
@@ -80,7 +114,8 @@
     "jobInitiateFailure": "Dështoi fillimi i procesit të hartimit.",
     "alertNoTextToExport": "Nuk ka tekst për të eksportuar."
   },
-  "auth": { "title": "Advocatus AI", "subtitle": "Platforma e Juristëve", "username": "Emri i Përdoruesit", "password": "Fjalëkalimi", "loginButton": "Hyni në Platformë", "required": "Ky fushë është e detyrueshme.", "registerTitle": "Krijoni Llogari të Re", "registerSubtitle": "Regjistrohuni për të filluar me Protokollin Feniks", "email": "Email Adresa", "registerButton": "Regjistrohuni", "switchToLogin": "Keni llogari? Hyni këtu.", "switchToRegister": "Nuk keni llogari? Regjistrohuni.", "passwordConfirm": "Konfirmoni Fjalëkalimin", "invalidEmail": "Email adresa nuk është valide.", "passwordMismatch": "Fjalëkalimet nuk përputhen.", "passwordTooShort": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.", "loginFailed": "Hyrja dështoi. Ju lutemi kontrolloni kredencialet.", "registerFailed": "Regjistrimi dështoi. Ju lutemi provoni përsëri.", "networkError": "Gabim në Rrjet. Ju lutemi kontaktoni mbështetjen." },
+  "auth": { "title": "Advocatus AI", "subtitle": "Platforma e Juristëve", "username": "Emri i Përdoruesit", "password": "Fjalëkalimi", "loginButton": "Hyni në Platformë", "required": "Ky fushë është e detyrueshme.", "registerTitle": "Krijoni Llogari të Re", "registerSubtitle": "Regjistrohuni për të filluar me Protokollin Feniks", "email": "Email Adresa", "registerButton": "Regjistrohuni", "switchToLogin": "Keni llogari? Hyni këtu.", "switchToRegister": "Nuk keni llogari? Regjistrohuni.", "passwordConfirm": "Konfirmoni Fjalëkalimin", "invalidEmail": "Email adresa nuk është valide.", "passwordMismatch": "Fjalëkalimet nuk përputhen.",
+    "passwordTooShort": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.", "loginFailed": "Hyrja dështoi. Ju lutemi kontrolloni kredencialet.", "registerFailed": "Regjistrimi dështoi. Ju lutemi provoni përsëri.", "networkError": "Gabim në Rrjet. Ju lutemi kontaktoni mbështetjen." },
   "dashboard": { "newCase": "Rast i Ri", "noCasesFound": "Nuk u gjet asnjë rast. Filloni duke krijuar një rast të ri.", "loadingCases": "Duke ngarkuar rastet...",
   "createCaseTitle": "Krijoni Rast të Ri Ligjor", "caseTitlePlaceholder": "Titulli i rastit (p.sh. Lënda e Shabanit vs Kompania X)", "clientNamePlaceholder": "Emri i Klientit (p.sh. Shaban Dhimni)", "clientEmailPlaceholder": "Emaili i Klientit (opsionale)", "clientPhonePlaceholder": "Telefoni i Klientit (opsionale)", "cancelButton": "Anulo", "createButton": "Krijo Rastin", "fetchCasesFailure": "Dështoi ngarkimi i rasteve. Ju lutemi kontaktoni mbështetjen.", "createCaseFailure": "Dështoi krijimi i rastit.", "deleteCaseFailure": "Fshirja e rastit dështoi.", "confirmDeleteCase": "Jeni i sigurt që doni ta fshini këtë rast?" },
   "caseCard": { "client": "Klienti", "viewDetails": "Shiko Detajet", "createdOn": "Krijuar më", "deleteCase": "Fshij Rastin", "documents": "dokumente", "alerts": "alarme", "events": "ngjarje" },
@@ -160,7 +195,8 @@
     "statusDisconnected": "Shkëputur",
     "thinking": "Duke menduar..."
   },
-  "accountPage": { "pageTitle": "Cilësimet e Llogarisë", "profileTitle": "Informacion i Profilit", "role": "Roli", "securityTitle": "Ndrysho Fjalëkalimin", "oldPassword": "Fjalëkalimi i Vjetër", "newPassword": "Fjalëkalimi i Ri", "confirmPassword": "Konfirmo Fjalëkalimin e Ri", "changePasswordButton": "Ndrysho Fjalëkalimin", "saving": "Duke Ruajtur...", "passwordSuccess": "Fjalëkalimi u ndryshua me sukses!", "passwordFailure": "Ndryshimi i fjalëkalimit dështoi.", "passwordMismatch": "Fjalëkalimet e reja nuk përputhen.", "passwordTooShort": "Fjalëkalimi i ri duhet të jetë së paku 8 karaktere.", "loading": "Duke Ngarkuar...", "fetchFailure": "Dështoi të merren detajet e përdoruesit.", "apiKey": { "title": "Lidhni Llogaritë Tuaja të AI", "description": "Përdorni çelësat tuaj API për veçori të avancuara dhe përdorim të pakufizuar me modele premium si GPT-4.", "keyName": "Emri i Çelësit (p.sh., Çelësi im personal)", "apiKey": "Çelësi API", "addButton": "Shto Çelësin", "usage": "Përdorimi", "fetchFailed": "Dështoi ngarkimi i çelësave API.", "addSuccess": "Çelësi API u shtua me sukses.", "addFailed": "Dështoi shtimi i çelësit API. Ju lutem kontrolloni çelësin dhe provoni përsëri.", "deleteSuccess": "Çelësi API u fshi me sukses.", "deleteFailed": "Dështoi fshirja e çelësit API.", "fieldsRequired": "Emri i Çelësit dhe Çelësi API janë të detyrueshme.", "confirmDelete": "Jeni i sigurt që doni të fshini këtë çelës API?" }, "deleteAccount": { "title": "Zona e Rrezikut", "warning": "Fshirja e llogarisë tuaj është një veprim i përhershëm dhe i pakthyeshëm. Të gjitha rastet, dokumentet dhe të dhënat tuaja të lidhura do të shkatërrohen.", "buttonText": "E kuptoj, fshije llogarinë time", "deleting": "Duke fshirë...", "prompt": "Ky veprim nuk mund të kthehet pas. Për të konfirmuar, ju lutemi shkruani 'DELETE' në kutinë më poshtë.", "confirmText": "DELETE", "successMessage": "Llogaria juaj është fshirë me sukses.", "failureMessage": "Dështoi fshirja e llogarisë. Ju lutemi kontaktoni mbështetjen." } },
+  "accountPage": { "pageTitle": "Cilësimet e Llogarisë", "profileTitle": "Informacion i Profilit", "role": "Roli", "securityTitle": "Ndrysho Fjalëkalimin", "oldPassword": "Fjalëkalimi i Vjetër", "newPassword": "Fjalëkalimi i Ri", "confirmPassword": "Konfirmo Fjalëkalimin e Ri", "changePasswordButton": "Ndrysho Fjalëkalimin", "saving": "Duke Ruajtur...", "passwordSuccess": "Fjalëkalimi u ndryshua me sukses!", "passwordFailure": "Ndryshimi i fjalëkalimit dështoi.", "passwordMismatch": "Fjalëkalimet e reja nuk përputhen.", "passwordTooShort": "Fjalëkalimi i ri duhet të jetë së paku 8 karaktere.",
+    "loading": "Duke Ngarkuar...", "fetchFailure": "Dështoi të merren detajet e përdoruesit.", "apiKey": { "title": "Lidhni Llogaritë Tuaja të AI", "description": "Përdorni çelësat tuaj API për veçori të avancuara dhe përdorim të pakufizuar me modele premium si GPT-4.", "keyName": "Emri i Çelësit (p.sh., Çelësi im personal)", "apiKey": "Çelësi API", "addButton": "Shto Çelësin", "usage": "Përdorimi", "fetchFailed": "Dështoi ngarkimi i çelësave API.", "addSuccess": "Çelësi API u shtua me sukses.", "addFailed": "Dështoi shtimi i çelësit API. Ju lutem kontrolloni çelësin dhe provoni përsëri.", "deleteSuccess": "Çelësi API u fshi me sukses.", "deleteFailed": "Dështoi fshirja e çelësit API.", "fieldsRequired": "Emri i Çelësit dhe Çelësi API janë të detyrueshme.", "confirmDelete": "Jeni i sigurt që doni të fshini këtë çelës API?" }, "deleteAccount": { "title": "Zona e Rrezikut", "warning": "Fshirja e llogarisë tuaj është një veprim i përhershëm dhe i pakthyeshëm. Të gjitha rastet, dokumentet dhe të dhënat tuaja të lidhura do të shkatërrohen.", "buttonText": "E kuptoj, fshije llogarinë time", "deleting": "Duke fshirë...", "prompt": "Ky veprim nuk mund të kthehet pas. Për të konfirmuar, ju lutemi shkruani 'DELETE' në kutinë më poshtë.", "confirmText": "DELETE", "successMessage": "Llogaria juaj është fshirë me sukses.", "failureMessage": "Dështoi fshirja e llogarisë. Ju lutemi kontaktoni mbështetjen." } },
   "error": {
     "noCaseId": "Nuk u dha asnjë ID rasti.",
     "failedToLoadCase": "Dështoi ngarkimi i detajeve të rastit."
