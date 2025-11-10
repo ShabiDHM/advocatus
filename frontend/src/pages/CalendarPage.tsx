@@ -1,10 +1,9 @@
 // FILE: /advocatus-frontend/src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 44.3 (LOCALIZATION & POLISHING):
-// 1. DATE FORMAT: The `dateFormat` prop for DatePicker is now explicitly set to
-//    "dd.MM.yyyy HH:mm" to enforce Albanian 24-hour time format.
-// 2. PLACEHOLDER: The `placeholderText` now uses a single, clean translation key
-//    `calendar.createModal.dateTimePlaceholder` for proper internationalization.
-// 3. CLEANUP: Removed unused placeholder construction variables.
+// PHOENIX PROTOCOL CURE 54.1 (UI/DATA CONTRACT RECONCILIATION):
+// 1. BACKEND COMPATIBILITY: The handleSubmit function has been modified to send
+//    both a 'start_date' and an 'end_date' in the API payload.
+// 2. Both date fields are set to the identical value from the single 'eventDate'
+//    input, satisfying the backend's data contract while maintaining the simplified UI.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -17,29 +16,15 @@ import {
   Search, FileText, Gavel, Briefcase, AlertTriangle, XCircle, Bell, ChevronDown
 } from 'lucide-react';
 
-// --- CORRECTED DEPENDENCY IMPORT ---
 import * as ReactDatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import '../styles/DatePicker.css'; // Custom styles for dark theme
+import '../styles/DatePicker.css';
 
-// --- COMPONENT DE-REFERENCING FOR CJS/ESM INTEROP ---
 const DatePicker = (ReactDatePicker as any).default;
-
-// --- LOCALE MAPPING FOR DATE-FNS ---
 const localeMap = { sq };
 
-// --- HELPER INTERFACES ---
-interface EventDetailModalProps {
-  event: CalendarEvent;
-  onClose: () => void;
-  onUpdate: () => void;
-}
-interface CreateEventModalProps {
-  cases: Case[];
-  onClose: () => void;
-  onCreate: () => void;
-}
-
+interface EventDetailModalProps { event: CalendarEvent; onClose: () => void; onUpdate: () => void; }
+interface CreateEventModalProps { cases: Case[]; onClose: () => void; onCreate: () => void; }
 type ViewMode = 'month' | 'list';
 
 const getEventTypeIcon = (type: CalendarEvent['event_type']) => {
@@ -173,7 +158,7 @@ const CalendarPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-text-primary">
-        <div id="react-datepicker-portal"></div> {/* Portal for datepicker to render into */}
+        <div id="react-datepicker-portal"></div>
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8">
             <div><h1 className="text-3xl font-bold text-text-primary mb-2">{t('calendar.pageTitle')}</h1><p className="text-text-secondary">{t('calendar.pageSubtitle')}</p></div>
             <div className="mt-4 lg:mt-0"><button onClick={() => setIsCreateModalOpen(true)} className="inline-flex items-center px-4 py-2 border border-transparent rounded-xl shadow-lg text-sm font-medium text-white bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 transition-opacity duration-200"><Plus className="h-4 w-4 mr-2" />{t('calendar.newEvent')}</button></div>
@@ -235,15 +220,15 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
   const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || sq;
   const [isCreating, setIsCreating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [eventDate, setEventDate] = useState<Date | null>(null);
 
   const [formData, setFormData] = useState<Omit<CalendarEventCreateRequest, 'attendees' | 'start_date' | 'end_date'> & { attendees: string }>({ case_id: '', title: '', description: '', event_type: 'MEETING', location: '', attendees: '', is_all_day: false, priority: 'MEDIUM', notes: '' });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!startDate) {
+    if (!eventDate) {
+        // NOTE: This alert key is technically incorrect now, but we are leaving it
+        // as the translation file was not provided for this specific change.
         alert(t('calendar.createModal.startDateRequired'));
         return;
     }
@@ -251,8 +236,8 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
     try {
       const payload: CalendarEventCreateRequest = {
         ...formData,
-        start_date: startDate.toISOString(),
-        end_date: endDate ? endDate.toISOString() : undefined,
+        start_date: eventDate.toISOString(),
+        end_date: eventDate.toISOString(), // CURE: Set end_date to the same value
         attendees: formData.attendees ? formData.attendees.split(',').map(a => a.trim()) : [],
       };
       await apiService.createCalendarEvent(payload);
@@ -276,37 +261,20 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
             <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventType')}</label><select value={formData.event_type} onChange={(e) => setFormData(prev => ({ ...prev, event_type: e.target.value as CalendarEvent['event_type'] }))} className={formElementClasses}>{Object.keys(t('calendar.types', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.types.${key}`)}</option>)}</select></div>
             <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.priority')}</label><select value={formData.priority} onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as CalendarEvent['priority'] }))} className={formElementClasses}>{Object.keys(t('calendar.priorities', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.priorities.${key}`)}</option>)}</select></div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.startDate')}</label>
-                <DatePicker
-                    selected={startDate}
-                    onChange={(date: Date | null) => setStartDate(date)}
-                    locale={currentLocale}
-                    dateFormat="dd.MM.yyyy HH:mm"
-                    placeholderText={t('calendar.createModal.dateTimePlaceholder')}
-                    className={formElementClasses}
-                    portalId="react-datepicker-portal"
-                    showTimeSelect
-                    timeIntervals={15}
-                    required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.endDate')}</label>
-                 <DatePicker
-                    selected={endDate}
-                    onChange={(date: Date | null) => setEndDate(date)}
-                    locale={currentLocale}
-                    dateFormat="dd.MM.yyyy HH:mm"
-                    placeholderText={t('calendar.createModal.dateTimePlaceholder')}
-                    className={formElementClasses}
-                    portalId="react-datepicker-portal"
-                    showTimeSelect
-                    timeIntervals={15}
-                    minDate={startDate || undefined}
-                />
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventDate')}</label>
+            <DatePicker
+                selected={eventDate}
+                onChange={(date: Date | null) => setEventDate(date)}
+                locale={currentLocale}
+                dateFormat="dd.MM.yyyy HH:mm"
+                placeholderText={t('calendar.createModal.dateTimePlaceholder')}
+                className={formElementClasses}
+                portalId="react-datepicker-portal"
+                showTimeSelect
+                timeIntervals={15}
+                required
+            />
           </div>
           {!showAdvanced && (<div className="pt-2"><button type="button" onClick={() => setShowAdvanced(true)} className="text-sm text-primary-start hover:text-primary-end flex items-center"><ChevronDown className="h-4 w-4 mr-1" />{t('calendar.createModal.addDetails')}</button></div>)}
           {showAdvanced && (

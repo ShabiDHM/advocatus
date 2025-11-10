@@ -1,3 +1,4 @@
+
 {
   "general": {
     "login": "Hyrja",
@@ -41,8 +42,7 @@
       "eventType": "Lloji i Ngjarjes *",
       "priority": "Prioriteti *",
       "description": "Përshkrimi",
-      "startDate": "Data e Fillimit *",
-      "endDate": "Data e Mbarimit",
+      "eventDate": "Data & Ora e Ngjarjes *",
       "dateTimePlaceholder": "dd.mm.yyyy HH:mm",
       "location": "Vendndhodja",
       "attendees": "Pjesëmarrësit (të ndarë me presje)",
@@ -55,6 +55,30 @@
       "addDetails": "Shto Detaje"
     },
     "moreEvents": "+{{count}} më shumë"
+  },
+  "drafting": {
+    "pageTitle": "Hartimi i Dokumenteve",
+    "inputPanelTitle": "Konteksti Juaj",
+    "inputPanelSubtitle": "Jepni detajet, faktet, ose një draft fillestar.",
+    "inputPlaceholder": "Shtypni kontekstin tuaj këtu...",
+    "generateButton": "Gjenero Dokumentin",
+    "generatingStatus": "Duke gjeneruar...",
+    "outputPanelTitle": "Dokumenti i Gjeneruar",
+    "exportButton": "Eksporto si .docx",
+    "idleStatus": "Në Pritje",
+    "loadingTitle": "Duke Hartuar Dokumentin Tuaj",
+    "loadingSubtitle": "Ju lutemi prisni, AI po punon...",
+    "jobFailedTitle": "Gjenerimi Dështoi",
+    "readyTitle": "Dokumenti Juaj është Gati",
+    "readySubtitle": "Shqyrtoni tekstin e gjeneruar më poshtë. Mund ta eksportoni si një skedar .docx.",
+    "emptyTitle": "Gati për të Hartuar",
+    "emptySubtitle": "Jepni kontekstin në panelin e majtë dhe klikoni 'Gjenero' për të filluar.",
+    "noResult": "Nuk u kthye asnjë rezultat nga shërbimi.",
+    "unknownError": "Ndodhi një gabim i panjohur.",
+    "apiPollingFailure": "Dështoi komunikimi me serverin gjatë verifikimit të statusit.",
+    "alertNoContext": "Ju lutemi jepni një kontekst për të gjeneruar dokumentin.",
+    "jobInitiateFailure": "Dështoi fillimi i procesit të hartimit.",
+    "alertNoTextToExport": "Nuk ka tekst për të eksportuar."
   },
   "auth": { "title": "Advocatus AI", "subtitle": "Platforma e Juristëve", "username": "Emri i Përdoruesit", "password": "Fjalëkalimi", "loginButton": "Hyni në Platformë", "required": "Ky fushë është e detyrueshme.", "registerTitle": "Krijoni Llogari të Re", "registerSubtitle": "Regjistrohuni për të filluar me Protokollin Feniks", "email": "Email Adresa", "registerButton": "Regjistrohuni", "switchToLogin": "Keni llogari? Hyni këtu.", "switchToRegister": "Nuk keni llogari? Regjistrohuni.", "passwordConfirm": "Konfirmoni Fjalëkalimin", "invalidEmail": "Email adresa nuk është valide.", "passwordMismatch": "Fjalëkalimet nuk përputhen.", "passwordTooShort": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.", "loginFailed": "Hyrja dështoi. Ju lutemi kontrolloni kredencialet.", "registerFailed": "Regjistrimi dështoi. Ju lutemi provoni përsëri.", "networkError": "Gabim në Rrjet. Ju lutemi kontaktoni mbështetjen." },
   "dashboard": { "newCase": "Rast i Ri", "noCasesFound": "Nuk u gjet asnjë rast. Filloni duke krijuar një rast të ri.", "loadingCases": "Duke ngarkuar rastet...",
@@ -130,7 +154,7 @@
     "title": "Asistenti Sokratik",
     "reconnect": "Rilidhu",
     "welcomeMessage": "Shtypni një pyetje për të filluar.",
-    "inputPlaceholder": "Shtypni pyetjen tuaj këtu...",
+    "inputPlaceholder": "Shtypni pyjetjen tuaj këtu...",
     "statusConnected": "Lidhur",
     "statusConnecting": "Duke u lidhur",
     "statusDisconnected": "Shkëputur",
