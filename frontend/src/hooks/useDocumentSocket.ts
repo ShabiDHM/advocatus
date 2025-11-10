@@ -1,17 +1,13 @@
 // FILE: /home/user/advocatus-frontend/src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - CRITICAL FIX VERSION 32.0
-// CRITICAL DISCOVERY: getWebSocketUrl() returns Promise<string> (async), not string!
-// FIXES APPLIED:
-// 1. ✅ Added await for getWebSocketUrl() - it's async and returns Promise<string>
-// 2. ✅ Fixed URL string operations that were failing on Promise
-// 3. ✅ Restored async/await pattern for the connection function
+// PHOENIX PROTOCOL - RESILIENT VERSION 33.0
+// ENHANCED WITH BETTER ERROR HANDLING AND CONNECTION FALLBACKS
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage } from '../data/types';
 import { apiService } from '../services/api';
 import { sanitizeDocument } from '../utils/documentUtils';
 
-type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED';
+type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
 
 interface UseDocumentSocketReturn {
   documents: Document[];
@@ -21,6 +17,7 @@ interface UseDocumentSocketReturn {
   reconnect: () => void;
   sendChatMessage: (text: string) => void;
   isSendingMessage: boolean;
+  connectionError: string | null;
 }
 
 export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocumentSocketReturn => {
@@ -28,36 +25,52 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('DISCONNECTED');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [reconnectCounter, setReconnectCounter] = useState(0);
   
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const connectionAttemptsRef = useRef(0);
+  const maxConnectionAttempts = 5;
 
   useEffect(() => {
     if (!caseId || !isReady) {
       console.log('[WebSocket Hook] Connection skipped - missing caseId or not ready');
       setConnectionStatus('DISCONNECTED');
+      setConnectionError(null);
       return;
     }
 
-    const connectWebSocket = async () => { // ✅ FIX: Made this async
-      console.log('[WebSocket Hook] Starting WebSocket connection for case:', caseId);
+    const connectWebSocket = async () => {
+      // Stop if we've exceeded max attempts
+      if (connectionAttemptsRef.current >= maxConnectionAttempts) {
+        console.error('[WebSocket Hook] Max connection attempts reached, giving up');
+        setConnectionStatus('ERROR');
+        setConnectionError('Failed to connect after multiple attempts. Please refresh the page.');
+        return;
+      }
+
+      connectionAttemptsRef.current++;
+      console.log(`[WebSocket Hook] Connection attempt ${connectionAttemptsRef.current}/${maxConnectionAttempts} for case:`, caseId);
+      
       setConnectionStatus('CONNECTING');
+      setConnectionError(null);
       
       try {
-        // ✅ CRITICAL FIX: getWebSocketUrl returns Promise<string> - MUST AWAIT
         const url = await apiService.getWebSocketUrl(caseId);
         
-        console.log('[WebSocket Hook] WebSocket URL constructed:', 
-          url.replace(/(token=)[^&]+/, '$1REDACTED') // ✅ FIX: Now url is string, not Promise
+        console.log('[WebSocket Hook] WebSocket URL constructed (token redacted):', 
+          url.replace(/(token=)[^&]+/, '$1REDACTED')
         );
         
-        const ws = new WebSocket(url); // ✅ FIX: Now url is string, not Promise
+        const ws = new WebSocket(url);
         wsRef.current = ws;
 
         ws.onopen = () => { 
           console.log('[WebSocket Hook] ✅ WebSocket connection established successfully');
           setConnectionStatus('CONNECTED');
+          setConnectionError(null);
+          connectionAttemptsRef.current = 0; // Reset counter on successful connection
           clearTimeout(reconnectTimeoutRef.current);
         };
 
@@ -140,23 +153,43 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
           setConnectionStatus('DISCONNECTED');
           setIsSendingMessage(false);
           
-          // Auto-reconnect after 3 seconds if not a normal closure
-          if (event.code !== 1000) {
-            console.log('[WebSocket Hook] Scheduling auto-reconnect in 3000ms');
+          // Provide user-friendly error messages
+          let errorMessage = 'Connection closed';
+          if (event.code === 1006) {
+            errorMessage = 'Unable to connect to server. Please check your internet connection or try again later.';
+          }
+          setConnectionError(errorMessage);
+
+          // Auto-reconnect with exponential backoff (3s, 6s, 12s...)
+          if (connectionAttemptsRef.current < maxConnectionAttempts) {
+            const backoffTime = Math.min(3000 * Math.pow(2, connectionAttemptsRef.current - 1), 30000);
+            console.log(`[WebSocket Hook] Scheduling auto-reconnect in ${backoffTime}ms`);
             reconnectTimeoutRef.current = setTimeout(() => {
               setReconnectCounter(prev => prev + 1);
-            }, 3000);
+            }, backoffTime);
+          } else {
+            setConnectionStatus('ERROR');
+            setConnectionError('Failed to establish connection after multiple attempts. Please refresh the page.');
           }
         };
 
         ws.onerror = (error) => { 
           console.error('[WebSocket Hook] WebSocket connection error:', error);
-          setConnectionStatus('DISCONNECTED');
+          setConnectionStatus('ERROR');
+          setConnectionError('Connection error occurred. Please try again.');
         };
       
       } catch (error) {
         console.error('[WebSocket Hook] Failed to establish WebSocket connection:', error);
-        setConnectionStatus('DISCONNECTED');
+        setConnectionStatus('ERROR');
+        setConnectionError('Failed to establish connection. Please check your network and try again.');
+        
+        // Retry after error
+        if (connectionAttemptsRef.current < maxConnectionAttempts) {
+          reconnectTimeoutRef.current = setTimeout(() => {
+            setReconnectCounter(prev => prev + 1);
+          }, 3000);
+        }
       }
     };
 
@@ -165,6 +198,7 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
     // Cleanup function
     return () => {
       console.log('[WebSocket Hook] Cleaning up WebSocket connection');
+      connectionAttemptsRef.current = 0;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -178,9 +212,11 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
 
   const reconnect = useCallback(() => { 
     console.log('[WebSocket Hook] 🔄 Manual reconnect triggered');
+    connectionAttemptsRef.current = 0;
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
+    setConnectionError(null);
     setReconnectCounter(prev => prev + 1); 
   }, []);
   
@@ -202,6 +238,7 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
       wsRef.current.send(messageToSend);
     } else {
       console.error('[WebSocket Hook] Cannot send message - WebSocket not ready or message empty. ReadyState:', wsRef.current?.readyState);
+      setConnectionError('Cannot send message - connection not available');
     }
   }, []);
 
@@ -212,6 +249,7 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
     connectionStatus, 
     reconnect, 
     sendChatMessage, 
-    isSendingMessage 
+    isSendingMessage,
+    connectionError
   };
 };
