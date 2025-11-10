@@ -1,7 +1,9 @@
-// PHOENIX PROTOCOL MODIFICATION 33.1 (DRAFTING DATA CONTRACT CURE):
-// 1. DATA CONTRACT CURE: The 'DraftingJobStatus' and 'DraftingJobResult' interfaces have
-//    been corrected to use snake_case ('job_id', 'result_text') to perfectly match the
-//    JSON response from the Python backend. This is the definitive contract.
+// PHOENIX PROTOCOL MODIFICATION 46.0 (TYPE INTEGRITY CURE):
+// 1. SINGLE SOURCE OF TRUTH: Added the 'ConnectionStatus' type. This centralizes
+//    the definition, making it the authoritative contract for the WebSocket state
+//    across all hooks and components, resolving the TS2322 build error.
+
+export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
 
 export interface User {
   id: string;
@@ -97,13 +99,13 @@ export interface CreateCaseRequest {
 export interface CreateDraftingJobRequest { caseId?: string; documentIds?: string[]; prompt?: string; context: string; }
 export interface DraftingJobStatus {
   id?: string;
-  job_id: string; // <-- CURE: Align with backend
+  job_id: string;
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'SUCCESS' | 'FAILURE';
   error?: string;
   result_summary?: string;
 }
 export interface DraftingJobResult {
-  result_text: string; // <-- CURE: Align with backend
+  result_text: string;
 }
 export interface ChangePasswordRequest { old_password: string; new_password: string; }
 

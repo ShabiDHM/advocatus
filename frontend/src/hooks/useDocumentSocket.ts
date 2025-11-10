@@ -1,13 +1,15 @@
 // FILE: /home/user/advocatus-frontend/src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - RESILIENT VERSION 33.0
-// ENHANCED WITH BETTER ERROR HANDLING AND CONNECTION FALLBACKS
+// PHOENIX PROTOCOL - RESILIENT VERSION 33.1 (TYPE INTEGRITY CURE)
+// 1. TYPE INTEGRITY CURE: Removed the local ConnectionStatus type definition.
+// 2. GLOBAL TYPE ADOPTION: Now imports the authoritative 'ConnectionStatus' type
+//    from the global types.ts file, ensuring consistency across the application.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
-import { Document, ChatMessage } from '../data/types';
+import { Document, ChatMessage, ConnectionStatus } from '../data/types'; // CURE: Import global type
 import { apiService } from '../services/api';
 import { sanitizeDocument } from '../utils/documentUtils';
 
-type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
+// CURE: Local type definition removed. The hook now uses the global type.
 
 interface UseDocumentSocketReturn {
   documents: Document[];
@@ -42,7 +44,6 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
     }
 
     const connectWebSocket = async () => {
-      // Stop if we've exceeded max attempts
       if (connectionAttemptsRef.current >= maxConnectionAttempts) {
         console.error('[WebSocket Hook] Max connection attempts reached, giving up');
         setConnectionStatus('ERROR');
@@ -70,7 +71,7 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
           console.log('[WebSocket Hook] ✅ WebSocket connection established successfully');
           setConnectionStatus('CONNECTED');
           setConnectionError(null);
-          connectionAttemptsRef.current = 0; // Reset counter on successful connection
+          connectionAttemptsRef.current = 0;
           clearTimeout(reconnectTimeoutRef.current);
         };
 
@@ -79,7 +80,6 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
             const message = JSON.parse(event.data);
             console.log('[WebSocket Hook] Received message type:', message.type);
 
-            // Handle chat responses
             if (message.type === 'chat_response_chunk' || message.type === 'chat_message_out') {
               setIsSendingMessage(false);
               setMessages(prevMessages => {
@@ -105,7 +105,6 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
               return;
             }
 
-            // Handle document updates
             if (message.type === 'document_update' && message.payload) {
               const incomingDocData = message.payload;
               if (!incomingDocData.id) {
@@ -119,7 +118,6 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
               };
               
               setDocuments(prevDocs => {
-                // Handle document deletion
                 if (correctedDoc.status?.toUpperCase() === 'DELETED') {
                   console.log('[WebSocket Hook] Document deleted:', correctedDoc.id);
                   return prevDocs.filter(d => d.id !== correctedDoc.id);
@@ -128,7 +126,6 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
                 const docExists = prevDocs.some(d => d.id === correctedDoc.id);
                 
                 if (docExists) {
-                  // Update existing document
                   console.log('[WebSocket Hook] Document updated:', correctedDoc.id);
                   return prevDocs.map(doc =>
                     doc.id === correctedDoc.id
@@ -136,7 +133,6 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
                       : doc
                   ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                 } else {
-                  // Add new document
                   console.log('[WebSocket Hook] New document added:', correctedDoc.id);
                   return [sanitizeDocument(correctedDoc), ...prevDocs]
                     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -153,14 +149,12 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
           setConnectionStatus('DISCONNECTED');
           setIsSendingMessage(false);
           
-          // Provide user-friendly error messages
           let errorMessage = 'Connection closed';
           if (event.code === 1006) {
             errorMessage = 'Unable to connect to server. Please check your internet connection or try again later.';
           }
           setConnectionError(errorMessage);
 
-          // Auto-reconnect with exponential backoff (3s, 6s, 12s...)
           if (connectionAttemptsRef.current < maxConnectionAttempts) {
             const backoffTime = Math.min(3000 * Math.pow(2, connectionAttemptsRef.current - 1), 30000);
             console.log(`[WebSocket Hook] Scheduling auto-reconnect in ${backoffTime}ms`);
@@ -184,7 +178,6 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
         setConnectionStatus('ERROR');
         setConnectionError('Failed to establish connection. Please check your network and try again.');
         
-        // Retry after error
         if (connectionAttemptsRef.current < maxConnectionAttempts) {
           reconnectTimeoutRef.current = setTimeout(() => {
             setReconnectCounter(prev => prev + 1);
@@ -195,7 +188,6 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
 
     connectWebSocket();
     
-    // Cleanup function
     return () => {
       console.log('[WebSocket Hook] Cleaning up WebSocket connection');
       connectionAttemptsRef.current = 0;
