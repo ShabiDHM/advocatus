@@ -1,9 +1,8 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL CURE 51.1 (ROUTER ISOLATION DIAGNOSTIC):
-# 1. All API routers EXCEPT for the 'calendar' router have been temporarily commented out.
-# 2. This test will definitively prove if another router is causing a path collision.
-# 3. If the POST request succeeds with this change, the collision is confirmed, and we
-#    will proceed to identify the offending route in the other files.
+# PHOENIX PROTOCOL CURE 51.2 (REFINED ROUTER ISOLATION DIAGNOSTIC):
+# 1. AUTH and USERS routers have been re-enabled to allow login and testing.
+# 2. CALENDAR router remains enabled.
+# 3. All other routers remain disabled to continue the path collision test.
 
 from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.responses import JSONResponse
@@ -17,8 +16,8 @@ import re
 from app.core.lifespan import lifespan
 from app.core.config import settings
 
-# Import only the necessary router for this diagnostic
-from app.api.endpoints import calendar
+# Import the necessary routers for this diagnostic
+from app.api.endpoints import auth, users, calendar
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,11 +26,11 @@ class ForceHTTPSMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
     async def dispatch(self, request: Request, call_next):
-        if request.headers.get("x-forwarded-proto") == "httpshttps":
+        if request.headers.get("x-forwarded-proto") == "https":
             request.scope["scheme"] = "https"
         return await call_next(request)
 
-app = FastAPI(title="The Phoenix Protocol API - DIAGNOSTIC MODE", lifespan=lifespan)
+app = FastAPI(title="The Phoenix Protocol API - REFINED DIAGNOSTIC MODE", lifespan=lifespan)
 ALLOWED_ORIGINS = settings.BACKEND_CORS_ORIGINS
 VERCEL_PREVIEW_REGEX = r"^https:\/\/(localhost:\d+|([a-zA-Z0-9-]+\.)?(vercel\.app|shabans-projects-31c11eb7\.vercel\.app|advocatus-ai\.vercel\.app))"
 
@@ -45,20 +44,27 @@ async def universal_exception_handler(request: Request, exc: Exception):
 
 api_router = APIRouter(prefix="/api/v1")
 
-# --- ROUTER ISOLATION ---
-# All other routers are disabled to test for a path collision.
-# api_router.include_router(users.router, prefix="/users", tags=["Users"])
-# api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+# --- REFINED ROUTER ISOLATION ---
+# Login, User, and Calendar routers are enabled. All others are disabled.
+api_router.include_router(users.router, prefix="/users", tags=["Users"])
+api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
+api_router.include_router(calendar.router, prefix="/calendar", tags=["Calendar"])
+
+# --- Potentially Conflicting Routers (DISABLED) ---
+# from app.api.endpoints import cases, documents, chat, admin, search, findings, api_keys
 # api_router.include_router(cases.router, prefix="/cases", tags=["Cases"])
 # api_router.include_router(documents.router, prefix="/documents", tags=["Documents"])
 # api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 # api_router.include_router(search.router, prefix="/search", tags=["Search"])
 # api_router.include_router(findings.router, prefix="/findings", tags=["Findings"])
 # api_router.include_router(api_keys.router, prefix="/keys", tags=["API Keys"])
-api_router.include_router(calendar.router, prefix="/calendar", tags=["Calendar"]) # THIS IS THE ONLY ACTIVE ROUTER
 # api_router.include_router(admin.router, prefix="/admin", tags=["Administrator"])
 
 app.include_router(api_router)
+
+# --- Other Routers (DISABLED) ---
+# from app.api.endpoints import drafting_v2
+# from app.api.endpoints.websockets import router as websockets_router
 # app.include_router(drafting_v2.router, prefix="/api/v2", tags=["Drafting V2"])
 # app.include_router(websockets_router)
 
