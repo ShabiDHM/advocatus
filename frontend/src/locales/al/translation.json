@@ -43,7 +43,7 @@
       "priority": "Prioriteti *",
       "description": "Përshkrimi",
       "eventDate": "Data & Ora e Ngjarjes *",
-      "dateTimePlaceholder": "dd.mm.yyyy HH:mm",
+      "dateTimePlaceholder": "dd.mm.vvvv HH:mm",
       "location": "Vendndhodja",
       "attendees": "Pjesëmarrësit (të ndarë me presje)",
       "notes": "Shënime",
