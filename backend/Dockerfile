@@ -1,36 +1,36 @@
-# backend/Dockerfile
-# DEFINITIVE VERSION 8.0 (PHOENIX PROTOCOL: RUNTIME IMPORT FIX)
-# 1. CRITICAL FIX: Added 'ENV PYTHONPATH /app' to explicitly set the Python
-#    import path. This resolves the 'ModuleNotFoundError' on container startup
-#    by telling the interpreter where to find the 'app' package.
+# FILE: backend/Dockerfile
+# PHOENIX PROTOCOL CURE 49.2 (OPTIMIZED BUILD PROCESS):
+# 1. Split COPY commands to properly leverage Docker's build cache. Dependency
+#    installation is now separate from source code copying.
+# 2. This ensures source code changes ALWAYS result in a fresh application
+#    layer, while dependencies are only re-installed if requirements.txt changes.
 
 FROM python:3.11
 
 # 1. Install system dependencies.
-RUN apt-get update && apt-get install -y tesseract-ocr && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    dnsutils \
+    iputils-ping \
+    curl && \
+    rm -rf /var/lib/apt/lists/*
 
 # 2. Verify Tesseract installation.
 RUN tesseract --version
 
-# 3. Install network utilities.
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends dnsutils iputils-ping curl && \
-    rm -rf /var/lib/apt/lists/*
-
-# 4. Set the working directory inside the container.
+# 3. Set the working directory and PYTHONPATH.
 WORKDIR /app
-
-# 5. --- PHOENIX PROTOCOL FIX: Set the PYTHONPATH ---
-#    This tells the Python interpreter to look for packages in the /app directory,
-#    allowing it to find the 'app' module at /app/app.
 ENV PYTHONPATH /app
 
-# 6. Copy and install Python dependencies.
+# 4. Copy ONLY the requirements file first to leverage Docker cache.
 COPY requirements.txt .
+
+# 5. Install Python dependencies. This step will only re-run if requirements.txt changes.
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 7. Copy the rest of the application's source code.
-COPY . .
+# 6. Copy the application source code. This will be a fresh copy on every code change.
+COPY ./app ./app
 
-# 8. Expose the port that the Uvicorn server will run on.
+# 7. Expose the port that the Uvicorn server will run on.
 EXPOSE 8000
