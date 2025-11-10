@@ -1,11 +1,16 @@
 // FILE: frontend/src/services/api.ts
-// DEFINITIVE VERSION (ROUTE CORRECTION CURE):
-// 1. ROOT CAUSE CURE: The methods for creating and deleting calendar events have been
-//    corrected to explicitly use the full, correct path ('/calendar/events') that
-//    the backend router requires.
-// 2. This resolves the architectural desynchronization between the frontend's API map
-//    and the backend's actual routes, curing the '404 Not Found' error and restoring
-//    calendar functionality.
+// DEFINITIVE VERSION (WEBSOCKET AUTHENTICATION CURE):
+// 1. DISEASE IDENTIFIED: The WebSocket connection logic was decoupled from the main REST
+//    authentication lifecycle. It would blindly read from localStorage, making it vulnerable
+//    to race conditions where a failed token refresh in an interceptor would delete the
+//    token just before the WebSocket tried to connect, causing a handshake failure.
+// 2. THE CURE - UNIFIED AUTH PROTOCOL: The `getWebSocketUrl` function has been re-engineered
+//    to be `async`. It now MUST `await this.ensureValidToken()` before proceeding.
+// 3. SYNCHRONIZED STATE: This change forces the WebSocket connection to wait for any
+//    ongoing token refresh to complete. It guarantees that the token in localStorage is
+//    valid at the moment the URL is constructed, completely eliminating the race condition.
+// 4. ARCHITECTURAL CONSISTENCY: Both REST and WebSocket requests now follow the exact
+//    same authentication validation and refresh protocol, curing the deep architectural flaw.
 
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult } from '../data/types';
@@ -113,11 +118,24 @@ export class ApiService {
         );
     }
 
-    public getWebSocketUrl(caseId: string): string {
+    // --- PHOENIX PROTOCOL CURE: Unified WebSocket Authentication ---
+    public async getWebSocketUrl(caseId: string): Promise<string> {
+        // Step 1: Proactively ensure the token is valid, refreshing if necessary.
+        // This forces the WebSocket to wait for the auth lifecycle to complete.
+        await this.ensureValidToken();
+
+        // Step 2: Now that we are GUARANTEED to have a valid token, read it.
         const token = localStorage.getItem('jwtToken');
-        if (!token) throw new Error('Authentication required for WebSocket connection');
+        if (!token) {
+            // This is now an impossible state, but we handle it for robustness.
+            if (this.onUnauthorized) this.onUnauthorized();
+            throw new Error('Fatal: Token disappeared after validation.');
+        }
+
+        // Step 3: Construct and return the authenticated URL.
         return `wss://advocatus-prod-api.duckdns.org/ws/case/${caseId}?token=${encodeURIComponent(token)}`;
     }
+    // --- END CURE ---
 
     public getAxiosInstance(): AxiosInstance { return this.axiosInstance; }
     public async login(data: LoginRequest): Promise<LoginResponse> { return (await this.axiosInstance.post('/auth/login', data)).data; }
@@ -141,19 +159,15 @@ export class ApiService {
     public async deleteDocument(caseId: string, documentId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}/documents/${documentId}`); }
     public async getFindings(caseId: string): Promise<Finding[]> { return (await this.axiosInstance.get(`/cases/${caseId}/findings`)).data; }
     
-    // --- PHOENIX PROTOCOL CURE: Corrected Calendar Routes ---
     public async getCalendarEvents(): Promise<CalendarEvent[]> { 
         return (await this.axiosInstance.get('/calendar/events')).data; 
     }
     public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { 
-        // CURE: Explicitly use the full, correct path.
         return (await this.axiosInstance.post('/calendar/events', data)).data; 
     }
     public async deleteCalendarEvent(eventId: string): Promise<void> { 
-        // CURE: Explicitly use the full, correct path with the event ID.
         await this.axiosInstance.delete(`/calendar/events/${eventId}`); 
     }
-    // --- END CURE ---
 
     public async getAllUsers(): Promise<AdminUser[]> { return (await this.axiosInstance.get(`/admin/users`)).data; }
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<AdminUser> { return (await this.axiosInstance.put(`/admin/users/${userId}`, data)).data; }

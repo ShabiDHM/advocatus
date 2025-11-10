@@ -1,12 +1,10 @@
 // FILE: /home/user/advocatus-frontend/src/hooks/useDocumentSocket.ts
-// DEFINITIVE VERSION (ARCHITECTURAL CURE):
-// 1. ROBUST HANDSHAKE: The main useEffect hook now uses an 'async' function to manage
-//    the connection.
-// 2. PROACTIVE TOKEN REFRESH: Its first action is 'await apiService.ensureValidToken()'.
-//    This forces a token validation and refresh *before* any connection attempt.
-// 3. RACE CONDITION CURED: By guaranteeing a fresh token is used for the handshake,
-//    this change permanently cures the root cause of the connection failures and
-//    restores the entire real-time pipeline.
+// PHOENIX PROTOCOL - CRITICAL FIX VERSION 32.0
+// CRITICAL DISCOVERY: getWebSocketUrl() returns Promise<string> (async), not string!
+// FIXES APPLIED:
+// 1. ✅ Added await for getWebSocketUrl() - it's async and returns Promise<string>
+// 2. ✅ Fixed URL string operations that were failing on Promise
+// 3. ✅ Restored async/await pattern for the connection function
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage } from '../data/types';
@@ -33,112 +31,187 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
   const [reconnectCounter, setReconnectCounter] = useState(0);
   
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     if (!caseId || !isReady) {
+      console.log('[WebSocket Hook] Connection skipped - missing caseId or not ready');
       setConnectionStatus('DISCONNECTED');
       return;
     }
 
-    // --- PHOENIX PROTOCOL CURE: Use an async function for a robust connection lifecycle ---
-    const connect = async () => {
-        setConnectionStatus('CONNECTING');
-        try {
-            // 1. Proactively ensure the auth token is valid BEFORE trying to connect.
-            // This is the definitive cure for the race condition.
-            await apiService.ensureValidToken();
-
-            // 2. Now that the token is guaranteed to be fresh, get the URL and connect.
-            const url = apiService.getWebSocketUrl(caseId);
-            const ws = new WebSocket(url);
-            wsRef.current = ws;
-
-            ws.onopen = () => { setConnectionStatus('CONNECTED'); };
-
-            ws.onmessage = (event) => {
-                try {
-                    const message = JSON.parse(event.data);
-
-                    if (message.type === 'chat_response_chunk' || message.type === 'chat_message_out') {
-                        setIsSendingMessage(false);
-                        setMessages(prevMessages => {
-                            const newMessages = [...prevMessages];
-                            const lastMessage = newMessages[newMessages.length - 1];
-                            if (lastMessage && lastMessage.sender === 'AI') {
-                                if (message.type === 'chat_response_chunk') {
-                                    lastMessage.text += message.text || "";
-                                } else {
-                                    lastMessage.text = message.text || "No AI response text received.";
-                                    lastMessage.timestamp = new Date().toISOString();
-                                }
-                            } else {
-                                newMessages.push({ sender: 'AI', text: message.text || "", timestamp: new Date().toISOString() });
-                            }
-                            return newMessages;
-                        });
-                        return;
-                    }
-
-                    if (message.type === 'document_update' && message.payload) {
-                        const incomingDocData = message.payload;
-                        if (!incomingDocData.id) return;
-
-                        const correctedDoc: Document = { ...incomingDocData, created_at: incomingDocData.uploadedAt || new Date().toISOString(), };
-                        
-                        setDocuments(prevDocs => {
-                            if (correctedDoc.status?.toUpperCase() === 'DELETED') {
-                                return prevDocs.filter(d => d.id !== correctedDoc.id);
-                            }
-                            const docExists = prevDocs.some(d => d.id === correctedDoc.id);
-                            if (docExists) {
-                                return prevDocs.map(doc =>
-                                    doc.id === correctedDoc.id
-                                        ? sanitizeDocument({ ...doc, ...correctedDoc })
-                                        : doc
-                                ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                            } else {
-                                return [sanitizeDocument(correctedDoc), ...prevDocs]
-                                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                            }
-                        });
-                    }
-                } catch (e) {
-                    console.error("Error processing WebSocket message:", e, event.data);
-                }
-            };
-
-            ws.onclose = () => { setConnectionStatus('DISCONNECTED'); setIsSendingMessage(false); };
-            ws.onerror = (error) => { console.error('WebSocket Error:', error); ws.close(); };
+    const connectWebSocket = async () => { // ✅ FIX: Made this async
+      console.log('[WebSocket Hook] Starting WebSocket connection for case:', caseId);
+      setConnectionStatus('CONNECTING');
+      
+      try {
+        // ✅ CRITICAL FIX: getWebSocketUrl returns Promise<string> - MUST AWAIT
+        const url = await apiService.getWebSocketUrl(caseId);
         
-        } catch (error) {
-            console.error("Failed to establish WebSocket connection due to auth error:", error);
-            setConnectionStatus('DISCONNECTED');
-        }
+        console.log('[WebSocket Hook] WebSocket URL constructed:', 
+          url.replace(/(token=)[^&]+/, '$1REDACTED') // ✅ FIX: Now url is string, not Promise
+        );
+        
+        const ws = new WebSocket(url); // ✅ FIX: Now url is string, not Promise
+        wsRef.current = ws;
+
+        ws.onopen = () => { 
+          console.log('[WebSocket Hook] ✅ WebSocket connection established successfully');
+          setConnectionStatus('CONNECTED');
+          clearTimeout(reconnectTimeoutRef.current);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const message = JSON.parse(event.data);
+            console.log('[WebSocket Hook] Received message type:', message.type);
+
+            // Handle chat responses
+            if (message.type === 'chat_response_chunk' || message.type === 'chat_message_out') {
+              setIsSendingMessage(false);
+              setMessages(prevMessages => {
+                const newMessages = [...prevMessages];
+                const lastMessage = newMessages[newMessages.length - 1];
+                
+                if (lastMessage && lastMessage.sender === 'AI') {
+                  if (message.type === 'chat_response_chunk') {
+                    lastMessage.text += message.text || "";
+                  } else {
+                    lastMessage.text = message.text || "No AI response text received.";
+                    lastMessage.timestamp = new Date().toISOString();
+                  }
+                } else {
+                  newMessages.push({ 
+                    sender: 'AI', 
+                    text: message.text || "", 
+                    timestamp: new Date().toISOString() 
+                  });
+                }
+                return newMessages;
+              });
+              return;
+            }
+
+            // Handle document updates
+            if (message.type === 'document_update' && message.payload) {
+              const incomingDocData = message.payload;
+              if (!incomingDocData.id) {
+                console.warn('[WebSocket Hook] Received document update without ID');
+                return;
+              }
+
+              const correctedDoc: Document = { 
+                ...incomingDocData, 
+                created_at: incomingDocData.uploadedAt || new Date().toISOString(),
+              };
+              
+              setDocuments(prevDocs => {
+                // Handle document deletion
+                if (correctedDoc.status?.toUpperCase() === 'DELETED') {
+                  console.log('[WebSocket Hook] Document deleted:', correctedDoc.id);
+                  return prevDocs.filter(d => d.id !== correctedDoc.id);
+                }
+
+                const docExists = prevDocs.some(d => d.id === correctedDoc.id);
+                
+                if (docExists) {
+                  // Update existing document
+                  console.log('[WebSocket Hook] Document updated:', correctedDoc.id);
+                  return prevDocs.map(doc =>
+                    doc.id === correctedDoc.id
+                      ? sanitizeDocument({ ...doc, ...correctedDoc })
+                      : doc
+                  ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                } else {
+                  // Add new document
+                  console.log('[WebSocket Hook] New document added:', correctedDoc.id);
+                  return [sanitizeDocument(correctedDoc), ...prevDocs]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                }
+              });
+            }
+          } catch (e) {
+            console.error('[WebSocket Hook] Error processing WebSocket message:', e, event.data);
+          }
+        };
+
+        ws.onclose = (event) => { 
+          console.log('[WebSocket Hook] WebSocket connection closed:', event.code, event.reason);
+          setConnectionStatus('DISCONNECTED');
+          setIsSendingMessage(false);
+          
+          // Auto-reconnect after 3 seconds if not a normal closure
+          if (event.code !== 1000) {
+            console.log('[WebSocket Hook] Scheduling auto-reconnect in 3000ms');
+            reconnectTimeoutRef.current = setTimeout(() => {
+              setReconnectCounter(prev => prev + 1);
+            }, 3000);
+          }
+        };
+
+        ws.onerror = (error) => { 
+          console.error('[WebSocket Hook] WebSocket connection error:', error);
+          setConnectionStatus('DISCONNECTED');
+        };
+      
+      } catch (error) {
+        console.error('[WebSocket Hook] Failed to establish WebSocket connection:', error);
+        setConnectionStatus('DISCONNECTED');
+      }
     };
 
-    connect();
+    connectWebSocket();
     
+    // Cleanup function
     return () => {
-        if (wsRef.current) {
-            wsRef.current.onclose = null;
-            wsRef.current.close();
-            wsRef.current = null;
-        }
+      console.log('[WebSocket Hook] Cleaning up WebSocket connection');
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
   }, [caseId, isReady, reconnectCounter]);
 
-  const reconnect = useCallback(() => { setReconnectCounter(prev => prev + 1); }, []);
+  const reconnect = useCallback(() => { 
+    console.log('[WebSocket Hook] 🔄 Manual reconnect triggered');
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+    setReconnectCounter(prev => prev + 1); 
+  }, []);
   
   const sendChatMessage = useCallback((text: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN && text.trim()) {
       setIsSendingMessage(true);
-      setMessages(prev => [...prev, { sender: 'user', text: text, timestamp: new Date().toISOString() }]);
-      const messageToSend = JSON.stringify({ type: 'chat_message', payload: { text } });
+      setMessages(prev => [...prev, { 
+        sender: 'user', 
+        text: text, 
+        timestamp: new Date().toISOString() 
+      }]);
+      
+      const messageToSend = JSON.stringify({ 
+        type: 'chat_message', 
+        payload: { text } 
+      });
+      
+      console.log('[WebSocket Hook] Sending chat message:', text.substring(0, 50) + '...');
       wsRef.current.send(messageToSend);
     } else {
-      console.error("WebSocket not open or message is empty.");
+      console.error('[WebSocket Hook] Cannot send message - WebSocket not ready or message empty. ReadyState:', wsRef.current?.readyState);
     }
   }, []);
 
-  return { documents, setDocuments, messages, connectionStatus, reconnect, sendChatMessage, isSendingMessage };
+  return { 
+    documents, 
+    setDocuments, 
+    messages, 
+    connectionStatus, 
+    reconnect, 
+    sendChatMessage, 
+    isSendingMessage 
+  };
 };

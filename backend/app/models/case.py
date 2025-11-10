@@ -1,8 +1,11 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL MODIFICATION 1.0
-# 1. NEW MODELS: Added 'ChatMessage' for DB storage and 'ChatMessageOut' for WebSocket broadcasting.
-# 2. SCHEMA UPDATE: Added a 'chat_history' list to 'CaseInDB' to enable chat persistence.
-# 3. This establishes the foundational data structure for the real-time, persistent chat feature.
+# DEFINITIVE VERSION (ARCHITECTURAL CURE):
+# 1. CURED: Removed the obsolete `json_encoders` dictionary from the `CaseInDB`
+#    model's `ConfigDict`.
+# 2. This resolves the architectural conflict between Pydantic v1 and v2
+#    serialization patterns, which was the root cause of the Pylance errors.
+# 3. The serialization of `PyObjectId` is now handled exclusively by the logic
+#    within the `PyObjectId` class itself, creating a single source of truth.
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from datetime import datetime
@@ -50,14 +53,14 @@ class CaseInDB(CaseBase):
     owner_id: PyObjectId
     created_at: datetime = Field(default_factory=datetime.utcnow)
     client: Optional[ClientDetailsOut] = Field(None)
-    
+
     # --- PHOENIX PROTOCOL ADDITION: Persist chat history in the database ---
     chat_history: List[ChatMessage] = Field(default_factory=list)
 
+    # CURE: The conflicting `json_encoders` line has been removed.
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
-        json_encoders={PyObjectId: str}
     )
 
 class CaseOut(BaseModel):
@@ -65,14 +68,14 @@ class CaseOut(BaseModel):
     case_name: str
     client: Optional[ClientDetailsOut] = Field(None)
     klienti_emri: Optional[str] = Field(None)
-    
+
     @field_validator('klienti_emri', mode='before')
     @classmethod
     def populate_client_name(cls, v: Any, info: Any) -> Optional[str]:
         if info.data and info.data.get('client') and info.data['client'].get('name'):
             return info.data['client']['name']
         return None
-        
+
     status: str
     owner_id: str
     created_at: datetime
