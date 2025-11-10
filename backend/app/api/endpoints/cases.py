@@ -1,17 +1,9 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL MODIFICATION 2.0 (API COMPLETION & STABILITY FIX):
-# 1. CRITICAL STABILITY FIX: Converted the `get_findings_for_case` endpoint to `async def`
-#    and wrapped its synchronous service call in `asyncio.to_thread`. This resolves a
-#    major architectural flaw that was causing the entire server to block during
-#    database queries for findings.
-# 2. FEATURE COMPLETION: Implemented the missing `GET /{case_id}/documents/{doc_id}/report`
-#    endpoint, which provides the critical PDF export/viewing functionality.
-# 3. NON-BLOCKING PDF GENERATION: The new endpoint correctly calls the synchronous
-#    `report_service` function within `asyncio.to_thread`, ensuring that CPU-intensive
-#    PDF generation does not block the server event loop.
-#
-# PHOENIX PROTOCOL MODIFICATION 1.0 (API COMPLETION)
-# ...
+# PHOENIX PROTOCOL CURE 52.1 (ROUTER DECONFLICTION):
+# 1. ROUTER ISOLATION: The APIRouter is now initialized with a `prefix="/cases"`.
+# 2. This isolates all routes within this file under the `/cases` namespace,
+#    making collisions with other routers like `/calendar` impossible.
+# 3. This is the definitive cure for the persistent 404 Not Found error.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated, Dict, Any
@@ -32,7 +24,7 @@ from ...models.findings import FindingsListOut, FindingOut
 from .dependencies import get_current_active_user, get_db, get_sync_redis
 from ...celery_app import celery_app
 
-router = APIRouter(tags=["Cases"])
+router = APIRouter(prefix="/cases", tags=["Cases"])
 logger = logging.getLogger(__name__)
 
 class DocumentContentOut(BaseModel):
@@ -66,31 +58,23 @@ async def delete_case(case_id: str, current_user: Annotated[UserInDB, Depends(ge
     await asyncio.to_thread(case_service.delete_case_by_id, db=db, case_id=validated_case_id, owner=current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-# --- Sub-resource endpoints ---
 @router.get("/{case_id}/findings", response_model=FindingsListOut, tags=["Findings"])
 async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_active_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
-    # --- PHOENIX PROTOCOL FIX: Prevent blocking the event loop ---
     findings_data = await asyncio.to_thread(findings_service.get_findings_for_case, db=db, case_id=case_id)
-    
     findings_out_list = [
         FindingOut.model_validate({
-            'id': str(finding.get('_id')),
-            'case_id': str(finding.get('case_id')),
-            'finding_text': finding.get('finding_text', 'N/A'),
-            'source_text': finding.get('source_text', 'N/A'),
-            'page_number': finding.get('page_number'),
-            'document_name': finding.get('document_name'),
-            'confidence_score': finding.get('confidence_score', 0.0), 
-        })
-        for finding in findings_data
+            'id': str(finding.get('_id')), 'case_id': str(finding.get('case_id')),
+            'finding_text': finding.get('finding_text', 'N/A'), 'source_text': finding.get('source_text', 'N/A'),
+            'page_number': finding.get('page_number'), 'document_name': finding.get('document_name'),
+            'confidence_score': finding.get('confidence_score', 0.0),
+        }) for finding in findings_data
     ]
     return FindingsListOut(findings=findings_out_list, count=len(findings_out_list))
 
 @router.get("/{case_id}/documents", response_model=List[DocumentOut], tags=["Documents"])
 async def get_documents_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_active_user)], db: Database = Depends(get_db)):
-    documents = await asyncio.to_thread(document_service.get_documents_by_case_id, db, case_id, current_user)
-    return documents
+    return await asyncio.to_thread(document_service.get_documents_by_case_id, db, case_id, current_user)
 
 @router.post("/{case_id}/documents/upload", status_code=status.HTTP_202_ACCEPTED, tags=["Documents"])
 async def upload_document_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_active_user)], file: UploadFile = File(...), db: Database = Depends(get_db)):
@@ -100,7 +84,7 @@ async def upload_document_for_case(case_id: str, current_user: Annotated[UserInD
         storage_key = await asyncio.to_thread(document_service.storage_service.upload_original_document, file=file, user_id=str(current_user.id), case_id=case_id)
         new_document = document_service.create_document_record(db=db, owner=current_user, case_id=case_id, file_name=file_name, storage_key=storage_key, mime_type=mime_type)
         celery_app.send_task("process_document_task", args=[str(new_document.id)])
-        return DocumentOut.model_validate(new_document) 
+        return DocumentOut.model_validate(new_document)
     except Exception as e:
         logger.error(f"CRITICAL UPLOAD FAILURE for case {case_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Document upload failed.")
@@ -108,38 +92,26 @@ async def upload_document_for_case(case_id: str, current_user: Annotated[UserInD
 @router.get("/{case_id}/documents/{doc_id}", response_model=DocumentOut, tags=["Documents"])
 async def get_document_by_id(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_active_user)], db: Database = Depends(get_db)):
     document = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
-    if str(document.case_id) != case_id:
-        raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
+    if str(document.case_id) != case_id: raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
     return document
 
 @router.get("/{case_id}/documents/{doc_id}/content", response_model=DocumentContentOut, tags=["Documents"])
 async def get_document_content(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_active_user)], db: Database = Depends(get_db)):
     document = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
-    if str(document.case_id) != case_id:
-        raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
-    if not document.processed_text_storage_key:
-        raise HTTPException(status_code=404, detail="Document content not available.")
+    if str(document.case_id) != case_id: raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
+    if not document.processed_text_storage_key: raise HTTPException(status_code=404, detail="Document content not available.")
     content = await asyncio.to_thread(document_service.get_document_content_by_key, storage_key=document.processed_text_storage_key)
-    if content is None:
-        raise HTTPException(status_code=404, detail="Document content not found in storage.")
+    if content is None: raise HTTPException(status_code=404, detail="Document content not found in storage.")
     return DocumentContentOut(text=content)
 
-# --- PHOENIX PROTOCOL: Implement the missing report/export endpoint ---
 @router.get("/{case_id}/documents/{doc_id}/report", tags=["Documents"])
 async def get_document_report_pdf(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_active_user)], db: Database = Depends(get_db)):
     document = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
-    if str(document.case_id) != case_id:
-        raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
-    if not document.processed_text_storage_key:
-        raise HTTPException(status_code=404, detail="Document content not available for report.")
-    
+    if str(document.case_id) != case_id: raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
+    if not document.processed_text_storage_key: raise HTTPException(status_code=404, detail="Document content not available for report.")
     content = await asyncio.to_thread(document_service.get_document_content_by_key, storage_key=document.processed_text_storage_key)
-    if content is None:
-        raise HTTPException(status_code=404, detail="Document content not found in storage.")
-
-    # --- PHOENIX PROTOCOL: Prevent blocking the event loop for PDF generation ---
+    if content is None: raise HTTPException(status_code=404, detail="Document content not found in storage.")
     pdf_buffer = await asyncio.to_thread(report_service.create_pdf_from_text, text=content, document_title=document.file_name)
-    
     headers = {'Content-Disposition': f'inline; filename="{document.file_name}.pdf"'}
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
 
