@@ -1,11 +1,14 @@
 // FILE: /home/user/advocatus-frontend/src/components/ChatPanel.tsx
-// DEFINITIVE VERSION 14.4 (PHOENIX PROTOCOL: I18N FIX FOR CONNECTION STATUS & TYPING)
-// 1. I18N FIX: Corrected the connection status helper 'statusText' to use the correct namespace keys.
-// 2. I18N FIX: Implemented translation for the 'thinking' message in the typing indicator.
+// DEFINITIVE VERSION 14.5 (PHOENIX PROTOCOL: TYPE INTEGRITY CURE)
+// 1. TYPE INTEGRITY CURE: The 'connectionStatus' prop now uses the global
+//    'ConnectionStatus' type from 'types.ts', resolving the TS2322 build error.
+// 2. UI ROBUSTNESS: The 'statusColor' and 'statusText' helpers now correctly
+//    handle the 'ERROR' state, providing clear visual feedback to the user.
+// 3. I18N FIX: All previous internationalization fixes are maintained.
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../data/types';
-import { TFunction } from 'i18next'; // Import TFunction type
+import { ChatMessage, ConnectionStatus } from '../data/types'; // CURE: Import ConnectionStatus
+import { TFunction } from 'i18next';
 import moment from 'moment';
 import { Brain } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -13,14 +16,13 @@ import { motion } from 'framer-motion';
 interface ChatPanelProps {
   caseId: string;
   messages: ChatMessage[];
-  connectionStatus: 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED';
+  connectionStatus: ConnectionStatus; // CURE: Use authoritative type
   onSendMessage: (text: string) => void;
   isSendingMessage: boolean;
   reconnect: () => void;
-  t: TFunction; // PHOENIX FIX: Added missing translation prop
+  t: TFunction;
 }
 
-// I18N FIX: TypingIndicator now uses the 't' prop for translation
 const TypingIndicator: React.FC<{ t: TFunction }> = ({ t }) => (
     <div className="flex items-center space-x-1">
         <span className="text-sm text-text-secondary">{t('chatPanel.thinking')}</span>
@@ -30,7 +32,6 @@ const TypingIndicator: React.FC<{ t: TFunction }> = ({ t }) => (
     </div>
 );
 
-// PHOENIX FIX: Destructuring 't' and removing the hook call
 const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSendMessage, isSendingMessage, reconnect, t }) => {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -40,21 +41,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSen
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (inputText.trim() && !isSendingMessage) { onSendMessage(inputText.trim()); setInputText(''); } };
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as unknown as React.FormEvent); } };
 
-  const statusColor = (status: typeof connectionStatus) => {
+  const statusColor = (status: ConnectionStatus) => {
     switch (status) {
       case 'CONNECTED': return 'bg-success-start text-white glow-accent';
       case 'CONNECTING': return 'bg-accent-start text-white';
       case 'DISCONNECTED': return 'bg-red-500 text-white';
+      case 'ERROR': return 'bg-red-500 text-white'; // CURE: Handle ERROR state
       default: return 'bg-background-light text-text-secondary';
     }
   };
 
-  // I18N FIX: Ensure the keys match the expected pattern
-  const statusText = (status: typeof connectionStatus) => {
+  const statusText = (status: ConnectionStatus) => {
     switch (status) {
       case 'CONNECTED': return t('chatPanel.statusConnected');
       case 'CONNECTING': return t('chatPanel.statusConnecting');
       case 'DISCONNECTED': return t('chatPanel.statusDisconnected');
+      case 'ERROR': return t('chatPanel.statusError'); // CURE: Handle ERROR state
     }
   };
 
@@ -66,7 +68,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSen
             <h2 className="text-xl font-bold text-text-primary">{t('chatPanel.title')}</h2>
         </div>
         <div className={`text-xs font-semibold px-3 py-1 rounded-full flex items-center transition-all ${statusColor(connectionStatus)}`}>
-          {/* JSX is correct, using the fixed statusText helper */}
           {statusText(connectionStatus)}
           {connectionStatus !== 'CONNECTED' && ( <motion.button onClick={reconnect} className="ml-2 underline text-white/80 hover:text-white" whileHover={{ scale: 1.05 }}> {t('chatPanel.reconnect')} </motion.button> )}
         </div>
@@ -87,7 +88,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSen
         {isSendingMessage && (
           <motion.div className="flex justify-start">
             <div className="p-3 rounded-xl bg-background-dark/80 text-text-secondary border border-glass-edge flex items-center space-x-2">
-              {/* I18N FIX: Pass 't' prop to TypingIndicator */}
               <TypingIndicator t={t} />
             </div>
           </motion.div>
