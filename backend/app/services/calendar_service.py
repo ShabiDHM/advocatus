@@ -1,13 +1,14 @@
 # FILE: backend/app/services/calendar_service.py
-# CORRECTED: Fixed method signature consistency and type annotations
+# COMPLETELY CLEANED VERSION - No type annotation issues
 
-from __future__ import annotations
-from typing import List
 from motor.motor_asyncio import AsyncIOMotorClient
 from fastapi import HTTPException, status
 from datetime import datetime
+from typing import List
+from bson import ObjectId
+
+# Direct imports without TYPE_CHECKING complexity
 from app.models.calendar import CalendarEventInDB, CalendarEventCreate, EventStatus
-from app.models.common import PyObjectId
 
 
 class CalendarService:
@@ -15,7 +16,7 @@ class CalendarService:
         self.db = client.get_database()
         self.collection = self.db.get_collection("calendar_events")
 
-    async def create_event(self, event_data: CalendarEventCreate, user_id: PyObjectId) -> CalendarEventInDB:
+    async def create_event(self, event_data: CalendarEventCreate, user_id: ObjectId) -> CalendarEventInDB:
         # Verify case exists and belongs to user
         case = await self.db.cases.find_one({
             "_id": event_data.case_id,
@@ -54,14 +55,14 @@ class CalendarService:
             )
         return CalendarEventInDB.model_validate(created_event)
 
-    async def get_events_for_user(self, user_id: PyObjectId) -> List[CalendarEventInDB]:
+    async def get_events_for_user(self, user_id: ObjectId) -> List[CalendarEventInDB]:
         events = []
         cursor = self.collection.find({"user_id": user_id}).sort("start_date", 1)
         async for event in cursor:
             events.append(CalendarEventInDB.model_validate(event))
         return events
 
-    async def delete_event(self, event_id: PyObjectId, user_id: PyObjectId) -> bool:
+    async def delete_event(self, event_id: ObjectId, user_id: ObjectId) -> bool:
         delete_result = await self.collection.delete_one(
             {"_id": event_id, "user_id": user_id}
         )

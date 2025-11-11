@@ -1,13 +1,13 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# CORRECTED: Fixed parameter passing to match service method signature
+# UPDATED: Consistent ObjectId usage
 
 from fastapi import APIRouter, Depends, status
 from typing import List
+from bson import ObjectId
 from app.services.calendar_service import CalendarService
 from app.models.calendar import CalendarEventOut, CalendarEventCreate
 from app.api.endpoints.dependencies import get_current_user, get_calendar_service
 from app.models.user import UserInDB
-from app.models.common import PyObjectId
 
 router = APIRouter()
 
@@ -47,7 +47,7 @@ async def get_all_user_events(
     summary="Delete a calendar event"
 )
 async def delete_user_event(
-    event_id: PyObjectId,
+    event_id: ObjectId,
     current_user: UserInDB = Depends(get_current_user),
     calendar_service: CalendarService = Depends(get_calendar_service),
 ):
