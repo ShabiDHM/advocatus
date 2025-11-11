@@ -1,13 +1,22 @@
 # FILE: /root/advocatus/backend/app/api/endpoints/websockets.py
-# PHOENIX PROTOCOL - COMPLETE STANDALONE VERSION
-# FIXES: Self-contained WebSocket manager, no external dependencies, proper error handling
+# PHOENIX PROTOCOL - WEBSOCKET AUTH FIX V2.0
+# FIXES: 
+# 1. Proper database dependency injection
+# 2. Type-safe token validation
+# 3. Maintains all existing functionality
 
 import logging
 import json
 import asyncio
 from typing import Optional, Dict, List
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Request
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status, Request, Depends
 from pydantic import BaseModel
+from bson import ObjectId
+from pymongo.database import Database
+
+from ...services.user_service import get_user_by_id
+from ...core.security import decode_token
+from ...api.endpoints.dependencies import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +48,6 @@ class ConnectionManager:
                 self.active_connections[case_id].remove(websocket)
                 if not self.active_connections[case_id]:
                     del self.active_connections[case_id]
-            
-            # Remove from user connections
-            user_id_to_remove = None
-            for user_id, user_case_id in self.user_connections.items():
-                if user_case_id == case_id:
-                    # We can't reliably map websocket to user_id without more context
-                    # So we'll clean up based on case_id changes
-                    pass
             
             logger.info(f"User disconnected from case {case_id}")
 
@@ -92,21 +93,41 @@ class ChatMessagePayload(BaseModel):
 # Router
 router = APIRouter(tags=["WebSockets"])
 
-def validate_token_simple(token: str) -> Optional[str]:
+def validate_websocket_token(db: Database, token: str) -> Optional[str]:
     """
-    Simple token validation for WebSocket connections.
-    In production, replace with proper JWT validation.
+    Proper JWT token validation for WebSocket connections.
+    Uses the same validation as REST API endpoints.
     """
-    if not token or len(token) < 10:
+    if not token:
+        logger.warning("WebSocket connection attempt with empty token")
         return None
     
-    # For demo purposes, accept any token and return a mock user ID
-    # In production, decode JWT and validate properly
     try:
-        # Mock user ID based on token hash
-        user_id = f"user_{abs(hash(token)) % 10000}"
-        return user_id
-    except:
+        # Use the same JWT validation as REST API
+        # Type safety: token is guaranteed to be str at this point
+        payload = decode_token(token)
+        
+        # Verify it's an access token
+        if payload.get("type") != "access":
+            logger.warning(f"WebSocket token type mismatch. Expected 'access', got '{payload.get('type')}'")
+            return None
+            
+        user_id_str = payload.get("id")
+        if not user_id_str:
+            logger.warning("WebSocket token missing user ID ('id' claim)")
+            return None
+        
+        # Verify user exists in database
+        user = get_user_by_id(db, ObjectId(user_id_str))
+        if not user:
+            logger.warning(f"WebSocket user not found for ID: {user_id_str}")
+            return None
+            
+        logger.info(f"WebSocket token validated for user: {user_id_str}")
+        return user_id_str
+            
+    except Exception as e:
+        logger.error(f"WebSocket token validation failed: {e}")
         return None
 
 async def process_chat_message_simple(case_id: str, user_id: str, query_text: str, websocket: WebSocket):
@@ -138,13 +159,18 @@ async def process_chat_message_simple(case_id: str, user_id: str, query_text: st
         })
 
 @router.websocket("/ws/case/{case_id}")
-async def websocket_case_endpoint(websocket: WebSocket, case_id: str, token: str):
+async def websocket_case_endpoint(
+    websocket: WebSocket, 
+    case_id: str, 
+    token: str,
+    db: Database = Depends(get_db)
+):
     """WebSocket endpoint for real-time case updates and chat."""
     
     logger.info(f"WebSocket connection attempt for case {case_id} with token: {token[:10]}...")
     
-    # Validate token
-    user_id = validate_token_simple(token)
+    # Validate token using proper JWT validation (same as REST API)
+    user_id = validate_websocket_token(db, token)
     if not user_id:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
         return
@@ -231,7 +257,11 @@ async def websocket_case_endpoint(websocket: WebSocket, case_id: str, token: str
     tags=["Internal"],
     include_in_schema=False
 )
-async def broadcast_document_update(request: Request, payload: DocumentUpdatePayload):
+async def broadcast_document_update(
+    request: Request, 
+    payload: DocumentUpdatePayload,
+    db: Database = Depends(get_db)
+):
     """Internal endpoint to broadcast document updates to connected clients."""
     try:
         broadcast_message = {
@@ -260,7 +290,7 @@ async def broadcast_document_update(request: Request, payload: DocumentUpdatePay
         return {"status": "error", "message": str(e)}
 
 @router.get("/ws/debug/connections")
-async def debug_connections():
+async def debug_connections(db: Database = Depends(get_db)):
     """Debug endpoint to check active WebSocket connections."""
     return {
         "active_cases": list(manager.active_connections.keys()),
