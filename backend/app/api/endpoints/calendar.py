@@ -1,13 +1,7 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# PHOENIX PROTOCOL CURE 54.3 (SYNTAX AND ROUTE CORRECTION):
-# 1. SYNTAX VALIDATION: This file is guaranteed to be free of Python 3 syntax
-#    errors, specifically the illegal use of backticks, which was causing the
-#    FastAPI server to crash on startup.
-# 2. ROUTE RE-ALIGNMENT: The route for event creation is set to "/events".
-#    This corrects the previous mismatch and aligns with the verified frontend
-#    call in `api.ts` (`POST /calendar/events`), resolving the 404 error.
+# CORRECTED: Fixed parameter passing to match service method signature
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status
 from typing import List
 from app.services.calendar_service import CalendarService
 from app.models.calendar import CalendarEventOut, CalendarEventCreate
@@ -18,7 +12,7 @@ from app.models.common import PyObjectId
 router = APIRouter()
 
 @router.post(
-    "/events", # CURE: Corrected route to match frontend API service.
+    "/events",
     response_model=CalendarEventOut,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new calendar event"

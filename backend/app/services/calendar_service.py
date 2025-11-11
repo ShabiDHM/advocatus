@@ -1,17 +1,13 @@
 # FILE: backend/app/services/calendar_service.py
-# CORRECTED VERSION: Fixed type annotation consistency and forward reference issues
+# CORRECTED: Fixed method signature consistency and type annotations
 
 from __future__ import annotations
-from typing import List, TYPE_CHECKING
+from typing import List
 from motor.motor_asyncio import AsyncIOMotorClient
 from fastapi import HTTPException, status
 from datetime import datetime
-
-# TYPE_CHECKING block for imports needed only for type hints
-if TYPE_CHECKING:
-    from app.models.calendar import CalendarEventInDB, CalendarEventCreate, EventStatus
-    from app.models.common import PyObjectId
-    from app.models.user import UserInDB
+from app.models.calendar import CalendarEventInDB, CalendarEventCreate, EventStatus
+from app.models.common import PyObjectId
 
 
 class CalendarService:
@@ -19,14 +15,11 @@ class CalendarService:
         self.db = client.get_database()
         self.collection = self.db.get_collection("calendar_events")
 
-    async def create_event(self, event_data: CalendarEventCreate, current_user: UserInDB) -> CalendarEventInDB:
-        # Local imports to avoid circular dependencies at runtime
-        from app.models.calendar import CalendarEventInDB, EventStatus
-
+    async def create_event(self, event_data: CalendarEventCreate, user_id: PyObjectId) -> CalendarEventInDB:
         # Verify case exists and belongs to user
         case = await self.db.cases.find_one({
             "_id": event_data.case_id,
-            "owner_id": current_user.id
+            "owner_id": user_id
         })
         if not case:
             raise HTTPException(
@@ -36,7 +29,7 @@ class CalendarService:
 
         # Prepare event data
         event_dict = event_data.model_dump()
-        event_dict["user_id"] = current_user.id
+        event_dict["user_id"] = user_id
 
         # Create event in database
         now = datetime.utcnow()
@@ -62,8 +55,6 @@ class CalendarService:
         return CalendarEventInDB.model_validate(created_event)
 
     async def get_events_for_user(self, user_id: PyObjectId) -> List[CalendarEventInDB]:
-        from app.models.calendar import CalendarEventInDB
-        
         events = []
         cursor = self.collection.find({"user_id": user_id}).sort("start_date", 1)
         async for event in cursor:

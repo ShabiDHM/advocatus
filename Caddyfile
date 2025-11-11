@@ -1,7 +1,7 @@
 # FILE: Caddyfile
-# PHOENIX PROTOCOL DEFINITIVE VERSION 3.0 (WEBSOCKET SUPPORT FIXED):
-# 1. CRITICAL FIX: Corrected WebSocket header syntax to use {http.request.header.*}
-# 2. This is the definitive fix for WebSocket connection failures.
+# PHOENIX PROTOCOL DEFINITIVE VERSION 5.0 (COMPLETE WEBSOCKET FIX):
+# 1. CRITICAL FIX: Added proper WebSocket route matcher and handling
+# 2. Uses Caddy's built-in WebSocket support with reverse_proxy for WebSockets
 
 advocatus-prod-api.duckdns.org {
     # Automatic HTTPS via Let's Encrypt
@@ -14,16 +14,35 @@ advocatus-prod-api.duckdns.org {
         X-Frame-Options "SAMEORIGIN"
     }
 
-    # Reverse proxy ALL traffic to the backend service with proper WebSocket support
-    reverse_proxy backend:8000 {
-        # Standard headers for backend application to understand the original request
-        header_up Host {host}
-        header_up X-Real-IP {remote}
-        header_up X-Forwarded-For {remote}
-        header_up X-Forwarded-Proto {scheme}
+    # --- PHOENIX PROTOCOL FIX: PROPER WEBSOCKET HANDLING ---
+    # Match WebSocket connections and handle them specifically
+    @websockets {
+        path /ws/*
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    
+    # Handle WebSocket connections with proper upgrade
+    handle @websockets {
+        reverse_proxy backend:8000 {
+            # WebSocket-specific headers
+            header_up Connection {http.request.header.Connection}
+            header_up Upgrade {http.request.header.Upgrade}
+            header_up Sec-WebSocket-Version {http.request.header.Sec-WebSocket-Version}
+            header_up Sec-WebSocket-Key {http.request.header.Sec-WebSocket-Key}
+            header_up Sec-WebSocket-Extensions {http.request.header.Sec-WebSocket-Extensions}
+            header_up Sec-WebSocket-Protocol {http.request.header.Sec-WebSocket-Protocol}
+        }
+    }
 
-        # --- PHOENIX PROTOCOL FIX: CORRECT WebSocket header syntax ---
-        header_up Connection {http.request.header.Connection}
-        header_up Upgrade {http.request.header.Upgrade}
+    # Handle all other HTTP traffic
+    handle {
+        reverse_proxy backend:8000 {
+            # Standard headers for backend application
+            header_up Host {host}
+            header_up X-Real-IP {remote}
+            header_up X-Forwarded-For {remote}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 }
