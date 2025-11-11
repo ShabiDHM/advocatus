@@ -5,7 +5,7 @@
 
 advocatus-prod-api.duckdns.org {
     # Automatic HTTPS via Let's Encrypt
-    tls shabanbala@gmail.com
+    tls shab@gmail.com
 
     # Standard security headers
     header {
