@@ -1,11 +1,11 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# PHOENIX PROTOCOL - OBJECTID FIX V1.0
-# FIX: Converted ObjectId path parameter to string with validation
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import List
 from bson import ObjectId
 from bson.errors import InvalidId
+
+# PHOENIX PROTOCOL CURE: The service is now imported from its correct location.
 from app.services.calendar_service import CalendarService
 from app.models.calendar import CalendarEventOut, CalendarEventCreate
 from app.api.endpoints.dependencies import get_current_user, get_calendar_service
@@ -49,14 +49,13 @@ async def get_all_user_events(
     summary="Delete a calendar event"
 )
 async def delete_user_event(
-    event_id: str,  # CHANGED: ObjectId -> str
+    event_id: str,
     current_user: UserInDB = Depends(get_current_user),
     calendar_service: CalendarService = Depends(get_calendar_service),
 ):
     """
     Deletes a specific calendar event by its ID, ensuring the user has permission.
     """
-    # ADDED: ObjectId validation and conversion
     try:
         object_id = ObjectId(event_id)
     except InvalidId:

@@ -7,7 +7,6 @@ from pymongo.database import Database
 from pymongo.mongo_client import MongoClient
 from pymongo.errors import ConnectionFailure
 from urllib.parse import urlparse
-# PHOENIX PROTOCOL CURE: Import Any to break the linter loop.
 from typing import Generator, Tuple, Any
 
 from .config import settings
@@ -28,7 +27,6 @@ def _connect_to_mongo() -> Tuple[MongoClient, Database]:
         print(f"--- [DB] CRITICAL: Could not connect to Sync MongoDB: {e} ---")
         raise
 
-# PHOENIX PROTOCOL CURE: Use 'Any' to definitively solve Pylance errors.
 async def _connect_to_motor() -> Tuple[Any, Any]:
     """Establishes an asynchronous connection to MongoDB using Motor."""
     print("--- [DB] Attempting to connect to Async MongoDB (Motor)... ---")
@@ -66,10 +64,14 @@ def get_db() -> Generator[Database, None, None]:
     """FastAPI dependency that yields the global synchronous database instance."""
     yield db_instance
 
-# PHOENIX PROTOCOL CURE: Use 'Any' to definitively solve Pylance errors.
 def get_async_db() -> Generator[Any, None, None]:
     """FastAPI dependency that yields the global asynchronous database instance."""
     yield async_db_instance
+
+# PHOENIX PROTOCOL CURE: Add the missing dependency provider function for Redis.
+def get_redis_client() -> Generator[redis.Redis, None, None]:
+    """FastAPI dependency that yields the global sync Redis client instance."""
+    yield redis_sync_client
 
 def close_mongo_connections():
     if mongo_client:

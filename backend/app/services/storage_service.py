@@ -1,13 +1,4 @@
-# backend/app/services/storage_service.py
-# PHOENIX PROTOCOL MODIFICATION V4.0 (SERVICE COMPLETION):
-# 1. CRITICAL ADDITION: Implemented the missing `download_processed_text` function.
-# 2. This is the definitive fix for the `AttributeError` that was causing the entire
-#    document viewing feature to fail with a 404 error.
-# 3. The new function correctly uses `boto3.get_object` to download file content into
-#    memory and includes robust error handling for non-existent files.
-#
-# FINAL PRODUCTION VERSION V3.1
-# ...
+# FILE: backend/app/services/storage_service.py
 
 import os
 import boto3
@@ -16,6 +7,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import UploadFile, HTTPException
 import logging
 import tempfile
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -88,21 +80,28 @@ def upload_processed_text(text_content: str, user_id: str, case_id: str, origina
         if temp_file_path and os.path.exists(temp_file_path):
             os.remove(temp_file_path)
 
-def download_original_document(storage_key: str, download_path: str):
+# --- PHOENIX PROTOCOL CURE: New function to stream downloads for the API ---
+def download_original_document_stream(storage_key: str) -> Any:
+    """
+    Retrieves the original document from B2 as a streaming body object.
+    This is memory-efficient and ideal for FastAPI's StreamingResponse.
+    """
     s3_client = get_s3_client()
     try:
-        logger.info(f"--- [Storage Service] Downloading file from B2 with key: {storage_key} ---")
-        s3_client.download_file(B2_BUCKET_NAME, storage_key, download_path)
-        logger.info(f"--- [Storage Service] Successfully downloaded file to: {download_path} ---")
+        logger.info(f"--- [Storage Service] Streaming file from B2 with key: {storage_key} ---")
+        response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
+        # The 'Body' of the response is a botocore.response.StreamingBody object.
+        # It's a file-like object that can be read or passed to a streaming response.
+        return response['Body']
     except ClientError as e:
-        if e.response['Error']['Code'] == '404':
-            logger.error(f"!!! ERROR: File not found in B2. Key: {storage_key}")
+        if e.response['Error']['Code'] == 'NoSuchKey':
+            logger.error(f"!!! ERROR: Original document file not found in B2. Key: {storage_key}")
             raise HTTPException(status_code=404, detail="File not found in storage.")
         else:
-            logger.error(f"!!! ERROR: Failed to download file from B2. Key: {storage_key}, Reason: {e}")
+            logger.error(f"!!! ERROR: Failed to stream file from B2. Key: {storage_key}, Reason: {e}")
             raise HTTPException(status_code=500, detail="Could not download file from storage.")
+# --- END CURE ---
 
-# --- PHOENIX PROTOCOL: Implement the missing download function ---
 def download_processed_text(storage_key: str) -> bytes | None:
     """
     Downloads the content of the processed text file from B2/S3 into memory.
@@ -116,7 +115,6 @@ def download_processed_text(storage_key: str) -> bytes | None:
         logger.info(f"--- [Storage Service] Successfully downloaded processed text content from key: {storage_key} ---")
         return content_bytes
     except ClientError as e:
-        # 'NoSuchKey' is the specific error code for a 404 Not Found in Boto3/S3
         if e.response['Error']['Code'] == 'NoSuchKey':
             logger.error(f"!!! ERROR: Processed text file not found in B2. Key: {storage_key}")
             return None

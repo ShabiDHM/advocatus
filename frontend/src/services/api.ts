@@ -1,16 +1,4 @@
 // FILE: frontend/src/services/api.ts
-// DEFINITIVE VERSION (WEBSOCKET AUTHENTICATION CURE):
-// 1. DISEASE IDENTIFIED: The WebSocket connection logic was decoupled from the main REST
-//    authentication lifecycle. It would blindly read from localStorage, making it vulnerable
-//    to race conditions where a failed token refresh in an interceptor would delete the
-//    token just before the WebSocket tried to connect, causing a handshake failure.
-// 2. THE CURE - UNIFIED AUTH PROTOCOL: The `getWebSocketUrl` function has been re-engineered
-//    to be `async`. It now MUST `await this.ensureValidToken()` before proceeding.
-// 3. SYNCHRONIZED STATE: This change forces the WebSocket connection to wait for any
-//    ongoing token refresh to complete. It guarantees that the token in localStorage is
-//    valid at the moment the URL is constructed, completely eliminating the race condition.
-// 4. ARCHITECTURAL CONSISTENCY: Both REST and WebSocket requests now follow the exact
-//    same authentication validation and refresh protocol, curing the deep architectural flaw.
 
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult } from '../data/types';
@@ -118,24 +106,15 @@ export class ApiService {
         );
     }
 
-    // --- PHOENIX PROTOCOL CURE: Unified WebSocket Authentication ---
     public async getWebSocketUrl(caseId: string): Promise<string> {
-        // Step 1: Proactively ensure the token is valid, refreshing if necessary.
-        // This forces the WebSocket to wait for the auth lifecycle to complete.
         await this.ensureValidToken();
-
-        // Step 2: Now that we are GUARANTEED to have a valid token, read it.
         const token = localStorage.getItem('jwtToken');
         if (!token) {
-            // This is now an impossible state, but we handle it for robustness.
             if (this.onUnauthorized) this.onUnauthorized();
             throw new Error('Fatal: Token disappeared after validation.');
         }
-
-        // Step 3: Construct and return the authenticated URL.
         return `wss://advocatus-prod-api.duckdns.org/ws/case/${caseId}?token=${encodeURIComponent(token)}`;
     }
-    // --- END CURE ---
 
     public getAxiosInstance(): AxiosInstance { return this.axiosInstance; }
     public async login(data: LoginRequest): Promise<LoginResponse> { return (await this.axiosInstance.post('/auth/login', data)).data; }
@@ -148,6 +127,15 @@ export class ApiService {
     public async getCaseDetails(caseId: string): Promise<Case> { return (await this.axiosInstance.get(`/cases/${caseId}`)).data; }
     public async deleteCase(caseId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}`); }
     public async getDocuments(caseId: string): Promise<Document[]> { return (await this.axiosInstance.get(`/cases/${caseId}/documents`)).data; }
+    
+    // --- PHOENIX PROTOCOL CURE: New function to fetch the original document as a Blob ---
+    public async getOriginalDocument(caseId: string, documentId: string): Promise<Blob> {
+        return (await this.axiosInstance.get(
+            `/cases/${caseId}/documents/${documentId}/original`,
+            { responseType: 'blob', timeout: 30000 } // Increased timeout for potentially large files
+        )).data;
+    }
+
     public async getDocument(caseId: string, documentId: string): Promise<Document> { return (await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}`)).data; }
     public async getDocumentContent(caseId: string, documentId: string): Promise<DocumentContentResponse> { return (await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/content`)).data; }
     public async downloadDocumentReport(caseId: string, documentId: string): Promise<Blob> { return (await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/report`, { responseType: 'blob' })).data; }

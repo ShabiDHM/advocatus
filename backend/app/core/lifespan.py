@@ -1,44 +1,36 @@
 # FILE: backend/app/core/lifespan.py
-# DEFINITIVE VERSION 5.1 (FINAL CORRECTION):
-# Corrected the instantiation of 'ConnectionManager' by passing the required
-# 'async_redis_client', resolving the fatal 'TypeError' on startup.
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from .db import (
-    connect_to_mongo,
-    connect_to_motor,
-    connect_to_sync_redis,
-    connect_to_async_redis,
-    close_mongo_connections,
-    close_redis_connections,
-)
-from .websocket_manager import ConnectionManager
+import logging
+
+# PHOENIX PROTOCOL CURE: Import the new, parameter-less shutdown functions.
+# The connection logic now happens automatically when db.py is first imported.
+from .db import close_mongo_connections, close_redis_connection
+
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Application lifespan manager for robust database connections and WebSocket management.
+    Application lifespan manager.
+    Database and Redis connections are initialized globally in db.py upon import.
+    This context's primary role is to ensure a clean shutdown.
     """
     # --- STARTUP ---
-    app.state.mongo_client, app.state.db = connect_to_mongo()
-    app.state.motor_client = await connect_to_motor()
-    app.state.sync_redis_client = connect_to_sync_redis()
-    app.state.async_redis_client = await connect_to_async_redis()
+    # The connection logic has been centralized in db.py.
+    # No explicit connection calls are needed here anymore.
+    logger.info("--- [Lifespan] Application startup sequence initiated. ---")
     
-    # --- PHOENIX PROTOCOL FIX: Pass the required redis_client to the constructor ---
-    # The ConnectionManager uses the *async* client for its pub/sub listener.
-    app.state.websocket_manager = ConnectionManager(redis_client=app.state.async_redis_client)
+    # The ConnectionManager is a simple singleton now and requires no setup.
     
     yield
     
     # --- SHUTDOWN ---
-    close_mongo_connections(
-        sync_client=app.state.mongo_client, 
-        async_client=app.state.motor_client
-    )
+    logger.info("--- [Lifespan] Application shutdown sequence initiated. ---")
     
-    await close_redis_connections(
-        async_client=app.state.async_redis_client, 
-        sync_client=app.state.sync_redis_client
-    )
+    # PHOENIX PROTOCOL CURE: Call the new, correct shutdown functions without arguments.
+    close_mongo_connections()
+    close_redis_connection()
+    
+    logger.info("--- [Lifespan] All connections closed gracefully. Shutdown complete. ---")

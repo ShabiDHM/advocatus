@@ -1,9 +1,4 @@
-# backend/app/api/endpoints/admin.py
-# DEFINITIVE VERSION 5.0 (TYPE/LINT CORRECTION):
-# 1. Corrected the @router.get path definition to use two separate decorators
-#    instead of a List[str] to satisfy static type checkers (Pylance) and remove
-#    the build-time error, while preserving the functional fix (allowing both /users/ and /users).
-# 2. Previous argument order fix remains.
+# FILE: backend/app/api/endpoints/admin.py
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated
@@ -14,11 +9,9 @@ from ...models.user import UserInDB
 from ...models.admin import SubscriptionUpdate, UserAdminView
 from .dependencies import get_current_admin_user, get_db
 
-
 router = APIRouter(prefix="/users", tags=["Administrator"])
 
-# PHOENIX PROTOCOL FIX: Use two decorators to allow both paths without a linter error.
-@router.get("/", response_model=List[UserAdminView])
+@router.get("/", response_model=List[UserAdminView], include_in_schema=False)
 @router.get("", response_model=List[UserAdminView])
 def get_all_users(
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],

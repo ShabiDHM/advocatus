@@ -1,21 +1,18 @@
 # FILE: backend/app/services/user_service.py
-# DEFINITIVE VERSION 32.0 (WEBSOCKET AUTH CURE):
-# 1. FORTIFIED: The 'get_user_from_token' function now robustly handles tokens
-#    with or without the 'Bearer ' prefix.
-# 2. This cures the WebSocket authentication failure by allowing the raw token from
-#    the query parameter to be validated correctly.
 
-from typing import Optional, Dict, Any, List
-from datetime import datetime
+from typing import Optional, Dict, Any
+from datetime import datetime, timezone
 from bson import ObjectId
 from pymongo.database import Database
 from passlib.context import CryptContext
 import logging
 
-from ..models.user import UserCreate, UserInDB, UserLoginResponse, UserOut
-from ..models.api_key import ApiKeyInDB
-from ..core.security import get_password_hash, verify_password, create_access_token, create_refresh_token, decode_token
-from ..core.db import get_collection
+from ..models.user import UserCreate, UserInDB
+from ..core.security import get_password_hash, verify_password, create_access_token, create_refresh_token
+from ..core.config import settings
+from jose import jwt
+
+# PHOENIX PROTOCOL CURE: Removed the import of the deprecated 'get_collection' function.
 
 USER_COLLECTION = "users"
 CASE_COLLECTION = "cases"
@@ -27,53 +24,17 @@ logger = logging.getLogger(__name__)
 
 # --- CORE USER GETTERS ---
 def get_user_by_username(db: Database, username: str) -> Optional[UserInDB]:
-    user_data = get_collection(db, USER_COLLECTION).find_one({"username": username})
-    if user_data:
-        return UserInDB(**user_data)
-    return None
+    # PHOENIX PROTOCOL CURE: Access the collection directly from the 'db' instance.
+    user_data = db[USER_COLLECTION].find_one({"username": username})
+    return UserInDB(**user_data) if user_data else None
 
 def get_user_by_email(db: Database, email: str) -> Optional[UserInDB]:
-    user_data = get_collection(db, USER_COLLECTION).find_one({"email": email})
-    if user_data:
-        return UserInDB(**user_data)
-    return None
+    user_data = db[USER_COLLECTION].find_one({"email": email})
+    return UserInDB(**user_data) if user_data else None
 
 def get_user_by_id(db: Database, user_id: ObjectId) -> Optional[UserInDB]:
-    user_data = get_collection(db, USER_COLLECTION).find_one({"_id": user_id})
-    if user_data:
-        return UserInDB(**user_data)
-    return None
-
-def get_user_from_token(db: Database, token: str, expected_token_type: str) -> Optional[UserInDB]:
-    """
-    Decodes the token and fetches the user. Handles tokens with or without "Bearer ".
-    This is now safe for both HTTP and WebSocket contexts.
-    """
-    # PHOENIX PROTOCOL CURE: Make token cleaning robust for WebSockets
-    clean_token = token.removeprefix("Bearer ")
-
-    try:
-        payload = decode_token(clean_token)
-        
-        if payload.get("type") != expected_token_type:
-            logger.warning(f"Token type mismatch. Expected '{expected_token_type}', got '{payload.get('type')}'.")
-            return None
-            
-        user_id_str = payload.get("id")
-        if not user_id_str:
-            logger.warning("Token is missing user ID ('id' claim).")
-            return None
-        
-        user = get_user_by_id(db, ObjectId(user_id_str))
-        if not user:
-            logger.warning(f"User not found for token ID: {user_id_str}")
-            return None
-            
-        return user
-            
-    except Exception as e:
-        logger.error(f"Failed to validate token: {e}", exc_info=False)
-        return None
+    user_data = db[USER_COLLECTION].find_one({"_id": user_id})
+    return UserInDB(**user_data) if user_data else None
 
 # --- AUTHENTICATION & TOKEN CREATION ---
 def create_both_tokens(data: Dict[str, Any]) -> Dict[str, str]:
@@ -83,35 +44,46 @@ def create_both_tokens(data: Dict[str, Any]) -> Dict[str, str]:
 
 def authenticate_user(username: str, password: str, db: Database) -> Optional[UserInDB]:
     user = get_user_by_username(db, username)
-    if not user:
-        return None
-    if not verify_password(password, user.hashed_password):
+    if not user or not verify_password(password, user.hashed_password):
         return None
 
-    get_collection(db, USER_COLLECTION).update_one(
+    db[USER_COLLECTION].update_one(
         {"_id": user.id},
-        {"$set": {"last_login": datetime.utcnow()}}
+        {"$set": {"last_login": datetime.now(timezone.utc)}}
     )
     return user
 
 def create_user(db: Database, user: UserCreate, role: str = 'user') -> UserInDB:
+    """Creates a user, inserts into DB, and returns the complete UserInDB model."""
     hashed_password = get_password_hash(user.password)
     user_data = user.model_dump(exclude={"password"}, exclude_none=True)
-    user_data["hashed_password"] = hashed_password
-    user_data["role"] = role.lower()
-    user_data["subscription_status"] = "none"
-    user_data["last_login"] = None
     
-    result = get_collection(db, USER_COLLECTION).insert_one(user_data)
-    user_data["_id"] = result.inserted_id
-    return UserInDB(**user_data)
+    # PHOENIX PROTOCOL CURE: Consolidate all data into a single dictionary before insertion.
+    full_user_data = {
+        **user_data,
+        "hashed_password": hashed_password,
+        "role": role.lower(),
+        "subscription_status": "none",
+        "last_login": None,
+        # Add any other default fields required by UserInDB here
+    }
+    
+    result = db[USER_COLLECTION].insert_one(full_user_data)
+    
+    # Retrieve the newly created user from the DB to ensure a complete and correct model is returned.
+    created_user_doc = db[USER_COLLECTION].find_one({"_id": result.inserted_id})
+    if not created_user_doc:
+        # This is a critical failure state and should not happen in normal operation.
+        raise Exception("Failed to retrieve user immediately after creation.")
+        
+    return UserInDB(**created_user_doc)
 
 # --- USER MANAGEMENT ACTIONS ---
 def delete_user_and_all_data(user: UserInDB, db: Database):
     user_id = user.id
-    get_collection(db, API_KEY_COLLECTION).delete_many({"user_id": user_id})
-    get_collection(db, CASE_COLLECTION).delete_many({"owner_id": user_id})
-    user_result = get_collection(db, USER_COLLECTION).delete_one({"_id": user_id})
+    db[API_KEY_COLLECTION].delete_many({"user_id": user_id})
+    db[CASE_COLLECTION].delete_many({"owner_id": user_id})
+    user_result = db[USER_COLLECTION].delete_one({"_id": user_id})
 
     if user_result.deleted_count == 0:
         raise Exception("User was not found for deletion.")
@@ -120,7 +92,7 @@ def update_user_profile(db: Database, user_id: ObjectId, data: Dict[str, Any]) -
     if 'role' in data:
         data['role'] = data['role'].lower()
     
-    update_result = get_collection(db, USER_COLLECTION).update_one(
+    update_result = db[USER_COLLECTION].update_one(
         {"_id": user_id},
         {"$set": data}
     )
@@ -130,8 +102,8 @@ def update_user_profile(db: Database, user_id: ObjectId, data: Dict[str, Any]) -
 
 def change_user_password(db: Database, user: UserInDB, new_password: str) -> bool:
     new_hashed_password = get_password_hash(new_password)
-    result = get_collection(db, USER_COLLECTION).update_one(
+    result = db[USER_COLLECTION].update_one(
         {"_id": user.id},
         {"$set": {"hashed_password": new_hashed_password}}
     )
-    return result.modified_count
+    return result.modified_count > 0

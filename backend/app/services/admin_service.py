@@ -1,9 +1,4 @@
 # FILE: backend/app/services/admin_service.py
-# DEFINITIVE VERSION 2.0 (LOGIC RELOCATION):
-# 1. REPLACED: The old, simplistic 'get_all_users' function has been completely
-#    replaced with the powerful MongoDB aggregation pipeline.
-# 2. This ensures the correct, data-rich logic is executed when the admin endpoint
-#    is called, curing the primary "missing data" disease.
 
 from bson import ObjectId
 from datetime import datetime
@@ -13,7 +8,7 @@ from pymongo import ReturnDocument
 
 from ..models.admin import SubscriptionUpdate, AdminUserOut
 from ..models.user import UserInDB
-from ..core.db import get_collection
+# PHOENIX PROTOCOL CURE: Removed the import of the deprecated 'get_collection' function.
 
 USER_COLLECTION = "users"
 CASE_COLLECTION = "cases"
@@ -28,22 +23,17 @@ def get_all_users(db: Database) -> List[Dict[str, Any]]:
         {
             "$lookup": {
                 "from": CASE_COLLECTION,
-                "let": { "user_id_str": { "$toString": "$_id" } },
-                "pipeline": [
-                    { "$match": { "$expr": { "$eq": ["$owner_id", "$$user_id_str"] } } }
-                ],
+                "localField": "_id",
+                "foreignField": "owner_id",
                 "as": "owned_cases"
             }
         },
         {
             "$lookup": {
                 "from": DOCUMENT_COLLECTION,
-                "let": { "case_ids": "$owned_cases._id" },
-                "pipeline": [
-                    { "$match": { "$expr": { "$in": ["$case_id", "$$case_ids"] } } },
-                    { "$count": "total_docs" }
-                ],
-                "as": "doc_count_result"
+                "localField": "_id",
+                "foreignField": "owner_id",
+                "as": "owned_documents"
             }
         },
         {
@@ -51,18 +41,19 @@ def get_all_users(db: Database) -> List[Dict[str, Any]]:
                 "id": "$_id",
                 "created_at": { "$toDate": "$_id" },
                 "case_count": { "$size": "$owned_cases" },
-                "document_count": { "$ifNull": [ { "$first": "$doc_count_result.total_docs" }, 0 ] }
+                "document_count": { "$size": "$owned_documents" }
             }
         },
         {
             "$project": {
                 "owned_cases": 0,
-                "doc_count_result": 0,
+                "owned_documents": 0,
                 "hashed_password": 0
             }
         }
     ]
-    users_data = list(get_collection(db, USER_COLLECTION).aggregate(pipeline))
+    # PHOENIX PROTOCOL CURE: Access the collection directly from the 'db' instance.
+    users_data = list(db[USER_COLLECTION].aggregate(pipeline))
     return users_data
 
 
@@ -86,8 +77,6 @@ def update_user_subscription(user_id: str, sub_data: SubscriptionUpdate, db: Dat
     if not updated_user_doc:
         raise FileNotFoundError("User not found")
         
-    # We must run the full aggregation on the single updated user to get the counts
-    # This is less efficient but ensures data consistency on the frontend after an update.
     user_list = get_all_users(db)
     for user in user_list:
         if str(user.get('_id')) == user_id:

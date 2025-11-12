@@ -1,20 +1,19 @@
 # FILE: backend/app/celery_app.py
-# DEFINITIVE VERSION 8.4 (FINAL CORRECTION):
-# Corrected the import and function call from 'close_mongo_connection' to
-# 'close_mongo_connections' to align with the V8.0 architectural refactor,
-# resolving the 'ImportError' startup crash.
 
 from celery import Celery
-from celery.signals import worker_process_init, worker_process_shutdown
 import logging
 
 from .core.config import settings
-# PHOENIX PROTOCOL FIX 1: Import the correctly named function
-from .core.db import connect_to_mongo, close_mongo_connections
+# PHOENIX PROTOCOL CURE: The db module is implicitly imported by the tasks.
+# No direct connection management is needed here anymore.
 
+# Define the Celery application instance.
 celery_app = Celery("tasks", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+
+# Load configuration from a separate config file.
 celery_app.config_from_object('app.celery_config')
 
+# Set core Celery configuration settings.
 celery_app.conf.update(
     task_serializer='json',
     accept_content=['json'],
@@ -27,32 +26,20 @@ celery_app.conf.update(
 
 logger = logging.getLogger(__name__)
 
+# Automatically discover tasks from the specified modules.
 celery_app.autodiscover_tasks([
     'app.tasks.document_processing',
     'app.tasks.deadline_extraction',
     'app.tasks.findings_extraction',
     'app.tasks.chat_tasks',
-    'app.tasks.drafting_tasks'
+    'app.tasks.drafting_tasks',
+    # PHOENIX PROTOCOL CURE: Add any other task modules here as they are created.
+    'app.tasks.document_reprocessing',
 ])
 
-# --- PHOENIX PROTOCOL FIX 2: Create a state dictionary for the worker ---
-# This avoids using global variables and provides a clean state for each process.
-worker_state = {}
+# PHOENIX PROTOCOL CURE: All manual connection logic (worker_process_init,
+# worker_process_shutdown) has been removed. The global instances in `db.py`
+# are initialized once when the worker process starts and are shared by all tasks.
+# This simplifies the architecture and resolves all Pylance errors.
 
-@worker_process_init.connect
-def init_worker(**kwargs):
-    logging.info("--- [Celery Worker] Initializing worker process... ---")
-    # Store the client connections in the worker's state
-    mongo_client, db = connect_to_mongo()
-    worker_state['mongo_client'] = mongo_client
-    worker_state['db'] = db
-    # NOTE: motor_client and redis clients are not needed for worker shutdown logic.
-
-@worker_process_shutdown.connect
-def shutdown_worker(**kwargs):
-    logging.info("--- [Celery Worker] Shutting down worker process... ---")
-    mongo_client = worker_state.get('mongo_client')
-    if mongo_client:
-        # PHOENIX PROTOCOL FIX 3: Call the correctly named function
-        # Pass the client from the state, and None for the async client which this worker doesn't use.
-        close_mongo_connections(sync_client=mongo_client, async_client=None)
+logger.info("--- [Celery App] Celery application configured. ---")

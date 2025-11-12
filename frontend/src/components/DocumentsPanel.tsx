@@ -1,10 +1,4 @@
-// PHOENIX PROTOCOL MODIFICATION 27.2 (SYNTAX INTEGRITY CURE):
-// 1. SYNTAX CURE: Restored missing JSX elements, including the delete button,
-//    and correctly closed all unclosed tags (div, motion.div).
-// 2. ERROR RESOLUTION: This fix resolves the cascade of ts(17008) and ts(1005)
-//    errors and clears the symptomatic 'unused variable' warnings.
-// 3. TYPE INTEGRITY CURE: All previous type safety and UI robustness
-//    modifications from version 27.1 are maintained.
+// FILE: /home/user/advocatus-frontend/src/components/DocumentsPanel.tsx
 
 import React, { useState, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
@@ -12,7 +6,8 @@ import { Document, Finding, ConnectionStatus } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Repeat, Trash } from 'lucide-react';
+// PHOENIX PROTOCOL CURE: Import the FileText icon for the new button.
+import { FolderOpen, Eye, Repeat, Trash, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface DocumentsPanelProps {
@@ -27,12 +22,16 @@ const MotionLink = motion(Link);
 interface DocumentsPanelCompleteProps extends DocumentsPanelProps {
   onDocumentDeleted: (documentId: string) => void;
   onDocumentUploaded: (newDocument: Document) => void;
+  // PHOENIX PROTOCOL CURE: Add the new onViewOriginal prop to the interface.
+  onViewOriginal: (document: Document) => void;
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
 }
 
 const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
-  caseId, documents, findings, t, connectionStatus, reconnect, onDocumentDeleted, onDocumentUploaded
+  caseId, documents, findings, t, connectionStatus, reconnect, onDocumentDeleted, onDocumentUploaded,
+  // PHOENIX PROTOCOL CURE: Destructure the new prop.
+  onViewOriginal
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -57,21 +56,12 @@ const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
 
     try {
       const responseData = await apiService.uploadDocument(caseId, file);
-      const newDoc = {
-        ...responseData,
-        id: responseData.id || responseData._id,
-      };
-
-      if (!newDoc.id) {
-        console.error("Invalid server response after upload:", responseData);
-        throw new Error("Upload succeeded but the server response was missing a document ID (id or _id).");
-      }
-
+      const newDoc = { ...responseData, id: responseData.id || responseData._id };
+      if (!newDoc.id) throw new Error("Upload succeeded but the server response was missing a document ID.");
       delete (newDoc as any)._id;
       onDocumentUploaded(newDoc as Document);
     } catch (error: any) {
       setUploadError(t('documentsPanel.uploadFailed') + `: ${error.message}`);
-      console.error("Document upload failed:", error);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -79,10 +69,7 @@ const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
   };
 
   const handleDeleteDocument = async (documentId: string | undefined) => {
-    if (typeof documentId !== 'string' || documentId.trim() === '' || documentId.startsWith('temp-')) {
-        console.error("Delete action aborted: received an invalid documentId.", documentId);
-        return;
-    }
+    if (typeof documentId !== 'string' || documentId.trim() === '') return;
     if (!window.confirm(t('documentsPanel.confirmDelete'))) return;
     try {
       await apiService.deleteDocument(caseId, documentId);
@@ -92,21 +79,17 @@ const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
       alert(t('documentsPanel.deleteFailed'));
     }
   };
-
+  
   const handleReanalyze = async (documentId: string) => {
       alert(t('documentsPanel.reanalyzeAlert', { documentId }));
   };
 
   const getStatusInfo = (status: Document['status']) => {
     switch (status.toUpperCase()) {
-      case 'READY':
-        return { color: 'bg-success-start/20 text-success-start', label: t('documentsPanel.statusCompleted') };
-      case 'PENDING':
-        return { color: 'bg-accent-start/20 text-accent-start', label: t('documentsPanel.statusPending') };
-      case 'FAILED':
-        return { color: 'bg-red-500/20 text-red-500', label: t('documentsPanel.statusFailed') };
-      default:
-        return { color: 'bg-background-light/20 text-text-secondary', label: status };
+      case 'READY': return { color: 'bg-success-start/20 text-success-start', label: t('documentsPanel.statusCompleted') };
+      case 'PENDING': return { color: 'bg-accent-start/20 text-accent-start', label: t('documentsPanel.statusPending') };
+      case 'FAILED': return { color: 'bg-red-500/20 text-red-500', label: t('documentsPanel.statusFailed') };
+      default: return { color: 'bg-background-light/20 text-text-secondary', label: status };
     }
   };
 
@@ -124,11 +107,6 @@ const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
     const map = new Map<string, boolean>();
     if (Array.isArray(findings)) {
       findings.forEach(f => map.set(f.document_id, true));
-    } else if (findings) {
-      console.error(
-        'Phoenix Protocol Integrity Alert: DocumentsPanel received a non-array "findings" prop...',
-        findings
-      );
     }
     return map;
   }, [findings]);
@@ -187,7 +165,11 @@ const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
                 </span>
                 {(doc.status.toUpperCase() === 'READY') && (
                   <div className="flex items-center space-x-2">
-                    <MotionLink to={`/case/${caseId}/documents/${doc.id}`} title={t('documentsPanel.view')} className="text-primary-start hover:text-primary-end" whileHover={{ scale: 1.2 }}>
+                    {/* PHOENIX PROTOCOL CURE: Add the new "View Original" button. */}
+                    <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-blue-400 hover:text-blue-300" whileHover={{ scale: 1.2 }}>
+                      <FileText size={16} />
+                    </motion.button>
+                    <MotionLink to={`/case/${caseId}/documents/${doc.id}`} title={t('documentsPanel.viewExtracted')} className="text-primary-start hover:text-primary-end" whileHover={{ scale: 1.2 }}>
                       <Eye size={16} />
                     </MotionLink>
                     <motion.button onClick={() => handleReanalyze(doc.id)} title={t('documentsPanel.reanalyze')} className="text-accent-start hover:text-accent-end" whileHover={{ scale: 1.2 }}>
@@ -195,16 +177,15 @@ const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
                     </motion.button>
                   </div>
                 )}
-                {/* --- CURE: RESTORED MISSING DELETE BUTTON --- */}
                 <motion.button onClick={() => handleDeleteDocument(doc.id)} title={t('documentsPanel.delete')} className="text-red-500 hover:text-red-400" whileHover={{ scale: 1.2 }}>
                   <Trash size={16} />
                 </motion.button>
               </div>
-            </motion.div> // --- CURE: CLOSED MOTION.DIV FOR DOCUMENT ROW
+            </motion.div>
           );
         })}
       </div>
-    </div> // --- CURE: CLOSED ROOT DIV
+    </div>
   );
 };
 

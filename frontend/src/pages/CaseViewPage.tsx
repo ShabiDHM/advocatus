@@ -1,11 +1,4 @@
 // FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 45.2 (INTERNATIONALIZATION):
-// 1. I18N INTEGRATION: All user-facing strings have been replaced with `t()`
-//    function calls, sourcing text from the translation file.
-// 2. STATUS LOCALIZATION: Case status is now translated using a lookup in the
-//    translation file, providing a robust, non-English-dependent display.
-// 3. ERROR MESSAGES: Error handling and display now use centralized translation keys
-//    for a consistent user experience.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -13,6 +6,8 @@ import { Case, Document, Finding } from '../data/types';
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
+// PHOENIX PROTOCOL CURE: Import the new PDF Viewer Modal component.
+import PDFViewerModal from '../components/PDFViewerModal'; 
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import useAuth from '../context/AuthContext';
@@ -20,7 +15,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, AlertCircle, User, Briefcase, Info } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 
-// --- COMPONENT: CaseHeader ---
+// --- COMPONENT: CaseHeader (No changes) ---
 const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string, fallback?: any) => string; }> = ({ caseDetails, t }) => (
   <motion.div
     className="mb-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
@@ -46,12 +41,11 @@ const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string, fallback?: any)
   </motion.div>
 );
 
-// --- COMPONENT: FindingsPanel ---
+// --- COMPONENT: FindingsPanel (No changes) ---
 const FindingsPanel: React.FC<{ findings: Finding[]; t: (key: string) => string; }> = ({ findings, t }) => {
     if (findings.length === 0) {
         return null;
     }
-
     return (
         <motion.div
             className="mt-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
@@ -84,6 +78,9 @@ const CaseViewPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // PHOENIX PROTOCOL CURE: State to manage which document is being viewed in the modal.
+  const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
+
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   
   const { documents, setDocuments, messages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId, !isAuthLoading);
@@ -107,6 +104,12 @@ const CaseViewPage: React.FC = () => {
     setDocuments(prev => [sanitizeDocument(newDocument), ...prev].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
   }, [setDocuments]);
 
+  // PHOENIX PROTOCOL CURE: Handler to open the PDF viewer modal.
+  const handleViewOriginalDocument = useCallback((doc: Document) => {
+    setViewingDocument(doc);
+  }, []);
+
+
   const fetchCaseDetails = useCallback(async () => {
     if (!caseId) {
         setError(t('error.noCaseId'));
@@ -118,12 +121,9 @@ const CaseViewPage: React.FC = () => {
     try {
       const details = await apiService.getCaseDetails(caseId);
       setCaseDetails(details);
-
       const initialDocs = await apiService.getDocuments(caseId);
       setDocuments((initialDocs || []).map(sanitizeDocument));
-      
       await fetchFindings(caseId);
-
     } catch (err) {
       setError(t('error.failedToLoadCase'));
       console.error(err);
@@ -190,39 +190,48 @@ const CaseViewPage: React.FC = () => {
 
             <CaseHeader caseDetails={caseDetails} t={t} />
 
-            {/* --- RESPONSIVE LAYOUT --- */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch h-full">
                 <div className="h-full min-h-0">
                     <DocumentsPanel
-                    caseId={caseDetails.id}
-                    documents={documents}
-                    findings={caseFindings}
-                    t={t}
-                    connectionStatus={connectionStatus}
-                    reconnect={reconnect}
-                    onDocumentDeleted={handleDocumentDeleted}
-                    onDocumentUploaded={handleDocumentUploaded}
+                      caseId={caseDetails.id}
+                      documents={documents}
+                      findings={caseFindings}
+                      t={t}
+                      connectionStatus={connectionStatus}
+                      reconnect={reconnect}
+                      onDocumentDeleted={handleDocumentDeleted}
+                      onDocumentUploaded={handleDocumentUploaded}
+                      // PHOENIX PROTOCOL CURE: Pass the new handler to the DocumentsPanel.
+                      onViewOriginal={handleViewOriginalDocument}
                     />
                 </div>
 
                 <div className="h-full min-h-0">
                     <ChatPanel
-                    messages={messages}
-                    connectionStatus={connectionStatus}
-                    reconnect={reconnect}
-                    onSendMessage={sendChatMessage}
-                    isSendingMessage={isSendingMessage}
-                    caseId={caseDetails.id}
-                    t={t}
+                      messages={messages}
+                      connectionStatus={connectionStatus}
+                      reconnect={reconnect}
+                      onSendMessage={sendChatMessage}
+                      isSendingMessage={isSendingMessage}
+                      caseId={caseDetails.id}
+                      t={t}
                     />
                 </div>
             </div>
 
             <FindingsPanel findings={caseFindings} t={t} />
-
         </div>
-
       </div>
+      
+      {/* PHOENIX PROTOCOL CURE: Conditionally render the modal. */}
+      {viewingDocument && (
+        <PDFViewerModal 
+          document={viewingDocument} 
+          caseId={caseDetails.id}
+          onClose={() => setViewingDocument(null)}
+          t={t}
+        />
+      )}
     </motion.div>
   );
 };

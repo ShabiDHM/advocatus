@@ -1,5 +1,4 @@
 # FILE: backend/app/services/albanian_ai_summary.py
-# V13.1 - FINAL FIX: Added 'language_detector' argument to AlbanianRAGService instantiation to satisfy Pylance.
 
 import sys
 import os
@@ -11,32 +10,40 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# --- Import Production Code AND their Protocols ---
-from backend.app.services.albanian_language_detector import AlbanianLanguageDetector
-from backend.app.config.albanian_feature_flags import AlbanianRAGFeatureFlags
-from backend.app.services.albanian_rag_service import (
+# --- PHOENIX PROTOCOL CURE: Use absolute imports and correct protocol names ---
+from app.services.albanian_language_detector import AlbanianLanguageDetector
+from app.config.albanian_feature_flags import AlbanianRAGFeatureFlags
+from app.services.albanian_rag_service import (
     AlbanianRAGService,
-    # Import the protocols to inherit from them
     LLMClientProtocol,
-    LLMChat,
-    LLMCompletions,
-    VectorStoreService
+    VectorStoreServiceProtocol
 )
+from typing import Protocol # Import Protocol for local definitions
+
+
+# --- PHOENIX PROTOCOL CURE: Define local protocols for mock objects to satisfy the test script ---
+# These mimic the structure that the mock objects expect.
+class LLMCompletionsProtocol(Protocol):
+    async def create(self, *args, **kwargs) -> AsyncGenerator[Dict, None]: ...
+
+class LLMChatProtocol(Protocol):
+    @property
+    def completions(self) -> LLMCompletionsProtocol: ...
+
 
 # --- MOCKS THAT EXPLICITLY IMPLEMENT THE PROTOCOLS BY INHERITANCE ---
-# ... (Mock classes remain the same) ...
-class MockVectorStore(VectorStoreService):
+class MockVectorStore(VectorStoreServiceProtocol):
     def query_by_vector(self, embedding: List[float], case_id: str, n_results: int, document_ids: Optional[List[str]]) -> List[Dict]:
         return [{"document_id": "doc_abc_123", "text": "Konteksti i simuluar."}]
 
-class MockCompletions(LLMCompletions):
+class MockCompletions(LLMCompletionsProtocol):
     async def create(self, *args, **kwargs) -> AsyncGenerator[Dict, None]:
         response_text = "Përgjigja e simuluar nga klienti i rremë."
         for char in response_text:
             yield {"choices": [{"delta": {"content": char}}]}
             await asyncio.sleep(0.01)
 
-class MockChat(LLMChat):
+class MockChat(LLMChatProtocol):
     @property
     def completions(self) -> MockCompletions:
         return MockCompletions()
@@ -46,25 +53,23 @@ class MockLLMClient(LLMClientProtocol):
     def chat(self) -> MockChat:
         return MockChat()
 
-# --- ASYNC TEST FUNCTION ---
 
+# --- ASYNC TEST FUNCTION ---
 async def comprehensive_test():
     """A high-level test demonstrating the functionality of the Albanian AI components."""
     print("🎯 COMPREHENSIVE ALBANIAN AI INTEGRATION TEST")
     print("=" * 70)
 
-    # Instantiate the dependency needed for the RAG service constructor
     language_detector_instance = AlbanianLanguageDetector()
     print("🔤 1. TESTING: AlbanianLanguageDetector -> ✅ VERIFIED")
     print("🚩 2. TESTING: AlbanianRAGFeatureFlags -> ✅ VERIFIED")
 
     print("\n🤖 3. TESTING: AlbanianRAGService with Protocol-Conforming Mocks")
     try:
-        # FIX: Added language_detector argument to constructor
         rag_service = AlbanianRAGService(
             vector_store=MockVectorStore(), 
             llm_client=MockLLMClient(),
-            language_detector=language_detector_instance # <-- ADDED MISSING ARGUMENT
+            language_detector=language_detector_instance
         )
         print("   ✅ PASSED: Service instantiated successfully.")
 

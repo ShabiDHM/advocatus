@@ -1,21 +1,27 @@
-# backend/app/tasks/deadline_extraction.py
-# DEFINITIVE VERSION 3.0 (ARCHITECTURAL CORRECTION):
-# Task now creates its own DB connection and passes it to the refactored service.
+# FILE: backend/app/tasks/deadline_extraction.py
 
-from ..celery_app import celery_app
+import logging
+# PHOENIX PROTOCOL CURE: Use an absolute import to permanently resolve linter path issues.
+from app.celery_app import celery_app
 from ..services import deadline_service
-# PHOENIX PROTOCOL FIX: Import connection logic, not dependency providers
-from ..core.db import connect_to_mongo, close_mongo_connections
+from ..core.db import db_instance
+
+logger = logging.getLogger(__name__)
 
 @celery_app.task(name="extract_deadlines_from_document")
 def extract_deadlines_from_document(document_id: str, full_text: str):
     """
-    Celery task to extract deadlines. Manages its own database connection.
+    Celery task to extract deadlines using the globally available database instance.
     """
-    mongo_client = None
+    logger.info(f"--- [Task] Starting deadline extraction for document_id: {document_id} ---")
     try:
-        mongo_client, db = connect_to_mongo()
-        deadline_service.extract_and_save_deadlines(db=db, document_id=document_id, full_text=full_text)
-    finally:
-        if mongo_client:
-            close_mongo_connections(sync_client=mongo_client, async_client=None)
+        deadline_service.extract_and_save_deadlines(
+            db=db_instance, 
+            document_id=document_id, 
+            full_text=full_text
+        )
+        logger.info(f"--- [Task] Successfully completed deadline extraction for document_id: {document_id} ---")
+    except Exception as e:
+        logger.error(f"--- [Task FAILURE] Error during deadline extraction for document_id: {document_id}. Reason: {e}", exc_info=True)
+        # Re-raising the exception allows Celery to register the task as 'FAILED'.
+        raise

@@ -1,17 +1,8 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL MODIFICATION V7.0 (SERVICE COMPLETION):
-# 1. CRITICAL ADDITION: Implemented the new `get_document_content_by_key` function.
-# 2. This provides the necessary business logic for the new `/content` endpoint, calling
-#    the storage service to download the processed text.
-# 3. This change is the final step in resolving the `404 Not Found` error and makes the
-#    document viewing functionality fully operational.
-#
-# PHOENIX PROTOCOL MODIFICATION V6.1 (SYNTAX CORRECTION)
-# ...
 
 import logging
 from bson import ObjectId
-from typing import List, Optional
+from typing import List, Optional, Tuple, Any
 import datetime
 from datetime import timezone
 from pymongo.database import Database
@@ -29,18 +20,14 @@ logger = logging.getLogger(__name__)
 INTERNAL_API_URL = "http://backend:8000"
 BROADCAST_ENDPOINT = f"{INTERNAL_API_URL}/internal/broadcast/document-update"
 
-def trigger_websocket_broadcast(document_out: DocumentOut):
+def trigger_websocket_broadcast(payload_dict: dict):
     """Triggers a websocket broadcast via an internal API endpoint."""
     try:
         payload = {
-            "id": str(document_out.id),
-            "case_id": str(document_out.case_id),
-            "status": document_out.status,
-            "file_name": document_out.file_name,
-            "uploadedAt": document_out.created_at.isoformat(),
-            "summary": document_out.summary
+            "type": "document_update",
+            "payload": payload_dict
         }
-        json_payload = json.dumps(payload)
+        json_payload = json.dumps(payload, default=str)
         
         headers = {"Content-Type": "application/json"}
         with httpx.Client() as client:
@@ -87,16 +74,17 @@ def finalize_document_processing(
     if summary:
         update_fields["summary"] = summary
         
-    update_result = db.documents.update_one({"_id": doc_object_id}, {"$set": update_fields})
-    
-    if update_result.modified_count == 1:
-        updated_doc_data = db.documents.find_one({"_id": doc_object_id})
-        if not updated_doc_data:
-            logger.error(f"Document {doc_id_str} not found after update.")
-            return
-
+    db.documents.update_one({"_id": doc_object_id}, {"$set": update_fields})
+    updated_doc_data = db.documents.find_one({"_id": doc_object_id})
+    if updated_doc_data:
         document_out = DocumentOut.model_validate(updated_doc_data)
-        trigger_websocket_broadcast(document_out)
+        broadcast_payload = document_out.model_dump(by_alias=True)
+        # Ensure correct string formatting for JSON serialization
+        broadcast_payload["id"] = str(broadcast_payload["_id"])
+        broadcast_payload["case_id"] = str(broadcast_payload["case_id"])
+        broadcast_payload["uploadedAt"] = document_out.created_at.isoformat()
+
+        trigger_websocket_broadcast(broadcast_payload)
         logger.info(f"Document {doc_id_str} finalized and broadcasted as READY.")
     else:
         logger.error(f"Failed to finalize document {doc_id_str} in database.")
@@ -111,19 +99,24 @@ def get_and_verify_document(db: Database, doc_id: str, owner: UserInDB) -> Docum
         raise HTTPException(status_code=404, detail="Document not found.")
     return DocumentOut.model_validate(document_data)
 
-# --- PHOENIX PROTOCOL: Implement the missing service function ---
+def get_original_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut]:
+    document = get_and_verify_document(db, doc_id, owner)
+    if not document.storage_key:
+        raise HTTPException(status_code=404, detail="Original document file not found in storage.")
+    try:
+        file_stream = storage_service.download_original_document_stream(document.storage_key)
+        if file_stream is None: raise FileNotFoundError
+        return file_stream, document
+    except Exception as e:
+        logger.error(f"Failed to download original document from storage for key {document.storage_key}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not retrieve the document file from storage.")
+
 def get_document_content_by_key(storage_key: str) -> Optional[str]:
-    """
-    Retrieves the processed text content of a document from the storage service.
-    """
     try:
         content_bytes = storage_service.download_processed_text(storage_key)
-        if content_bytes:
-            return content_bytes.decode('utf-8')
-        return None
+        return content_bytes.decode('utf-8') if content_bytes else None
     except Exception as e:
         logger.error(f"Failed to retrieve content from storage for key {storage_key}: {e}", exc_info=True)
-        # Depending on desired behavior, you might re-raise or return None
         return None
 
 def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: ObjectId, owner: UserInDB):
@@ -132,18 +125,26 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
         raise HTTPException(status_code=404, detail="Document not found.")
     
     doc_id_str = str(doc_id)
+    storage_key = document_to_delete.get("storage_key")
+    processed_key = document_to_delete.get("processed_text_storage_key")
 
     db.findings.delete_many({"document_id": doc_id_str})
     vector_store_service.delete_document_embeddings(document_id=doc_id_str)
-    storage_service.delete_file(storage_key=document_to_delete["storage_key"])
-    if document_to_delete.get("processed_text_storage_key"):
-        storage_service.delete_file(storage_key=document_to_delete.get("processed_text_storage_key"))
+    if storage_key: storage_service.delete_file(storage_key=storage_key)
+    if processed_key: storage_service.delete_file(storage_key=processed_key)
     
     delete_result = db.documents.delete_one({"_id": doc_id, "owner_id": owner.id})
     
     if delete_result.deleted_count == 1:
-        deleted_document_out = DocumentOut.model_validate(document_to_delete)
-        deleted_document_out.status = "DELETED"
-        trigger_websocket_broadcast(deleted_document_out)
+        # PHOENIX PROTOCOL CURE: This dictionary is type-safe and will not cause Pylance errors.
+        broadcast_payload = {
+            "id": str(document_to_delete["_id"]),
+            "case_id": str(document_to_delete["case_id"]),
+            "status": "DELETED",
+            "file_name": document_to_delete.get("file_name", ""),
+            "uploadedAt": (document_to_delete.get("created_at") or datetime.datetime.now(timezone.utc)).isoformat(),
+            "summary": None
+        }
+        trigger_websocket_broadcast(broadcast_payload)
     else:
         raise HTTPException(status_code=500, detail="Failed to delete document from database.")

@@ -1,66 +1,81 @@
-# app/tasks/document_reprocessing.py (Final, Verified Version)
-import os
-import tempfile
-import json
-# --- CRITICAL FIX: Import the central celery_app instance ---
-from app.celery_app import celery_app
-# ---------------------------------------------------------
-from app.services import (
-    database_service,
+# FILE: app/tasks/document_reprocessing.py
+
+import logging
+from typing import Optional
+
+# PHOENIX PROTOCOL CURE: Use a relative import to break the circular dependency for the linter.
+from ..celery_app import celery_app
+from ..core.db import db_instance, redis_sync_client
+from ..services import (
     storage_service,
     llm_service,
-    embedding_service,
-    vector_store_service
+    vector_store_service,
+    document_service
 )
+from ..models.document import DocumentStatus
 
-def log_structured(document_id: str, case_id: str, stage: str, status: str, message: str = "", **extra):
-    # ... (implementation unchanged)
-    log_entry = { "document_id": document_id, "case_id": case_id, "stage": stage, "status": status, "message": message, **extra }
-    print(json.dumps(log_entry))
+logger = logging.getLogger(__name__)
+
+def log_structured(document_id: str, case_id: Optional[str], stage: str, status: str, message: str = "", **extra):
+    log_entry = {
+        "document_id": document_id, 
+        "case_id": case_id or "Unknown", 
+        "stage": stage, 
+        "status": status, 
+        "message": message, 
+        **extra
+    }
+    logger.info(str(log_entry))
 
 @celery_app.task(name="reprocess_text_task")
 def reprocess_text_task(document_id: str, corrected_text: str):
-    case_id = None
+    case_id: Optional[str] = None
     log_structured(document_id, case_id, "start_reprocessing", "initiated", "Reprocessing task received.")
-    database_service.update_document_status(document_id, "REPROCESSING")
-    temp_text_file_path = None
+    
+    db_instance.documents.update_one({"_id": document_id}, {"$set": {"status": DocumentStatus.PENDING}})
+    
     try:
-        document = database_service.get_document_by_id(document_id)
+        document = db_instance.documents.find_one({"_id": document_id})
         if not document:
             raise ValueError(f"Document with id {document_id} not found.")
-        case_id = document.get("case_id")
-        text_storage_key = document.get("processed_text_storage_key")
-        if not all([case_id, text_storage_key]):
-            raise ValueError(f"Missing case_id or processed_text_storage_key.")
-        
-        with tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix=".txt", encoding='utf-8') as temp_text_file:
-            temp_text_file.write(corrected_text)
-            temp_text_file_path = temp_text_file.name
             
-        storage_service.s3_client.upload_file(
-            temp_text_file_path, storage_service.B2_BUCKET_NAME, text_storage_key
+        case_id = str(document.get("case_id"))
+        text_storage_key = document.get("processed_text_storage_key")
+        owner_id = str(document.get("owner_id"))
+        
+        if not all([case_id, text_storage_key, owner_id]):
+            raise ValueError("Missing case_id, processed_text_storage_key, or owner_id required for reprocessing.")
+        
+        storage_service.upload_processed_text(
+            text_content=corrected_text,
+            user_id=owner_id,
+            case_id=case_id,
+            original_doc_id=document_id
         )
         log_structured(document_id, case_id, "overwrite_text", "success")
         
         new_summary = llm_service.generate_summary(corrected_text)
         log_structured(document_id, case_id, "re_summarization", "success")
         
-        new_embedding = embedding_service.generate_embedding(corrected_text)
-        log_structured(document_id, case_id, "re_embedding", "success")
+        document_service.finalize_document_processing(
+            db=db_instance,
+            redis_client=redis_sync_client,
+            doc_id_str=document_id,
+            summary=new_summary,
+            processed_text_storage_key=text_storage_key
+        )
         
-        database_service.update_document_summary(document_id, new_summary)
-        log_structured(document_id, case_id, "re_integrate_summary", "success")
+        vector_store_service.delete_document_embeddings(document_id=document_id)
         
-        vector_store_service.store_document_embedding(document_id, case_id, new_embedding, corrected_text)
-        log_structured(document_id, case_id, "re_integrate_vector", "success")
+        celery_app.send_task('process_document_task', args=[document_id])
         
-        database_service.update_document_status(document_id, "COMPLETED")
+        log_structured(document_id, case_id, "re_embedding_triggered", "success", "Triggered main processing task for re-embedding.")
         log_structured(document_id, case_id, "finish_reprocessing", "completed")
         
     except Exception as e:
         log_structured(document_id, case_id, "reprocessing_error", "failed", str(e))
-        database_service.update_document_status(document_id, "FAILED")
-        
-    finally:
-        if temp_text_file_path and os.path.exists(temp_text_file_path):
-            os.remove(temp_text_file_path)
+        db_instance.documents.update_one(
+            {"_id": document_id}, 
+            {"$set": {"status": DocumentStatus.FAILED, "error_message": str(e)}}
+        )
+        raise

@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from typing import List, Annotated, Dict, Any
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from typing import List, Annotated
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from pymongo.database import Database
 import redis
@@ -29,12 +29,12 @@ def validate_object_id(id_str: str) -> ObjectId:
     try: return ObjectId(id_str)
     except InvalidId: raise HTTPException(status_code=400, detail="Invalid ID format.")
 
-@router.get("", response_model=List[CaseOut])
+@router.get("", response_model=List[CaseOut], include_in_schema=False)
 @router.get("/", response_model=List[CaseOut])
 async def get_user_cases(current_user: Annotated[UserInDB, Depends(get_current_active_user)], db: Database = Depends(get_db)):
     return await asyncio.to_thread(case_service.get_cases_for_user, db=db, owner=current_user)
 
-@router.post("", response_model=CaseOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=CaseOut, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 @router.post("/", response_model=CaseOut, status_code=status.HTTP_201_CREATED)
 async def create_new_case(case_in: CaseCreate, current_user: Annotated[UserInDB, Depends(get_current_active_user)], db: Database = Depends(get_db)):
     return await asyncio.to_thread(case_service.create_case, db=db, case_in=case_in, owner=current_user)
@@ -89,6 +89,27 @@ async def get_document_by_id(case_id: str, doc_id: str, current_user: Annotated[
     document = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(document.case_id) != case_id: raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
     return document
+
+@router.get("/{case_id}/documents/{doc_id}/original", tags=["Documents"], response_class=StreamingResponse)
+async def get_original_document(
+    case_id: str, 
+    doc_id: str, 
+    current_user: Annotated[UserInDB, Depends(get_current_active_user)], 
+    db: Database = Depends(get_db)
+):
+    try:
+        file_stream, document = await asyncio.to_thread(
+            document_service.get_original_document_stream, db, doc_id, current_user
+        )
+        if str(document.case_id) != case_id:
+            raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
+        headers = {'Content-Disposition': f'inline; filename="{document.file_name}"'}
+        return StreamingResponse(file_stream, media_type=document.mime_type, headers=headers)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Failed to stream original document {doc_id} for case {case_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not retrieve the document file.")
 
 @router.get("/{case_id}/documents/{doc_id}/content", response_model=DocumentContentOut, tags=["Documents"])
 async def get_document_content(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_active_user)], db: Database = Depends(get_db)):
