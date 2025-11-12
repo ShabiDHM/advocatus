@@ -1,7 +1,4 @@
 # PHOENIX PROTOCOL CURE 52.2 (SYSTEM RESTORATION):
-# 1. All routers have been re-enabled, restoring full application functionality.
-# 2. The `cases.router` is now included with an empty prefix, deferring to the
-#    prefix defined within `cases.py` to prevent route collisions.
 
 from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.responses import JSONResponse

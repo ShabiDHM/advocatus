@@ -1,14 +1,5 @@
 # backend/app/services/case_service.py
-# PHOENIX PROTOCOL MODIFICATION 12.0 (FINAL DATA TYPE CORRECTION):
-# 1. CRITICAL FIX: Corrected the database queries in `get_case_by_id` to use the native
-#    `ObjectId` for `case_id` instead of an incorrect string conversion.
-# 2. This resolves the fatal data type mismatch that was causing `alert_count`, `event_count`,
-#    and `finding_count` to always return 0.
-# 3. This is the definitive fix for the data integrity failure and ensures the dashboard
-#    CaseCard displays correct data.
-#
-# PHOENIX PROTOCOL MODIFICATION 11.0 (FINAL DATA INTEGRITY FIX)
-# ...
+
 
 from fastapi import HTTPException, status
 from pymongo.database import Database

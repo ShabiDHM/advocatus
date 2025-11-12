@@ -1,8 +1,4 @@
 # FILE: backend/app/api/endpoints/auth.py
-# DEFINITIVE VERSION 4.0 (PHOENIX PROTOCOL: FINAL CONFIGURATION LOCK)
-# 1. CRITICAL FIX: The 'domain' parameter has been permanently removed from all 'set_cookie'
-#    and 'delete_cookie' calls. This guarantees that the incorrect COOKIE_DOMAIN setting
-#    from config.py can never be used, permanently resolving the 401 refresh error.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from typing import Annotated

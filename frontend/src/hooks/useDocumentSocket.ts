@@ -1,8 +1,4 @@
 // FILE: /home/user/advocatus-frontend/src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - RESILIENT VERSION 33.1 (TYPE INTEGRITY CURE)
-// 1. TYPE INTEGRITY CURE: Removed the local ConnectionStatus type definition.
-// 2. GLOBAL TYPE ADOPTION: Now imports the authoritative 'ConnectionStatus' type
-//    from the global types.ts file, ensuring consistency across the application.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types'; // CURE: Import global type

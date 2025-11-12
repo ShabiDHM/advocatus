@@ -1,11 +1,4 @@
 # FILE: backend/app/core/config.py
-# DEFINITIVE VERSION 13.1 (PHOENIX PROTOCOL: LINTER COMPATIBILITY CURE):
-# 1. LINTER CURE: The 'SECRET_KEY' is now given a default of None to satisfy static
-#    analysis tools like Pylance, resolving the 'Argument missing' error.
-# 2. RUNTIME VALIDATION: A Pydantic validator has been added to ensure the application
-#    will crash on startup if the 'SECRET_KEY' is not provided by the environment.
-# 3. This approach is the industry best practice, providing both static analysis
-#    compatibility and runtime safety, and definitively cures the configuration disease.
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator

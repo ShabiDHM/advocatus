@@ -1,10 +1,4 @@
 # FILE: backend/app/models/user.py
-# DEFINITIVE VERSION 1.5 (ADMIN DATA CONTRACT):
-# 1. ADDED: New 'AdminUserOut' Pydantic model to serve as the specific, validated
-#    data contract for the admin dashboard.
-# 2. This model includes the required computed fields: 'created_at', 'last_login',
-#    'case_count', and 'document_count', ensuring the backend provides exactly
-#    what the frontend component requires.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict, field_validator
 from typing import Optional, Literal, Any

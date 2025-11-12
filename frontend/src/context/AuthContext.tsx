@@ -1,18 +1,4 @@
 // FILE: /home/user/advocatus-frontend/src/context/AuthContext.tsx
-// PHOENIX PROTOCOL MODIFICATION 28.0 (DEFINITIVE AUTHENTICATION CURE):
-// 1. DISEASE IDENTIFIED: The original startup logic had a fatal flaw. When a token was expired,
-//    it would correctly refresh it via an interceptor, but then a poorly placed try/catch
-//    block would interpret the initial failure as a fatal error, triggering a logout() call
-//    that immediately deleted the newly acquired token, causing a race condition where
-//    the WebSocket would always fail to connect.
-// 2. THE CURE - LINEAR STARTUP LOGIC: The entire session validation useEffect has been rewritten.
-//    It now follows a single, authoritative path: it ALWAYS attempts to refresh the token on load.
-//    This is the most reliable way to establish a session.
-// 3. ATOMIC STATE UPDATES: If the refresh succeeds, it sets the token, fetches the user profile,
-//    and sets the user state. If any part fails, it logs the user out.
-// 4. GUARANTEED "READY" SIGNAL: The 'setIsLoading(false)' call is now in a 'finally' block,
-//    guaranteeing that it is the VERY LAST thing to happen, after the authentication state
-//    is definitively resolved. This completely eliminates the race condition.
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';

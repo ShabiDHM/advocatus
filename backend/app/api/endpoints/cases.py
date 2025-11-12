@@ -1,9 +1,4 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL CURE 52.1 (ROUTER DECONFLICTION):
-# 1. ROUTER ISOLATION: The APIRouter is now initialized with a `prefix="/cases"`.
-# 2. This isolates all routes within this file under the `/cases` namespace,
-#    making collisions with other routers like `/calendar` impossible.
-# 3. This is the definitive cure for the persistent 404 Not Found error.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated, Dict, Any
