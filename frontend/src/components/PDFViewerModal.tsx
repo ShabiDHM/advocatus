@@ -1,6 +1,7 @@
 // FILE: /home/user/advocatus-frontend/src/components/PDFViewerModal.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
+// PHOENIX PROTOCOL CURE: Removed unused 'useCallback' import.
+import React, { useState, useEffect } from 'react';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
 import 'react-pdf/dist/esm/Page/TextLayer.css';
@@ -14,13 +15,14 @@ import { X, Loader, AlertTriangle, ChevronLeft, ChevronRight, Download } from 'l
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 interface PDFViewerModalProps {
-  document: Document;
+  // PHOENIX PROTOCOL CURE: Renamed prop to avoid conflict with the global 'document' object.
+  documentData: Document;
   caseId: string;
   onClose: () => void;
   t: (key: string) => string;
 }
 
-const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ document, caseId, onClose, t }) => {
+const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, onClose, t }) => {
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ document, caseId, onClo
       setIsLoading(true);
       setError(null);
       try {
-        const blob = await apiService.getOriginalDocument(caseId, document.id);
+        const blob = await apiService.getOriginalDocument(caseId, documentData.id);
         const url = URL.createObjectURL(blob);
         setFileUrl(url);
       } catch (err) {
@@ -58,16 +60,17 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ document, caseId, onClo
         URL.revokeObjectURL(fileUrl);
       }
     };
-  }, [caseId, document.id, t]);
+  }, [caseId, documentData.id, t]);
 
   const handleDownload = () => {
     if (fileUrl) {
-      const link = document.createElement('a');
+      // PHOENIX PROTOCOL CURE: Use the global 'window.document' to avoid ambiguity.
+      const link = window.document.createElement('a');
       link.href = fileUrl;
-      link.download = document.file_name;
-      document.body.appendChild(link);
+      link.download = documentData.file_name;
+      window.document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      window.document.body.removeChild(link);
     }
   };
 
@@ -89,16 +92,16 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ document, caseId, onClo
         >
           {/* Header */}
           <header className="flex items-center justify-between p-4 bg-background-light border-b border-glass-edge flex-shrink-0">
-            <h2 className="text-lg font-bold text-text-primary truncate" title={document.file_name}>
-              {document.file_name}
+            <h2 className="text-lg font-bold text-text-primary truncate" title={documentData.file_name}>
+              {documentData.file_name}
             </h2>
             <div className="flex items-center gap-4">
               {fileUrl && (
-                  <button onClick={handleDownload} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+                  <button onClick={handleDownload} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" title={t('pdfViewer.download')}>
                       <Download size={20} />
                   </button>
               )}
-              <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+              <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" title={t('pdfViewer.close')}>
                 <X size={20} />
               </button>
             </div>
@@ -123,8 +126,9 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ document, caseId, onClo
                  <PdfDocument
                     file={fileUrl}
                     onLoadSuccess={onDocumentLoadSuccess}
-                    onLoadError={(err) => setError(t('pdfViewer.errorLoad'))}
-                    loading="" // Handled by our own loader
+                    // PHOENIX PROTOCOL CURE: Prefix unused parameter with an underscore.
+                    onLoadError={(_err) => setError(t('pdfViewer.errorLoad'))}
+                    loading=""
                  >
                     <Page pageNumber={pageNumber} width={800} />
                  </PdfDocument>
@@ -139,7 +143,8 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ document, caseId, onClo
                 <button onClick={goToPrevPage} disabled={pageNumber <= 1} className="p-2 disabled:opacity-50 hover:bg-white/10 rounded-full transition-colors">
                   <ChevronLeft size={20} />
                 </button>
-                <span>{t('pdfViewer.page', { pageNumber, numPages })}</span>
+                {/* PHOENIX PROTOCOL CURE: Manually construct the string to satisfy the simple 't' function type. */}
+                <span>{`${t('pdfViewer.pageLabel')} ${pageNumber} / ${numPages}`}</span>
                 <button onClick={goToNextPage} disabled={pageNumber >= numPages} className="p-2 disabled:opacity-50 hover:bg-white/10 rounded-full transition-colors">
                   <ChevronRight size={20} />
                 </button>
