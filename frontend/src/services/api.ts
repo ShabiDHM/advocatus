@@ -1,5 +1,3 @@
-// FILE: frontend/src/api.ts
-
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult } from '../data/types';
 
@@ -66,13 +64,14 @@ export class ApiService {
             return this.refreshTokenPromise; 
         }
         
-        // PHOENIX PROTOCOL CURE: Proper refresh token call with no body
-        this.refreshTokenPromise = this.axiosInstance.post<LoginResponse>('/auth/refresh', null, {
+        // PHOENIX PROTOCOL CURE: The POST request for refresh must not contain a body or a Content-Type header.
+        // We pass `undefined` as the data argument to ensure Axios sends a request with an empty body.
+        this.refreshTokenPromise = this.axiosInstance.post<LoginResponse>('/auth/refresh', undefined, {
             withCredentials: true,
             timeout: 5000,
-            // Remove Content-Type header entirely for empty body requests
             headers: {
-                'Content-Type': undefined
+                // By not specifying a Content-Type, we allow Axios to omit it, which is correct for a bodyless request.
+                'Content-Type': null
             }
         })
         .then(response => {
