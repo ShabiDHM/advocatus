@@ -4,14 +4,14 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
-import i18n from './i18n'; 
-import moment from 'moment'; 
-import 'moment/locale/sq'; 
+import i18n from './i18n';
+import moment from 'moment';
+import 'moment/locale/sq';
 
-// PHOENIX PROTOCOL CURE: Import react-pdf styles globally at the app root.
+// PHOENIX PROTOCOL CURE: Corrected global import path for react-pdf styles.
 // This ensures the production bundler (Rollup) can find and process them correctly.
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
 
 const updateMomentLocale = (lng: string | undefined) => {
   const locale = lng || 'en';
