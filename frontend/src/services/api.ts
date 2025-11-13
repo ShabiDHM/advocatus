@@ -1,9 +1,10 @@
-// FILE: frontend/src/services/api.ts
+// FILE: frontend/src/api.ts
 
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult } from '../data/types';
 
 interface LoginResponse { access_token: string; }
+interface RegisterResponse { message: string; } // PHOENIX PROTOCOL CURE: Added for type safety
 interface DocumentContentResponse { text: string; }
 
 const API_BASE_URL = 'https://advocatus-prod-api.duckdns.org';
@@ -118,7 +119,25 @@ export class ApiService {
 
     public getAxiosInstance(): AxiosInstance { return this.axiosInstance; }
     public async login(data: LoginRequest): Promise<LoginResponse> { return (await this.axiosInstance.post('/auth/login', data)).data; }
-    public async register(data: RegisterRequest): Promise<any> { return (await this.axiosInstance.post('/auth/register', data)).data; }
+    
+    // --- PHOENIX PROTOCOL CURE: Enhanced register method with specific 409 Conflict handling ---
+    public async register(data: RegisterRequest): Promise<RegisterResponse> {
+        try {
+            const response = await this.axiosInstance.post<RegisterResponse>('/auth/register', data);
+            return response.data;
+        } catch (error) {
+            if (axios.isAxiosError(error) && error.response) {
+                if (error.response.status === 409) {
+                    // Extract the detailed message from the backend, providing a fallback.
+                    const detail = error.response.data?.detail || 'A user with this email or username already exists.';
+                    throw new Error(detail);
+                }
+            }
+            // Re-throw other, unexpected errors.
+            throw new Error('An unexpected error occurred during registration.');
+        }
+    }
+
     public async changePassword(data: ChangePasswordRequest): Promise<void> { await this.axiosInstance.post('/users/change-password', data); }
     public async fetchUserProfile(): Promise<AdminUser> { return (await this.axiosInstance.get('/users/me')).data; }
     public async deleteAccount(): Promise<void> { await this.axiosInstance.delete('/users/me'); }
@@ -128,11 +147,10 @@ export class ApiService {
     public async deleteCase(caseId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}`); }
     public async getDocuments(caseId: string): Promise<Document[]> { return (await this.axiosInstance.get(`/cases/${caseId}/documents`)).data; }
     
-    // --- PHOENIX PROTOCOL CURE: New function to fetch the original document as a Blob ---
     public async getOriginalDocument(caseId: string, documentId: string): Promise<Blob> {
         return (await this.axiosInstance.get(
             `/cases/${caseId}/documents/${documentId}/original`,
-            { responseType: 'blob', timeout: 30000 } // Increased timeout for potentially large files
+            { responseType: 'blob', timeout: 30000 }
         )).data;
     }
 
