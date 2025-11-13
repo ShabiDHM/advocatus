@@ -9,10 +9,6 @@ import logging
 
 from ..models.user import UserCreate, UserInDB
 from ..core.security import get_password_hash, verify_password, create_access_token, create_refresh_token
-from ..core.config import settings
-from jose import jwt
-
-# PHOENIX PROTOCOL CURE: Removed the import of the deprecated 'get_collection' function.
 
 USER_COLLECTION = "users"
 CASE_COLLECTION = "cases"
@@ -24,7 +20,6 @@ logger = logging.getLogger(__name__)
 
 # --- CORE USER GETTERS ---
 def get_user_by_username(db: Database, username: str) -> Optional[UserInDB]:
-    # PHOENIX PROTOCOL CURE: Access the collection directly from the 'db' instance.
     user_data = db[USER_COLLECTION].find_one({"username": username})
     return UserInDB(**user_data) if user_data else None
 
@@ -54,26 +49,21 @@ def authenticate_user(username: str, password: str, db: Database) -> Optional[Us
     return user
 
 def create_user(db: Database, user: UserCreate, role: str = 'user') -> UserInDB:
-    """Creates a user, inserts into DB, and returns the complete UserInDB model."""
     hashed_password = get_password_hash(user.password)
     user_data = user.model_dump(exclude={"password"}, exclude_none=True)
     
-    # PHOENIX PROTOCOL CURE: Consolidate all data into a single dictionary before insertion.
     full_user_data = {
         **user_data,
         "hashed_password": hashed_password,
         "role": role.lower(),
         "subscription_status": "none",
         "last_login": None,
-        # Add any other default fields required by UserInDB here
     }
     
     result = db[USER_COLLECTION].insert_one(full_user_data)
     
-    # Retrieve the newly created user from the DB to ensure a complete and correct model is returned.
     created_user_doc = db[USER_COLLECTION].find_one({"_id": result.inserted_id})
     if not created_user_doc:
-        # This is a critical failure state and should not happen in normal operation.
         raise Exception("Failed to retrieve user immediately after creation.")
         
     return UserInDB(**created_user_doc)
