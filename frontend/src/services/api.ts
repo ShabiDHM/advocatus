@@ -32,7 +32,8 @@ export class ApiService {
     constructor() {
         this.axiosInstance = axios.create({
             baseURL: API_V1_URL,
-            headers: { 'Content-Type': 'application/json' },
+            // PHOENIX PROTOCOL CURE (PRESERVED): The default 'Content-Type' header is correctly removed.
+            // Axios will now properly handle headers on a per-request basis.
             withCredentials: true,
             timeout: 10000,
         });
@@ -64,15 +65,9 @@ export class ApiService {
             return this.refreshTokenPromise; 
         }
         
-        // PHOENIX PROTOCOL CURE: The POST request for refresh must not contain a body or a Content-Type header.
-        // We pass `undefined` as the data argument to ensure Axios sends a request with an empty body.
         this.refreshTokenPromise = this.axiosInstance.post<LoginResponse>('/auth/refresh', undefined, {
             withCredentials: true,
             timeout: 5000,
-            headers: {
-                // By not specifying a Content-Type, we allow Axios to omit it, which is correct for a bodyless request.
-                'Content-Type': null
-            }
         })
         .then(response => {
             const { access_token } = response.data;
@@ -148,6 +143,7 @@ export class ApiService {
             const response = await this.axiosInstance.post<RegisterResponse>('/auth/register', data);
             return response.data;
         } catch (error) {
+            // PHOENIX PROTOCOL CURE: Corrected Python 'and' to TypeScript '&&' logical operator.
             if (axios.isAxiosError(error) && error.response) {
                 if (error.response.status === 409) {
                     const detail = error.response.data?.detail || 'A user with this email or username already exists.';
