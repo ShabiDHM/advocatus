@@ -6,7 +6,6 @@ import { Case, Document, Finding } from '../data/types';
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
-// PHOENIX PROTOCOL CURE: Import the new PDF Viewer Modal component.
 import PDFViewerModal from '../components/PDFViewerModal'; 
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
@@ -14,9 +13,10 @@ import useAuth from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { ArrowLeft, AlertCircle, User, Briefcase, Info } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
+import { TFunction } from 'i18next'; // Import TFunction for explicit typing
 
 // --- COMPONENT: CaseHeader (No changes) ---
-const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string, fallback?: any) => string; }> = ({ caseDetails, t }) => (
+const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction<"translation", undefined>; }> = ({ caseDetails, t }) => (
   <motion.div
     className="mb-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
     initial={{ opacity: 0, y: -20 }}
@@ -31,7 +31,7 @@ const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string, fallback?: any)
       </div>
       <div className="flex items-center" title={t('caseView.statusLabel')}>
         <Briefcase className="h-4 w-4 mr-2 text-primary-start" />
-        <span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`, caseDetails.status)}</span>
+        <span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`, { fallback: caseDetails.status })}</span>
       </div>
       <div className="flex items-center" title={t('caseCard.createdOn')}>
         <Info className="h-4 w-4 mr-2 text-primary-start" />
@@ -42,7 +42,7 @@ const CaseHeader: React.FC<{ caseDetails: Case; t: (key: string, fallback?: any)
 );
 
 // --- COMPONENT: FindingsPanel (No changes) ---
-const FindingsPanel: React.FC<{ findings: Finding[]; t: (key: string) => string; }> = ({ findings, t }) => {
+const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction<"translation", undefined>; }> = ({ findings, t }) => {
     if (findings.length === 0) {
         return null;
     }
@@ -78,7 +78,6 @@ const CaseViewPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // PHOENIX PROTOCOL CURE: State to manage which document is being viewed in the modal.
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -104,11 +103,9 @@ const CaseViewPage: React.FC = () => {
     setDocuments(prev => [sanitizeDocument(newDocument), ...prev].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
   }, [setDocuments]);
 
-  // PHOENIX PROTOCOL CURE: Handler to open the PDF viewer modal.
   const handleViewOriginalDocument = useCallback((doc: Document) => {
     setViewingDocument(doc);
   }, []);
-
 
   const fetchCaseDetails = useCallback(async () => {
     if (!caseId) {
@@ -201,7 +198,6 @@ const CaseViewPage: React.FC = () => {
                       reconnect={reconnect}
                       onDocumentDeleted={handleDocumentDeleted}
                       onDocumentUploaded={handleDocumentUploaded}
-                      // PHOENIX PROTOCOL CURE: Pass the new handler to the DocumentsPanel.
                       onViewOriginal={handleViewOriginalDocument}
                     />
                 </div>
@@ -223,10 +219,10 @@ const CaseViewPage: React.FC = () => {
         </div>
       </div>
       
-      {/* PHOENIX PROTOCOL CURE: Conditionally render the modal. */}
       {viewingDocument && (
         <PDFViewerModal 
-          document={viewingDocument} 
+          // PHOENIX PROTOCOL CURE: Pass the correct 'documentData' prop instead of 'document'.
+          documentData={viewingDocument} 
           caseId={caseDetails.id}
           onClose={() => setViewingDocument(null)}
           t={t}
