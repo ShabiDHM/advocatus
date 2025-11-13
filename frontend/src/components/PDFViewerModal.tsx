@@ -1,10 +1,9 @@
 // FILE: /home/user/advocatus-frontend/src/components/PDFViewerModal.tsx
 
-// PHOENIX PROTOCOL CURE: Removed unused 'useCallback' import.
 import React, { useState, useEffect } from 'react';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
-import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
-import 'react-pdf/dist/esm/Page/TextLayer.css';
+
+// PHOENIX PROTOCOL CURE: Removed local CSS imports. They are now handled globally in main.tsx.
 
 import { apiService } from '../services/api';
 import { Document } from '../data/types';
@@ -15,7 +14,6 @@ import { X, Loader, AlertTriangle, ChevronLeft, ChevronRight, Download } from 'l
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 
 interface PDFViewerModalProps {
-  // PHOENIX PROTOCOL CURE: Renamed prop to avoid conflict with the global 'document' object.
   documentData: Document;
   caseId: string;
   onClose: () => void;
@@ -64,7 +62,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   const handleDownload = () => {
     if (fileUrl) {
-      // PHOENIX PROTOCOL CURE: Use the global 'window.document' to avoid ambiguity.
       const link = window.document.createElement('a');
       link.href = fileUrl;
       link.download = documentData.file_name;
@@ -126,7 +123,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                  <PdfDocument
                     file={fileUrl}
                     onLoadSuccess={onDocumentLoadSuccess}
-                    // PHOENIX PROTOCOL CURE: Prefix unused parameter with an underscore.
                     onLoadError={(_err) => setError(t('pdfViewer.errorLoad'))}
                     loading=""
                  >
@@ -143,7 +139,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                 <button onClick={goToPrevPage} disabled={pageNumber <= 1} className="p-2 disabled:opacity-50 hover:bg-white/10 rounded-full transition-colors">
                   <ChevronLeft size={20} />
                 </button>
-                {/* PHOENIX PROTOCOL CURE: Manually construct the string to satisfy the simple 't' function type. */}
                 <span>{`${t('pdfViewer.pageLabel')} ${pageNumber} / ${numPages}`}</span>
                 <button onClick={goToNextPage} disabled={pageNumber >= numPages} className="p-2 disabled:opacity-50 hover:bg-white/10 rounded-full transition-colors">
                   <ChevronRight size={20} />
