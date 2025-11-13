@@ -16,7 +16,6 @@ from ...models.case import CaseCreate, CaseOut
 from ...models.user import UserInDB
 from ...models.document import DocumentOut
 from ...models.findings import FindingsListOut, FindingOut
-# PHOENIX PROTOCOL CURE: Swapped the dependency to restore core access for all authenticated users.
 from .dependencies import get_current_user, get_db, get_sync_redis
 from ...celery_app import celery_app
 
@@ -48,7 +47,8 @@ async def get_single_case(case_id: str, current_user: Annotated[UserInDB, Depend
         raise HTTPException(status_code=404, detail="Case not found.")
     return case
 
-@router.delete("/{case_id}", status_code=status.HTTP_24_NO_CONTENT)
+# PHOENIX PROTOCOL CURE: Corrected the invalid status code from HTTP_24_NO_CONTENT to HTTP_204_NO_CONTENT.
+@router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validated_case_id = validate_object_id(case_id)
     await asyncio.to_thread(case_service.delete_case_by_id, db=db, case_id=validated_case_id, owner=current_user)
@@ -91,7 +91,6 @@ async def get_document_by_id(case_id: str, doc_id: str, current_user: Annotated[
     if str(document.case_id) != case_id: raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
     return document
 
-# --- PHOENIX PROTOCOL CURE: ADDED NEW /preview ENDPOINT ---
 @router.get("/{case_id}/documents/{doc_id}/preview", tags=["Documents"], response_class=StreamingResponse)
 async def get_document_preview(
     case_id: str,
@@ -99,24 +98,13 @@ async def get_document_preview(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Serves the PDF preview of a document. This endpoint is used by the frontend's
-    PDF viewer to provide a consistent viewing experience for all document types.
-    The actual conversion from original format to PDF is handled by a background worker.
-    """
     try:
-        # NOTE FOR BACKEND TEAM: This requires a new service function `get_preview_document_stream`.
-        # This function should check if a `preview_storage_key` exists on the document record.
-        # If it exists, stream the file from that key.
-        # If it does not exist (e.g., conversion pending or failed), this function
-        # should raise a specific exception that results in a 404 Not Found.
         file_stream, document = await asyncio.to_thread(
             document_service.get_preview_document_stream, db, doc_id, current_user
         )
         if str(document.case_id) != case_id:
             raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
         
-        # Always serve as application/pdf, as the preview is always a PDF.
         preview_filename = f"{document.file_name}.pdf"
         headers = {'Content-Disposition': f'inline; filename="{preview_filename}"'}
         return StreamingResponse(file_stream, media_type="application/pdf", headers=headers)
