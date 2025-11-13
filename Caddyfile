@@ -1,11 +1,8 @@
 # FILE: Caddyfile
-# PHOENIX PROTOCOL DEFINITIVE VERSION 8.0 (MINIMAL WEBSOCKET FIX):
-# 1. Using Caddy's simplest known working WebSocket configuration
-# 2. Removed complex matchers and handlers
 
 advocatus-prod-api.duckdns.org {
     # Automatic HTTPS via Let's Encrypt
-    tls shab@gmail.com
+    tls shabanbala@gmail.com
 
     # Standard security headers
     header {
@@ -14,18 +11,15 @@ advocatus-prod-api.duckdns.org {
         X-Frame-Options "SAMEORIGIN"
     }
 
-    # --- PHOENIX PROTOCOL FIX: SIMPLEST WEBSOCKET CONFIGURATION ---
-    # Handle WebSocket connections with minimal configuration
-    handle /ws/* {
-        reverse_proxy backend:8000 {
-            # WebSocket upgrade headers
-            header_up Connection {http.request.header.Connection}
-            header_up Upgrade {http.request.header.Upgrade}
-        }
-    }
+    # --- PHOENIX PROTOCOL CURE: Architecturally Sound Routing ---
+    # A single 'route' block provides an unambiguous, ordered request pipeline.
+    # Caddy's reverse_proxy handles WebSocket upgrades automatically, which is
+    # more reliable than manual header manipulation.
+    route {
+        # 1. First, match WebSocket requests and proxy them.
+        reverse_proxy /ws/* backend:8000
 
-    # Handle all other traffic
-    handle {
+        # 2. Second, match all other requests and proxy them.
         reverse_proxy backend:8000
     }
 }
