@@ -60,12 +60,9 @@ export class ApiService {
         }
     }
 
-    // --- PHOENIX PROTOCOL CURE: Corrected the /refresh request to send no body. ---
     public async refreshAccessToken(): Promise<LoginResponse> {
         if (this.refreshTokenPromise) { return this.refreshTokenPromise; }
         
-        // The backend expects a POST request with NO body. Passing 'null' ensures axios
-        // does not send a Content-Type: application/json header, which was causing the 422 error.
         this.refreshTokenPromise = axios.post<LoginResponse>(`${API_V1_URL}/auth/refresh`, null, { withCredentials: true, timeout: 5000 })
             .then(response => {
                 const { access_token } = response.data;
@@ -149,6 +146,14 @@ export class ApiService {
     public async deleteCase(caseId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}`); }
     public async getDocuments(caseId: string): Promise<Document[]> { return (await this.axiosInstance.get(`/cases/${caseId}/documents`)).data; }
     
+    // --- PHOENIX PROTOCOL CURE: ADDED NEW getPreviewDocument METHOD ---
+    public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> {
+        return (await this.axiosInstance.get(
+            `/cases/${caseId}/documents/${documentId}/preview`,
+            { responseType: 'blob', timeout: 30000 }
+        )).data;
+    }
+
     public async getOriginalDocument(caseId: string, documentId: string): Promise<Blob> {
         return (await this.axiosInstance.get(
             `/cases/${caseId}/documents/${documentId}/original`,

@@ -80,7 +80,40 @@ def upload_processed_text(text_content: str, user_id: str, case_id: str, origina
         if temp_file_path and os.path.exists(temp_file_path):
             os.remove(temp_file_path)
 
-# --- PHOENIX PROTOCOL CURE: New function to stream downloads for the API ---
+# --- PHOENIX PROTOCOL CURE: Added function for the backend worker to upload the generated PDF preview ---
+def upload_document_preview(file_path: str, user_id: str, case_id: str, original_doc_id: str) -> str:
+    s3_client = get_s3_client()
+    file_name = f"{original_doc_id}_preview.pdf"
+    storage_key = f"{user_id}/{case_id}/previews/{file_name}"
+    
+    try:
+        logger.info(f"--- [Storage Service] Uploading document preview to key: {storage_key} ---")
+        s3_client.upload_file(file_path, B2_BUCKET_NAME, storage_key)
+        logger.info(f"--- [Storage Service] Successfully uploaded document preview to key: {storage_key} ---")
+        return storage_key
+    except (BotoCoreError, ClientError, IOError) as e:
+        logger.error(f"!!! ERROR: Failed to upload document preview to B2. Key: {storage_key}, Reason: {e}")
+        raise HTTPException(status_code=500, detail="Could not upload document preview to storage.")
+
+# --- PHOENIX PROTOCOL CURE: Implemented the missing function to resolve the final error ---
+def download_preview_document_stream(storage_key: str) -> Any:
+    """
+    Retrieves the document preview (PDF) from B2 as a streaming body object.
+    This is memory-efficient and ideal for FastAPI's StreamingResponse.
+    """
+    s3_client = get_s3_client()
+    try:
+        logger.info(f"--- [Storage Service] Streaming PREVIEW file from B2 with key: {storage_key} ---")
+        response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
+        return response['Body']
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'NoSuchKey':
+            logger.error(f"!!! ERROR: Preview document file not found in B2. Key: {storage_key}")
+            raise HTTPException(status_code=404, detail="Preview file not found in storage.")
+        else:
+            logger.error(f"!!! ERROR: Failed to stream preview file from B2. Key: {storage_key}, Reason: {e}")
+            raise HTTPException(status_code=500, detail="Could not download preview file from storage.")
+
 def download_original_document_stream(storage_key: str) -> Any:
     """
     Retrieves the original document from B2 as a streaming body object.
@@ -88,10 +121,8 @@ def download_original_document_stream(storage_key: str) -> Any:
     """
     s3_client = get_s3_client()
     try:
-        logger.info(f"--- [Storage Service] Streaming file from B2 with key: {storage_key} ---")
+        logger.info(f"--- [Storage Service] Streaming ORIGINAL file from B2 with key: {storage_key} ---")
         response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
-        # The 'Body' of the response is a botocore.response.StreamingBody object.
-        # It's a file-like object that can be read or passed to a streaming response.
         return response['Body']
     except ClientError as e:
         if e.response['Error']['Code'] == 'NoSuchKey':
@@ -100,13 +131,8 @@ def download_original_document_stream(storage_key: str) -> Any:
         else:
             logger.error(f"!!! ERROR: Failed to stream file from B2. Key: {storage_key}, Reason: {e}")
             raise HTTPException(status_code=500, detail="Could not download file from storage.")
-# --- END CURE ---
 
 def download_processed_text(storage_key: str) -> bytes | None:
-    """
-    Downloads the content of the processed text file from B2/S3 into memory.
-    Returns the raw bytes of the file content.
-    """
     s3_client = get_s3_client()
     try:
         logger.info(f"--- [Storage Service] Downloading processed text content from key: {storage_key} ---")

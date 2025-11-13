@@ -50,6 +50,7 @@ def create_document_record(
         "storage_key": storage_key, "mime_type": mime_type,
         "status": DocumentStatus.PENDING,
         "created_at": datetime.datetime.now(timezone.utc),
+        "preview_storage_key": None,  # Initialize the new field
     }
     insert_result = db.documents.insert_one(document_data)
     if not insert_result.inserted_id:
@@ -60,7 +61,8 @@ def create_document_record(
 
 def finalize_document_processing(
     db: Database, redis_client: redis.Redis, doc_id_str: str,
-    processed_text_storage_key: Optional[str] = None, summary: Optional[str] = None
+    processed_text_storage_key: Optional[str] = None, summary: Optional[str] = None,
+    preview_storage_key: Optional[str] = None
 ):
     try:
         doc_object_id = ObjectId(doc_id_str)
@@ -73,13 +75,14 @@ def finalize_document_processing(
         update_fields["processed_text_storage_key"] = processed_text_storage_key
     if summary:
         update_fields["summary"] = summary
+    if preview_storage_key:
+        update_fields["preview_storage_key"] = preview_storage_key
         
     db.documents.update_one({"_id": doc_object_id}, {"$set": update_fields})
     updated_doc_data = db.documents.find_one({"_id": doc_object_id})
     if updated_doc_data:
         document_out = DocumentOut.model_validate(updated_doc_data)
         broadcast_payload = document_out.model_dump(by_alias=True)
-        # Ensure correct string formatting for JSON serialization
         broadcast_payload["id"] = str(broadcast_payload["_id"])
         broadcast_payload["case_id"] = str(broadcast_payload["case_id"])
         broadcast_payload["uploadedAt"] = document_out.created_at.isoformat()
@@ -98,6 +101,23 @@ def get_and_verify_document(db: Database, doc_id: str, owner: UserInDB) -> Docum
     if not document_data:
         raise HTTPException(status_code=404, detail="Document not found.")
     return DocumentOut.model_validate(document_data)
+
+def get_preview_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut]:
+    """
+    Retrieves the PDF preview stream for a document.
+    Raises FileNotFoundError if the preview is not yet available.
+    """
+    document = get_and_verify_document(db, doc_id, owner)
+    if not document.preview_storage_key:
+        raise FileNotFoundError("Document preview is not available.")
+    try:
+        file_stream = storage_service.download_preview_document_stream(document.preview_storage_key)
+        if file_stream is None:
+            raise FileNotFoundError("Preview file stream is None.")
+        return file_stream, document
+    except Exception as e:
+        logger.error(f"Failed to download preview document from storage for key {document.preview_storage_key}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not retrieve the document preview from storage.")
 
 def get_original_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut]:
     document = get_and_verify_document(db, doc_id, owner)
@@ -127,16 +147,17 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     doc_id_str = str(doc_id)
     storage_key = document_to_delete.get("storage_key")
     processed_key = document_to_delete.get("processed_text_storage_key")
+    preview_key = document_to_delete.get("preview_storage_key")
 
     db.findings.delete_many({"document_id": doc_id_str})
     vector_store_service.delete_document_embeddings(document_id=doc_id_str)
     if storage_key: storage_service.delete_file(storage_key=storage_key)
     if processed_key: storage_service.delete_file(storage_key=processed_key)
+    if preview_key: storage_service.delete_file(storage_key=preview_key)
     
     delete_result = db.documents.delete_one({"_id": doc_id, "owner_id": owner.id})
     
     if delete_result.deleted_count == 1:
-        # PHOENIX PROTOCOL CURE: This dictionary is type-safe and will not cause Pylance errors.
         broadcast_payload = {
             "id": str(document_to_delete["_id"]),
             "case_id": str(document_to_delete["case_id"]),
