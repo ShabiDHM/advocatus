@@ -1,9 +1,8 @@
 // FILE: /home/user/advocatus-frontend/src/pages/AuthPage.tsx
-// DEFINITIVE VERSION 9.6 - REPAIR: Reverted degradation caused by V9.5 (comment string rendering) and retained all functional fixes.
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import useAuth from '../context/AuthContext'; // <-- CRITICAL FIX (V9.5): Changed from named import { useAuth } to default import useAuth
+import useAuth from '../context/AuthContext';
 import { LoginRequest, RegisterRequest } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -56,31 +55,35 @@ const AuthPage: React.FC = () => {
 
     try {
       if (isLoginMode) {
-        // FIX (V9.3): Ensure login data conforms to the expected structure.
         const data: LoginRequest = { username, password }; 
         await login(data);
-        // CRITICAL FIX (V9.4): Only redirect to /dashboard after a successful LOGIN.
         navigate('/dashboard'); 
       } else {
         const data: RegisterRequest = { username, password, email };
         await register(data);
         
-        // CRITICAL FIX (V9.4): After successful registration, redirect to login page.
+        // On successful registration, switch to login mode with a success message
         setIsLoginMode(true);
-        setUsername(''); // Clear inputs for fresh login attempt
+        setError(t('auth.registerSuccess')); // Provide positive feedback
         setPassword('');
-        setEmail('');
         setConfirmPassword('');
-        navigate('/login'); 
       }
     } catch (err: any) {
+      // --- PHOENIX PROTOCOL CURE: Robust error handling for specific API responses ---
       const status = err.response?.status;
-      if (status === 401) {
-        console.error("Login attempt failed. Check backend logs for user validation failure.", err); 
+      const detail = err.response?.data?.detail; // FastAPI often includes a detailed message here.
+
+      if (status === 422) {
+        // 422: Unprocessable Entity (Validation Error from FastAPI).
+        setError(t('auth.validationError'));
+      } else if (status === 409) {
+        // 409: Conflict (User already exists). Use backend message if available.
+        setError(detail || t('auth.userExists'));
+      } else if (status === 401) {
+        // 401: Unauthorized (Incorrect username/password during login).
         setError(t('auth.loginFailed'));
-      } else if (status === 400 && !isLoginMode) {
-         setError(t('auth.registerFailed'));
       } else {
+        // Generic fallback for timeouts, server errors, etc.
         setError(t('auth.networkError'));
       }
     } finally {
@@ -119,7 +122,10 @@ const AuthPage: React.FC = () => {
         <form onSubmit={handleAuth} className="space-y-4">
           
           {error && (
-            <div className="p-3 text-sm text-red-100 bg-red-700 rounded-xl">{error}</div>
+             // Use green for success message, red for errors
+            <div className={`p-3 text-sm rounded-xl ${error === t('auth.registerSuccess') ? 'text-green-100 bg-green-700' : 'text-red-100 bg-red-700'}`}>
+              {error}
+            </div>
           )}
 
           <div>
