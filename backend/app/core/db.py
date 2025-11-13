@@ -13,7 +13,7 @@ from .config import settings
 # --- Synchronous Connection Logic (runs on import) ---
 
 def _connect_to_mongo() -> Tuple[MongoClient, Database]:
-    """Establishes a synchronous connection to MongoDB."""
+    """Est-ablishes a synchronous connection to MongoDB."""
     print("--- [DB] Attempting to connect to Sync MongoDB... ---")
     try:
         client: MongoClient = pymongo.MongoClient(settings.DATABASE_URI, serverSelectionTimeoutMS=5000)
@@ -46,14 +46,13 @@ redis_sync_client = _connect_to_sync_redis()
 
 # --- Asynchronous Connection Logic (to be run by lifespan) ---
 
-# PHOENIX PROTOCOL CURE: Define placeholders for async clients. They will be populated by the lifespan manager.
 async_mongo_client: Optional[Any] = None
 async_db_instance: Optional[Any] = None
 
 async def connect_to_motor():
     """Establishes an asynchronous connection to MongoDB using Motor and populates the global instances."""
     global async_mongo_client, async_db_instance
-    if async_db_instance: return # Already connected
+    if async_db_instance: return
     
     print("--- [DB] Attempting to connect to Async MongoDB (Motor)... ---")
     try:

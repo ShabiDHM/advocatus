@@ -5,11 +5,11 @@ import structlog
 import time
 from bson import ObjectId
 
-# PHOENIX PROTOCOL CURE: Import the global database and Redis instances directly.
-from ..core.db import db_instance, redis_sync_client
-from ..services import document_processing_service
-from ..services.document_processing_service import DocumentNotFoundInDBError
-from ..models.document import DocumentStatus
+# PHOENIX PROTOCOL CURE: Use absolute imports to permanently resolve linter path issues.
+from app.core.db import db_instance, redis_sync_client
+from app.services import document_processing_service
+from app.services.document_processing_service import DocumentNotFoundInDBError
+from app.models.document import DocumentStatus
 
 logger = structlog.get_logger(__name__)
 
@@ -28,8 +28,6 @@ def process_document_task(self, document_id_str: str):
         time.sleep(5)
 
     try:
-        # PHOENIX PROTOCOL CURE: Call the service directly with the imported instances.
-        # The task no longer manages its own connection lifecycle.
         document_processing_service.orchestrate_document_processing_mongo(
             db=db_instance,
             redis_client=redis_sync_client,
@@ -45,7 +43,6 @@ def process_document_task(self, document_id_str: str):
         log.error("task.failed.generic", error=str(e), exc_info=True)
         
         try:
-            # On failure, update the document status to FAILED.
             db_instance.documents.update_one(
                 {"_id": ObjectId(document_id_str)},
                 {"$set": {"status": DocumentStatus.FAILED, "error_message": str(e)}}
