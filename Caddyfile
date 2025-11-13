@@ -11,17 +11,12 @@ advocatus-prod-api.duckdns.org {
         X-Frame-Options "SAMEORIGIN"
     }
 
-    # --- PHOENIX PROTOCOL CURE: Architecturally Sound Routing with Stream Integrity ---
+    # PHOENIX PROTOCOL CURE: Architecturally Sound Routing
     route {
-        # 1. First, match WebSocket requests and proxy them. This connection is persistent
-        #    and does not require buffering changes.
+        # 1. First, match WebSocket requests and proxy them
         reverse_proxy /ws/* backend:8000
 
-        # 2. Second, match all other API requests and proxy them WITHOUT BUFFERING.
-        #    - `flush_interval -1` is the definitive cure. It disables Caddy's response
-        #      buffering, which is critical for correctly proxying streaming responses
-        #      (like PDF file downloads) from the FastAPI backend. This prevents stream
-        #      corruption and ensures file integrity.
+        # 2. Second, match all other API requests and proxy them WITHOUT BUFFERING
         reverse_proxy backend:8000 {
             flush_interval -1
         }

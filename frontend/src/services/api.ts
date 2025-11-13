@@ -62,29 +62,37 @@ export class ApiService {
     }
 
     public async refreshAccessToken(): Promise<LoginResponse> {
-        if (this.refreshTokenPromise) { return this.refreshTokenPromise; }
+        if (this.refreshTokenPromise) { 
+            return this.refreshTokenPromise; 
+        }
         
-        // --- PHOENIX PROTOCOL CURE: RESOLVE 422 ERROR ---
-        // The backend expects a POST request with NO body and NO Content-Type header.
-        // By setting `headers: { 'Content-Type': undefined }`, we instruct axios to omit
-        // the header, preventing FastAPI from attempting to validate a non-existent body.
-        this.refreshTokenPromise = axios.post<LoginResponse>(`${API_V1_URL}/auth/refresh`, null, { 
-            withCredentials: true, 
-            timeout: 5000,
-            headers: { 'Content-Type': undefined } 
+        // PHOENIX PROTOCOL CURE: Cross-domain refresh token call
+        this.refreshTokenPromise = axios.post<LoginResponse>(
+            `${API_BASE_URL}/api/v1/auth/refresh`, 
+            null, 
+            { 
+                withCredentials: true,
+                timeout: 5000,
+                headers: {
+                    'Content-Type': undefined
+                }
+            }
+        )
+        .then(response => {
+            const { access_token } = response.data;
+            localStorage.setItem('jwtToken', access_token);
+            this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
+            return response.data;
         })
-            .then(response => {
-                const { access_token } = response.data;
-                localStorage.setItem('jwtToken', access_token);
-                this.axiosInstance.defaults.headers.common['Authorization'] = `Bearer ${access_token}`;
-                return response.data;
-            })
-            .catch(error => {
-                if (this.onUnauthorized) this.onUnauthorized();
-                return Promise.reject(error);
-            })
-            .finally(() => { this.refreshTokenPromise = null; });
-            
+        .catch(error => {
+            console.error('Refresh token request failed:', error);
+            if (this.onUnauthorized) this.onUnauthorized();
+            return Promise.reject(error);
+        })
+        .finally(() => { 
+            this.refreshTokenPromise = null; 
+        });
+        
         return this.refreshTokenPromise;
     }
 
@@ -178,7 +186,7 @@ export class ApiService {
     public async uploadDocument(caseId: string, file: File): Promise<Document> { 
         const formData = new FormData(); 
         formData.append('file', file); 
-        return (await this.axiosInstance.post(`/cases/${caseId}/documents/upload`, formData, { headers: { 'Content-Type': 'multipart/form-form' } })).data;
+        return (await this.axiosInstance.post(`/cases/${caseId}/documents/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
     }
     public async deleteDocument(caseId: string, documentId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}/documents/${documentId}`); }
     public async getFindings(caseId: string): Promise<Finding[]> { return (await this.axiosInstance.get(`/cases/${caseId}/findings`)).data; }

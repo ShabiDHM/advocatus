@@ -32,7 +32,7 @@ def set_auth_cookies(response: Response, tokens: dict):
         max_age=REFRESH_TOKEN_MAX_AGE_SECONDS,
         expires=REFRESH_TOKEN_MAX_AGE_SECONDS,
         path="/",
-        # --- PHOENIX PROTOCOL FIX: DOMAIN PARAMETER REMOVED ---
+        domain=".duckdns.org",  # PHOENIX PROTOCOL FIX: Cross-domain cookie
         secure=True,
         httponly=True,
         samesite="none" 
@@ -82,7 +82,7 @@ def logout(response: Response):
     response.delete_cookie(
         key="refresh_token",
         path="/",
-        # --- PHOENIX PROTOCOL FIX: DOMAIN PARAMETER REMOVED ---
+        domain=".duckdns.org",  # PHOENIX PROTOCOL FIX: Cross-domain cookie cleanup
         secure=True,
         httponly=True,
         samesite="none"
