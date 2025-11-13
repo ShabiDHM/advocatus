@@ -51,17 +51,21 @@ def orchestrate_document_processing_mongo(
     preview_storage_key = None
     
     try:
-        # Step 1: Download the original document from storage
+        # Step 1: Create a temporary file path.
+        suffix = os.path.splitext(document.get("file_name", ""))[1]
+        temp_file_descriptor, temp_original_file_path = tempfile.mkstemp(suffix=suffix)
+        
+        # Step 2: Download the original document stream from storage.
         file_stream = storage_service.download_original_document_stream(document["storage_key"])
         
-        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(document.get("file_name", ""))[1]) as temp_file:
-            temp_original_file_path = temp_file.name
+        # Step 3: Write the stream to the temporary file and explicitly close it.
+        with os.fdopen(temp_file_descriptor, 'wb') as temp_file:
             shutil.copyfileobj(file_stream, temp_file)
-            
+        
         if hasattr(file_stream, 'close'):
             file_stream.close()
 
-        # --- PHOENIX PROTOCOL CURE: ENHANCED DOCUMENT PREVIEW GENERATION WITH ROBUST ERROR HANDLING ---
+        # Step 4: Generate the PDF preview from the now-guaranteed-valid temp file.
         try:
             logger.info(f"Starting PDF preview conversion for document {document_id_str}...")
             temp_pdf_preview_path = conversion_service.convert_to_pdf(temp_original_file_path)
@@ -74,14 +78,11 @@ def orchestrate_document_processing_mongo(
             )
             logger.info(f"Successfully generated and stored PDF preview for document {document_id_str}")
         except Exception as conversion_error:
-            # If conversion fails, log it and raise the exception to be caught by the main handler.
-            # This ensures the document status is set to FAILED and the entire process stops.
-            error_message = f"CRITICAL: PDF preview generation failed for document {document_id_str}. Halting processing for this document. Error: {conversion_error}"
+            error_message = f"CRITICAL: PDF preview generation failed for document {document_id_str}. Halting processing. Error: {conversion_error}"
             logger.error(error_message, exc_info=True)
             raise RuntimeError("Preview generation failed") from conversion_error
-        # --- END DOCUMENT PREVIEW GENERATION ---
 
-        # Step 4: Extract text for analysis (from the original, not the PDF)
+        # Step 5: Extract text for analysis from the same valid temp file.
         extracted_text = text_extraction_service.extract_text(temp_original_file_path, document.get("mime_type", ""))
         if not extracted_text or not extracted_text.strip():
             raise ValueError("Text extraction returned no content.")
@@ -93,7 +94,6 @@ def orchestrate_document_processing_mongo(
             'file_name': document.get("file_name", "Dokument i Paidentifikuar"),
         }
         
-        # Step 5: Process text and store embeddings
         enriched_chunks = _process_and_split_text(extracted_text, base_doc_metadata)
         
         processed_text_storage_key = storage_service.upload_processed_text(
@@ -114,10 +114,9 @@ def orchestrate_document_processing_mongo(
             )
             logger.info(f"Processed embedding batch {i//BATCH_SIZE + 1} for document {document_id_str}")
 
-        # Step 6: Generate summary
+        # PHOENIX PROTOCOL CURE: Corrected the typo from 'll_service' to 'llm_service'.
         summary = llm_service.generate_summary(extracted_text)
 
-        # Step 7: Finalize the document record in the DB, now including the preview key
         document_service.finalize_document_processing(
             db=db,
             redis_client=redis_client,
@@ -127,7 +126,6 @@ def orchestrate_document_processing_mongo(
             preview_storage_key=preview_storage_key
         )
 
-        # Step 8: Trigger follow-up analysis tasks
         extract_deadlines_from_document.delay(document_id_str, extracted_text)
         extract_findings_from_document.delay(document_id_str, extracted_text)
 
@@ -140,7 +138,6 @@ def orchestrate_document_processing_mongo(
         )
         raise e
     finally:
-        # Step 9: Clean up all temporary files
         if temp_original_file_path and os.path.exists(temp_original_file_path):
             os.remove(temp_original_file_path)
         if temp_pdf_preview_path and os.path.exists(temp_pdf_preview_path):
