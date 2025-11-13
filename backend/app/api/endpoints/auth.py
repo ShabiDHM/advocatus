@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/auth.py
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from typing import Annotated
 from pydantic import BaseModel
 from pymongo.database import Database
@@ -32,7 +32,7 @@ def set_auth_cookies(response: Response, tokens: dict):
         max_age=REFRESH_TOKEN_MAX_AGE_SECONDS,
         expires=REFRESH_TOKEN_MAX_AGE_SECONDS,
         path="/",
-        domain=".duckdns.org",  # PHOENIX PROTOCOL FIX: Cross-domain cookie
+        domain=".duckdns.org",
         secure=True,
         httponly=True,
         samesite="none" 
@@ -69,10 +69,11 @@ def register(user_in: UserCreate, db: Database = Depends(get_db)):
 
 @router.post("/refresh", response_model=LoginResponse)
 def refresh_access_token(
+    request: Request,
     response: Response,
     current_user: Annotated[UserInDB, Depends(get_current_refresh_user)]
 ):
-    token_data = { "id": str(current_user.id), "role": current_user.role, "type": "refresh" }
+    token_data = { "id": str(current_user.id), "role": current_user.role }
     tokens = user_service.create_both_tokens(data=token_data)
     set_auth_cookies(response, tokens)
     return LoginResponse(access_token=tokens["access_token"])
@@ -82,7 +83,7 @@ def logout(response: Response):
     response.delete_cookie(
         key="refresh_token",
         path="/",
-        domain=".duckdns.org",  # PHOENIX PROTOCOL FIX: Cross-domain cookie cleanup
+        domain=".duckdns.org",
         secure=True,
         httponly=True,
         samesite="none"

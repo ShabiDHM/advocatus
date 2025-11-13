@@ -66,18 +66,15 @@ export class ApiService {
             return this.refreshTokenPromise; 
         }
         
-        // PHOENIX PROTOCOL CURE: Cross-domain refresh token call
-        this.refreshTokenPromise = axios.post<LoginResponse>(
-            `${API_BASE_URL}/api/v1/auth/refresh`, 
-            null, 
-            { 
-                withCredentials: true,
-                timeout: 5000,
-                headers: {
-                    'Content-Type': undefined
-                }
+        // PHOENIX PROTOCOL CURE: Proper refresh token call with no body
+        this.refreshTokenPromise = this.axiosInstance.post<LoginResponse>('/auth/refresh', null, {
+            withCredentials: true,
+            timeout: 5000,
+            // Remove Content-Type header entirely for empty body requests
+            headers: {
+                'Content-Type': undefined
             }
-        )
+        })
         .then(response => {
             const { access_token } = response.data;
             localStorage.setItem('jwtToken', access_token);
@@ -86,6 +83,11 @@ export class ApiService {
         })
         .catch(error => {
             console.error('Refresh token request failed:', error);
+            console.error('Refresh error details:', {
+                status: error.response?.status,
+                data: error.response?.data,
+                headers: error.response?.headers
+            });
             if (this.onUnauthorized) this.onUnauthorized();
             return Promise.reject(error);
         })

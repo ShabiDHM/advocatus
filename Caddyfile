@@ -11,14 +11,18 @@ advocatus-prod-api.duckdns.org {
         X-Frame-Options "SAMEORIGIN"
     }
 
-    # PHOENIX PROTOCOL CURE: Architecturally Sound Routing
+    # PHOENIX PROTOCOL CURE: Direct API routing without conflicts
     route {
-        # 1. First, match WebSocket requests and proxy them
+        # 1. WebSocket route - must come first
         reverse_proxy /ws/* backend:8000
 
-        # 2. Second, match all other API requests and proxy them WITHOUT BUFFERING
-        reverse_proxy backend:8000 {
+        # 2. API routes - direct proxy without rewriting
+        reverse_proxy /api/* backend:8000 {
             flush_interval -1
         }
+
+        # 3. Health and root endpoints
+        reverse_proxy /health backend:8000
+        reverse_proxy / backend:8000
     }
 }
