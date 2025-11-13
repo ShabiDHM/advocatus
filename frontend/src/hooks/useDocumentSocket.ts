@@ -1,11 +1,9 @@
 // FILE: /home/user/advocatus-frontend/src/hooks/useDocumentSocket.ts
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
-import { Document, ChatMessage, ConnectionStatus } from '../data/types'; // CURE: Import global type
+import { Document, ChatMessage, ConnectionStatus } from '../data/types';
 import { apiService } from '../services/api';
 import { sanitizeDocument } from '../utils/documentUtils';
-
-// CURE: Local type definition removed. The hook now uses the global type.
 
 interface UseDocumentSocketReturn {
   documents: Document[];
@@ -34,8 +32,6 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
   useEffect(() => {
     if (!caseId || !isReady) {
       console.log('[WebSocket Hook] Connection skipped - missing caseId or not ready');
-      setConnectionStatus('DISCONNECTED');
-      setConnectionError(null);
       return;
     }
 
@@ -54,13 +50,17 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
       setConnectionError(null);
       
       try {
-        const url = await apiService.getWebSocketUrl(caseId);
+        // --- PHOENIX PROTOCOL CURE: ARCHITECTURAL FIX FOR WEBSOCKET AUTHENTICATION ---
+        // 1. Get the raw token and the base URL separately.
+        const { url, token } = await apiService.getWebSocketInfo(caseId);
         
-        console.log('[WebSocket Hook] WebSocket URL constructed (token redacted):', 
-          url.replace(/(token=)[^&]+/, '$1REDACTED')
-        );
-        
-        const ws = new WebSocket(url);
+        console.log('[WebSocket Hook] WebSocket URL constructed:', url);
+
+        // 2. The WebSocket constructor's second argument is for protocols. Passing the
+        //    token here places it in the 'Sec-WebSocket-Protocol' header. This is the
+        //    industry-standard, proxy-friendly way to handle WebSocket authentication,
+        //    resolving the 1006 connection error.
+        const ws = new WebSocket(url, token);
         wsRef.current = ws;
 
         ws.onopen = () => { 

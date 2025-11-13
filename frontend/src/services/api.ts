@@ -6,6 +6,9 @@ import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, 
 interface LoginResponse { access_token: string; }
 interface RegisterResponse { message: string; }
 interface DocumentContentResponse { text: string; }
+// --- PHOENIX PROTOCOL CURE: New interface for WebSocket connection data ---
+interface WebSocketInfo { url: string; token: string; }
+
 
 const API_BASE_URL = 'https://advocatus-prod-api.duckdns.org';
 const API_V1_URL = `${API_BASE_URL}/api/v1`;
@@ -109,14 +112,20 @@ export class ApiService {
         );
     }
 
-    public async getWebSocketUrl(caseId: string): Promise<string> {
+    // --- PHOENIX PROTOCOL CURE: Re-architected WebSocket connection method ---
+    // Replaces the old `getWebSocketUrl` method.
+    public async getWebSocketInfo(caseId: string): Promise<WebSocketInfo> {
         await this.ensureValidToken();
         const token = localStorage.getItem('jwtToken');
         if (!token) {
             if (this.onUnauthorized) this.onUnauthorized();
             throw new Error('Fatal: Token disappeared after validation.');
         }
-        return `wss://advocatus-prod-api.duckdns.org/ws/case/${caseId}?token=${encodeURIComponent(token)}`;
+        // Returns the URL and token separately, allowing the hook to use protocol-based auth.
+        return {
+            url: `wss://advocatus-prod-api.duckdns.org/ws/case/${caseId}`,
+            token: token
+        };
     }
 
     public getAxiosInstance(): AxiosInstance { return this.axiosInstance; }
@@ -146,7 +155,6 @@ export class ApiService {
     public async deleteCase(caseId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}`); }
     public async getDocuments(caseId: string): Promise<Document[]> { return (await this.axiosInstance.get(`/cases/${caseId}/documents`)).data; }
     
-    // --- PHOENIX PROTOCOL CURE: ADDED NEW getPreviewDocument METHOD ---
     public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> {
         return (await this.axiosInstance.get(
             `/cases/${caseId}/documents/${documentId}/preview`,
