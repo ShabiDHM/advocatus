@@ -1,23 +1,20 @@
 # FILE: backend/Dockerfile
-# PHOENIX PROTOCOL CURE 50.1 (COMPLETE BUILD MANIFEST):
-# 1. ADDED SCRIPTS: A 'COPY ./scripts ./scripts' command has been added.
-# 2. This ensures that the 'scripts' directory is included in the Docker image,
-#    making the utility scripts available for execution within the container and
-#    resolving the 'No such file or directory' error.
 
 FROM python:3.11
 
-# 1. Install system dependencies.
+# 1. Install system dependencies, now including LibreOffice for document conversion.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     tesseract-ocr \
+    libreoffice \
     dnsutils \
     iputils-ping \
     curl && \
     rm -rf /var/lib/apt/lists/*
 
-# 2. Verify Tesseract installation.
+# 2. Verify Tesseract and LibreOffice installations.
 RUN tesseract --version
+RUN soffice --version
 
 # 3. Set the working directory and PYTHONPATH.
 WORKDIR /app

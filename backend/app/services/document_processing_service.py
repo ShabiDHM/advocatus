@@ -11,7 +11,8 @@ import shutil
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-from . import document_service, storage_service, vector_store_service, llm_service, text_extraction_service
+# PHOENIX PROTOCOL CURE: Added conversion_service to handle file-to-PDF conversion.
+from . import document_service, storage_service, vector_store_service, llm_service, text_extraction_service, conversion_service
 from ..tasks.deadline_extraction import extract_deadlines_from_document
 from ..tasks.findings_extraction import extract_findings_from_document
 
@@ -45,21 +46,45 @@ def orchestrate_document_processing_mongo(
     if not document:
         raise DocumentNotFoundInDBError(f"Document with ID {document_id_str} not found.")
 
-    temp_file_path = ""
+    temp_original_file_path = ""
+    temp_pdf_preview_path = ""
+    preview_storage_key = None
+    
     try:
-        # PHOENIX PROTOCOL CURE: Use the new streaming download function and write to a temp file.
-        # This aligns the processing service with the refactored storage service.
+        # Step 1: Download the original document from storage
         file_stream = storage_service.download_original_document_stream(document["storage_key"])
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(document.get("file_name", ""))[1]) as temp_file:
-            temp_file_path = temp_file.name
+            temp_original_file_path = temp_file.name
             shutil.copyfileobj(file_stream, temp_file)
             
-        # The file stream from boto3 needs to be closed
         if hasattr(file_stream, 'close'):
             file_stream.close()
 
-        extracted_text = text_extraction_service.extract_text(temp_file_path, document.get("mime_type", ""))
+        # --- PHOENIX PROTOCOL CURE: START DOCUMENT PREVIEW GENERATION ---
+        try:
+            # Step 2: Convert the downloaded original file to a PDF preview
+            # NOTE FOR BACKEND TEAM: Implement the `conversion_service`. It should take a source
+            # file path and return the path to a generated PDF file. Tools like headless
+            # LibreOffice or Pandoc are suitable for this.
+            temp_pdf_preview_path = conversion_service.convert_to_pdf(temp_original_file_path)
+
+            # Step 3: Upload the generated PDF preview to storage
+            preview_storage_key = storage_service.upload_document_preview(
+                file_path=temp_pdf_preview_path,
+                user_id=str(document.get("owner_id")),
+                case_id=str(document.get("case_id")),
+                original_doc_id=document_id_str
+            )
+            logger.info(f"Successfully generated and stored PDF preview for document {document_id_str}")
+        except Exception as conversion_error:
+            # If conversion fails, log it but don't stop the rest of the processing.
+            # The document will still be searchable, just not viewable.
+            logger.error(f"Failed to generate PDF preview for document {document_id_str}: {conversion_error}", exc_info=True)
+        # --- PHOENIX PROTOCOL CURE: END DOCUMENT PREVIEW GENERATION ---
+
+        # Step 4: Extract text for analysis (from the original, not the PDF)
+        extracted_text = text_extraction_service.extract_text(temp_original_file_path, document.get("mime_type", ""))
         if not extracted_text or not extracted_text.strip():
             raise ValueError("Text extraction returned no content.")
 
@@ -70,6 +95,7 @@ def orchestrate_document_processing_mongo(
             'file_name': document.get("file_name", "Dokument i Paidentifikuar"),
         }
         
+        # Step 5: Process text and store embeddings
         enriched_chunks = _process_and_split_text(extracted_text, base_doc_metadata)
         
         processed_text_storage_key = storage_service.upload_processed_text(
@@ -90,16 +116,21 @@ def orchestrate_document_processing_mongo(
             )
             logger.info(f"Processed embedding batch {i//BATCH_SIZE + 1} for document {document_id_str}")
 
+        # Step 6: Generate summary
         summary = llm_service.generate_summary(extracted_text)
 
+        # Step 7: Finalize the document record in the DB, now including the preview key
         document_service.finalize_document_processing(
             db=db,
             redis_client=redis_client,
             doc_id_str=document_id_str, 
             summary=summary,
-            processed_text_storage_key=processed_text_storage_key
+            processed_text_storage_key=processed_text_storage_key,
+            # PHOENIX PROTOCOL CURE: Pass the new preview key to be saved in the database.
+            preview_storage_key=preview_storage_key
         )
 
+        # Step 8: Trigger follow-up analysis tasks
         extract_deadlines_from_document.delay(document_id_str, extracted_text)
         extract_findings_from_document.delay(document_id_str, extracted_text)
 
@@ -108,5 +139,8 @@ def orchestrate_document_processing_mongo(
         logger.error(f"--- [FAILURE] {error_message} (ID: {document_id_str}) ---", exc_info=True)
         raise e
     finally:
-        if temp_file_path and os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+        # Step 9: Clean up all temporary files
+        if temp_original_file_path and os.path.exists(temp_original_file_path):
+            os.remove(temp_original_file_path)
+        if temp_pdf_preview_path and os.path.exists(temp_pdf_preview_path):
+            os.remove(temp_pdf_preview_path)
