@@ -70,6 +70,14 @@ def convert_to_pdf(source_path: str) -> str:
             error_message = f"Conversion command succeeded but output PDF not found at expected path: '{expected_output_path}'."
             logger.error(error_message)
             raise RuntimeError(error_message)
+            
+        # --- PHOENIX PROTOCOL CURE: ADDED FILE VALIDATION ---
+        # Verify that the created file is not empty (a common failure mode).
+        if os.path.getsize(expected_output_path) == 0:
+            error_message = f"Conversion produced a zero-byte (empty) PDF file. The source file may be unsupported or corrupt."
+            logger.error(error_message)
+            os.remove(expected_output_path) # Clean up the empty file
+            raise RuntimeError(error_message)
 
         logger.info(f"Successfully converted '{os.path.basename(source_path)}' to '{os.path.basename(expected_output_path)}'.")
         return expected_output_path

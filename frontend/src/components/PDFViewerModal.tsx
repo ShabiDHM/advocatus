@@ -43,7 +43,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       setFileUrl(null);
     }
     try {
-      // PHOENIX PROTOCOL CURE: Switched to getPreviewDocument endpoint
       const blob = await apiService.getPreviewDocument(caseId, documentData.id);
       const url = URL.createObjectURL(blob);
       setFileUrl(url);
@@ -71,7 +70,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const handleDownloadOriginal = async () => {
     setIsDownloading(true);
     try {
-        // PHOENIX PROTOCOL CURE: Explicitly call getOriginalDocument for downloading
         const blob = await apiService.getOriginalDocument(caseId, documentData.id);
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -83,7 +81,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         URL.revokeObjectURL(url);
     } catch (downloadError) {
         console.error("Failed to download original document:", downloadError);
-        // Optionally, show a toast or notification for download failure
     } finally {
         setIsDownloading(false);
     }
@@ -105,6 +102,14 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       )}
     </div>
   );
+  
+  // PHOENIX PROTOCOL CURE: Enhanced the error handler for better diagnostics.
+  const handlePdfLoadError = (err: Error) => {
+    // Log the detailed error object from react-pdf to the console for debugging.
+    console.error("react-pdf onLoadError:", err);
+    // Set the user-friendly, translated error message to be displayed in the UI.
+    setError(t('pdfViewer.errorLoad'));
+  };
 
   return (
     <AnimatePresence>
@@ -122,7 +127,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           className="bg-background-main w-full h-full max-w-4xl max-h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-glass-edge"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header */}
           <header className="flex items-center justify-between p-4 bg-background-light border-b border-glass-edge flex-shrink-0">
             <h2 className="text-lg font-bold text-text-primary truncate" title={documentData.file_name}>
               {documentData.file_name}
@@ -137,7 +141,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             </div>
           </header>
 
-          {/* Body (Viewer) */}
           <div className="flex-grow relative bg-black/20 overflow-auto">
             {isLoading && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-text-secondary">
@@ -151,7 +154,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                  <PdfDocument
                     file={fileUrl}
                     onLoadSuccess={onDocumentLoadSuccess}
-                    onLoadError={(_err) => setError(t('pdfViewer.errorLoad'))}
+                    onLoadError={handlePdfLoadError}
                     loading=""
                  >
                     <Page pageNumber={pageNumber} width={800} />
@@ -160,7 +163,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             )}
           </div>
 
-          {/* Footer (Controls) */}
           {numPages && numPages > 1 && !error && (
             <footer className="flex items-center justify-center p-3 bg-background-light border-t border-glass-edge flex-shrink-0">
               <div className="flex items-center gap-4 text-text-primary">
