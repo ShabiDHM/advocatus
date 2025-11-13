@@ -11,8 +11,8 @@ import shutil
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-# PHOENIX PROTOCOL CURE: Added conversion_service to handle file-to-PDF conversion.
 from . import document_service, storage_service, vector_store_service, llm_service, text_extraction_service, conversion_service
+from ..models.document import DocumentStatus
 from ..tasks.deadline_extraction import extract_deadlines_from_document
 from ..tasks.findings_extraction import extract_findings_from_document
 
@@ -61,15 +61,11 @@ def orchestrate_document_processing_mongo(
         if hasattr(file_stream, 'close'):
             file_stream.close()
 
-        # --- PHOENIX PROTOCOL CURE: START DOCUMENT PREVIEW GENERATION ---
+        # --- PHOENIX PROTOCOL CURE: ENHANCED DOCUMENT PREVIEW GENERATION WITH ROBUST ERROR HANDLING ---
         try:
-            # Step 2: Convert the downloaded original file to a PDF preview
-            # NOTE FOR BACKEND TEAM: Implement the `conversion_service`. It should take a source
-            # file path and return the path to a generated PDF file. Tools like headless
-            # LibreOffice or Pandoc are suitable for this.
+            logger.info(f"Starting PDF preview conversion for document {document_id_str}...")
             temp_pdf_preview_path = conversion_service.convert_to_pdf(temp_original_file_path)
 
-            # Step 3: Upload the generated PDF preview to storage
             preview_storage_key = storage_service.upload_document_preview(
                 file_path=temp_pdf_preview_path,
                 user_id=str(document.get("owner_id")),
@@ -78,10 +74,12 @@ def orchestrate_document_processing_mongo(
             )
             logger.info(f"Successfully generated and stored PDF preview for document {document_id_str}")
         except Exception as conversion_error:
-            # If conversion fails, log it but don't stop the rest of the processing.
-            # The document will still be searchable, just not viewable.
-            logger.error(f"Failed to generate PDF preview for document {document_id_str}: {conversion_error}", exc_info=True)
-        # --- PHOENIX PROTOCOL CURE: END DOCUMENT PREVIEW GENERATION ---
+            # If conversion fails, log it and raise the exception to be caught by the main handler.
+            # This ensures the document status is set to FAILED and the entire process stops.
+            error_message = f"CRITICAL: PDF preview generation failed for document {document_id_str}. Halting processing for this document. Error: {conversion_error}"
+            logger.error(error_message, exc_info=True)
+            raise RuntimeError("Preview generation failed") from conversion_error
+        # --- END DOCUMENT PREVIEW GENERATION ---
 
         # Step 4: Extract text for analysis (from the original, not the PDF)
         extracted_text = text_extraction_service.extract_text(temp_original_file_path, document.get("mime_type", ""))
@@ -126,7 +124,6 @@ def orchestrate_document_processing_mongo(
             doc_id_str=document_id_str, 
             summary=summary,
             processed_text_storage_key=processed_text_storage_key,
-            # PHOENIX PROTOCOL CURE: Pass the new preview key to be saved in the database.
             preview_storage_key=preview_storage_key
         )
 
@@ -135,8 +132,12 @@ def orchestrate_document_processing_mongo(
         extract_findings_from_document.delay(document_id_str, extracted_text)
 
     except Exception as e:
-        error_message = f"Failed to process document: {e}"
-        logger.error(f"--- [FAILURE] {error_message} (ID: {document_id_str}) ---", exc_info=True)
+        error_message = f"Failed to process document {document_id_str}: {e}"
+        logger.error(f"--- [FAILURE] {error_message} ---", exc_info=True)
+        db.documents.update_one(
+            {"_id": doc_id},
+            {"$set": {"status": DocumentStatus.FAILED, "error_message": str(e)}}
+        )
         raise e
     finally:
         # Step 9: Clean up all temporary files

@@ -406,5 +406,15 @@
   "error": {
     "noCaseId": "Nuk u dha asnjë ID rasti.",
     "failedToLoadCase": "Dështoi ngarkimi i detajeve të rastit."
+  },
+  "pdfViewer": {
+    "errorTitle": "Gabim gjatë Shfaqjes",
+    "errorPreviewNotReady": "Parashikimi për këtë dokument nuk është gati ose ka dështuar. Ju lutemi provoni përsëri më vonë ose shkarkoni dokumentin origjinal.",
+    "errorFetch": "Dështoi marrja e dokumentit nga serveri.",
+    "errorLoad": "Dështoi ngarkimi i parashikimit të PDF-së. Skedari mund të jetë i dëmtuar.",
+    "download": "Shkarko Origjinalin",
+    "close": "Mbyll",
+    "loading": "Duke ngarkuar parashikimin...",
+    "pageLabel": "Faqe"
   }
 }
