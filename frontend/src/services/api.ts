@@ -4,7 +4,7 @@ import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 
 import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult } from '../data/types';
 
 interface LoginResponse { access_token: string; }
-interface RegisterResponse { message: string; } // PHOENIX PROTOCOL CURE: Added for type safety
+interface RegisterResponse { message: string; }
 interface DocumentContentResponse { text: string; }
 
 const API_BASE_URL = 'https://advocatus-prod-api.duckdns.org';
@@ -60,9 +60,13 @@ export class ApiService {
         }
     }
 
+    // --- PHOENIX PROTOCOL CURE: Corrected the /refresh request to send no body. ---
     public async refreshAccessToken(): Promise<LoginResponse> {
         if (this.refreshTokenPromise) { return this.refreshTokenPromise; }
-        this.refreshTokenPromise = axios.post<LoginResponse>(`${API_V1_URL}/auth/refresh`, {}, { withCredentials: true, timeout: 5000 })
+        
+        // The backend expects a POST request with NO body. Passing 'null' ensures axios
+        // does not send a Content-Type: application/json header, which was causing the 422 error.
+        this.refreshTokenPromise = axios.post<LoginResponse>(`${API_V1_URL}/auth/refresh`, null, { withCredentials: true, timeout: 5000 })
             .then(response => {
                 const { access_token } = response.data;
                 localStorage.setItem('jwtToken', access_token);
@@ -74,6 +78,7 @@ export class ApiService {
                 return Promise.reject(error);
             })
             .finally(() => { this.refreshTokenPromise = null; });
+            
         return this.refreshTokenPromise;
     }
 
@@ -120,7 +125,6 @@ export class ApiService {
     public getAxiosInstance(): AxiosInstance { return this.axiosInstance; }
     public async login(data: LoginRequest): Promise<LoginResponse> { return (await this.axiosInstance.post('/auth/login', data)).data; }
     
-    // --- PHOENIX PROTOCOL CURE: Enhanced register method with specific 409 Conflict handling ---
     public async register(data: RegisterRequest): Promise<RegisterResponse> {
         try {
             const response = await this.axiosInstance.post<RegisterResponse>('/auth/register', data);
@@ -128,12 +132,10 @@ export class ApiService {
         } catch (error) {
             if (axios.isAxiosError(error) && error.response) {
                 if (error.response.status === 409) {
-                    // Extract the detailed message from the backend, providing a fallback.
                     const detail = error.response.data?.detail || 'A user with this email or username already exists.';
                     throw new Error(detail);
                 }
             }
-            // Re-throw other, unexpected errors.
             throw new Error('An unexpected error occurred during registration.');
         }
     }
@@ -160,7 +162,7 @@ export class ApiService {
     public async uploadDocument(caseId: string, file: File): Promise<Document> { 
         const formData = new FormData(); 
         formData.append('file', file); 
-        return (await this.axiosInstance.post(`/cases/${caseId}/documents/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data; 
+        return (await this.axiosInstance.post(`/cases/${caseId}/documents/upload`, formData, { headers: { 'Content-Type': 'multipart/form-form' } })).data;
     }
     public async deleteDocument(caseId: string, documentId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}/documents/${documentId}`); }
     public async getFindings(caseId: string): Promise<Finding[]> { return (await this.axiosInstance.get(`/cases/${caseId}/findings`)).data; }
