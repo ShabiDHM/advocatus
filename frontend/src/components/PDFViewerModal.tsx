@@ -1,4 +1,4 @@
-// FILE: /home/user/advocatus-frontend/src/components/PDFViewerModal.tsx
+// FILE: src/components/PDFViewerModal.tsx
 
 import React, { useState, useEffect } from 'react';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
@@ -9,11 +9,43 @@ import { Document } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader, AlertTriangle, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
 
-// --- PHOENIX PROTOCOL CURE: RESOLVE CORS ERROR ---
-// Instead of loading the worker from an external CDN (which causes a CORS error),
-// we now load it from our own public directory. The vite.config.ts file has been
-// updated to handle copying this file from node_modules automatically.
-pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.js`;
+// --- PHOENIX PROTOCOL CURE: RESILIENT PDF WORKER CONFIGURATION ---
+// Multiple fallback strategies for PDF worker loading
+const configurePdfWorker = () => {
+  const workerPaths = [
+    // Primary: Local public directory (copied by Vite plugin)
+    '/pdf.worker.min.js',
+    // Fallback: CDN with same version as pdfjs-dist
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+    // Secondary fallback: UNPKG
+    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js'
+  ];
+
+  // Try each worker path until one works
+  const tryWorkerPath = async (path: string, index: number): Promise<boolean> => {
+    if (index >= workerPaths.length) return false;
+    
+    try {
+      pdfjs.GlobalWorkerOptions.workerSrc = path;
+      // Test the worker by creating a minimal PDF document
+      const loadingTask = pdfjs.getDocument({ data: new Uint8Array([]) });
+      await loadingTask.promise;
+      console.log(`PDF worker loaded successfully from: ${path}`);
+      return true;
+    } catch (error) {
+      console.warn(`PDF worker failed from ${path}, trying next...`);
+      return tryWorkerPath(workerPaths[index + 1], index + 1);
+    }
+  };
+
+  // Start with the first worker path
+  tryWorkerPath(workerPaths[0], 0).catch(() => {
+    console.error('All PDF worker paths failed. PDF rendering will be disabled.');
+  });
+};
+
+// Configure PDF worker on module load
+configurePdfWorker();
 
 interface PDFViewerModalProps {
   documentData: Document;
@@ -29,10 +61,12 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setPageNumber(1);
+    setPdfLoadError(null);
   };
 
   const goToPrevPage = () => setPageNumber(prevPageNumber => Math.max(prevPageNumber - 1, 1));
@@ -41,10 +75,14 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const fetchDocumentPreview = async () => {
     setIsLoading(true);
     setError(null);
+    setPdfLoadError(null);
+    
+    // Clean up previous file URL
     if (fileUrl) {
       URL.revokeObjectURL(fileUrl);
       setFileUrl(null);
     }
+    
     try {
       const blob = await apiService.getPreviewDocument(caseId, documentData.id);
       const url = URL.createObjectURL(blob);
@@ -52,9 +90,9 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     } catch (err) {
       console.error("Failed to fetch document preview:", err);
       if ((err as AxiosError)?.response?.status === 404) {
-          setError(t('pdfViewer.errorPreviewNotReady'));
+        setError(t('pdfViewer.errorPreviewNotReady'));
       } else {
-          setError(t('pdfViewer.errorFetch'));
+        setError(t('pdfViewer.errorFetch'));
       }
     } finally {
       setIsLoading(false);
@@ -63,6 +101,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   
   useEffect(() => {
     fetchDocumentPreview();
+    
     return () => {
       if (fileUrl) {
         URL.revokeObjectURL(fileUrl);
@@ -73,19 +112,20 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const handleDownloadOriginal = async () => {
     setIsDownloading(true);
     try {
-        const blob = await apiService.getOriginalDocument(caseId, documentData.id);
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = documentData.file_name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+      const blob = await apiService.getOriginalDocument(caseId, documentData.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = documentData.file_name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (downloadError) {
-        console.error("Failed to download original document:", downloadError);
+      console.error("Failed to download original document:", downloadError);
+      setError(t('pdfViewer.errorDownload'));
     } finally {
-        setIsDownloading(false);
+      setIsDownloading(false);
     }
   };
   
@@ -93,8 +133,8 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
       <AlertTriangle className="h-10 w-10 text-red-400 mb-4" />
       <p className="text-red-300 font-semibold mb-2">{t('pdfViewer.errorTitle')}</p>
-      <p className="text-red-300/80 text-sm mb-6">{error}</p>
-      {error === t('pdfViewer.errorPreviewNotReady') && (
+      <p className="text-red-300/80 text-sm mb-6">{error || pdfLoadError}</p>
+      {(error === t('pdfViewer.errorPreviewNotReady') || pdfLoadError) && (
         <button
           onClick={fetchDocumentPreview}
           className="px-4 py-2 bg-primary-start hover:bg-primary-end text-white rounded-md transition duration-200 flex items-center gap-2"
@@ -108,7 +148,12 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   
   const handlePdfLoadError = (err: Error) => {
     console.error("react-pdf onLoadError:", err);
-    setError(t('pdfViewer.errorLoad'));
+    setPdfLoadError(t('pdfViewer.errorLoad'));
+  };
+
+  const handlePdfRenderError = (err: Error) => {
+    console.error("react-pdf render error:", err);
+    setPdfLoadError(t('pdfViewer.errorRender'));
   };
 
   return (
@@ -132,10 +177,19 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
               {documentData.file_name}
             </h2>
             <div className="flex items-center gap-4">
-              <button onClick={handleDownloadOriginal} disabled={isDownloading} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors disabled:opacity-50" title={t('pdfViewer.download')}>
-                  {isDownloading ? <Loader size={20} className="animate-spin" /> : <Download size={20} />}
+              <button 
+                onClick={handleDownloadOriginal} 
+                disabled={isDownloading} 
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors disabled:opacity-50" 
+                title={t('pdfViewer.download')}
+              >
+                {isDownloading ? <Loader size={20} className="animate-spin" /> : <Download size={20} />}
               </button>
-              <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" title={t('pdfViewer.close')}>
+              <button 
+                onClick={onClose} 
+                className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" 
+                title={t('pdfViewer.close')}
+              >
                 <X size={20} />
               </button>
             </div>
@@ -148,22 +202,27 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                 <p>{t('pdfViewer.loading')}</p>
               </div>
             )}
-            {error && renderErrorState()}
-            {fileUrl && !error && (
+            {(error || pdfLoadError) && renderErrorState()}
+            {fileUrl && !error && !pdfLoadError && (
               <div className="p-4 flex justify-center">
-                 <PdfDocument
-                    file={fileUrl}
-                    onLoadSuccess={onDocumentLoadSuccess}
-                    onLoadError={handlePdfLoadError}
+                <PdfDocument
+                  file={fileUrl}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={handlePdfLoadError}
+                  loading=""
+                >
+                  <Page 
+                    pageNumber={pageNumber} 
+                    width={800} 
+                    onRenderError={handlePdfRenderError}
                     loading=""
-                 >
-                    <Page pageNumber={pageNumber} width={800} />
-                 </PdfDocument>
+                  />
+                </PdfDocument>
               </div>
             )}
           </div>
 
-          {numPages && numPages > 1 && !error && (
+          {numPages && numPages > 1 && !error && !pdfLoadError && (
             <footer className="flex items-center justify-center p-3 bg-background-light border-t border-glass-edge flex-shrink-0">
               <div className="flex items-center gap-4 text-text-primary">
                 <button onClick={goToPrevPage} disabled={pageNumber <= 1} className="p-2 disabled:opacity-50 hover:bg-white/10 rounded-full transition-colors">
