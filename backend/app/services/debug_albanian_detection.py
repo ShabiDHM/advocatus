@@ -3,17 +3,10 @@
 
 import logging
 import os
-import sys
 
-# --- Path Setup ---
-# This allows the script to be run directly and find the 'backend' package
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
-# --- Corrected Imports ---
-from backend.app.services.albanian_language_detector import AlbanianLanguageDetector
-from backend.app.config.albanian_feature_flags import AlbanianRAGFeatureFlags
+# Corrected relative imports, verified in the previous step.
+from .albanian_language_detector import AlbanianLanguageDetector
+from ..config.albanian_feature_flags import AlbanianRAGFeatureFlags
 
 # Set up detailed logging
 logging.basicConfig(level=logging.INFO)
@@ -29,19 +22,17 @@ def debug_routing_logic():
     
     # 1. Instantiate the components directly
     try:
+        # PHOENIX PROTOCOL CURE: Instantiate the class. The debug script will call the class method via the instance.
         language_detector = AlbanianLanguageDetector()
         feature_flags = AlbanianRAGFeatureFlags()
         print("✅ Components instantiated successfully.")
     except Exception as e:
         print(f"❌ FAILED to instantiate components: {e}")
         return
-
-    # 2. Configure feature flags for this test run
-    feature_flags.enable_for_testing() # Use the override for predictable results
     
-    print("\n🔧 Feature flags override is ACTIVE for this test run.")
+    print(f"\n🔧 Feature flags status from environment: DEV_MODE={feature_flags.dev_mode_enabled}")
     
-    # 3. Define test cases
+    # 2. Define test cases
     test_queries = [
         ("Cila është data e seancës së ardhshme?", "albanian_user", "req_001"),
         ("Listoni dëshmitarët në këtë çështje", "albanian_user", "req_002"),
@@ -63,7 +54,8 @@ def debug_routing_logic():
         print(f"   [1] Feature Flag Check: {'ENABLED' if flag_enabled else 'DISABLED'}")
         
         # Step B: Check language detection
-        is_albanian = language_detector.is_albanian(query)
+        # PHOENIX PROTOCOL CURE: Changed the method call from the non-existent 'is_albanian' to the correct 'detect_language'.
+        is_albanian = language_detector.detect_language(query)
         print(f"   [2] Language Check:     {'ALBANIAN' if is_albanian else 'NOT ALBANIAN'}")
         
         # Step C: Final Decision
@@ -78,6 +70,12 @@ def debug_routing_logic():
 
 
 if __name__ == "__main__":
-    # To run this script directly:
-    # python -m backend.app.services.debug_albanian_detection
+    # PHOENIX PROTOCOL CURE: To ensure the feature flag is on for this test,
+    # we programmatically set the environment variable that enables DEV MODE.
+    # This is the correct way to control the feature flag's behavior for testing.
+    print("--- OVERRIDING ENVIRONMENT FOR TEST RUN ---")
+    os.environ['ALBANIAN_AI_DEV_MODE'] = 'true'
+    
+    # To run this script directly and correctly:
+    # python -m app.services.debug_albanian_detection
     debug_routing_logic()
