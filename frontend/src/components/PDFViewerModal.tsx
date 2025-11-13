@@ -9,8 +9,11 @@ import { Document } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader, AlertTriangle, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
 
-// Configure the worker to load PDF.js from a CDN
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// --- PHOENIX PROTOCOL CURE: RESOLVE CORS ERROR ---
+// Instead of loading the worker from an external CDN (which causes a CORS error),
+// we now load it from our own public directory. The vite.config.ts file has been
+// updated to handle copying this file from node_modules automatically.
+pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.js`;
 
 interface PDFViewerModalProps {
   documentData: Document;
@@ -103,11 +106,8 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     </div>
   );
   
-  // PHOENIX PROTOCOL CURE: Enhanced the error handler for better diagnostics.
   const handlePdfLoadError = (err: Error) => {
-    // Log the detailed error object from react-pdf to the console for debugging.
     console.error("react-pdf onLoadError:", err);
-    // Set the user-friendly, translated error message to be displayed in the UI.
     setError(t('pdfViewer.errorLoad'));
   };
 
