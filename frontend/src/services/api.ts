@@ -6,9 +6,7 @@ import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, 
 interface LoginResponse { access_token: string; }
 interface RegisterResponse { message: string; }
 interface DocumentContentResponse { text: string; }
-// --- PHOENIX PROTOCOL CURE: New interface for WebSocket connection data ---
 interface WebSocketInfo { url: string; token: string; }
-
 
 const API_BASE_URL = 'https://advocatus-prod-api.duckdns.org';
 const API_V1_URL = `${API_BASE_URL}/api/v1`;
@@ -66,7 +64,15 @@ export class ApiService {
     public async refreshAccessToken(): Promise<LoginResponse> {
         if (this.refreshTokenPromise) { return this.refreshTokenPromise; }
         
-        this.refreshTokenPromise = axios.post<LoginResponse>(`${API_V1_URL}/auth/refresh`, null, { withCredentials: true, timeout: 5000 })
+        // --- PHOENIX PROTOCOL CURE: RESOLVE 422 ERROR ---
+        // The backend expects a POST request with NO body and NO Content-Type header.
+        // By setting `headers: { 'Content-Type': undefined }`, we instruct axios to omit
+        // the header, preventing FastAPI from attempting to validate a non-existent body.
+        this.refreshTokenPromise = axios.post<LoginResponse>(`${API_V1_URL}/auth/refresh`, null, { 
+            withCredentials: true, 
+            timeout: 5000,
+            headers: { 'Content-Type': undefined } 
+        })
             .then(response => {
                 const { access_token } = response.data;
                 localStorage.setItem('jwtToken', access_token);
@@ -112,8 +118,6 @@ export class ApiService {
         );
     }
 
-    // --- PHOENIX PROTOCOL CURE: Re-architected WebSocket connection method ---
-    // Replaces the old `getWebSocketUrl` method.
     public async getWebSocketInfo(caseId: string): Promise<WebSocketInfo> {
         await this.ensureValidToken();
         const token = localStorage.getItem('jwtToken');
@@ -121,7 +125,6 @@ export class ApiService {
             if (this.onUnauthorized) this.onUnauthorized();
             throw new Error('Fatal: Token disappeared after validation.');
         }
-        // Returns the URL and token separately, allowing the hook to use protocol-based auth.
         return {
             url: `wss://advocatus-prod-api.duckdns.org/ws/case/${caseId}`,
             token: token
