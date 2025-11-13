@@ -9,39 +9,16 @@ import { Document } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader, AlertTriangle, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
 
-// --- PHOENIX PROTOCOL CURE: RESILIENT PDF WORKER CONFIGURATION ---
-// Multiple fallback strategies for PDF worker loading
+// --- PHOENIX PROTOCOL CURE: VERCEL-OPTIMIZED PDF WORKER CONFIGURATION ---
+// Use CDN for PDF worker in all environments for Vercel compatibility
+// This avoids filesystem access issues during Vercel build process
 const configurePdfWorker = () => {
-  const workerPaths = [
-    // Primary: Local public directory (copied by Vite plugin)
-    '/pdf.worker.min.js',
-    // Fallback: CDN with same version as pdfjs-dist
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
-    // Secondary fallback: UNPKG
-    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js'
-  ];
-
-  // Try each worker path until one works
-  const tryWorkerPath = async (path: string, index: number): Promise<boolean> => {
-    if (index >= workerPaths.length) return false;
-    
-    try {
-      pdfjs.GlobalWorkerOptions.workerSrc = path;
-      // Test the worker by creating a minimal PDF document
-      const loadingTask = pdfjs.getDocument({ data: new Uint8Array([]) });
-      await loadingTask.promise;
-      console.log(`PDF worker loaded successfully from: ${path}`);
-      return true;
-    } catch (error) {
-      console.warn(`PDF worker failed from ${path}, trying next...`);
-      return tryWorkerPath(workerPaths[index + 1], index + 1);
-    }
-  };
-
-  // Start with the first worker path
-  tryWorkerPath(workerPaths[0], 0).catch(() => {
-    console.error('All PDF worker paths failed. PDF rendering will be disabled.');
-  });
+  // Use CDN version that matches react-pdf's pdfjs-dist dependency
+  const workerVersion = '3.11.174';
+  const cdnWorkerUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${workerVersion}/pdf.worker.min.js`;
+  
+  console.log(`Configuring PDF worker from CDN: ${cdnWorkerUrl}`);
+  pdfjs.GlobalWorkerOptions.workerSrc = cdnWorkerUrl;
 };
 
 // Configure PDF worker on module load
@@ -145,7 +122,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       )}
     </div>
   );
-  
+
   const handlePdfLoadError = (err: Error) => {
     console.error("react-pdf onLoadError:", err);
     setPdfLoadError(t('pdfViewer.errorLoad'));
