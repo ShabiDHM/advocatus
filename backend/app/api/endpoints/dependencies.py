@@ -9,7 +9,6 @@ from pydantic import BaseModel, ValidationError
 from bson import ObjectId
 import redis
 
-# PHOENIX PROTOCOL CURE: Import the async DB provider and the CalendarService
 from ...core.db import get_db, get_redis_client, get_async_db
 from ...core.config import settings
 from ...services import user_service
@@ -28,7 +27,6 @@ def get_sync_redis() -> Generator[redis.Redis, None, None]:
          raise HTTPException(status_code=500, detail="Redis client not initialized.")
     yield client
 
-# PHOENIX PROTOCOL CURE: Add the missing dependency provider for CalendarService.
 def get_calendar_service(db: Any = Depends(get_async_db)) -> CalendarService:
     """
     Dependency to create and provide an instance of the CalendarService.
@@ -108,7 +106,8 @@ def get_current_refresh_user(
     
     user = user_service.get_user_by_id(db, ObjectId(token_data.id))
     
-    if user is None or user.subscription_status != 'active':
+    # PHOENIX PROTOCOL CURE: Also removed incorrect subscription check from refresh logic.
+    if user is None:
         raise credentials_exception
     return user
 
@@ -138,7 +137,11 @@ async def get_current_user_ws(
     
     user = user_service.get_user_by_id(db, ObjectId(token_data.id))
     
-    if user is None or user.subscription_status != 'active':
+    # PHOENIX PROTOCOL CURE: The root cause of the WebSocket failure is removed.
+    # This check incorrectly mixed business logic (subscription status) with
+    # connection-level authentication. A user must be able to connect if their
+    # token is valid. Feature restrictions belong in the service layer.
+    if user is None:
         raise credentials_exception
         
     return user

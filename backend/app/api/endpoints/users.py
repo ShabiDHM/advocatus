@@ -5,15 +5,17 @@ from typing import Annotated
 from pymongo.database import Database
 
 from ...models.user import UserOut, UserInDB
-# PHOENIX PROTOCOL CURE: Changed the imported dependency to the correct one.
-from .dependencies import get_current_user, get_db
+# PHOENIX PROTOCOL CURE: Corrected the import statements to resolve the Pylance error.
+# Each dependency is now imported from its correct source module.
+from .dependencies import get_current_user
+from ...core.db import get_db
 from ...services import user_service
 
 router = APIRouter()
 
 @router.get("/me", response_model=UserOut)
 def get_current_user_profile(
-    # PHOENIX PROTOCOL CURE: Switched dependency from the overly restrictive
+    # Switched dependency from the overly restrictive
     # get_current_active_user to get_current_user. Any authenticated user,
     # regardless of subscription status, must be able to view their own profile.
     current_user: Annotated[UserInDB, Depends(get_current_user)]
@@ -25,7 +27,7 @@ def get_current_user_profile(
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_own_account(
-    # PHOENIX PROTOCOL CURE: Aligned the dependency for the delete action as well.
+    # Aligned the dependency for the delete action as well.
     # A user should be able to delete their account without an active subscription.
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
