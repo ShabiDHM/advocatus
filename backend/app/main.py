@@ -1,4 +1,4 @@
-# PHOENIX PROTOCOL CURE 52.2 (SYSTEM RESTORATION):
+# FILE: backend/app/main.py
 
 from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.responses import JSONResponse
@@ -36,16 +36,37 @@ class ForceHTTPSMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 app = FastAPI(title="The Phoenix Protocol API", lifespan=lifespan)
-ALLOWED_ORIGINS = settings.BACKEND_CORS_ORIGINS
-VERCEL_PREVIEW_REGEX = r"^https:\/\/(localhost:\d+|([a-zA-Z0-9-]+\.)?(vercel\.app|shabans-projects-31c11eb7\.vercel\.app|advocatus-ai\.vercel\.app))"
 
-try:
-    re.compile(VERCEL_PREVIEW_REGEX)
-except re.error:
-    logger.error("CORS regex failed to compile. Check VERCEL_PREVIEW_REGEX.")
-    VERCEL_PREVIEW_REGEX = None
+# --- PHOENIX PROTOCOL CURE: Robust CORS Configuration ---
+# The root cause of '(canceled)' network requests is a CORS preflight failure.
+# The browser sends an OPTIONS request that the server ignores because the frontend's
+# origin is not in the allow-list. This new configuration makes the policy explicit.
 
-app.add_middleware(CORSMiddleware, allow_origins=ALLOWED_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"], allow_origin_regex=VERCEL_PREVIEW_REGEX, expose_headers=["Content-Disposition"])
+# 1. Define a list of essential, known origins for your frontend.
+known_origins = [
+    "https://advocatus-ai.vercel.app",  # Vercel Production Deployment
+    "http://localhost:5173",           # Default Vite local dev server
+    "http://localhost:3000",           # Default Create React App dev server
+]
+
+# 2. Combine the hardcoded list with origins from your environment settings.
+#    Using a set ensures there are no duplicates.
+all_allowed_origins = list(set(known_origins + settings.BACKEND_CORS_ORIGINS))
+
+# 3. Define a more specific and secure regex ONLY for dynamic Vercel preview URLs.
+#    This matches URLs like: https://advocatus-ai-preview-123.vercel.app
+vercel_preview_regex = r"https:\/\/advocatus-ai-.*\.vercel\.app"
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=all_allowed_origins,
+    allow_origin_regex=vercel_preview_regex,
+    allow_credentials=True,
+    allow_methods=["*"], # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"], # Allows all headers
+    expose_headers=["Content-Disposition"],
+)
+
 app.add_middleware(ForceHTTPSMiddleware)
 
 @app.exception_handler(Exception)
@@ -57,7 +78,7 @@ api_router = APIRouter(prefix="/api/v1")
 
 api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-api_router.include_router(cases.router, prefix="", tags=["Cases"]) # CORRECTED
+api_router.include_router(cases.router, prefix="", tags=["Cases"])
 api_router.include_router(documents.router, prefix="/documents", tags=["Documents"])
 api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 api_router.include_router(search.router, prefix="/search", tags=["Search"])
