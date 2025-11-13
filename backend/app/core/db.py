@@ -2,14 +2,15 @@
 
 import pymongo
 import redis
-import asyncio
 from pymongo.database import Database
 from pymongo.mongo_client import MongoClient
 from pymongo.errors import ConnectionFailure
 from urllib.parse import urlparse
-from typing import Generator, Tuple, Any
+from typing import Generator, Tuple, Any, Optional
 
 from .config import settings
+
+# --- Synchronous Connection Logic (runs on import) ---
 
 def _connect_to_mongo() -> Tuple[MongoClient, Database]:
     """Establishes a synchronous connection to MongoDB."""
@@ -27,8 +28,33 @@ def _connect_to_mongo() -> Tuple[MongoClient, Database]:
         print(f"--- [DB] CRITICAL: Could not connect to Sync MongoDB: {e} ---")
         raise
 
-async def _connect_to_motor() -> Tuple[Any, Any]:
-    """Establishes an asynchronous connection to MongoDB using Motor."""
+def _connect_to_sync_redis() -> redis.Redis:
+    """Establishes a synchronous connection to Redis."""
+    print("--- [DB] Attempting to connect to Sync Redis... ---")
+    try:
+        client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        client.ping()
+        print(f"--- [DB] Successfully connected to Sync Redis. ---")
+        return client
+    except redis.ConnectionError as e:
+        print(f"--- [DB] CRITICAL: Could not connect to Sync Redis: {e} ---")
+        raise
+
+# Initialize synchronous clients on module import.
+mongo_client, db_instance = _connect_to_mongo()
+redis_sync_client = _connect_to_sync_redis()
+
+# --- Asynchronous Connection Logic (to be run by lifespan) ---
+
+# PHOENIX PROTOCOL CURE: Define placeholders for async clients. They will be populated by the lifespan manager.
+async_mongo_client: Optional[Any] = None
+async_db_instance: Optional[Any] = None
+
+async def connect_to_motor():
+    """Establishes an asynchronous connection to MongoDB using Motor and populates the global instances."""
+    global async_mongo_client, async_db_instance
+    if async_db_instance: return # Already connected
+    
     print("--- [DB] Attempting to connect to Async MongoDB (Motor)... ---")
     try:
         from motor.motor_asyncio import AsyncIOMotorClient
@@ -37,28 +63,15 @@ async def _connect_to_motor() -> Tuple[Any, Any]:
         db_name = urlparse(settings.DATABASE_URI).path.lstrip('/')
         if not db_name:
             raise ValueError("Database name not found in DATABASE_URI.")
-        db = client[db_name]
+        
+        async_mongo_client = client
+        async_db_instance = client[db_name]
         print(f"--- [DB] Successfully connected to Async MongoDB (Motor): '{db_name}' ---")
-        return client, db
     except (ConnectionFailure, ValueError) as e:
         print(f"--- [DB] CRITICAL: Could not connect to Async MongoDB (Motor): {e} ---")
         raise
 
-def _connect_to_sync_redis() -> redis.Redis:
-    """Establishes a synchronous connection to Redis."""
-    print("--- [DB] Attempting to connect to Sync Redis... ---")
-    try:
-        client = redis.from_url(settings.REDIS_URL, decode_responses=True)
-        client.ping()
-        print("--- [DB] Successfully connected to Sync Redis. ---")
-        return client
-    except redis.ConnectionError as e:
-        print(f"--- [DB] CRITICAL: Could not connect to Sync Redis: {e} ---")
-        raise
-
-mongo_client, db_instance = _connect_to_mongo()
-async_mongo_client, async_db_instance = asyncio.run(_connect_to_motor())
-redis_sync_client = _connect_to_sync_redis()
+# --- Dependency Providers ---
 
 def get_db() -> Generator[Database, None, None]:
     """FastAPI dependency that yields the global synchronous database instance."""
@@ -66,12 +79,15 @@ def get_db() -> Generator[Database, None, None]:
 
 def get_async_db() -> Generator[Any, None, None]:
     """FastAPI dependency that yields the global asynchronous database instance."""
+    if async_db_instance is None:
+        raise RuntimeError("Asynchronous database is not connected. Check application lifespan.")
     yield async_db_instance
 
-# PHOENIX PROTOCOL CURE: Add the missing dependency provider function for Redis.
 def get_redis_client() -> Generator[redis.Redis, None, None]:
     """FastAPI dependency that yields the global sync Redis client instance."""
     yield redis_sync_client
+
+# --- Shutdown Logic ---
 
 def close_mongo_connections():
     if mongo_client:

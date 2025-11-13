@@ -4,9 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import logging
 
-# PHOENIX PROTOCOL CURE: Import the new, parameter-less shutdown functions.
-# The connection logic now happens automatically when db.py is first imported.
-from .db import close_mongo_connections, close_redis_connection
+# PHOENIX PROTOCOL CURE: Import all necessary connection and shutdown functions.
+from .db import connect_to_motor, close_mongo_connections, close_redis_connection
 
 logger = logging.getLogger(__name__)
 
@@ -14,22 +13,24 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """
     Application lifespan manager.
-    Database and Redis connections are initialized globally in db.py upon import.
-    This context's primary role is to ensure a clean shutdown.
+    Handles the startup and shutdown of asynchronous resources.
+    Synchronous connections are initialized when the 'db' module is imported.
     """
     # --- STARTUP ---
-    # The connection logic has been centralized in db.py.
-    # No explicit connection calls are needed here anymore.
     logger.info("--- [Lifespan] Application startup sequence initiated. ---")
     
-    # The ConnectionManager is a simple singleton now and requires no setup.
+    # PHOENIX PROTOCOL CURE: Await the asynchronous database connection here.
+    # This runs within the event loop started by Uvicorn, resolving the RuntimeError.
+    await connect_to_motor()
+    
+    logger.info("--- [Lifespan] Asynchronous resources initialized. Application is ready. ---")
     
     yield
     
     # --- SHUTDOWN ---
     logger.info("--- [Lifespan] Application shutdown sequence initiated. ---")
     
-    # PHOENIX PROTOCOL CURE: Call the new, correct shutdown functions without arguments.
+    # Call the shutdown functions to close all connections.
     close_mongo_connections()
     close_redis_connection()
     
