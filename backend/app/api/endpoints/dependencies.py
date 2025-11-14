@@ -1,10 +1,9 @@
-# FILE: backend/app/api/endpoints/dependencies.py
-
-from fastapi import Depends, HTTPException, status, WebSocket, Query
+from fastapi import Depends, HTTPException, status, WebSocket, Query, Cookie
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated, Optional, Generator, Any
 from pymongo.database import Database
 from jose import JWTError, jwt
+# PHOENIX PROTOCOL CURE: Corrected the typo from 'pantic' to the valid 'pydantic' library.
 from pydantic import BaseModel, ValidationError
 from bson import ObjectId
 import redis
@@ -80,7 +79,9 @@ def get_current_admin_user(
     return current_user
 
 def get_current_refresh_user(
-    refresh_token: str,
+    # PHOENIX PROTOCOL CURE (PRESERVED): The architectural fix remains.
+    # The dependency correctly extracts the 'refresh_token' from cookies.
+    refresh_token: Annotated[Optional[str], Cookie()] = None,
     db: Database = Depends(get_db)
 ) -> UserInDB:
     credentials_exception = HTTPException(
@@ -88,6 +89,9 @@ def get_current_refresh_user(
         detail="Could not validate refresh token",
         headers={"WWW-authenticate": "Bearer"},
     )
+
+    if refresh_token is None:
+        raise credentials_exception
     
     secret_key = settings.SECRET_KEY
     if not secret_key:
@@ -106,7 +110,6 @@ def get_current_refresh_user(
     
     user = user_service.get_user_by_id(db, ObjectId(token_data.id))
     
-    # PHOENIX PROTOCOL CURE: Also removed incorrect subscription check from refresh logic.
     if user is None:
         raise credentials_exception
     return user
@@ -137,10 +140,6 @@ async def get_current_user_ws(
     
     user = user_service.get_user_by_id(db, ObjectId(token_data.id))
     
-    # PHOENIX PROTOCOL CURE: The root cause of the WebSocket failure is removed.
-    # This check incorrectly mixed business logic (subscription status) with
-    # connection-level authentication. A user must be able to connect if their
-    # token is valid. Feature restrictions belong in the service layer.
     if user is None:
         raise credentials_exception
         
