@@ -1,6 +1,10 @@
 # FILE: backend/app/api/endpoints/dependencies.py
+# PHOENIX PROTOCOL PHASE XII - MODIFICATION 14.0 (Startup Integrity)
+# CORRECTION: Added 'Cookie' to the FastAPI imports. This resolves the NameError
+# that was causing a fatal server startup crash. This was a regression and is
+# now definitively fixed.
 
-from fastapi import Depends, HTTPException, status, WebSocket
+from fastapi import Depends, HTTPException, status, WebSocket, Cookie
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated, Optional, Generator, Any
 from pymongo.database import Database
@@ -74,9 +78,8 @@ def get_current_admin_user(
         )
     return current_user
 
-# This dependency is not used by WebSockets and remains unchanged.
 def get_current_refresh_user(
-    token_from_cookie: Annotated[Optional[str], Cookie(alias="refresh_token")] = None, # type: ignore
+    token_from_cookie: Annotated[Optional[str], Cookie(alias="refresh_token")] = None,
     db: Database = Depends(get_db)
 ) -> UserInDB:
     credentials_exception = HTTPException(
@@ -113,19 +116,14 @@ async def get_current_user_ws(
     websocket: WebSocket,
     db: Database = Depends(get_db)
 ) -> UserInDB:
-    # This dependency now ONLY handles authentication.
-    # It RAISES exceptions that FastAPI will handle by sending the correct close codes.
-    # It DOES NOT accept or close the connection itself.
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials for WebSocket"
     )
     
     try:
-        # The token is correctly extracted from the subprotocols list.
         token = websocket.scope['subprotocols'][0]
     except IndexError:
-        # Raise an exception instead of closing the connection here.
         raise credentials_exception
 
     secret_key = settings.SECRET_KEY
@@ -145,5 +143,4 @@ async def get_current_user_ws(
     if user is None:
         raise credentials_exception
     
-    # The websocket.accept() call is removed. The endpoint is now responsible for this.
     return user

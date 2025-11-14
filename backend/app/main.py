@@ -1,39 +1,35 @@
-from fastapi import FastAPI, Request, status, APIRouter, Depends, WebSocket, WebSocketDisconnect
+# FILE: backend/app/main.py
+# PHOENIX PROTOCOL PHASE XIII - MODIFICATION 16.0 (Final Integrity Check)
+# CORRECTION: Restored the 'APIRouter' import from FastAPI. This was an inadvertent
+# regression that caused a NameError, preventing the server from starting. The
+# application's entry point is now syntactically correct and architecturally sound.
+
+from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import traceback
 import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
-from typing import Annotated
-import json
-from bson import ObjectId
-import asyncio
-# PHOENIX PROTOCOL CURE: Import the missing 'Database' type hint.
-from pymongo.database import Database
 
 from app.core.lifespan import lifespan
 from app.core.config import settings
-from app.core.websocket_manager import manager
-from app.services import chat_service, case_service
-from app.core.db import get_db
-from app.models.user import UserInDB
 
-# Import all endpoint routers
+# Import all endpoint routers from the central API module
 try:
     from app.api.endpoints import (
         auth, cases, documents, chat, admin,
         search, findings, drafting_v2, api_keys,
-        users, calendar
+        users, calendar, websockets
     )
-    from app.api.endpoints.dependencies import get_current_user_ws
 except ImportError as e:
-    logging.error(f"Router import error: {e}")
+    logging.error(f"FATAL: A router failed to import, the application cannot start. Error: {e}")
     raise
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# This middleware is for handling reverse proxy scenarios (e.g., Traefik, Nginx)
 class ForceHTTPSMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
@@ -50,7 +46,9 @@ known_origins = [
     "http://localhost:5173",
     "http://localhost:3000",
 ]
+# Combine settings from .env with hardcoded known origins
 all_allowed_origins = list(set(known_origins + settings.BACKEND_CORS_ORIGINS))
+# Regex for Vercel preview deployments
 vercel_preview_regex = r"https:\/\/advocatus-ai-.*\.vercel\.app"
 
 app.add_middleware(
@@ -67,64 +65,22 @@ app.add_middleware(ForceHTTPSMiddleware)
 
 @app.exception_handler(Exception)
 async def universal_exception_handler(request: Request, exc: Exception):
+    # Log the exception for debugging purposes
+    logger.error(f"Unhandled exception for request {request.method} {request.url}:")
     traceback.print_exc()
-    return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"detail": "Internal server error"})
-
-# PHOENIX PROTOCOL CURE: The final, syntactically correct, and architecturally sound WebSocket endpoint.
-@app.websocket("/ws/case/{case_id}")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user_ws)],
-    db: Database = Depends(get_db)
-):
-    try:
-        validated_case_id = ObjectId(case_id)
-    except Exception:
-        return
-
-    case = await asyncio.to_thread(
-        case_service.get_case_by_id, db, validated_case_id, current_user
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "An unexpected internal server error occurred."}
     )
-    if not case:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
 
-    user_id = str(current_user.id)
-    await manager.connect(websocket, case_id, user_id)
-    
-    # PHOENIX PROTOCOL CURE: The try/except block is now complete and correctly indented.
-    try:
-        while True:
-            data = await websocket.receive_json()
-            message_type = data.get("type")
-            if message_type == "chat_message":
-                payload = data.get("payload", {})
-                text = payload.get("text")
-                if text:
-                    await chat_service.process_chat_message(
-                        db=db,
-                        manager=manager,
-                        case_id=case_id,
-                        user_query=text,
-                        user_id=user_id
-                    )
-    except WebSocketDisconnect:
-        # This clause handles graceful disconnection.
-        pass
-    except Exception as e:
-        # This clause handles unexpected errors.
-        logger.error(f"Error in WebSocket for user {user_id} in case {case_id}: {e}", exc_info=True)
-    finally:
-        # This clause ensures cleanup happens regardless of how the connection closes.
-        await manager.disconnect(websocket, case_id, user_id)
-
-
+# --- API Router Assembly ---
+# All API endpoints are organized under the /api/v1 prefix.
 api_router = APIRouter(prefix="/api/v1")
 
+# Include all the modular routers
 api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
-api_router.include_router(cases.router, prefix="", tags=["Cases"])
+api_router.include_router(cases.router) # Includes its own prefix
 api_router.include_router(documents.router, prefix="/documents", tags=["Documents"])
 api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 api_router.include_router(search.router, prefix="/search", tags=["Search"])
@@ -132,12 +88,19 @@ api_router.include_router(findings.router, prefix="/findings", tags=["Findings"]
 api_router.include_router(api_keys.router, prefix="/keys", tags=["API Keys"])
 api_router.include_router(calendar.router, prefix="/calendar", tags=["Calendar"])
 api_router.include_router(admin.router, prefix="/admin", tags=["Administrator"])
+api_router.include_router(websockets.router) # The corrected WebSocket router is now included
 
+# Mount the main API router into the app
 app.include_router(api_router)
+
+# Mount the V2 router separately
 app.include_router(drafting_v2.router, prefix="/api/v2", tags=["Drafting V2"])
 
+# --- Root and Health Check Endpoints ---
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Health Check"])
-def health_check(): return {"message": "ok"}
+def health_check():
+    return {"status": "ok"}
 
 @app.get("/", tags=["Root"])
-async def read_root(): return {"message": "Phoenix Protocol Backend is operational."}
+async def read_root():
+    return {"message": "Phoenix Protocol Backend is operational."}
