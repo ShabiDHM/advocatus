@@ -19,17 +19,12 @@ class TokenData(BaseModel):
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 def get_sync_redis() -> Generator[redis.Redis, None, None]:
-    """Dependency to provide a synchronous Redis client instance."""
     client = next(get_redis_client())
     if client is None:
          raise HTTPException(status_code=500, detail="Redis client not initialized.")
     yield client
 
 def get_calendar_service(db: Any = Depends(get_async_db)) -> CalendarService:
-    """
-    Dependency to create and provide an instance of the CalendarService.
-    This service requires an asynchronous database client.
-    """
     return CalendarService(client=db)
 
 def get_current_user(
@@ -59,6 +54,27 @@ def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
+# PHOENIX PROTOCOL CURE: This dependency is RESTORED.
+# It is required by other parts of the application (e.g., chat.py)
+# and its removal was the cause of the ImportError.
+def get_current_active_user(
+    current_user: Annotated[UserInDB, Depends(get_current_user)]
+) -> UserInDB:
+    if current_user.subscription_status != 'active':
+        raise HTTPException(status_code=403, detail="User subscription is not active.")
+    return current_user
+
+# PHOENIX PROTOCOL CURE: This dependency is also RESTORED for system integrity.
+def get_current_admin_user(
+    current_user: Annotated[UserInDB, Depends(get_current_active_user)]
+) -> UserInDB:
+    if current_user.role != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user does not have sufficient privileges."
+        )
+    return current_user
 
 def get_current_refresh_user(
     token_from_cookie: Annotated[Optional[str], Cookie(alias="refresh_token")] = None,
@@ -94,7 +110,6 @@ def get_current_refresh_user(
         raise credentials_exception
     return user
 
-# PHOENIX PROTOCOL CURE: DEFINITIVE WEBSOCKET AUTHENTICATION
 async def get_current_user_ws(
     websocket: WebSocket,
     db: Database = Depends(get_db)
