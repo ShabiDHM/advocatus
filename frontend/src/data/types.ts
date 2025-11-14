@@ -1,8 +1,8 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL MODIFICATION 47.0 (TYPE INTEGRITY CURE)
-// 1. CHAT MESSAGE ENHANCEMENT: Added the optional 'isPartial' property to the
-//    ChatMessage interface. This makes the data contract explicit for streaming
-//    AI responses, resolving the TS2353 build error.
+// PHOENIX PROTOCOL MODIFICATION 48.0 (TYPE INTEGRITY CURE - FINAL)
+// CORRECTION: Fixed the typo in UpdateUserRequest where 'LAWYER' was incorrectly
+// typed as 'LAWY-ER'. This unifies the Role type across User, AdminUser, and
+// UpdateUserRequest, resolving the TS2322 build error.
 
 export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
 
@@ -87,7 +87,7 @@ export interface ChatMessage {
   sender: 'user' | 'AI';
   text: string;
   timestamp: string;
-  isPartial?: boolean; // This property is now part of the official type
+  isPartial?: boolean;
 }
 
 export interface WebSocketMessage { type: string; payload: any; }
@@ -129,7 +129,7 @@ export interface AdminUser {
 
 export interface UpdateUserRequest {
   email?: string;
-  role?: 'LAWY-ER' | 'ADMIN' | 'STANDARD';
+  role?: 'LAWYER' | 'ADMIN' | 'STANDARD'; // TYPO FIXED: 'LAWY-ER' -> 'LAWYER'
   subscription_status?: 'ACTIVE' | 'INACTIVE' | 'TRIAL' | 'expired';
 }
 

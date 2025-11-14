@@ -1,8 +1,4 @@
 // FILE: /home/user/advocatus-frontend/src/pages/AdminDashboardPage.tsx
-// DEFINITIVE VERSION 3.4 (PRESENTATION REFINEMENT):
-// Refactored the 'formatDate' utility to be more robust. It now uses a standard
-// em-dash '—' for null/undefined dates instead of 'Never' and enforces a
-// consistent 'DD Mon YYYY' format to improve UI clarity and professionalism.
 
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
