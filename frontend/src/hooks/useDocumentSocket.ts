@@ -1,33 +1,149 @@
 // FILE: /home/user/advocatus-frontend/src/hooks/useDocumentSocket.ts
 
-import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
-import { Document, ChatMessage, ConnectionStatus } from '../data/types';
+import { useEffect, useRef, useCallback } from 'react';
+// The 'Document' import is now removed as it's no longer used within this hook.
+import { ChatMessage, ConnectionStatus } from '../data/types';
 import { apiService } from '../services/api';
-import { sanitizeDocument } from '../utils/documentUtils';
 
-interface UseDocumentSocketReturn {
-  documents: Document[];
-  setDocuments: Dispatch<SetStateAction<Document[]>>;
-  messages: ChatMessage[];
-  connectionStatus: ConnectionStatus;
-  reconnect: () => void;
-  sendChatMessage: (text: string) => void;
-  isSendingMessage: boolean;
-  connectionError: string | null;
+interface SocketEventHandlers {
+  onConnectionStatusChange: (status: ConnectionStatus, error: string | null) => void;
+  onChatMessage: (message: ChatMessage) => void;
+  onDocumentUpdate: (documentData: any) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
+  onFindingsUpdate: (findingsData: any) => void; // eslint-disable-line @typescript-eslint/no-explicit-any
+  onIsSendingChange: (isSending: boolean) => void;
 }
 
-export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocumentSocketReturn => {
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('DISCONNECTED');
-  const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [reconnectCounter, setReconnectCounter] = useState(0);
-  
+interface UseDocumentSocketReturn {
+  reconnect: () => void;
+  sendChatMessage: (text: string) => void;
+}
+
+export const useDocumentSocket = (
+  caseId: string,
+  isReady: boolean,
+  handlers: SocketEventHandlers
+): UseDocumentSocketReturn => {
+  const {
+    onConnectionStatusChange,
+    onChatMessage,
+    onDocumentUpdate,
+    onFindingsUpdate,
+    onIsSendingChange,
+  } = handlers;
+
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const connectionAttemptsRef = useRef(0);
   const maxConnectionAttempts = 5;
+  const reconnectCounterRef = useRef(0);
+
+  const connectWebSocket = useCallback(async () => {
+    if (connectionAttemptsRef.current >= maxConnectionAttempts) {
+      console.error('[WebSocket Hook] Max connection attempts reached, giving up');
+      onConnectionStatusChange('ERROR', 'Failed to connect after multiple attempts. Please refresh the page.');
+      return;
+    }
+
+    connectionAttemptsRef.current++;
+    console.log(`[WebSocket Hook] Connection attempt ${connectionAttemptsRef.current}/${maxConnectionAttempts} for case:`, caseId);
+    onConnectionStatusChange('CONNECTING', null);
+
+    try {
+      const { url, token } = await apiService.getWebSocketInfo(caseId);
+      const ws = new WebSocket(url, token);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('[WebSocket Hook] ✅ WebSocket connection established successfully');
+        onConnectionStatusChange('CONNECTED', null);
+        connectionAttemptsRef.current = 0;
+        clearTimeout(reconnectTimeoutRef.current);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          console.log('[WebSocket Hook] Received message type:', message.type);
+
+          switch (message.type) {
+            case 'chat_response_chunk':
+            case 'chat_message_out':
+              onIsSendingChange(false);
+              onChatMessage({
+                sender: 'AI',
+                text: message.text || (message.type === 'chat_response_chunk' ? "" : "No AI response text received."),
+                timestamp: new Date().toISOString(),
+                isPartial: message.type === 'chat_response_chunk'
+              });
+              break;
+
+            case 'document_update':
+              if (message.payload) {
+                onDocumentUpdate(message.payload);
+              } else {
+                console.warn('[WebSocket Hook] Received document_update without payload');
+              }
+              break;
+
+            case 'findings_update':
+              if (message.payload) {
+                onFindingsUpdate(message.payload);
+              } else {
+                console.warn('[WebSocket Hook] Received findings_update without payload');
+              }
+              break;
+            
+            case 'connection_established':
+              console.log(`[WebSocket Hook] Server confirmed connection: ${message.message}`);
+              break;
+
+            default:
+              console.warn('[WebSocket Hook] Received unhandled message type:', message.type);
+          }
+        } catch (e) {
+          console.error('[WebSocket Hook] Error processing WebSocket message:', e, event.data);
+        }
+      };
+
+      ws.onclose = (event) => {
+        console.log('[WebSocket Hook] WebSocket connection closed:', event.code, event.reason);
+        onIsSendingChange(false);
+        let errorMessage = 'Connection closed';
+        if (event.code === 1006) {
+          errorMessage = 'Unable to connect to server. Please check your internet connection or try again later.';
+        }
+        
+        if (connectionAttemptsRef.current < maxConnectionAttempts) {
+          onConnectionStatusChange('DISCONNECTED', errorMessage);
+          const backoffTime = Math.min(3000 * Math.pow(2, connectionAttemptsRef.current - 1), 30000);
+          console.log(`[WebSocket Hook] Scheduling auto-reconnect in ${backoffTime}ms`);
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectCounterRef.current += 1;
+            connectWebSocket();
+          }, backoffTime);
+        } else {
+          onConnectionStatusChange('ERROR', 'Failed to establish connection after multiple attempts. Please refresh the page.');
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error('[WebSocket Hook] WebSocket connection error:', error);
+        onConnectionStatusChange('ERROR', 'Connection error occurred. Please try again.');
+      };
+
+    } catch (error) {
+      console.error('[WebSocket Hook] Failed to establish WebSocket connection:', error);
+      if (connectionAttemptsRef.current < maxConnectionAttempts) {
+        onConnectionStatusChange('DISCONNECTED', 'Failed to establish connection. Please check your network and try again.');
+        reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectCounterRef.current += 1;
+            connectWebSocket();
+        }, 3000);
+      } else {
+        onConnectionStatusChange('ERROR', 'Failed to establish connection. Please check your network and try again.');
+      }
+    }
+  }, [caseId, onConnectionStatusChange, onChatMessage, onDocumentUpdate, onFindingsUpdate, onIsSendingChange]);
 
   useEffect(() => {
     if (!caseId || !isReady) {
@@ -35,158 +151,11 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
       return;
     }
 
-    const connectWebSocket = async () => {
-      if (connectionAttemptsRef.current >= maxConnectionAttempts) {
-        console.error('[WebSocket Hook] Max connection attempts reached, giving up');
-        setConnectionStatus('ERROR');
-        setConnectionError('Failed to connect after multiple attempts. Please refresh the page.');
-        return;
-      }
-
-      connectionAttemptsRef.current++;
-      console.log(`[WebSocket Hook] Connection attempt ${connectionAttemptsRef.current}/${maxConnectionAttempts} for case:`, caseId);
-      
-      setConnectionStatus('CONNECTING');
-      setConnectionError(null);
-      
-      try {
-        // --- PHOENIX PROTOCOL CURE: ARCHITECTURAL FIX FOR WEBSOCKET AUTHENTICATION ---
-        // 1. Get the raw token and the base URL separately.
-        const { url, token } = await apiService.getWebSocketInfo(caseId);
-        
-        console.log('[WebSocket Hook] WebSocket URL constructed:', url);
-
-        // 2. The WebSocket constructor's second argument is for protocols. Passing the
-        //    token here places it in the 'Sec-WebSocket-Protocol' header. This is the
-        //    industry-standard, proxy-friendly way to handle WebSocket authentication,
-        //    resolving the 1006 connection error.
-        const ws = new WebSocket(url, token);
-        wsRef.current = ws;
-
-        ws.onopen = () => { 
-          console.log('[WebSocket Hook] ✅ WebSocket connection established successfully');
-          setConnectionStatus('CONNECTED');
-          setConnectionError(null);
-          connectionAttemptsRef.current = 0;
-          clearTimeout(reconnectTimeoutRef.current);
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const message = JSON.parse(event.data);
-            console.log('[WebSocket Hook] Received message type:', message.type);
-
-            if (message.type === 'chat_response_chunk' || message.type === 'chat_message_out') {
-              setIsSendingMessage(false);
-              setMessages(prevMessages => {
-                const newMessages = [...prevMessages];
-                const lastMessage = newMessages[newMessages.length - 1];
-                
-                if (lastMessage && lastMessage.sender === 'AI') {
-                  if (message.type === 'chat_response_chunk') {
-                    lastMessage.text += message.text || "";
-                  } else {
-                    lastMessage.text = message.text || "No AI response text received.";
-                    lastMessage.timestamp = new Date().toISOString();
-                  }
-                } else {
-                  newMessages.push({ 
-                    sender: 'AI', 
-                    text: message.text || "", 
-                    timestamp: new Date().toISOString() 
-                  });
-                }
-                return newMessages;
-              });
-              return;
-            }
-
-            if (message.type === 'document_update' && message.payload) {
-              const incomingDocData = message.payload;
-              if (!incomingDocData.id) {
-                console.warn('[WebSocket Hook] Received document update without ID');
-                return;
-              }
-
-              const correctedDoc: Document = { 
-                ...incomingDocData, 
-                created_at: incomingDocData.uploadedAt || new Date().toISOString(),
-              };
-              
-              setDocuments(prevDocs => {
-                if (correctedDoc.status?.toUpperCase() === 'DELETED') {
-                  console.log('[WebSocket Hook] Document deleted:', correctedDoc.id);
-                  return prevDocs.filter(d => d.id !== correctedDoc.id);
-                }
-
-                const docExists = prevDocs.some(d => d.id === correctedDoc.id);
-                
-                if (docExists) {
-                  console.log('[WebSocket Hook] Document updated:', correctedDoc.id);
-                  return prevDocs.map(doc =>
-                    doc.id === correctedDoc.id
-                      ? sanitizeDocument({ ...doc, ...correctedDoc })
-                      : doc
-                  ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                } else {
-                  console.log('[WebSocket Hook] New document added:', correctedDoc.id);
-                  return [sanitizeDocument(correctedDoc), ...prevDocs]
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                }
-              });
-            }
-          } catch (e) {
-            console.error('[WebSocket Hook] Error processing WebSocket message:', e, event.data);
-          }
-        };
-
-        ws.onclose = (event) => { 
-          console.log('[WebSocket Hook] WebSocket connection closed:', event.code, event.reason);
-          setConnectionStatus('DISCONNECTED');
-          setIsSendingMessage(false);
-          
-          let errorMessage = 'Connection closed';
-          if (event.code === 1006) {
-            errorMessage = 'Unable to connect to server. Please check your internet connection or try again later.';
-          }
-          setConnectionError(errorMessage);
-
-          if (connectionAttemptsRef.current < maxConnectionAttempts) {
-            const backoffTime = Math.min(3000 * Math.pow(2, connectionAttemptsRef.current - 1), 30000);
-            console.log(`[WebSocket Hook] Scheduling auto-reconnect in ${backoffTime}ms`);
-            reconnectTimeoutRef.current = setTimeout(() => {
-              setReconnectCounter(prev => prev + 1);
-            }, backoffTime);
-          } else {
-            setConnectionStatus('ERROR');
-            setConnectionError('Failed to establish connection after multiple attempts. Please refresh the page.');
-          }
-        };
-
-        ws.onerror = (error) => { 
-          console.error('[WebSocket Hook] WebSocket connection error:', error);
-          setConnectionStatus('ERROR');
-          setConnectionError('Connection error occurred. Please try again.');
-        };
-      
-      } catch (error) {
-        console.error('[WebSocket Hook] Failed to establish WebSocket connection:', error);
-        setConnectionStatus('ERROR');
-        setConnectionError('Failed to establish connection. Please check your network and try again.');
-        
-        if (connectionAttemptsRef.current < maxConnectionAttempts) {
-          reconnectTimeoutRef.current = setTimeout(() => {
-            setReconnectCounter(prev => prev + 1);
-          }, 3000);
-        }
-      }
-    };
-
     connectWebSocket();
-    
+
     return () => {
       console.log('[WebSocket Hook] Cleaning up WebSocket connection');
-      connectionAttemptsRef.current = 0;
+      connectionAttemptsRef.current = maxConnectionAttempts;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -196,48 +165,45 @@ export const useDocumentSocket = (caseId: string, isReady: boolean): UseDocument
         wsRef.current = null;
       }
     };
-  }, [caseId, isReady, reconnectCounter]);
+  }, [caseId, isReady, connectWebSocket]);
 
-  const reconnect = useCallback(() => { 
+  const reconnect = useCallback(() => {
     console.log('[WebSocket Hook] 🔄 Manual reconnect triggered');
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log('[WebSocket Hook] Already connected.');
+      return;
+    }
     connectionAttemptsRef.current = 0;
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
     }
-    setConnectionError(null);
-    setReconnectCounter(prev => prev + 1); 
-  }, []);
-  
+    connectWebSocket();
+  }, [connectWebSocket]);
+
   const sendChatMessage = useCallback((text: string) => {
     if (wsRef.current?.readyState === WebSocket.OPEN && text.trim()) {
-      setIsSendingMessage(true);
-      setMessages(prev => [...prev, { 
-        sender: 'user', 
-        text: text, 
-        timestamp: new Date().toISOString() 
-      }]);
-      
-      const messageToSend = JSON.stringify({ 
-        type: 'chat_message', 
-        payload: { text } 
+      onIsSendingChange(true);
+      onChatMessage({
+        sender: 'user',
+        text: text,
+        timestamp: new Date().toISOString()
       });
-      
+
+      const messageToSend = JSON.stringify({
+        type: 'chat_message',
+        payload: { text }
+      });
+
       console.log('[WebSocket Hook] Sending chat message:', text.substring(0, 50) + '...');
       wsRef.current.send(messageToSend);
     } else {
       console.error('[WebSocket Hook] Cannot send message - WebSocket not ready or message empty. ReadyState:', wsRef.current?.readyState);
-      setConnectionError('Cannot send message - connection not available');
+      onConnectionStatusChange('ERROR', 'Cannot send message - connection not available');
     }
-  }, []);
+  }, [onIsSendingChange, onChatMessage, onConnectionStatusChange]);
 
-  return { 
-    documents, 
-    setDocuments, 
-    messages, 
-    connectionStatus, 
-    reconnect, 
-    sendChatMessage, 
-    isSendingMessage,
-    connectionError
+  return {
+    reconnect,
+    sendChatMessage,
   };
 };

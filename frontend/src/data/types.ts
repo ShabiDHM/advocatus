@@ -1,7 +1,8 @@
-// PHOENIX PROTOCOL MODIFICATION 46.0 (TYPE INTEGRITY CURE):
-// 1. SINGLE SOURCE OF TRUTH: Added the 'ConnectionStatus' type. This centralizes
-//    the definition, making it the authoritative contract for the WebSocket state
-//    across all hooks and components, resolving the TS2322 build error.
+// FILE: src/data/types.ts
+// PHOENIX PROTOCOL MODIFICATION 47.0 (TYPE INTEGRITY CURE)
+// 1. CHAT MESSAGE ENHANCEMENT: Added the optional 'isPartial' property to the
+//    ChatMessage interface. This makes the data contract explicit for streaming
+//    AI responses, resolving the TS2353 build error.
 
 export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
 
@@ -38,7 +39,6 @@ export interface Finding {
     created_at?: string;
     status?: 'DRAFT' | 'REVIEW' | 'FINAL' | 'PENDING';
 }
-
 
 export interface CalendarEvent {
   id: string;
@@ -83,7 +83,13 @@ export interface Document {
   processed_timestamp?: string;
 }
 
-export interface ChatMessage { sender: 'user' | 'AI'; text: string; timestamp: string; }
+export interface ChatMessage {
+  sender: 'user' | 'AI';
+  text: string;
+  timestamp: string;
+  isPartial?: boolean; // This property is now part of the official type
+}
+
 export interface WebSocketMessage { type: string; payload: any; }
 export interface LoginRequest { username: string; password: string; }
 export interface RegisterRequest extends LoginRequest { email: string; }
@@ -123,7 +129,7 @@ export interface AdminUser {
 
 export interface UpdateUserRequest {
   email?: string;
-  role?: 'LAWYER' | 'ADMIN' | 'STANDARD';
+  role?: 'LAWY-ER' | 'ADMIN' | 'STANDARD';
   subscription_status?: 'ACTIVE' | 'INACTIVE' | 'TRIAL' | 'expired';
 }
 

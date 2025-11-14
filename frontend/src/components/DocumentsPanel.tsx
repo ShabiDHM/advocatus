@@ -1,4 +1,9 @@
 // FILE: /home/user/advocatus-frontend/src/components/DocumentsPanel.tsx
+// PHOENIX PROTOCOL PHASE VIII - MODIFICATION 10.0 (Type Unification and Finalization)
+// CORRECTION: Unified the two separate prop interfaces into a single, definitive
+// 'DocumentsPanelProps'. This ensures the component's signature is clear and that
+// all required props, including 'findings', are correctly typed and expected,
+// resolving the final TS2741 build error.
 
 import React, { useState, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
@@ -6,31 +11,33 @@ import { Document, Finding, ConnectionStatus } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-// PHOENIX PROTOCOL CURE: Import the FileText icon for the new button.
 import { FolderOpen, Eye, Repeat, Trash, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+// Unified and definitive props interface
 interface DocumentsPanelProps {
   caseId: string;
   documents: Document[];
   findings: Finding[];
   t: TFunction;
-}
-
-const MotionLink = motion(Link);
-
-interface DocumentsPanelCompleteProps extends DocumentsPanelProps {
   onDocumentDeleted: (documentId: string) => void;
   onDocumentUploaded: (newDocument: Document) => void;
-  // PHOENIX PROTOCOL CURE: Add the new onViewOriginal prop to the interface.
   onViewOriginal: (document: Document) => void;
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
 }
 
-const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
-  caseId, documents, findings, t, connectionStatus, reconnect, onDocumentDeleted, onDocumentUploaded,
-  // PHOENIX PROTOCOL CURE: Destructure the new prop.
+const MotionLink = motion(Link);
+
+const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
+  caseId,
+  documents,
+  findings,
+  t,
+  connectionStatus,
+  reconnect,
+  onDocumentDeleted,
+  onDocumentUploaded,
   onViewOriginal
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -58,9 +65,9 @@ const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
       const responseData = await apiService.uploadDocument(caseId, file);
       const newDoc = { ...responseData, id: responseData.id || responseData._id };
       if (!newDoc.id) throw new Error("Upload succeeded but the server response was missing a document ID.");
-      delete (newDoc as any)._id;
+      delete (newDoc as any)._id; // eslint-disable-line @typescript-eslint/no-explicit-any
       onDocumentUploaded(newDoc as Document);
-    } catch (error: any) {
+    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
       setUploadError(t('documentsPanel.uploadFailed') + `: ${error.message}`);
     } finally {
       setIsUploading(false);
@@ -106,7 +113,11 @@ const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
   const docHasFindings = useMemo(() => {
     const map = new Map<string, boolean>();
     if (Array.isArray(findings)) {
-      findings.forEach(f => map.set(f.document_id, true));
+      findings.forEach(f => {
+        if (f && f.document_id) {
+            map.set(f.document_id, true);
+        }
+      });
     }
     return map;
   }, [findings]);
@@ -165,7 +176,6 @@ const DocumentsPanel: React.FC<DocumentsPanelCompleteProps> = ({
                 </span>
                 {(doc.status.toUpperCase() === 'READY') && (
                   <div className="flex items-center space-x-2">
-                    {/* PHOENIX PROTOCOL CURE: Add the new "View Original" button. */}
                     <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-blue-400 hover:text-blue-300" whileHover={{ scale: 1.2 }}>
                       <FileText size={16} />
                     </motion.button>

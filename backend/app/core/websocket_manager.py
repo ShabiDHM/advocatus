@@ -1,3 +1,5 @@
+# backend/app/core/websocket_manager.py
+
 import logging
 from typing import Dict, Set
 from fastapi import WebSocket
