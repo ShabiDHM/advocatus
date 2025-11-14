@@ -1,10 +1,14 @@
 # FILE: backend/app/api/endpoints/websockets.py
+# PHOENIX PROTOCOL PHASE XI - MODIFICATION 13.0 (Architectural Restoration)
+# CORRECTION: The endpoint now correctly assumes responsibility for the connection
+# lifecycle. It calls 'await websocket.accept()' after the user dependency is
+# resolved. The non-standard 'subprotocol' argument is removed from the accept
+# call, restoring correct WebSocket protocol handling and resolving the 1006 error.
 
 import logging
 import asyncio
-# PHOENIX PROTOCOL CURE: Import Any to break the linter loop.
 from typing import Annotated, Any
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, status
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, status, HTTPException
 from pymongo.database import Database
 from bson import ObjectId
 
@@ -21,11 +25,16 @@ router = APIRouter()
 async def websocket_case_endpoint(
     websocket: WebSocket,
     case_id: str,
+    # The 'get_current_user_ws' dependency now runs BEFORE the connection is accepted.
+    # If it fails, FastAPI will handle closing the connection correctly.
     user: Annotated[UserInDB, Depends(get_current_user_ws)],
     db: Database = Depends(get_db),
-    # PHOENIX PROTOCOL CURE: Use 'Any' to definitively solve Pylance errors.
     async_db: Any = Depends(get_async_db)
 ):
+    # This is the new, correct location for accepting the connection.
+    # It only happens if the user dependency above succeeds.
+    await websocket.accept()
+
     try:
         validated_case_id = ObjectId(case_id)
     except Exception:
@@ -33,10 +42,10 @@ async def websocket_case_endpoint(
         await websocket.close(code=status.WS_1007_INVALID_FRAMEWORK_PAYLOAD)
         return
 
+    # Case authorization check remains the same.
     case = await asyncio.to_thread(
         case_service.get_case_by_id, db, validated_case_id, user
     )
-
     if not case:
         logger.warning(f"Unauthorized WebSocket access attempt by user {user.id} for case {case_id}")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
@@ -85,11 +94,11 @@ async def broadcast_document_update(payload: dict):
     case_id = payload.get("case_id")
     if not case_id:
         logger.error("Broadcast failed: Missing case_id in payload")
-        return {"status": "error", "message": "Missing case_id"}
+        raise HTTPException(status_code=400, detail="Missing case_id")
     
     try:
         await manager.broadcast_to_case(case_id=case_id, message=payload)
         return {"status": "broadcasted", "case_id": case_id}
     except Exception as e:
         logger.error(f"Broadcast failed for case {case_id}: {e}", exc_info=True)
-        return {"status": "error", "message": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))

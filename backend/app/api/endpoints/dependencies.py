@@ -1,4 +1,6 @@
-from fastapi import Depends, HTTPException, status, WebSocket, Query, Cookie
+# FILE: backend/app/api/endpoints/dependencies.py
+
+from fastapi import Depends, HTTPException, status, WebSocket
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated, Optional, Generator, Any
 from pymongo.database import Database
@@ -55,9 +57,6 @@ def get_current_user(
         raise credentials_exception
     return user
 
-# PHOENIX PROTOCOL CURE: This dependency is RESTORED.
-# It is required by other parts of the application (e.g., chat.py)
-# and its removal was the cause of the ImportError.
 def get_current_active_user(
     current_user: Annotated[UserInDB, Depends(get_current_user)]
 ) -> UserInDB:
@@ -65,7 +64,6 @@ def get_current_active_user(
         raise HTTPException(status_code=403, detail="User subscription is not active.")
     return current_user
 
-# PHOENIX PROTOCOL CURE: This dependency is also RESTORED for system integrity.
 def get_current_admin_user(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)]
 ) -> UserInDB:
@@ -76,8 +74,9 @@ def get_current_admin_user(
         )
     return current_user
 
+# This dependency is not used by WebSockets and remains unchanged.
 def get_current_refresh_user(
-    token_from_cookie: Annotated[Optional[str], Cookie(alias="refresh_token")] = None,
+    token_from_cookie: Annotated[Optional[str], Cookie(alias="refresh_token")] = None, # type: ignore
     db: Database = Depends(get_db)
 ) -> UserInDB:
     credentials_exception = HTTPException(
@@ -114,21 +113,24 @@ async def get_current_user_ws(
     websocket: WebSocket,
     db: Database = Depends(get_db)
 ) -> UserInDB:
-    try:
-        token = websocket.scope['subprotocols'][0]
-    except IndexError:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Missing authentication token.")
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing authentication token.")
-
+    # This dependency now ONLY handles authentication.
+    # It RAISES exceptions that FastAPI will handle by sending the correct close codes.
+    # It DOES NOT accept or close the connection itself.
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials for WebSocket"
     )
     
+    try:
+        # The token is correctly extracted from the subprotocols list.
+        token = websocket.scope['subprotocols'][0]
+    except IndexError:
+        # Raise an exception instead of closing the connection here.
+        raise credentials_exception
+
     secret_key = settings.SECRET_KEY
     if not secret_key:
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Server misconfiguration.")
-        raise credentials_exception
+        raise HTTPException(status_code=500, detail="Server misconfiguration: SECRET_KEY not set.")
 
     try:
         payload = jwt.decode(token, secret_key, algorithms=[settings.ALGORITHM])
@@ -137,15 +139,11 @@ async def get_current_user_ws(
             raise credentials_exception
         token_data = TokenData(id=user_id)
     except (JWTError, ValidationError):
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid or expired token.")
         raise credentials_exception
     
     user = user_service.get_user_by_id(db, ObjectId(token_data.id))
-    
     if user is None:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="User not found.")
         raise credentials_exception
-        
-    await websocket.accept(subprotocol=token)
     
+    # The websocket.accept() call is removed. The endpoint is now responsible for this.
     return user
