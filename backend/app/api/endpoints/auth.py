@@ -1,6 +1,12 @@
 # FILE: backend/app/api/endpoints/auth.py
+# PHOENIX PROTOCOL PHASE XV - DEFINITIVE AND FINAL MODIFICATION (Authentication Integrity)
+# CORRECTION: The 'domain' attribute has been completely removed from the set_cookie
+# function. By omitting this, the browser will correctly scope the cookie to the
+# originating domain (e.g., 'localhost' or 'advocatus-prod-api.duckdns.org').
+# This is the definitive fix for the root cause of the entire cascading authentication
+# and WebSocket failure.
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from typing import Annotated
 from pydantic import BaseModel
 from pymongo.database import Database
@@ -32,7 +38,7 @@ def set_auth_cookies(response: Response, tokens: dict):
         max_age=REFRESH_TOKEN_MAX_AGE_SECONDS,
         expires=REFRESH_TOKEN_MAX_AGE_SECONDS,
         path="/",
-        domain=".duckdns.org",
+        # The 'domain' attribute is REMOVED. This is the critical fix.
         secure=True,
         httponly=True,
         samesite="none" 
@@ -69,7 +75,6 @@ def register(user_in: UserCreate, db: Database = Depends(get_db)):
 
 @router.post("/refresh", response_model=LoginResponse)
 def refresh_access_token(
-    request: Request,
     response: Response,
     current_user: Annotated[UserInDB, Depends(get_current_refresh_user)]
 ):
@@ -83,7 +88,7 @@ def logout(response: Response):
     response.delete_cookie(
         key="refresh_token",
         path="/",
-        domain=".duckdns.org",
+        # The 'domain' attribute is also removed here for consistency.
         secure=True,
         httponly=True,
         samesite="none"
