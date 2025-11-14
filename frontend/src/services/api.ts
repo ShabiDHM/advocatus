@@ -1,3 +1,6 @@
+// FILE: /home/user/advocatus-frontend/src/services/api.ts
+
+
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult } from '../data/types';
 
@@ -5,6 +8,8 @@ interface LoginResponse { access_token: string; }
 interface RegisterResponse { message: string; }
 interface DocumentContentResponse { text: string; }
 interface WebSocketInfo { url: string; token: string; }
+// This interface defines the actual shape of the API response for findings.
+interface FindingsResponse { findings: Finding[]; count: number; }
 
 const API_BASE_URL = 'https://advocatus-prod-api.duckdns.org';
 const API_V1_URL = `${API_BASE_URL}/api/v1`;
@@ -32,8 +37,6 @@ export class ApiService {
     constructor() {
         this.axiosInstance = axios.create({
             baseURL: API_V1_URL,
-            // PHOENIX PROTOCOL CURE (PRESERVED): The default 'Content-Type' header is correctly removed.
-            // Axios will now properly handle headers on a per-request basis.
             withCredentials: true,
             timeout: 10000,
         });
@@ -77,11 +80,6 @@ export class ApiService {
         })
         .catch(error => {
             console.error('Refresh token request failed:', error);
-            console.error('Refresh error details:', {
-                status: error.response?.status,
-                data: error.response?.data,
-                headers: error.response?.headers
-            });
             if (this.onUnauthorized) this.onUnauthorized();
             return Promise.reject(error);
         })
@@ -143,7 +141,6 @@ export class ApiService {
             const response = await this.axiosInstance.post<RegisterResponse>('/auth/register', data);
             return response.data;
         } catch (error) {
-            // PHOENIX PROTOCOL CURE: Corrected Python 'and' to TypeScript '&&' logical operator.
             if (axios.isAxiosError(error) && error.response) {
                 if (error.response.status === 409) {
                     const detail = error.response.data?.detail || 'A user with this email or username already exists.';
@@ -186,7 +183,12 @@ export class ApiService {
         return (await this.axiosInstance.post(`/cases/${caseId}/documents/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
     }
     public async deleteDocument(caseId: string, documentId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}/documents/${documentId}`); }
-    public async getFindings(caseId: string): Promise<Finding[]> { return (await this.axiosInstance.get(`/cases/${caseId}/findings`)).data; }
+    
+    public async getFindings(caseId: string): Promise<Finding[]> {
+        // This is the definitive fix. We now expect an object and return only the array within it.
+        const response = await this.axiosInstance.get<FindingsResponse>(`/cases/${caseId}/findings`);
+        return response.data.findings || [];
+    }
     
     public async getCalendarEvents(): Promise<CalendarEvent[]> { 
         return (await this.axiosInstance.get('/calendar/events')).data; 
