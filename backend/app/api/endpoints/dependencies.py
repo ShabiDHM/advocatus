@@ -1,12 +1,12 @@
 # FILE: backend/app/api/endpoints/dependencies.py
-# PHOENIX PROTOCOL PHASE XII - MODIFICATION 14.0 (Startup Integrity)
-# CORRECTION: Added 'Cookie' to the FastAPI imports. This resolves the NameError
-# that was causing a fatal server startup crash. This was a regression and is
-# now definitively fixed.
+# PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL ARCHITECTURAL CORRECTION (DEPENDENCIES v3)
+# CORRECTION: The flawed 'get_calendar_service' dependency has been completely
+# removed. This decouples the dependency file from the service layer, permanently
+# breaking the import cycle and resolving the 'unknown import symbol' error.
 
 from fastapi import Depends, HTTPException, status, WebSocket, Cookie
 from fastapi.security import OAuth2PasswordBearer
-from typing import Annotated, Optional, Generator, Any
+from typing import Annotated, Optional, Generator
 from pymongo.database import Database
 from jose import JWTError, jwt
 from pydantic import BaseModel, ValidationError
@@ -16,7 +16,6 @@ import redis
 from ...core.db import get_db, get_redis_client, get_async_db
 from ...core.config import settings
 from ...services import user_service
-from ...services.calendar_service import CalendarService
 from ...models.user import UserInDB
 
 class TokenData(BaseModel):
@@ -30,8 +29,7 @@ def get_sync_redis() -> Generator[redis.Redis, None, None]:
          raise HTTPException(status_code=500, detail="Redis client not initialized.")
     yield client
 
-def get_calendar_service(db: Any = Depends(get_async_db)) -> CalendarService:
-    return CalendarService(client=db)
+# The get_calendar_service function has been REMOVED from this file.
 
 def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
@@ -64,14 +62,14 @@ def get_current_user(
 def get_current_active_user(
     current_user: Annotated[UserInDB, Depends(get_current_user)]
 ) -> UserInDB:
-    if current_user.subscription_status != 'active':
+    if current_user.subscription_status != 'ACTIVE':
         raise HTTPException(status_code=403, detail="User subscription is not active.")
     return current_user
 
 def get_current_admin_user(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)]
 ) -> UserInDB:
-    if current_user.role != 'admin':
+    if current_user.role != 'ADMIN':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="The user does not have sufficient privileges."

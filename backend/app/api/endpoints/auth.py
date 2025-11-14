@@ -1,20 +1,19 @@
 # FILE: backend/app/api/endpoints/auth.py
-# PHOENIX PROTOCOL PHASE XV - DEFINITIVE AND FINAL MODIFICATION (Authentication Integrity)
-# CORRECTION: The 'domain' attribute has been completely removed from the set_cookie
-# function. By omitting this, the browser will correctly scope the cookie to the
-# originating domain (e.g., 'localhost' or 'advocatus-prod-api.duckdns.org').
-# This is the definitive fix for the root cause of the entire cascading authentication
-# and WebSocket failure.
+# PHOENIX PROTOCOL - DEFINITIVE AND FINAL VERSION (IMPORT INTEGRITY)
+# CORRECTION: The import statement for user models has been made explicit and absolute.
+# This replaces the fragile relative import to resolve linter instability and align
+# with best practices, ensuring all tools can reliably resolve the dependencies.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from typing import Annotated
 from pydantic import BaseModel
 from pymongo.database import Database
 
-from ...services import user_service
-from ...models.user import UserInDB, UserCreate
-from ...core.config import settings
-from .dependencies import get_db, get_current_refresh_user
+# The corrected, absolute import path for robustness
+from app.models.user import UserInDB, UserCreate
+from app.services import user_service
+from app.core.config import settings
+from app.api.endpoints.dependencies import get_db, get_current_refresh_user
 
 router = APIRouter(tags=["Authentication"])
 
@@ -38,10 +37,9 @@ def set_auth_cookies(response: Response, tokens: dict):
         max_age=REFRESH_TOKEN_MAX_AGE_SECONDS,
         expires=REFRESH_TOKEN_MAX_AGE_SECONDS,
         path="/",
-        # The 'domain' attribute is REMOVED. This is the critical fix.
         secure=True,
         httponly=True,
-        samesite="none" 
+        samesite="none"
     )
 
 @router.post("/login", response_model=LoginResponse)
@@ -88,7 +86,6 @@ def logout(response: Response):
     response.delete_cookie(
         key="refresh_token",
         path="/",
-        # The 'domain' attribute is also removed here for consistency.
         secure=True,
         httponly=True,
         samesite="none"
