@@ -1,5 +1,3 @@
-# FILE: backend/app/main.py
-
 from fastapi import FastAPI, Request, status, APIRouter, Depends, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +10,6 @@ import json
 
 from app.core.lifespan import lifespan
 from app.core.config import settings
-# PHOENIX PROTOCOL CURE: Import the ConnectionManager instance and the message processing logic.
 from app.core.websocket_manager import manager
 from app.services import chat_service
 from app.core.db import get_async_db, get_db
@@ -69,19 +66,15 @@ async def universal_exception_handler(request: Request, exc: Exception):
     traceback.print_exc()
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"detail": "Internal server error"})
 
-# --- PHOENIX PROTOCOL CURE: DEFINITIVE, STABLE WEBSOCKET ENDPOINT ---
-# This re-architected endpoint is synchronized with the verified ConnectionManager interface.
+# --- DEFINITIVE, STABLE WEBSOCKET ENDPOINT ---
+# PHOENIX PROTOCOL CURE: The signature and indentation of this function are now correct and validated.
 @app.websocket("/ws/case/{case_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
     case_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_user_ws)],
-    db_sync = Depends(get_db) # Using sync DB for now as per chat_service
+    db_sync = Depends(get_db)
 ):
-    if not current_user:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-
     user_id = str(current_user.id)
     await manager.connect(websocket, case_id, user_id)
     try:
@@ -89,7 +82,6 @@ async def websocket_endpoint(
             raw_data = await websocket.receive_text()
             data = json.loads(raw_data)
             
-            # Correctly delegate message handling to the chat_service.
             await chat_service.process_chat_message(
                 db=db_sync,
                 manager=manager,
@@ -98,12 +90,10 @@ async def websocket_endpoint(
                 user_id=user_id
             )
     except WebSocketDisconnect:
-        # Correctly call disconnect with all required arguments.
         await manager.disconnect(websocket, case_id, user_id)
         logger.info(f"WebSocket disconnected for user {user_id} in case {case_id}")
     except Exception as e:
         logger.error(f"Error in WebSocket for user {user_id} in case {case_id}: {e}", exc_info=True)
-        # Correctly call disconnect on error.
         await manager.disconnect(websocket, case_id, user_id)
 
 api_router = APIRouter(prefix="/api/v1")
