@@ -1,4 +1,7 @@
 # FILE: backend/app/services/document_service.py
+# PHOENIX PROTOCOL PHASE V - MODIFICATION 5.0 (Architectural Integrity)
+# CORRECTION: Replaced direct DB call with a call to findings_service.delete_findings_by_document_id.
+# This fixes the data type mismatch bug and restores proper service boundaries.
 
 import logging
 from bson import ObjectId
@@ -13,7 +16,7 @@ from fastapi import HTTPException
 
 from ..models.document import DocumentOut, DocumentStatus
 from ..models.user import UserInDB
-from . import vector_store_service, storage_service
+from . import vector_store_service, storage_service, findings_service
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +53,7 @@ def create_document_record(
         "storage_key": storage_key, "mime_type": mime_type,
         "status": DocumentStatus.PENDING,
         "created_at": datetime.datetime.now(timezone.utc),
-        "preview_storage_key": None,  # Initialize the new field
+        "preview_storage_key": None,
     }
     insert_result = db.documents.insert_one(document_data)
     if not insert_result.inserted_id:
@@ -103,10 +106,6 @@ def get_and_verify_document(db: Database, doc_id: str, owner: UserInDB) -> Docum
     return DocumentOut.model_validate(document_data)
 
 def get_preview_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut]:
-    """
-    Retrieves the PDF preview stream for a document.
-    Raises FileNotFoundError if the preview is not yet available.
-    """
     document = get_and_verify_document(db, doc_id, owner)
     if not document.preview_storage_key:
         raise FileNotFoundError("Document preview is not available.")
@@ -149,7 +148,10 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     processed_key = document_to_delete.get("processed_text_storage_key")
     preview_key = document_to_delete.get("preview_storage_key")
 
-    db.findings.delete_many({"document_id": doc_id_str})
+    # Correctly call the findings_service to delete associated findings
+    findings_service.delete_findings_by_document_id(db=db, document_id=doc_id)
+    
+    # Continue with other deletions
     vector_store_service.delete_document_embeddings(document_id=doc_id_str)
     if storage_key: storage_service.delete_file(storage_key=storage_key)
     if processed_key: storage_service.delete_file(storage_key=processed_key)
