@@ -283,7 +283,8 @@
     "deleteCase": "Fshij Rastin",
     "documents": "dokumente",
     "alerts": "alarme",
-    "events": "ngjarje"
+    "events": "ngjarje",
+    "findings": "gjetje"
   },
   "caseView": {
     "backToDashboard": "Kthehu te Paneli",
@@ -301,7 +302,8 @@
       "OPEN": "Hapur",
       "CLOSED": "Mbyllur",
       "PENDING": "Në Pritje",
-      "ARCHIVED": "Arkivuar"
+      "ARCHIVED": "Arkivuar",
+      "ACTIVE": "Aktiv"
     },
     "errorLoadingTitle": "Gabim në Ngarkimin e Rastit",
     "genericError": "Rasti nuk u gjet ose ka ndodhur një gabim.",
