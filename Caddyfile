@@ -1,4 +1,9 @@
 # FILE: Caddyfile
+# PHOENIX PROTOCOL PHASE XIV - FINAL MODIFICATION (Infrastructure Integrity)
+# CORRECTION: Added an explicit header block to the WebSocket reverse_proxy.
+# This forces Caddy to pass the critical 'Connection' and 'Upgrade' headers
+# to the backend, ensuring the WebSocket handshake succeeds. This is the
+# definitive fix for the persistent '1006 Abnormal Closure' error.
 
 advocatus-prod-api.duckdns.org {
     # Automatic HTTPS via Let's Encrypt
@@ -11,12 +16,16 @@ advocatus-prod-api.duckdns.org {
         X-Frame-Options "SAMEORIGIN"
     }
 
-    # PHOENIX PROTOCOL CURE: Direct API routing without conflicts
+    # The route block correctly enforces order of operations.
     route {
-        # 1. WebSocket route - must come first
-        reverse_proxy /ws/* backend:8000
+        # 1. WebSocket route - MUST come first.
+        # This block now explicitly forwards the required WebSocket handshake headers.
+        reverse_proxy /ws/* backend:8000 {
+            header_up +Connection {http.request.header.Connection}
+            header_up +Upgrade {http.request.header.Upgrade}
+        }
 
-        # 2. API routes - direct proxy without rewriting
+        # 2. Standard API routes
         reverse_proxy /api/* backend:8000 {
             flush_interval -1
         }
