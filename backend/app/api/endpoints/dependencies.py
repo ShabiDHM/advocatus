@@ -3,7 +3,6 @@ from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated, Optional, Generator, Any
 from pymongo.database import Database
 from jose import JWTError, jwt
-# PHOENIX PROTOCOL CURE: Corrected the typo from 'pantic' to the valid 'pydantic' library.
 from pydantic import BaseModel, ValidationError
 from bson import ObjectId
 import redis
@@ -79,9 +78,11 @@ def get_current_admin_user(
     return current_user
 
 def get_current_refresh_user(
-    # PHOENIX PROTOCOL CURE (PRESERVED): The architectural fix remains.
-    # The dependency correctly extracts the 'refresh_token' from cookies.
-    refresh_token: Annotated[Optional[str], Cookie()] = None,
+    # PHOENIX PROTOCOL CURE: THE FINAL STRIKE.
+    # We now use an explicit alias to remove all ambiguity. This tells FastAPI:
+    # "Find the cookie NAMED 'refresh_token' and assign its value to the parameter
+    # named 'token_from_cookie'". This is the most robust and definitive solution.
+    token_from_cookie: Annotated[Optional[str], Cookie(alias="refresh_token")] = None,
     db: Database = Depends(get_db)
 ) -> UserInDB:
     credentials_exception = HTTPException(
@@ -90,7 +91,7 @@ def get_current_refresh_user(
         headers={"WWW-authenticate": "Bearer"},
     )
 
-    if refresh_token is None:
+    if token_from_cookie is None:
         raise credentials_exception
     
     secret_key = settings.SECRET_KEY
@@ -98,7 +99,7 @@ def get_current_refresh_user(
         raise HTTPException(status_code=500, detail="Server misconfiguration: SECRET_KEY not set.")
 
     try:
-        payload = jwt.decode(refresh_token, secret_key, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(token_from_cookie, secret_key, algorithms=[settings.ALGORITHM])
         if payload.get("type") != "refresh":
             raise credentials_exception
         user_id: Optional[str] = payload.get("id")
