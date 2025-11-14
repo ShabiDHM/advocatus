@@ -1,5 +1,3 @@
-# FILE: backend/app/core/websocket_manager.py
-
 import logging
 from typing import Dict, Set
 from fastapi import WebSocket
@@ -18,8 +16,10 @@ class ConnectionManager:
         self._lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket, case_id: str, user_id: str):
-        """Accepts a new WebSocket connection and adds it to the appropriate case."""
-        await websocket.accept()
+        """Adds a new, already-accepted WebSocket connection to the appropriate case."""
+        # PHOENIX PROTOCOL CURE: The websocket.accept() call is removed.
+        # The connection MUST be accepted in the authentication dependency BEFORE this method is called.
+        # This class's only job is to track authenticated, active connections.
         async with self._lock:
             if case_id not in self.active_connections:
                 self.active_connections[case_id] = set()

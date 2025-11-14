@@ -111,20 +111,14 @@ def get_current_refresh_user(
         raise credentials_exception
     return user
 
-# PHOENIX PROTOCOL CURE: DEFINITIVE WEBSOCKET AUTHENTICATION
-# This dependency is re-architected to correctly handle authentication via the Sec-WebSocket-Protocol header.
 async def get_current_user_ws(
     websocket: WebSocket,
     db: Database = Depends(get_db)
 ) -> UserInDB:
-    # 1. The client sends the token in the subprotocol. FastAPI makes this available in the scope.
-    #    We expect a single protocol which is the JWT token.
     try:
         token = websocket.scope['subprotocols'][0]
     except IndexError:
-        # If no subprotocol is sent, we immediately close with a policy violation code.
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Missing authentication token.")
-        # Raising an exception here ensures the endpoint logic never runs.
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing authentication token.")
 
     credentials_exception = HTTPException(
@@ -134,7 +128,6 @@ async def get_current_user_ws(
     
     secret_key = settings.SECRET_KEY
     if not secret_key:
-        # This check is critical for server health.
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Server misconfiguration.")
         raise credentials_exception
 
@@ -142,7 +135,6 @@ async def get_current_user_ws(
         payload = jwt.decode(token, secret_key, algorithms=[settings.ALGORITHM])
         user_id: Optional[str] = payload.get("id")
         if user_id is None:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token content.")
             raise credentials_exception
         token_data = TokenData(id=user_id)
     except (JWTError, ValidationError):
@@ -155,4 +147,9 @@ async def get_current_user_ws(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="User not found.")
         raise credentials_exception
         
+    # PHOENIX PROTOCOL CURE: After successfully validating the user, we MUST accept the connection
+    # to complete the handshake. We also echo the token back as the accepted subprotocol,
+    # which is standard practice.
+    await websocket.accept(subprotocol=token)
+    
     return user
