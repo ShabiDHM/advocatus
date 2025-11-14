@@ -11,14 +11,12 @@ class ConnectionManager:
     Ensures thread-safe operations for connect, disconnect, and broadcast.
     """
     def __init__(self):
-        # Maps a case_id (str) to a set of active WebSockets.
         self.active_connections: Dict[str, Set[WebSocket]] = {}
         self._lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket, case_id: str, user_id: str):
         """Adds a new, already-accepted WebSocket connection to the appropriate case."""
-        # PHOENIX PROTOCOL CURE: The websocket.accept() call is removed.
-        # The connection MUST be accepted in the authentication dependency BEFORE this method is called.
+        # PHOENIX PROTOCOL CURE: The websocket.accept() call is GONE.
         # This class's only job is to track authenticated, active connections.
         async with self._lock:
             if case_id not in self.active_connections:
@@ -38,7 +36,6 @@ class ConnectionManager:
     async def broadcast_to_case(self, case_id: str, message: dict):
         """Broadcasts a JSON message to all clients connected to a specific case."""
         if case_id in self.active_connections:
-            # Create a list of tasks to send messages concurrently
             tasks = [
                 connection.send_json(message)
                 for connection in self.active_connections[case_id]
@@ -47,5 +44,4 @@ class ConnectionManager:
                 logger.info(f"Broadcasting message to {len(tasks)} clients in case {case_id}")
                 await asyncio.gather(*tasks, return_exceptions=True)
 
-# Create a single, globally accessible instance of the manager
 manager = ConnectionManager()

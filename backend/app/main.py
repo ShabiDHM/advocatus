@@ -20,9 +20,8 @@ try:
     from app.api.endpoints import (
         auth, cases, documents, chat, admin,
         search, findings, drafting_v2, api_keys,
-        users, calendar
+        users, calendar, websockets # PHOENIX PROTOCOL CURE: Import the living websocket router.
     )
-    from app.api.endpoints.dependencies import get_current_user_ws
 except ImportError as e:
     logging.error(f"Router import error: {e}")
     raise
@@ -66,35 +65,7 @@ async def universal_exception_handler(request: Request, exc: Exception):
     traceback.print_exc()
     return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content={"detail": "Internal server error"})
 
-# --- DEFINITIVE, STABLE WEBSOCKET ENDPOINT ---
-# PHOENIX PROTOCOL CURE: The signature and indentation of this function are now correct and validated.
-@app.websocket("/ws/case/{case_id}")
-async def websocket_endpoint(
-    websocket: WebSocket,
-    case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user_ws)],
-    db_sync = Depends(get_db)
-):
-    user_id = str(current_user.id)
-    await manager.connect(websocket, case_id, user_id)
-    try:
-        while True:
-            raw_data = await websocket.receive_text()
-            data = json.loads(raw_data)
-            
-            await chat_service.process_chat_message(
-                db=db_sync,
-                manager=manager,
-                case_id=case_id,
-                user_query=data.get("payload", {}).get("text", ""),
-                user_id=user_id
-            )
-    except WebSocketDisconnect:
-        await manager.disconnect(websocket, case_id, user_id)
-        logger.info(f"WebSocket disconnected for user {user_id} in case {case_id}")
-    except Exception as e:
-        logger.error(f"Error in WebSocket for user {user_id} in case {case_id}: {e}", exc_info=True)
-        await manager.disconnect(websocket, case_id, user_id)
+# PHOENIX PROTOCOL CURE: The ghost endpoint is GONE. It has been completely removed.
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -108,6 +79,9 @@ api_router.include_router(findings.router, prefix="/findings", tags=["Findings"]
 api_router.include_router(api_keys.router, prefix="/keys", tags=["API Keys"])
 api_router.include_router(calendar.router, prefix="/calendar", tags=["Calendar"])
 api_router.include_router(admin.router, prefix="/admin", tags=["Administrator"])
+# PHOENIX PROTOCOL CURE: The living websocket router is now included in the API.
+# All requests to /api/v1/ws/... will be handled by websockets.py.
+api_router.include_router(websockets.router, prefix="", tags=["WebSockets"])
 
 app.include_router(api_router)
 app.include_router(drafting_v2.router, prefix="/api/v2", tags=["Drafting V2"])

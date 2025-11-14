@@ -60,23 +60,6 @@ def get_current_user(
         raise credentials_exception
     return user
 
-def get_current_active_user(
-    current_user: Annotated[UserInDB, Depends(get_current_user)]
-) -> UserInDB:
-    if current_user.subscription_status != 'active':
-        raise HTTPException(status_code=403, detail="User subscription is not active.")
-    return current_user
-
-def get_current_admin_user(
-    current_user: Annotated[UserInDB, Depends(get_current_active_user)]
-) -> UserInDB:
-    if current_user.role != 'admin':
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user does not have sufficient privileges."
-        )
-    return current_user
-
 def get_current_refresh_user(
     token_from_cookie: Annotated[Optional[str], Cookie(alias="refresh_token")] = None,
     db: Database = Depends(get_db)
@@ -111,6 +94,7 @@ def get_current_refresh_user(
         raise credentials_exception
     return user
 
+# PHOENIX PROTOCOL CURE: DEFINITIVE WEBSOCKET AUTHENTICATION
 async def get_current_user_ws(
     websocket: WebSocket,
     db: Database = Depends(get_db)
@@ -147,9 +131,6 @@ async def get_current_user_ws(
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="User not found.")
         raise credentials_exception
         
-    # PHOENIX PROTOCOL CURE: After successfully validating the user, we MUST accept the connection
-    # to complete the handshake. We also echo the token back as the accepted subprotocol,
-    # which is standard practice.
     await websocket.accept(subprotocol=token)
     
     return user
