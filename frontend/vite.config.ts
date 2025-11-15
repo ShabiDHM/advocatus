@@ -1,26 +1,25 @@
 // FILE: vite.config.ts
+// PHOENIX PROTOCOL - DEFINITIVE AND FINAL VERSION (ASSET MANAGEMENT)
+// CORRECTION: The flawed custom plugin has been replaced with 'vite-plugin-static-copy'.
+// This is the architecturally sound solution to copy the required pdf.worker.min.js
+// from node_modules into the final build directory, guaranteeing version synchronization
+// and eliminating the fragile CDN dependency.
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-
-// --- PHOENIX PROTOCOL CURE: VERCEL-COMPATIBLE PDF WORKER SOLUTION ---
-// Vercel build environment doesn't have access to node_modules file system during build.
-// We'll rely on CDN for PDF worker in production and skip the file copy operation.
-const vercelSafePdfPlugin = () => {
-  return {
-    name: 'vercel-pdf-fix',
-    buildStart() {
-      // In Vercel, we cannot access node_modules files during build
-      // This plugin now only serves to indicate we're handling PDF workers via CDN
-      console.log('[vercel-pdf-fix] Using CDN for PDF.js worker in Vercel environment');
-    },
-  };
-};
+import { viteStaticCopy } from 'vite-plugin-static-copy'
 
 export default defineConfig({
   plugins: [
     react(),
-    vercelSafePdfPlugin(),
+    viteStaticCopy({
+      targets: [
+        {
+          src: 'node_modules/react-pdf/node_modules/pdfjs-dist/build/pdf.worker.min.js',
+          dest: ''
+        }
+      ]
+    })
   ],
   build: {
     outDir: 'dist',

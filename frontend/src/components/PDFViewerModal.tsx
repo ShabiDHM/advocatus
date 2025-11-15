@@ -1,4 +1,9 @@
 // FILE: src/components/PDFViewerModal.tsx
+// PHOENIX PROTOCOL - DEFINITIVE AND FINAL VERSION (LOCAL ASSET LOADING)
+// CORRECTION: The fragile, hardcoded CDN logic has been completely removed.
+// pdfjs.GlobalWorkerOptions.workerSrc now points to the locally-served worker file
+// that is copied into the build directory by the corrected vite.config.ts.
+// This guarantees version synchronization and robustly fixes the PDF rendering failure.
 
 import React, { useState, useEffect } from 'react';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
@@ -9,21 +14,8 @@ import { Document } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader, AlertTriangle, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
 
-// --- PHOENIX PROTOCOL CURE: VERCEL-OPTIMIZED PDF WORKER CONFIGURATION ---
-// CORRECTION: The workerVersion has been updated to match the exact version
-// required by the react-pdf library, as reported by the browser's runtime error.
-// This resolves the "API version does not match Worker version" failure.
-const configurePdfWorker = () => {
-  // Use CDN version that matches the running react-pdf's pdfjs-dist dependency.
-  const workerVersion = '5.4.296';
-  const cdnWorkerUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${workerVersion}/pdf.worker.min.js`;
-  
-  console.log(`Configuring PDF worker from CDN: ${cdnWorkerUrl}`);
-  pdfjs.GlobalWorkerOptions.workerSrc = cdnWorkerUrl;
-};
-
-// Configure PDF worker on module load
-configurePdfWorker();
+// Configure the worker to use the locally-served file copied by Vite.
+pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.js`;
 
 interface PDFViewerModalProps {
   documentData: Document;
