@@ -1,7 +1,7 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL MODIFICATION: Groq Model Update
-# CORRECTION: Updated default Groq model from deprecated 'llama-3.1-70b-versatile' 
-# to currently supported 'llama3-70b-8192' to resolve model decommissioning error
+# PHOENIX PROTOCOL MODIFICATION: Groq Model Update to Currently Supported Version
+# CORRECTION: Updated default Groq model to 'llama-3.3-70b-versatile' 
+# which is currently supported in production
 
 import os
 import asyncio
@@ -62,8 +62,8 @@ async def generate_draft_stream(
         log.error("drafting_service.stream_failure", error="GROQ_API_KEY is missing.")
         raise Exception("Gabim: Shërbimi i AI nuk është konfiguruar saktë (Çelësi i API mungon).")
 
-    # PHOENIX PROTOCOL CURE: Updated default model to currently supported version
-    groq_model = os.environ.get("GROQ_MODEL", "llama3-70b-8192")
+    # PHOENIX PROTOCOL CURE: Updated to currently supported production model
+    groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
     log.info("drafting_service.model_selected", model=groq_model)
     
     GROQ_CLIENT = AsyncGroq(api_key=groq_api_key)
