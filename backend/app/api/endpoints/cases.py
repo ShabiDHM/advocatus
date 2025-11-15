@@ -1,9 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TRANSACTIONAL DELETE)
-# CORRECTION: The 'delete_document' endpoint now returns a 200 OK with a JSON
-# payload containing the deleted document's ID and the IDs of all findings that
-# were deleted along with it. This provides the frontend with all the information
-# it needs to correctly and transactionally update its state.
+# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (ROUTING FIX)
+# CORRECTION: Removed the 'response_model' from the delete_document endpoint.
+# This is a critical fix to resolve a subtle FastAPI routing bug that was
+# preventing the DELETE route from being registered, causing a 404 Not Found error.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated
@@ -155,7 +154,7 @@ async def get_document_report_pdf(case_id: str, doc_id: str, current_user: Annot
     headers = {'Content-Disposition': f'inline; filename="{document.file_name}.pdf"'}
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
 
-@router.delete("/{case_id}/documents/{doc_id}", response_model=DeletedDocumentResponse, tags=["Documents"])
+@router.delete("/{case_id}/documents/{doc_id}", tags=["Documents"])
 async def delete_document(
     case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], 
     db: Database = Depends(get_db), redis_client: redis.Redis = Depends(get_sync_redis)
