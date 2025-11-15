@@ -1,10 +1,7 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL MODIFICATION 34.1 (COMPILATION CURE):
-# 1. MISSING IMPORT CURE: Re-added the 'from ..models.user import UserInDB' import statement.
-#    This resolves the "UserInDB is not defined" Pylance error.
-# 2. TYPE-SAFE CONDITIONAL CURE: Changed the ambiguous conditional 'if db:' to the explicit
-#    'if db is not None:'. This resolves the "Invalid conditional operand" Pylance warning
-#    and makes the code more robust and readable.
+# PHOENIX PROTOCOL MODIFICATION: Groq Model Update
+# CORRECTION: Updated default Groq model from deprecated 'llama-3.1-70b-versatile' 
+# to currently supported 'llama3-70b-8192' to resolve model decommissioning error
 
 import os
 import asyncio
@@ -14,7 +11,6 @@ from groq import AsyncGroq
 from groq.types.chat import ChatCompletionMessageParam
 from pymongo.database import Database
 
-# CURE: Re-added the missing import
 from ..models.user import UserInDB
 from app.services.text_sterilization_service import sterilize_text_for_llm 
 
@@ -66,7 +62,8 @@ async def generate_draft_stream(
         log.error("drafting_service.stream_failure", error="GROQ_API_KEY is missing.")
         raise Exception("Gabim: Shërbimi i AI nuk është konfiguruar saktë (Çelësi i API mungon).")
 
-    groq_model = os.environ.get("GROQ_MODEL", "llama-3.1-70b-versatile") 
+    # PHOENIX PROTOCOL CURE: Updated default model to currently supported version
+    groq_model = os.environ.get("GROQ_MODEL", "llama3-70b-8192")
     log.info("drafting_service.model_selected", model=groq_model)
     
     GROQ_CLIENT = AsyncGroq(api_key=groq_api_key)
@@ -79,7 +76,7 @@ async def generate_draft_stream(
     )
     full_prompt = f"Context:\n{sanitized_context}\n\n---\n\nPrompt:\n{sanitized_prompt_text}"
 
-    # CURE: Use explicit None check for type safety
+    # Use explicit None check for type safety
     if draft_type and jurisdiction and db is not None:
         template_augment = await asyncio.to_thread(_get_template_augmentation, draft_type, jurisdiction, favorability, db)
         if template_augment:
