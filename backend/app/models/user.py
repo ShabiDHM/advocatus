@@ -5,8 +5,9 @@
 # data type it will receive from the database model before serialization. The existing
 # json_encoder will then correctly convert this ObjectId to a string in the final JSON output.
 # CORRECTION: The 'id' field in the UserLoginResponse model has been similarly corrected for consistency.
+# SECURITY HARDENING: Added role normalization to ensure consistent uppercase values
 
-from pydantic import BaseModel, Field, EmailStr, ConfigDict
+from pydantic import BaseModel, Field, EmailStr, ConfigDict, model_validator
 from typing import Optional, Literal
 from datetime import datetime
 
@@ -38,6 +39,21 @@ class UserInDBBase(UserBase):
         populate_by_name=True,
         arbitrary_types_allowed=True,
     )
+    
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_role_field(cls, values):
+        """Ensure role field is always uppercase to prevent case sensitivity issues"""
+        if isinstance(values, dict) and 'role' in values:
+            role_value = values['role']
+            if isinstance(role_value, str):
+                normalized_role = role_value.upper()
+                if normalized_role in ['USER', 'ADMIN']:
+                    values['role'] = normalized_role
+                else:
+                    # Default to USER if invalid role value
+                    values['role'] = 'USER'
+        return values
 
 class UserOut(BaseModel):
     # This type hint is now correct for the source data.
