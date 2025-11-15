@@ -77,9 +77,13 @@ def update_user_subscription(user_id: str, sub_data: SubscriptionUpdate, db: Dat
     if not updated_user_doc:
         raise FileNotFoundError("User not found")
         
+    # PHOENIX PROTOCOL FIX: Corrected user ID comparison logic
+    # Convert both IDs to ObjectId for proper comparison, or compare string representations consistently
     user_list = get_all_users(db)
     for user in user_list:
-        if str(user.get('_id')) == user_id:
+        user_obj_id = user.get('_id')
+        # Compare ObjectId with ObjectId, or string with string
+        if (isinstance(user_obj_id, ObjectId) and user_obj_id == ObjectId(user_id)) or str(user_obj_id) == user_id:
             return AdminUserOut.model_validate(user)
     
     raise FileNotFoundError("User not found after update and re-aggregation.")
