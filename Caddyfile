@@ -1,9 +1,14 @@
 # FILE: Caddyfile
-# PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL CORRECTION (WEBSOCKET AUTHENTICATION)
-# CORRECTION: Added 'header_up Sec-WebSocket-Protocol' to the WebSocket reverse_proxy.
-# This explicitly forwards the authentication token from the client to the backend,
-# resolving the handshake failure. This is the definitive fix for the WebSocket
-# connection error.
+# PHOENIX PROTOCOL - DIAGNOSTIC CONFIGURATION (DEBUG LOGGING ENABLED)
+# CORRECTION: A global options block has been added to enable DEBUG level logging.
+# This will provide a verbose trace of Caddy's internal operations to diagnose
+# the WebSocket connection drop.
+
+{
+    log {
+        level DEBUG
+    }
+}
 
 advocatus-prod-api.duckdns.org {
     tls shabanbala@gmail.com
@@ -15,16 +20,11 @@ advocatus-prod-api.duckdns.org {
     }
 
     route {
-        # First, specifically match WebSocket requests.
         reverse_proxy /ws/* backend:8000 {
-            # Apply the necessary headers to upgrade the connection.
             header_up +Connection {http.request.header.Connection}
             header_up +Upgrade {http.request.header.Upgrade}
-            # CRITICAL: Forward the authentication token header to the backend.
             header_up Sec-WebSocket-Protocol {http.request.header.Sec-WebSocket-Protocol}
         }
-
-        # Second, handle all other requests as a standard reverse proxy.
         reverse_proxy backend:8000
     }
 }

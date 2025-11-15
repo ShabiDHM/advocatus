@@ -1,13 +1,15 @@
 # FILE: docker-compose.yml
-# DEFINITIVE VERSION 6.0 (PHENIX PROTOCOL: STANDARD PORT ALIGNMENT)
-# 1. CRITICAL FIX: The 'caddy' service port mappings have been changed to the standard
-#    "80:80" and "443:443". This is the definitive fix to allow Caddy to obtain
-#    an SSL certificate from Let's Encrypt and resolve the ERR_SSL_PROTOCOL_ERROR.
+# PHOENIX PROTOCOL - DIAGNOSTIC CONFIGURATION (CADDY COMMAND OVERRIDE)
+# CORRECTION: The 'caddy' service now has an explicit 'command' to ensure it
+# loads the Caddyfile and runs in the foreground, directing all logs, including
+# the newly enabled DEBUG logs, to the Docker logging system.
 
 services:
   caddy:
     image: caddy:latest
     restart: unless-stopped
+    # This command ensures Caddy loads our file and outputs logs.
+    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     ports:
       - "80:80"
       - "443:443"
