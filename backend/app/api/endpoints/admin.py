@@ -21,6 +21,28 @@ def get_all_users(
     """Retrieves a list of all users. (Admin only)"""
     return admin_service.get_all_users(db=db)
 
+@router.put("/{user_id}", response_model=UserAdminView)
+def update_user(
+    user_id: str,
+    update_data: SubscriptionUpdate,  # Using same model for general updates
+    current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
+    db: Database = Depends(get_db)
+):
+    """Updates a user's details including subscription. (Admin only)"""
+    try:
+        updated_user = admin_service.update_user_subscription(
+            user_id=user_id, 
+            sub_data=update_data, 
+            db=db
+        )
+        if not updated_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        return updated_user
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
 @router.put("/{user_id}/subscription", response_model=UserAdminView)
 def update_user_subscription(
     user_id: str,
