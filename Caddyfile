@@ -1,5 +1,10 @@
 # FILE: Caddyfile
-# DEFINITIVE AND FINAL VERSION
+# PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL CORRECTION (ROUTING INTEGRITY)
+# CORRECTION: The two conflicting 'reverse_proxy' directives have been replaced
+# with a single 'route' block. This guarantees that WebSocket requests are matched
+# first and have the correct 'Upgrade' headers applied, while all other requests
+# are passed to the second, general-purpose proxy. This resolves the routing
+# conflict and ensures WebSocket connections can be established.
 
 advocatus-prod-api.duckdns.org {
     tls shabanbala@gmail.com
@@ -10,21 +15,16 @@ advocatus-prod-api.duckdns.org {
         X-Frame-Options "SAMEORIGIN"
     }
 
-    # Define a named matcher for WebSocket requests for clarity and precedence.
-    @websockets {
-        path /ws/*
-    }
+    # A 'route' block ensures handlers are evaluated in order, preventing conflicts.
+    route {
+        # First, specifically match WebSocket requests.
+        reverse_proxy /ws/* backend:8000 {
+            # Apply the necessary headers to upgrade the connection.
+            header_up +Connection {http.request.header.Connection}
+            header_up +Upgrade {http.request.header.Upgrade}
+        }
 
-    # Apply explicit WebSocket proxy headers ONLY to WebSocket requests.
-    reverse_proxy @websockets backend:8000 {
-        header_up +Connection {http.request.header.Connection}
-        header_up +Upgrade {http.request.header.Upgrade}
-    }
-
-    # Handle all other API and root requests.
-    reverse_proxy backend:8000 {
-        # Exclude the WebSocket path to avoid conflicting rules.
-        # This is not strictly necessary with the 'route' block but adds robustness.
-        # Caddy is smart enough, but we are being explicit.
+        # Second, handle all other requests as a standard reverse proxy.
+        reverse_proxy backend:8000
     }
 }
