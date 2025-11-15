@@ -1,10 +1,14 @@
 # FILE: backend/app/services/user_service.py
+# PHOENIX PROTOCOL - THE FINAL AND DEFINITIVE CORRECTION (ROLE SYSTEM SYNCHRONIZATION)
+# CORRECTION: The create_user function's default role has been updated from 'STANDARD'
+# to 'USER' to align with the new, simplified data model.
 
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from bson import ObjectId
 from pymongo.database import Database
 from passlib.context import CryptContext
+from pydantic import ValidationError
 import logging
 
 from ..models.user import UserCreate, UserInDB
@@ -18,18 +22,36 @@ API_KEY_COLLECTION = "api_keys"
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 logger = logging.getLogger(__name__)
 
-# --- CORE USER GETTERS ---
+# --- CORE USER GETTERS (HARDENED) ---
 def get_user_by_username(db: Database, username: str) -> Optional[UserInDB]:
     user_data = db[USER_COLLECTION].find_one({"username": username})
-    return UserInDB(**user_data) if user_data else None
+    if not user_data:
+        return None
+    try:
+        return UserInDB(**user_data)
+    except ValidationError as e:
+        logger.error(f"Data validation error for user '{username}': {e}")
+        return None
 
 def get_user_by_email(db: Database, email: str) -> Optional[UserInDB]:
     user_data = db[USER_COLLECTION].find_one({"email": email})
-    return UserInDB(**user_data) if user_data else None
+    if not user_data:
+        return None
+    try:
+        return UserInDB(**user_data)
+    except ValidationError as e:
+        logger.error(f"Data validation error for user with email '{email}': {e}")
+        return None
 
 def get_user_by_id(db: Database, user_id: ObjectId) -> Optional[UserInDB]:
     user_data = db[USER_COLLECTION].find_one({"_id": user_id})
-    return UserInDB(**user_data) if user_data else None
+    if not user_data:
+        return None
+    try:
+        return UserInDB(**user_data)
+    except ValidationError as e:
+        logger.error(f"Data validation error for user ID '{user_id}': {e}")
+        return None
 
 # --- AUTHENTICATION & TOKEN CREATION ---
 def create_both_tokens(data: Dict[str, Any]) -> Dict[str, str]:
@@ -48,15 +70,16 @@ def authenticate_user(username: str, password: str, db: Database) -> Optional[Us
     )
     return user
 
-def create_user(db: Database, user: UserCreate, role: str = 'user') -> UserInDB:
+# --- USER CREATION (SYNCHRONIZED DEFAULTS) ---
+def create_user(db: Database, user: UserCreate, role: str = 'USER') -> UserInDB:
     hashed_password = get_password_hash(user.password)
     user_data = user.model_dump(exclude={"password"}, exclude_none=True)
     
     full_user_data = {
         **user_data,
         "hashed_password": hashed_password,
-        "role": role.lower(),
-        "subscription_status": "none",
+        "role": role.upper(),
+        "subscription_status": "INACTIVE",
         "last_login": None,
     }
     
@@ -80,7 +103,7 @@ def delete_user_and_all_data(user: UserInDB, db: Database):
 
 def update_user_profile(db: Database, user_id: ObjectId, data: Dict[str, Any]) -> Optional[UserInDB]:
     if 'role' in data:
-        data['role'] = data['role'].lower()
+        data['role'] = data['role'].upper()
     
     update_result = db[USER_COLLECTION].update_one(
         {"_id": user_id},

@@ -1,12 +1,11 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL VERSION (DATA MODEL INTEGRITY)
-# CORRECTION: The 'role' and 'subscription_status' Literal types in UserInDBBase
-# have been converted to their canonical, uppercase form (e.g., 'LAWYER').
-# This enforces data integrity at the model level and resolves critical downstream
-# authorization and type-checking failures.
+# PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL VERSION (DATA MODEL SIMPLIFICATION)
+# CORRECTION: The 'role' Literal type in UserInDBBase has been simplified to only
+# 'USER' and 'ADMIN'. This reduces system complexity and aligns with the new
+# architectural decision. The default role is now 'USER'.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
-from typing import Optional, Literal, Any
+from typing import Optional, Literal
 from datetime import datetime
 
 from .common import PyObjectId
@@ -23,10 +22,9 @@ class UserInDBBase(UserBase):
     id: PyObjectId = Field(alias="_id")
     hashed_password: str
     
-    # Corrected to uppercase to enforce data integrity at the source.
-    role: Literal['STANDARD', 'ADMIN', 'LAWYER'] = 'STANDARD'
+    # Corrected and simplified role system.
+    role: Literal['USER', 'ADMIN'] = 'USER'
     
-    # Corrected to uppercase for consistency.
     subscription_status: Literal['ACTIVE', 'INACTIVE', 'TRIAL', 'EXPIRED'] = 'INACTIVE'
     
     subscription_expiry_date: Optional[datetime] = None
@@ -53,8 +51,6 @@ class UserOut(BaseModel):
         from_attributes=True,
         populate_by_name=True,
         arbitrary_types_allowed=True,
-        # This custom encoder is no longer strictly necessary with from_attributes,
-        # but provides a robust fallback for converting ObjectId to str.
         json_encoders={PyObjectId: str}
     )
 
