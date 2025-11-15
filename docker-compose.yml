@@ -1,5 +1,7 @@
 # FILE: docker-compose.yml
 # PHOENIX PROTOCOL - FINAL PRODUCTION VERSION
+# CORRECTION: Removed the diagnostic 'command' override from the 'caddy' service
+# to restore its standard production startup behavior.
 
 services:
   caddy:
