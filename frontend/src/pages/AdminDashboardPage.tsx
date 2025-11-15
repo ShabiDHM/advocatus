@@ -58,7 +58,18 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUserId, onEdit, onDelete
 interface EditUserModalProps { user: AdminUser; onUpdate: (userId: string, updateData: UpdateUserRequest) => void; onClose: () => void; isUpdating: boolean; t: (key: string, options?: any) => string; }
 const EditUserModal: React.FC<EditUserModalProps> = ({ user, onUpdate, onClose, isUpdating, t }) => {
   const [formData, setFormData] = useState<UpdateUserRequest>({ subscription_status: user.subscription_status, role: user.role, email: user.email });
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onUpdate(user.id, formData); };
+  
+  // PHOENIX PROTOCOL FIX: Added safety check for user ID
+  const handleSubmit = (e: React.FormEvent) => { 
+    e.preventDefault(); 
+    if (!user?.id) {
+      console.error("Cannot update user: User ID is undefined", user);
+      alert("Error: User ID is missing. Please try again.");
+      return;
+    }
+    onUpdate(user.id, formData); 
+  };
+  
   return <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center p-4 z-50"><div className="bg-background-dark/80 border border-glass-edge rounded-2xl p-6 w-full max-w-md shadow-2xl"><h2 className="text-xl font-semibold text-white mb-4">{t('admin.editUserTitle', { username: user.username })}</h2><form onSubmit={handleSubmit} className="space-y-4"><div><label className="block text-sm font-medium text-gray-300 mb-1">{t('auth.email')}</label><input type="email" value={formData.email || ''} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-xl bg-background-light/50 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder={t('auth.email')}/></div><div><label className="block text-sm font-medium text-gray-300 mb-1">{t('admin.role')}</label><select value={formData.role} onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value as any }))} className="block w-full px-3 py-2 border border-glass-edge rounded-xl bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"><option value="STANDARD">Standard</option><option value="LAWYER">Lawyer</option><option value="ADMIN">Administrator</option></select></div><div><label className="block text-sm font-medium text-gray-300 mb-1">{t('admin.status')}</label><select value={formData.subscription_status} onChange={(e) => setFormData(prev => ({ ...prev, subscription_status: e.target.value as any }))} className="block w-full px-3 py-2 border border-glass-edge rounded-xl bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"><option value="ACTIVE">Active</option><option value="TRIAL">Trial</option><option value="INACTIVE">Inactive</option><option value="expired">Expired</option></select></div><div className="flex space-x-3 pt-4"><button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-glass-edge rounded-md text-gray-300 hover:bg-background-light/50 transition duration-200">{t('dashboard.cancelButton')}</button><button type="submit" disabled={isUpdating} className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-md transition duration-200">{isUpdating ? t('admin.updating') : t('admin.updateUser')}</button></div></form></div></div>;
 };
 
@@ -70,7 +81,7 @@ const DeleteUserModal: React.FC<DeleteUserModalProps> = ({ user, onConfirm, onCl
 // --- MAIN COMPONENT ---
 const AdminDashboardPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -83,7 +94,7 @@ const AdminDashboardPage: React.FC = () => {
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
-  if (!user || user.role !== 'ADMIN') { return <Navigate to="/dashboard" replace />; }
+  if (!currentUser || currentUser.role !== 'ADMIN') { return <Navigate to="/dashboard" replace />; }
 
   useEffect(() => { loadUsers(); }, []);
 
@@ -93,12 +104,27 @@ const AdminDashboardPage: React.FC = () => {
     finally { setLoading(false); }
   };
 
-  const handleEditUser = (userToEdit: AdminUser) => { setSelectedUser(userToEdit); setIsEditModalOpen(true); };
+  const handleEditUser = (userToEdit: AdminUser) => { 
+    // PHOENIX PROTOCOL FIX: Added safety check and logging
+    console.log("Editing user:", userToEdit);
+    if (!userToEdit?.id) {
+      console.error("Cannot edit user: User ID is undefined", userToEdit);
+      return;
+    }
+    setSelectedUser(userToEdit); 
+    setIsEditModalOpen(true); 
+  };
+  
   const handleDeleteUser = (userToDelete: AdminUser) => { setSelectedUser(userToDelete); setIsDeleteModalOpen(true); };
   
   const handleUpdateUser = async (userId: string, updateData: UpdateUserRequest) => {
     setUpdatingUserId(userId);
-    try { const updatedUser = await apiService.updateUser(userId, updateData); setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u)); setIsEditModalOpen(false); setSelectedUser(null); } 
+    try { 
+      const updatedUser = await apiService.updateUser(userId, updateData); 
+      setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u)); 
+      setIsEditModalOpen(false); 
+      setSelectedUser(null); 
+    } 
     catch (error: any) { alert(error.response?.data?.message || t('admin.updateUserFailure')); } 
     finally { setUpdatingUserId(null); }
   };
@@ -141,7 +167,7 @@ const AdminDashboardPage: React.FC = () => {
       </div>
       <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-glass-edge/50"><h2 className="text-lg font-semibold text-white">{t('admin.users')} ({filteredUsers.length})</h2></div>
-        <div className="overflow-x-auto"><table className="min-w-full divide-y divide-glass-edge/50"><thead className="bg-background-dark/50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.user')}</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.role')}</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.status')}</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.casesDocs')}</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.created')}</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.lastLogin')}</th><th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.actions')}</th></tr></thead><tbody className="divide-y divide-glass-edge/50">{filteredUsers.map((u) => <UserRow key={u.id} user={u} currentUserId={user.id} onEdit={handleEditUser} onDelete={handleDeleteUser} />)}</tbody></table>{filteredUsers.length === 0 && <div className="text-center py-12"><UserX className="mx-auto h-12 w-12 text-gray-400 mb-4" /><h3 className="text-lg font-medium text-gray-300 mb-2">{t('admin.noUsersFound')}</h3><p className="text-gray-400">{users.length === 0 ? t('admin.noUsersInSystem') : t('admin.adjustFilters')}</p></div>}</div>
+        <div className="overflow-x-auto"><table className="min-w-full divide-y divide-glass-edge/50"><thead className="bg-background-dark/50"><tr><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.user')}</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.role')}</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.status')}</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.casesDocs')}</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.created')}</th><th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.lastLogin')}</th><th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.actions')}</th></tr></thead><tbody className="divide-y divide-glass-edge/50">{filteredUsers.map((u) => <UserRow key={u.id} user={u} currentUserId={currentUser.id} onEdit={handleEditUser} onDelete={handleDeleteUser} />)}</tbody></table>{filteredUsers.length === 0 && <div className="text-center py-12"><UserX className="mx-auto h-12 w-12 text-gray-400 mb-4" /><h3 className="text-lg font-medium text-gray-300 mb-2">{t('admin.noUsersFound')}</h3><p className="text-gray-400">{users.length === 0 ? t('admin.noUsersInSystem') : t('admin.adjustFilters')}</p></div>}</div>
       </div>
       {isEditModalOpen && selectedUser && <EditUserModal user={selectedUser} onUpdate={handleUpdateUser} onClose={() => { setIsEditModalOpen(false); setSelectedUser(null); }} isUpdating={updatingUserId === selectedUser.id} t={t} />}
       {isDeleteModalOpen && selectedUser && <DeleteUserModal user={selectedUser} onConfirm={handleConfirmDelete} onClose={() => { setIsDeleteModalOpen(false); setSelectedUser(null); }} isDeleting={deletingUserId === selectedUser.id} t={t} />}
