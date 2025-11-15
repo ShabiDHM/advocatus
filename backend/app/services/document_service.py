@@ -1,8 +1,8 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL PHASE VI - MODIFICATION 6.0 (Real-Time Integrity)
-# CORRECTION: Added a dedicated 'findings_update' broadcast on document deletion.
-# This ensures the frontend is explicitly notified to update its findings list,
-# resolving the state desynchronization issue.
+# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TRANSACTIONAL DELETE)
+# CORRECTION: The 'delete_document_by_id' function now returns the IDs of the
+# findings it has deleted. This allows the API endpoint to provide this data
+# back to the client, breaking the dependency on the WebSocket for state updates.
 
 import logging
 from bson import ObjectId
@@ -27,11 +27,8 @@ BROADCAST_ENDPOINT = f"{INTERNAL_API_URL}/internal/broadcast/document-update"
 def trigger_websocket_broadcast(payload_dict: dict):
     """Triggers a websocket broadcast via an internal API endpoint."""
     try:
-        # The internal endpoint now handles routing, this function just sends the payload.
         json_payload = json.dumps(payload_dict, default=str)
-        
         headers = {"Content-Type": "application/json"}
-        # Use a longer timeout for internal service-to-service communication
         with httpx.Client(timeout=10.0) as client:
             response = client.post(BROADCAST_ENDPOINT, content=json_payload, headers=headers)
         if response.status_code != 200:
@@ -141,7 +138,7 @@ def get_document_content_by_key(storage_key: str) -> Optional[str]:
         logger.error(f"Failed to retrieve content from storage for key {storage_key}: {e}", exc_info=True)
         return None
 
-def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: ObjectId, owner: UserInDB):
+def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: ObjectId, owner: UserInDB) -> List[str]:
     document_to_delete = db.documents.find_one({"_id": doc_id, "owner_id": owner.id})
     if not document_to_delete:
         raise HTTPException(status_code=404, detail="Document not found.")
@@ -152,18 +149,7 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     processed_key = document_to_delete.get("processed_text_storage_key")
     preview_key = document_to_delete.get("preview_storage_key")
 
-    findings_service.delete_findings_by_document_id(db=db, document_id=doc_id)
-    
-    # PHOENIX PROTOCOL CURE: Broadcast a dedicated findings update message
-    findings_update_payload = {
-        "type": "findings_update",
-        "case_id": case_id_str,
-        "payload": {
-            "action": "delete_by_document",
-            "document_id": doc_id_str
-        }
-    }
-    trigger_websocket_broadcast(findings_update_payload)
+    deleted_finding_ids = findings_service.delete_findings_by_document_id(db=db, document_id=doc_id)
     
     vector_store_service.delete_document_embeddings(document_id=doc_id_str)
     if storage_key: storage_service.delete_file(storage_key=storage_key)
@@ -172,16 +158,22 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     
     delete_result = db.documents.delete_one({"_id": doc_id, "owner_id": owner.id})
     
-    if delete_result.deleted_count == 1:
-        document_delete_payload = {
-            "id": doc_id_str,
-            "case_id": case_id_str,
-            "status": "DELETED"
-        }
-        trigger_websocket_broadcast({
-            "type": "document_update",
-            "case_id": case_id_str,
-            "payload": document_delete_payload
-        })
-    else:
+    if delete_result.deleted_count != 1:
         raise HTTPException(status_code=500, detail="Failed to delete document from database.")
+
+    # Broadcast WebSocket updates for resilience (they might fail, but the API will succeed)
+    try:
+        findings_update_payload = {
+            "type": "findings_update", "case_id": case_id_str,
+            "payload": {"action": "delete_by_document", "document_id": doc_id_str}
+        }
+        trigger_websocket_broadcast(findings_update_payload)
+        
+        document_delete_payload = {"id": doc_id_str, "case_id": case_id_str, "status": "DELETED"}
+        trigger_websocket_broadcast({
+            "type": "document_update", "case_id": case_id_str, "payload": document_delete_payload
+        })
+    except Exception:
+        logger.warning(f"WebSocket broadcast failed during document deletion for doc {doc_id_str}, but deletion was successful.")
+
+    return [str(fid) for fid in deleted_finding_ids]

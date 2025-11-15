@@ -1,10 +1,16 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL MODIFICATION 48.0 (TYPE INTEGRITY CURE - FINAL)
-// CORRECTION: Fixed the typo in UpdateUserRequest where 'LAWYER' was incorrectly
-// typed as 'LAWY-ER'. This unifies the Role type across User, AdminUser, and
-// UpdateUserRequest, resolving the TS2322 build error.
+// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TYPE INTEGRITY)
+// CORRECTION: Added the 'DeletedDocumentResponse' interface. This defines the
+// shape of the new transactional API response for document deletion and resolves
+// the "has no exported member" compilation errors in the frontend.
 
 export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
+
+// This is the new, required type definition.
+export interface DeletedDocumentResponse {
+  documentId: string;
+  deletedFindingIds: string[];
+}
 
 export interface User {
   id: string;
@@ -129,7 +135,7 @@ export interface AdminUser {
 
 export interface UpdateUserRequest {
   email?: string;
-  role?: 'LAWYER' | 'ADMIN' | 'STANDARD'; // TYPO FIXED: 'LAWY-ER' -> 'LAWYER'
+  role?: 'LAWYER' | 'ADMIN' | 'STANDARD';
   subscription_status?: 'ACTIVE' | 'INACTIVE' | 'TRIAL' | 'expired';
 }
 

@@ -1,13 +1,12 @@
 // FILE: /home/user/advocatus-frontend/src/services/api.ts
-// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (SAFE TOKEN VALIDATION)
-// CORRECTION: Re-introduced 'decodeJwtPayload' and 'ensureValidToken'. The WebSocket hook
-// will now explicitly await 'ensureValidToken' before connecting. This eliminates the race
-// condition where the hook might attempt to connect with an expired token before the
-// main Axios interceptor has had a chance to refresh it. This is the definitive fix
-// for the WebSocket authentication regression.
+// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TYPE SYNCHRONIZATION)
+// CORRECTION: The return type of the 'deleteDocument' function has been corrected
+// from 'Promise<void>' to 'Promise<DeletedDocumentResponse>'. This aligns the
+// frontend API service with the backend's transactional response and resolves
+// the final "Argument of type 'void' is not assignable" TypeScript error.
 
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
-import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult } from '../data/types';
+import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult, DeletedDocumentResponse } from '../data/types';
 
 interface LoginResponse { access_token: string; }
 interface RegisterResponse { message: string; }
@@ -55,7 +54,6 @@ export class ApiService {
             if (this.onUnauthorized) this.onUnauthorized();
             throw new Error("Authentication token not found.");
         }
-        // Check if token is expired or will expire in the next 20 seconds
         const payload = decodeJwtPayload(token);
         const isExpired = !payload || payload.exp * 1000 < Date.now() + 20000;
         if (isExpired) {
@@ -187,7 +185,12 @@ export class ApiService {
         formData.append('file', file); 
         return (await this.axiosInstance.post(`/cases/${caseId}/documents/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
     }
-    public async deleteDocument(caseId: string, documentId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}/documents/${documentId}`); }
+    
+    // This is the definitive fix.
+    public async deleteDocument(caseId: string, documentId: string): Promise<DeletedDocumentResponse> { 
+        const response = await this.axiosInstance.delete(`/cases/${caseId}/documents/${documentId}`);
+        return response.data;
+    }
     
     public async getFindings(caseId: string): Promise<Finding[]> {
         const response = await this.axiosInstance.get<FindingsResponse>(`/cases/${caseId}/findings`);

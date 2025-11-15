@@ -1,26 +1,24 @@
 // FILE: /home/user/advocatus-frontend/src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL PHASE VIII - MODIFICATION 10.0 (Type Unification and Finalization)
-// CORRECTION: Unified the two separate prop interfaces into a single, definitive
-// 'DocumentsPanelProps'. This ensures the component's signature is clear and that
-// all required props, including 'findings', are correctly typed and expected,
-// resolving the final TS2741 build error.
+// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TRANSACTIONAL DELETE)
+// CORRECTION: The 'onDocumentDeleted' prop and the handleDeleteDocument function
+// have been updated to handle the new transactional API response, ensuring the
+// parent component has the data it needs to correctly update its state.
 
 import React, { useState, useRef, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Document, Finding, ConnectionStatus } from '../data/types';
+import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
 import { FolderOpen, Eye, Repeat, Trash, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-// Unified and definitive props interface
 interface DocumentsPanelProps {
   caseId: string;
   documents: Document[];
   findings: Finding[];
   t: TFunction;
-  onDocumentDeleted: (documentId: string) => void;
+  onDocumentDeleted: (response: DeletedDocumentResponse) => void;
   onDocumentUploaded: (newDocument: Document) => void;
   onViewOriginal: (document: Document) => void;
   connectionStatus: ConnectionStatus;
@@ -65,9 +63,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       const responseData = await apiService.uploadDocument(caseId, file);
       const newDoc = { ...responseData, id: responseData.id || responseData._id };
       if (!newDoc.id) throw new Error("Upload succeeded but the server response was missing a document ID.");
-      delete (newDoc as any)._id; // eslint-disable-line @typescript-eslint/no-explicit-any
+      delete (newDoc as any)._id;
       onDocumentUploaded(newDoc as Document);
-    } catch (error: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
       setUploadError(t('documentsPanel.uploadFailed') + `: ${error.message}`);
     } finally {
       setIsUploading(false);
@@ -79,8 +77,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     if (typeof documentId !== 'string' || documentId.trim() === '') return;
     if (!window.confirm(t('documentsPanel.confirmDelete'))) return;
     try {
-      await apiService.deleteDocument(caseId, documentId);
-      onDocumentDeleted(documentId);
+      const response = await apiService.deleteDocument(caseId, documentId);
+      onDocumentDeleted(response);
     } catch (error) {
       console.error("Failed to delete document:", error);
       alert(t('documentsPanel.deleteFailed'));

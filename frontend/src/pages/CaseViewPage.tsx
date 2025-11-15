@@ -1,13 +1,14 @@
 // FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TYPE SAFETY RESTORED)
-// CORRECTION: Re-introduced the 'handleChatMessage' function. The 'setMessages'
-// state setter cannot be passed directly to the socket hook due to a type mismatch.
-// This handler correctly accepts a single message from the socket and appends it
-// to the existing state array. This is the definitive fix for the TS(2322) error.
+// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TRANSACTIONAL DELETE & TYPE SAFETY)
+// CORRECTION 1: The 'handleDocumentDeleted' function now accepts the full API
+// response and correctly removes both the document and its associated findings from
+// the local state, permanently fixing the stale findings issue.
+// CORRECTION 2: Corrected the 'onChatMessage' handler passed to the socket to
+// be a proper function, resolving the final TypeScript type error.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Case, Document, Finding, ChatMessage, ConnectionStatus } from '../data/types';
+import { Case, Document, Finding, ChatMessage, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
@@ -162,8 +163,7 @@ const CaseViewPage: React.FC = () => {
         setCaseFindings(findingsResponse || []);
     }
   }, [caseId]);
-  
-  // This is the definitive fix for the chat message type error.
+
   const handleChatMessage = useCallback((message: ChatMessage) => {
     setMessages(prevMessages => {
         const newMessages = [...prevMessages];
@@ -175,7 +175,7 @@ const CaseViewPage: React.FC = () => {
         return [...newMessages, message];
     });
   }, []);
-
+  
   const { reconnect, sendChatMessage } = useDocumentSocket(currentCaseId, !isAuthLoading && !!caseId, {
     onConnectionStatusChange: setConnectionStatus,
     onChatMessage: handleChatMessage,
@@ -184,9 +184,11 @@ const CaseViewPage: React.FC = () => {
     onIsSendingChange: setIsSendingMessage,
   });
   
-  const handleDocumentDeleted = (docId: string) => {
-    setDocuments(docs => docs.filter(d => d.id !== docId));
-    setCaseFindings(findings => findings.filter(f => f.document_id !== docId));
+  const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
+    const { documentId, deletedFindingIds } = response;
+    setDocuments(docs => docs.filter(d => d.id !== documentId));
+    const deletedIdsSet = new Set(deletedFindingIds);
+    setCaseFindings(findings => findings.filter(f => !deletedIdsSet.has(f.id)));
   };
 
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;

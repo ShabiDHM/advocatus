@@ -1,8 +1,13 @@
 # FILE: backend/app/api/endpoints/cases.py
+# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TRANSACTIONAL DELETE)
+# CORRECTION: The 'delete_document' endpoint now returns a 200 OK with a JSON
+# payload containing the deleted document's ID and the IDs of all findings that
+# were deleted along with it. This provides the frontend with all the information
+# it needs to correctly and transactionally update its state.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from pymongo.database import Database
 import redis
@@ -24,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 class DocumentContentOut(BaseModel):
     text: str
+
+class DeletedDocumentResponse(BaseModel):
+    documentId: str
+    deletedFindingIds: List[str]
 
 def validate_object_id(id_str: str) -> ObjectId:
     try: return ObjectId(id_str)
@@ -47,7 +56,6 @@ async def get_single_case(case_id: str, current_user: Annotated[UserInDB, Depend
         raise HTTPException(status_code=404, detail="Case not found.")
     return case
 
-# PHOENIX PROTOCOL CURE: Corrected the invalid status code from HTTP_24_NO_CONTENT to HTTP_204_NO_CONTENT.
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validated_case_id = validate_object_id(case_id)
@@ -93,10 +101,7 @@ async def get_document_by_id(case_id: str, doc_id: str, current_user: Annotated[
 
 @router.get("/{case_id}/documents/{doc_id}/preview", tags=["Documents"], response_class=StreamingResponse)
 async def get_document_preview(
-    case_id: str,
-    doc_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
+    case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)
 ):
     try:
         file_stream, document = await asyncio.to_thread(
@@ -110,18 +115,13 @@ async def get_document_preview(
         return StreamingResponse(file_stream, media_type="application/pdf", headers=headers)
     except FileNotFoundError:
          raise HTTPException(status_code=404, detail="Document preview is not yet available or failed to generate.")
-    except HTTPException as e:
-        raise e
     except Exception as e:
         logger.error(f"Failed to stream preview for document {doc_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Could not retrieve the document preview.")
 
 @router.get("/{case_id}/documents/{doc_id}/original", tags=["Documents"], response_class=StreamingResponse)
 async def get_original_document(
-    case_id: str, 
-    doc_id: str, 
-    current_user: Annotated[UserInDB, Depends(get_current_user)], 
-    db: Database = Depends(get_db)
+    case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)
 ):
     try:
         file_stream, document = await asyncio.to_thread(
@@ -131,8 +131,6 @@ async def get_original_document(
             raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
         headers = {'Content-Disposition': f'inline; filename="{document.file_name}"'}
         return StreamingResponse(file_stream, media_type=document.mime_type, headers=headers)
-    except HTTPException as e:
-        raise e
     except Exception as e:
         logger.error(f"Failed to stream original document {doc_id} for case {case_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Could not retrieve the document file.")
@@ -157,8 +155,26 @@ async def get_document_report_pdf(case_id: str, doc_id: str, current_user: Annot
     headers = {'Content-Disposition': f'inline; filename="{document.file_name}.pdf"'}
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
 
-@router.delete("/{case_id}/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Documents"])
-async def delete_document(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db), redis_client: redis.Redis = Depends(get_sync_redis)):
+@router.delete("/{case_id}/documents/{doc_id}", response_model=DeletedDocumentResponse, tags=["Documents"])
+async def delete_document(
+    case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    db: Database = Depends(get_db), redis_client: redis.Redis = Depends(get_sync_redis)
+):
     validated_doc_id = validate_object_id(doc_id)
-    await asyncio.to_thread(document_service.delete_document_by_id, db=db, redis_client=redis_client, doc_id=validated_doc_id, owner=current_user)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    
+    document = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
+    if str(document.case_id) != case_id:
+        raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
+
+    deleted_finding_ids = await asyncio.to_thread(
+        document_service.delete_document_by_id, 
+        db=db, redis_client=redis_client, doc_id=validated_doc_id, owner=current_user
+    )
+    
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "documentId": doc_id,
+            "deletedFindingIds": deleted_finding_ids
+        }
+    )
