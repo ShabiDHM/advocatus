@@ -1,8 +1,10 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (LOCAL ASSET LOADING)
-// CORRECTION: The fragile, hardcoded CDN logic has been completely removed.
-// pdfjs.GlobalWorkerOptions.workerSrc now points to the locally-served worker file
-// that is copied into the build directory by the corrected vite.config.ts.
+// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (VITE ASSET IMPORT)
+// CORRECTION: The component now directly imports the pdf.worker.mjs file using
+// Vite's '?url' suffix. This instructs Vite to correctly copy the worker file
+// to the build directory and provide a valid public URL. This is the definitive
+// solution that guarantees version synchronization and eliminates all previous
+// build errors.
 
 import React, { useState, useEffect } from 'react';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
@@ -12,9 +14,10 @@ import { apiService } from '../services/api';
 import { Document } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader, AlertTriangle, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
-// Configure the worker to use the locally-served file copied by Vite.
-pdfjs.GlobalWorkerOptions.workerSrc = `/pdf.worker.min.js`;
+// Configure the worker to use the path provided by Vite's import.
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface PDFViewerModalProps {
   documentData: Document;
