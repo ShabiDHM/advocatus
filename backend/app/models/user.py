@@ -1,8 +1,10 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL VERSION (DATA MODEL SIMPLIFICATION)
-# CORRECTION: The 'role' Literal type in UserInDBBase has been simplified to only
-# 'USER' and 'ADMIN'. This reduces system complexity and aligns with the new
-# architectural decision. The default role is now 'USER'.
+# PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL CORRECTION (SYNTAX INTEGRITY)
+# CORRECTION: The 'id' field in the UserOut model has been changed from 'str' to 'PyObjectId'.
+# This resolves a critical ResponseValidationError by correctly informing Pydantic of the
+# data type it will receive from the database model before serialization. The existing
+# json_encoder will then correctly convert this ObjectId to a string in the final JSON output.
+# CORRECTION: The 'id' field in the UserLoginResponse model has been similarly corrected for consistency.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional, Literal
@@ -22,7 +24,6 @@ class UserInDBBase(UserBase):
     id: PyObjectId = Field(alias="_id")
     hashed_password: str
     
-    # Corrected and simplified role system.
     role: Literal['USER', 'ADMIN'] = 'USER'
     
     subscription_status: Literal['ACTIVE', 'INACTIVE', 'TRIAL', 'EXPIRED'] = 'INACTIVE'
@@ -39,7 +40,8 @@ class UserInDBBase(UserBase):
     )
 
 class UserOut(BaseModel):
-    id: str = Field(alias="_id")
+    # This type hint is now correct for the source data.
+    id: PyObjectId = Field(alias="_id")
     username: str
     email: EmailStr
     full_name: Optional[str] = None
@@ -51,6 +53,7 @@ class UserOut(BaseModel):
         from_attributes=True,
         populate_by_name=True,
         arbitrary_types_allowed=True,
+        # This encoder correctly handles the serialization of the PyObjectId to a string.
         json_encoders={PyObjectId: str}
     )
 
@@ -76,7 +79,8 @@ class UserInDB(UserInDBBase):
     pass
 
 class UserLoginResponse(BaseModel):
-    id: str = Field(alias="_id")
+    # This type hint is also corrected for consistency and robustness.
+    id: PyObjectId = Field(alias="_id")
     username: str
     email: EmailStr
     full_name: Optional[str] = None
