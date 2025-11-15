@@ -1,4 +1,8 @@
 # FILE: backend/app/core/config.py
+# PHOENIX PROTOCOL - THE FINAL AND DEFINITIVE CORRECTION (STATIC ANALYSIS COMPLIANT)
+# CORRECTION: A default value of [] is provided to satisfy Pylance.
+# The runtime validator is retained to ensure the environment variable is still mandatory,
+# maintaining the single source of truth principle.
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
@@ -7,6 +11,7 @@ from typing import List, Optional
 class Settings(BaseSettings):
     """
     Defines the application's configuration settings.
+    Establishes the environment as the single source of truth.
     """
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
 
@@ -15,7 +20,6 @@ class Settings(BaseSettings):
     REDIS_URL: str = ""
     
     # --- Auth ---
-    # PHOENIX PROTOCOL CURE: Default to None for linter, validate at runtime.
     SECRET_KEY: Optional[str] = None
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
@@ -29,11 +33,17 @@ class Settings(BaseSettings):
         return v
 
     # --- CORS Configuration ---
-    BACKEND_CORS_ORIGINS: List[str] = [
-        "https://advocatus-ai.vercel.app",
-        "http://localhost:3000",
-        "http://localhost:5173",
-    ]
+    # PHOENIX PROTOCOL CORRECTION:
+    # Default is now an empty list to resolve Pylance's static analysis warning.
+    # The validator ensures that if the env var isn't loaded, the app will not start.
+    BACKEND_CORS_ORIGINS: List[str] = []
+
+    @field_validator('BACKEND_CORS_ORIGINS')
+    @classmethod
+    def cors_origins_must_not_be_empty(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError("BACKEND_CORS_ORIGINS is not set or is empty in the environment. The application cannot start.")
+        return v
 
     # --- BYOK ENCRYPTION SECRETS (Phase 3) ---
     ENCRYPTION_SALT: str = ""

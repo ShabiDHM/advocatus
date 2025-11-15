@@ -1,9 +1,8 @@
 # FILE: backend/app/main.py
 # PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL VERSION (APPLICATION ENTRY POINT)
 # CORRECTION: The router import system has been re-architected to be explicit.
-# Instead of importing each module, we now directly import the 'router' object from
-# each module with a unique alias. This resolves the Pylance 'reportAttributeAccessIssue'
-# and makes the application's dependency structure robust and unambiguous.
+# CORRECTION: CORS configuration is now driven by a single source of truth (settings)
+# to eliminate architectural ambiguity and ensure system integrity.
 
 from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.responses import JSONResponse
@@ -17,7 +16,6 @@ from app.core.lifespan import lifespan
 from app.core.config import settings
 
 # --- Explicit Router Imports ---
-# This pattern is robust and resolves static analysis errors.
 try:
     from app.api.endpoints.auth import router as auth_router
     from app.api.endpoints.cases import router as cases_router
@@ -48,18 +46,15 @@ class ForceHTTPSMiddleware(BaseHTTPMiddleware):
 
 app = FastAPI(title="The Phoenix Protocol API", lifespan=lifespan)
 
-# --- CORS Configuration ---
-known_origins = [
-    "https://advocatus-ai.vercel.app",
-    "http://localhost:5173",
-    "http://localhost:3000",
-]
-all_allowed_origins = list(set(known_origins + settings.BACKEND_CORS_ORIGINS))
+# --- CORS Configuration (Single Source of Truth) ---
+# PHOENIX PROTOCOL CORRECTION:
+# The redundant 'known_origins' list has been removed.
+# The middleware now directly and cleanly uses the validated list from settings.
 vercel_preview_regex = r"https:\/\/advocatus-ai-.*\.vercel\.app"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=all_allowed_origins,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_origin_regex=vercel_preview_regex,
     allow_credentials=True,
     allow_methods=["*"],
