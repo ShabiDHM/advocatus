@@ -4,6 +4,7 @@
 #    Pydantic decorator '@field_validator'.
 # 2. This resolves the 'reportUndefinedVariable' build error and restores the integrity
 #    of the data model.
+# 3. PHOENIX PROTOCOL FIX: Updated SubscriptionUpdate to accept both frontend and backend status formats
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, Literal, Any
@@ -12,11 +13,39 @@ from datetime import datetime
 from .common import PyObjectId
 
 class SubscriptionUpdate(BaseModel):
-    subscription_status: Literal['active', 'expired', 'none']
+    # PHOENIX PROTOCOL FIX: Accept both frontend (uppercase) and backend (lowercase) status formats
+    subscription_status: Optional[str] = None
     subscription_expiry_date: Optional[datetime] = None
     last_payment_date: Optional[datetime] = None
     last_payment_amount: Optional[float] = None
     admin_notes: Optional[str] = None
+    # Added fields for general user updates
+    email: Optional[str] = None
+    role: Optional[str] = None
+
+    @field_validator('subscription_status', mode='before')
+    @classmethod
+    def normalize_subscription_status(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            # Normalize to backend format (lowercase)
+            normalized = v.lower()
+            # Map frontend values to backend values
+            if normalized in ['active', 'inactive', 'trial', 'expired']:
+                return normalized
+            # Allow any value but normalize case
+            return normalized
+        return v
+
+    @field_validator('role', mode='before')
+    @classmethod
+    def normalize_role(cls, v: Any) -> Optional[str]:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return v.upper()
+        return v
 
 class AdminUserOut(BaseModel):
     """
