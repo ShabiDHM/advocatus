@@ -1,9 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - DEFINITIVE AND FINAL VERSION (LOCAL ASSET LOADING)
+// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (LOCAL ASSET LOADING)
 // CORRECTION: The fragile, hardcoded CDN logic has been completely removed.
 // pdfjs.GlobalWorkerOptions.workerSrc now points to the locally-served worker file
 // that is copied into the build directory by the corrected vite.config.ts.
-// This guarantees version synchronization and robustly fixes the PDF rendering failure.
 
 import React, { useState, useEffect } from 'react';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';

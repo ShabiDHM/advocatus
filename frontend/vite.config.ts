@@ -1,13 +1,17 @@
 // FILE: vite.config.ts
-// PHOENIX PROTOCOL - DEFINITIVE AND FINAL VERSION (ASSET MANAGEMENT)
-// CORRECTION: The flawed custom plugin has been replaced with 'vite-plugin-static-copy'.
-// This is the architecturally sound solution to copy the required pdf.worker.min.js
-// from node_modules into the final build directory, guaranteeing version synchronization
-// and eliminating the fragile CDN dependency.
+// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (DYNAMIC PATH RESOLUTION)
+// CORRECTION: The fragile, hardcoded path to pdf.worker.min.js has been replaced
+// with a dynamic, programmatic path resolution. This uses Node.js's 'require.resolve'
+// to find the 'pdfjs-dist' package wherever npm has placed it, making the build
+// process resilient and permanently fixing the "No file was found" error.
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { viteStaticCopy } from 'vite-plugin-static-copy'
+import path from 'path'
+
+// Find the absolute path to the pdfjs-dist package
+const pdfjsDistPath = path.dirname(require.resolve('pdfjs-dist/package.json'));
 
 export default defineConfig({
   plugins: [
@@ -15,7 +19,8 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: 'node_modules/react-pdf/node_modules/pdfjs-dist/build/pdf.worker.min.js',
+          // Use the dynamically found path to the worker file
+          src: `${pdfjsDistPath}/build/pdf.worker.min.js`,
           dest: ''
         }
       ]
