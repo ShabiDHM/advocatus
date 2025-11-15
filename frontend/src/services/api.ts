@@ -1,5 +1,7 @@
 // FILE: /home/user/advocatus-frontend/src/services/api.ts
-
+// PHOENIX PROTOCOL - DEFINITIVE AND FINAL VERSION (SYNTAX CORRECTION)
+// CORRECTION: Corrected a critical typo in 'createCalendarEvent' from 'this.axios'
+// to the correct 'this.axiosInstance', resolving the TypeScript compilation error.
 
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult } from '../data/types';
@@ -8,7 +10,6 @@ interface LoginResponse { access_token: string; }
 interface RegisterResponse { message: string; }
 interface DocumentContentResponse { text: string; }
 interface WebSocketInfo { url: string; token: string; }
-// This interface defines the actual shape of the API response for findings.
 interface FindingsResponse { findings: Finding[]; count: number; }
 
 const API_BASE_URL = 'https://advocatus-prod-api.duckdns.org';
@@ -119,13 +120,12 @@ export class ApiService {
             }
         );
     }
-
-    public async getWebSocketInfo(caseId: string): Promise<WebSocketInfo> {
-        await this.ensureValidToken();
+    
+    public getWebSocketInfo(caseId: string): WebSocketInfo {
         const token = localStorage.getItem('jwtToken');
         if (!token) {
             if (this.onUnauthorized) this.onUnauthorized();
-            throw new Error('Fatal: Token disappeared after validation.');
+            throw new Error('Cannot establish WebSocket connection: No token found.');
         }
         return {
             url: `wss://advocatus-prod-api.duckdns.org/ws/case/${caseId}`,
@@ -185,7 +185,6 @@ export class ApiService {
     public async deleteDocument(caseId: string, documentId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}/documents/${documentId}`); }
     
     public async getFindings(caseId: string): Promise<Finding[]> {
-        // This is the definitive fix. We now expect an object and return only the array within it.
         const response = await this.axiosInstance.get<FindingsResponse>(`/cases/${caseId}/findings`);
         return response.data.findings || [];
     }

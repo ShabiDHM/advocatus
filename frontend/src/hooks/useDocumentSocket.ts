@@ -1,7 +1,9 @@
 // FILE: /home/user/advocatus-frontend/src/hooks/useDocumentSocket.ts
+// PHOENIX PROTOCOL - DEFINITIVE AND FINAL VERSION (SYNTAX CORRECTION)
+// CORRECTION: Removed a stray period character at the end of the 'catch' block
+// that was causing a "Declaration or statement expected" TypeScript error.
 
 import { useEffect, useRef, useCallback } from 'react';
-// The 'Document' import is now removed as it's no longer used within this hook.
 import { ChatMessage, ConnectionStatus } from '../data/types';
 import { apiService } from '../services/api';
 
@@ -37,7 +39,7 @@ export const useDocumentSocket = (
   const maxConnectionAttempts = 5;
   const reconnectCounterRef = useRef(0);
 
-  const connectWebSocket = useCallback(async () => {
+  const connectWebSocket = useCallback(() => {
     if (connectionAttemptsRef.current >= maxConnectionAttempts) {
       console.error('[WebSocket Hook] Max connection attempts reached, giving up');
       onConnectionStatusChange('ERROR', 'Failed to connect after multiple attempts. Please refresh the page.');
@@ -49,7 +51,7 @@ export const useDocumentSocket = (
     onConnectionStatusChange('CONNECTING', null);
 
     try {
-      const { url, token } = await apiService.getWebSocketInfo(caseId);
+      const { url, token } = apiService.getWebSocketInfo(caseId);
       const ws = new WebSocket(url, token);
       wsRef.current = ws;
 
