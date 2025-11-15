@@ -3,6 +3,7 @@
 # CORRECTION: The flawed 'get_calendar_service' dependency has been completely
 # removed. This decouples the dependency file from the service layer, permanently
 # breaking the import cycle and resolving the 'unknown import symbol' error.
+# SECURITY FIX: Admin users no longer require active subscription status for admin endpoints.
 
 from fastapi import Depends, HTTPException, status, WebSocket, Cookie
 from fastapi.security import OAuth2PasswordBearer
@@ -67,8 +68,10 @@ def get_current_active_user(
     return current_user
 
 def get_current_admin_user(
-    current_user: Annotated[UserInDB, Depends(get_current_active_user)]
+    current_user: Annotated[UserInDB, Depends(get_current_user)]  # CHANGED: Removed get_current_active_user dependency
 ) -> UserInDB:
+    # PHOENIX PROTOCOL FIX: Admin users no longer require active subscription status
+    # This allows administrators to access admin endpoints regardless of subscription status
     if current_user.role != 'ADMIN':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
