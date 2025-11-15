@@ -4,11 +4,13 @@
 #    This resolves the "unknown import symbol" error by creating a robust and
 #    unambiguous import path from the application root.
 # 2. All ID fields continue to be consistently typed with the robust 'PyObjectId'.
+# 3. PHOENIX PROTOCOL FIX: Added field validator to handle string case_id from frontend
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
+from bson import ObjectId
 
 from app.models.common import PyObjectId # CURE: Changed to absolute import path.
 
@@ -47,6 +49,20 @@ class CalendarEventBase(BaseModel):
 
 class CalendarEventCreate(CalendarEventBase):
     case_id: PyObjectId
+
+    # PHOENIX PROTOCOL FIX: Handle both string and ObjectId case_id inputs
+    @field_validator('case_id', mode='before')
+    @classmethod
+    def validate_case_id(cls, v):
+        if isinstance(v, str):
+            try:
+                return ObjectId(v)
+            except Exception:
+                raise ValueError(f"Invalid ObjectId string: {v}")
+        elif isinstance(v, ObjectId):
+            return v
+        else:
+            raise ValueError(f"Expected string or ObjectId, got {type(v)}")
 
 class CalendarEventInDB(CalendarEventBase):
     id: PyObjectId = Field(alias="_id")
