@@ -1,11 +1,7 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL CORRECTION (SYNTAX INTEGRITY)
-# CORRECTION: The 'id' field in the UserOut model has been changed from 'str' to 'PyObjectId'.
-# This resolves a critical ResponseValidationError by correctly informing Pydantic of the
-# data type it will receive from the database model before serialization. The existing
-# json_encoder will then correctly convert this ObjectId to a string in the final JSON output.
-# CORRECTION: The 'id' field in the UserLoginResponse model has been similarly corrected for consistency.
-# SECURITY HARDENING: Added role normalization to ensure consistent uppercase values
+# PHOENIX PROTOCOL MODIFICATION: Subscription Status Normalization
+# CORRECTION: Added subscription_status normalization to match role field behavior
+# This resolves the ValidationError where 'active' (lowercase) doesn't match expected uppercase literals
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict, model_validator
 from typing import Optional, Literal
@@ -42,21 +38,33 @@ class UserInDBBase(UserBase):
     
     @model_validator(mode='before')
     @classmethod
-    def normalize_role_field(cls, values):
-        """Ensure role field is always uppercase to prevent case sensitivity issues"""
-        if isinstance(values, dict) and 'role' in values:
-            role_value = values['role']
-            if isinstance(role_value, str):
-                normalized_role = role_value.upper()
-                if normalized_role in ['USER', 'ADMIN']:
-                    values['role'] = normalized_role
-                else:
-                    # Default to USER if invalid role value
-                    values['role'] = 'USER'
+    def normalize_fields(cls, values):
+        """Ensure role and subscription_status fields are always uppercase to prevent case sensitivity issues"""
+        if isinstance(values, dict):
+            # Normalize role field
+            if 'role' in values:
+                role_value = values['role']
+                if isinstance(role_value, str):
+                    normalized_role = role_value.upper()
+                    if normalized_role in ['USER', 'ADMIN']:
+                        values['role'] = normalized_role
+                    else:
+                        # Default to USER if invalid role value
+                        values['role'] = 'USER'
+            
+            # PHOENIX PROTOCOL CURE: Normalize subscription_status field
+            if 'subscription_status' in values:
+                sub_status_value = values['subscription_status']
+                if isinstance(sub_status_value, str):
+                    normalized_sub = sub_status_value.upper()
+                    if normalized_sub in ['ACTIVE', 'INACTIVE', 'TRIAL', 'EXPIRED']:
+                        values['subscription_status'] = normalized_sub
+                    else:
+                        # Default to INACTIVE if invalid subscription_status value
+                        values['subscription_status'] = 'INACTIVE'
         return values
 
 class UserOut(BaseModel):
-    # This type hint is now correct for the source data.
     id: PyObjectId = Field(alias="_id")
     username: str
     email: EmailStr
@@ -69,7 +77,6 @@ class UserOut(BaseModel):
         from_attributes=True,
         populate_by_name=True,
         arbitrary_types_allowed=True,
-        # This encoder correctly handles the serialization of the PyObjectId to a string.
         json_encoders={PyObjectId: str}
     )
 
@@ -95,7 +102,6 @@ class UserInDB(UserInDBBase):
     pass
 
 class UserLoginResponse(BaseModel):
-    # This type hint is also corrected for consistency and robustness.
     id: PyObjectId = Field(alias="_id")
     username: str
     email: EmailStr
