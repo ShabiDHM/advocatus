@@ -1,15 +1,10 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - DIAGNOSTIC CONFIGURATION (CADDY COMMAND OVERRIDE)
-# CORRECTION: The 'caddy' service now has an explicit 'command' to ensure it
-# loads the Caddyfile and runs in the foreground, directing all logs, including
-# the newly enabled DEBUG logs, to the Docker logging system.
+# PHOENIX PROTOCOL - FINAL PRODUCTION VERSION
 
 services:
   caddy:
     image: caddy:latest
     restart: unless-stopped
-    # This command ensures Caddy loads our file and outputs logs.
-    command: caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     ports:
       - "80:80"
       - "443:443"
