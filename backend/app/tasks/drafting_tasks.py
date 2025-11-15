@@ -1,13 +1,14 @@
-# FILE: backend/app/tasks/drafting_tasks.py
+# FILE: backend/app/tasks/drafting_tasks.py - CORRECTED VERSION
+# PHOENIX PROTOCOL MODIFICATION: Validation Error Resilience
 
 import asyncio
 from bson import ObjectId
 import logging
 from datetime import datetime
+from pydantic import ValidationError
 
 from ..celery_app import celery_app
 from ..services import drafting_service
-# PHOENIX PROTOCOL CURE: Import the global database instance directly.
 from ..core.db import db_instance
 from ..models.user import UserInDB
 
@@ -23,13 +24,21 @@ def process_drafting_job(self, user_id: str, request_data_dict: dict):
     logger.info(f"[JOB:{job_id}] Received drafting job for user {user_id}.")
     
     try:
-        # PHOENIX PROTOCOL CURE: Use the imported db_instance directly.
-        # The task no longer manages its own connection lifecycle.
+        # PHOENIX PROTOCOL CURE: Enhanced user validation with error handling
         user_doc = db_instance.users.find_one({"_id": ObjectId(user_id)})
         if not user_doc:
-            raise Exception(f"User with ID {user_id} not found in the database.")
-        user = UserInDB(**user_doc)
-
+            error_msg = f"User with ID {user_id} not found in the database."
+            logger.error(f"[JOB:{job_id}] {error_msg}")
+            raise Exception(error_msg)
+        
+        # Convert MongoDB document to UserInDB with validation
+        try:
+            user = UserInDB(**user_doc)
+        except ValidationError as e:
+            logger.error(f"[JOB:{job_id}] User data validation failed: {e}")
+            logger.error(f"[JOB:{job_id}] Problematic user document: {user_doc}")
+            raise Exception(f"User data validation failed: {str(e)}")
+        
         async def run_draft_generation():
             stream_generator = drafting_service.generate_draft_stream(
                 context=request_data_dict.get("context", ""),
@@ -39,7 +48,7 @@ def process_drafting_job(self, user_id: str, request_data_dict: dict):
                 case_id=request_data_dict.get("case_id"),
                 jurisdiction=request_data_dict.get("jurisdiction"),
                 favorability=request_data_dict.get("favorability"),
-                db=db_instance # Pass the global instance to the service.
+                db=db_instance
             )
             return "".join([chunk async for chunk in stream_generator])
 
@@ -47,7 +56,9 @@ def process_drafting_job(self, user_id: str, request_data_dict: dict):
         final_document_text = asyncio.run(run_draft_generation())
         
         result_document = {
-            "job_id": job_id, "user_id": user_id, "created_at": datetime.utcnow(),
+            "job_id": job_id, 
+            "user_id": user_id, 
+            "created_at": datetime.utcnow(),
             "status": "SUCCESS", 
             "request_data": request_data_dict,
             "result_text": final_document_text
@@ -62,7 +73,11 @@ def process_drafting_job(self, user_id: str, request_data_dict: dict):
         # Update the job status to FAILURE using the global db_instance.
         db_instance.drafting_results.update_one(
             {"job_id": job_id},
-            {"$set": {"status": "FAILURE", "error_message": str(e), "finished_at": datetime.utcnow()}},
+            {"$set": {
+                "status": "FAILURE", 
+                "error_message": str(e), 
+                "finished_at": datetime.utcnow()
+            }},
             upsert=True
         )
         # Re-raise the original exception so Celery marks the task as failed
