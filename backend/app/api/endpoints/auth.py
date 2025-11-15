@@ -74,9 +74,19 @@ def register(user_in: UserCreate, db: Database = Depends(get_db)):
 @router.post("/refresh", response_model=LoginResponse)
 def refresh_access_token(
     response: Response,
-    current_user: Annotated[UserInDB, Depends(get_current_refresh_user)]
+    current_user: Annotated[UserInDB, Depends(get_current_refresh_user)],
+    db: Database = Depends(get_db)
 ):
-    token_data = { "id": str(current_user.id), "role": current_user.role }
+    # PHOENIX PROTOCOL FIX: Fetch the latest user data from database to ensure role synchronization
+    # This ensures token claims always reflect the current database state
+    current_db_user = user_service.get_user_by_id(db, current_user.id)
+    if not current_db_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User no longer exists"
+        )
+    
+    token_data = { "id": str(current_db_user.id), "role": current_db_user.role }
     tokens = user_service.create_both_tokens(data=token_data)
     set_auth_cookies(response, tokens)
     return LoginResponse(access_token=tokens["access_token"])
