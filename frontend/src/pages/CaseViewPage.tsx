@@ -1,9 +1,11 @@
 // FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL PHASE VIII - MODIFICATION 9.0 (Type Safety and Prop Drilling)
-// CORRECTION 1: Corrected the Promise.all call for 'getFindings' to handle the
-// API's direct return of a Finding[] array, resolving the TS2352 conversion error.
-// CORRECTION 2: Restored the 'findings' prop on the <DocumentsPanel> component,
-// ensuring the child component receives the data it needs and resolving the TS2741 error.
+// PHOENIX PROTOCOL - DEFINITIVE AND FINAL VERSION (ROBUST STATE MANAGEMENT)
+// CORRECTION 1 (POLLING): Implemented a polling mechanism to check document status after
+// upload. This removes reliance on the non-functional WebSocket and guarantees the UI
+// updates when processing is complete.
+// CORRECTION 2 (TRANSACTIONAL DELETE): The onDocumentDeleted handler now correctly
+// removes both the document AND its associated findings from the local state,
+// preventing stale data from persisting in the UI after a deletion.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -108,7 +110,6 @@ const CaseViewPage: React.FC = () => {
       ]);
       setCaseDetails(details);
       setDocuments((initialDocs || []).map(sanitizeDocument));
-      // The API returns Finding[], not { findings: Finding[] }, this is the fix.
       setCaseFindings(findingsResponse || []);
     } catch (err) {
       setError(t('error.failedToLoadCase'));
@@ -124,8 +125,47 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, isAuthLoading, fetchCaseData]);
 
+  // --- DOCUMENT STATUS POLLING ---
+  const pollDocumentStatus = useCallback((docId: string) => {
+    const intervalId = setInterval(async () => {
+        if (!caseId) {
+            clearInterval(intervalId);
+            return;
+        }
+        try {
+            const updatedDoc = await apiService.getDocument(caseId, docId);
+            const sanitized = sanitizeDocument(updatedDoc);
+            
+            const isFinished = sanitized.status.toUpperCase() === 'READY' || sanitized.status.toUpperCase() === 'FAILED';
+            
+            setDocuments(prev => prev.map(d => d.id === sanitized.id ? { ...d, ...sanitized } : d));
 
-  // --- WEBSOCKET EVENT HANDLERS ---
+            if (isFinished) {
+                console.log(`[Polling] Document ${docId} finished with status: ${sanitized.status}. Stopping poll.`);
+                clearInterval(intervalId);
+                // If processing succeeded, refresh findings as well.
+                if (sanitized.status.toUpperCase() === 'READY') {
+                    const findingsResponse = await apiService.getFindings(caseId);
+                    setCaseFindings(findingsResponse || []);
+                }
+            }
+        } catch (error) {
+            console.error(`[Polling] Error fetching status for doc ${docId}, stopping poll:`, error);
+            clearInterval(intervalId);
+        }
+    }, 3000);
+
+    return () => clearInterval(intervalId);
+  }, [caseId]);
+  
+  const handleDocumentUploaded = (newDoc: Document) => {
+    // Add the new document to the state immediately with PENDING status
+    setDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
+    // Start polling for its final status
+    pollDocumentStatus(newDoc.id);
+  };
+
+  // --- WEBSOCKET EVENT HANDLERS (Unused for now but kept for future fix) ---
   const handleConnectionStatusChange = useCallback((status: ConnectionStatus, errorMsg: string | null) => {
     setConnectionStatus(status);
     if (errorMsg) setError(prev => prev || errorMsg);
@@ -142,37 +182,9 @@ const CaseViewPage: React.FC = () => {
         return [...newMessages, message];
     });
   }, []);
-
-  const handleDocumentUpdate = useCallback((docData: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-    const sanitizedDoc = sanitizeDocument({
-      ...docData,
-      created_at: docData.uploadedAt || new Date().toISOString(),
-    });
-
-    if (sanitizedDoc.status?.toUpperCase() === 'DELETED') {
-        console.log('[CaseViewPage] Document deleted event received:', sanitizedDoc.id);
-        setDocuments(prev => prev.filter(d => d.id !== sanitizedDoc.id));
-    } else {
-        setDocuments(prev => {
-            const exists = prev.some(d => d.id === sanitizedDoc.id);
-            if (exists) {
-                console.log('[CaseViewPage] Document updated event received:', sanitizedDoc.id);
-                return prev.map(d => d.id === sanitizedDoc.id ? { ...d, ...sanitizedDoc } : d);
-            } else {
-                console.log('[CaseViewPage] New document added event received:', sanitizedDoc.id);
-                return [sanitizedDoc, ...prev];
-            }
-        });
-    }
-  }, []);
-
-  const handleFindingsUpdate = useCallback((findingsData: { action: string; document_id: string }) => {
-    if (findingsData.action === 'delete_by_document') {
-        console.log('[CaseViewPage] Findings deleted event received for doc:', findingsData.document_id);
-        setCaseFindings(prev => prev.filter(f => f.document_id !== findingsData.document_id));
-    }
-  }, []);
-
+  
+  const handleDocumentUpdate = useCallback(() => {/* Polling handles this now */}, []);
+  const handleFindingsUpdate = useCallback(() => {/* Polling handles this now */}, []);
 
   // --- HOOK INITIALIZATION ---
   const { reconnect, sendChatMessage } = useDocumentSocket(currentCaseId, !isAuthLoading && !!caseId, {
@@ -182,6 +194,15 @@ const CaseViewPage: React.FC = () => {
     onFindingsUpdate: handleFindingsUpdate,
     onIsSendingChange: setIsSendingMessage,
   });
+  
+  // --- TRANSACTIONAL DELETE HANDLER ---
+  const handleDocumentDeleted = (docId: string) => {
+    // Remove the document from the documents list
+    setDocuments(docs => docs.filter(d => d.id !== docId));
+    // Remove all findings associated with that document
+    setCaseFindings(findings => findings.filter(f => f.document_id !== docId));
+    console.log(`[State] Transactionally deleted document ${docId} and its findings.`);
+  };
 
   // --- RENDER LOGIC ---
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
@@ -237,8 +258,8 @@ const CaseViewPage: React.FC = () => {
                   t={t}
                   connectionStatus={connectionStatus}
                   reconnect={reconnect}
-                  onDocumentUploaded={(newDoc) => handleDocumentUpdate(newDoc)}
-                  onDocumentDeleted={(docId) => setDocuments(docs => docs.filter(d => d.id !== docId))}
+                  onDocumentUploaded={handleDocumentUploaded}
+                  onDocumentDeleted={handleDocumentDeleted}
                   onViewOriginal={setViewingDocument}
                 />
                 <ChatPanel
