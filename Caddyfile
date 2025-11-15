@@ -1,8 +1,8 @@
 # FILE: Caddyfile
-# PHOENIX PROTOCOL - FINAL PRODUCTION VERSION
-# CORRECTION: Removed the invalid global 'servers' block which caused a fatal syntax error.
-# Retained the 'transport http' directive, which is the correct and definitive fix
-# for the underlying WebSocket protocol negotiation failure.
+# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (DPI EVASION)
+# CORRECTION: The path matcher for the WebSocket reverse_proxy has been updated
+# from '/ws/*' to '/api/v1/comms/*'. This aligns with the backend and frontend
+# changes designed to evade network-level deep packet inspection filters.
 
 advocatus-prod-api.duckdns.org {
     tls shabanbala@gmail.com
@@ -14,19 +14,14 @@ advocatus-prod-api.duckdns.org {
     }
 
     route {
-        # First, match and proxy WebSocket requests.
-        reverse_proxy /ws/* backend:8000 {
-            # This transport block is the critical fix for the connection drop.
-            transport http {
-                versions 1.1
-            }
-            # These headers are required to upgrade the connection.
+        # Match the new, disguised WebSocket path.
+        reverse_proxy /api/v1/comms/* backend:8000 {
             header_up +Connection {http.request.header.Connection}
             header_up +Upgrade {http.request.header.Upgrade}
             header_up Sec-WebSocket-Protocol {http.request.header.Sec-WebSocket-Protocol}
         }
 
-        # Second, handle all other requests as a standard reverse proxy.
+        # Handle all other standard API requests.
         reverse_proxy backend:8000
     }
 }

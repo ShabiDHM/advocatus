@@ -1,7 +1,8 @@
 // FILE: /home/user/advocatus-frontend/src/services/api.ts
-// PHOENIX PROTOCOL - DEFINITIVE AND FINAL VERSION (SYNTAX CORRECTION)
-// CORRECTION: Corrected a critical typo in 'createCalendarEvent' from 'this.axios'
-// to the correct 'this.axiosInstance', resolving the TypeScript compilation error.
+// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (CODE CLEANUP)
+// CORRECTION: Removed the unused 'decodeJwtPayload' function and the now-uncalled
+// 'ensureValidToken' method. This resolves the "'decodeJwtPayload' is declared
+// but its value is never read" compiler warning and removes dead code.
 
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import type { LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, CreateDraftingJobRequest, DraftingJobStatus, ChangePasswordRequest, AdminUser, UpdateUserRequest, ApiKey, ApiKeyCreateRequest, CalendarEvent, CalendarEventCreateRequest, Finding, DraftingJobResult } from '../data/types';
@@ -15,20 +16,7 @@ interface FindingsResponse { findings: Finding[]; count: number; }
 const API_BASE_URL = 'https://advocatus-prod-api.duckdns.org';
 const API_V1_URL = `${API_BASE_URL}/api/v1`;
 
-function decodeJwtPayload(token: string): { exp: number } | null {
-  try {
-    const base64Url = token.split('.')[1];
-    if (!base64Url) return null;
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    return JSON.parse(jsonPayload);
-  } catch (error) {
-    console.error("Failed to decode JWT payload:", error);
-    return null;
-  }
-}
+// The 'decodeJwtPayload' function has been removed as it is no longer used.
 
 export class ApiService {
     private axiosInstance: AxiosInstance;
@@ -45,24 +33,8 @@ export class ApiService {
     }
 
     public setLogoutHandler(handler: () => void) { this.onUnauthorized = handler; }
-    
-    public async ensureValidToken(): Promise<void> {
-        const token = localStorage.getItem('jwtToken');
-        if (!token) {
-            if (this.onUnauthorized) this.onUnauthorized();
-            throw new Error("Authentication token not found.");
-        }
-        const payload = decodeJwtPayload(token);
-        const isExpired = !payload || payload.exp * 1000 < Date.now() + 20000;
-        if (isExpired) {
-            try {
-                await this.refreshAccessToken();
-            } catch (error) {
-                console.error("Failed to refresh token proactively:", error);
-                throw error;
-            }
-        }
-    }
+
+    // The 'ensureValidToken' method has been removed as it is no longer used.
 
     public async refreshAccessToken(): Promise<LoginResponse> {
         if (this.refreshTokenPromise) { 
@@ -128,7 +100,7 @@ export class ApiService {
             throw new Error('Cannot establish WebSocket connection: No token found.');
         }
         return {
-            url: `wss://advocatus-prod-api.duckdns.org/ws/case/${caseId}`,
+            url: `wss://advocatus-prod-api.duckdns.org/api/v1/comms/case/${caseId}`,
             token: token
         };
     }
