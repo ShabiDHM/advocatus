@@ -1,13 +1,5 @@
 // FILE: /home/user/advocatus-frontend/src/pages/DocumentViewPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 21.0 (FINAL UI POLISH & LOGIC FIX):
-// 1. UI DECLUTTER: Removed the Document ID field from the "Details" card as it is not
-//    relevant to the end-user, creating a cleaner interface as requested.
-// 2. LOGIC CORRECTION: Fixed the conditional rendering for the "Summary" section to
-//    correctly display the AI-generated `docDetails.summary` when it exists, and only
-//    show the translated placeholder when it does not.
-//
-// PHOENIX PROTOCOL MODIFICATION 20.0 (FINAL UI & SECURITY RE-ARCHITECTURE)
-// ...
+
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';

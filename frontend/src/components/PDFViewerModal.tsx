@@ -10,11 +10,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Loader, AlertTriangle, ChevronLeft, ChevronRight, Download, RefreshCw } from 'lucide-react';
 
 // --- PHOENIX PROTOCOL CURE: VERCEL-OPTIMIZED PDF WORKER CONFIGURATION ---
-// Use CDN for PDF worker in all environments for Vercel compatibility
-// This avoids filesystem access issues during Vercel build process
+// CORRECTION: The workerVersion has been updated to match the exact version
+// required by the react-pdf library, as reported by the browser's runtime error.
+// This resolves the "API version does not match Worker version" failure.
 const configurePdfWorker = () => {
-  // Use CDN version that matches react-pdf's pdfjs-dist dependency
-  const workerVersion = '3.11.174';
+  // Use CDN version that matches the running react-pdf's pdfjs-dist dependency.
+  const workerVersion = '5.4.296';
   const cdnWorkerUrl = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${workerVersion}/pdf.worker.min.js`;
   
   console.log(`Configuring PDF worker from CDN: ${cdnWorkerUrl}`);
@@ -54,7 +55,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     setError(null);
     setPdfLoadError(null);
     
-    // Clean up previous file URL
     if (fileUrl) {
       URL.revokeObjectURL(fileUrl);
       setFileUrl(null);
