@@ -1,8 +1,8 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL VERSION (APPLICATION ENTRY POINT)
-# CORRECTION: The router import system has been re-architected to be explicit.
-# CORRECTION: CORS configuration is now driven by a single source of truth (settings)
-# to eliminate architectural ambiguity and ensure system integrity.
+# PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL VERSION (ROUTING INTEGRITY)
+# CORRECTION: Removed the redundant 'prefix="/calendar"' from the include_router call
+# for the calendar_router. This resolves a duplicated path segment that was causing
+# a 404 Not Found error for all calendar API endpoints.
 
 from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.responses import JSONResponse
@@ -47,9 +47,6 @@ class ForceHTTPSMiddleware(BaseHTTPMiddleware):
 app = FastAPI(title="The Phoenix Protocol API", lifespan=lifespan)
 
 # --- CORS Configuration (Single Source of Truth) ---
-# PHOENIX PROTOCOL CORRECTION:
-# The redundant 'known_origins' list has been removed.
-# The middleware now directly and cleanly uses the validated list from settings.
 vercel_preview_regex = r"https:\/\/advocatus-ai-.*\.vercel\.app"
 
 app.add_middleware(
@@ -85,7 +82,8 @@ api_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_router.include_router(search_router, prefix="/search", tags=["Search"])
 api_router.include_router(findings_router, prefix="/findings", tags=["Findings"])
 api_router.include_router(api_keys_router, prefix="/keys", tags=["API Keys"])
-api_router.include_router(calendar_router, prefix="/calendar", tags=["Calendar"])
+# CORRECTED LINE: The redundant prefix has been removed.
+api_router.include_router(calendar_router)
 api_router.include_router(admin_router, prefix="/admin", tags=["Administrator"])
 api_router.include_router(websockets_router)
 
