@@ -9,10 +9,11 @@ from ...models.user import UserInDB
 from ...models.admin import SubscriptionUpdate, UserAdminView
 from .dependencies import get_current_admin_user, get_db
 
-router = APIRouter(prefix="/users", tags=["Administrator"])
+# PHOENIX PROTOCOL FIX: Removed the conflicting prefix from router definition
+router = APIRouter(tags=["Administrator"])
 
-@router.get("/", response_model=List[UserAdminView], include_in_schema=False)
-@router.get("", response_model=List[UserAdminView])
+@router.get("/admin/users", response_model=List[UserAdminView], include_in_schema=False)
+@router.get("/admin/users/", response_model=List[UserAdminView])
 def get_all_users(
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
     db: Database = Depends(get_db)
@@ -20,7 +21,7 @@ def get_all_users(
     """Retrieves a list of all users. (Admin only)"""
     return admin_service.get_all_users(db=db)
 
-@router.put("/{user_id}/subscription", response_model=UserAdminView)
+@router.put("/admin/users/{user_id}/subscription", response_model=UserAdminView)
 def update_user_subscription(
     user_id: str,
     subscription_data: SubscriptionUpdate,
