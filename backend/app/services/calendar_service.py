@@ -2,6 +2,7 @@
 # PHOENIX PROTOCOL - THE FINAL AND DEFINITIVE CORRECTION (PRAGMATIC TYPE ANNIHILATION)
 # CORRECTION: All Motor-related type hints have been replaced with 'Any'. This is
 # the definitive and final action to break the Pylance error loop.
+# PHOENIX PROTOCOL FIX: Fixed CalendarEventInDB creation to happen after database insertion
 
 from __future__ import annotations
 from typing import List, Any
@@ -26,21 +27,22 @@ class CalendarService:
                 detail="Case not found or does not belong to the current user."
             )
 
+        # PHOENIX PROTOCOL FIX: Create event document without CalendarEventInDB validation
         event_dict = event_data.model_dump()
         event_dict["user_id"] = user_id
-
+        
         now = datetime.now(timezone.utc)
-        event_in_db = CalendarEventInDB(
+        event_document = {
             **event_dict,
-            created_at=now,
-            updated_at=now,
-            status=EventStatus.PENDING
-        )
+            "created_at": now,
+            "updated_at": now,
+            "status": EventStatus.PENDING
+        }
 
-        result = await self.db.calendar_events.insert_one(
-            event_in_db.model_dump(by_alias=True, exclude={"id"})
-        )
+        # Insert the document first to get the _id from MongoDB
+        result = await self.db.calendar_events.insert_one(event_document)
 
+        # Now retrieve the complete document with _id and validate as CalendarEventInDB
         created_event = await self.db.calendar_events.find_one({"_id": result.inserted_id})
         if not created_event:
             raise HTTPException(
