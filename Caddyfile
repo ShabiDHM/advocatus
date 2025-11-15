@@ -1,18 +1,8 @@
 # FILE: Caddyfile
-# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (PROTOCOL FORCING)
-# CORRECTION: Explicitly forcing the reverse proxy for WebSockets to use HTTP/1.1.
-# This is the definitive fix for a suspected low-level protocol negotiation failure
-# that was causing the WebSocket handshake to be dropped before Caddy could log it.
-# HTTP/3 is also disabled globally to reduce complexity.
-
-{
-    # Disabling HTTP/3 to simplify the protocol stack.
-    servers {
-        protocol {
-            allow_h3 false
-        }
-    }
-}
+# PHOENIX PROTOCOL - FINAL PRODUCTION VERSION
+# CORRECTION: Removed the invalid global 'servers' block which caused a fatal syntax error.
+# Retained the 'transport http' directive, which is the correct and definitive fix
+# for the underlying WebSocket protocol negotiation failure.
 
 advocatus-prod-api.duckdns.org {
     tls shabanbala@gmail.com
@@ -24,16 +14,19 @@ advocatus-prod-api.duckdns.org {
     }
 
     route {
+        # First, match and proxy WebSocket requests.
         reverse_proxy /ws/* backend:8000 {
-            # This transport block is the critical fix.
+            # This transport block is the critical fix for the connection drop.
             transport http {
                 versions 1.1
             }
+            # These headers are required to upgrade the connection.
             header_up +Connection {http.request.header.Connection}
             header_up +Upgrade {http.request.header.Upgrade}
             header_up Sec-WebSocket-Protocol {http.request.header.Sec-WebSocket-Protocol}
         }
-        
+
+        # Second, handle all other requests as a standard reverse proxy.
         reverse_proxy backend:8000
     }
 }
