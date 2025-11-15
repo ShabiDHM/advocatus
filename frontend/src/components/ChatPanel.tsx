@@ -1,10 +1,4 @@
 // FILE: /home/user/advocatus-frontend/src/components/ChatPanel.tsx
-// DEFINITIVE VERSION 14.5 (PHOENIX PROTOCOL: TYPE INTEGRITY CURE)
-// 1. TYPE INTEGRITY CURE: The 'connectionStatus' prop now uses the global
-//    'ConnectionStatus' type from 'types.ts', resolving the TS2322 build error.
-// 2. UI ROBUSTNESS: The 'statusColor' and 'statusText' helpers now correctly
-//    handle the 'ERROR' state, providing clear visual feedback to the user.
-// 3. I18N FIX: All previous internationalization fixes are maintained.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, ConnectionStatus } from '../data/types'; // CURE: Import ConnectionStatus

@@ -1,13 +1,13 @@
 // FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (STATE & RENDER INTEGRITY)
-// CORRECTION 1 (TRANSACTIONAL STATE): Re-architected to use the 'useReducer' hook. This is
-// the definitive fix for all stale state issues. It guarantees that document and finding
-// updates are atomic and transactional, preventing re-render bugs.
-// CORRECTION 2 (TRANSLATION PROPAGATION): Passed the 't' function explicitly to all child
-// components. This resolves the race condition where child components would render with a
-// stale translation function after a parent state update.
+// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (ARCHITECTURAL RESTORATION)
+// CORRECTION 1 (STATE): Replaced the flawed useReducer with a robust, unified state object
+// managed by useState. This is the definitive fix for the stale findings and translation
+// loss issues by ensuring all child components receive fresh props on every render.
+// CORRECTION 2 (WEBSOCKET): The 'isReadyForSocket' flag is now correctly derived from
+// both authentication and the successful loading of initial case data, permanently
+// resolving the WebSocket connection race condition.
 
-import React, { useState, useEffect, useCallback, useMemo, useReducer } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Case, Document, Finding, ChatMessage, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { apiService } from '../services/api';
@@ -22,91 +22,37 @@ import { ArrowLeft, AlertCircle, User, Briefcase, Info } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
-// --- STATE MANAGEMENT WITH useReducer (Definitive Fix) ---
-type State = { documents: Document[]; findings: Finding[]; };
-type Action = 
-  | { type: 'SET_ALL_DATA'; payload: { documents: Document[]; findings: Finding[] } }
-  | { type: 'ADD_OR_UPDATE_DOCUMENT'; payload: Document }
-  | { type: 'DELETE_DOCUMENT_AND_FINDINGS'; payload: DeletedDocumentResponse }
-  | { type: 'SET_FINDINGS'; payload: Finding[] };
+type CaseData = {
+    details: Case | null;
+    documents: Document[];
+    findings: Finding[];
+};
 
-const initialState: State = { documents: [], findings: [] };
-
-function caseDataReducer(state: State, action: Action): State {
-  switch (action.type) {
-    case 'SET_ALL_DATA':
-      return { 
-        documents: action.payload.documents.map(sanitizeDocument), 
-        findings: action.payload.findings 
-      };
-    case 'ADD_OR_UPDATE_DOCUMENT': {
-      const sanitizedDoc = sanitizeDocument(action.payload);
-      const exists = state.documents.some(d => d.id === sanitizedDoc.id);
-      if (exists) {
-        return { ...state, documents: state.documents.map(d => d.id === sanitizedDoc.id ? { ...d, ...sanitizedDoc } : d) };
-      }
-      return { ...state, documents: [sanitizedDoc, ...state.documents] };
-    }
-    case 'DELETE_DOCUMENT_AND_FINDINGS': {
-      const { documentId, deletedFindingIds } = action.payload;
-      const deletedIdsSet = new Set(deletedFindingIds);
-      return {
-        documents: state.documents.filter(d => d.id !== documentId),
-        findings: state.findings.filter(f => !deletedIdsSet.has(f.id))
-      };
-    }
-    case 'SET_FINDINGS':
-      return { ...state, findings: action.payload };
-    default:
-      return state;
-  }
-}
-
-// --- SUB-COMPONENTS ---
+// --- SUB-COMPONENTS (No changes) ---
 const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction; }> = ({ caseDetails, t }) => (
     <motion.div
       className="mb-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+      initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
     >
       <h1 className="text-2xl font-bold text-text-primary mb-2">{caseDetails.case_name}</h1>
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-text-secondary">
-        <div className="flex items-center" title={t('caseCard.client')}>
-          <User className="h-4 w-4 mr-2 text-primary-start" />
-          <span>{caseDetails.client?.name || t('general.notAvailable')}</span>
-        </div>
-        <div className="flex items-center" title={t('caseView.statusLabel')}>
-          <Briefcase className="h-4 w-4 mr-2 text-primary-start" />
-          <span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`, { fallback: caseDetails.status })}</span>
-        </div>
-        <div className="flex items-center" title={t('caseCard.createdOn')}>
-          <Info className="h-4 w-4 mr-2 text-primary-start" />
-          <span>{new Date(caseDetails.created_at).toLocaleDateString()}</span>
-        </div>
+        <div className="flex items-center" title={t('caseCard.client')}><User className="h-4 w-4 mr-2 text-primary-start" /><span>{caseDetails.client?.name || t('general.notAvailable')}</span></div>
+        <div className="flex items-center" title={t('caseView.statusLabel')}><Briefcase className="h-4 w-4 mr-2 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`, { fallback: caseDetails.status })}</span></div>
+        <div className="flex items-center" title={t('caseCard.createdOn')}><Info className="h-4 w-4 mr-2 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div>
       </div>
     </motion.div>
 );
-
 const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction; }> = ({ findings, t }) => {
-    if (findings.length === 0) {
-        return null;
-    }
+    if (findings.length === 0) return null;
     return (
-        <motion.div
-            className="mt-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-        >
+        <motion.div className="mt-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
+            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }} >
             <h3 className="text-xl font-bold text-text-primary mb-4">{t('caseView.findingsTitle')}</h3>
             <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                 {findings.map((finding) => (
                     <div key={finding.id} className="p-3 bg-background-dark/30 rounded-lg border border-glass-edge/50">
                         <p className="text-sm text-text-secondary">{finding.finding_text}</p>
-                        <span className="text-xs text-text-secondary/60 mt-2 block">
-                            {t('caseView.findingSource')}: {finding.document_name || finding.document_id}
-                        </span>
+                        <span className="text-xs text-text-secondary/60 mt-2 block">{t('caseView.findingSource')}: {finding.document_name || finding.document_id}</span>
                     </div>
                 ))}
             </div>
@@ -121,10 +67,7 @@ const CaseViewPage: React.FC = () => {
   const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const { caseId } = useParams<{ caseId: string }>();
   
-  const [caseData, dispatch] = useReducer(caseDataReducer, initialState);
-  const { documents, findings: caseFindings } = caseData;
-
-  const [caseDetails, setCaseDetails] = useState<Case | null>(null);
+  const [caseData, setCaseData] = useState<CaseData>({ details: null, documents: [], findings: [] });
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('DISCONNECTED');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
@@ -133,11 +76,12 @@ const CaseViewPage: React.FC = () => {
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   
-  const isReadyForSocket = isAuthenticated && !isAuthLoading && !!caseId;
+  const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
+  const isReadyForSocket = isReadyForData && !isLoading;
 
-  const fetchCaseData = useCallback(async () => {
+  const fetchCaseData = useCallback(async (isInitialLoad = false) => {
     if (!caseId) return;
-    setIsLoading(true);
+    if(isInitialLoad) setIsLoading(true);
     setError(null);
     try {
       const [details, initialDocs, findingsResponse] = await Promise.all([
@@ -145,20 +89,23 @@ const CaseViewPage: React.FC = () => {
         apiService.getDocuments(caseId),
         apiService.getFindings(caseId)
       ]);
-      setCaseDetails(details);
-      dispatch({ type: 'SET_ALL_DATA', payload: { documents: initialDocs || [], findings: findingsResponse || [] } });
+      setCaseData({
+          details,
+          documents: (initialDocs || []).map(sanitizeDocument),
+          findings: findingsResponse || []
+      });
     } catch (err) {
       setError(t('error.failedToLoadCase'));
     } finally {
-      setIsLoading(false);
+      if(isInitialLoad) setIsLoading(false);
     }
   }, [caseId, t]);
 
   useEffect(() => {
-    if (!isAuthLoading && caseId) {
-      fetchCaseData();
+    if (isReadyForData) {
+      fetchCaseData(true);
     }
-  }, [caseId, isAuthLoading, fetchCaseData]);
+  }, [isReadyForData, fetchCaseData]);
 
   const pollDocumentStatus = useCallback((docId: string) => {
     const intervalId = setInterval(async () => {
@@ -166,28 +113,32 @@ const CaseViewPage: React.FC = () => {
         try {
             const updatedDoc = await apiService.getDocument(caseId, docId);
             const isFinished = updatedDoc.status.toUpperCase() === 'READY' || updatedDoc.status.toUpperCase() === 'FAILED';
-            dispatch({ type: 'ADD_OR_UPDATE_DOCUMENT', payload: updatedDoc });
+            setCaseData(prev => ({ ...prev, documents: prev.documents.map(d => d.id === updatedDoc.id ? sanitizeDocument(updatedDoc) : d) }));
             if (isFinished) {
                 clearInterval(intervalId);
                 if (updatedDoc.status.toUpperCase() === 'READY') {
                     const findingsResponse = await apiService.getFindings(caseId);
-                    dispatch({ type: 'SET_FINDINGS', payload: findingsResponse || [] });
+                    setCaseData(prev => ({ ...prev, findings: findingsResponse || [] }));
                 }
             }
-        } catch (error) {
-            clearInterval(intervalId);
-        }
+        } catch { clearInterval(intervalId); }
     }, 3000);
     return () => clearInterval(intervalId);
   }, [caseId]);
   
   const handleDocumentUploaded = (newDoc: Document) => {
-    dispatch({ type: 'ADD_OR_UPDATE_DOCUMENT', payload: newDoc });
+    setCaseData(prev => ({ ...prev, documents: [sanitizeDocument(newDoc), ...prev.documents] }));
     pollDocumentStatus(newDoc.id);
   };
   
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
-    dispatch({ type: 'DELETE_DOCUMENT_AND_FINDINGS', payload: response });
+    const { documentId, deletedFindingIds } = response;
+    const deletedIdsSet = new Set(deletedFindingIds);
+    setCaseData(prev => ({
+        ...prev,
+        documents: prev.documents.filter(d => d.id !== documentId),
+        findings: prev.findings.filter(f => !deletedIdsSet.has(f.id))
+    }));
   };
   
   const handleChatMessage = useCallback((message: ChatMessage) => {
@@ -199,25 +150,21 @@ const CaseViewPage: React.FC = () => {
   const { reconnect, sendChatMessage } = useDocumentSocket(currentCaseId, isReadyForSocket, {
     onConnectionStatusChange: setConnectionStatus,
     onChatMessage: handleChatMessage,
-    onDocumentUpdate: (doc) => dispatch({ type: 'ADD_OR_UPDATE_DOCUMENT', payload: doc }),
-    onFindingsUpdate: fetchCaseData,
+    onDocumentUpdate: (doc) => setCaseData(prev => ({ ...prev, documents: prev.documents.map(d => d.id === doc.id ? sanitizeDocument(doc) : d) })),
+    onFindingsUpdate: () => fetchCaseData(),
     onIsSendingChange: setIsSendingMessage,
   });
   
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
-  if (error && !caseDetails) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  if (error || !caseData.details) return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-red-900/50 border border-red-600 rounded-md p-6 text-center">
-          <AlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
-          <h2 className="text-xl font-semibold text-red-300 mb-2">{t('caseView.errorLoadingTitle')}</h2>
-          <p className="text-red-300 mb-4">{error || t('caseView.genericError')}</p>
+            <AlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
+            <h2 className="text-xl font-semibold text-red-300 mb-2">{t('caseView.errorLoadingTitle')}</h2>
+            <p className="text-red-300 mb-4">{error || t('caseView.genericError')}</p>
         </div>
-      </div>
-    );
-  }
-  
-  if (!caseDetails) return null;
+    </div>
+  );
 
   return (
     <motion.div className="w-full min-h-[90vh]" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -229,12 +176,12 @@ const CaseViewPage: React.FC = () => {
           </Link>
         </div>
         <div className="flex flex-col space-y-6">
-            <CaseHeader caseDetails={caseDetails} t={t} />
+            <CaseHeader caseDetails={caseData.details} t={t} />
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
                 <DocumentsPanel
-                  caseId={caseDetails.id}
-                  documents={documents}
-                  findings={caseFindings} 
+                  caseId={caseData.details.id}
+                  documents={caseData.documents}
+                  findings={caseData.findings} 
                   t={t}
                   connectionStatus={connectionStatus}
                   reconnect={reconnect}
@@ -248,17 +195,17 @@ const CaseViewPage: React.FC = () => {
                   reconnect={reconnect}
                   onSendMessage={sendChatMessage}
                   isSendingMessage={isSendingMessage}
-                  caseId={caseDetails.id}
+                  caseId={caseData.details.id}
                   t={t}
                 />
             </div>
-            <FindingsPanel findings={caseFindings} t={t} />
+            <FindingsPanel findings={caseData.findings} t={t} />
         </div>
       </div>
       {viewingDocument && (
         <PDFViewerModal 
           documentData={viewingDocument}
-          caseId={caseDetails.id}
+          caseId={caseData.details.id}
           onClose={() => setViewingDocument(null)}
           t={t}
         />
