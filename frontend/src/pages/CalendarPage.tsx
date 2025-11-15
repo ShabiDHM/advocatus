@@ -4,6 +4,7 @@
 // 1. ✅ Added Locale import from date-fns
 // 2. ✅ Removed unused formatFullDateTime function
 // 3. ✅ Fixed all TypeScript type errors
+// 4. ✅ PHOENIX PROTOCOL FIX: Added event ID helper for deletion
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -77,6 +78,12 @@ const getPriorityColor = (priorityValue: CalendarEvent['priority']) => {
       case 'LOW': return 'text-green-300 bg-green-900/20 border-green-600';
       default: return 'text-gray-300 bg-gray-900/20 border-gray-600';
     }
+};
+
+// PHOENIX PROTOCOL FIX: Helper function to get event ID from either 'id' or '_id' field
+const getEventId = (event: CalendarEvent): string => {
+    const eventWithAny = event as any;
+    return event.id || eventWithAny._id || '';
 };
 
 const CalendarPage: React.FC = () => {
@@ -173,7 +180,7 @@ const CalendarPage: React.FC = () => {
           <div className="space-y-1">
             {dayEvents.slice(0, 3).map(event => (
               <button 
-                key={event.id} 
+                key={getEventId(event)} 
                 onClick={() => setSelectedEvent(event)} 
                 className={`w-full text-left px-2 py-1 rounded text-xs truncate border ${getEventTypeColor(event.event_type)}`}
               >
@@ -368,7 +375,7 @@ const CalendarPage: React.FC = () => {
                       <div className="space-y-3">
                         {upcomingEvents.map(event => (
                           <button 
-                            key={event.id} 
+                            key={getEventId(event)} 
                             onClick={() => setSelectedEvent(event)} 
                             className="w-full text-left p-3 bg-background-dark/50 hover:bg-background-dark/80 rounded-lg transition-colors border border-glass-edge/50"
                           >
@@ -441,13 +448,23 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
 
     const handleDelete = async () => { 
       if (!window.confirm(t('calendar.detailModal.deleteConfirm'))) return; 
+      
+      // PHOENIX PROTOCOL FIX: Use helper function to get event ID
+      const eventId = getEventId(event);
+      if (!eventId) {
+        console.error("Cannot delete event: Event ID is undefined", event);
+        alert("Error: Event ID is missing. Cannot delete event.");
+        return;
+      }
+
       setIsDeleting(true); 
       try { 
-        await apiService.deleteCalendarEvent(event.id); 
+        await apiService.deleteCalendarEvent(eventId); 
         onUpdate(); 
         onClose(); 
-      } catch (error) { 
-        alert(t('calendar.detailModal.deleteFailed')); 
+      } catch (error: any) { 
+        console.error("Failed to delete event:", error);
+        alert(error.response?.data?.message || t('calendar.detailModal.deleteFailed')); 
       } finally { 
         setIsDeleting(false); 
       } 
