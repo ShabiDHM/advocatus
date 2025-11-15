@@ -1,7 +1,9 @@
 // FILE: /home/user/advocatus-frontend/src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (CODE CLEANUP)
-// CORRECTION: Removed the unused 'event' parameter from the ws.onclose handler
-// to resolve the "'event' is declared but its value is never read" compiler warning.
+// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (CONNECTION TIMING FIX)
+// CORRECTION: The primary useEffect hook now strictly respects the 'isReady' prop.
+// The connectWebSocket function will not be called until the parent component
+// has explicitly signaled that all prerequisites (like authentication) are complete.
+// This is the definitive fix for the WebSocket connection race condition.
 
 import { useEffect, useRef, useCallback } from 'react';
 import { ChatMessage, ConnectionStatus } from '../data/types';
@@ -11,7 +13,7 @@ interface SocketEventHandlers {
   onConnectionStatusChange: (status: ConnectionStatus, error: string | null) => void;
   onChatMessage: (message: ChatMessage) => void;
   onDocumentUpdate: (documentData: any) => void; 
-  onFindingsUpdate: (findingsData: any) => void;
+  onFindingsUpdate: () => void;
   onIsSendingChange: (isSending: boolean) => void;
 }
 
@@ -25,23 +27,17 @@ export const useDocumentSocket = (
   isReady: boolean,
   handlers: SocketEventHandlers
 ): UseDocumentSocketReturn => {
-  const {
-    onConnectionStatusChange,
-    onChatMessage,
-    onDocumentUpdate,
-    onFindingsUpdate,
-    onIsSendingChange,
-  } = handlers;
-
+  const { onConnectionStatusChange, onChatMessage, onDocumentUpdate, onFindingsUpdate, onIsSendingChange } = handlers;
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
   const connectionAttemptsRef = useRef(0);
   const maxConnectionAttempts = 5;
 
   const connectWebSocket = useCallback(async () => {
-    if (wsRef.current) return;
-    if (connectionAttemptsRef.current >= maxConnectionAttempts) {
-      onConnectionStatusChange('ERROR', 'Failed to connect after multiple attempts. Please refresh the page.');
+    if (wsRef.current || connectionAttemptsRef.current >= maxConnectionAttempts) {
+      if(connectionAttemptsRef.current >= maxConnectionAttempts){
+        onConnectionStatusChange('ERROR', 'Failed to connect after multiple attempts.');
+      }
       return;
     }
 
@@ -50,7 +46,6 @@ export const useDocumentSocket = (
 
     try {
       await apiService.ensureValidToken();
-      
       const { url, token } = apiService.getWebSocketInfo(caseId);
       const ws = new WebSocket(url, token);
       wsRef.current = ws;
@@ -58,7 +53,7 @@ export const useDocumentSocket = (
       ws.onopen = () => {
         onConnectionStatusChange('CONNECTED', null);
         connectionAttemptsRef.current = 0;
-        clearTimeout(reconnectTimeoutRef.current);
+        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       };
 
       ws.onmessage = (event) => {
@@ -74,38 +69,35 @@ export const useDocumentSocket = (
               if (message.payload) onDocumentUpdate(message.payload);
               break;
             case 'findings_update':
-              if (message.payload) onFindingsUpdate(message.payload);
+              onFindingsUpdate();
               break;
             case 'connection_established':
               break;
             default:
-              console.warn('[WebSocket Hook] Received unhandled message type:', message.type);
+              break;
           }
-        } catch (e) {
-          console.error('[WebSocket Hook] Error processing WebSocket message:', e, event.data);
-        }
+        } catch (e) { console.error('Error processing WebSocket message:', e, event.data); }
       };
 
-      ws.onclose = () => { // Removed 'event' parameter
+      ws.onclose = () => {
         wsRef.current = null;
-        onIsSendingChange(false);
         if (connectionAttemptsRef.current >= maxConnectionAttempts) {
-          onConnectionStatusChange('ERROR', 'Failed to establish connection after multiple attempts. Please refresh the page.');
+          onConnectionStatusChange('ERROR', 'Failed to connect after multiple attempts.');
           return;
         }
         onConnectionStatusChange('DISCONNECTED', 'Connection closed');
-        const backoffTime = Math.min(3000 * Math.pow(2, connectionAttemptsRef.current - 1), 30000);
+        const backoffTime = Math.min(3000 * Math.pow(2, connectionAttemptsRef.current), 30000);
         reconnectTimeoutRef.current = setTimeout(connectWebSocket, backoffTime);
       };
 
       ws.onerror = () => {
-        onConnectionStatusChange('ERROR', 'Connection error occurred.');
+        onConnectionStatusChange('ERROR', 'A connection error occurred.');
       };
 
     } catch (error) {
         if (connectionAttemptsRef.current < maxConnectionAttempts) {
             onConnectionStatusChange('DISCONNECTED', 'Failed to establish connection.');
-            reconnectTimeoutRef.current = setTimeout(connectWebSocket, 3000);
+            reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000);
         } else {
             onConnectionStatusChange('ERROR', 'Failed to establish connection.');
         }
@@ -117,11 +109,9 @@ export const useDocumentSocket = (
       connectionAttemptsRef.current = 0;
       connectWebSocket();
     }
-
     return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
+      connectionAttemptsRef.current = maxConnectionAttempts;
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (wsRef.current) {
         wsRef.current.onclose = null; 
         wsRef.current.close();
@@ -133,9 +123,7 @@ export const useDocumentSocket = (
   const reconnect = useCallback(() => {
     if (wsRef.current) return;
     connectionAttemptsRef.current = 0;
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-    }
+    if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     connectWebSocket();
   }, [connectWebSocket]);
 
@@ -146,7 +134,7 @@ export const useDocumentSocket = (
       const messageToSend = JSON.stringify({ type: 'chat_message', payload: { text } });
       wsRef.current.send(messageToSend);
     } else {
-      onConnectionStatusChange('ERROR', 'Cannot send message - connection not available');
+      onConnectionStatusChange('ERROR', 'Cannot send message.');
     }
   }, [onIsSendingChange, onChatMessage, onConnectionStatusChange]);
 

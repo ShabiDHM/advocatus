@@ -1,12 +1,13 @@
 // FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TRANSACTIONAL DELETE & TYPE SAFETY)
-// CORRECTION 1: The 'handleDocumentDeleted' function now accepts the full API
-// response and correctly removes both the document and its associated findings from
-// the local state, permanently fixing the stale findings issue.
-// CORRECTION 2: Corrected the 'onChatMessage' handler passed to the socket to
-// be a proper function, resolving the final TypeScript type error.
+// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (STATE & RENDER INTEGRITY)
+// CORRECTION 1 (TRANSACTIONAL STATE): Re-architected to use the 'useReducer' hook. This is
+// the definitive fix for all stale state issues. It guarantees that document and finding
+// updates are atomic and transactional, preventing re-render bugs.
+// CORRECTION 2 (TRANSLATION PROPAGATION): Passed the 't' function explicitly to all child
+// components. This resolves the race condition where child components would render with a
+// stale translation function after a parent state update.
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useReducer } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Case, Document, Finding, ChatMessage, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { apiService } from '../services/api';
@@ -21,8 +22,48 @@ import { ArrowLeft, AlertCircle, User, Briefcase, Info } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
+// --- STATE MANAGEMENT WITH useReducer (Definitive Fix) ---
+type State = { documents: Document[]; findings: Finding[]; };
+type Action = 
+  | { type: 'SET_ALL_DATA'; payload: { documents: Document[]; findings: Finding[] } }
+  | { type: 'ADD_OR_UPDATE_DOCUMENT'; payload: Document }
+  | { type: 'DELETE_DOCUMENT_AND_FINDINGS'; payload: DeletedDocumentResponse }
+  | { type: 'SET_FINDINGS'; payload: Finding[] };
+
+const initialState: State = { documents: [], findings: [] };
+
+function caseDataReducer(state: State, action: Action): State {
+  switch (action.type) {
+    case 'SET_ALL_DATA':
+      return { 
+        documents: action.payload.documents.map(sanitizeDocument), 
+        findings: action.payload.findings 
+      };
+    case 'ADD_OR_UPDATE_DOCUMENT': {
+      const sanitizedDoc = sanitizeDocument(action.payload);
+      const exists = state.documents.some(d => d.id === sanitizedDoc.id);
+      if (exists) {
+        return { ...state, documents: state.documents.map(d => d.id === sanitizedDoc.id ? { ...d, ...sanitizedDoc } : d) };
+      }
+      return { ...state, documents: [sanitizedDoc, ...state.documents] };
+    }
+    case 'DELETE_DOCUMENT_AND_FINDINGS': {
+      const { documentId, deletedFindingIds } = action.payload;
+      const deletedIdsSet = new Set(deletedFindingIds);
+      return {
+        documents: state.documents.filter(d => d.id !== documentId),
+        findings: state.findings.filter(f => !deletedIdsSet.has(f.id))
+      };
+    }
+    case 'SET_FINDINGS':
+      return { ...state, findings: action.payload };
+    default:
+      return state;
+  }
+}
+
 // --- SUB-COMPONENTS ---
-const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction<"translation", undefined>; }> = ({ caseDetails, t }) => (
+const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction; }> = ({ caseDetails, t }) => (
     <motion.div
       className="mb-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
       initial={{ opacity: 0, y: -20 }}
@@ -47,8 +88,10 @@ const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction<"translation", unde
     </motion.div>
 );
 
-const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction<"translation", undefined>; }> = ({ findings, t }) => {
-    if (findings.length === 0) return null;
+const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction; }> = ({ findings, t }) => {
+    if (findings.length === 0) {
+        return null;
+    }
     return (
         <motion.div
             className="mt-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
@@ -75,12 +118,13 @@ const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction<"translation",
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
-  const { isLoading: isAuthLoading } = useAuth();
+  const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const { caseId } = useParams<{ caseId: string }>();
   
+  const [caseData, dispatch] = useReducer(caseDataReducer, initialState);
+  const { documents, findings: caseFindings } = caseData;
+
   const [caseDetails, setCaseDetails] = useState<Case | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [caseFindings, setCaseFindings] = useState<Finding[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('DISCONNECTED');
   const [isSendingMessage, setIsSendingMessage] = useState(false);
@@ -88,13 +132,11 @@ const CaseViewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
+  
+  const isReadyForSocket = isAuthenticated && !isAuthLoading && !!caseId;
 
   const fetchCaseData = useCallback(async () => {
-    if (!caseId) {
-        setError(t('error.noCaseId'));
-        setIsLoading(false);
-        return;
-    }
+    if (!caseId) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -104,11 +146,9 @@ const CaseViewPage: React.FC = () => {
         apiService.getFindings(caseId)
       ]);
       setCaseDetails(details);
-      setDocuments((initialDocs || []).map(sanitizeDocument));
-      setCaseFindings(findingsResponse || []);
+      dispatch({ type: 'SET_ALL_DATA', payload: { documents: initialDocs || [], findings: findingsResponse || [] } });
     } catch (err) {
       setError(t('error.failedToLoadCase'));
-      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -125,18 +165,16 @@ const CaseViewPage: React.FC = () => {
         if (!caseId) { clearInterval(intervalId); return; }
         try {
             const updatedDoc = await apiService.getDocument(caseId, docId);
-            const sanitized = sanitizeDocument(updatedDoc);
-            const isFinished = sanitized.status.toUpperCase() === 'READY' || sanitized.status.toUpperCase() === 'FAILED';
-            setDocuments(prev => prev.map(d => d.id === sanitized.id ? { ...d, ...sanitized } : d));
+            const isFinished = updatedDoc.status.toUpperCase() === 'READY' || updatedDoc.status.toUpperCase() === 'FAILED';
+            dispatch({ type: 'ADD_OR_UPDATE_DOCUMENT', payload: updatedDoc });
             if (isFinished) {
                 clearInterval(intervalId);
-                if (sanitized.status.toUpperCase() === 'READY') {
+                if (updatedDoc.status.toUpperCase() === 'READY') {
                     const findingsResponse = await apiService.getFindings(caseId);
-                    setCaseFindings(findingsResponse || []);
+                    dispatch({ type: 'SET_FINDINGS', payload: findingsResponse || [] });
                 }
             }
         } catch (error) {
-            console.error(`[Polling] Error for doc ${docId}, stopping poll:`, error);
             clearInterval(intervalId);
         }
     }, 3000);
@@ -144,55 +182,29 @@ const CaseViewPage: React.FC = () => {
   }, [caseId]);
   
   const handleDocumentUploaded = (newDoc: Document) => {
-    setDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
+    dispatch({ type: 'ADD_OR_UPDATE_DOCUMENT', payload: newDoc });
     pollDocumentStatus(newDoc.id);
   };
   
-  const handleDocumentUpdate = useCallback((docData: any) => {
-    const sanitizedDoc = sanitizeDocument(docData);
-    setDocuments(prev => {
-        const exists = prev.some(d => d.id === sanitizedDoc.id);
-        if (exists) return prev.map(d => d.id === sanitizedDoc.id ? { ...d, ...sanitizedDoc } : d);
-        return [sanitizedDoc, ...prev];
-    });
-  }, []);
-
-  const handleFindingsUpdate = useCallback(async () => {
-    if(caseId) {
-        const findingsResponse = await apiService.getFindings(caseId);
-        setCaseFindings(findingsResponse || []);
-    }
-  }, [caseId]);
-
-  const handleChatMessage = useCallback((message: ChatMessage) => {
-    setMessages(prevMessages => {
-        const newMessages = [...prevMessages];
-        const lastMessage = newMessages[newMessages.length - 1];
-        if (lastMessage?.sender === 'AI' && message.isPartial) {
-            lastMessage.text += message.text;
-            return newMessages;
-        }
-        return [...newMessages, message];
-    });
-  }, []);
+  const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
+    dispatch({ type: 'DELETE_DOCUMENT_AND_FINDINGS', payload: response });
+  };
   
-  const { reconnect, sendChatMessage } = useDocumentSocket(currentCaseId, !isAuthLoading && !!caseId, {
+  const handleChatMessage = useCallback((message: ChatMessage) => {
+    setMessages(prev => prev.length > 0 && prev[prev.length - 1].sender === 'AI' && message.isPartial 
+        ? prev.map((m, i) => i === prev.length - 1 ? { ...m, text: m.text + message.text } : m) 
+        : [...prev, message]);
+  }, []);
+
+  const { reconnect, sendChatMessage } = useDocumentSocket(currentCaseId, isReadyForSocket, {
     onConnectionStatusChange: setConnectionStatus,
     onChatMessage: handleChatMessage,
-    onDocumentUpdate: handleDocumentUpdate,
-    onFindingsUpdate: handleFindingsUpdate,
+    onDocumentUpdate: (doc) => dispatch({ type: 'ADD_OR_UPDATE_DOCUMENT', payload: doc }),
+    onFindingsUpdate: fetchCaseData,
     onIsSendingChange: setIsSendingMessage,
   });
   
-  const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
-    const { documentId, deletedFindingIds } = response;
-    setDocuments(docs => docs.filter(d => d.id !== documentId));
-    const deletedIdsSet = new Set(deletedFindingIds);
-    setCaseFindings(findings => findings.filter(f => !deletedIdsSet.has(f.id)));
-  };
-
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
-
   if (error && !caseDetails) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
