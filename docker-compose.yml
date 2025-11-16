@@ -1,5 +1,5 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - FINAL VERSION (CACHE INVALIDATION)
+# PHOENIX PROTOCOL - FINAL DIAGNOSTIC ("STAY ALIVE") - COMPLETE FILE
 
 services:
   caddy:
@@ -12,23 +12,23 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
     networks: [phoenix_net]
-    depends_on:
-      backend:
-        condition: service_healthy
 
   backend:
     build: { context: ./backend }
     restart: unless-stopped
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers --ws-proxy-headers
+    # DIAGNOSTIC COMMAND: This command overrides the uvicorn startup.
+    # It will keep the container running indefinitely so we can manually inspect it.
+    command: tail -f /dev/null
     env_file: ./.env
     networks: [phoenix_net]
     depends_on: { mongo: { condition: service_healthy }, redis: { condition: service_healthy } }
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 300s
+    # healthcheck is temporarily disabled because the application is not running.
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+    #   interval: 15s
+    #   timeout: 10s
+    #   retries: 5
+    #   start_period: 300s
 
   celery:
     build: { context: ./backend }
@@ -36,35 +36,39 @@ services:
     command: celery -A app.worker.celery_app worker --loglevel=info
     env_file: ./.env
     networks: [phoenix_net]
-    depends_on: { redis: { condition: service_healthy }, mongo: { condition: service_healthy }, backend: { condition: service_started } }
+    depends_on: { redis: { condition: service_healthy }, mongo: { condition: service_healthy } }
 
-  # ... (all other services remain the same) ...
   embedding-service:
     build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: embedding_service } }
     networks: [phoenix_net]
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
+
   albanian-embedding-service:
     build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: albanian_embedding_service } }
     networks: [phoenix_net]
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     environment: ["EMBEDDING_MODEL=${ALBANIAN_EMBEDDING_MODEL}"]
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 20, start_period: 300s }
+
   rerank-service:
     build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: rerank_service } }
     networks: [phoenix_net]
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
+
   ner-service:
     build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: ner_service } }
     networks: [phoenix_net]
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 10, start_period: 60s }
+
   categorization-service:
     build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: categorization_service } }
     networks: [phoenix_net]
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
+
   mongo:
     image: mongo:6.0
     restart: unless-stopped
@@ -73,6 +77,7 @@ services:
     volumes: [mongo_data:/data/db]
     healthcheck: { test: echo 'db.runCommand("ping").ok' | mongosh --quiet, interval: 15s, timeout: 10s, retries: 5 }
     stop_grace_period: 20s
+
   redis:
     image: redis:7
     restart: unless-stopped
@@ -80,6 +85,7 @@ services:
     networks: [phoenix_net]
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 15s, timeout: 10s, retries: 5 }
     stop_grace_period: 20s
+
   chroma:
     image: chromadb/chroma:latest
     restart: unless-stopped
