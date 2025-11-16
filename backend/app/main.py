@@ -3,6 +3,7 @@
 # CORRECTION: Removed the redundant 'prefix="/calendar"' from the include_router call
 # for the calendar_router. This resolves a duplicated path segment that was causing
 # a 404 Not Found error for all calendar API endpoints.
+# ERADICATION: Removed all references to the deprecated websockets_router.
 
 from fastapi import FastAPI, Request, status, APIRouter
 from fastapi.responses import JSONResponse
@@ -28,7 +29,6 @@ try:
     from app.api.endpoints.api_keys import router as api_keys_router
     from app.api.endpoints.users import router as users_router
     from app.api.endpoints.calendar import router as calendar_router
-    from app.api.endpoints.websockets import router as websockets_router
 except ImportError as e:
     logging.error(f"FATAL: A router failed to import, the application cannot start. Error: {e}")
     raise
@@ -85,7 +85,6 @@ api_router.include_router(api_keys_router, prefix="/keys", tags=["API Keys"])
 # CORRECTED LINE: The redundant prefix has been removed.
 api_router.include_router(calendar_router)
 api_router.include_router(admin_router, prefix="/admin", tags=["Administrator"])
-api_router.include_router(websockets_router)
 
 app.include_router(api_router)
 app.include_router(drafting_v2_router, prefix="/api/v2", tags=["Drafting V2"])
