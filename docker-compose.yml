@@ -1,5 +1,5 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - FINAL EXECUTABLE PATH CORRECTION
+# PHOENIX PROTOCOL - FINAL VERSION (CACHE INVALIDATION)
 
 services:
   caddy:
@@ -19,11 +19,7 @@ services:
   backend:
     build: { context: ./backend }
     restart: unless-stopped
-    # DEFINITIVE FIX: The command now invokes uvicorn via 'python -m'.
-    # This bypasses any system PATH issues and guarantees that the version of
-    # uvicorn installed by pip is the one being executed, resolving the
-    # "No such option: --ws-proxy-headers" error permanently.
-    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers --ws-proxy-headers
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers --ws-proxy-headers
     env_file: ./.env
     networks: [phoenix_net]
     depends_on: { mongo: { condition: service_healthy }, redis: { condition: service_healthy } }
@@ -42,37 +38,33 @@ services:
     networks: [phoenix_net]
     depends_on: { redis: { condition: service_healthy }, mongo: { condition: service_healthy }, backend: { condition: service_started } }
 
+  # ... (all other services remain the same) ...
   embedding-service:
     build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: embedding_service } }
     networks: [phoenix_net]
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
-
   albanian-embedding-service:
     build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: albanian_embedding_service } }
     networks: [phoenix_net]
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     environment: ["EMBEDDING_MODEL=${ALBANIAN_EMBEDDING_MODEL}"]
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 20, start_period: 300s }
-
   rerank-service:
     build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: rerank_service } }
     networks: [phoenix_net]
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
-
   ner-service:
     build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: ner_service } }
     networks: [phoenix_net]
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 10, start_period: 60s }
-
   categorization-service:
     build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: categorization_service } }
     networks: [phoenix_net]
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
-
   mongo:
     image: mongo:6.0
     restart: unless-stopped
@@ -81,7 +73,6 @@ services:
     volumes: [mongo_data:/data/db]
     healthcheck: { test: echo 'db.runCommand("ping").ok' | mongosh --quiet, interval: 15s, timeout: 10s, retries: 5 }
     stop_grace_period: 20s
-
   redis:
     image: redis:7
     restart: unless-stopped
@@ -89,7 +80,6 @@ services:
     networks: [phoenix_net]
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 15s, timeout: 10s, retries: 5 }
     stop_grace_period: 20s
-
   chroma:
     image: chromadb/chroma:latest
     restart: unless-stopped
