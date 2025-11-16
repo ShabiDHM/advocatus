@@ -1,4 +1,5 @@
 # FILE: backend/app/services/chat_service.py
+# ERADICATION: Removed defunct process_chat_message function and its dependency on the old websocket_manager.
 
 from __future__ import annotations
 import os
@@ -10,8 +11,7 @@ from fastapi import HTTPException
 from bson import ObjectId
 
 from app.services import vector_store_service
-from app.models.case import ChatMessage, ChatMessageOut
-from app.core.websocket_manager import ConnectionManager
+from app.models.case import ChatMessage
 from app.models.user import UserInDB
 
 logger = logging.getLogger(__name__)
@@ -76,54 +76,3 @@ async def get_http_chat_response(
     except Exception as e:
         logger.error(f"Unhandled error in get_http_chat_response for case {case_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An error occurred while processing the chat response.")
-
-async def process_chat_message(
-    # PHOENIX PROTOCOL CURE: Use Any for the db type to satisfy Pylance.
-    db: Any,
-    manager: ConnectionManager,
-    case_id: str,
-    user_query: str,
-    user_id: str
-):
-    """Handles a chat query from a WebSocket connection, streaming the response."""
-    case_collection = db.cases
-    
-    user_message = ChatMessage(sender_id=user_id, sender_type="user", content=user_query)
-    await case_collection.update_one(
-        {"_id": ObjectId(case_id)},
-        {"$push": {"chat_history": user_message.model_dump()}}
-    )
-    
-    user_message_out = ChatMessageOut(**user_message.model_dump())
-    await manager.broadcast_to_case(
-        case_id, {"type": "chat_message_out", "payload": user_message_out.model_dump()}
-    )
-    
-    try:
-        rag_service = _get_rag_service_instance()
-        
-        full_response_text = ""
-        stream = rag_service.chat_stream(query=user_query, case_id=case_id)
-        async for chunk in stream:
-            full_response_text += chunk
-            await manager.broadcast_to_case(case_id, {"type": "chat_response_chunk", "text": chunk})
-
-        if not full_response_text:
-            full_response_text = "Më falni, nuk munda të gjej një përgjigje."
-
-        ai_message = ChatMessage(sender_id="ai_assistant", sender_type="ai", content=full_response_text)
-        await case_collection.update_one(
-            {"_id": ObjectId(case_id)},
-            {"$push": {"chat_history": ai_message.model_dump()}}
-        )
-
-    except (RuntimeError, HTTPException) as e:
-        error_detail = e.detail if isinstance(e, HTTPException) else str(e)
-        error_message = ChatMessageOut(sender_id="system_error", sender_type="ai", content=f"An error occurred: {error_detail}")
-        await manager.broadcast_to_case(case_id, {"type": "error", "payload": error_message.model_dump()})
-    except Exception as e:
-        logger.error(f"Unhandled error in process_chat_message for case {case_id}: {e}", exc_info=True)
-        error_message = ChatMessageOut(sender_id="system_error", sender_type="ai", content="An unexpected internal error occurred.")
-        await manager.broadcast_to_case(
-            case_id, {"type": "error", "payload": error_message.model_dump()}
-        )
