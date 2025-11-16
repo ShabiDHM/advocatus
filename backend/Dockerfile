@@ -1,5 +1,5 @@
 # FILE: backend/Dockerfile
-# PHOENIX PROTOCOL - ULTIMATE DIAGNOSTIC
+# PHOENIX PROTOCOL - FINAL ERADICATION OF CORRUPTED STATE
 
 FROM python:3.11
 
@@ -24,13 +24,14 @@ ENV PYTHONPATH /app
 # 4. Copy requirements file.
 COPY requirements.txt .
 
-# 5. Install Python dependencies.
-RUN pip install --no-cache-dir -r requirements.txt
+# 5. THE ERADICATION STEP:
+#    Forcefully uninstall any pre-existing or 'phantom' version of Uvicorn
+#    that may be present in the base image. This purifies the environment
+#    before we install our known-good dependencies.
+RUN pip uninstall -y uvicorn
 
-# 6. ULTIMATE VERIFICATION:
-#    Print the exact versions of all installed packages to the build log.
-#    This will provide irrefutable evidence of the installed uvicorn version.
-RUN pip freeze
+# 6. Install our specified Python dependencies into the now-clean environment.
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 7. Copy application source code.
 COPY ./app ./app
