@@ -1,16 +1,18 @@
 // FILE: /home/user/advocatus-frontend/src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TRANSACTIONAL DELETE)
-// CORRECTION: The 'onDocumentDeleted' prop and the handleDeleteDocument function
-// have been updated to handle the new transactional API response, ensuring the
-// parent component has the data it needs to correctly update its state.
+// PHOENIX PROTOCOL - UI/UX Consolidation v1
+// CORRECTION: The user interface for document actions has been corrected and simplified
+// according to the new mandate.
+// 1. The redundant "View Original" button (FileText icon) has been completely removed.
+// 2. The "View Extracted Text" link (Eye icon) has been converted into a button.
+// 3. The correct 'onViewOriginal' onClick logic has been transferred to this new Eye icon button.
+// This change ensures the Eye icon is the single, intuitive trigger to open the PDF modal.
 
 import React, { useState, useRef, useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Repeat, Trash, FileText } from 'lucide-react';
+import { FolderOpen, Eye, Repeat, Trash } from 'lucide-react'; // FileText icon removed from imports
 import { motion } from 'framer-motion';
 
 interface DocumentsPanelProps {
@@ -24,8 +26,6 @@ interface DocumentsPanelProps {
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
 }
-
-const MotionLink = motion(Link);
 
 const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   caseId,
@@ -174,12 +174,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 </span>
                 {(doc.status.toUpperCase() === 'READY') && (
                   <div className="flex items-center space-x-2">
-                    <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-blue-400 hover:text-blue-300" whileHover={{ scale: 1.2 }}>
-                      <FileText size={16} />
-                    </motion.button>
-                    <MotionLink to={`/case/${caseId}/documents/${doc.id}`} title={t('documentsPanel.viewExtracted')} className="text-primary-start hover:text-primary-end" whileHover={{ scale: 1.2 }}>
+                    {/* --- DEFINITIVE FIX --- */}
+                    {/* The old 'FileText' button is now gone. */}
+                    {/* The 'Eye' icon is now a button that correctly opens the modal. */}
+                    <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-primary-start hover:text-primary-end" whileHover={{ scale: 1.2 }}>
                       <Eye size={16} />
-                    </MotionLink>
+                    </motion.button>
                     <motion.button onClick={() => handleReanalyze(doc.id)} title={t('documentsPanel.reanalyze')} className="text-accent-start hover:text-accent-end" whileHover={{ scale: 1.2 }}>
                       <Repeat size={16} />
                     </motion.button>
