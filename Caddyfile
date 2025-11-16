@@ -1,10 +1,8 @@
 # FILE: Caddyfile
-# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (DPI EVASION)
-# CORRECTION: The path matcher for the WebSocket reverse_proxy has been updated
-# from '/ws/*' to '/api/v1/comms/*'. This aligns with the backend and frontend
-# changes designed to evade network-level deep packet inspection filters.
+# PHOENIX PROTOCOL - DEFINITIVE INFRASTRUCTURE FIX
 
 advocatus-prod-api.duckdns.org {
+    # TLS and standard security headers remain unchanged.
     tls shabanbala@gmail.com
 
     header {
@@ -13,15 +11,33 @@ advocatus-prod-api.duckdns.org {
         X-Frame-Options "SAMEORIGIN"
     }
 
-    route {
-        # Match the new, disguised WebSocket path.
-        reverse_proxy /api/v1/comms/* backend:8000 {
-            header_up +Connection {http.request.header.Connection}
-            header_up +Upgrade {http.request.header.Upgrade}
-            header_up Sec-WebSocket-Protocol {http.request.header.Sec-WebSocket-Protocol}
-        }
+    # --- Named Matchers for Explicit Routing ---
 
-        # Handle all other standard API requests.
-        reverse_proxy backend:8000
+    # @websockets matcher:
+    # Identifies a request as a WebSocket handshake if it has an Upgrade header
+    # with the value 'websocket'. This is the most reliable method.
+    @websockets {
+        path /api/v1/comms/*
+        header Connection *Upgrade*
+        header Upgrade websocket
     }
+
+    # @api matcher:
+    # A catch-all for any other traffic directed to the API.
+    @api {
+        path /api/*
+    }
+
+    # --- Routing Logic ---
+    
+    # Route WebSocket traffic to the backend, explicitly forwarding the
+    # necessary headers to complete the protocol upgrade handshake.
+    reverse_proxy @websockets backend:8000 {
+        # These headers are required for the WebSocket handshake.
+        header_up +Connection {http.request.header.Connection}
+        header_up +Upgrade {http.request.header.Upgrade}
+    }
+
+    # Route all other API traffic to the backend as standard HTTP requests.
+    reverse_proxy @api backend:8000
 }
