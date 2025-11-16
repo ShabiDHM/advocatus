@@ -1,8 +1,7 @@
 # FILE: Caddyfile
-# PHOENIX PROTOCOL - DEFINITIVE INFRASTRUCTURE FIX
+# PHOENIX PROTOCOL - FINAL & COMPLETE INFRASTRUCTURE DEFINITION
 
 advocatus-prod-api.duckdns.org {
-    # TLS and standard security headers remain unchanged.
     tls shabanbala@gmail.com
 
     header {
@@ -13,31 +12,44 @@ advocatus-prod-api.duckdns.org {
 
     # --- Named Matchers for Explicit Routing ---
 
-    # @websockets matcher:
-    # Identifies a request as a WebSocket handshake if it has an Upgrade header
-    # with the value 'websocket'. This is the most reliable method.
+    # @websockets: Matches WebSocket upgrade requests.
     @websockets {
         path /api/v1/comms/*
         header Connection *Upgrade*
         header Upgrade websocket
     }
 
-    # @api matcher:
-    # A catch-all for any other traffic directed to the API.
+    # @options: Matches CORS preflight OPTIONS requests.
+    @options {
+        method OPTIONS
+    }
+
+    # @api: A catch-all for any other standard API traffic.
     @api {
         path /api/*
     }
 
     # --- Routing Logic ---
-    
-    # Route WebSocket traffic to the backend, explicitly forwarding the
-    # necessary headers to complete the protocol upgrade handshake.
+
+    # 1. Handle CORS preflight requests first.
+    # Respond with 204 No Content and permissive CORS headers.
+    # This efficiently tells the browser the actual request is allowed.
+    respond @options 204 {
+        header Access-Control-Allow-Origin "https://advocatus-ai.vercel.app, https://advocatus-ai-*.vercel.app"
+        header Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "*"
+        header Access-Control-Allow-Credentials "true"
+        header Access-Control-Max-Age "86400"
+    }
+
+    # 2. Handle WebSocket traffic.
+    # Proxy to the backend, forwarding necessary upgrade headers.
     reverse_proxy @websockets backend:8000 {
-        # These headers are required for the WebSocket handshake.
         header_up +Connection {http.request.header.Connection}
         header_up +Upgrade {http.request.header.Upgrade}
     }
 
-    # Route all other API traffic to the backend as standard HTTP requests.
+    # 3. Handle all other API traffic.
+    # Proxy standard HTTP requests to the backend.
     reverse_proxy @api backend:8000
 }
