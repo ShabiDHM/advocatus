@@ -1,5 +1,5 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - FINAL RUNTIME CORRECTION
+# PHOENIX PROTOCOL - FINAL EXECUTABLE PATH CORRECTION
 
 services:
   caddy:
@@ -19,9 +19,11 @@ services:
   backend:
     build: { context: ./backend }
     restart: unless-stopped
-    # DEFINITIVE FIX: Added --ws-proxy-headers to ensure Uvicorn trusts Caddy for
-    # secure WebSocket (wss://) connections, resolving the 1006 error.
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers --ws-proxy-headers
+    # DEFINITIVE FIX: The command now invokes uvicorn via 'python -m'.
+    # This bypasses any system PATH issues and guarantees that the version of
+    # uvicorn installed by pip is the one being executed, resolving the
+    # "No such option: --ws-proxy-headers" error permanently.
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers --ws-proxy-headers
     env_file: ./.env
     networks: [phoenix_net]
     depends_on: { mongo: { condition: service_healthy }, redis: { condition: service_healthy } }
