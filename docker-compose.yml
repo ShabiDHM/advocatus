@@ -1,7 +1,5 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - FINAL PRODUCTION VERSION
-# CORRECTION: Removed the diagnostic 'command' override from the 'caddy' service
-# to restore its standard production startup behavior.
+# PHOENIX PROTOCOL - FINAL RUNTIME CORRECTION
 
 services:
   caddy:
@@ -21,7 +19,9 @@ services:
   backend:
     build: { context: ./backend }
     restart: unless-stopped
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers
+    # DEFINITIVE FIX: Added --ws-proxy-headers to ensure Uvicorn trusts Caddy for
+    # secure WebSocket (wss://) connections, resolving the 1006 error.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers --ws-proxy-headers
     env_file: ./.env
     networks: [phoenix_net]
     depends_on: { mongo: { condition: service_healthy }, redis: { condition: service_healthy } }
