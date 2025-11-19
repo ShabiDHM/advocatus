@@ -28,7 +28,9 @@ interface DocumentContentResponse {
     text: string;
 }
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
+// PHOENIX PROTOCOL FIX: robustly handle the base URL to prevent double slashes
+const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
+const API_BASE_URL = rawBaseUrl.replace(/\/$/, ''); 
 const API_V1_URL = `${API_BASE_URL}/api/v1`;
 
 class ApiService {
@@ -37,6 +39,7 @@ class ApiService {
     private refreshTokenPromise: Promise<LoginResponse> | null = null;
 
     constructor() {
+        console.log('[API] Initializing with Base URL:', API_V1_URL);
         this.axiosInstance = axios.create({
             baseURL: API_V1_URL,
             withCredentials: true,
@@ -45,6 +48,7 @@ class ApiService {
         this.setupInterceptors();
     }
 
+    // FIXED: Explicitly define the setter for AuthContext
     public setLogoutHandler(handler: () => void) {
         this.onUnauthorized = handler;
     }
@@ -134,6 +138,7 @@ class ApiService {
 
     // --- Cases ---
     public async getCases(): Promise<Case[]> {
+        // PHOENIX NOTE: If 404 persists, check if backend expects trailing slash ('/cases/')
         const response = await this.axiosInstance.get<Case[]>('/cases');
         return response.data;
     }
@@ -202,7 +207,6 @@ class ApiService {
         return response.data;
     }
 
-    // --- WebSocket Legacy (Empty Stub) ---
     public async getWebSocketUrl(_caseId: string): Promise<string> {
         return ""; 
     }

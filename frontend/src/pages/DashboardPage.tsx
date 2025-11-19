@@ -29,8 +29,10 @@ const DashboardPage: React.FC = () => {
       // Enhanced error logging to help debug 404s
       const status = err.response?.status;
       const url = err.config?.url;
+      const fullUrl = err.config?.baseURL ? `${err.config.baseURL}${url}` : url;
+      
       if (status === 404) {
-        setError(`${t('dashboard.fetchCasesFailure')} (404 Not Found: ${url})`);
+        setError(`${t('dashboard.fetchCasesFailure')} (404 Not Found: ${fullUrl})`);
       } else {
         setError(t('dashboard.fetchCasesFailure')); 
       }
