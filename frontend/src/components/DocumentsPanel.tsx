@@ -1,18 +1,10 @@
-// FILE: /home/user/advocatus-frontend/src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - UI/UX Consolidation v1
-// CORRECTION: The user interface for document actions has been corrected and simplified
-// according to the new mandate.
-// 1. The redundant "View Original" button (FileText icon) has been completely removed.
-// 2. The "View Extracted Text" link (Eye icon) has been converted into a button.
-// 3. The correct 'onViewOriginal' onClick logic has been transferred to this new Eye icon button.
-// This change ensures the Eye icon is the single, intuitive trigger to open the PDF modal.
-
+// FILE: src/components/DocumentsPanel.tsx
 import React, { useState, useRef, useMemo } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Repeat, Trash } from 'lucide-react'; // FileText icon removed from imports
+import { FolderOpen, Eye, Repeat, Trash } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface DocumentsPanelProps {
@@ -61,9 +53,14 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
     try {
       const responseData = await apiService.uploadDocument(caseId, file);
-      const newDoc = { ...responseData, id: responseData.id || responseData._id };
+      // FIXED: Cast to 'any' to access '_id' safely if it exists
+      const rawData = responseData as any;
+      const newDoc = { ...responseData, id: responseData.id || rawData._id };
       if (!newDoc.id) throw new Error("Upload succeeded but the server response was missing a document ID.");
-      delete (newDoc as any)._id;
+      
+      // Cleanup internal field if it exists
+      if (rawData._id) delete rawData._id;
+      
       onDocumentUploaded(newDoc as Document);
     } catch (error: any) {
       setUploadError(t('documentsPanel.uploadFailed') + `: ${error.message}`);
@@ -113,7 +110,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     if (Array.isArray(findings)) {
       findings.forEach(f => {
         if (f && f.document_id) {
-            map.set(f.document_id, true);
+            // FIXED: Ensure ID is a string for the Map key
+            map.set(String(f.document_id), true);
         }
       });
     }
@@ -174,9 +172,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 </span>
                 {(doc.status.toUpperCase() === 'READY') && (
                   <div className="flex items-center space-x-2">
-                    {/* --- DEFINITIVE FIX --- */}
-                    {/* The old 'FileText' button is now gone. */}
-                    {/* The 'Eye' icon is now a button that correctly opens the modal. */}
                     <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-primary-start hover:text-primary-end" whileHover={{ scale: 1.2 }}>
                       <Eye size={16} />
                     </motion.button>

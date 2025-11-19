@@ -28,6 +28,10 @@ export interface Case {
     email?: string | null;
     phone?: string | null;
   };
+  // Added properties to fix CaseCard errors
+  document_count?: number;
+  alert_count?: number;
+  event_count?: number;
 }
 
 export interface Document {
@@ -44,7 +48,7 @@ export interface Document {
 export interface Finding {
   id: string;
   case_id: string;
-  document_id?: string | number;
+  document_id?: string; // Changed to string to match Map key usage
   finding_text: string;
   source_text?: string;
   document_name?: string;
@@ -107,29 +111,29 @@ export interface DraftingJobResult {
 export interface ApiKey {
   id: string;
   key_name: string;
-  provider?: string;     // Added for AccountPage
-  usage_count?: number;  // Added for AccountPage
+  provider?: string;
+  usage_count?: number;
 }
 
 export interface ApiKeyCreateRequest {
   key_name: string;
   api_key: string;
-  provider?: 'openai' | 'anthropic'; // Added for AccountPage
+  provider?: 'openai' | 'anthropic';
 }
 
 export interface ChangePasswordRequest {
   old_password: string;
-  new_password?: string; // Added for AccountPage
+  new_password?: string;
 }
 
 export interface LoginRequest { 
   username: string; 
-  password?: string; // Added to fix AuthPage error
+  password?: string;
 }
 
 export interface RegisterRequest { 
   username: string;
-  password?: string; // Added to fix AuthPage error
+  password?: string;
   email?: string;
 }
 
@@ -137,8 +141,8 @@ export interface CreateCaseRequest { case_name: string; }
 
 export interface UpdateUserRequest { 
   email?: string;
-  role?: User['role']; // Added for AdminDashboard
-  subscription_status?: User['subscription_status']; // Added for AdminDashboard
+  role?: User['role'];
+  subscription_status?: User['subscription_status'];
 }
 
 export interface DeletedDocumentResponse { 
