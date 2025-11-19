@@ -1,10 +1,7 @@
-// FILE: /home/user/advocatus-frontend/src/pages/DashboardPage.tsx
-// DEFINITIVE VERSION 9.5 (BUILD FIX):
-// Corrected the import for 'apiService' to use a named import, resolving the TS2613 build error.
-
+// FILE: src/pages/DashboardPage.tsx
 import React, { useState, useEffect } from 'react';
 import { Case, CreateCaseRequest } from '../data/types';
-import { apiService } from '../services/api'; // PHOENIX PROTOCOL FIX
+import { apiService } from '../services/api';
 import CaseCard from '../components/CaseCard';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion'; 
@@ -27,9 +24,16 @@ const DashboardPage: React.FC = () => {
     try {
       const fetchedCases = await apiService.getCases();
       setCases(fetchedCases);
-    } catch (err) {
-      setError(t('dashboard.fetchCasesFailure')); 
-      console.error(err);
+    } catch (err: any) {
+      console.error('[Dashboard] Fetch Error:', err);
+      // Enhanced error logging to help debug 404s
+      const status = err.response?.status;
+      const url = err.config?.url;
+      if (status === 404) {
+        setError(`${t('dashboard.fetchCasesFailure')} (404 Not Found: ${url})`);
+      } else {
+        setError(t('dashboard.fetchCasesFailure')); 
+      }
     } finally {
       setIsLoading(false);
     }
@@ -37,19 +41,21 @@ const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     fetchCases();
-  }, [t]); // Added t to dependency array for i18next best practices
+  }, [t]);
 
   const handleCreateCase = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCaseTitle || !newCaseClient) return;
 
     try {
-      const newCase = await apiService.createCase({
+      const requestData: CreateCaseRequest = {
         case_name: newCaseTitle, 
         clientName: newCaseClient,
         clientEmail: newCaseEmail,
         clientPhone: newCasePhone
-      } as CreateCaseRequest);
+      };
+
+      const newCase = await apiService.createCase(requestData);
 
       setCases(prev => [newCase, ...prev]);
       setIsModalOpen(false);
@@ -104,11 +110,13 @@ const DashboardPage: React.FC = () => {
         )}
 
         {error && (
-          <div className="p-4 text-sm text-red-100 bg-red-700 rounded-lg">{error}</div>
+          <div className="p-4 text-sm text-red-100 bg-red-700 rounded-lg mb-6 flex items-center gap-2">
+            <span>{error}</span>
+          </div>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
-          {!isLoading && cases.length === 0 && (
+          {!isLoading && cases.length === 0 && !error && (
             <div className="col-span-full text-center py-10 text-text-secondary">
               {t('dashboard.noCasesFound')}
             </div>

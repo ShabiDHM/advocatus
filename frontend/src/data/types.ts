@@ -9,7 +9,6 @@ export interface User {
   subscription_status: 'ACTIVE' | 'INACTIVE' | 'TRIAL' | 'EXPIRED' | 'expired';
 }
 
-// Inherit from User but ensure it has the fields expected by AdminDashboard
 export interface AdminUser extends User {
   case_count?: number;
   document_count?: number;
@@ -28,7 +27,6 @@ export interface Case {
     email?: string | null;
     phone?: string | null;
   };
-  // Added properties to fix CaseCard errors
   document_count?: number;
   alert_count?: number;
   event_count?: number;
@@ -48,7 +46,7 @@ export interface Document {
 export interface Finding {
   id: string;
   case_id: string;
-  document_id?: string; // Changed to string to match Map key usage
+  document_id?: string;
   finding_text: string;
   source_text?: string;
   document_name?: string;
@@ -94,6 +92,14 @@ export interface CalendarEventCreateRequest {
   case_id?: string;
 }
 
+export interface CreateCaseRequest { 
+  case_name: string;
+  // Added optional client fields to match Dashboard usage
+  clientName?: string;
+  clientEmail?: string;
+  clientPhone?: string;
+}
+
 export interface CreateDraftingJobRequest {
   context: string;
 }
@@ -136,8 +142,6 @@ export interface RegisterRequest {
   password?: string;
   email?: string;
 }
-
-export interface CreateCaseRequest { case_name: string; }
 
 export interface UpdateUserRequest { 
   email?: string;
