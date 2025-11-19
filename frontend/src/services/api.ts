@@ -1,4 +1,4 @@
-// FILE: src/services/api.ts
+// FILE: frontend/src/services/api.ts
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
     LoginRequest,
@@ -16,8 +16,7 @@ import type {
     DraftingJobResult,
     ApiKey,
     ApiKeyCreateRequest,
-    ChangePasswordRequest,
-    Finding
+    ChangePasswordRequest
 } from '../data/types';
 
 interface LoginResponse {
@@ -28,14 +27,12 @@ interface DocumentContentResponse {
     text: string;
 }
 
-// --- PHOENIX PROTOCOL FIX: URL & SCHEME NORMALIZATION ---
+// Environment check
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
-// Remove trailing slashes
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
 
-// Initial check: Force HTTPS if on Vercel/HTTPS
+// Force HTTPS if we are on Vercel
 if (typeof window !== 'undefined' && window.location.protocol === 'https:' && normalizedUrl.startsWith('http:')) {
-    console.log('[API] Enforcing HTTPS for API Base URL');
     normalizedUrl = normalizedUrl.replace('http:', 'https:');
 }
 
@@ -48,50 +45,36 @@ class ApiService {
     private refreshTokenPromise: Promise<LoginResponse> | null = null;
 
     constructor() {
-        console.log('[API] Initializing with Base URL:', API_V1_URL);
         this.axiosInstance = axios.create({
             baseURL: API_V1_URL,
             withCredentials: true,
             headers: { 'Content-Type': 'application/json' },
         });
 
-        // --- PHOENIX PROTOCOL: HTTPS FAILSAFE INTERCEPTOR ---
-        // This guarantees that no request leaves the browser as HTTP if we are on HTTPS.
+        this.setupInterceptors();
+    }
+
+    // --- PHOENIX FIX: Re-added Missing Method ---
+    public setLogoutHandler(handler: () => void) {
+        this.onUnauthorized = handler;
+    }
+
+    private setupInterceptors() {
         this.axiosInstance.interceptors.request.use(
             (config) => {
+                // Auto-upgrade to HTTPS
                 if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-                    if (config.baseURL && config.baseURL.startsWith('http:')) {
-                        config.baseURL = config.baseURL.replace('http:', 'https:');
-                    }
-                    if (config.url && config.url.startsWith('http:')) {
-                        config.url = config.url.replace('http:', 'https:');
-                    }
+                    if (config.baseURL?.startsWith('http:')) config.baseURL = config.baseURL.replace('http:', 'https:');
+                    if (config.url?.startsWith('http:')) config.url = config.url.replace('http:', 'https:');
                 }
                 
-                // Attach Token
                 const token = localStorage.getItem('jwtToken');
                 if (token) config.headers.Authorization = `Bearer ${token}`;
-                
                 return config;
             },
             (error) => Promise.reject(error)
         );
 
-        this.setupResponseInterceptor();
-    }
-
-    public setLogoutHandler(handler: () => void) {
-        this.onUnauthorized = handler;
-    }
-
-    private normalizeDocument(doc: any): Document {
-        if (doc && doc._id && !doc.id) {
-            doc.id = doc._id;
-        }
-        return doc as Document;
-    }
-
-    private setupResponseInterceptor() {
         this.axiosInstance.interceptors.response.use(
             (response) => response,
             async (error: AxiosError) => {
@@ -99,9 +82,7 @@ class ApiService {
                 if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
                     originalRequest._retry = true;
                     try {
-                        if (!this.refreshTokenPromise) {
-                            this.refreshTokenPromise = this.refreshAccessToken();
-                        }
+                        if (!this.refreshTokenPromise) this.refreshTokenPromise = this.refreshAccessToken();
                         await this.refreshTokenPromise;
                         this.refreshTokenPromise = null;
                         const newToken = localStorage.getItem('jwtToken');
@@ -135,37 +116,14 @@ class ApiService {
         return response.data;
     }
 
-    // --- Auth & User ---
-    public async login(data: LoginRequest): Promise<LoginResponse> {
-        const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data);
-        return response.data;
-    }
-
-    public async register(data: RegisterRequest): Promise<void> {
-        await this.axiosInstance.post('/auth/register', data);
-    }
-
-    public async fetchUserProfile(): Promise<User> {
-        const response = await this.axiosInstance.get<User>('/users/me');
-        return response.data;
-    }
-
-    public async changePassword(data: ChangePasswordRequest): Promise<void> {
-        await this.axiosInstance.post('/auth/change-password', data);
-    }
-
-    public async deleteAccount(): Promise<void> {
-        await this.axiosInstance.delete('/users/me');
-    }
-
-    // --- Cases ---
+    // --- Cases (Trailing Slashes Removed) ---
     public async getCases(): Promise<Case[]> {
-        const response = await this.axiosInstance.get<Case[]>('/cases/');
+        const response = await this.axiosInstance.get<Case[]>('/cases');
         return response.data;
     }
 
     public async createCase(data: CreateCaseRequest): Promise<Case> {
-        const response = await this.axiosInstance.post<Case>('/cases/', data);
+        const response = await this.axiosInstance.post<Case>('/cases', data);
         return response.data;
     }
 
@@ -177,16 +135,34 @@ class ApiService {
     public async deleteCase(caseId: string): Promise<void> {
         await this.axiosInstance.delete(`/cases/${caseId}`);
     }
+    
+    // --- Auth ---
+    public async login(data: LoginRequest): Promise<LoginResponse> {
+        const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data);
+        return response.data;
+    }
 
-    public async getFindings(caseId: string): Promise<Finding[]> {
-        const response = await this.axiosInstance.get<{ findings: Finding[] }>(`/cases/${caseId}/findings/`);
-        return response.data.findings || [];
+    public async register(data: RegisterRequest): Promise<void> {
+        await this.axiosInstance.post('/auth/register', data);
+    }
+    
+    public async fetchUserProfile(): Promise<User> {
+        const response = await this.axiosInstance.get<User>('/users/me');
+        return response.data;
+    }
+    
+    public async changePassword(data: ChangePasswordRequest): Promise<void> {
+        await this.axiosInstance.post('/auth/change-password', data);
+    }
+    
+    public async deleteAccount(): Promise<void> {
+        await this.axiosInstance.delete('/users/me');
     }
 
     // --- Documents ---
     public async getDocuments(caseId: string): Promise<Document[]> {
-        const response = await this.axiosInstance.get<Document[]>(`/cases/${caseId}/documents/`);
-        return response.data.map(d => this.normalizeDocument(d));
+        const response = await this.axiosInstance.get<Document[]>(`/cases/${caseId}/documents`);
+        return response.data;
     }
 
     public async uploadDocument(caseId: string, file: File): Promise<Document> {
@@ -195,12 +171,12 @@ class ApiService {
         const response = await this.axiosInstance.post<Document>(`/cases/${caseId}/documents/upload`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
-        return this.normalizeDocument(response.data);
+        return response.data;
     }
-
+    
     public async getDocument(caseId: string, documentId: string): Promise<Document> {
         const response = await this.axiosInstance.get<Document>(`/cases/${caseId}/documents/${documentId}`);
-        return this.normalizeDocument(response.data);
+        return response.data;
     }
 
     public async deleteDocument(caseId: string, documentId: string): Promise<DeletedDocumentResponse> {
@@ -219,75 +195,75 @@ class ApiService {
     }
 
     public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> {
-        const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' });
+        const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/download`, { responseType: 'blob' });
         return response.data;
     }
-
+    
     public async downloadDocumentReport(caseId: string, documentId: string): Promise<Blob> {
         const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/report`, { responseType: 'blob' });
         return response.data;
     }
 
     public async getWebSocketUrl(_caseId: string): Promise<string> {
-        return ""; 
+        return "";
     }
 
-    // --- Admin Functions ---
+    // --- Admin ---
     public async getAllUsers(): Promise<User[]> {
-        const response = await this.axiosInstance.get<User[]>('/admin/users/');
+        const response = await this.axiosInstance.get<User[]>('/admin/users');
         return response.data;
     }
-
+    
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> {
         const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data);
         return response.data;
     }
-
+    
     public async deleteUser(userId: string): Promise<void> {
         await this.axiosInstance.delete(`/admin/users/${userId}`);
     }
 
     // --- API Keys ---
     public async getUserApiKeys(): Promise<ApiKey[]> {
-        const response = await this.axiosInstance.get<ApiKey[]>('/api-keys/');
+        const response = await this.axiosInstance.get<ApiKey[]>('/api-keys');
         return response.data;
     }
-
+    
     public async addApiKey(data: ApiKeyCreateRequest): Promise<ApiKey> {
-        const response = await this.axiosInstance.post<ApiKey>('/api-keys/', data);
+        const response = await this.axiosInstance.post<ApiKey>('/api-keys', data);
         return response.data;
     }
-
+    
     public async deleteApiKey(keyId: string): Promise<void> {
         await this.axiosInstance.delete(`/api-keys/${keyId}`);
     }
 
     // --- Calendar ---
     public async getCalendarEvents(): Promise<CalendarEvent[]> {
-        const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events/');
+        const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events');
         return response.data;
     }
-
+    
     public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> {
-        const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events/', data);
+        const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data);
         return response.data;
     }
-
+    
     public async deleteCalendarEvent(eventId: string): Promise<void> {
         await this.axiosInstance.delete(`/calendar/events/${eventId}`);
     }
 
-    // --- Drafting V2 ---
+    // --- Drafting ---
     public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> {
         const response = await this.axiosInstance.post<DraftingJobStatus>(`${API_BASE_URL}/api/v2/drafting/jobs`, data);
         return response.data;
     }
-
+    
     public async getDraftingJobStatus(jobId: string): Promise<DraftingJobStatus> {
         const response = await this.axiosInstance.get<DraftingJobStatus>(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/status`);
         return response.data;
     }
-
+    
     public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> {
         const response = await this.axiosInstance.get<DraftingJobResult>(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/result`);
         return response.data;

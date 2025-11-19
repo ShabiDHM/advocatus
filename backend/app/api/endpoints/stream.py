@@ -1,4 +1,7 @@
+# FILE: backend/app/api/endpoints/stream.py
+# PHOENIX PROTOCOL - SSE IMPLEMENTATION
 import asyncio
+import json
 import logging
 from typing import AsyncGenerator, Optional
 from fastapi import APIRouter, Depends, Query
@@ -18,6 +21,7 @@ async def get_current_user_sse(token: str = Query(..., description="JWT Access T
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)
+        if token_data.sub is None: return None
         return token_data.sub
     except (JWTError, ValidationError):
         return None
@@ -30,15 +34,15 @@ async def event_generator(user_id: Optional[str]) -> AsyncGenerator[str, None]:
     pubsub = redis.pubsub()
     user_channel = f"user:{user_id}:updates"
     await pubsub.subscribe(user_channel)
-    logger.info(f"SSE: User {user_id} connected to channel {user_channel}")
+    logger.info(f"SSE: User {user_id} connected to {user_channel}")
     try:
         yield "event: connected\ndata: {\"status\": \"connected\"}\n\n"
         while True:
-            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=15.0)
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
             if message:
                 yield f"event: update\ndata: {message['data']}\n\n"
-            else:
-                yield ": keep-alive\n\n"
+            yield ": keep-alive\n\n"
+            await asyncio.sleep(0.1)
     except asyncio.CancelledError:
         logger.info(f"SSE: User {user_id} disconnected.")
     finally:
