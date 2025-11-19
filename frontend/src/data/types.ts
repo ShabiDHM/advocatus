@@ -1,6 +1,8 @@
 // FILE: frontend/src/data/types.ts
-// PHOENIX PROTOCOL - TYPE SYNC
-// 1. Added 'document_id' to Finding to enable proper deletion filtering.
+// PHOENIX PROTOCOL - TYPE DEFINITION FIX (BUILD REPAIR)
+// 1. Added 'AdminUser' alias to satisfy Admin pages.
+// 2. Added 'text' to ChatMessage for backward compatibility.
+// 3. Added 'FAILURE' to DraftingStatus to match Celery events.
 
 export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
 
@@ -16,6 +18,9 @@ export interface User {
   case_count?: number;
   document_count?: number;
 }
+
+// PHOENIX FIX: Alias AdminUser to User to satisfy legacy imports
+export type AdminUser = User;
 
 export interface Case {
   id: string;
@@ -44,7 +49,7 @@ export interface Document {
 export interface Finding {
   id: string;
   case_id: string;
-  document_id: string; // <--- CRITICAL FIX
+  document_id: string; 
   finding_text: string;
   source_text: string;
   page_number?: number;
@@ -55,6 +60,9 @@ export interface Finding {
 export interface ChatMessage {
   sender: 'user' | 'ai';
   content: string;
+  // PHOENIX FIX: Added optional 'text' to prevent ChatPanel build errors.
+  // The UI should eventually migrate to using 'content' exclusively.
+  text?: string; 
   timestamp: string;
   isPartial?: boolean;
 }
@@ -98,7 +106,8 @@ export interface CreateDraftingJobRequest {
 
 export interface DraftingJobStatus {
   job_id: string;
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'SUCCESS';
+  // PHOENIX FIX: Added 'FAILURE' to match raw Celery output
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'SUCCESS' | 'FAILURE';
   result_summary?: string;
 }
 

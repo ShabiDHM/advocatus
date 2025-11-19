@@ -1,16 +1,19 @@
-// FILE: /home/user/advocatus-frontend/src/components/ChatPanel.tsx
+// FILE: frontend/src/components/ChatPanel.tsx
+// PHOENIX PROTOCOL - CHAT RENDER FIX
+// 1. Switched from msg.text to (msg.content || msg.text) to support new SSE format.
+// 2. Keeps full backward compatibility.
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage, ConnectionStatus } from '../data/types'; // CURE: Import ConnectionStatus
+import { ChatMessage, ConnectionStatus } from '../data/types';
 import { TFunction } from 'i18next';
 import moment from 'moment';
-import { Brain } from 'lucide-react';
+import { Brain, Send } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface ChatPanelProps {
   caseId: string;
   messages: ChatMessage[];
-  connectionStatus: ConnectionStatus; // CURE: Use authoritative type
+  connectionStatus: ConnectionStatus;
   onSendMessage: (text: string) => void;
   isSendingMessage: boolean;
   reconnect: () => void;
@@ -40,7 +43,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSen
       case 'CONNECTED': return 'bg-success-start text-white glow-accent';
       case 'CONNECTING': return 'bg-accent-start text-white';
       case 'DISCONNECTED': return 'bg-red-500 text-white';
-      case 'ERROR': return 'bg-red-500 text-white'; // CURE: Handle ERROR state
+      case 'ERROR': return 'bg-red-500 text-white';
       default: return 'bg-background-light text-text-secondary';
     }
   };
@@ -50,7 +53,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSen
       case 'CONNECTED': return t('chatPanel.statusConnected');
       case 'CONNECTING': return t('chatPanel.statusConnecting');
       case 'DISCONNECTED': return t('chatPanel.statusDisconnected');
-      case 'ERROR': return t('chatPanel.statusError'); // CURE: Handle ERROR state
+      case 'ERROR': return t('chatPanel.statusError');
     }
   };
 
@@ -73,7 +76,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSen
         {messages.map((msg: ChatMessage, index: number) => (
           <motion.div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }}>
             <div className={`max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-xl shadow-lg transition-all ${ msg.sender === 'user' ? 'bg-gradient-to-r from-primary-start to-primary-end text-white rounded-br-none glow-primary/50' : 'bg-background-dark/80 text-text-primary rounded-tl-none border border-glass-edge' }`}>
-              <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+              {/* PHOENIX FIX: Use content OR text to handle both formats */}
+              <p className="text-sm whitespace-pre-wrap">{msg.content || msg.text || ""}</p>
               <span className={`text-xs block mt-1 ${msg.sender === 'user' ? 'text-white/70' : 'text-text-secondary'}`}> {moment(msg.timestamp).format('HH:mm')} </span>
             </div>
           </motion.div>
@@ -93,7 +97,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSen
         <form onSubmit={handleSubmit} className="flex items-center space-x-3">
           <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={handleKeyDown} rows={2} placeholder={t('chatPanel.inputPlaceholder')} className="flex-1 resize-none p-3 border border-glass-edge rounded-xl bg-background-dark text-text-primary focus:ring-primary-start focus:border-primary-start" disabled={connectionStatus !== 'CONNECTED' || isSendingMessage} />
           <motion.button type="submit" className={`h-10 w-10 flex items-center justify-center rounded-full transition-all duration-300 shadow-lg glow-primary bg-gradient-to-r from-primary-start to-primary-end ${isSendingMessage || inputText.trim().length === 0 ? 'opacity-50' : ''}`} disabled={connectionStatus !== 'CONNECTED' || isSendingMessage || inputText.trim().length === 0} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-send text-white"><line x1="22" x2="11" y1="2" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            <Send size={20} className="text-white" />
           </motion.button>
         </form>
       </div>
