@@ -1,7 +1,7 @@
 // FILE: src/hooks/useDocumentSocket.ts
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
-import { apiService, API_BASE_URL } from '../services/api'; // PHOENIX FIX: Import shared API_BASE_URL
+import { apiService, API_BASE_URL } from '../services/api'; // Import shared base URL
 
 interface SocketCallbacks {
   onConnectionStatusChange: (status: ConnectionStatus) => void;
@@ -26,15 +26,13 @@ export const useDocumentSocket = (
   const [reconnectCounter, setReconnectCounter] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Sync internal status with callback
   useEffect(() => {
     callbacks.onConnectionStatusChange(connectionStatus);
-  }, [connectionStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [connectionStatus]); 
 
   useEffect(() => {
     return () => {
       if (eventSourceRef.current) {
-        console.log('[Socket] Cleaning up connection');
         eventSourceRef.current.close();
         eventSourceRef.current = null;
         setConnectionStatus('DISCONNECTED');
@@ -44,120 +42,74 @@ export const useDocumentSocket = (
 
   useEffect(() => {
     if (!isReady || !caseId) {
-      if (connectionStatus !== 'DISCONNECTED') {
-        setConnectionStatus('DISCONNECTED');
-      }
+      if (connectionStatus !== 'DISCONNECTED') setConnectionStatus('DISCONNECTED');
       return;
     }
 
     const connectSSE = async () => {
-      console.log(`[Socket] Connecting to case ${caseId}...`);
       setConnectionStatus('CONNECTING');
-      
       try {
         const token = apiService.getToken();
         if (!token) {
-          console.error('[Socket] No auth token available');
           setConnectionStatus('DISCONNECTED');
           return;
         }
 
-        // PHOENIX PROTOCOL FIX: Use the consolidated, HTTPS-aware API_BASE_URL
-        const sseUrl = `${API_BASE_URL}/api/v1/stream/updates?token=${token}`;
+        // Ensure HTTPS is used for socket too
+        const socketBase = API_BASE_URL.startsWith('http:') && window.location.protocol === 'https:' 
+            ? API_BASE_URL.replace('http:', 'https:') 
+            : API_BASE_URL;
+            
+        const sseUrl = `${socketBase}/api/v1/stream/updates?token=${token}`;
         
-        console.log(`[Socket] EventSource URL: ${sseUrl}`); // Debug log
-
         const es = new EventSource(sseUrl);
         eventSourceRef.current = es;
 
-        es.onopen = () => {
-          console.log('[Socket] Connected');
-          setConnectionStatus('CONNECTED');
-        };
+        es.onopen = () => setConnectionStatus('CONNECTED');
 
         es.addEventListener('update', async (event: MessageEvent) => {
           try {
             const payload = JSON.parse(event.data);
-            
             if (payload.type === 'DOCUMENT_STATUS') {
-              // Fetch the full document to ensure we have complete data for the UI
               try {
                 const fullDoc = await apiService.getDocument(caseId, payload.document_id);
                 callbacks.onDocumentUpdate(fullDoc);
-                
-                // If the document is ready, findings might be ready too
-                if (fullDoc.status === 'READY') {
-                    callbacks.onFindingsUpdate();
-                }
-              } catch (fetchErr) {
-                console.error('[Socket] Failed to fetch updated document details', fetchErr);
-              }
+                if (fullDoc.status === 'READY') callbacks.onFindingsUpdate();
+              } catch (e) { console.error(e); }
             } else if (payload.type === 'CHAT_MESSAGE' && payload.case_id === caseId) {
-              const chatMsg: ChatMessage = {
-                sender: 'ai', 
-                content: payload.content,
-                text: payload.content, 
-                timestamp: new Date().toISOString(),
-                isPartial: payload.is_partial 
-              };
-              callbacks.onChatMessage(chatMsg);
+              callbacks.onChatMessage({
+                sender: 'ai', content: payload.content, text: payload.content, timestamp: new Date().toISOString(), isPartial: payload.is_partial 
+              });
             } else if (payload.type === 'FINDINGS_UPDATE') {
                 callbacks.onFindingsUpdate();
             }
-          } catch (e) {
-            console.error("[Socket] Error processing message", e);
-          }
+          } catch (e) { console.error(e); }
         });
 
-        es.onerror = (err) => {
-          console.error('[Socket] Connection error', err);
-          if (es.readyState === EventSource.CLOSED) {
-            setConnectionStatus('DISCONNECTED');
-          } else {
-            setConnectionStatus('CONNECTING');
-          }
+        es.onerror = () => {
+          if (es.readyState === EventSource.CLOSED) setConnectionStatus('DISCONNECTED');
+          else setConnectionStatus('CONNECTING');
         };
-
-      } catch (error) {
-        console.error('[Socket] Setup error', error);
-        setConnectionStatus('DISCONNECTED');
-      }
+      } catch { setConnectionStatus('DISCONNECTED'); }
     };
 
     connectSSE();
-    
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [caseId, isReady, reconnectCounter]);
 
   const reconnect = useCallback(() => {
-    console.log('[Socket] Manually reconnecting...');
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
+    if (eventSourceRef.current) eventSourceRef.current.close();
     setReconnectCounter(prev => prev + 1); 
   }, []);
 
   const sendChatMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
-    
     callbacks.onIsSendingChange(true);
-    
-    // Optimistic update
-    const userMsg: ChatMessage = {
-      sender: 'user',
-      content: content,
-      text: content,
-      timestamp: new Date().toISOString()
-    };
-    callbacks.onChatMessage(userMsg);
-
+    callbacks.onChatMessage({ sender: 'user', content, text: content, timestamp: new Date().toISOString() });
     try {
       await apiService.post(`/chat/case/${caseId}`, { message: content });
-    } catch (error) {
-      console.error("[Socket] Failed to send message", error);
-    } finally {
-      callbacks.onIsSendingChange(false);
-    }
+    } catch (error) { console.error(error); } 
+    finally { callbacks.onIsSendingChange(false); }
   }, [caseId, callbacks]);
 
   return { reconnect, sendChatMessage, connectionStatus };

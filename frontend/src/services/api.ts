@@ -29,19 +29,16 @@ interface DocumentContentResponse {
 }
 
 // --- PHOENIX PROTOCOL FIX: URL & SCHEME NORMALIZATION ---
-// 1. Get the raw URL from env or default to localhost
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
-
-// 2. Normalize: Remove trailing slashes
+// Remove trailing slashes
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
 
-// 3. Security Check: If Frontend is HTTPS, Backend MUST be HTTPS
-if (window.location.protocol === 'https:' && normalizedUrl.startsWith('http:')) {
-    console.warn('[API] Mixed Content Prevention: Upgrading API URL to HTTPS');
+// Initial check: Force HTTPS if on Vercel/HTTPS
+if (typeof window !== 'undefined' && window.location.protocol === 'https:' && normalizedUrl.startsWith('http:')) {
+    console.log('[API] Enforcing HTTPS for API Base URL');
     normalizedUrl = normalizedUrl.replace('http:', 'https:');
 }
 
-// 4. Export these for use in other hooks (like useDocumentSocket)
 export const API_BASE_URL = normalizedUrl;
 export const API_V1_URL = `${API_BASE_URL}/api/v1`;
 
@@ -57,7 +54,30 @@ class ApiService {
             withCredentials: true,
             headers: { 'Content-Type': 'application/json' },
         });
-        this.setupInterceptors();
+
+        // --- PHOENIX PROTOCOL: HTTPS FAILSAFE INTERCEPTOR ---
+        // This guarantees that no request leaves the browser as HTTP if we are on HTTPS.
+        this.axiosInstance.interceptors.request.use(
+            (config) => {
+                if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+                    if (config.baseURL && config.baseURL.startsWith('http:')) {
+                        config.baseURL = config.baseURL.replace('http:', 'https:');
+                    }
+                    if (config.url && config.url.startsWith('http:')) {
+                        config.url = config.url.replace('http:', 'https:');
+                    }
+                }
+                
+                // Attach Token
+                const token = localStorage.getItem('jwtToken');
+                if (token) config.headers.Authorization = `Bearer ${token}`;
+                
+                return config;
+            },
+            (error) => Promise.reject(error)
+        );
+
+        this.setupResponseInterceptor();
     }
 
     public setLogoutHandler(handler: () => void) {
@@ -71,16 +91,7 @@ class ApiService {
         return doc as Document;
     }
 
-    private setupInterceptors() {
-        this.axiosInstance.interceptors.request.use(
-            (config: InternalAxiosRequestConfig) => {
-                const token = localStorage.getItem('jwtToken');
-                if (token) config.headers.Authorization = `Bearer ${token}`;
-                return config;
-            },
-            (error) => Promise.reject(error)
-        );
-
+    private setupResponseInterceptor() {
         this.axiosInstance.interceptors.response.use(
             (response) => response,
             async (error: AxiosError) => {
