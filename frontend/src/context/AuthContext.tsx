@@ -1,4 +1,4 @@
-// FILE: /home/user/advocatus-frontend/src/context/AuthContext.tsx
+// FILE: src/context/AuthContext.tsx
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';
@@ -12,8 +12,11 @@ interface DecodedToken {
     role?: string;
 }
 
+// Extended User type that includes the token, strictly for AuthContext usage
+type AuthUser = User & { token?: string };
+
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   isAuthenticated: boolean;
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
@@ -25,7 +28,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const LOCAL_STORAGE_TOKEN_KEY = 'jwtToken';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const logout = useCallback(() => {
@@ -38,35 +41,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     apiService.setLogoutHandler(logout);
   }, [logout]);
 
-  // This is the core startup logic, rewritten for robustness.
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // Step 1: ALWAYS try to refresh the token. This is the single source of truth for a session.
         const response = await apiService.refreshAccessToken();
         const { access_token } = response;
         localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, access_token);
 
-        // Step 2: With a guaranteed valid token, fetch the user's profile.
         const fullUser = await apiService.fetchUserProfile();
         const decoded = jwtDecode<DecodedToken>(access_token);
         const normalizedRole = (decoded.role || fullUser.role || 'STANDARD').toUpperCase() as User['role'];
         
-        // Step 3: Set the user state. The session is now valid.
         setUser({ ...fullUser, token: access_token, role: normalizedRole });
 
       } catch (error) {
-        // If ANY of the above fails, the session is invalid.
         console.error("Session validation failed. User is not logged in.", error);
-        logout(); // Ensure we are fully logged out.
+        logout();
       } finally {
-        // Step 4: GUARANTEE that we signal the app is ready only after auth is resolved.
         setIsLoading(false);
       }
     };
 
     initializeApp();
-  }, [logout]); // Depends only on logout, runs once on mount.
+  }, [logout]);
 
   const login = async (data: LoginRequest) => {
     setIsLoading(true);
@@ -75,10 +72,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const { access_token } = response;
       localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, access_token);
       
-      // After login, fetch profile to populate user state
       const fullUser = await apiService.fetchUserProfile();
       const decoded = jwtDecode<DecodedToken>(access_token);
       const normalizedRole = (decoded.role || fullUser.role || 'STANDARD').toUpperCase() as User['role'];
+      
       setUser({ ...fullUser, token: access_token, role: normalizedRole });
 
     } finally {

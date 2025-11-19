@@ -5,8 +5,16 @@ export interface User {
   id: string;
   username: string;
   email: string;
-  role: 'USER' | 'ADMIN';
-  subscription_status: 'ACTIVE' | 'INACTIVE' | 'TRIAL' | 'EXPIRED';
+  role: 'USER' | 'ADMIN' | 'LAWYER' | 'STANDARD';
+  subscription_status: 'ACTIVE' | 'INACTIVE' | 'TRIAL' | 'EXPIRED' | 'expired';
+}
+
+// Inherit from User but ensure it has the fields expected by AdminDashboard
+export interface AdminUser extends User {
+  case_count?: number;
+  document_count?: number;
+  last_login?: string;
+  created_at?: string;
 }
 
 export interface Case {
@@ -36,7 +44,7 @@ export interface Document {
 export interface Finding {
   id: string;
   case_id: string;
-  document_id?: string | number; // Added to fix TS2339
+  document_id?: string | number;
   finding_text: string;
   source_text?: string;
   document_name?: string;
@@ -62,12 +70,10 @@ export interface CalendarEvent {
   is_all_day?: boolean;
   location?: string;
   attendees?: string[];
-  
-  // Added fields to fix TS2339
   priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | string;
   description?: string;
   event_type?: 'DEADLINE' | 'HEARING' | 'MEETING' | 'FILING' | 'COURT_DATE' | 'CONSULTATION' | string;
-  case_id?: string; // Added to link to cases
+  case_id?: string;
 }
 
 export interface CalendarEventCreateRequest {
@@ -78,8 +84,6 @@ export interface CalendarEventCreateRequest {
   is_all_day?: boolean;
   location?: string;
   attendees?: string[];
-  
-  // Added fields to fix TS2339 & TS2353
   priority?: string;
   description?: string;
   event_type?: string;
@@ -103,21 +107,39 @@ export interface DraftingJobResult {
 export interface ApiKey {
   id: string;
   key_name: string;
+  provider?: string;     // Added for AccountPage
+  usage_count?: number;  // Added for AccountPage
 }
 
 export interface ApiKeyCreateRequest {
   key_name: string;
   api_key: string;
+  provider?: 'openai' | 'anthropic'; // Added for AccountPage
 }
 
 export interface ChangePasswordRequest {
   old_password: string;
+  new_password?: string; // Added for AccountPage
 }
 
-export interface LoginRequest { username: string; }
-export interface RegisterRequest { username: string; }
+export interface LoginRequest { 
+  username: string; 
+  password?: string; // Added to fix AuthPage error
+}
+
+export interface RegisterRequest { 
+  username: string;
+  password?: string; // Added to fix AuthPage error
+  email?: string;
+}
+
 export interface CreateCaseRequest { case_name: string; }
-export interface UpdateUserRequest { email?: string; }
+
+export interface UpdateUserRequest { 
+  email?: string;
+  role?: User['role']; // Added for AdminDashboard
+  subscription_status?: User['subscription_status']; // Added for AdminDashboard
+}
 
 export interface DeletedDocumentResponse { 
     documentId: string;

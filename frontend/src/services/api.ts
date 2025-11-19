@@ -1,9 +1,4 @@
-// FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL - API RESTORATION
-// 1. Added missing 'getFindings' method (Critical Fix).
-// 2. Configured 'getPreviewDocument' to use /preview endpoint.
-// 3. Includes SSE helpers (getToken).
-
+// FILE: src/services/api.ts
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
     LoginRequest,
@@ -22,7 +17,7 @@ import type {
     ApiKey,
     ApiKeyCreateRequest,
     ChangePasswordRequest,
-    Finding // Imported Finding
+    Finding
 } from '../data/types';
 
 interface LoginResponse {
@@ -48,6 +43,10 @@ class ApiService {
             headers: { 'Content-Type': 'application/json' },
         });
         this.setupInterceptors();
+    }
+
+    public setLogoutHandler(handler: () => void) {
+        this.onUnauthorized = handler;
     }
 
     private normalizeDocument(doc: any): Document {
@@ -153,7 +152,6 @@ class ApiService {
         await this.axiosInstance.delete(`/cases/${caseId}`);
     }
 
-    // --- Findings (FIXED: Added missing method) ---
     public async getFindings(caseId: string): Promise<Finding[]> {
         const response = await this.axiosInstance.get<{ findings: Finding[] }>(`/cases/${caseId}/findings`);
         return response.data.findings || [];
@@ -194,7 +192,6 @@ class ApiService {
         return response.data;
     }
 
-    // FIXED: Points to /preview for generated PDFs
     public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> {
         const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' });
         return response.data;
