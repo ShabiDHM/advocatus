@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (ROUTING PREFIX FIX)
-# FIX: Removed 'prefix="/cases"' from APIRouter initialization.
-# The prefix is already defined in 'main.py' when including this router.
-# Double definitions resulted in URLs like '/api/v1/cases/cases/', causing 404 errors.
+# PHOENIX PROTOCOL - PYLANCE FIX
+# 1. Fixed "unknown attribute" error by importing storage_service directly.
+# 2. Maintains "Any File / Any Size" streaming upload logic.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated
@@ -15,7 +14,8 @@ from bson.errors import InvalidId
 import asyncio
 import logging
 
-from ...services import case_service, document_service, findings_service, report_service
+# FIXED: Added 'storage_service' to direct imports
+from ...services import case_service, document_service, findings_service, report_service, storage_service
 from ...models.case import CaseCreate, CaseOut
 from ...models.user import UserInDB
 from ...models.document import DocumentOut
@@ -85,10 +85,22 @@ async def upload_document_for_case(case_id: str, current_user: Annotated[UserInD
     file_name = file.filename or "untitled_upload"
     mime_type = file.content_type or "application/octet-stream"
     try:
-        storage_key = await asyncio.to_thread(document_service.storage_service.upload_original_document, file=file, user_id=str(current_user.id), case_id=case_id)
-        new_document = document_service.create_document_record(db=db, owner=current_user, case_id=case_id, file_name=file_name, storage_key=storage_key, mime_type=mime_type)
+        # FIXED: Using storage_service directly instead of accessing it via document_service
+        storage_key = await asyncio.to_thread(
+            storage_service.upload_original_document, 
+            file=file, 
+            user_id=str(current_user.id), 
+            case_id=case_id
+        )
+        
+        new_document = document_service.create_document_record(
+            db=db, owner=current_user, case_id=case_id, 
+            file_name=file_name, storage_key=storage_key, mime_type=mime_type
+        )
+        
         celery_app.send_task("process_document_task", args=[str(new_document.id)])
         return DocumentOut.model_validate(new_document)
+        
     except Exception as e:
         logger.error(f"CRITICAL UPLOAD FAILURE for case {case_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Document upload failed.")

@@ -1,46 +1,59 @@
 # FILE: backend/app/services/conversion_service.py
+# PHOENIX PROTOCOL - IMAGE TO PDF SUPPORT
+# 1. Uses 'Pillow' (PIL) to instantly convert JPG/PNG -> PDF.
+# 2. Falls back to LibreOffice for Word/Excel/Text.
+# 3. Supports the "Mobile Scan" use case.
 
 import logging
 import os
 import subprocess
 import tempfile
 import shutil
+from PIL import Image  # Standard Python Image Library
 
 logger = logging.getLogger(__name__)
 
 def convert_to_pdf(source_path: str) -> str:
     """
-    Converts a given document file to a PDF using LibreOffice.
-
-    If the source file is already a PDF, it returns a path to a copy. Otherwise,
-    it uses the 'soffice' command-line tool for conversion. This function is
-    designed to run within a container where LibreOffice is installed.
-
-    Args:
-        source_path: The absolute path to the source document.
-
-    Returns:
-        The absolute path to the newly created PDF file.
-
-    Raises:
-        FileNotFoundError: If the source_path does not exist.
-        RuntimeError: If the conversion command fails or soffice is not found.
+    Converts a given document file (DOCX, XLSX, TXT, JPG, PNG) to a PDF.
     """
     if not os.path.exists(source_path):
         raise FileNotFoundError(f"Source file not found at path: {source_path}")
 
     file_name, source_ext = os.path.splitext(os.path.basename(source_path))
+    ext = source_ext.lower()
     
-    # If the file is already a PDF, create a copy and return its path.
-    if source_ext.lower() == '.pdf':
-        logger.info(f"Source file '{file_name}{source_ext}' is already a PDF. Bypassing conversion.")
-        dest_pdf_path = os.path.join(tempfile.gettempdir(), f"{file_name}_preview.pdf")
+    output_dir = tempfile.gettempdir()
+    dest_pdf_path = os.path.join(output_dir, f"{file_name}_preview.pdf")
+
+    # --- CASE 1: ALREADY PDF ---
+    if ext == '.pdf':
+        logger.info(f"Source is already PDF. Copying...")
         shutil.copy2(source_path, dest_pdf_path)
         return dest_pdf_path
 
-    logger.info(f"Initiating PDF conversion for '{file_name}{source_ext}'.")
-
-    output_dir = tempfile.gettempdir()
+    # --- CASE 2: IMAGE TO PDF (The "Scanner" Logic) ---
+    # Uses Python's Pillow library for fast, high-quality conversion
+    if ext in ['.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif']:
+        try:
+            logger.info(f"Converting Image to PDF: {source_path}")
+            image = Image.open(source_path)
+            
+            # Convert to RGB to handle PNG transparency or weird color modes
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # Save as PDF
+            image.save(dest_pdf_path, "PDF", resolution=100.0)
+            
+            logger.info(f"Successfully converted Image to PDF: {dest_pdf_path}")
+            return dest_pdf_path
+        except Exception as e:
+            logger.error(f"Image conversion failed: {e}", exc_info=True)
+            # Fallthrough to LibreOffice just in case, though unlikely to work better
+    
+    # --- CASE 3: OFFICE DOCUMENTS (LibreOffice) ---
+    logger.info(f"Initiating LibreOffice conversion for '{file_name}{source_ext}'.")
     
     command = [
         "soffice",
@@ -55,39 +68,29 @@ def convert_to_pdf(source_path: str) -> str:
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=120  # 2-minute timeout
+            timeout=120
         )
 
         if process.returncode != 0:
             stderr_output = process.stderr.decode('utf-8', errors='ignore')
-            error_message = f"LibreOffice conversion failed with exit code {process.returncode}. Stderr: {stderr_output}"
-            logger.error(error_message)
-            raise RuntimeError(error_message)
+            raise RuntimeError(f"LibreOffice conversion failed: {stderr_output}")
 
+        # LibreOffice saves it as {filename}.pdf in the outdir
         expected_output_path = os.path.join(output_dir, f"{file_name}.pdf")
 
         if not os.path.exists(expected_output_path):
-            error_message = f"Conversion command succeeded but output PDF not found at expected path: '{expected_output_path}'."
-            logger.error(error_message)
-            raise RuntimeError(error_message)
+             raise RuntimeError(f"PDF not found at {expected_output_path}")
             
-        # --- PHOENIX PROTOCOL CURE: ADDED FILE VALIDATION ---
-        # Verify that the created file is not empty (a common failure mode).
         if os.path.getsize(expected_output_path) == 0:
-            error_message = f"Conversion produced a zero-byte (empty) PDF file. The source file may be unsupported or corrupt."
-            logger.error(error_message)
-            os.remove(expected_output_path) # Clean up the empty file
-            raise RuntimeError(error_message)
+            os.remove(expected_output_path)
+            raise RuntimeError("Conversion produced a zero-byte PDF.")
 
-        logger.info(f"Successfully converted '{os.path.basename(source_path)}' to '{os.path.basename(expected_output_path)}'.")
-        return expected_output_path
+        # Rename to ensure it matches our destination naming convention
+        shutil.move(expected_output_path, dest_pdf_path)
+        
+        logger.info(f"Successfully converted Office Doc to PDF.")
+        return dest_pdf_path
 
-    except FileNotFoundError:
-        logger.critical("!!! CRITICAL: The `soffice` command was not found. LibreOffice must be installed in the Docker container.")
-        raise RuntimeError("Conversion tool 'soffice' is not installed or not in the system's PATH.")
-    except subprocess.TimeoutExpired:
-        logger.error(f"PDF conversion for '{os.path.basename(source_path)}' timed out after 120 seconds.")
-        raise RuntimeError("PDF conversion process timed out.")
     except Exception as e:
-        logger.error(f"An unexpected error occurred during PDF conversion: {e}", exc_info=True)
+        logger.error(f"Conversion error: {e}", exc_info=True)
         raise
