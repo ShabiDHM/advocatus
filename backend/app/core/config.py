@@ -1,42 +1,44 @@
 # FILE: backend/app/core/config.py
-# DEFINITIVE VERSION 11.8: ABSOLUTE FINAL COOKIE FIX: Explicitly sets COOKIE_DOMAIN to the API's base domain 
-# to resolve the 'Refresh token cookie missing' error and stabilize session management.
+# PHOENIX PROTOCOL - CONFIGURATION FINAL
+# 1. Handles comma-separated CORS strings (for Docker/Production).
+# 2. Handles JSON strings.
+# 3. Satisfies Pylance strict typing.
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List, Optional
+from typing import List, Union
+from pydantic import field_validator
+import json
 
 class Settings(BaseSettings):
-    """
-    Defines the application's configuration settings.
-    """
-    # FINAL FIX: Corrected path to the .env file at the project root.
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
+
+    # --- API Setup ---
+    API_V1_STR: str = "/api/v1"
+    
+    # --- Auth ---
+    SECRET_KEY: str = "changeme"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080
+
+    # --- CORS Configuration ---
+    BACKEND_CORS_ORIGINS: List[str] = []
+
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str) and not v.startswith("["):
+            # Handle comma-separated string: "http://localhost,https://myapp.com"
+            return [i.strip() for i in v.split(",")]
+        elif isinstance(v, str):
+            # Handle JSON string: '["http://localhost"]'
+            return json.loads(v)
+        # Handle actual list
+        return v
 
     # --- Database & Broker ---
     DATABASE_URI: str = ""
-    REDIS_URL: str = ""
-    
-    # --- Auth ---
-    SECRET_KEY: str = "PHOENIX_PROTOCOL_FINAL_STABLE_SECRET_KEY_A9B3E1C5D7F2A4B9E1C5D7F2A4B9E1C5D7F2A4B9E1C5D7F2A4B9E1C5D7F2A4B9"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
-    REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080
-    
-    # --- PHOENIX PROTOCOL FINAL FIX: Set the COOKIE_DOMAIN explicitly to the API's domain ---
-    # This ensures the browser knows which domain the cookie belongs to, resolving the cross-site issue.
-    # NOTE: The value MUST be the base domain.
-    COOKIE_DOMAIN: Optional[str] = "advocatus-api.ddns.net"
-
-    # --- CORS Configuration ---
-    BACKEND_CORS_ORIGINS: List[str] = [
-        "https://advocatus-ai.vercel.app", # Updated the placeholder Vercel URL to the actual one.
-        "http://localhost:3000",
-        "http://localhost:5173",
-    ]
-
-    # --- BYOK ENCRYPTION SECRETS (Phase 3) ---
-    ENCRYPTION_SALT: str = ""
-    ENCRYPTION_PASSWORD: str = ""
+    REDIS_URL: str = "redis://redis:6379/0"
 
     # --- External Services ---
     B2_KEY_ID: str = ""
@@ -45,15 +47,19 @@ class Settings(BaseSettings):
     B2_BUCKET_NAME: str = ""
     GROQ_API_KEY: str = ""
     HF_TOKEN: str = ""
-    GROQ_MODEL: str = "" 
+    GROQ_MODEL: str = "mixtral-8x7b-32768"
 
     # --- Internal AI Services ---
-    EMBEDDING_MODEL: str = ""
-    CHROMA_HOST: str = ""
+    EMBEDDING_MODEL: str = "sentence-transformers/distiluse-base-multilingual-cased-v2"
+    CHROMA_HOST: str = "chroma"
     CHROMA_PORT: int = 8000
-    EMBEDDING_SERVICE_URL: str = ""
-    NER_SERVICE_URL: str = ""
-    RERANK_SERVICE_URL: str = ""
-    CATEGORIZATION_SERVICE_URL: str = ""
+    EMBEDDING_SERVICE_URL: str = "http://embedding-service:8001"
+    NER_SERVICE_URL: str = "http://ner-service:8002"
+    RERANK_SERVICE_URL: str = "http://rerank-service:8003"
+    CATEGORIZATION_SERVICE_URL: str = "http://categorization-service:8004"
+    
+    # --- Encryption (BYOK) ---
+    ENCRYPTION_SALT: str = ""
+    ENCRYPTION_PASSWORD: str = ""
 
 settings = Settings()
