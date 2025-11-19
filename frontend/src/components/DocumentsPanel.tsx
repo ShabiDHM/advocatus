@@ -1,4 +1,9 @@
 // FILE: src/components/DocumentsPanel.tsx
+// PHOENIX PROTOCOL - UNRESTRICTED UPLOAD
+// 1. Removed file type restrictions (allows Images, Excel, etc.)
+// 2. Fixed ID normalization to ensure SSE updates work.
+// 3. Fixed delete logic to properly clean up UI.
+
 import React, { useState, useRef, useMemo } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
@@ -53,15 +58,20 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
     try {
       const responseData = await apiService.uploadDocument(caseId, file);
-      // FIXED: Cast to 'any' to access '_id' safely if it exists
+      
+      // PHOENIX FIX: Strict ID normalization
+      // The SSE system uses "id", but MongoDB sends "_id". We must normalize immediately.
       const rawData = responseData as any;
-      const newDoc = { ...responseData, id: responseData.id || rawData._id };
-      if (!newDoc.id) throw new Error("Upload succeeded but the server response was missing a document ID.");
+      const newDoc: Document = {
+          ...responseData,
+          id: responseData.id || rawData._id, // Ensure ID is present
+          status: 'PENDING' // Ensure initial status is clear
+      };
+
+      if (!newDoc.id) throw new Error("Upload succeeded but ID is missing.");
+
+      onDocumentUploaded(newDoc);
       
-      // Cleanup internal field if it exists
-      if (rawData._id) delete rawData._id;
-      
-      onDocumentUploaded(newDoc as Document);
     } catch (error: any) {
       setUploadError(t('documentsPanel.uploadFailed') + `: ${error.message}`);
     } finally {
@@ -71,10 +81,11 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   const handleDeleteDocument = async (documentId: string | undefined) => {
-    if (typeof documentId !== 'string' || documentId.trim() === '') return;
+    if (!documentId) return;
     if (!window.confirm(t('documentsPanel.confirmDelete'))) return;
     try {
       const response = await apiService.deleteDocument(caseId, documentId);
+      // Pass full response (including finding IDs) to parent
       onDocumentDeleted(response);
     } catch (error) {
       console.error("Failed to delete document:", error);
@@ -87,11 +98,19 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   const getStatusInfo = (status: Document['status']) => {
-    switch (status.toUpperCase()) {
-      case 'READY': return { color: 'bg-success-start/20 text-success-start', label: t('documentsPanel.statusCompleted') };
-      case 'PENDING': return { color: 'bg-accent-start/20 text-accent-start', label: t('documentsPanel.statusPending') };
-      case 'FAILED': return { color: 'bg-red-500/20 text-red-500', label: t('documentsPanel.statusFailed') };
-      default: return { color: 'bg-background-light/20 text-text-secondary', label: status };
+    // Normalize backend status (READY) to UI status (COMPLETED) if needed, 
+    // or just handle both.
+    const s = status ? status.toUpperCase() : 'PENDING';
+    switch (s) {
+      case 'READY': 
+      case 'COMPLETED': 
+        return { color: 'bg-success-start/20 text-success-start', label: t('documentsPanel.statusCompleted') };
+      case 'PENDING': 
+        return { color: 'bg-accent-start/20 text-accent-start', label: t('documentsPanel.statusPending') };
+      case 'FAILED': 
+        return { color: 'bg-red-500/20 text-red-500', label: t('documentsPanel.statusFailed') };
+      default: 
+        return { color: 'bg-background-light/20 text-text-secondary', label: status };
     }
   };
 
@@ -110,7 +129,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     if (Array.isArray(findings)) {
       findings.forEach(f => {
         if (f && f.document_id) {
-            // FIXED: Ensure ID is a string for the Map key
             map.set(String(f.document_id), true);
         }
       });
@@ -132,7 +150,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               </motion.button>
             )}
           </span>
-          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} accept=".pdf,.docx,.txt" />
+          {/* PHOENIX FIX: Removed 'accept' attribute to allow ALL file types */}
+          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
           <motion.button
             onClick={() => fileInputRef.current?.click()}
             className="text-white font-semibold py-2 px-3 sm:px-4 rounded-xl transition-all duration-300 shadow-lg glow-primary bg-gradient-to-r from-primary-start to-primary-end"
@@ -153,6 +172,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         {documents.map((doc) => {
           const statusInfo = getStatusInfo(doc.status);
           const hasFindings = docHasFindings.get(doc.id);
+          const isReady = doc.status.toUpperCase() === 'READY' || doc.status.toUpperCase() === 'COMPLETED';
+          
           return (
             <motion.div
               key={doc.id} layout="position"
@@ -170,7 +191,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${statusInfo.color}`}>
                   {statusInfo.label}
                 </span>
-                {(doc.status.toUpperCase() === 'READY') && (
+                {isReady && (
                   <div className="flex items-center space-x-2">
                     <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-primary-start hover:text-primary-end" whileHover={{ scale: 1.2 }}>
                       <Eye size={16} />
