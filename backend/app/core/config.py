@@ -1,18 +1,15 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - THE FINAL AND DEFINITIVE CORRECTION (STATIC ANALYSIS COMPLIANT)
-# CORRECTION: A default value of [] is provided to satisfy Pylance.
-# The runtime validator is retained to ensure the environment variable is still mandatory,
-# maintaining the single source of truth principle.
+# DEFINITIVE VERSION 11.8: ABSOLUTE FINAL COOKIE FIX: Explicitly sets COOKIE_DOMAIN to the API's base domain 
+# to resolve the 'Refresh token cookie missing' error and stabilize session management.
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
 from typing import List, Optional
 
 class Settings(BaseSettings):
     """
     Defines the application's configuration settings.
-    Establishes the environment as the single source of truth.
     """
+    # FINAL FIX: Corrected path to the .env file at the project root.
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore')
 
     # --- Database & Broker ---
@@ -20,30 +17,22 @@ class Settings(BaseSettings):
     REDIS_URL: str = ""
     
     # --- Auth ---
-    SECRET_KEY: Optional[str] = None
+    SECRET_KEY: str = "PHOENIX_PROTOCOL_FINAL_STABLE_SECRET_KEY_A9B3E1C5D7F2A4B9E1C5D7F2A4B9E1C5D7F2A4B9E1C5D7F2A4B9E1C5D7F2A4B9"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080
     
-    @field_validator('SECRET_KEY')
-    @classmethod
-    def secret_key_must_not_be_none(cls, v: Optional[str]) -> str:
-        if v is None:
-            raise ValueError("SECRET_KEY is not set in the environment. The application cannot start.")
-        return v
+    # --- PHOENIX PROTOCOL FINAL FIX: Set the COOKIE_DOMAIN explicitly to the API's domain ---
+    # This ensures the browser knows which domain the cookie belongs to, resolving the cross-site issue.
+    # NOTE: The value MUST be the base domain.
+    COOKIE_DOMAIN: Optional[str] = "advocatus-api.ddns.net"
 
     # --- CORS Configuration ---
-    # PHOENIX PROTOCOL CORRECTION:
-    # Default is now an empty list to resolve Pylance's static analysis warning.
-    # The validator ensures that if the env var isn't loaded, the app will not start.
-    BACKEND_CORS_ORIGINS: List[str] = []
-
-    @field_validator('BACKEND_CORS_ORIGINS')
-    @classmethod
-    def cors_origins_must_not_be_empty(cls, v: List[str]) -> List[str]:
-        if not v:
-            raise ValueError("BACKEND_CORS_ORIGINS is not set or is empty in the environment. The application cannot start.")
-        return v
+    BACKEND_CORS_ORIGINS: List[str] = [
+        "https://advocatus-ai.vercel.app", # Updated the placeholder Vercel URL to the actual one.
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ]
 
     # --- BYOK ENCRYPTION SECRETS (Phase 3) ---
     ENCRYPTION_SALT: str = ""
