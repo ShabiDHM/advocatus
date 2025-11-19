@@ -48,7 +48,6 @@ class ApiService {
         this.setupInterceptors();
     }
 
-    // FIXED: Explicitly define the setter for AuthContext
     public setLogoutHandler(handler: () => void) {
         this.onUnauthorized = handler;
     }
@@ -138,17 +137,19 @@ class ApiService {
 
     // --- Cases ---
     public async getCases(): Promise<Case[]> {
-        // PHOENIX NOTE: If 404 persists, check if backend expects trailing slash ('/cases/')
-        const response = await this.axiosInstance.get<Case[]>('/cases');
+        // PHOENIX FIX: Added trailing slash to fix 404
+        const response = await this.axiosInstance.get<Case[]>('/cases/');
         return response.data;
     }
 
     public async createCase(data: CreateCaseRequest): Promise<Case> {
-        const response = await this.axiosInstance.post<Case>('/cases', data);
+        // PHOENIX FIX: Added trailing slash
+        const response = await this.axiosInstance.post<Case>('/cases/', data);
         return response.data;
     }
 
     public async getCaseDetails(caseId: string): Promise<Case> {
+        // Resource IDs usually don't require trailing slash
         const response = await this.axiosInstance.get<Case>(`/cases/${caseId}`);
         return response.data;
     }
@@ -158,13 +159,15 @@ class ApiService {
     }
 
     public async getFindings(caseId: string): Promise<Finding[]> {
-        const response = await this.axiosInstance.get<{ findings: Finding[] }>(`/cases/${caseId}/findings`);
+        // PHOENIX FIX: Added trailing slash for collection
+        const response = await this.axiosInstance.get<{ findings: Finding[] }>(`/cases/${caseId}/findings/`);
         return response.data.findings || [];
     }
 
     // --- Documents ---
     public async getDocuments(caseId: string): Promise<Document[]> {
-        const response = await this.axiosInstance.get<Document[]>(`/cases/${caseId}/documents`);
+        // PHOENIX FIX: Added trailing slash for collection
+        const response = await this.axiosInstance.get<Document[]>(`/cases/${caseId}/documents/`);
         return response.data.map(d => this.normalizeDocument(d));
     }
 
@@ -213,7 +216,8 @@ class ApiService {
 
     // --- Admin Functions ---
     public async getAllUsers(): Promise<User[]> {
-        const response = await this.axiosInstance.get<User[]>('/admin/users');
+        // PHOENIX FIX: Added trailing slash
+        const response = await this.axiosInstance.get<User[]>('/admin/users/');
         return response.data;
     }
 
@@ -228,12 +232,14 @@ class ApiService {
 
     // --- API Keys ---
     public async getUserApiKeys(): Promise<ApiKey[]> {
-        const response = await this.axiosInstance.get<ApiKey[]>('/api-keys');
+        // PHOENIX FIX: Added trailing slash
+        const response = await this.axiosInstance.get<ApiKey[]>('/api-keys/');
         return response.data;
     }
 
     public async addApiKey(data: ApiKeyCreateRequest): Promise<ApiKey> {
-        const response = await this.axiosInstance.post<ApiKey>('/api-keys', data);
+        // PHOENIX FIX: Added trailing slash
+        const response = await this.axiosInstance.post<ApiKey>('/api-keys/', data);
         return response.data;
     }
 
@@ -243,12 +249,14 @@ class ApiService {
 
     // --- Calendar ---
     public async getCalendarEvents(): Promise<CalendarEvent[]> {
-        const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events');
+        // PHOENIX FIX: Added trailing slash
+        const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events/');
         return response.data;
     }
 
     public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> {
-        const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data);
+        // PHOENIX FIX: Added trailing slash
+        const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events/', data);
         return response.data;
     }
 
