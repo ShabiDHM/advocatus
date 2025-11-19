@@ -28,10 +28,22 @@ interface DocumentContentResponse {
     text: string;
 }
 
-// PHOENIX PROTOCOL FIX: robustly handle the base URL to prevent double slashes
+// --- PHOENIX PROTOCOL FIX: URL & SCHEME NORMALIZATION ---
+// 1. Get the raw URL from env or default to localhost
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
-const API_BASE_URL = rawBaseUrl.replace(/\/$/, ''); 
-const API_V1_URL = `${API_BASE_URL}/api/v1`;
+
+// 2. Normalize: Remove trailing slashes
+let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
+
+// 3. Security Check: If Frontend is HTTPS, Backend MUST be HTTPS
+if (window.location.protocol === 'https:' && normalizedUrl.startsWith('http:')) {
+    console.warn('[API] Mixed Content Prevention: Upgrading API URL to HTTPS');
+    normalizedUrl = normalizedUrl.replace('http:', 'https:');
+}
+
+// 4. Export these for use in other hooks (like useDocumentSocket)
+export const API_BASE_URL = normalizedUrl;
+export const API_V1_URL = `${API_BASE_URL}/api/v1`;
 
 class ApiService {
     public axiosInstance: AxiosInstance;
@@ -137,19 +149,16 @@ class ApiService {
 
     // --- Cases ---
     public async getCases(): Promise<Case[]> {
-        // PHOENIX FIX: Added trailing slash to fix 404
         const response = await this.axiosInstance.get<Case[]>('/cases/');
         return response.data;
     }
 
     public async createCase(data: CreateCaseRequest): Promise<Case> {
-        // PHOENIX FIX: Added trailing slash
         const response = await this.axiosInstance.post<Case>('/cases/', data);
         return response.data;
     }
 
     public async getCaseDetails(caseId: string): Promise<Case> {
-        // Resource IDs usually don't require trailing slash
         const response = await this.axiosInstance.get<Case>(`/cases/${caseId}`);
         return response.data;
     }
@@ -159,14 +168,12 @@ class ApiService {
     }
 
     public async getFindings(caseId: string): Promise<Finding[]> {
-        // PHOENIX FIX: Added trailing slash for collection
         const response = await this.axiosInstance.get<{ findings: Finding[] }>(`/cases/${caseId}/findings/`);
         return response.data.findings || [];
     }
 
     // --- Documents ---
     public async getDocuments(caseId: string): Promise<Document[]> {
-        // PHOENIX FIX: Added trailing slash for collection
         const response = await this.axiosInstance.get<Document[]>(`/cases/${caseId}/documents/`);
         return response.data.map(d => this.normalizeDocument(d));
     }
@@ -216,7 +223,6 @@ class ApiService {
 
     // --- Admin Functions ---
     public async getAllUsers(): Promise<User[]> {
-        // PHOENIX FIX: Added trailing slash
         const response = await this.axiosInstance.get<User[]>('/admin/users/');
         return response.data;
     }
@@ -232,13 +238,11 @@ class ApiService {
 
     // --- API Keys ---
     public async getUserApiKeys(): Promise<ApiKey[]> {
-        // PHOENIX FIX: Added trailing slash
         const response = await this.axiosInstance.get<ApiKey[]>('/api-keys/');
         return response.data;
     }
 
     public async addApiKey(data: ApiKeyCreateRequest): Promise<ApiKey> {
-        // PHOENIX FIX: Added trailing slash
         const response = await this.axiosInstance.post<ApiKey>('/api-keys/', data);
         return response.data;
     }
@@ -249,13 +253,11 @@ class ApiService {
 
     // --- Calendar ---
     public async getCalendarEvents(): Promise<CalendarEvent[]> {
-        // PHOENIX FIX: Added trailing slash
         const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events/');
         return response.data;
     }
 
     public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> {
-        // PHOENIX FIX: Added trailing slash
         const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events/', data);
         return response.data;
     }

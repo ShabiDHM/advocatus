@@ -1,7 +1,7 @@
 // FILE: src/hooks/useDocumentSocket.ts
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
-import { apiService } from '../services/api';
+import { apiService, API_BASE_URL } from '../services/api'; // PHOENIX FIX: Import shared API_BASE_URL
 
 interface SocketCallbacks {
   onConnectionStatusChange: (status: ConnectionStatus) => void;
@@ -62,9 +62,11 @@ export const useDocumentSocket = (
           return;
         }
 
-        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-        const sseUrl = `${baseUrl}/api/v1/stream/updates?token=${token}`;
+        // PHOENIX PROTOCOL FIX: Use the consolidated, HTTPS-aware API_BASE_URL
+        const sseUrl = `${API_BASE_URL}/api/v1/stream/updates?token=${token}`;
         
+        console.log(`[Socket] EventSource URL: ${sseUrl}`); // Debug log
+
         const es = new EventSource(sseUrl);
         eventSourceRef.current = es;
 
@@ -92,11 +94,11 @@ export const useDocumentSocket = (
               }
             } else if (payload.type === 'CHAT_MESSAGE' && payload.case_id === caseId) {
               const chatMsg: ChatMessage = {
-                sender: 'ai', // Standardize on lowercase 'ai' for internal logic, though UI might handle both
+                sender: 'ai', 
                 content: payload.content,
-                text: payload.content, // Support legacy field
+                text: payload.content, 
                 timestamp: new Date().toISOString(),
-                isPartial: payload.is_partial // Pass through partial flag if backend sends it
+                isPartial: payload.is_partial 
               };
               callbacks.onChatMessage(chatMsg);
             } else if (payload.type === 'FINDINGS_UPDATE') {
@@ -132,7 +134,7 @@ export const useDocumentSocket = (
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
-    setReconnectCounter(prev => prev + 1);
+    setReconnectCounter(prev => prev + 1); 
   }, []);
 
   const sendChatMessage = useCallback(async (content: string) => {
@@ -153,7 +155,6 @@ export const useDocumentSocket = (
       await apiService.post(`/chat/case/${caseId}`, { message: content });
     } catch (error) {
       console.error("[Socket] Failed to send message", error);
-      // Optional: Add error handling/toast here
     } finally {
       callbacks.onIsSendingChange(false);
     }
