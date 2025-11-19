@@ -16,7 +16,8 @@ import type {
     DraftingJobResult,
     ApiKey,
     ApiKeyCreateRequest,
-    ChangePasswordRequest
+    ChangePasswordRequest,
+    Finding // Ensure this is imported
 } from '../data/types';
 
 interface LoginResponse {
@@ -54,7 +55,6 @@ class ApiService {
         this.setupInterceptors();
     }
 
-    // --- PHOENIX FIX: Re-added Missing Method ---
     public setLogoutHandler(handler: () => void) {
         this.onUnauthorized = handler;
     }
@@ -62,7 +62,6 @@ class ApiService {
     private setupInterceptors() {
         this.axiosInstance.interceptors.request.use(
             (config) => {
-                // Auto-upgrade to HTTPS
                 if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
                     if (config.baseURL?.startsWith('http:')) config.baseURL = config.baseURL.replace('http:', 'https:');
                     if (config.url?.startsWith('http:')) config.url = config.url.replace('http:', 'https:');
@@ -116,7 +115,7 @@ class ApiService {
         return response.data;
     }
 
-    // --- Cases (Trailing Slashes Removed) ---
+    // --- Cases ---
     public async getCases(): Promise<Case[]> {
         const response = await this.axiosInstance.get<Case[]>('/cases');
         return response.data;
@@ -134,6 +133,13 @@ class ApiService {
 
     public async deleteCase(caseId: string): Promise<void> {
         await this.axiosInstance.delete(`/cases/${caseId}`);
+    }
+
+    // --- PHOENIX FIX: Restored getFindings ---
+    public async getFindings(caseId: string): Promise<Finding[]> {
+        // Note: Removing trailing slash
+        const response = await this.axiosInstance.get<{ findings: Finding[] }>(`/cases/${caseId}/findings`);
+        return response.data.findings || [];
     }
     
     // --- Auth ---
