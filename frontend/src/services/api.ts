@@ -1,9 +1,8 @@
 // FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL - FULL FUNCTIONALITY RESTORED
-// 1. All Admin, Calendar, Drafting, and Settings methods are now ACTIVE (not stubs).
-// 2. Includes SSE helpers (getToken, post).
-// 3. Includes ID Normalization (normalizeDocument).
-// 4. Points 'getPreviewDocument' to the new PDF Preview endpoint.
+// PHOENIX PROTOCOL - API RESTORATION
+// 1. Added missing 'getFindings' method (Critical Fix).
+// 2. Configured 'getPreviewDocument' to use /preview endpoint.
+// 3. Includes SSE helpers (getToken).
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -22,7 +21,8 @@ import type {
     DraftingJobResult,
     ApiKey,
     ApiKeyCreateRequest,
-    ChangePasswordRequest
+    ChangePasswordRequest,
+    Finding // Imported Finding
 } from '../data/types';
 
 interface LoginResponse {
@@ -33,7 +33,6 @@ interface DocumentContentResponse {
     text: string;
 }
 
-// Environment check
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 const API_V1_URL = `${API_BASE_URL}/api/v1`;
 
@@ -51,7 +50,6 @@ class ApiService {
         this.setupInterceptors();
     }
 
-    // --- HELPER: Fix MongoDB _id issue ---
     private normalizeDocument(doc: any): Document {
         if (doc && doc._id && !doc.id) {
             doc.id = doc._id;
@@ -155,6 +153,12 @@ class ApiService {
         await this.axiosInstance.delete(`/cases/${caseId}`);
     }
 
+    // --- Findings (FIXED: Added missing method) ---
+    public async getFindings(caseId: string): Promise<Finding[]> {
+        const response = await this.axiosInstance.get<{ findings: Finding[] }>(`/cases/${caseId}/findings`);
+        return response.data.findings || [];
+    }
+
     // --- Documents ---
     public async getDocuments(caseId: string): Promise<Document[]> {
         const response = await this.axiosInstance.get<Document[]>(`/cases/${caseId}/documents`);
@@ -180,8 +184,6 @@ class ApiService {
         return response.data;
     }
 
-    // --- Document Content, Download & Preview ---
-
     public async getDocumentContent(caseId: string, documentId: string): Promise<DocumentContentResponse> {
         const response = await this.axiosInstance.get<DocumentContentResponse>(`/cases/${caseId}/documents/${documentId}/content`);
         return response.data;
@@ -203,7 +205,7 @@ class ApiService {
         return response.data;
     }
 
-    // --- WebSocket Legacy (Empty but present to prevent crash) ---
+    // --- WebSocket Legacy (Empty Stub) ---
     public async getWebSocketUrl(_caseId: string): Promise<string> {
         return ""; 
     }
