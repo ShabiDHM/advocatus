@@ -1,4 +1,5 @@
 // FILE: frontend/src/hooks/useDocumentSocket.ts
+// PHOENIX PROTOCOL - DEBUG & ROBUST VERSION
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
 import { apiService } from '../services/api';
@@ -24,6 +25,7 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
   useEffect(() => {
     return () => {
       if (eventSourceRef.current) {
+        console.log("SSE: Closing connection on unmount");
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
@@ -35,54 +37,97 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
         setConnectionStatus('DISCONNECTED');
         return;
     }
+
     const connectSSE = async () => {
         setConnectionStatus('CONNECTING');
+
         try {
             const token = apiService.getToken();
             if (!token) {
+                console.error("SSE: No authentication token found.");
                 setConnectionStatus('DISCONNECTED');
                 return;
             }
+
+            // Construct URL
             const baseUrl = import.meta.env.VITE_API_URL || 'https://advocatus-prod-api.duckdns.org';
             const sseUrl = `${baseUrl}/api/v1/stream/updates?token=${token}`;
+            
+            console.log(`SSE: Connecting to ${sseUrl}`);
+
             const es = new EventSource(sseUrl);
             eventSourceRef.current = es;
 
-            es.onopen = () => { setConnectionStatus('CONNECTED'); };
-            
+            es.onopen = () => {
+                console.log("%cSSE: Connected to Stream", "color: green; font-weight: bold;");
+                setConnectionStatus('CONNECTED');
+            };
+
             es.addEventListener('update', (event: MessageEvent) => {
                 try {
                     const payload = JSON.parse(event.data);
+                    console.log("SSE Received:", payload); // <--- DEBUG LOG
+
+                    // --- SCENARIO A: Document Status Update ---
                     if (payload.type === 'DOCUMENT_STATUS') {
                         setDocuments(prevDocs => {
-                            const index = prevDocs.findIndex(d => d.id === payload.document_id);
-                            if (index === -1) return prevDocs;
+                            const targetId = String(payload.document_id);
+                            const index = prevDocs.findIndex(d => String(d.id) === targetId);
+                            
+                            if (index === -1) {
+                                console.warn(`SSE: Doc ${targetId} not found in current list.`);
+                                return prevDocs; 
+                            }
+
                             const newDocs = [...prevDocs];
                             const doc = newDocs[index];
-                            if (payload.status === 'READY' || payload.status === 'COMPLETED') {
+                            const newStatus = payload.status.toUpperCase();
+
+                            // Normalize Status
+                            if (newStatus === 'READY' || newStatus === 'COMPLETED') {
+                                console.log(`SSE: Updating ${targetId} to COMPLETED`);
                                 doc.status = 'COMPLETED';
-                            } else if (payload.status === 'FAILED') {
+                            } else if (newStatus === 'FAILED') {
+                                console.error(`SSE: Doc ${targetId} FAILED: ${payload.error}`);
                                 doc.status = 'FAILED';
                                 doc.error_message = payload.error;
                             }
+                            
                             return newDocs;
                         });
                     }
+
+                    // --- SCENARIO B: Chat Message ---
                     if (payload.type === 'CHAT_MESSAGE' && payload.case_id === caseId) {
-                         setMessages(prev => [...prev, { sender: 'ai', content: payload.content, timestamp: new Date().toISOString() }]);
+                         setMessages(prev => [...prev, {
+                             sender: 'ai',
+                             content: payload.content,
+                             timestamp: new Date().toISOString()
+                         }]);
                     }
-                } catch (e) { console.error("SSE Parse Error", e); }
+
+                } catch (e) {
+                    console.error("SSE: Failed to parse message", e);
+                }
             });
-            
-            es.onerror = () => {
-                if (es.readyState === EventSource.CLOSED) setConnectionStatus('DISCONNECTED');
-                else setConnectionStatus('CONNECTING');
+
+            es.onerror = (err) => {
+                console.error("SSE: Connection Error", err);
+                if (es.readyState === EventSource.CLOSED) {
+                    setConnectionStatus('DISCONNECTED');
+                } else {
+                    setConnectionStatus('CONNECTING');
+                }
             };
+
         } catch (error) {
+            console.error("SSE: Setup failed", error);
             setConnectionStatus('DISCONNECTED');
         }
     };
+
     connectSSE();
+
   }, [caseId, reconnectCounter]);
 
   const reconnect = useCallback(() => { 
@@ -97,7 +142,7 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
     try {
         await apiService.post(`/chat/case/${caseId}`, { message: content });
     } catch (error) {
-        console.error("Message send failed", error);
+        console.error("Failed to send message", error);
     } finally {
         setIsSendingMessage(false);
     }

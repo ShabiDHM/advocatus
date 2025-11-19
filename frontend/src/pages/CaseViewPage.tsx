@@ -1,7 +1,7 @@
 // FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - FINAL POLISH
-// 1. Fixed TS Error (Unused variable).
-// 2. ENABLED AUTO-REFRESH for Findings when document processing finishes.
+// PHOENIX PROTOCOL - FINAL SYNC FIX
+// 1. Aggressive ID matching for deletions (String() casting).
+// 2. Auto-Refresh logic hooked into the SSE state.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -23,7 +23,7 @@ type CaseData = {
     findings: Finding[];
 };
 
-// --- SUB-COMPONENTS ---
+// --- SUB-COMPONENTS (Header/FindingsPanel) ---
 const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction; }> = ({ caseDetails, t }) => (
     <motion.div
       className="mb-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
@@ -66,12 +66,9 @@ const CaseViewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   
-  // Track previous ready count to trigger updates
   const prevReadyCount = useRef(0);
-  
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
 
-  // --- PHOENIX PROTOCOL: SSE HOOK ---
   const { 
       documents: liveDocuments,
       setDocuments: setLiveDocuments,
@@ -97,13 +94,13 @@ const CaseViewPage: React.FC = () => {
       
       setCaseData({ details, findings: findingsResponse || [] });
       
-      // Sync Hook State only on initial load to avoid overwriting live updates
       if (isInitialLoad) {
           setLiveDocuments((initialDocs || []).map(sanitizeDocument));
-          // Set initial ready count so we don't trigger immediate refetch
-          prevReadyCount.current = (initialDocs || []).filter(d => d.status === 'COMPLETED' || d.status === 'READY').length;
+          // Initialize ready count
+          const readyDocs = (initialDocs || []).filter(d => d.status === 'COMPLETED' || d.status === 'READY');
+          prevReadyCount.current = readyDocs.length;
       } else {
-          // On subsequent fetches (e.g. for findings), just update findings
+          // Just update findings on subsequent refreshes
           setCaseData(prev => ({ ...prev, findings: findingsResponse || [] }));
       }
 
@@ -115,24 +112,21 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, t, setLiveDocuments]);
 
-  // --- AUTO-REFRESH LOGIC ---
+  // --- AUTO-REFRESH FINDINGS ---
+  // Listen for changes in document status
   useEffect(() => {
      const currentReadyCount = liveDocuments.filter(d => d.status === 'COMPLETED' || d.status === 'READY').length;
      
-     // If the number of READY documents INCREASED, it means processing just finished.
      if (currentReadyCount > prevReadyCount.current) {
-         console.log("New document ready! Fetching updated findings...");
-         fetchCaseData(false); // Fetch findings without full page loader
+         console.log("Document finished processing! Fetching new findings...");
+         fetchCaseData(false); 
      }
-     
      prevReadyCount.current = currentReadyCount;
   }, [liveDocuments, fetchCaseData]);
 
   // Initial Load
   useEffect(() => {
-    if (isReadyForData) {
-      fetchCaseData(true);
-    }
+    if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
   
   // --- EVENT HANDLERS ---
@@ -143,13 +137,17 @@ const CaseViewPage: React.FC = () => {
   
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
     const { documentId } = response;
+    console.log("Deleting document:", documentId);
     
-    setLiveDocuments(prev => prev.filter(d => d.id !== documentId));
+    // 1. Update Documents
+    setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(documentId)));
     
-    setCaseData(prev => ({
-        ...prev,
-        findings: prev.findings.filter(f => f.document_id !== documentId)
-    }));
+    // 2. Update Findings (Strict String Comparison)
+    setCaseData(prev => {
+        const newFindings = prev.findings.filter(f => String(f.document_id) !== String(documentId));
+        console.log(`Removed ${prev.findings.length - newFindings.length} orphaned findings.`);
+        return { ...prev, findings: newFindings };
+    });
   };
 
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
