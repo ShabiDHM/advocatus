@@ -1,11 +1,10 @@
 // FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - FINAL CLEANUP
-// 1. Removed unused imports (ChatMessage, ConnectionStatus) to fix TS warnings.
-// 2. Functionality remains 100% intact.
+// PHOENIX PROTOCOL - FINAL POLISH
+// 1. Fixed TS Error (Unused variable).
+// 2. ENABLED AUTO-REFRESH for Findings when document processing finishes.
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-// REMOVED: ChatMessage, ConnectionStatus (Inferred from Hook now)
 import { Case, Document, Finding, DeletedDocumentResponse } from '../data/types';
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
@@ -67,6 +66,9 @@ const CaseViewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   
+  // Track previous ready count to trigger updates
+  const prevReadyCount = useRef(0);
+  
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
 
   // --- PHOENIX PROTOCOL: SSE HOOK ---
@@ -93,39 +95,60 @@ const CaseViewPage: React.FC = () => {
         apiService.getFindings(caseId)
       ]);
       
-      setCaseData({
-          details,
-          findings: findingsResponse || []
-      });
-
-      setLiveDocuments((initialDocs || []).map(sanitizeDocument));
+      setCaseData({ details, findings: findingsResponse || [] });
+      
+      // Sync Hook State only on initial load to avoid overwriting live updates
+      if (isInitialLoad) {
+          setLiveDocuments((initialDocs || []).map(sanitizeDocument));
+          // Set initial ready count so we don't trigger immediate refetch
+          prevReadyCount.current = (initialDocs || []).filter(d => d.status === 'COMPLETED' || d.status === 'READY').length;
+      } else {
+          // On subsequent fetches (e.g. for findings), just update findings
+          setCaseData(prev => ({ ...prev, findings: findingsResponse || [] }));
+      }
 
     } catch (err) {
+      console.error("Load Error:", err);
       setError(t('error.failedToLoadCase'));
     } finally {
       if(isInitialLoad) setIsLoading(false);
     }
   }, [caseId, t, setLiveDocuments]);
 
+  // --- AUTO-REFRESH LOGIC ---
+  useEffect(() => {
+     const currentReadyCount = liveDocuments.filter(d => d.status === 'COMPLETED' || d.status === 'READY').length;
+     
+     // If the number of READY documents INCREASED, it means processing just finished.
+     if (currentReadyCount > prevReadyCount.current) {
+         console.log("New document ready! Fetching updated findings...");
+         fetchCaseData(false); // Fetch findings without full page loader
+     }
+     
+     prevReadyCount.current = currentReadyCount;
+  }, [liveDocuments, fetchCaseData]);
+
+  // Initial Load
   useEffect(() => {
     if (isReadyForData) {
       fetchCaseData(true);
     }
   }, [isReadyForData, fetchCaseData]);
   
+  // --- EVENT HANDLERS ---
+
   const handleDocumentUploaded = (newDoc: Document) => {
     setLiveDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
   };
   
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
-    const { documentId, deletedFindingIds } = response;
-    const deletedIdsSet = new Set(deletedFindingIds);
+    const { documentId } = response;
     
     setLiveDocuments(prev => prev.filter(d => d.id !== documentId));
     
     setCaseData(prev => ({
         ...prev,
-        findings: prev.findings.filter(f => !deletedIdsSet.has(f.id))
+        findings: prev.findings.filter(f => f.document_id !== documentId)
     }));
   };
 
