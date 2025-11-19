@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (ROUTING FIX)
-# CORRECTION: Removed the 'response_model' from the delete_document endpoint.
-# This is a critical fix to resolve a subtle FastAPI routing bug that was
-# preventing the DELETE route from being registered, causing a 404 Not Found error.
+# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (ROUTING PREFIX FIX)
+# FIX: Removed 'prefix="/cases"' from APIRouter initialization.
+# The prefix is already defined in 'main.py' when including this router.
+# Double definitions resulted in URLs like '/api/v1/cases/cases/', causing 404 errors.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated
@@ -23,7 +23,8 @@ from ...models.findings import FindingsListOut, FindingOut
 from .dependencies import get_current_user, get_db, get_sync_redis
 from ...celery_app import celery_app
 
-router = APIRouter(prefix="/cases", tags=["Cases"])
+# FIXED: Removed prefix="/cases" to avoid double-prefixing by main.py
+router = APIRouter(tags=["Cases"])
 logger = logging.getLogger(__name__)
 
 class DocumentContentOut(BaseModel):
