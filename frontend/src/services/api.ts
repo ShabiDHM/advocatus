@@ -1,7 +1,9 @@
 // FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL - LINTER CLEAN VERSION
-// 1. Fixed "unused variable" warnings by adding underscores (e.g., _caseId).
-// 2. Kept all SSE logic (getToken, normalizeDocument) intact.
+// PHOENIX PROTOCOL - FULL FUNCTIONALITY RESTORED
+// 1. All Admin, Calendar, Drafting, and Settings methods are now ACTIVE (not stubs).
+// 2. Includes SSE helpers (getToken, post).
+// 3. Includes ID Normalization (normalizeDocument).
+// 4. Points 'getPreviewDocument' to the new PDF Preview endpoint.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -94,6 +96,7 @@ class ApiService {
         );
     }
 
+    // --- SSE Helpers ---
     public getToken(): string | null {
         return localStorage.getItem('jwtToken');
     }
@@ -109,8 +112,50 @@ class ApiService {
         return response.data;
     }
 
-    // --- API Methods ---
+    // --- Auth & User ---
+    public async login(data: LoginRequest): Promise<LoginResponse> {
+        const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data);
+        return response.data;
+    }
 
+    public async register(data: RegisterRequest): Promise<void> {
+        await this.axiosInstance.post('/auth/register', data);
+    }
+
+    public async fetchUserProfile(): Promise<User> {
+        const response = await this.axiosInstance.get<User>('/users/me');
+        return response.data;
+    }
+
+    public async changePassword(data: ChangePasswordRequest): Promise<void> {
+        await this.axiosInstance.post('/auth/change-password', data);
+    }
+
+    public async deleteAccount(): Promise<void> {
+        await this.axiosInstance.delete('/users/me');
+    }
+
+    // --- Cases ---
+    public async getCases(): Promise<Case[]> {
+        const response = await this.axiosInstance.get<Case[]>('/cases');
+        return response.data;
+    }
+
+    public async createCase(data: CreateCaseRequest): Promise<Case> {
+        const response = await this.axiosInstance.post<Case>('/cases', data);
+        return response.data;
+    }
+
+    public async getCaseDetails(caseId: string): Promise<Case> {
+        const response = await this.axiosInstance.get<Case>(`/cases/${caseId}`);
+        return response.data;
+    }
+
+    public async deleteCase(caseId: string): Promise<void> {
+        await this.axiosInstance.delete(`/cases/${caseId}`);
+    }
+
+    // --- Documents ---
     public async getDocuments(caseId: string): Promise<Document[]> {
         const response = await this.axiosInstance.get<Document[]>(`/cases/${caseId}/documents`);
         return response.data.map(d => this.normalizeDocument(d));
@@ -135,10 +180,7 @@ class ApiService {
         return response.data;
     }
 
-    // Fixed: Added underscore to _caseId to silence "unused variable" warning
-    public async getWebSocketUrl(_caseId: string): Promise<string> {
-        return ""; 
-    }
+    // --- Document Content, Download & Preview ---
 
     public async getDocumentContent(caseId: string, documentId: string): Promise<DocumentContentResponse> {
         const response = await this.axiosInstance.get<DocumentContentResponse>(`/cases/${caseId}/documents/${documentId}/content`);
@@ -150,7 +192,7 @@ class ApiService {
         return response.data;
     }
 
-    // Points to /preview for generated PDFs
+    // FIXED: Points to /preview for generated PDFs
     public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> {
         const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' });
         return response.data;
@@ -161,47 +203,71 @@ class ApiService {
         return response.data;
     }
 
-    // --- Standard Methods ---
-    public async login(data: LoginRequest): Promise<LoginResponse> {
-        const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data);
+    // --- WebSocket Legacy (Empty but present to prevent crash) ---
+    public async getWebSocketUrl(_caseId: string): Promise<string> {
+        return ""; 
+    }
+
+    // --- Admin Functions ---
+    public async getAllUsers(): Promise<User[]> {
+        const response = await this.axiosInstance.get<User[]>('/admin/users');
         return response.data;
     }
-    public async register(data: RegisterRequest): Promise<void> { await this.axiosInstance.post('/auth/register', data); }
-    public async fetchUserProfile(): Promise<User> {
-        const response = await this.axiosInstance.get<User>('/users/me');
+
+    public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> {
+        const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data);
         return response.data;
     }
-    
-    // --- Stub Methods (Silenced Warnings) ---
-    // We prefix arguments with "_" to tell TypeScript they are unused intentionally
-    
-    public async changePassword(_data: ChangePasswordRequest): Promise<void> {} 
-    public async deleteAccount(): Promise<void> {}
-    public async getUserApiKeys(): Promise<ApiKey[]> { return []; }
-    public async addApiKey(_data: ApiKeyCreateRequest): Promise<ApiKey> { return {} as ApiKey; }
-    public async deleteApiKey(_keyId: string): Promise<void> {}
-    public async getAllUsers(): Promise<User[]> { return []; }
-    public async updateUser(_userId: string, _data: UpdateUserRequest): Promise<User> { return {} as User; }
-    public async deleteUser(_userId: string): Promise<void> {}
-    public async getCases(): Promise<Case[]> {
-        const response = await this.axiosInstance.get<Case[]>('/cases');
+
+    public async deleteUser(userId: string): Promise<void> {
+        await this.axiosInstance.delete(`/admin/users/${userId}`);
+    }
+
+    // --- API Keys ---
+    public async getUserApiKeys(): Promise<ApiKey[]> {
+        const response = await this.axiosInstance.get<ApiKey[]>('/api-keys');
         return response.data;
     }
-    public async createCase(data: CreateCaseRequest): Promise<Case> {
-        const response = await this.axiosInstance.post<Case>('/cases', data);
+
+    public async addApiKey(data: ApiKeyCreateRequest): Promise<ApiKey> {
+        const response = await this.axiosInstance.post<ApiKey>('/api-keys', data);
         return response.data;
     }
-    public async getCaseDetails(caseId: string): Promise<Case> {
-        const response = await this.axiosInstance.get<Case>(`/cases/${caseId}`);
+
+    public async deleteApiKey(keyId: string): Promise<void> {
+        await this.axiosInstance.delete(`/api-keys/${keyId}`);
+    }
+
+    // --- Calendar ---
+    public async getCalendarEvents(): Promise<CalendarEvent[]> {
+        const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events');
         return response.data;
     }
-    public async deleteCase(caseId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}`); }
-    public async getCalendarEvents(): Promise<CalendarEvent[]> { return []; }
-    public async createCalendarEvent(_data: CalendarEventCreateRequest): Promise<CalendarEvent> { return {} as CalendarEvent; }
-    public async deleteCalendarEvent(_eventId: string): Promise<void> {}
-    public async initiateDraftingJob(_data: CreateDraftingJobRequest): Promise<DraftingJobStatus> { return {} as DraftingJobStatus; }
-    public async getDraftingJobStatus(_jobId: string): Promise<DraftingJobStatus> { return {} as DraftingJobStatus; }
-    public async getDraftingJobResult(_jobId: string): Promise<DraftingJobResult> { return {} as DraftingJobResult; }
+
+    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> {
+        const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data);
+        return response.data;
+    }
+
+    public async deleteCalendarEvent(eventId: string): Promise<void> {
+        await this.axiosInstance.delete(`/calendar/events/${eventId}`);
+    }
+
+    // --- Drafting V2 ---
+    public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> {
+        const response = await this.axiosInstance.post<DraftingJobStatus>(`${API_BASE_URL}/api/v2/drafting/jobs`, data);
+        return response.data;
+    }
+
+    public async getDraftingJobStatus(jobId: string): Promise<DraftingJobStatus> {
+        const response = await this.axiosInstance.get<DraftingJobStatus>(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/status`);
+        return response.data;
+    }
+
+    public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> {
+        const response = await this.axiosInstance.get<DraftingJobResult>(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/result`);
+        return response.data;
+    }
 }
 
 export const apiService = new ApiService();
