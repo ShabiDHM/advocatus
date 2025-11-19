@@ -1,8 +1,7 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TRANSACTIONAL DELETE)
-# CORRECTION: The 'delete_document_by_id' function now returns the IDs of the
-# findings it has deleted. This allows the API endpoint to provide this data
-# back to the client, breaking the dependency on the WebSocket for state updates.
+# PHOENIX PROTOCOL - CLEANED VERSION
+# 1. Removed legacy HTTP Broadcast (trigger_websocket_broadcast) to fix 404 errors.
+# 2. State updates are now handled exclusively via Redis/SSE in the Task layer.
 
 import logging
 from bson import ObjectId
@@ -11,7 +10,7 @@ import datetime
 from datetime import timezone
 from pymongo.database import Database
 import redis
-import httpx
+# REMOVED: import httpx (No longer needed)
 import json
 from fastapi import HTTPException
 
@@ -21,20 +20,7 @@ from . import vector_store_service, storage_service, findings_service
 
 logger = logging.getLogger(__name__)
 
-INTERNAL_API_URL = "http://backend:8000"
-BROADCAST_ENDPOINT = f"{INTERNAL_API_URL}/internal/broadcast/document-update"
-
-def trigger_websocket_broadcast(payload_dict: dict):
-    """Triggers a websocket broadcast via an internal API endpoint."""
-    try:
-        json_payload = json.dumps(payload_dict, default=str)
-        headers = {"Content-Type": "application/json"}
-        with httpx.Client(timeout=10.0) as client:
-            response = client.post(BROADCAST_ENDPOINT, content=json_payload, headers=headers)
-        if response.status_code != 200:
-            logger.error(f"Failed to broadcast update via HTTP. Status: {response.status_code}, Response: {response.text}")
-    except Exception as e:
-        logger.error(f"Error during HTTP broadcast to main app: {e}", exc_info=True)
+# REMOVED: INTERNAL_API_URL & BROADCAST_ENDPOINT (Legacy WebSocket Architecture)
 
 def create_document_record(
     db: Database, owner: UserInDB, case_id: str, file_name: str, storage_key: str, mime_type: str
@@ -63,6 +49,11 @@ def finalize_document_processing(
     processed_text_storage_key: Optional[str] = None, summary: Optional[str] = None,
     preview_storage_key: Optional[str] = None
 ):
+    """
+    Updates the document record in MongoDB.
+    Note: The actual SSE notification is now handled by the Celery Task (document_processing.py),
+    so we don't need to broadcast here anymore.
+    """
     try:
         doc_object_id = ObjectId(doc_id_str)
     except Exception:
@@ -77,23 +68,12 @@ def finalize_document_processing(
     if preview_storage_key:
         update_fields["preview_storage_key"] = preview_storage_key
         
-    db.documents.update_one({"_id": doc_object_id}, {"$set": update_fields})
-    updated_doc_data = db.documents.find_one({"_id": doc_object_id})
-    if updated_doc_data:
-        document_out = DocumentOut.model_validate(updated_doc_data)
-        broadcast_payload = document_out.model_dump(by_alias=True)
-        broadcast_payload["id"] = str(broadcast_payload["_id"])
-        broadcast_payload["case_id"] = str(broadcast_payload["case_id"])
-        broadcast_payload["uploadedAt"] = document_out.created_at.isoformat()
-
-        trigger_websocket_broadcast({
-            "type": "document_update",
-            "case_id": str(document_out.case_id),
-            "payload": broadcast_payload
-        })
-        logger.info(f"Document {doc_id_str} finalized and broadcasted as READY.")
+    result = db.documents.update_one({"_id": doc_object_id}, {"$set": update_fields})
+    
+    if result.modified_count > 0:
+        logger.info(f"Document {doc_id_str} finalized in DB as READY.")
     else:
-        logger.error(f"Failed to finalize document {doc_id_str} in database.")
+        logger.warning(f"Document {doc_id_str} update attempted but no changes made (or doc not found).")
 
 def get_documents_by_case_id(db: Database, case_id: str, owner: UserInDB) -> List[DocumentOut]:
     document_dicts = list(db.documents.find({"case_id": ObjectId(case_id), "owner_id": owner.id}).sort("created_at", -1))
@@ -144,7 +124,6 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
         raise HTTPException(status_code=404, detail="Document not found.")
     
     doc_id_str = str(doc_id)
-    case_id_str = str(document_to_delete.get("case_id"))
     storage_key = document_to_delete.get("storage_key")
     processed_key = document_to_delete.get("processed_text_storage_key")
     preview_key = document_to_delete.get("preview_storage_key")
@@ -161,19 +140,7 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     if delete_result.deleted_count != 1:
         raise HTTPException(status_code=500, detail="Failed to delete document from database.")
 
-    # Broadcast WebSocket updates for resilience (they might fail, but the API will succeed)
-    try:
-        findings_update_payload = {
-            "type": "findings_update", "case_id": case_id_str,
-            "payload": {"action": "delete_by_document", "document_id": doc_id_str}
-        }
-        trigger_websocket_broadcast(findings_update_payload)
-        
-        document_delete_payload = {"id": doc_id_str, "case_id": case_id_str, "status": "DELETED"}
-        trigger_websocket_broadcast({
-            "type": "document_update", "case_id": case_id_str, "payload": document_delete_payload
-        })
-    except Exception:
-        logger.warning(f"WebSocket broadcast failed during document deletion for doc {doc_id_str}, but deletion was successful.")
-
+    # REMOVED: Legacy Broadcast. The Frontend now handles deletion via the API response
+    # (DeletedDocumentResponse) which contains the deleted IDs. 
+    
     return [str(fid) for fid in deleted_finding_ids]
