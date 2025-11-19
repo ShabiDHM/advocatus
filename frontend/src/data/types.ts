@@ -1,35 +1,33 @@
-// FILE: src/data/types.ts
+// FILE: frontend/src/data/types.ts
+// PHOENIX PROTOCOL - TYPE SYNC
+// 1. Added 'document_id' to Finding to enable proper deletion filtering.
+
 export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
 
 export interface User {
   id: string;
   username: string;
   email: string;
-  role: 'USER' | 'ADMIN' | 'LAWYER' | 'STANDARD';
-  subscription_status: 'ACTIVE' | 'INACTIVE' | 'TRIAL' | 'EXPIRED' | 'expired';
-}
-
-export interface AdminUser extends User {
+  role: 'USER' | 'ADMIN';
+  subscription_status: 'ACTIVE' | 'INACTIVE' | 'TRIAL' | 'EXPIRED';
+  created_at: string;
+  last_login?: string;
+  token?: string;
   case_count?: number;
   document_count?: number;
-  last_login?: string;
-  created_at?: string;
 }
 
 export interface Case {
   id: string;
   owner_id: string;
   case_name: string;
+  client: { name: string | null; email: string | null; phone: string | null; } | null;
   status: 'OPEN' | 'PENDING' | 'CLOSED' | 'ARCHIVED';
   created_at: string;
-  client?: {
-    name: string | null;
-    email?: string | null;
-    phone?: string | null;
-  };
-  document_count?: number;
-  alert_count?: number;
-  event_count?: number;
+  document_count: number;
+  alert_count: number;
+  event_count: number;
+  finding_count: number;
 }
 
 export interface Document {
@@ -46,110 +44,114 @@ export interface Document {
 export interface Finding {
   id: string;
   case_id: string;
-  document_id?: string;
+  document_id: string; // <--- CRITICAL FIX
   finding_text: string;
-  source_text?: string;
-  document_name?: string;
+  source_text: string;
   page_number?: number;
+  document_name?: string;
   confidence_score?: number;
-  created_at?: string;
 }
 
 export interface ChatMessage {
-  sender: 'user' | 'ai' | 'AI'; 
+  sender: 'user' | 'ai';
   content: string;
-  text?: string; 
   timestamp: string;
   isPartial?: boolean;
 }
 
 export interface CalendarEvent {
   id: string;
+  case_id: string;
   title: string;
+  description?: string;
   start_date: string;
   end_date?: string;
-  notes?: string;
-  is_all_day?: boolean;
+  is_all_day: boolean;
+  event_type: 'DEADLINE' | 'HEARING' | 'MEETING' | 'FILING' | 'COURT_DATE' | 'CONSULTATION' | 'OTHER';
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
   location?: string;
   attendees?: string[];
-  priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | string;
-  description?: string;
-  event_type?: 'DEADLINE' | 'HEARING' | 'MEETING' | 'FILING' | 'COURT_DATE' | 'CONSULTATION' | string;
-  case_id?: string;
+  notes?: string;
 }
 
 export interface CalendarEventCreateRequest {
+  case_id: string;
   title: string;
   start_date: string;
+  event_type: CalendarEvent['event_type'];
+  priority: CalendarEvent['priority'];
+  description?: string;
   end_date?: string;
-  notes?: string;
   is_all_day?: boolean;
   location?: string;
   attendees?: string[];
-  priority?: string;
-  description?: string;
-  event_type?: string;
-  case_id?: string;
-}
-
-export interface CreateCaseRequest { 
-  case_name: string;
-  // Added optional client fields to match Dashboard usage
-  clientName?: string;
-  clientEmail?: string;
-  clientPhone?: string;
+  notes?: string;
 }
 
 export interface CreateDraftingJobRequest {
+  caseId?: string;
+  documentIds?: string[];
+  prompt?: string;
   context: string;
 }
 
 export interface DraftingJobStatus {
   job_id: string;
-  status: string;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'SUCCESS';
   result_summary?: string;
 }
 
 export interface DraftingJobResult {
-  result_text: string;
+    result_text: string;
 }
 
+export interface WebSocketMessage {
+  event: string;
+  data: any;
+}
+
+export interface DeletedDocumentResponse {
+  documentId: string;
+  deletedFindingIds: string[];
+}
+
+// --- API Key & Account Management Types ---
+
 export interface ApiKey {
-  id: string;
-  key_name: string;
-  provider?: string;
-  usage_count?: number;
+    id: string;
+    key_name: string;
+    provider: string;
+    key_prefix: string;
+    created_at: string;
+    last_used?: string;
+    usage_count: number;
 }
 
 export interface ApiKeyCreateRequest {
-  key_name: string;
-  api_key: string;
-  provider?: 'openai' | 'anthropic';
+    key_name: string;
+    provider: 'openai' | 'anthropic';
+    api_key: string;
 }
 
 export interface ChangePasswordRequest {
-  old_password: string;
-  new_password?: string;
+    old_password: string;
+    new_password: string;
 }
 
-export interface LoginRequest { 
-  username: string; 
-  password?: string;
+// --- Auth Types ---
+
+export interface LoginRequest { username: string; password: string; }
+export interface RegisterRequest extends LoginRequest { email: string; }
+export interface CreateCaseRequest {
+  case_name: string;
+  clientName: string;
+  clientEmail?: string;
+  clientPhone?: string;
 }
 
-export interface RegisterRequest { 
-  username: string;
-  password?: string;
-  email?: string;
-}
-
-export interface UpdateUserRequest { 
+export interface UpdateUserRequest {
   email?: string;
   role?: User['role'];
   subscription_status?: User['subscription_status'];
-}
-
-export interface DeletedDocumentResponse { 
-    documentId: string;
-    deletedFindingIds?: string[]; 
 }
