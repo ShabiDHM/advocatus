@@ -1,3 +1,7 @@
+# FILE: backend/app/api/endpoints/chat.py
+# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (ROUTING PREFIX FIX)
+# FIX: Removed 'prefix="/chat"' to prevent double-prefixing.
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated, Any
 from pydantic import BaseModel
@@ -8,7 +12,8 @@ from app.models.user import UserInDB
 from app.api.endpoints.dependencies import get_current_active_user
 from app.core.db import get_async_db, redis_sync_client
 
-router = APIRouter(prefix="/chat", tags=["Chat"])
+# FIXED: Removed prefix="/chat"
+router = APIRouter(tags=["Chat"])
 logger = logging.getLogger(__name__)
 
 class ChatMessageRequest(BaseModel):
