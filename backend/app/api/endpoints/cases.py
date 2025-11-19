@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - PYLANCE FIX
-# 1. Fixed "unknown attribute" error by importing storage_service directly.
-# 2. Maintains "Any File / Any Size" streaming upload logic.
+# PHOENIX PROTOCOL - FINDINGS SYNC FIX
+# 1. Added 'document_id' to findings response so frontend can filter them on delete.
+# 2. Maintains 'storage_service' fix from previous step.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated
@@ -14,7 +14,7 @@ from bson.errors import InvalidId
 import asyncio
 import logging
 
-# FIXED: Added 'storage_service' to direct imports
+# Direct imports including storage_service
 from ...services import case_service, document_service, findings_service, report_service, storage_service
 from ...models.case import CaseCreate, CaseOut
 from ...models.user import UserInDB
@@ -23,7 +23,6 @@ from ...models.findings import FindingsListOut, FindingOut
 from .dependencies import get_current_user, get_db, get_sync_redis
 from ...celery_app import celery_app
 
-# FIXED: Removed prefix="/cases" to avoid double-prefixing by main.py
 router = APIRouter(tags=["Cases"])
 logger = logging.getLogger(__name__)
 
@@ -66,11 +65,17 @@ async def delete_case(case_id: str, current_user: Annotated[UserInDB, Depends(ge
 async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
     findings_data = await asyncio.to_thread(findings_service.get_findings_for_case, db=db, case_id=case_id)
+    
+    # PHOENIX FIX: Explicitly mapping document_id so frontend can handle deletions
     findings_out_list = [
         FindingOut.model_validate({
-            'id': str(finding.get('_id')), 'case_id': str(finding.get('case_id')),
-            'finding_text': finding.get('finding_text', 'N/A'), 'source_text': finding.get('source_text', 'N/A'),
-            'page_number': finding.get('page_number'), 'document_name': finding.get('document_name'),
+            'id': str(finding.get('_id')), 
+            'case_id': str(finding.get('case_id')),
+            'document_id': str(finding.get('document_id')), # <--- THIS WAS MISSING
+            'finding_text': finding.get('finding_text', 'N/A'), 
+            'source_text': finding.get('source_text', 'N/A'),
+            'page_number': finding.get('page_number'), 
+            'document_name': finding.get('document_name'),
             'confidence_score': finding.get('confidence_score', 0.0),
         }) for finding in findings_data
     ]
@@ -85,22 +90,18 @@ async def upload_document_for_case(case_id: str, current_user: Annotated[UserInD
     file_name = file.filename or "untitled_upload"
     mime_type = file.content_type or "application/octet-stream"
     try:
-        # FIXED: Using storage_service directly instead of accessing it via document_service
         storage_key = await asyncio.to_thread(
             storage_service.upload_original_document, 
             file=file, 
             user_id=str(current_user.id), 
             case_id=case_id
         )
-        
         new_document = document_service.create_document_record(
             db=db, owner=current_user, case_id=case_id, 
             file_name=file_name, storage_key=storage_key, mime_type=mime_type
         )
-        
         celery_app.send_task("process_document_task", args=[str(new_document.id)])
         return DocumentOut.model_validate(new_document)
-        
     except Exception as e:
         logger.error(f"CRITICAL UPLOAD FAILURE for case {case_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Document upload failed.")
