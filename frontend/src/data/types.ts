@@ -1,8 +1,4 @@
-// FILE: frontend/src/data/types.ts
-// PHOENIX PROTOCOL - LEGACY COMPATIBILITY RESTORED
-// 1. Restored 'Finding', 'client', 'notes', 'is_all_day', 'result_summary'.
-// 2. Expanded ChatMessage to support old 'text' property and 'AI' sender.
-
+// FILE: src/data/types.ts
 export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
 
 export interface User {
@@ -19,7 +15,6 @@ export interface Case {
   case_name: string;
   status: 'OPEN' | 'PENDING' | 'CLOSED' | 'ARCHIVED';
   created_at: string;
-  // FIXED: Restored client object for CaseViewPage
   client?: {
     name: string | null;
     email?: string | null;
@@ -35,13 +30,13 @@ export interface Document {
   created_at: string;
   status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'READY';
   summary?: string;
-  error_message?: string; // Phoenix field
+  error_message?: string;
 }
 
-// FIXED: Restored Finding interface for CaseViewPage
 export interface Finding {
   id: string;
   case_id: string;
+  document_id?: string | number; // Added to fix TS2339
   finding_text: string;
   source_text?: string;
   document_name?: string;
@@ -51,7 +46,6 @@ export interface Finding {
 }
 
 export interface ChatMessage {
-  // FIXED: Allow 'AI' (uppercase) and 'text' property for legacy UI compatibility
   sender: 'user' | 'ai' | 'AI'; 
   content: string;
   text?: string; 
@@ -64,11 +58,16 @@ export interface CalendarEvent {
   title: string;
   start_date: string;
   end_date?: string;
-  // FIXED: Restored fields for CalendarPage
   notes?: string;
   is_all_day?: boolean;
   location?: string;
   attendees?: string[];
+  
+  // Added fields to fix TS2339
+  priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | string;
+  description?: string;
+  event_type?: 'DEADLINE' | 'HEARING' | 'MEETING' | 'FILING' | 'COURT_DATE' | 'CONSULTATION' | string;
+  case_id?: string; // Added to link to cases
 }
 
 export interface CalendarEventCreateRequest {
@@ -79,6 +78,12 @@ export interface CalendarEventCreateRequest {
   is_all_day?: boolean;
   location?: string;
   attendees?: string[];
+  
+  // Added fields to fix TS2339 & TS2353
+  priority?: string;
+  description?: string;
+  event_type?: string;
+  case_id?: string;
 }
 
 export interface CreateDraftingJobRequest {
@@ -88,7 +93,6 @@ export interface CreateDraftingJobRequest {
 export interface DraftingJobStatus {
   job_id: string;
   status: string;
-  // FIXED: Restored result_summary for DraftingPage
   result_summary?: string;
 }
 
@@ -117,6 +121,5 @@ export interface UpdateUserRequest { email?: string; }
 
 export interface DeletedDocumentResponse { 
     documentId: string;
-    // FIXED: Restored deletedFindingIds for CaseViewPage
     deletedFindingIds?: string[]; 
 }

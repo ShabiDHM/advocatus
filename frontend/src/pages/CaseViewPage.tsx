@@ -1,12 +1,4 @@
-// FILE: /home/user/advocatus-frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (ARCHITECTURAL RESTORATION)
-// CORRECTION 1 (STATE): Replaced the flawed useReducer with a robust, unified state object
-// managed by useState. This is the definitive fix for the stale findings and translation
-// loss issues by ensuring all child components receive fresh props on every render.
-// CORRECTION 2 (WEBSOCKET): The 'isReadyForSocket' flag is now correctly derived from
-// both authentication and the successful loading of initial case data, permanently
-// resolving the WebSocket connection race condition.
-
+// FILE: src/pages/CaseViewPage.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Case, Document, Finding, ChatMessage, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -28,7 +20,7 @@ type CaseData = {
     findings: Finding[];
 };
 
-// --- SUB-COMPONENTS (No changes) ---
+// --- SUB-COMPONENTS ---
 const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction; }> = ({ caseDetails, t }) => (
     <motion.div
       className="mb-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
@@ -142,15 +134,23 @@ const CaseViewPage: React.FC = () => {
   };
   
   const handleChatMessage = useCallback((message: ChatMessage) => {
-    setMessages(prev => prev.length > 0 && prev[prev.length - 1].sender === 'AI' && message.isPartial 
-        ? prev.map((m, i) => i === prev.length - 1 ? { ...m, text: m.text + message.text } : m) 
-        : [...prev, message]);
+    // FIXED: Added strict undefined checks for message text concatenation (TS18048)
+    setMessages(prev => {
+      if (prev.length > 0 && prev[prev.length - 1].sender === 'AI' && message.isPartial) {
+        return prev.map((m, i) => i === prev.length - 1 
+          ? { ...m, text: (m.text || '') + (message.text || '') } 
+          : m
+        );
+      }
+      return [...prev, message];
+    });
   }, []);
 
   const { reconnect, sendChatMessage } = useDocumentSocket(currentCaseId, isReadyForSocket, {
     onConnectionStatusChange: setConnectionStatus,
     onChatMessage: handleChatMessage,
-    onDocumentUpdate: (doc) => setCaseData(prev => ({ ...prev, documents: prev.documents.map(d => d.id === doc.id ? sanitizeDocument(doc) : d) })),
+    // FIXED: Added explicit type annotation for 'doc' (TS7006)
+    onDocumentUpdate: (doc: Document) => setCaseData(prev => ({ ...prev, documents: prev.documents.map(d => d.id === doc.id ? sanitizeDocument(doc) : d) })),
     onFindingsUpdate: () => fetchCaseData(),
     onIsSendingChange: setIsSendingMessage,
   });
