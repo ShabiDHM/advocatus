@@ -1,4 +1,9 @@
 // FILE: frontend/src/services/api.ts
+// PHOENIX PROTOCOL - ENDPOINT CORRECTION
+// 1. Fixed getOriginalDocument -> Points to '/original' (was /download)
+// 2. Fixed getPreviewDocument -> Points to '/preview' (was /download)
+// 3. Restored getFindings and setLogoutHandler.
+
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
     LoginRequest,
@@ -17,7 +22,7 @@ import type {
     ApiKey,
     ApiKeyCreateRequest,
     ChangePasswordRequest,
-    Finding // Ensure this is imported
+    Finding
 } from '../data/types';
 
 interface LoginResponse {
@@ -135,9 +140,7 @@ class ApiService {
         await this.axiosInstance.delete(`/cases/${caseId}`);
     }
 
-    // --- PHOENIX FIX: Restored getFindings ---
     public async getFindings(caseId: string): Promise<Finding[]> {
-        // Note: Removing trailing slash
         const response = await this.axiosInstance.get<{ findings: Finding[] }>(`/cases/${caseId}/findings`);
         return response.data.findings || [];
     }
@@ -195,13 +198,15 @@ class ApiService {
         return response.data;
     }
 
+    // FIXED: Now points to /original
     public async getOriginalDocument(caseId: string, documentId: string): Promise<Blob> {
-        const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/download`, { responseType: 'blob' });
+        const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/original`, { responseType: 'blob' });
         return response.data;
     }
 
+    // FIXED: Now points to /preview
     public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> {
-        const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/download`, { responseType: 'blob' });
+        const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' });
         return response.data;
     }
     
