@@ -1,11 +1,11 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - MOBILE OPTIMIZATION
-// 1. RESPONSIVE PADDING: 'p-4 sm:p-6' to maximize card content area on mobile.
-// 2. TOUCH TARGETS: Increased Delete button hit area using padding/negative margin.
-// 3. TYPOGRAPHY: Scaled title text for better fit on small screens.
+// PHOENIX PROTOCOL - NAVIGATION LOGIC FIX
+// 1. NAVIGATION: Added 'handleCalendarNav' to redirect Alerts/Events clicks to /calendar.
+// 2. INTERACTION: Used e.preventDefault() and e.stopPropagation() to prevent opening the case details.
+// 3. MOBILE: Maintained previous responsive optimizations.
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Case } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
@@ -20,11 +20,19 @@ interface CaseCardProps {
 
 const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     onDelete(caseData.id);
+  };
+
+  const handleCalendarNav = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Redirect to calendar. In the future, we could append ?caseId=... for filtering
+    navigate('/calendar');
   };
 
   const formattedDate = new Date(caseData.created_at).toLocaleDateString(undefined, {
@@ -47,7 +55,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
       transition={{ duration: 0.5 }}
     >
       <div>
-        {/* 1. Header Section */}
+        {/* Header Section */}
         <div className="flex flex-col mb-3 sm:mb-4">
           <h2 className="text-lg sm:text-xl font-bold text-text-primary compact-line-clamp-2 pr-2 break-words">
             {caseData.case_name}
@@ -57,7 +65,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           </p>
         </div>
         
-        {/* 2. Client Details Section */}
+        {/* Client Details Section */}
         <div className="flex flex-col space-y-1 mb-4">
           <p className="text-sm sm:text-base font-bold text-text-primary border-b border-glass-edge/50 pb-2 mb-2">
             {t('caseCard.client')}
@@ -75,29 +83,41 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
       </div>
       
       <div>
-        {/* 3. Case Statistics Section */}
+        {/* Statistics Section - Interactive Icons */}
         <div className="pt-3 sm:pt-4 border-t border-glass-edge/50 flex items-center justify-start space-x-4 text-text-secondary">
+          {/* Documents - Static (Part of Case View) */}
           <div className="flex items-center space-x-1" title={`${caseData.document_count} ${t('caseCard.documents')}`}>
             <FileText className="h-4 w-4 text-primary-start" />
             <span className="text-xs sm:text-sm font-medium">{caseData.document_count}</span>
           </div>
-          <div className="flex items-center space-x-1" title={`${caseData.alert_count} ${t('caseCard.alerts')}`}>
-            <AlertTriangle className="h-4 w-4 text-accent-start" />
+
+          {/* Alerts - Clickable -> Calendar */}
+          <button 
+            onClick={handleCalendarNav}
+            className="flex items-center space-x-1 hover:text-accent-start transition-colors group" 
+            title={`${caseData.alert_count} ${t('caseCard.alerts')}`}
+          >
+            <AlertTriangle className="h-4 w-4 text-accent-start group-hover:scale-110 transition-transform" />
             <span className="text-xs sm:text-sm font-medium">{caseData.alert_count}</span>
-          </div>
-          <div className="flex items-center space-x-1" title={`${caseData.event_count} ${t('caseCard.events')}`}>
-            <CalendarDays className="h-4 w-4 text-purple-400" />
+          </button>
+
+          {/* Events - Clickable -> Calendar */}
+          <button 
+            onClick={handleCalendarNav}
+            className="flex items-center space-x-1 hover:text-purple-400 transition-colors group" 
+            title={`${caseData.event_count} ${t('caseCard.events')}`}
+          >
+            <CalendarDays className="h-4 w-4 text-purple-400 group-hover:scale-110 transition-transform" />
             <span className="text-xs sm:text-sm font-medium">{caseData.event_count}</span>
-          </div>
+          </button>
         </div>
 
-        {/* 4. Footer: Actions */}
+        {/* Footer: Actions */}
         <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-glass-edge/50 flex items-center justify-between text-xs text-text-secondary/70">
           <div className="text-primary-start hover:text-primary-end transition-colors font-medium flex items-center">
             {t('caseCard.viewDetails')} <span className="ml-1">→</span>
           </div>
           
-          {/* PHOENIX FIX: Increased touch target for mobile */}
           <motion.button
             onClick={handleDeleteClick}
             className="p-2 -m-2 text-red-500 hover:text-red-400 transition-colors"

@@ -1,5 +1,7 @@
-# backend/app/services/case_service.py
-
+# FILE: backend/app/services/case_service.py
+# PHOENIX PROTOCOL - DATA INTEGRITY FIX
+# 1. QUERY FIX: Converted 'case_id' to string before querying counts.
+# 2. This resolves the "0 Alerts / 0 Events" bug.
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
@@ -52,12 +54,15 @@ def get_cases_for_user(db: Database, owner: UserInDB) -> list[dict]:
 def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> dict | None:
     case = db.cases.find_one({"_id": case_id, "owner_id": owner.id})
     if case:
-        # --- PHOENIX PROTOCOL FIX: Use the correct ObjectId type for all queries ---
+        # PHOENIX FIX: Convert ObjectId to string for relational queries
+        # Foreign keys in documents/events are stored as Strings, not ObjectIds.
+        case_id_str = str(case_id)
+        
         counts = {
-            "document_count": db.documents.count_documents({"case_id": case_id}),
-            "alert_count": db.alerts.count_documents({"case_id": case_id}),
-            "event_count": db.calendar_events.count_documents({"case_id": case_id}),
-            "finding_count": db.findings.count_documents({"case_id": case_id}),
+            "document_count": db.documents.count_documents({"case_id": case_id_str}),
+            "alert_count": db.alerts.count_documents({"case_id": case_id_str}),
+            "event_count": db.calendar_events.count_documents({"case_id": case_id_str}),
+            "finding_count": db.findings.count_documents({"case_id": case_id_str}),
         }
         return {**case, **counts, "id": str(case["_id"])}
     return None
