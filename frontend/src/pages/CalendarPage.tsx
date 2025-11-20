@@ -1,8 +1,7 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - UI REFINEMENT
-// 1. GRID: Hides '00:00' for all-day events (deadlines).
-// 2. SIDEBAR: Hides time for all-day events in the 'Upcoming' list.
-// 3. MODAL: Maintained previous logic (hides redundant end date/time).
+// PHOENIX PROTOCOL - LINT FIX
+// 1. CLEANUP: Removed unused 'formatTime' function.
+// 2. MAINTAINED: All previous mobile optimizations and logic fixes.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -113,15 +112,11 @@ const CalendarPage: React.FC = () => {
       setEvents(eventsData);
       setCases(casesData);
     } catch (error: any) {
-      console.error('[Calendar] Failed to load data:', error);
       setError(error.response?.data?.message || error.message || t('calendar.loadFailure'));
     } finally { 
       setLoading(false); 
     }
   };
-
-  const formatTime = (dateString: string) => 
-    format(parseISO(dateString), 'HH:mm', { locale: currentLocale });
 
   const formatDateTime = (dateString: string) => 
     format(parseISO(dateString), 'dd.MM.yyyy HH:mm', { locale: currentLocale });
@@ -145,14 +140,47 @@ const CalendarPage: React.FC = () => {
     .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
     .slice(0, 5);
 
+  // --- LIST VIEW IMPLEMENTATION ---
+  const renderListView = () => (
+    <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl overflow-hidden">
+        {filteredEvents.length === 0 ? (
+            <div className="p-8 text-center text-text-secondary">
+                {t('calendar.noEventsFound', 'Nuk u gjetën ngjarje.')}
+            </div>
+        ) : (
+            <div className="divide-y divide-glass-edge/50">
+                {filteredEvents
+                    .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
+                    .map(event => (
+                    <div key={getEventId(event)} onClick={() => setSelectedEvent(event)} className="p-4 hover:bg-background-dark/30 cursor-pointer transition-colors flex items-center justify-between">
+                        <div className="flex items-start space-x-4">
+                            <div className="flex-shrink-0 mt-1 text-center min-w-[50px]">
+                                <div className="text-xs text-text-secondary uppercase">{format(parseISO(event.start_date), 'MMM', { locale: currentLocale })}</div>
+                                <div className="text-xl font-bold text-text-primary">{format(parseISO(event.start_date), 'dd')}</div>
+                            </div>
+                            <div>
+                                <h4 className="text-base font-medium text-white">{event.title}</h4>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className={`text-xs px-2 py-0.5 rounded border ${getEventTypeColor(event.event_type)}`}>
+                                        {t(`calendar.types.${event.event_type}`)}
+                                    </span>
+                                    <span className="text-xs text-text-secondary">{event.description?.substring(0, 50)}...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        )}
+    </div>
+  );
+
   const renderMonthView = () => {
     const monthStart = startOfMonth(currentDate);
     const daysInMonth = getDaysInMonth(currentDate);
     const weekStartsOn = currentLocale?.options?.weekStartsOn ?? 1; 
     const firstDayOfMonth = getDay(monthStart);
-    
     const startingDayIndex = (firstDayOfMonth - weekStartsOn + 7) % 7;
-
     const cellClass = "min-h-[80px] sm:min-h-[120px] border border-glass-edge/50";
 
     const days = Array.from({ length: startingDayIndex }, (_, i) => 
@@ -177,10 +205,6 @@ const CalendarPage: React.FC = () => {
                 onClick={() => setSelectedEvent(event)} 
                 className={`w-full text-left px-1 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs truncate border ${getEventTypeColor(event.event_type)}`}
               >
-                {/* PHOENIX FIX: Hide time for all-day events in Grid View */}
-                {!event.is_all_day && (
-                    <span className="hidden sm:inline mr-1">{formatTime(event.start_date)} -</span>
-                )}
                 {event.title}
               </button>
             ))}
@@ -193,30 +217,16 @@ const CalendarPage: React.FC = () => {
         </div>
       );
     }
-
     const totalCells = Math.ceil(days.length / 7) * 7;
-    while(days.length < totalCells) {
-        days.push(
-          <div 
-            key={`empty-end-${days.length}`} 
-            className={`${cellClass} bg-background-dark/50`}
-          ></div>
-        );
-    }
+    while(days.length < totalCells) days.push(<div key={`empty-end-${days.length}`} className={`${cellClass} bg-background-dark/50`}></div>);
 
     const weekStarts = startOfWeek(new Date(), { weekStartsOn });
-    const weekDays = Array.from({ length: 7 }, (_, i) => 
-      format(addDays(weekStarts, i), 'EEEEEE', { locale: currentLocale })
-    );
+    const weekDays = Array.from({ length: 7 }, (_, i) => format(addDays(weekStarts, i), 'EEEEEE', { locale: currentLocale }));
 
     return (
         <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl overflow-hidden shadow-xl">
             <div className="grid grid-cols-7 bg-background-dark/50">
-                {weekDays.map(day => (
-                  <div key={day} className="p-2 sm:p-3 text-center text-[10px] sm:text-sm font-semibold text-text-primary border-r border-glass-edge/50 last:border-r-0">
-                    {day}
-                  </div>
-                ))}
+                {weekDays.map(day => <div key={day} className="p-2 sm:p-3 text-center text-[10px] sm:text-sm font-semibold text-text-primary border-r border-glass-edge/50 last:border-r-0">{day}</div>)}
             </div>
             <div className="grid grid-cols-7">{days}</div>
         </div>
@@ -224,159 +234,78 @@ const CalendarPage: React.FC = () => {
   };
 
   const monthName = format(currentDate, 'LLLL yyyy', { locale: currentLocale });
-
-  if (loading) { 
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div>
-      </div>
-    ); 
-  }
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 text-text-primary">
         <div id="react-datepicker-portal"></div>
-        
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 sm:mb-8">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-1 sm:mb-2">
-                {t('calendar.pageTitle')}
-              </h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-1 sm:mb-2">{t('calendar.pageTitle')}</h1>
               <p className="text-text-secondary text-sm sm:text-base">{t('calendar.pageSubtitle')}</p>
             </div>
             <div className="mt-4 lg:mt-0">
-              <button 
-                onClick={() => setIsCreateModalOpen(true)} 
-                className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-xl shadow-lg text-sm font-medium text-white bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 transition-opacity duration-200"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                {t('calendar.newEvent')}
+              <button onClick={() => setIsCreateModalOpen(true)} className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2 border border-transparent rounded-xl shadow-lg text-sm font-medium text-white bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 transition-opacity duration-200">
+                <Plus className="h-4 w-4 mr-2" /> {t('calendar.newEvent')}
               </button>
             </div>
         </div>
 
-        {error && (
-          <div className="bg-red-900/50 border border-red-600 rounded-2xl p-4 mb-6 flex items-center space-x-2">
-            <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
-            <span className="text-red-300">{error}</span>
-          </div>
-        )}
+        {error && <div className="bg-red-900/50 border border-red-600 rounded-2xl p-4 mb-6 flex items-center space-x-2"><AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" /><span className="text-red-300">{error}</span></div>}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 sm:gap-8">
             <div className="lg:col-span-3 space-y-4 sm:space-y-6">
+                {/* Calendar Controls */}
                 <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge p-3 sm:p-4 rounded-2xl shadow-xl">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
                         <div className="flex items-center justify-between sm:justify-start sm:space-x-4 w-full sm:w-auto">
-                            <button 
-                              onClick={() => navigateMonth('prev')} 
-                              className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"
-                            >
-                              <ChevronLeft className="h-5 w-5" />
-                            </button>
-                            <h2 className="text-lg sm:text-xl font-semibold text-text-primary capitalize">
-                              {monthName}
-                            </h2>
-                            <button 
-                              onClick={() => navigateMonth('next')} 
-                              className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"
-                            >
-                              <ChevronRight className="h-5 w-5" />
-                            </button>
-                            <button 
-                              onClick={() => setCurrentDate(new Date())} 
-                              className="hidden sm:block px-3 py-1 text-sm text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-md transition-colors border border-glass-edge"
-                            >
-                              {t('calendar.today')}
-                            </button>
+                            <button onClick={() => navigateMonth('prev')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronLeft className="h-5 w-5" /></button>
+                            <h2 className="text-lg sm:text-xl font-semibold text-text-primary capitalize">{monthName}</h2>
+                            <button onClick={() => navigateMonth('next')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronRight className="h-5 w-5" /></button>
+                            <button onClick={() => setCurrentDate(new Date())} className="hidden sm:block px-3 py-1 text-sm text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-md transition-colors border border-glass-edge">{t('calendar.today')}</button>
                         </div>
                         <div className="flex items-center justify-center sm:justify-end space-x-2 bg-background-dark/50 p-1 rounded-xl border border-glass-edge">
-                            <button 
-                              onClick={() => setViewMode('month')} 
-                              className={`flex-1 sm:flex-none px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                                viewMode === 'month' ? 'bg-primary-start text-white shadow' : 'text-text-secondary hover:text-white'
-                              }`}
-                            >
-                              {t('calendar.month')}
-                            </button>
-                            <button 
-                              onClick={() => setViewMode('list')} 
-                              className={`flex-1 sm:flex-none px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                                viewMode === 'list' ? 'bg-primary-start text-white shadow' : 'text-text-secondary hover:text-white'
-                              }`}
-                            >
-                              {t('calendar.list')}
-                            </button>
+                            <button onClick={() => setViewMode('month')} className={`flex-1 sm:flex-none px-3 py-1 rounded-lg text-sm font-medium transition-colors ${viewMode === 'month' ? 'bg-primary-start text-white shadow' : 'text-text-secondary hover:text-white'}`}>{t('calendar.month')}</button>
+                            <button onClick={() => setViewMode('list')} className={`flex-1 sm:flex-none px-3 py-1 rounded-lg text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-primary-start text-white shadow' : 'text-text-secondary hover:text-white'}`}>{t('calendar.list')}</button>
                         </div>
                     </div>
                 </div>
 
+                {/* Filters */}
                 <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
                     <div className="flex-1 relative">
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-text-secondary" />
-                        <input 
-                          type="text" 
-                          placeholder={t('calendar.searchPlaceholder')} 
-                          value={searchTerm} 
-                          onChange={(e) => setSearchTerm(e.target.value)} 
-                          className="block w-full pl-10 pr-3 py-2 border border-glass-edge rounded-xl bg-background-dark/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" 
-                        />
+                        <input type="text" placeholder={t('calendar.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="block w-full pl-10 pr-3 py-2 border border-glass-edge rounded-xl bg-background-dark/50 text-white placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start" />
                     </div>
                     <div className="flex space-x-2">
-                      <select 
-                        value={filterType} 
-                        onChange={(e) => setFilterType(e.target.value)} 
-                        className="flex-1 sm:flex-none px-3 py-2 border border-glass-edge rounded-xl bg-background-dark/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start"
-                      >
+                      <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="flex-1 sm:flex-none px-3 py-2 border border-glass-edge rounded-xl bg-background-dark/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start">
                         <option value="ALL">{t('calendar.allTypes')}</option>
-                        {Object.keys(t('calendar.types', { returnObjects: true })).map(key => (
-                          <option key={key} value={key}>{t(`calendar.types.${key}`)}</option>
-                        ))}
+                        {Object.keys(t('calendar.types', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.types.${key}`)}</option>)}
                       </select>
-                      <select 
-                        value={filterPriority} 
-                        onChange={(e) => setFilterPriority(e.target.value)} 
-                        className="flex-1 sm:flex-none px-3 py-2 border border-glass-edge rounded-xl bg-background-dark/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start"
-                      >
+                      <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="flex-1 sm:flex-none px-3 py-2 border border-glass-edge rounded-xl bg-background-dark/50 text-white focus:outline-none focus:ring-2 focus:ring-primary-start">
                         <option value="ALL">{t('calendar.allPriorities')}</option>
-                        {Object.keys(t('calendar.priorities', { returnObjects: true })).map(key => (
-                          <option key={key} value={key}>{t(`calendar.priorities.${key}`)}</option>
-                        ))}
+                        {Object.keys(t('calendar.priorities', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.priorities.${key}`)}</option>)}
                       </select>
                     </div>
                 </div>
 
-                {viewMode === 'month' && renderMonthView()}
+                {/* Views */}
+                {viewMode === 'month' ? renderMonthView() : renderListView()}
             </div>
 
             <div className="lg:col-span-1 space-y-6">
                 <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge p-4 sm:p-6 rounded-2xl shadow-xl">
-                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center">
-                        <Bell className="h-5 w-5 mr-2 text-yellow-400" />
-                        {t('calendar.upcomingEvents')}
-                    </h3>
-                    {upcomingEvents.length === 0 ? (
-                      <p className="text-text-secondary text-sm">{t('calendar.noUpcomingEvents')}</p>
-                    ) : (
+                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center"><Bell className="h-5 w-5 mr-2 text-yellow-400" />{t('calendar.upcomingEvents')}</h3>
+                    {upcomingEvents.length === 0 ? <p className="text-text-secondary text-sm">{t('calendar.noUpcomingEvents')}</p> : (
                       <div className="space-y-3">
                         {upcomingEvents.map(event => (
-                          <button 
-                            key={getEventId(event)} 
-                            onClick={() => setSelectedEvent(event)} 
-                            className="w-full text-left p-3 bg-background-dark/50 hover:bg-background-dark/80 rounded-lg transition-colors border border-glass-edge/50"
-                          >
+                          <button key={getEventId(event)} onClick={() => setSelectedEvent(event)} className="w-full text-left p-3 bg-background-dark/50 hover:bg-background-dark/80 rounded-lg transition-colors border border-glass-edge/50">
                             <div className="flex items-start space-x-2">
-                                <div className={`p-1 rounded border ${getEventTypeColor(event.event_type)}`}>
-                                  {getEventTypeIcon(event.event_type)}
-                                </div>
+                                <div className={`p-1 rounded border ${getEventTypeColor(event.event_type)}`}>{getEventTypeIcon(event.event_type)}</div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium text-white truncate">
-                                      {event.title}
-                                    </p>
+                                    <p className="text-sm font-medium text-white truncate">{event.title}</p>
                                     <p className="text-xs text-text-secondary mt-1">
-                                      {/* PHOENIX FIX: Hide time in sidebar for all-day events */}
-                                      {event.is_all_day 
-                                        ? formatDateOnly(event.start_date) 
-                                        : formatDateTime(event.start_date)}
+                                      {event.is_all_day ? formatDateOnly(event.start_date) : formatDateTime(event.start_date)}
                                     </p>
                                 </div>
                             </div>
@@ -387,15 +316,11 @@ const CalendarPage: React.FC = () => {
                 </div>
 
                 <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge p-4 sm:p-6 rounded-2xl shadow-xl">
-                    <h3 className="text-lg font-semibold text-text-primary mb-4">
-                      {t('calendar.eventTypes')}
-                    </h3>
+                    <h3 className="text-lg font-semibold text-text-primary mb-4">{t('calendar.eventTypes')}</h3>
                     <div className="space-y-2 grid grid-cols-2 sm:grid-cols-1 gap-2 sm:gap-0">
                       {Object.entries(t('calendar.types', { returnObjects: true })).map(([key, label]) => (
                         <div key={key} className="flex items-center space-x-2">
-                          <span className={`px-2 py-1 rounded text-xs border ${getEventTypeColor(key as CalendarEvent['event_type'])}`}>
-                            {getEventTypeIcon(key as CalendarEvent['event_type'])}
-                          </span>
+                          <span className={`px-2 py-1 rounded text-xs border ${getEventTypeColor(key as CalendarEvent['event_type'])}`}>{getEventTypeIcon(key as CalendarEvent['event_type'])}</span>
                           <span className="text-xs sm:text-sm text-text-secondary">{label as string}</span>
                         </div>
                       ))}
@@ -404,20 +329,8 @@ const CalendarPage: React.FC = () => {
             </div>
         </div>
 
-        {selectedEvent && (
-          <EventDetailModal 
-            event={selectedEvent} 
-            onClose={() => setSelectedEvent(null)} 
-            onUpdate={loadData} 
-          />
-        )}
-        {isCreateModalOpen && (
-          <CreateEventModal 
-            cases={cases} 
-            onClose={() => setIsCreateModalOpen(false)} 
-            onCreate={loadData} 
-          />
-        )}
+        {selectedEvent && <EventDetailModal event={selectedEvent} onClose={() => setSelectedEvent(null)} onUpdate={loadData} />}
+        {isCreateModalOpen && <CreateEventModal cases={cases} onClose={() => setIsCreateModalOpen(false)} onCreate={loadData} />}
     </div>
   );
 };
@@ -436,25 +349,12 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
 
     const handleDelete = async () => { 
       if (!window.confirm(t('calendar.detailModal.deleteConfirm'))) return; 
-      
       const eventId = getEventId(event);
-      if (!eventId) {
-        console.error("Cannot delete event: Event ID is undefined", event);
-        alert("Error: Event ID is missing. Cannot delete event.");
-        return;
-      }
-
+      if (!eventId) return;
       setIsDeleting(true); 
-      try { 
-        await apiService.deleteCalendarEvent(eventId); 
-        onUpdate(); 
-        onClose(); 
-      } catch (error: any) { 
-        console.error("Failed to delete event:", error);
-        alert(error.response?.data?.message || t('calendar.detailModal.deleteFailed')); 
-      } finally { 
-        setIsDeleting(false); 
-      } 
+      try { await apiService.deleteCalendarEvent(eventId); onUpdate(); onClose(); } 
+      catch (error: any) { alert(error.response?.data?.message || t('calendar.detailModal.deleteFailed')); } 
+      finally { setIsDeleting(false); } 
     };
 
     const getDetailEventTypeColor = (type: CalendarEvent['event_type']) => {
@@ -474,118 +374,39 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
             <div className="bg-background-dark/80 backdrop-blur-xl border border-glass-edge rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
                 <div className="flex items-start justify-between mb-6">
                   <div className="flex items-start space-x-4">
-                    <div className={`bg-gradient-to-br ${getDetailEventTypeColor(event.event_type)} p-3 rounded-xl text-white`}>
-                      {getEventTypeIcon(event.event_type)}
-                    </div>
+                    <div className={`bg-gradient-to-br ${getDetailEventTypeColor(event.event_type)} p-3 rounded-xl text-white`}>{getEventTypeIcon(event.event_type)}</div>
                     <div>
                       <h2 className="text-2xl font-bold text-white mb-1">{event.title}</h2>
                       <div className="flex flex-wrap gap-2">
-                        <span className="text-xs px-2 py-1 rounded-full bg-background-light/50 text-text-secondary border border-glass-edge/50">
-                          {t(`calendar.types.${event.event_type}`)}
-                        </span>
-                        <span className={`text-xs px-2 py-1 rounded-full border ${getPriorityColor(event.priority)}`}>
-                          {t(`calendar.priorities.${event.priority}`)}
-                        </span>
+                        <span className="text-xs px-2 py-1 rounded-full bg-background-light/50 text-text-secondary border border-glass-edge/50">{t(`calendar.types.${event.event_type}`)}</span>
+                        <span className={`text-xs px-2 py-1 rounded-full border ${getPriorityColor(event.priority)}`}>{t(`calendar.priorities.${event.priority}`)}</span>
                       </div>
                     </div>
                   </div>
-                  <button onClick={onClose} className="text-text-secondary hover:text-white transition-colors">
-                    <XCircle className="h-6 w-6" />
-                  </button>
+                  <button onClick={onClose} className="text-text-secondary hover:text-white transition-colors"><XCircle className="h-6 w-6" /></button>
                 </div>
 
                 <div className="space-y-4">
-                  {event.description && (
-                    <div>
-                      <h3 className="text-sm font-medium text-text-secondary mb-1">
-                        {t('calendar.detailModal.description')}
-                      </h3>
-                      <p className="text-white text-sm sm:text-base">{event.description}</p>
-                    </div>
-                  )}
-                  
+                  {event.description && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.description')}</h3><p className="text-white text-sm sm:text-base">{event.description}</p></div>}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <h3 className="text-sm font-medium text-text-secondary mb-1">
-                        {t('calendar.detailModal.startDate')}
-                      </h3>
-                      <div className="flex items-center text-white">
-                        <Clock className="h-4 w-4 mr-2 text-text-secondary" />
-                        {formatEventDate(event.start_date)}
-                      </div>
-                    </div>
-                    
-                    {/* PHOENIX FIX: Only show End Date if different from Start Date */}
-                    {event.end_date && event.end_date !== event.start_date && (
-                      <div>
-                        <h3 className="text-sm font-medium text-text-secondary mb-1">
-                          {t('calendar.detailModal.endDate')}
-                        </h3>
-                        <div className="flex items-center text-white">
-                          <Clock className="h-4 w-4 mr-2 text-text-secondary" />
-                          {formatEventDate(event.end_date)}
-                        </div>
-                      </div>
-                    )}
+                    <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.startDate')}</h3><div className="flex items-center text-white"><Clock className="h-4 w-4 mr-2 text-text-secondary" />{formatEventDate(event.start_date)}</div></div>
+                    {event.end_date && event.end_date !== event.start_date && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.endDate')}</h3><div className="flex items-center text-white"><Clock className="h-4 w-4 mr-2 text-text-secondary" />{formatEventDate(event.end_date)}</div></div>}
                   </div>
-
-                  {event.location && (
-                    <div>
-                      <h3 className="text-sm font-medium text-text-secondary mb-1">
-                        {t('calendar.detailModal.location')}
-                      </h3>
-                      <div className="flex items-center text-white">
-                        <MapPin className="h-4 w-4 mr-2 text-text-secondary" />
-                        {event.location}
-                      </div>
-                    </div>
-                  )}
-
-                  {event.attendees && event.attendees.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-medium text-text-secondary mb-1">
-                        {t('calendar.detailModal.attendees')}
-                      </h3>
-                      <div className="flex items-center text-white">
-                        <Users className="h-4 w-4 mr-2 text-text-secondary" />
-                        {event.attendees.join(', ')}
-                      </div>
-                    </div>
-                  )}
-
-                  {event.notes && (
-                    <div>
-                      <h3 className="text-sm font-medium text-text-secondary mb-1">
-                        {t('calendar.detailModal.notes')}
-                      </h3>
-                      <p className="text-white bg-background-light/50 rounded-lg p-3 border border-glass-edge/50 text-sm">
-                        {event.notes}
-                      </p>
-                    </div>
-                  )}
+                  {event.location && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.location')}</h3><div className="flex items-center text-white"><MapPin className="h-4 w-4 mr-2 text-text-secondary" />{event.location}</div></div>}
+                  {event.attendees && event.attendees.length > 0 && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.attendees')}</h3><div className="flex items-center text-white"><Users className="h-4 w-4 mr-2 text-text-secondary" />{event.attendees.join(', ')}</div></div>}
+                  {event.notes && <div><h3 className="text-sm font-medium text-text-secondary mb-1">{t('calendar.detailModal.notes')}</h3><p className="text-white bg-background-light/50 rounded-lg p-3 border border-glass-edge/50 text-sm">{event.notes}</p></div>}
                 </div>
 
                 <div className="flex space-x-3 mt-6 pt-6 border-t border-glass-edge/50">
-                  <button 
-                    onClick={onClose} 
-                    className="flex-1 px-4 py-2 border border-glass-edge rounded-md text-text-secondary hover:bg-background-light/50 transition duration-200"
-                  >
-                    {t('calendar.detailModal.close')}
-                  </button>
-                  <button 
-                    onClick={handleDelete} 
-                    disabled={isDeleting}
-                    className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-md transition duration-200"
-                  >
-                    {isDeleting ? t('calendar.detailModal.deleting') : t('calendar.detailModal.delete')}
-                  </button>
+                  <button onClick={onClose} className="flex-1 px-4 py-2 border border-glass-edge rounded-md text-text-secondary hover:bg-background-light/50 transition duration-200">{t('calendar.detailModal.close')}</button>
+                  <button onClick={handleDelete} disabled={isDeleting} className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-md transition duration-200">{isDeleting ? t('calendar.detailModal.deleting') : t('calendar.detailModal.delete')}</button>
                 </div>
             </div>
         </div>
     );
 };
 
-// Create Event Modal Component (No changes)
+// Create Event Modal Component
 const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onCreate }) => {
   const { t, i18n } = useTranslation();
   const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
@@ -594,24 +415,14 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
   const [eventDate, setEventDate] = useState<Date | null>(null);
 
   const [formData, setFormData] = useState<Omit<CalendarEventCreateRequest, 'attendees' | 'start_date' | 'end_date'> & { attendees: string }>({
-    case_id: '', 
-    title: '', 
-    description: '', 
-    event_type: 'MEETING', 
-    location: '', 
-    attendees: '', 
-    is_all_day: false, 
-    priority: 'MEDIUM', 
-    notes: ''
+    case_id: '', title: '', description: '', event_type: 'MEETING', location: '', attendees: '', 
+    is_all_day: true, // Default True
+    priority: 'MEDIUM', notes: ''
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!eventDate) {
-      alert(t('calendar.createModal.dateTimePlaceholder'));
-      return;
-    }
-    
+    if (!eventDate) { alert(t('calendar.createModal.dateTimePlaceholder')); return; }
     setIsCreating(true);
     try {
       const payload: CalendarEventCreateRequest = {
@@ -620,194 +431,53 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
         end_date: eventDate.toISOString(),
         attendees: formData.attendees ? formData.attendees.split(',').map(a => a.trim()) : [],
       };
-      
       await apiService.createCalendarEvent(payload);
-      onCreate();
-      onClose();
-    } catch (error: any) {
-      alert(error.response?.data?.message || t('calendar.createModal.createFailed'));
-    } finally { 
-      setIsCreating(false); 
-    }
+      onCreate(); onClose();
+    } catch (error: any) { alert(error.response?.data?.message || t('calendar.createModal.createFailed')); } 
+    finally { setIsCreating(false); }
   };
 
   const formElementClasses = "block w-full px-3 py-2 border border-glass-edge rounded-md bg-background-light/50 text-white placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary-start";
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-background-dark/80 backdrop-blur-xl border border-glass-edge rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-        <h2 className="text-2xl font-bold text-white mb-6">{t('calendar.createModal.title')}</h2>
+      <div className="bg-background-dark/80 backdrop-blur-xl border border-glass-edge rounded-2xl p-6 w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl">
+        <h2 className="text-2xl font-bold text-white mb-6 flex-shrink-0">{t('calendar.createModal.title')}</h2>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('calendar.createModal.relatedCase')}
-            </label>
-            <select 
-              required 
-              value={formData.case_id} 
-              onChange={(e) => setFormData(prev => ({ ...prev, case_id: e.target.value }))} 
-              className={formElementClasses}
-            >
-              <option value="">{t('calendar.createModal.selectCase')}</option>
-              {cases.map(c => (
-                <option key={c.id} value={c.id}>{c.case_name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('calendar.createModal.eventTitle')}
-            </label>
-            <input 
-              type="text" 
-              required 
-              value={formData.title} 
-              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))} 
-              className={formElementClasses} 
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">
-                {t('calendar.createModal.eventType')}
-              </label>
-              <select 
-                value={formData.event_type} 
-                onChange={(e) => setFormData(prev => ({ ...prev, event_type: e.target.value as CalendarEvent['event_type'] }))} 
-                className={formElementClasses}
-              >
-                {Object.keys(t('calendar.types', { returnObjects: true })).map(key => (
-                  <option key={key} value={key}>{t(`calendar.types.${key}`)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">
-                {t('calendar.createModal.priority')}
-              </label>
-              <select 
-                value={formData.priority} 
-                onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as CalendarEvent['priority'] }))} 
-                className={formElementClasses}
-              >
-                {Object.keys(t('calendar.priorities', { returnObjects: true })).map(key => (
-                  <option key={key} value={key}>{t(`calendar.priorities.${key}`)}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t('calendar.createModal.eventDate')}
-            </label>
-            <DatePicker
-              selected={eventDate}
-              onChange={(date: Date | null) => setEventDate(date)}
-              locale={currentLocale}
-              dateFormat="dd.MM.yyyy HH:mm"
-              placeholderText={t('calendar.createModal.dateTimePlaceholder')}
-              className={formElementClasses}
-              portalId="react-datepicker-portal"
-              showTimeSelect
-              timeIntervals={15}
-              required
-            />
-          </div>
-
-          {!showAdvanced && (
-            <div className="pt-2">
-              <button 
-                type="button" 
-                onClick={() => setShowAdvanced(true)} 
-                className="text-sm text-primary-start hover:text-primary-end flex items-center"
-              >
-                <ChevronDown className="h-4 w-4 mr-1" />
-                {t('calendar.createModal.addDetails')}
-              </button>
-            </div>
-          )}
-
-          {showAdvanced && (
-            <div className="space-y-4 pt-2">
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">
-                  {t('calendar.createModal.description')}
-                </label>
-                <textarea 
-                  rows={3} 
-                  value={formData.description} 
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))} 
-                  className={formElementClasses} 
-                />
+        <form onSubmit={handleSubmit} className="flex flex-col flex-grow overflow-hidden">
+          <div className="overflow-y-auto pr-2 space-y-4 flex-grow custom-scrollbar">
+              {/* Content */}
+              <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.relatedCase')}</label><select required value={formData.case_id} onChange={(e) => setFormData(prev => ({ ...prev, case_id: e.target.value }))} className={formElementClasses}><option value="">{t('calendar.createModal.selectCase')}</option>{cases.map(c => <option key={c.id} value={c.id}>{c.case_name}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventTitle')}</label><input type="text" required value={formData.title} onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))} className={formElementClasses} /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventType')}</label><select value={formData.event_type} onChange={(e) => setFormData(prev => ({ ...prev, event_type: e.target.value as CalendarEvent['event_type'] }))} className={formElementClasses}>{Object.keys(t('calendar.types', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.types.${key}`)}</option>)}</select></div>
+                <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.priority')}</label><select value={formData.priority} onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value as CalendarEvent['priority'] }))} className={formElementClasses}>{Object.keys(t('calendar.priorities', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.priorities.${key}`)}</option>)}</select></div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">
-                  {t('calendar.createModal.location')}
-                </label>
-                <input 
-                  type="text" 
-                  value={formData.location} 
-                  onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))} 
-                  className={formElementClasses} 
+                <label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventDate')}</label>
+                <DatePicker
+                    selected={eventDate}
+                    onChange={(date: Date | null) => setEventDate(date)}
+                    locale={currentLocale}
+                    dateFormat="dd.MM.yyyy"
+                    placeholderText={t('calendar.createModal.dateTimePlaceholder')}
+                    className={formElementClasses}
+                    portalId="react-datepicker-portal"
+                    required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">
-                  {t('calendar.createModal.attendees')}
-                </label>
-                <input 
-                  type="text" 
-                  value={formData.attendees} 
-                  onChange={(e) => setFormData(prev => ({ ...prev, attendees: e.target.value }))} 
-                  className={formElementClasses} 
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">
-                  {t('calendar.createModal.notes')}
-                </label>
-                <textarea 
-                  rows={2} 
-                  value={formData.notes} 
-                  onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))} 
-                  className={formElementClasses} 
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-text-secondary">
-              {t('calendar.createModal.allDay')}
-            </span>
-            <button 
-              type="button" 
-              onClick={() => setFormData(prev => ({...prev, is_all_day: !prev.is_all_day}))} 
-              className={`${formData.is_all_day ? 'bg-primary-start' : 'bg-background-light/50'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}
-            >
-              <span className={`${formData.is_all_day ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}/>
-            </button>
+              {!showAdvanced && <div className="pt-2"><button type="button" onClick={() => setShowAdvanced(true)} className="text-sm text-primary-start hover:text-primary-end flex items-center"><ChevronDown className="h-4 w-4 mr-1" />{t('calendar.createModal.addDetails')}</button></div>}
+              {showAdvanced && <div className="space-y-4 pt-2">
+                  <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.description')}</label><textarea rows={3} value={formData.description} onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))} className={formElementClasses} /></div>
+                  <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.location')}</label><input type="text" value={formData.location} onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))} className={formElementClasses} /></div>
+                  <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.attendees')}</label><input type="text" value={formData.attendees} onChange={(e) => setFormData(prev => ({ ...prev, attendees: e.target.value }))} className={formElementClasses} /></div>
+                  <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.notes')}</label><textarea rows={2} value={formData.notes} onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))} className={formElementClasses} /></div>
+              </div>}
           </div>
 
-          <div className="flex space-x-3 pt-4">
-            <button 
-              type="button" 
-              onClick={onClose} 
-              className="flex-1 px-4 py-2 border border-glass-edge rounded-md text-text-secondary hover:bg-background-light/50 transition duration-200"
-            >
-              {t('calendar.createModal.cancel')}
-            </button>
-            <button 
-              type="submit" 
-              disabled={isCreating} 
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-md transition duration-200"
-            >
-              {isCreating ? t('calendar.createModal.creating') : t('calendar.createModal.create')}
-            </button>
+          <div className="flex space-x-3 pt-4 mt-auto flex-shrink-0">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-glass-edge rounded-md text-text-secondary hover:bg-background-light/50 transition duration-200">{t('calendar.createModal.cancel')}</button>
+            <button type="submit" disabled={isCreating} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-md transition duration-200">{isCreating ? t('calendar.createModal.creating') : t('calendar.createModal.create')}</button>
           </div>
         </form>
       </div>

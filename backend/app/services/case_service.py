@@ -1,8 +1,7 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - ALERTS UPDATE (UPCOMING ONLY)
-# 1. LOGIC CHANGE: Alerts now strictly count events in the NEXT 7 DAYS.
-# 2. EXCLUSION: Past/Overdue events are ignored in this count.
-# 3. QUERY: Uses MongoDB range query ($gte NOW and $lte NEXT_WEEK).
+# PHOENIX PROTOCOL - ALERTS FIX
+# 1. LOGIC: Normalizes 'now' to start-of-day.
+# 2. RESULT: Events happening TODAY are now counted as Alerts.
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
@@ -58,18 +57,17 @@ def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> dict | N
         case_id_str = str(case_id)
         
         # --- PHOENIX LOGIC: "Look Ahead" Alerts ---
-        # STRICTLY counts events happening between NOW and 7 DAYS from now.
-        # Past events are ignored.
-        
-        now = datetime.now()
-        next_week = now + timedelta(days=7)
+        # Reset 'now' to the start of the current day (00:00:00)
+        # This ensures events happening TODAY are counted.
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        next_week = today_start + timedelta(days=7)
         
         alert_query = {
             "case_id": case_id_str,
             "status": "PENDING",
             "start_date": { 
-                "$gte": now.isoformat(),      # Greater than or equal to NOW
-                "$lte": next_week.isoformat() # Less than or equal to NEXT WEEK
+                "$gte": today_start.isoformat(), # Today onwards
+                "$lte": next_week.isoformat()    # Up to 7 days
             }
         }
         
@@ -90,12 +88,10 @@ def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> dict | N
     return None
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
-    # Perform deletion
     result = db.cases.delete_one({"_id": case_id, "owner_id": owner.id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Case not found.")
         
-    # Cascade Delete
     case_id_str = str(case_id)
     db.documents.delete_many({"case_id": case_id})
     db.calendar_events.delete_many({"case_id": case_id_str})
