@@ -1,14 +1,15 @@
 # FILE: backend/app/services/findings_service.py
-# PHOENIX PROTOCOL - ABSOLUTE IMPORT FIX
-# 1. REPLACED: Relative import with absolute import 'from app.services.llm_service ...'
-# 2. RESOLVES: Pylance "not a known attribute" error.
-# 3. PRESERVED: Document ID deletion logic.
+# PHOENIX PROTOCOL - TIMESTAMP FIX
+# 1. INSERTION: Now saves 'created_at' for all new findings.
+# 2. PROJECTION: Explicitly retrieves 'created_at' from MongoDB.
+# 3. IMPORT: Added datetime/timezone for timestamp generation.
 
 import structlog
 from bson import ObjectId
 from typing import List, Dict, Any
 from pymongo.database import Database
 from pymongo.results import DeleteResult
+from datetime import datetime, timezone
 
 # PHOENIX FIX: Absolute import to guarantee symbol resolution
 from app.services.llm_service import extract_findings_from_text
@@ -26,7 +27,6 @@ def extract_and_save_findings(db: Database, document_id: str, full_text: str):
         log.warning("findings_service.no_text_provided")
         return
     
-    # PHOENIX FIX: Call the directly imported function
     extracted_findings = extract_findings_from_text(full_text)
     
     if not extracted_findings:
@@ -35,6 +35,7 @@ def extract_and_save_findings(db: Database, document_id: str, full_text: str):
     case_id = document.get("case_id")
     file_name = document.get("file_name", "Unknown Document")
     log = log.bind(case_id=str(case_id))
+    
     findings_to_insert = [
         {
             "case_id": case_id, "document_id": ObjectId(document_id),
@@ -43,6 +44,7 @@ def extract_and_save_findings(db: Database, document_id: str, full_text: str):
             "source_text": finding.get("source_text") or "N/A",
             "page_number": finding.get("page_number", 1),
             "confidence_score": 1.0,
+            "created_at": datetime.now(timezone.utc) # <--- PHOENIX FIX: Added timestamp
         }
         for finding in extracted_findings if finding.get("finding_text") or finding.get("finding")
     ]
@@ -68,6 +70,7 @@ def get_findings_for_case(db: Database, case_id: str) -> List[Dict[str, Any]]:
             'page_number': 1, 
             'document_name': 1, 
             'confidence_score': 1,
+            'created_at': 1 # <--- PHOENIX FIX: Retrieve timestamp
         }}
     ]
     findings = list(db.findings.aggregate(pipeline))

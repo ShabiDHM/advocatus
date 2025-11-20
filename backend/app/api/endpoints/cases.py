@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - FINDINGS SYNC FIX
-# 1. Added 'document_id' to findings response so frontend can filter them on delete.
-# 2. Maintains 'storage_service' fix from previous step.
+# PHOENIX PROTOCOL - DATA MAPPING FIX
+# 1. ADDED: 'created_at' mapping for findings.
+# 2. ROBUSTNESS: Uses fallback timestamp for legacy data to prevent 500 errors.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated
@@ -13,6 +13,7 @@ from bson import ObjectId
 from bson.errors import InvalidId
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 # Direct imports including storage_service
 from ...services import case_service, document_service, findings_service, report_service, storage_service
@@ -66,19 +67,23 @@ async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, 
     validate_object_id(case_id)
     findings_data = await asyncio.to_thread(findings_service.get_findings_for_case, db=db, case_id=case_id)
     
-    # PHOENIX FIX: Explicitly mapping document_id so frontend can handle deletions
-    findings_out_list = [
-        FindingOut.model_validate({
+    findings_out_list = []
+    for finding in findings_data:
+        # PHOENIX FIX: Robust mapping with fallbacks
+        finding_dict = {
             'id': str(finding.get('_id')), 
             'case_id': str(finding.get('case_id')),
-            'document_id': str(finding.get('document_id')), # <--- THIS WAS MISSING
+            'document_id': str(finding.get('document_id')) if finding.get('document_id') else None,
             'finding_text': finding.get('finding_text', 'N/A'), 
             'source_text': finding.get('source_text', 'N/A'),
             'page_number': finding.get('page_number'), 
             'document_name': finding.get('document_name'),
             'confidence_score': finding.get('confidence_score', 0.0),
-        }) for finding in findings_data
-    ]
+            # Safely handle missing created_at for old records
+            'created_at': finding.get('created_at') or datetime.now(timezone.utc)
+        }
+        findings_out_list.append(FindingOut.model_validate(finding_dict))
+
     return FindingsListOut(findings=findings_out_list, count=len(findings_out_list))
 
 @router.get("/{case_id}/documents", response_model=List[DocumentOut], tags=["Documents"])
