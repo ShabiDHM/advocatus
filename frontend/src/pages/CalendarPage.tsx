@@ -1,7 +1,8 @@
 // FILE: src/pages/CalendarPage.tsx
 // PHOENIX PROTOCOL - UI REFINEMENT
-// 1. DATE FORMATTING: Hides time (HH:mm) for "All Day" events (like extracted deadlines).
-// 2. CLEANUP: Keeps the logic that hides redundant End Dates.
+// 1. GRID: Hides '00:00' for all-day events (deadlines).
+// 2. SIDEBAR: Hides time for all-day events in the 'Upcoming' list.
+// 3. MODAL: Maintained previous logic (hides redundant end date/time).
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -124,6 +125,9 @@ const CalendarPage: React.FC = () => {
 
   const formatDateTime = (dateString: string) => 
     format(parseISO(dateString), 'dd.MM.yyyy HH:mm', { locale: currentLocale });
+    
+  const formatDateOnly = (dateString: string) => 
+    format(parseISO(dateString), 'dd.MM.yyyy', { locale: currentLocale });
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     setCurrentDate(direction === 'prev' ? subMonths(currentDate, 1) : addMonths(currentDate, 1));
@@ -173,7 +177,10 @@ const CalendarPage: React.FC = () => {
                 onClick={() => setSelectedEvent(event)} 
                 className={`w-full text-left px-1 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs truncate border ${getEventTypeColor(event.event_type)}`}
               >
-                <span className="hidden sm:inline mr-1">{formatTime(event.start_date)} -</span>
+                {/* PHOENIX FIX: Hide time for all-day events in Grid View */}
+                {!event.is_all_day && (
+                    <span className="hidden sm:inline mr-1">{formatTime(event.start_date)} -</span>
+                )}
                 {event.title}
               </button>
             ))}
@@ -366,7 +373,10 @@ const CalendarPage: React.FC = () => {
                                       {event.title}
                                     </p>
                                     <p className="text-xs text-text-secondary mt-1">
-                                      {formatDateTime(event.start_date)}
+                                      {/* PHOENIX FIX: Hide time in sidebar for all-day events */}
+                                      {event.is_all_day 
+                                        ? formatDateOnly(event.start_date) 
+                                        : formatDateTime(event.start_date)}
                                     </p>
                                 </div>
                             </div>
@@ -418,7 +428,6 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
     const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
     const [isDeleting, setIsDeleting] = useState(false);
 
-    // PHOENIX FIX: Conditional Date Formatting (No Time for All-Day events)
     const formatEventDate = (dateString: string) => {
       const date = parseISO(dateString);
       const formatStr = event.is_all_day ? 'dd MMMM yyyy' : 'dd MMMM yyyy, HH:mm';
@@ -502,7 +511,6 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
                       </h3>
                       <div className="flex items-center text-white">
                         <Clock className="h-4 w-4 mr-2 text-text-secondary" />
-                        {/* PHOENIX FIX: Use conditioned format function */}
                         {formatEventDate(event.start_date)}
                       </div>
                     </div>
@@ -577,7 +585,7 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
     );
 };
 
-// Create Event Modal Component (No changes needed here, but included for completeness)
+// Create Event Modal Component (No changes)
 const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onCreate }) => {
   const { t, i18n } = useTranslation();
   const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
