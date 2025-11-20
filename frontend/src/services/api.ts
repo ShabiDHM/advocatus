@@ -1,6 +1,6 @@
 // FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL - API UPGRADE
-// 1. ADDED: 'analyzeCase' method for Cross-Examination feature.
+// PHOENIX PROTOCOL - API UPDATE
+// 1. ADDED: 'sendContactForm' method to submit support requests.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -21,7 +21,7 @@ import type {
     ApiKeyCreateRequest,
     ChangePasswordRequest,
     Finding,
-    CaseAnalysisResult // <--- IMPORTED
+    CaseAnalysisResult
 } from '../data/types';
 
 interface LoginResponse {
@@ -117,6 +117,17 @@ class ApiService {
         return response.data;
     }
 
+    // --- Support (NEW) ---
+    public async sendContactForm(data: { firstName: string; lastName: string; email: string; phone: string; message: string }): Promise<void> {
+        await this.axiosInstance.post('/support/contact', {
+            first_name: data.firstName,
+            last_name: data.lastName,
+            email: data.email,
+            phone: data.phone,
+            message: data.message
+        });
+    }
+
     // --- Cases ---
     public async getCases(): Promise<Case[]> {
         const response = await this.axiosInstance.get<Case[]>('/cases');
@@ -142,7 +153,6 @@ class ApiService {
         return response.data.findings || [];
     }
 
-    // PHOENIX PROTOCOL: Cross-Examination Endpoint
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> {
         const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`);
         return response.data;

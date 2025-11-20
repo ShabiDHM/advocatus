@@ -1,13 +1,13 @@
 // FILE: src/components/ContactModal.tsx
-// PHOENIX PROTOCOL - FORM EXPANSION
-// 1. FIELDS: Added Email and Phone Number inputs.
-// 2. LAYOUT: Organized into two rows (Names on top, Contact Info below).
-// 3. ICONS: Added Mail and Phone icons for better UX.
+// PHOENIX PROTOCOL - REAL API INTEGRATION
+// 1. LOGIC: Switched from 'setTimeout' to 'apiService.sendContactForm'.
+// 2. UX: Added error handling and loading states.
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, CheckCircle, MessageSquare, User, Mail, Phone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { apiService } from '../services/api';
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -32,17 +32,23 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
     e.preventDefault();
     setIsSending(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    setIsSending(false);
-    setIsSent(true);
-    
-    setTimeout(() => {
-        setIsSent(false);
-        setFormData({ firstName: '', lastName: '', email: '', phone: '', message: '' });
-        onClose();
-    }, 2000);
+    try {
+        // PHOENIX FIX: Call Real API
+        await apiService.sendContactForm(formData);
+        
+        setIsSending(false);
+        setIsSent(true);
+        
+        setTimeout(() => {
+            setIsSent(false);
+            setFormData({ firstName: '', lastName: '', email: '', phone: '', message: '' });
+            onClose();
+        }, 2000);
+    } catch (error) {
+        console.error("Failed to send contact form:", error);
+        alert("Gabim gjatë dërgimit. Ju lutemi provoni përsëri.");
+        setIsSending(false);
+    }
   };
 
   return (
@@ -50,7 +56,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-background-dark border border-glass-edge rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" // Increased max-width slightly
+        className="bg-background-dark border border-glass-edge rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
       >
         <div className="p-5 border-b border-glass-edge flex justify-between items-center bg-background-light/50">
           <h2 className="text-lg sm:text-xl font-bold text-text-primary flex items-center gap-2">
@@ -75,8 +81,6 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
               </motion.div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
-                
-                {/* Row 1: Names */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                         <label className="text-xs font-medium text-text-secondary uppercase">Emri</label>
@@ -103,7 +107,6 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
                     </div>
                 </div>
 
-                {/* Row 2: Contact Info (Email & Phone) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                         <label className="text-xs font-medium text-text-secondary uppercase">Email</label>

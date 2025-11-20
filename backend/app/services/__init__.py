@@ -1,10 +1,10 @@
 # FILE: backend/app/services/__init__.py
-# PHOENIX PROTOCOL - SERVICE REGISTRY UPDATE
-# 1. ADDED: 'analysis_service' for cross-examination features.
+# PHOENIX PROTOCOL - SERVICE REGISTRY
+# Added 'email_service'
 
 from . import (
     admin_service,
-    analysis_service, # <--- NEW
+    analysis_service,
     api_key_service,
     calendar_service,
     case_service,
@@ -14,6 +14,7 @@ from . import (
     document_processing_service,
     document_service,
     drafting_service,
+    email_service, # <--- ADDED
     embedding_service,
     encryption_service,
     findings_service,
