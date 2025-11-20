@@ -1,18 +1,14 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL MODIFICATION 2.0 (FINAL RUNTIME HANG FIX)
-# 1. CRITICAL HANG FIX: Wrapped the blocking `self.vector_store.query_by_vector` call
-#    in an `asyncio.wait_for` with a 15-second timeout.
-# 2. This prevents the infinite "Thinking..." hang when querying cases with no documents.
-# 3. If the vector store fails to respond in time, a TimeoutError is caught, and a
-#    graceful error message is yielded to the user, ensuring system stability.
+# PHOENIX PROTOCOL MODIFICATION 2.1
+# 1. ADDED: 'chat()' method to satisfy the strict interface requirement of chat_service.py.
+#    (This fixes the "AI Unavailable" fallback error).
+# 2. RETAINED: The async timeout fix for preventing vector store hangs.
 
 import os
 import asyncio
-import re
 import logging
-from typing import AsyncGenerator, List, Optional, Dict, Protocol, cast, Sequence, Any
-import sys
-from fastapi import HTTPException, status
+from typing import AsyncGenerator, List, Optional, Dict, Protocol, cast, Any
+from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -44,12 +40,25 @@ class AlbanianRAGService:
 
         # Configuration constants
         self.EMBEDDING_TIMEOUT = 10.0
-        self.VECTOR_QUERY_TIMEOUT = 15.0 # PHOENIX PROTOCOL ADDITION
+        self.VECTOR_QUERY_TIMEOUT = 15.0 
         self.GROK_4_HEAVY_MODEL = os.getenv("HEAVY_LLM_MODEL", "llama3-70b-8192")
+
+    async def chat(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> str:
+        """
+        Non-streaming wrapper for chat_stream. 
+        Consumes the stream and returns the full complete string.
+        REQUIRED for compatibility with standard HTTP chat endpoints.
+        """
+        full_response_parts = []
+        async for chunk in self.chat_stream(query, case_id, document_ids):
+            if chunk:
+                full_response_parts.append(chunk)
+        return "".join(full_response_parts)
 
     async def chat_stream(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> AsyncGenerator[str, None]:
         relevant_chunks = []
         try:
+            # Lazy import to avoid circular dependency issues
             from .embedding_service import generate_embedding
 
             try:
