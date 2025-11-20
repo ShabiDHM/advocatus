@@ -1,11 +1,7 @@
 # FILE: backend/app/models/case.py
-# DEFINITIVE VERSION (ARCHITECTURAL CURE):
-# 1. CURED: Removed the obsolete `json_encoders` dictionary from the `CaseInDB`
-#    model's `ConfigDict`.
-# 2. This resolves the architectural conflict between Pydantic v1 and v2
-#    serialization patterns, which was the root cause of the Pylance errors.
-# 3. The serialization of `PyObjectId` is now handled exclusively by the logic
-#    within the `PyObjectId` class itself, creating a single source of truth.
+# PHOENIX PROTOCOL - CHAT PERSISTENCE ENABLED
+# 1. Added 'chat_history' to CaseOut. This allows the frontend to receive 
+#    stored messages when loading the case (fixing the "disappearing chat" bug).
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from datetime import datetime
@@ -13,7 +9,7 @@ from typing import Optional, Any, List, Literal
 
 from .common import PyObjectId
 
-# --- NEW: Chat Message Models ---
+# --- Chat Message Models ---
 class ChatMessage(BaseModel):
     """
     Represents a single chat message stored within the CaseInDB document.
@@ -32,13 +28,13 @@ class ChatMessageOut(ChatMessage):
         json_encoders={datetime: lambda dt: dt.isoformat()}
     )
 
-# --- Client Details Model (Unchanged) ---
+# --- Client Details Model ---
 class ClientDetailsOut(BaseModel):
     name: Optional[str] = Field(None)
     email: Optional[str] = Field(None)
     phone: Optional[str] = Field(None)
 
-# --- Base Case Models (Modified) ---
+# --- Base Case Models ---
 class CaseBase(BaseModel):
     case_name: str = Field(..., min_length=3, max_length=150)
     status: str = "active"
@@ -54,10 +50,9 @@ class CaseInDB(CaseBase):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     client: Optional[ClientDetailsOut] = Field(None)
 
-    # --- PHOENIX PROTOCOL ADDITION: Persist chat history in the database ---
+    # Persist chat history in the database
     chat_history: List[ChatMessage] = Field(default_factory=list)
 
-    # CURE: The conflicting `json_encoders` line has been removed.
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
@@ -83,6 +78,9 @@ class CaseOut(BaseModel):
     alert_count: int
     event_count: int
     finding_count: int
+    
+    # PHOENIX FIX: Include chat history in the public API response
+    chat_history: List[ChatMessage] = Field(default_factory=list)
 
     @field_validator('id', 'owner_id', mode='before')
     @classmethod

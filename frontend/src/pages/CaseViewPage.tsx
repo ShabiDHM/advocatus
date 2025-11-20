@@ -1,7 +1,7 @@
 // FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - FINAL SYNC FIX
-// 1. Aggressive ID matching for deletions (String() casting).
-// 2. Auto-Refresh logic hooked into the SSE state.
+// PHOENIX PROTOCOL - PERSISTENT CHAT IMPLEMENTATION
+// 1. Hydrates chat messages from 'caseData.details.chat_history'.
+// 2. Implements 'handleClearChat' to call API and clear local state.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -23,7 +23,7 @@ type CaseData = {
     findings: Finding[];
 };
 
-// --- SUB-COMPONENTS (Header/FindingsPanel) ---
+// --- SUB-COMPONENTS ---
 const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction; }> = ({ caseDetails, t }) => (
     <motion.div
       className="mb-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
@@ -54,7 +54,6 @@ const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction; }> = ({ findi
         </motion.div>
     );
 };
-// --- END SUB-COMPONENTS ---
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -73,6 +72,7 @@ const CaseViewPage: React.FC = () => {
       documents: liveDocuments,
       setDocuments: setLiveDocuments,
       messages: liveMessages,
+      setMessages, // <--- EXPOSED from Hook
       connectionStatus, 
       reconnect, 
       sendChatMessage, 
@@ -94,13 +94,20 @@ const CaseViewPage: React.FC = () => {
       
       setCaseData({ details, findings: findingsResponse || [] });
       
+      // PHOENIX FIX: Hydrate state on initial load
       if (isInitialLoad) {
           setLiveDocuments((initialDocs || []).map(sanitizeDocument));
+          
+          // Hydrate Chat History
+          if (details.chat_history) {
+              console.log("Hydrating chat history:", details.chat_history.length, "messages");
+              setMessages(details.chat_history);
+          }
+
           // Initialize ready count
           const readyDocs = (initialDocs || []).filter(d => d.status === 'COMPLETED' || d.status === 'READY');
           prevReadyCount.current = readyDocs.length;
       } else {
-          // Just update findings on subsequent refreshes
           setCaseData(prev => ({ ...prev, findings: findingsResponse || [] }));
       }
 
@@ -110,15 +117,12 @@ const CaseViewPage: React.FC = () => {
     } finally {
       if(isInitialLoad) setIsLoading(false);
     }
-  }, [caseId, t, setLiveDocuments]);
+  }, [caseId, t, setLiveDocuments, setMessages]);
 
   // --- AUTO-REFRESH FINDINGS ---
-  // Listen for changes in document status
   useEffect(() => {
      const currentReadyCount = liveDocuments.filter(d => d.status === 'COMPLETED' || d.status === 'READY').length;
-     
      if (currentReadyCount > prevReadyCount.current) {
-         console.log("Document finished processing! Fetching new findings...");
          fetchCaseData(false); 
      }
      prevReadyCount.current = currentReadyCount;
@@ -137,17 +141,25 @@ const CaseViewPage: React.FC = () => {
   
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
     const { documentId } = response;
-    console.log("Deleting document:", documentId);
-    
-    // 1. Update Documents
     setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(documentId)));
-    
-    // 2. Update Findings (Strict String Comparison)
     setCaseData(prev => {
         const newFindings = prev.findings.filter(f => String(f.document_id) !== String(documentId));
-        console.log(`Removed ${prev.findings.length - newFindings.length} orphaned findings.`);
         return { ...prev, findings: newFindings };
     });
+  };
+
+  // NEW: Handle Clear Chat
+  const handleClearChat = async () => {
+      if (!caseId) return;
+      if (!window.confirm(t('chatPanel.confirmClear'))) return; // Ensure you have this translation key
+      
+      try {
+          await apiService.clearChatHistory(caseId);
+          setMessages([]); // Clear local state immediately
+      } catch (err) {
+          console.error("Failed to clear chat:", err);
+          alert(t('error.generic'));
+      }
   };
 
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
@@ -191,6 +203,7 @@ const CaseViewPage: React.FC = () => {
                   onSendMessage={sendChatMessage}
                   isSendingMessage={isSendingMessage}
                   caseId={caseData.details.id}
+                  onClearChat={handleClearChat} // <--- Wired up
                   t={t}
                 />
             </div>

@@ -1,8 +1,7 @@
 // FILE: frontend/src/data/types.ts
-// PHOENIX PROTOCOL - TYPE DEFINITION FIX (BUILD REPAIR)
-// 1. Added 'AdminUser' alias to satisfy Admin pages.
-// 2. Added 'text' to ChatMessage for backward compatibility.
-// 3. Added 'FAILURE' to DraftingStatus to match Celery events.
+// PHOENIX PROTOCOL - TYPE DEFINITION FIX (CHAT PERSISTENCE)
+// 1. Added 'chat_history' to Case interface to support persistent chat.
+// 2. Maintained 'AdminUser' alias and all other strict types.
 
 export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
 
@@ -22,6 +21,15 @@ export interface User {
 // PHOENIX FIX: Alias AdminUser to User to satisfy legacy imports
 export type AdminUser = User;
 
+export interface ChatMessage {
+  sender: 'user' | 'ai';
+  content: string;
+  // PHOENIX FIX: Added optional 'text' to prevent ChatPanel build errors.
+  text?: string; 
+  timestamp: string;
+  isPartial?: boolean;
+}
+
 export interface Case {
   id: string;
   owner_id: string;
@@ -33,6 +41,8 @@ export interface Case {
   alert_count: number;
   event_count: number;
   finding_count: number;
+  // PHOENIX FIX: Added chat_history for persistence
+  chat_history?: ChatMessage[];
 }
 
 export interface Document {
@@ -55,16 +65,6 @@ export interface Finding {
   page_number?: number;
   document_name?: string;
   confidence_score?: number;
-}
-
-export interface ChatMessage {
-  sender: 'user' | 'ai';
-  content: string;
-  // PHOENIX FIX: Added optional 'text' to prevent ChatPanel build errors.
-  // The UI should eventually migrate to using 'content' exclusively.
-  text?: string; 
-  timestamp: string;
-  isPartial?: boolean;
 }
 
 export interface CalendarEvent {
@@ -106,7 +106,6 @@ export interface CreateDraftingJobRequest {
 
 export interface DraftingJobStatus {
   job_id: string;
-  // PHOENIX FIX: Added 'FAILURE' to match raw Celery output
   status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'SUCCESS' | 'FAILURE';
   result_summary?: string;
 }

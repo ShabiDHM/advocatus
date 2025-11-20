@@ -1,5 +1,7 @@
 // FILE: frontend/src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - DEBUG & ROBUST VERSION
+// PHOENIX PROTOCOL - STATE EXPOSURE FIX
+// 1. Exposed 'setMessages' to allow hydration of chat history from DB.
+
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
 import { apiService } from '../services/api';
@@ -8,6 +10,7 @@ interface UseDocumentSocketReturn {
   documents: Document[];
   setDocuments: Dispatch<SetStateAction<Document[]>>;
   messages: ChatMessage[];
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>; // <--- EXPOSED
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
   sendChatMessage: (content: string) => void;
@@ -49,7 +52,6 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                 return;
             }
 
-            // Construct URL
             const baseUrl = import.meta.env.VITE_API_URL || 'https://advocatus-prod-api.duckdns.org';
             const sseUrl = `${baseUrl}/api/v1/stream/updates?token=${token}`;
             
@@ -66,7 +68,6 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
             es.addEventListener('update', (event: MessageEvent) => {
                 try {
                     const payload = JSON.parse(event.data);
-                    console.log("SSE Received:", payload); // <--- DEBUG LOG
 
                     // --- SCENARIO A: Document Status Update ---
                     if (payload.type === 'DOCUMENT_STATUS') {
@@ -74,21 +75,15 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                             const targetId = String(payload.document_id);
                             const index = prevDocs.findIndex(d => String(d.id) === targetId);
                             
-                            if (index === -1) {
-                                console.warn(`SSE: Doc ${targetId} not found in current list.`);
-                                return prevDocs; 
-                            }
+                            if (index === -1) return prevDocs; 
 
                             const newDocs = [...prevDocs];
                             const doc = newDocs[index];
                             const newStatus = payload.status.toUpperCase();
 
-                            // Normalize Status
                             if (newStatus === 'READY' || newStatus === 'COMPLETED') {
-                                console.log(`SSE: Updating ${targetId} to COMPLETED`);
                                 doc.status = 'COMPLETED';
                             } else if (newStatus === 'FAILED') {
-                                console.error(`SSE: Doc ${targetId} FAILED: ${payload.error}`);
                                 doc.status = 'FAILED';
                                 doc.error_message = payload.error;
                             }
@@ -148,5 +143,5 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
     }
   }, [caseId]);
 
-  return { documents, setDocuments, messages, connectionStatus, reconnect, sendChatMessage, isSendingMessage };
+  return { documents, setDocuments, messages, setMessages, connectionStatus, reconnect, sendChatMessage, isSendingMessage };
 };

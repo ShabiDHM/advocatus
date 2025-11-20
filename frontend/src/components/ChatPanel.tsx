@@ -1,13 +1,13 @@
 // FILE: frontend/src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT RENDER FIX
-// 1. Switched from msg.text to (msg.content || msg.text) to support new SSE format.
-// 2. Keeps full backward compatibility.
+// PHOENIX PROTOCOL - UI FEATURE ADDITION
+// 1. Added 'Trash2' icon for clearing chat.
+// 2. Added 'onClearChat' prop.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, ConnectionStatus } from '../data/types';
 import { TFunction } from 'i18next';
 import moment from 'moment';
-import { Brain, Send } from 'lucide-react';
+import { Brain, Send, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface ChatPanelProps {
@@ -17,6 +17,7 @@ interface ChatPanelProps {
   onSendMessage: (text: string) => void;
   isSendingMessage: boolean;
   reconnect: () => void;
+  onClearChat: () => void; // <--- NEW PROP
   t: TFunction;
 }
 
@@ -29,7 +30,7 @@ const TypingIndicator: React.FC<{ t: TFunction }> = ({ t }) => (
     </div>
 );
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSendMessage, isSendingMessage, reconnect, t }) => {
+const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSendMessage, isSendingMessage, reconnect, onClearChat, t }) => {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
@@ -64,9 +65,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSen
             <Brain className="h-6 w-6 text-text-primary" />
             <h2 className="text-xl font-bold text-text-primary">{t('chatPanel.title')}</h2>
         </div>
-        <div className={`text-xs font-semibold px-3 py-1 rounded-full flex items-center transition-all ${statusColor(connectionStatus)}`}>
-          {statusText(connectionStatus)}
-          {connectionStatus !== 'CONNECTED' && ( <motion.button onClick={reconnect} className="ml-2 underline text-white/80 hover:text-white" whileHover={{ scale: 1.05 }}> {t('chatPanel.reconnect')} </motion.button> )}
+        <div className="flex items-center space-x-3">
+            <div className={`text-xs font-semibold px-3 py-1 rounded-full flex items-center transition-all ${statusColor(connectionStatus)}`}>
+            {statusText(connectionStatus)}
+            {connectionStatus !== 'CONNECTED' && ( <motion.button onClick={reconnect} className="ml-2 underline text-white/80 hover:text-white" whileHover={{ scale: 1.05 }}> {t('chatPanel.reconnect')} </motion.button> )}
+            </div>
+            
+            {/* Clear Chat Button */}
+            <motion.button 
+                onClick={onClearChat} 
+                title={t('chatPanel.clearChat')}
+                className="p-2 text-text-secondary hover:text-red-400 transition-colors"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+            >
+                <Trash2 className="h-5 w-5" />
+            </motion.button>
         </div>
       </div>
 
@@ -76,7 +90,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({ messages, connectionStatus, onSen
         {messages.map((msg: ChatMessage, index: number) => (
           <motion.div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }}>
             <div className={`max-w-xs md:max-w-md lg:max-w-lg p-3 rounded-xl shadow-lg transition-all ${ msg.sender === 'user' ? 'bg-gradient-to-r from-primary-start to-primary-end text-white rounded-br-none glow-primary/50' : 'bg-background-dark/80 text-text-primary rounded-tl-none border border-glass-edge' }`}>
-              {/* PHOENIX FIX: Use content OR text to handle both formats */}
               <p className="text-sm whitespace-pre-wrap">{msg.content || msg.text || ""}</p>
               <span className={`text-xs block mt-1 ${msg.sender === 'user' ? 'text-white/70' : 'text-text-secondary'}`}> {moment(msg.timestamp).format('HH:mm')} </span>
             </div>

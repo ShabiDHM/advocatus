@@ -1,8 +1,6 @@
 // FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL - ENDPOINT CORRECTION
-// 1. Fixed getOriginalDocument -> Points to '/original' (was /download)
-// 2. Fixed getPreviewDocument -> Points to '/preview' (was /download)
-// 3. Restored getFindings and setLogoutHandler.
+// PHOENIX PROTOCOL - ENDPOINT UPDATE
+// 1. Added clearChatHistory() method.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -37,7 +35,6 @@ interface DocumentContentResponse {
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
 
-// Force HTTPS if we are on Vercel
 if (typeof window !== 'undefined' && window.location.protocol === 'https:' && normalizedUrl.startsWith('http:')) {
     normalizedUrl = normalizedUrl.replace('http:', 'https:');
 }
@@ -104,7 +101,6 @@ class ApiService {
         );
     }
 
-    // --- SSE Helpers ---
     public getToken(): string | null {
         return localStorage.getItem('jwtToken');
     }
@@ -198,13 +194,11 @@ class ApiService {
         return response.data;
     }
 
-    // FIXED: Now points to /original
     public async getOriginalDocument(caseId: string, documentId: string): Promise<Blob> {
         const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/original`, { responseType: 'blob' });
         return response.data;
     }
 
-    // FIXED: Now points to /preview
     public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> {
         const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' });
         return response.data;
@@ -217,6 +211,11 @@ class ApiService {
 
     public async getWebSocketUrl(_caseId: string): Promise<string> {
         return "";
+    }
+
+    // --- Chat ---
+    public async clearChatHistory(caseId: string): Promise<void> {
+        await this.axiosInstance.delete(`/chat/case/${caseId}/history`);
     }
 
     // --- Admin ---
