@@ -1,8 +1,8 @@
 // FILE: src/components/ContactModal.tsx
-// PHOENIX PROTOCOL - NEW COMPONENT
-// 1. FORM: Name, Last Name, Message fields.
-// 2. UI: Glassmorphism design with gradient buttons.
-// 3. UX: Simulated sending state with success feedback.
+// PHOENIX PROTOCOL - MOBILE PERFECTED
+// 1. LAYOUT: Changed inputs to 'grid-cols-1 sm:grid-cols-2'.
+//    (Stacks vertically on phones, side-by-side on computers).
+// 2. VISUALS: Glassmorphism maintained with responsive spacing.
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,7 +32,6 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
     setIsSending(false);
     setIsSent(true);
     
-    // Reset after delay
     setTimeout(() => {
         setIsSent(false);
         setFormData({ firstName: '', lastName: '', message: '' });
@@ -47,20 +46,20 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
         animate={{ scale: 1, opacity: 1 }}
         className="bg-background-dark border border-glass-edge rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
       >
-        <div className="p-6 border-b border-glass-edge flex justify-between items-center bg-background-light/50">
-          <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+        <div className="p-5 border-b border-glass-edge flex justify-between items-center bg-background-light/50">
+          <h2 className="text-lg sm:text-xl font-bold text-text-primary flex items-center gap-2">
             <MessageSquare className="text-primary-start h-5 w-5" />
             {t('footer.contactSupport', 'Kontakto Mbështetjen')}
           </h2>
           <button onClick={onClose} className="text-text-secondary hover:text-white"><X size={24} /></button>
         </div>
 
-        <div className="p-6">
+        <div className="p-5 sm:p-6">
           <AnimatePresence mode='wait'>
             {isSent ? (
               <motion.div 
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                className="flex flex-col items-center justify-center py-10 text-center space-y-4"
+                className="flex flex-col items-center justify-center py-8 text-center space-y-4"
               >
                 <div className="h-16 w-16 bg-green-500/20 rounded-full flex items-center justify-center text-green-400">
                     <CheckCircle size={40} />
@@ -70,7 +69,9 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
               </motion.div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                
+                {/* PHOENIX FIX: Stack on mobile, Row on Desktop */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                         <label className="text-xs font-medium text-text-secondary uppercase">Emri</label>
                         <div className="relative">
@@ -79,7 +80,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
                                 type="text" required 
                                 value={formData.firstName}
                                 onChange={e => setFormData({...formData, firstName: e.target.value})}
-                                className="w-full pl-9 pr-3 py-2 bg-background-light/30 border border-glass-edge rounded-xl text-text-primary focus:ring-2 focus:ring-primary-start outline-none transition-all"
+                                className="w-full pl-9 pr-3 py-2.5 bg-background-light/30 border border-glass-edge rounded-xl text-text-primary focus:ring-2 focus:ring-primary-start outline-none transition-all text-sm"
                                 placeholder="Emri juaj"
                             />
                         </div>
@@ -90,7 +91,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
                             type="text" required
                             value={formData.lastName}
                             onChange={e => setFormData({...formData, lastName: e.target.value})}
-                            className="w-full px-3 py-2 bg-background-light/30 border border-glass-edge rounded-xl text-text-primary focus:ring-2 focus:ring-primary-start outline-none transition-all"
+                            className="w-full px-3 py-2.5 bg-background-light/30 border border-glass-edge rounded-xl text-text-primary focus:ring-2 focus:ring-primary-start outline-none transition-all text-sm"
                             placeholder="Mbiemri"
                         />
                     </div>
@@ -102,7 +103,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
                         required rows={4}
                         value={formData.message}
                         onChange={e => setFormData({...formData, message: e.target.value})}
-                        className="w-full px-3 py-2 bg-background-light/30 border border-glass-edge rounded-xl text-text-primary focus:ring-2 focus:ring-primary-start outline-none resize-none transition-all"
+                        className="w-full px-3 py-2.5 bg-background-light/30 border border-glass-edge rounded-xl text-text-primary focus:ring-2 focus:ring-primary-start outline-none resize-none transition-all text-sm"
                         placeholder="Si mund t'ju ndihmojmë?"
                     />
                 </div>
@@ -110,7 +111,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
                 <button 
                     type="submit" 
                     disabled={isSending}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-primary-start to-primary-end text-white font-semibold shadow-lg glow-primary flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-50"
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-primary-start to-primary-end text-white font-semibold shadow-lg glow-primary flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-50 text-sm sm:text-base"
                 >
                     {isSending ? 'Duke dërguar...' : <><Send size={18} /> Dërgo Mesazhin</>}
                 </button>
