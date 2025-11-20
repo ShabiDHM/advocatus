@@ -1,12 +1,12 @@
 // FILE: src/components/ContactModal.tsx
-// PHOENIX PROTOCOL - MOBILE PERFECTED
-// 1. LAYOUT: Changed inputs to 'grid-cols-1 sm:grid-cols-2'.
-//    (Stacks vertically on phones, side-by-side on computers).
-// 2. VISUALS: Glassmorphism maintained with responsive spacing.
+// PHOENIX PROTOCOL - FORM EXPANSION
+// 1. FIELDS: Added Email and Phone Number inputs.
+// 2. LAYOUT: Organized into two rows (Names on top, Contact Info below).
+// 3. ICONS: Added Mail and Phone icons for better UX.
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, CheckCircle, MessageSquare, User } from 'lucide-react';
+import { X, Send, CheckCircle, MessageSquare, User, Mail, Phone } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface ContactModalProps {
@@ -16,7 +16,13 @@ interface ContactModalProps {
 
 const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
-  const [formData, setFormData] = useState({ firstName: '', lastName: '', message: '' });
+  const [formData, setFormData] = useState({ 
+    firstName: '', 
+    lastName: '', 
+    email: '', 
+    phone: '', 
+    message: '' 
+  });
   const [isSending, setIsSending] = useState(false);
   const [isSent, setIsSent] = useState(false);
 
@@ -34,7 +40,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
     
     setTimeout(() => {
         setIsSent(false);
-        setFormData({ firstName: '', lastName: '', message: '' });
+        setFormData({ firstName: '', lastName: '', email: '', phone: '', message: '' });
         onClose();
     }, 2000);
   };
@@ -44,7 +50,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-background-dark border border-glass-edge rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+        className="bg-background-dark border border-glass-edge rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" // Increased max-width slightly
       >
         <div className="p-5 border-b border-glass-edge flex justify-between items-center bg-background-light/50">
           <h2 className="text-lg sm:text-xl font-bold text-text-primary flex items-center gap-2">
@@ -70,7 +76,7 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 
-                {/* PHOENIX FIX: Stack on mobile, Row on Desktop */}
+                {/* Row 1: Names */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1">
                         <label className="text-xs font-medium text-text-secondary uppercase">Emri</label>
@@ -94,6 +100,36 @@ const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
                             className="w-full px-3 py-2.5 bg-background-light/30 border border-glass-edge rounded-xl text-text-primary focus:ring-2 focus:ring-primary-start outline-none transition-all text-sm"
                             placeholder="Mbiemri"
                         />
+                    </div>
+                </div>
+
+                {/* Row 2: Contact Info (Email & Phone) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium text-text-secondary uppercase">Email</label>
+                        <div className="relative">
+                            <Mail className="absolute left-3 top-2.5 h-4 w-4 text-text-secondary/50" />
+                            <input 
+                                type="email" required 
+                                value={formData.email}
+                                onChange={e => setFormData({...formData, email: e.target.value})}
+                                className="w-full pl-9 pr-3 py-2.5 bg-background-light/30 border border-glass-edge rounded-xl text-text-primary focus:ring-2 focus:ring-primary-start outline-none transition-all text-sm"
+                                placeholder="email@shembull.com"
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-1">
+                        <label className="text-xs font-medium text-text-secondary uppercase">Telefoni</label>
+                        <div className="relative">
+                            <Phone className="absolute left-3 top-2.5 h-4 w-4 text-text-secondary/50" />
+                            <input 
+                                type="tel" 
+                                value={formData.phone}
+                                onChange={e => setFormData({...formData, phone: e.target.value})}
+                                className="w-full pl-9 pr-3 py-2.5 bg-background-light/30 border border-glass-edge rounded-xl text-text-primary focus:ring-2 focus:ring-primary-start outline-none transition-all text-sm"
+                                placeholder="+383 4x xxx xxx"
+                            />
+                        </div>
                     </div>
                 </div>
                 
