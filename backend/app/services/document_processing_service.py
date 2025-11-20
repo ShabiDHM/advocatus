@@ -1,7 +1,8 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - SYNC EXTRACTION FIX
-# 1. Changed findings extraction to run SYNCHRONOUSLY via .apply()
-# 2. This ensures Findings exist in DB *before* status becomes READY.
+# PHOENIX PROTOCOL - LANGUAGE AWARE INGESTION FIX
+# 1. ADDED: Language detection step using AlbanianLanguageDetector.
+# 2. FIXED: Passes 'language' metadata to vector store.
+#    This ensures Albanian docs are indexed with the Albanian model, matching the query side.
 
 import os
 import tempfile
@@ -16,6 +17,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # Direct imports
 from . import document_service, storage_service, vector_store_service, llm_service, text_extraction_service, conversion_service
+from .albanian_language_detector import AlbanianLanguageDetector
 from ..models.document import DocumentStatus
 from ..tasks.deadline_extraction import extract_deadlines_from_document
 from ..tasks.findings_extraction import extract_findings_from_document
@@ -82,12 +84,20 @@ def orchestrate_document_processing_mongo(
         if not extracted_text or not extracted_text.strip():
             raise ValueError("Text extraction returned no content.")
 
+        # PHOENIX FIX: Detect Language immediately after extraction
+        # This determines which Embedding Model gets used in Step 4.
+        is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
+        detected_lang = 'albanian' if is_albanian else 'standard'
+        logger.info(f"Language Detection for {document_id_str}: {detected_lang.upper()}")
+
         # Step 4: Embeddings (Sync)
         base_doc_metadata = {
             'document_id': document_id_str,
             'case_id': str(document.get("case_id")),
             'user_id': str(document.get("owner_id")),
             'file_name': document.get("file_name", "Unknown"),
+            # CRITICAL: Pass the detected language to the vector store service
+            'language': detected_lang 
         }
         
         enriched_chunks = _process_and_split_text(extracted_text, base_doc_metadata)
