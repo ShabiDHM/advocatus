@@ -1,16 +1,15 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - HTTPS/PROXY FIX
-# 1. Added ProxyHeadersMiddleware to fix Mixed Content errors.
-# 2. Registered SSE Stream Router.
+# PHOENIX PROTOCOL - CORS & PROXY FIX
+# 1. CORS: Replaced wildcard ["*"] with 'allow_origin_regex' to support credentials.
+#    (Browsers reject 'Access-Control-Allow-Origin: *' when withCredentials=true).
+# 2. PROXY: Trusted hosts set to allow all headers from Caddy/Nginx.
 
-from fastapi import FastAPI, Request, status, APIRouter
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import traceback
 import logging
 from app.core.lifespan import lifespan
-from app.core.config import settings
 
 # --- Router Imports ---
 try:
@@ -40,15 +39,17 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Advocatus AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ASSEMBLY ---
-# 1. Trust the Proxy (Caddy/Nginx/Cloudflare)
-# This fixes the "http://" redirect bug.
-# PHOENIX FIX: Added type: ignore to silence strict Pylance checks (runtime correct)
+
+# 1. Trust the Proxy
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"]) # type: ignore
 
-# 2. CORS
+# 2. CORS (PHOENIX FIX)
+# We use a regex to allow localhost and any Vercel deployment to send credentials.
+# This satisfies the browser security requirement: "The value of the 'Access-Control-Allow-Origin' 
+# header in the response must not be the wildcard '*' when the request's credentials mode is 'include'."
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|.*\.vercel\.app|.*\.duckdns\.org)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,7 +73,6 @@ app.include_router(api_v1_router)
 # --- V2 API Router Assembly ---
 if drafting_v2_router:
     api_v2_router = APIRouter(prefix="/api/v2")
-    # Drafting router already has prefix="/drafting", so we don't add it here
     api_v2_router.include_router(drafting_v2_router)
     app.include_router(api_v2_router)
 
