@@ -1,7 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - DATA INTEGRITY FIX
-# 1. QUERY FIX: Converted 'case_id' to string before querying counts.
-# 2. This resolves the "0 Alerts / 0 Events" bug.
+# PHOENIX PROTOCOL - HYBRID ID FIX
+# 1. DOCUMENTS: Counted using ObjectId (Matches document_service.py).
+# 2. ALERTS/EVENTS/FINDINGS: Counted using String (Matches their services).
+# 3. Resolves the "0 Documents" issue on the dashboard.
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
@@ -54,12 +55,14 @@ def get_cases_for_user(db: Database, owner: UserInDB) -> list[dict]:
 def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> dict | None:
     case = db.cases.find_one({"_id": case_id, "owner_id": owner.id})
     if case:
-        # PHOENIX FIX: Convert ObjectId to string for relational queries
-        # Foreign keys in documents/events are stored as Strings, not ObjectIds.
         case_id_str = str(case_id)
         
+        # PHOENIX FIX: Hybrid Querying based on Schema
         counts = {
-            "document_count": db.documents.count_documents({"case_id": case_id_str}),
+            # Documents use ObjectId for case_id
+            "document_count": db.documents.count_documents({"case_id": case_id}),
+            
+            # Events/Alerts/Findings use String for case_id
             "alert_count": db.alerts.count_documents({"case_id": case_id_str}),
             "event_count": db.calendar_events.count_documents({"case_id": case_id_str}),
             "finding_count": db.findings.count_documents({"case_id": case_id_str}),
