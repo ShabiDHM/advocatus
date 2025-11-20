@@ -1,7 +1,7 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - UI POLISH
-// 1. UI: Hides redundant 'End Date' field in event modal.
-// 2. MOBILE: Fully responsive grid and layout.
+// PHOENIX PROTOCOL - UI REFINEMENT
+// 1. DATE FORMATTING: Hides time (HH:mm) for "All Day" events (like extracted deadlines).
+// 2. CLEANUP: Keeps the logic that hides redundant End Dates.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -418,8 +418,12 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
     const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const formatFullDateTime = (dateString: string) => 
-      format(parseISO(dateString), 'dd MMMM yyyy, HH:mm', { locale: currentLocale });
+    // PHOENIX FIX: Conditional Date Formatting (No Time for All-Day events)
+    const formatEventDate = (dateString: string) => {
+      const date = parseISO(dateString);
+      const formatStr = event.is_all_day ? 'dd MMMM yyyy' : 'dd MMMM yyyy, HH:mm';
+      return format(date, formatStr, { locale: currentLocale });
+    };
 
     const handleDelete = async () => { 
       if (!window.confirm(t('calendar.detailModal.deleteConfirm'))) return; 
@@ -498,7 +502,8 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
                       </h3>
                       <div className="flex items-center text-white">
                         <Clock className="h-4 w-4 mr-2 text-text-secondary" />
-                        {formatFullDateTime(event.start_date)}
+                        {/* PHOENIX FIX: Use conditioned format function */}
+                        {formatEventDate(event.start_date)}
                       </div>
                     </div>
                     
@@ -510,7 +515,7 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
                         </h3>
                         <div className="flex items-center text-white">
                           <Clock className="h-4 w-4 mr-2 text-text-secondary" />
-                          {formatFullDateTime(event.end_date)}
+                          {formatEventDate(event.end_date)}
                         </div>
                       </div>
                     )}
@@ -572,7 +577,7 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
     );
 };
 
-// Create Event Modal Component
+// Create Event Modal Component (No changes needed here, but included for completeness)
 const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onCreate }) => {
   const { t, i18n } = useTranslation();
   const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
