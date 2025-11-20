@@ -1,7 +1,6 @@
 // FILE: frontend/src/data/types.ts
-// PHOENIX PROTOCOL - TYPE DEFINITION FIX (CHAT PERSISTENCE)
-// 1. Added 'chat_history' to Case interface to support persistent chat.
-// 2. Maintained 'AdminUser' alias and all other strict types.
+// PHOENIX PROTOCOL - TYPE DEFINITION UPDATE
+// 1. ADDED: 'CaseAnalysisResult' interface for the Cross-Examination feature.
 
 export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
 
@@ -24,7 +23,6 @@ export type AdminUser = User;
 export interface ChatMessage {
   sender: 'user' | 'ai';
   content: string;
-  // PHOENIX FIX: Added optional 'text' to prevent ChatPanel build errors.
   text?: string; 
   timestamp: string;
   isPartial?: boolean;
@@ -41,7 +39,6 @@ export interface Case {
   alert_count: number;
   event_count: number;
   finding_count: number;
-  // PHOENIX FIX: Added chat_history for persistence
   chat_history?: ChatMessage[];
 }
 
@@ -162,4 +159,13 @@ export interface UpdateUserRequest {
   email?: string;
   role?: User['role'];
   subscription_status?: User['subscription_status'];
+}
+
+// --- PHOENIX PROTOCOL: ANALYSIS TYPES ---
+export interface CaseAnalysisResult {
+  contradictions: string[];
+  risks: string[];
+  missing_info: string[];
+  summary_analysis: string;
+  error?: string;
 }

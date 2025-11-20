@@ -1,6 +1,6 @@
 // FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL - ENDPOINT UPDATE
-// 1. Added clearChatHistory() method.
+// PHOENIX PROTOCOL - API UPGRADE
+// 1. ADDED: 'analyzeCase' method for Cross-Examination feature.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -20,7 +20,8 @@ import type {
     ApiKey,
     ApiKeyCreateRequest,
     ChangePasswordRequest,
-    Finding
+    Finding,
+    CaseAnalysisResult // <--- IMPORTED
 } from '../data/types';
 
 interface LoginResponse {
@@ -139,6 +140,12 @@ class ApiService {
     public async getFindings(caseId: string): Promise<Finding[]> {
         const response = await this.axiosInstance.get<{ findings: Finding[] }>(`/cases/${caseId}/findings`);
         return response.data.findings || [];
+    }
+
+    // PHOENIX PROTOCOL: Cross-Examination Endpoint
+    public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> {
+        const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`);
+        return response.data;
     }
     
     // --- Auth ---

@@ -1,20 +1,23 @@
 // FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - MOBILE CARD FIX
-// 1. FindingsPanel: Metadata footer now stacks vertically on mobile screens (flex-col sm:flex-row).
-// 2. This ensures the "Source Document" name is fully visible and doesn't overlap the confidence score.
+// PHOENIX PROTOCOL - FEATURE INTEGRATION (ANALYSIS)
+// 1. IMPORT: Added 'AnalysisModal' and 'CaseAnalysisResult'.
+// 2. STATE: Added 'isAnalysisOpen', 'analysisResult', 'isAnalyzing'.
+// 3. LOGIC: Added 'handleAnalyzeCase' to call API and show modal.
+// 4. UI: Added "Analizo Rastin" button to the Case Header.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Case, Document, Finding, DeletedDocumentResponse } from '../data/types';
+import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } from '../data/types';
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
+import AnalysisModal from '../components/AnalysisModal'; // <--- NEW
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import useAuth from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { ArrowLeft, AlertCircle, User, Briefcase, Info, Lightbulb, FileText, Search } from 'lucide-react';
+import { ArrowLeft, AlertCircle, User, Briefcase, Info, Lightbulb, FileText, Search, ShieldCheck, Loader2 } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -23,31 +26,40 @@ type CaseData = {
     findings: Finding[];
 };
 
-// --- STYLES FOR CUSTOM SCROLLBAR ---
 const scrollbarStyles = `
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
-  }
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 `;
 
 // --- SUB-COMPONENTS ---
-const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction; }> = ({ caseDetails, t }) => (
+const CaseHeader: React.FC<{ 
+    caseDetails: Case; 
+    t: TFunction; 
+    onAnalyze: () => void; 
+    isAnalyzing: boolean; 
+}> = ({ caseDetails, t, onAnalyze, isAnalyzing }) => (
     <motion.div
       className="mb-6 p-4 sm:p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
       initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
     >
-      <h1 className="text-xl sm:text-2xl font-bold text-text-primary mb-2 break-words">{caseDetails.case_name}</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+          <h1 className="text-xl sm:text-2xl font-bold text-text-primary break-words">{caseDetails.case_name}</h1>
+          
+          {/* PHOENIX FEATURE: Analysis Button */}
+          <motion.button
+            onClick={onAnalyze}
+            disabled={isAnalyzing}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-secondary-start to-secondary-end text-white font-semibold shadow-lg glow-secondary disabled:opacity-50"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+            {isAnalyzing ? t('analysis.analyzing', 'Duke Analizuar...') : t('analysis.analyzeButton', 'Analizo Rastin')}
+          </motion.button>
+      </div>
+      
       <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 text-xs sm:text-sm text-text-secondary">
         <div className="flex items-center" title={t('caseCard.client')}><User className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-primary-start" /><span>{caseDetails.client?.name || t('general.notAvailable')}</span></div>
         <div className="flex items-center" title={t('caseView.statusLabel')}><Briefcase className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`, { fallback: caseDetails.status })}</span></div>
@@ -86,22 +98,17 @@ const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction; }> = ({ findi
                         transition={{ delay: index * 0.05 }}
                         className="group relative p-4 sm:p-5 bg-background-dark/40 rounded-xl border border-glass-edge/30 hover:border-primary-start/50 hover:bg-background-dark/60 transition-all duration-300 hover:shadow-lg hover:shadow-primary-start/5"
                     >
-                        {/* Accent Border on Left */}
                         <div className="absolute left-0 top-4 bottom-4 w-1 bg-gradient-to-b from-primary-start to-primary-end rounded-r-full opacity-70 group-hover:opacity-100 transition-opacity" />
-                        
                         <div className="pl-3">
                             <p className="text-sm sm:text-base text-gray-200 leading-relaxed">
                                 {finding.finding_text}
                             </p>
-                            
-                            {/* PHOENIX FIX: Stack on mobile, row on desktop */}
                             <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-black/20 border border-white/5 text-xs text-gray-400 w-full sm:w-auto">
                                     <FileText className="h-3 w-3 text-primary-start flex-shrink-0" />
                                     <span className="font-medium text-gray-300 whitespace-nowrap">{t('caseView.findingSource')}:</span>
                                     <span className="truncate max-w-full">{finding.document_name || finding.document_id}</span>
                                 </div>
-                                
                                 {finding.confidence_score !== undefined && finding.confidence_score > 0 && (
                                     <div className="flex items-center gap-1.5 self-end sm:self-auto" title="Confidence Score">
                                         <Search className="h-3 w-3 text-accent-start" />
@@ -127,6 +134,11 @@ const CaseViewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   
+  // Analysis State
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
+  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+
   const prevReadyCount = useRef(0);
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
 
@@ -212,6 +224,25 @@ const CaseViewPage: React.FC = () => {
       }
   };
 
+  const handleAnalyzeCase = async () => {
+    if (!caseId) return;
+    setIsAnalyzing(true);
+    try {
+        const result = await apiService.analyzeCase(caseId);
+        if (result.error) {
+            alert(result.error);
+        } else {
+            setAnalysisResult(result);
+            setIsAnalysisModalOpen(true);
+        }
+    } catch (err) {
+        console.error("Analysis failed:", err);
+        alert(t('error.generic'));
+    } finally {
+        setIsAnalyzing(false);
+    }
+  };
+
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
   if (error || !caseData.details) return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -234,7 +265,12 @@ const CaseViewPage: React.FC = () => {
         </div>
         <div className="flex flex-col space-y-4 sm:space-y-6">
             <div className="px-4 sm:px-0">
-                <CaseHeader caseDetails={caseData.details} t={t} />
+                <CaseHeader 
+                    caseDetails={caseData.details} 
+                    t={t} 
+                    onAnalyze={handleAnalyzeCase} 
+                    isAnalyzing={isAnalyzing} 
+                />
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start px-4 sm:px-0">
                 <DocumentsPanel
@@ -264,6 +300,8 @@ const CaseViewPage: React.FC = () => {
             </div>
         </div>
       </div>
+      
+      {/* Modals */}
       {viewingDocument && (
         <PDFViewerModal 
           documentData={viewingDocument}
@@ -271,6 +309,14 @@ const CaseViewPage: React.FC = () => {
           onClose={() => setViewingDocument(null)}
           t={t}
         />
+      )}
+      
+      {analysisResult && (
+          <AnalysisModal 
+             isOpen={isAnalysisModalOpen}
+             onClose={() => setIsAnalysisModalOpen(false)}
+             result={analysisResult}
+          />
       )}
     </motion.div>
   );

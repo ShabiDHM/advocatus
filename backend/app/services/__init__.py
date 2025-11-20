@@ -1,11 +1,10 @@
 # FILE: backend/app/services/__init__.py
-# PHOENIX PROTOCOL - SERVICE REGISTRY CLEANUP
-# 1. REMOVED: 'notification_service' (Deleted file).
-# 2. REMOVED: 'search_service' (Deleted file).
-# 3. RETAINED: All active core and Albanian services.
+# PHOENIX PROTOCOL - SERVICE REGISTRY UPDATE
+# 1. ADDED: 'analysis_service' for cross-examination features.
 
 from . import (
     admin_service,
+    analysis_service, # <--- NEW
     api_key_service,
     calendar_service,
     case_service,

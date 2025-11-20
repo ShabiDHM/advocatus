@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - DATA MAPPING FIX
-# 1. ADDED: 'created_at' mapping for findings.
-# 2. ROBUSTNESS: Uses fallback timestamp for legacy data to prevent 500 errors.
+# PHOENIX PROTOCOL - ANALYSIS ENDPOINT ADDED
+# 1. IMPORT: Added 'analysis_service'.
+# 2. ENDPOINT: Added 'analyze_case_risks' to perform cross-examination.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated
@@ -15,8 +15,15 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-# Direct imports including storage_service
-from ...services import case_service, document_service, findings_service, report_service, storage_service
+# Direct imports including the new analysis_service
+from ...services import (
+    case_service, 
+    document_service, 
+    findings_service, 
+    report_service, 
+    storage_service,
+    analysis_service # <--- ADDED
+)
 from ...models.case import CaseCreate, CaseOut
 from ...models.user import UserInDB
 from ...models.document import DocumentOut
@@ -69,7 +76,6 @@ async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, 
     
     findings_out_list = []
     for finding in findings_data:
-        # PHOENIX FIX: Robust mapping with fallbacks
         finding_dict = {
             'id': str(finding.get('_id')), 
             'case_id': str(finding.get('case_id')),
@@ -79,7 +85,6 @@ async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, 
             'page_number': finding.get('page_number'), 
             'document_name': finding.get('document_name'),
             'confidence_score': finding.get('confidence_score', 0.0),
-            # Safely handle missing created_at for old records
             'created_at': finding.get('created_at') or datetime.now(timezone.utc)
         }
         findings_out_list.append(FindingOut.model_validate(finding_dict))
@@ -196,3 +201,23 @@ async def delete_document(
             "deletedFindingIds": deleted_finding_ids
         }
     )
+
+# --- PHOENIX PROTOCOL: ANALYSIS ENDPOINT ---
+@router.post("/{case_id}/analyze", tags=["Analysis"])
+async def analyze_case_risks(
+    case_id: str, 
+    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    db: Database = Depends(get_db)
+):
+    """
+    Triggers a deep cross-examination of all documents in the case.
+    """
+    validate_object_id(case_id)
+    
+    # Verify ownership
+    case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found.")
+        
+    analysis_result = await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id)
+    return JSONResponse(content=analysis_result)
