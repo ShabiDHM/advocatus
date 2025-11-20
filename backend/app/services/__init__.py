@@ -1,37 +1,38 @@
 # FILE: backend/app/services/__init__.py
+# PHOENIX PROTOCOL - SERVICE REGISTRY CLEANUP
+# 1. REMOVED: 'notification_service' (Deleted file).
+# 2. REMOVED: 'search_service' (Deleted file).
+# 3. RETAINED: All active core and Albanian services.
 
-# This file marks the 'services' directory as a Python package.
-# Explicitly import all service modules to make them available for package-level
-# imports (e.g., `from app.services import user_service`), preventing import errors.
-
-from . import admin_service
-from . import albanian_ai_summary
-from . import albanian_document_processor
-from . import albanian_language_detector
-from . import albanian_metadata_extractor
-from . import albanian_model_manager
-from . import albanian_ner_service
-from . import albanian_rag_service
-from . import api_key_service
-from . import calendar_service
-from . import case_service
-from . import chat_service
-from . import conversion_service
-from . import deadline_service
-from . import debug_albanian_detection
-from . import document_processing_service
-from . import document_service
-from . import drafting_service
-from . import embedding_service
-from . import encryption_service
-from . import findings_service
-from . import llm_service
-from . import notification_service
-from . import ocr_service
-from . import report_service
-from . import search_service
-from . import storage_service
-from . import text_extraction_service
-from . import text_sterilization_service
-from . import user_service
-from . import vector_store_service
+from . import (
+    admin_service,
+    api_key_service,
+    calendar_service,
+    case_service,
+    chat_service,
+    conversion_service,
+    deadline_service,
+    document_processing_service,
+    document_service,
+    drafting_service,
+    embedding_service,
+    encryption_service,
+    findings_service,
+    llm_service,
+    ocr_service,
+    report_service,
+    storage_service,
+    text_extraction_service,
+    text_sterilization_service,
+    user_service,
+    vector_store_service,
+    
+    # Albanian Specific Services
+    albanian_ai_summary,
+    albanian_document_processor,
+    albanian_language_detector,
+    albanian_metadata_extractor,
+    albanian_model_manager,
+    albanian_ner_service,
+    albanian_rag_service
+)
