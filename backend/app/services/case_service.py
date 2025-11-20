@@ -1,8 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - DYNAMIC ALERTS LOGIC
-# 1. ALERTS UPGRADE: 'alert_count' now counts Overdue + Upcoming (7 days) Deadlines.
-# 2. DATA INTEGRITY: Retains the String vs ObjectId fixes for proper counting.
-# 3. RESULT: Dashboard 'Alerts' icon now reflects urgent items automatically.
+# PHOENIX PROTOCOL - ALERTS UPDATE (UPCOMING ONLY)
+# 1. LOGIC CHANGE: Alerts now strictly count events in the NEXT 7 DAYS.
+# 2. EXCLUSION: Past/Overdue events are ignored in this count.
+# 3. QUERY: Uses MongoDB range query ($gte NOW and $lte NEXT_WEEK).
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
@@ -47,7 +47,6 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> dict:
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> list[dict]:
     results = []
-    # Sort by created_at descending to show newest cases first
     for case in db.cases.find({"owner_id": owner.id}).sort("created_at", -1):
         results.append(get_case_by_id(db=db, case_id=case["_id"], owner=owner) or {})
     return [r for r in results if r]
@@ -58,33 +57,32 @@ def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> dict | N
     if case:
         case_id_str = str(case_id)
         
-        # --- PHOENIX LOGIC: Dynamic Alert Calculation ---
-        # An "Alert" is defined as any PENDING deadline that is either:
-        # 1. Past due (Overdue)
-        # 2. Coming up within the next 7 days
+        # --- PHOENIX LOGIC: "Look Ahead" Alerts ---
+        # STRICTLY counts events happening between NOW and 7 DAYS from now.
+        # Past events are ignored.
         
         now = datetime.now()
         next_week = now + timedelta(days=7)
         
-        # Note: Dates are stored as ISO strings in DB ("YYYY-MM-DD...").
-        # String comparison works for ISO format.
         alert_query = {
             "case_id": case_id_str,
-            "status": "PENDING", # Only count pending items
-            "start_date": { "$lte": next_week.isoformat() } # Less than 7 days from now
+            "status": "PENDING",
+            "start_date": { 
+                "$gte": now.isoformat(),      # Greater than or equal to NOW
+                "$lte": next_week.isoformat() # Less than or equal to NEXT WEEK
+            }
         }
         
-        # Real counts
+        # Counts
         doc_count = db.documents.count_documents({"case_id": case_id})
         event_count = db.calendar_events.count_documents({"case_id": case_id_str})
         finding_count = db.findings.count_documents({"case_id": case_id_str})
         
-        # Calculated Alert Count
         calculated_alerts = db.calendar_events.count_documents(alert_query)
 
         counts = {
             "document_count": doc_count,
-            "alert_count": calculated_alerts, # Now reflects urgency
+            "alert_count": calculated_alerts, 
             "event_count": event_count,
             "finding_count": finding_count,
         }
@@ -97,7 +95,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Case not found.")
         
-    # Cascade Delete: Cleanup associated resources
+    # Cascade Delete
     case_id_str = str(case_id)
     db.documents.delete_many({"case_id": case_id})
     db.calendar_events.delete_many({"case_id": case_id_str})
