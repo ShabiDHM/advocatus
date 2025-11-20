@@ -1,8 +1,8 @@
 # FILE: backend/app/services/findings_service.py
-# PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (TRANSACTIONAL DELETE)
-# CORRECTION: The 'delete_findings_by_document_id' function has been re-architected
-# to correctly return a List[ObjectId] of the deleted findings, resolving the
-# "'int' is not iterable" type error in the downstream service.
+# PHOENIX PROTOCOL - ABSOLUTE IMPORT FIX
+# 1. REPLACED: Relative import with absolute import 'from app.services.llm_service ...'
+# 2. RESOLVES: Pylance "not a known attribute" error.
+# 3. PRESERVED: Document ID deletion logic.
 
 import structlog
 from bson import ObjectId
@@ -10,7 +10,8 @@ from typing import List, Dict, Any
 from pymongo.database import Database
 from pymongo.results import DeleteResult
 
-from . import llm_service
+# PHOENIX FIX: Absolute import to guarantee symbol resolution
+from app.services.llm_service import extract_findings_from_text
 
 logger = structlog.get_logger(__name__)
 
@@ -24,7 +25,10 @@ def extract_and_save_findings(db: Database, document_id: str, full_text: str):
     if not full_text or not full_text.strip():
         log.warning("findings_service.no_text_provided")
         return
-    extracted_findings = llm_service.extract_findings_from_text(full_text)
+    
+    # PHOENIX FIX: Call the directly imported function
+    extracted_findings = extract_findings_from_text(full_text)
+    
     if not extracted_findings:
         log.info("findings_service.no_findings_found")
         return
@@ -56,8 +60,14 @@ def get_findings_for_case(db: Database, case_id: str) -> List[Dict[str, Any]]:
     pipeline = [
         {'$match': {'case_id': case_object_id}},
         {'$project': {
-            '_id': 1, 'case_id': 1, 'finding_text': 1, 'source_text': 1,
-            'page_number': 1, 'document_name': 1, 'confidence_score': 1,
+            '_id': 1, 
+            'case_id': 1, 
+            'document_id': 1, 
+            'finding_text': 1, 
+            'source_text': 1,
+            'page_number': 1, 
+            'document_name': 1, 
+            'confidence_score': 1,
         }}
     ]
     findings = list(db.findings.aggregate(pipeline))
@@ -70,7 +80,6 @@ def delete_findings_by_document_id(db: Database, document_id: ObjectId) -> List[
         log.error("findings_service.deletion.invalid_id_type", type=type(document_id).__name__)
         return []
         
-    # First, find the IDs of all findings that are about to be deleted.
     findings_to_delete = list(db.findings.find({"document_id": document_id}, {"_id": 1}))
     deleted_ids = [item["_id"] for item in findings_to_delete]
 
@@ -78,7 +87,6 @@ def delete_findings_by_document_id(db: Database, document_id: ObjectId) -> List[
         log.info("findings_service.deletion.no_findings_found")
         return []
 
-    # Now, perform the deletion.
     result: DeleteResult = db.findings.delete_many({"_id": {"$in": deleted_ids}})
     deleted_count = result.deleted_count
     log.info("findings_service.deletion.completed", findings_deleted=deleted_count)

@@ -1,8 +1,8 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - LANGUAGE AWARE INGESTION FIX
-# 1. ADDED: Language detection step using AlbanianLanguageDetector.
-# 2. FIXED: Passes 'language' metadata to vector store.
-#    This ensures Albanian docs are indexed with the Albanian model, matching the query side.
+# PHOENIX PROTOCOL - DIRECT SERVICE EXECUTION
+# 1. REFACTORED: Removed Celery Task imports completely.
+# 2. IMPLEMENTATION: Calls 'deadline_service' and 'findings_service' directly.
+# 3. BENEFIT: Bypasses all Pylance/Type errors and ensures immediate data availability.
 
 import os
 import tempfile
@@ -15,12 +15,19 @@ import shutil
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-# Direct imports
-from . import document_service, storage_service, vector_store_service, llm_service, text_extraction_service, conversion_service
+# Direct imports of CORE SERVICES
+from . import (
+    document_service, 
+    storage_service, 
+    vector_store_service, 
+    llm_service, 
+    text_extraction_service, 
+    conversion_service,
+    deadline_service,  # <--- DIRECT IMPORT
+    findings_service   # <--- DIRECT IMPORT
+)
 from .albanian_language_detector import AlbanianLanguageDetector
 from ..models.document import DocumentStatus
-from ..tasks.deadline_extraction import extract_deadlines_from_document
-from ..tasks.findings_extraction import extract_findings_from_document
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +91,7 @@ def orchestrate_document_processing_mongo(
         if not extracted_text or not extracted_text.strip():
             raise ValueError("Text extraction returned no content.")
 
-        # PHOENIX FIX: Detect Language immediately after extraction
-        # This determines which Embedding Model gets used in Step 4.
+        # Language Detection
         is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
         detected_lang = 'albanian' if is_albanian else 'standard'
         logger.info(f"Language Detection for {document_id_str}: {detected_lang.upper()}")
@@ -96,7 +102,6 @@ def orchestrate_document_processing_mongo(
             'case_id': str(document.get("case_id")),
             'user_id': str(document.get("owner_id")),
             'file_name': document.get("file_name", "Unknown"),
-            # CRITICAL: Pass the detected language to the vector store service
             'language': detected_lang 
         }
         
@@ -122,17 +127,19 @@ def orchestrate_document_processing_mongo(
         # Step 5: Summary (Sync)
         summary = llm_service.generate_summary(extracted_text)
 
-        # Step 6: Findings Extraction (PHOENIX FIX: SYNC EXECUTION)
-        # We run this *before* finalizing status so findings are ready when UI refreshes.
+        # Step 6: Findings Extraction (Direct Service Call)
         logger.info(f"Starting synchronous findings extraction for {document_id_str}")
-        # .apply() executes the Celery task locally and synchronously
-        extract_findings_from_document.apply(args=[document_id_str, extracted_text])
+        # PHOENIX FIX: Call service directly, passing the DB instance
+        findings_service.extract_and_save_findings(db, document_id_str, extracted_text)
         logger.info("Findings extraction complete.")
         
-        # Also run deadlines sync (fast enough)
-        extract_deadlines_from_document.apply(args=[document_id_str, extracted_text])
+        # Step 7: Deadline Extraction (Direct Service Call)
+        logger.info(f"Starting synchronous deadline extraction for {document_id_str}")
+        # PHOENIX FIX: Call service directly, passing the DB instance
+        deadline_service.extract_and_save_deadlines(db, document_id_str, extracted_text)
+        logger.info("Deadline extraction complete.")
 
-        # Step 7: Finalize (Sets Status to READY)
+        # Step 8: Finalize (Sets Status to READY)
         document_service.finalize_document_processing(
             db=db,
             redis_client=redis_client,

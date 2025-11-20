@@ -1,5 +1,8 @@
-# backend/app/services/llm_service.py
-# DEFINITIVE VERSION 6.0: Hardens the findings extraction prompt to guarantee valid JSON output.
+# FILE: backend/app/services/llm_service.py
+# PHOENIX PROTOCOL - LANGUAGE ENFORCEMENT FIX
+# 1. PROMPT ENGINEERING: Explicitly instructs the LLM to output findings in ALBANIAN.
+# 2. SYSTEM PROMPT: Added "LANGUAGE INSTRUCTION" section to override English bias.
+# 3. DEFINITION: Ensures 'extract_findings_from_text' is clearly defined.
 
 import os
 import json
@@ -31,37 +34,32 @@ def get_llm_client() -> Groq:
     return _client
 
 def generate_summary(text: str) -> str:
-    # This function's logic remains unchanged.
-    return "Summary generation logic is here."
+    llm_client = get_llm_client()
+    truncated_text = text[:6000]
+    prompt = f"Summarize this legal document in Albanian (Shqip). Keep it professional and concise.\n\nText:\n{truncated_text}"
+    try:
+        completion = llm_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model=GROQ_MODEL_NAME,
+            temperature=0.3
+        )
+        return completion.choices[0].message.content or "Summary unavailable."
+    except Exception as e:
+        logger.error(f"Summary generation failed: {e}")
+        return "Summary unavailable."
 
 def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict:
-    # This function's logic remains unchanged.
     return {"answer": "Socratic response logic is here.", "sources": []}
 
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
-    """
-    Analyzes document text to identify and extract key dates, events, and deadlines.
-    """
-    # This function is already robust and remains unchanged.
-    llm_client = get_llm_client()
-    truncated_text = text[:7500]
-    system_prompt = """
-    You are a specialized legal AI assistant. Your sole purpose is to identify and extract any potential deadline, date, or event from a legal document.
-    You MUST format your response as a valid JSON object with a single key "events". The value of "events" must be a list of objects. Each object must contain "date", "event_description", and "source_text".
-    If no dates are found, return a JSON object with an empty list: {"events": []}
-    """
-    user_prompt = f"Here is the document text. Please extract the deadlines:\n\n---\n\n{truncated_text}"
-    try:
-        # ... (implementation unchanged) ...
-        # This function is assumed to be working correctly based on logs.
-        return [] 
-    except Exception:
-        return []
+    # Logic moved to deadline_service.py, kept for interface compatibility
+    return [] 
 
-# --- PHOENIX PROTOCOL: DEFINITIVE PROMPT ENGINEERING FIX ---
+# --- PHOENIX PROTOCOL: ALBANIAN LANGUAGE ENFORCEMENT ---
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     """
-    Analyzes document text to extract key legal findings with a hardened, reliable prompt.
+    Analyzes document text to extract key legal findings.
+    FORCES output in ALBANIAN.
     """
     llm_client = get_llm_client()
     truncated_text = text[:7500]
@@ -70,8 +68,12 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     You are a precision legal analysis AI. Your single task is to review a legal document and extract critical findings.
     A "finding" is a significant statement with legal implications (e.g., obligations, duties, risk assignments).
 
+    **LANGUAGE INSTRUCTION: STRICTLY ALBANIAN**
+    The `finding_text` MUST be written in ALBANIAN (Shqip), regardless of the input document's language.
+    The `source_text` must be the exact, verbatim text from the document (do not translate the source).
+
     For each finding, provide:
-    1.  `finding_text`: The core statement of the finding, summarized concisely.
+    1.  `finding_text`: The core statement of the finding, summarized concisely in ALBANIAN.
     2.  `source_text`: The exact, verbatim source text from the document that supports the finding.
 
     You MUST format your entire response as a single, valid JSON object. This object must have one key: "findings". 
@@ -81,8 +83,8 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     {
       "findings": [
         {
-          "finding_text": "The lessee is obligated to deliver goods within 30 days.",
-          "source_text": "Party A hereby agrees and covenants to deliver the aforementioned goods to Party B no later than thirty (30) calendar days from the effective date of this agreement."
+          "finding_text": "Qiramarrësit i kërkohet të dorëzojë mallrat brenda 30 ditëve.",
+          "source_text": "Party A hereby agrees and covenants to deliver the aforementioned goods to Party B no later than thirty (30) calendar days..."
         }
       ]
     }
@@ -124,4 +126,3 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"--- [LLM Service] An unexpected error occurred during findings extraction: {e} ---", exc_info=True)
         return []
-# --- END PHOENIX PROTOCOL ---
