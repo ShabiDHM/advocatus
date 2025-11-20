@@ -1,13 +1,17 @@
-// FILE: /home/user/advocatus-frontend/src/layouts/MainLayout.tsx
-// PHOENIX PROTOCOL - MOBILE LAYOUT OPTIMIZATION
-// 1. Reduced mobile padding to px-3 to maximize screen real estate.
-// 2. Maintained Suspense boundary for stability.
+// FILE: src/pages/MainLayout.tsx
+// PHOENIX PROTOCOL - LAYOUT UPDATE (PAGES FOLDER)
+// 1. LOCATION: Correctly targeted for 'src/pages/'.
+// 2. IMPORTS: Points to '../components/' for Header and Footer.
+// 3. INTEGRATION: Includes the new Global Footer.
 
 import React, { Suspense } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import Header from '../components/Header'; 
 import { motion } from 'framer-motion';
+
+// PHOENIX FIX: Correct paths for components from 'pages' directory
+import Header from '../components/Header'; 
+import Footer from '../components/Footer'; 
 
 const MainLayout: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -29,12 +33,11 @@ const MainLayout: React.FC = () => {
       <div className="absolute inset-0 z-0 opacity-50 pointer-events-none [mask-image:radial-gradient(transparent_0%,_white_100%)]">
       </div>
 
-      <div className="z-20 relative"> 
+      <div className="z-20 relative flex-shrink-0"> 
         <Header />
       </div>
       
-      {/* PHOENIX FIX: px-3 on mobile, p-6 on desktop for better spacing */}
-      <main className="flex-grow px-3 py-4 md:p-6 container mx-auto z-10 max-w-full md:max-w-7xl">
+      <main className="flex-grow px-3 py-4 md:p-6 container mx-auto z-10 max-w-full md:max-w-7xl flex flex-col">
         <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>}>
             <motion.div 
                 key={location.pathname}
@@ -42,11 +45,17 @@ const MainLayout: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.3 }}
+                className="flex-grow"
             >
               <Outlet />
             </motion.div>
         </Suspense>
       </main>
+
+      {/* PHOENIX FIX: Global Footer */}
+      <div className="z-20 relative mt-auto">
+        <Footer />
+      </div>
     </div>
   );
 };

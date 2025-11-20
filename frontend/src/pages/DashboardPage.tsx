@@ -1,9 +1,6 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - MOBILE DASHBOARD OPTIMIZATION
-// 1. HEADER: Stacked Title and 'New Case' button on mobile for better spacing.
-// 2. BUTTONS: 'New Case' and Modal actions are full-width on mobile for easier tapping.
-// 3. MODAL: Added padding to container to prevent edge-touching on small screens.
-// 4. FOOTER: Un-hid footer links on mobile and centered them.
+// PHOENIX PROTOCOL - CLEANUP
+// 1. REMOVED: Hardcoded Footer (now handled by MainLayout).
 
 import React, { useState, useEffect } from 'react';
 import { Case, CreateCaseRequest } from '../data/types';
@@ -90,13 +87,13 @@ const DashboardPage: React.FC = () => {
 
   return (
     <motion.div 
-      className="dashboard-page flex flex-col min-h-screen" 
+      className="dashboard-page flex flex-col h-full" 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
       <div className="flex-grow">
-        {/* Header: Stack on mobile, Row on desktop */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 sm:gap-0">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary">{t('general.dashboard')}</h1>
           <motion.button 
@@ -123,8 +120,8 @@ const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* Grid: Gap-4 on mobile, Gap-6 on desktop */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 pb-20">
+        {/* Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 pb-6">
           {!isLoading && cases.length === 0 && !error && (
             <div className="col-span-full text-center py-10 text-text-secondary">
               {t('dashboard.noCasesFound')}
@@ -136,23 +133,9 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Footer: Responsive Layout */}
-      <footer className="w-full mt-auto py-4 border-t border-glass-edge/50 bg-background-light/50 backdrop-blur-sm">
-        <div className="flex flex-col md:flex-row justify-center md:justify-between items-center max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-sm text-text-secondary/80 gap-3 md:gap-0">
-            <p className="text-center md:text-left">&copy; {new Date().getFullYear()} Phoenix Protocol AI. {t('general.allRightsReserved')}.</p>
-            <div className="flex space-x-4">
-                <a href="mailto:support@advocatus.ai" className="hover:text-primary-start transition-colors">
-                    {t('general.contactSupport')}
-                </a>
-                <span className="text-text-secondary/50">|</span>
-                <a href="#privacy" className="hover:text-primary-start transition-colors">
-                    {t('general.privacyPolicy')}
-                </a>
-            </div>
-        </div>
-      </footer>
+      {/* OLD FOOTER REMOVED HERE - NOW IN MAINLAYOUT */}
 
-      {/* Modal: Mobile Safe Padding */}
+      {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-background-dark bg-opacity-80 flex items-center justify-center z-50 p-4">
           <motion.form 
@@ -194,7 +177,6 @@ const DashboardPage: React.FC = () => {
               className="w-full px-4 py-3 bg-background-dark/50 border border-glass-edge rounded-xl text-text-primary placeholder-text-secondary/50 focus:ring-primary-start focus:border-primary-start"
             />
             
-            {/* Modal Buttons: Stack on mobile */}
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
               <motion.button 
                 type="button" 
