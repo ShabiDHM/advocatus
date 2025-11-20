@@ -1,8 +1,7 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - FINAL POLISHED VERSION
-// 1. LOGIC: Hides "End Date" in modal if identical to Start Date.
-// 2. MOBILE: Preserves all responsive optimizations (grid sizes, padding).
-// 3. LOCALIZATION: Full support for Albanian date formatting.
+// PHOENIX PROTOCOL - UI POLISH
+// 1. UI: Hides redundant 'End Date' field in event modal.
+// 2. MOBILE: Fully responsive grid and layout.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';

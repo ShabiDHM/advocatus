@@ -1,8 +1,8 @@
 # FILE: backend/app/services/deadline_service.py
-# PHOENIX PROTOCOL - QUALITY & DEDUPLICATION
-# 1. DEDUPLICATION: Merges duplicate dates into single events.
-# 2. CONTEXT AWARENESS: Regex backup now grabs surrounding text for better titles.
-# 3. PROMPT: Tuned for Albanian legal context to prefer LLM over Regex.
+# PHOENIX PROTOCOL - QUALITY UPGRADE
+# 1. TITLES: Regex fallback now uses a clean static title, not random text snippets.
+# 2. AI: Simplified prompt to increase success rate of meaningful titles.
+# 3. DEDUPLICATION: Ensures only one event per date per document.
 
 import os
 import json
@@ -25,7 +25,7 @@ def _clean_json_string(json_str: str) -> str:
 
 def _extract_dates_with_regex(text: str) -> List[Dict[str, str]]:
     """
-    Backup method: Finds dates and grabs 5 words before/after for context.
+    Backup method: Finds dates.
     """
     matches = []
     # Regex capturing date AND surrounding context
@@ -34,14 +34,11 @@ def _extract_dates_with_regex(text: str) -> List[Dict[str, str]]:
     found = re.findall(date_pattern, text, re.IGNORECASE)
     for pre, day, month, year, post in found:
         date_str = f"{day} {month} {year}"
-        # Create a better title from context
-        clean_title = f"{pre.strip()}...".replace('\n', ' ')
-        if len(clean_title) < 5: clean_title = "Afat i Dokumentit"
-            
+        
         matches.append({
-            "title": clean_title, 
+            "title": "Afat i Gjetur (Automati)", # Clean title
             "date_text": date_str,
-            "description": f"Konteksti: ...{pre} {date_str} {post}..."
+            "description": f"Konteksti: ...{pre.strip()} {date_str} {post.strip()}..."
         })
     return matches
 
@@ -52,17 +49,17 @@ def _extract_dates_with_llm(full_text: str) -> List[Dict[str, str]]:
     client = Groq(api_key=api_key)
     truncated_text = full_text[:15000] 
 
-    # PHOENIX FIX: Explicit Albanian Prompt
+    # PHOENIX FIX: Simplified prompt for better JSON compliance
     prompt = f"""
-    Analizo tekstin e mëposhtëm ligjor dhe gjej afatet, datat e gjyqeve ose skadencat.
-    Kthe vetëm një JSON array valid.
+    Ti je asistent ligjor. Lexo tekstin dhe gjej datat ose afatet.
+    Kthe vetëm JSON.
     
-    Struktura:
+    Shembull:
     [
       {{
-        "title": "Titull i shkurtër (psh: Dorëzimi i Çelësave)",
-        "date_text": "Data e saktë në tekst (psh: 5 Nëntor 2025)",
-        "description": "Shpjegim i shkurtër"
+        "title": "Nënshkrimi i Kontratës",
+        "date_text": "5 Nëntor 2025",
+        "description": "Palët do të nënshkruajnë marrëveshjen."
       }}
     ]
 
@@ -121,7 +118,6 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
     if not raw_deadlines: return
 
     # 2. Deduplicate by Date
-    # We use a dict keyed by the ISO date string to ensure only 1 event per date per document.
     unique_events = {}
 
     for item in raw_deadlines:
@@ -131,17 +127,21 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
         parsed_date = dateparser.parse(date_text, languages=['sq', 'en'])
         if not parsed_date: continue
         
-        iso_date = parsed_date.date().isoformat() # YYYY-MM-DD only (ignore time)
+        iso_date = parsed_date.date().isoformat()
 
-        # If date already exists, just append info to description, don't create new event
+        # Use the title from the LLM if available, otherwise fallback
+        title = item.get('title', "Afat Ligjor")
+        if len(title) > 50: title = title[:47] + "..."
+
         if iso_date in unique_events:
-             unique_events[iso_date]["description"] += f"\n• {item.get('title')}"
+             # If date exists, append info, don't duplicate
+             unique_events[iso_date]["description"] += f"\n\n• {title}: {item.get('description', '')}"
         else:
             unique_events[iso_date] = {
                 "case_id": case_id_str,
                 "owner_id": owner_id,
                 "document_id": document_id,
-                "title": item.get("title", "Afat Ligjor"),
+                "title": title,
                 "description": item.get("description", "") + f"\n(Burimi: {document.get('file_name')})",
                 "start_date": parsed_date.isoformat(),
                 "end_date": parsed_date.isoformat(),
