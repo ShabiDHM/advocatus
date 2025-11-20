@@ -1,8 +1,7 @@
 // FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - UI POLISH (FINDINGS PANEL)
-// 1. Redesigned FindingsPanel with 'Smart Cards' and custom scrollbar.
-// 2. Added accent borders, hover effects, and better typography.
-// 3. Included CSS-in-JS styles for the sleek scrollbar to ensure consistency.
+// PHOENIX PROTOCOL - MOBILE CARD FIX
+// 1. FindingsPanel: Metadata footer now stacks vertically on mobile screens (flex-col sm:flex-row).
+// 2. This ensures the "Source Document" name is fully visible and doesn't overlap the confidence score.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -45,14 +44,14 @@ const scrollbarStyles = `
 // --- SUB-COMPONENTS ---
 const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction; }> = ({ caseDetails, t }) => (
     <motion.div
-      className="mb-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
+      className="mb-6 p-4 sm:p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
       initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
     >
-      <h1 className="text-2xl font-bold text-text-primary mb-2">{caseDetails.case_name}</h1>
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-text-secondary">
-        <div className="flex items-center" title={t('caseCard.client')}><User className="h-4 w-4 mr-2 text-primary-start" /><span>{caseDetails.client?.name || t('general.notAvailable')}</span></div>
-        <div className="flex items-center" title={t('caseView.statusLabel')}><Briefcase className="h-4 w-4 mr-2 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`, { fallback: caseDetails.status })}</span></div>
-        <div className="flex items-center" title={t('caseCard.createdOn')}><Info className="h-4 w-4 mr-2 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div>
+      <h1 className="text-xl sm:text-2xl font-bold text-text-primary mb-2 break-words">{caseDetails.case_name}</h1>
+      <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 text-xs sm:text-sm text-text-secondary">
+        <div className="flex items-center" title={t('caseCard.client')}><User className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-primary-start" /><span>{caseDetails.client?.name || t('general.notAvailable')}</span></div>
+        <div className="flex items-center" title={t('caseView.statusLabel')}><Briefcase className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`, { fallback: caseDetails.status })}</span></div>
+        <div className="flex items-center" title={t('caseCard.createdOn')}><Info className="h-3 w-3 sm:h-4 sm:w-4 mr-2 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div>
       </div>
     </motion.div>
 );
@@ -61,16 +60,16 @@ const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction; }> = ({ findi
     if (findings.length === 0) return null;
     return (
         <motion.div 
-            className="mt-6 p-6 rounded-2xl shadow-xl bg-background-light/50 backdrop-blur-md border border-glass-edge"
+            className="mt-6 p-4 sm:p-6 rounded-2xl shadow-xl bg-background-light/50 backdrop-blur-md border border-glass-edge"
             initial={{ opacity: 0, y: 20 }} 
             animate={{ opacity: 1, y: 0 }} 
             transition={{ duration: 0.5, delay: 0.2 }} 
         >
             <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 rounded-lg bg-yellow-500/20 text-yellow-400">
-                    <Lightbulb className="h-6 w-6" />
+                    <Lightbulb className="h-5 w-5 sm:h-6 sm:w-6" />
                 </div>
-                <h3 className="text-xl font-bold text-text-primary">{t('caseView.findingsTitle')}</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-text-primary">{t('caseView.findingsTitle')}</h3>
                 <span className="text-xs font-medium px-2 py-1 rounded-full bg-background-dark border border-glass-edge text-text-secondary">
                     {findings.length}
                 </span>
@@ -78,32 +77,33 @@ const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction; }> = ({ findi
             
             <style>{scrollbarStyles}</style>
             
-            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-3 custom-scrollbar">
+            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 sm:pr-3 custom-scrollbar">
                 {findings.map((finding, index) => (
                     <motion.div 
                         key={finding.id} 
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="group relative p-5 bg-background-dark/40 rounded-xl border border-glass-edge/30 hover:border-primary-start/50 hover:bg-background-dark/60 transition-all duration-300 hover:shadow-lg hover:shadow-primary-start/5"
+                        className="group relative p-4 sm:p-5 bg-background-dark/40 rounded-xl border border-glass-edge/30 hover:border-primary-start/50 hover:bg-background-dark/60 transition-all duration-300 hover:shadow-lg hover:shadow-primary-start/5"
                     >
                         {/* Accent Border on Left */}
                         <div className="absolute left-0 top-4 bottom-4 w-1 bg-gradient-to-b from-primary-start to-primary-end rounded-r-full opacity-70 group-hover:opacity-100 transition-opacity" />
                         
                         <div className="pl-3">
-                            <p className="text-base text-gray-200 leading-relaxed">
+                            <p className="text-sm sm:text-base text-gray-200 leading-relaxed">
                                 {finding.finding_text}
                             </p>
                             
-                            <div className="mt-4 flex items-center justify-between">
-                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-black/20 border border-white/5 text-xs text-gray-400">
-                                    <FileText className="h-3 w-3 text-primary-start" />
-                                    <span className="font-medium text-gray-300">{t('caseView.findingSource')}:</span>
-                                    <span className="truncate max-w-[150px] sm:max-w-[200px]">{finding.document_name || finding.document_id}</span>
+                            {/* PHOENIX FIX: Stack on mobile, row on desktop */}
+                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-black/20 border border-white/5 text-xs text-gray-400 w-full sm:w-auto">
+                                    <FileText className="h-3 w-3 text-primary-start flex-shrink-0" />
+                                    <span className="font-medium text-gray-300 whitespace-nowrap">{t('caseView.findingSource')}:</span>
+                                    <span className="truncate max-w-full">{finding.document_name || finding.document_id}</span>
                                 </div>
                                 
                                 {finding.confidence_score !== undefined && finding.confidence_score > 0 && (
-                                    <div className="flex items-center gap-1.5" title="Confidence Score">
+                                    <div className="flex items-center gap-1.5 self-end sm:self-auto" title="Confidence Score">
                                         <Search className="h-3 w-3 text-accent-start" />
                                         <span className="text-xs font-mono text-accent-start">{Math.round(finding.confidence_score * 100)}%</span>
                                     </div>
@@ -158,13 +158,9 @@ const CaseViewPage: React.FC = () => {
       
       if (isInitialLoad) {
           setLiveDocuments((initialDocs || []).map(sanitizeDocument));
-          
-          // Hydrate Chat History
           if (details.chat_history) {
-              console.log("Hydrating chat history:", details.chat_history.length, "messages");
               setMessages(details.chat_history);
           }
-
           const readyDocs = (initialDocs || []).filter(d => d.status === 'COMPLETED' || d.status === 'READY');
           prevReadyCount.current = readyDocs.length;
       } else {
@@ -179,7 +175,6 @@ const CaseViewPage: React.FC = () => {
     }
   }, [caseId, t, setLiveDocuments, setMessages]);
 
-  // --- AUTO-REFRESH FINDINGS ---
   useEffect(() => {
      const currentReadyCount = liveDocuments.filter(d => d.status === 'COMPLETED' || d.status === 'READY').length;
      if (currentReadyCount > prevReadyCount.current) {
@@ -188,13 +183,10 @@ const CaseViewPage: React.FC = () => {
      prevReadyCount.current = currentReadyCount;
   }, [liveDocuments, fetchCaseData]);
 
-  // Initial Load
   useEffect(() => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
   
-  // --- EVENT HANDLERS ---
-
   const handleDocumentUploaded = (newDoc: Document) => {
     setLiveDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
   };
@@ -211,7 +203,6 @@ const CaseViewPage: React.FC = () => {
   const handleClearChat = async () => {
       if (!caseId) return;
       if (!window.confirm(t('chatPanel.confirmClear'))) return;
-      
       try {
           await apiService.clearChatHistory(caseId);
           setMessages([]); 
@@ -234,16 +225,18 @@ const CaseViewPage: React.FC = () => {
 
   return (
     <motion.div className="w-full min-h-[90vh]" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:py-8">
-        <div className="mb-8">
+      <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:py-8">
+        <div className="mb-6 sm:mb-8 px-4 sm:px-0">
           <Link to="/dashboard" className="inline-flex items-center text-gray-400 hover:text-white transition-colors">
             <ArrowLeft className="h-4 w-4 mr-2" />
             {t('caseView.backToDashboard')}
           </Link>
         </div>
-        <div className="flex flex-col space-y-6">
-            <CaseHeader caseDetails={caseData.details} t={t} />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+        <div className="flex flex-col space-y-4 sm:space-y-6">
+            <div className="px-4 sm:px-0">
+                <CaseHeader caseDetails={caseData.details} t={t} />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start px-4 sm:px-0">
                 <DocumentsPanel
                   caseId={caseData.details.id}
                   documents={liveDocuments}
@@ -266,7 +259,9 @@ const CaseViewPage: React.FC = () => {
                   t={t}
                 />
             </div>
-            <FindingsPanel findings={caseData.findings} t={t} />
+            <div className="px-4 sm:px-0">
+                <FindingsPanel findings={caseData.findings} t={t} />
+            </div>
         </div>
       </div>
       {viewingDocument && (

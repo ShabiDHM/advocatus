@@ -1,8 +1,8 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - UI ALIGNMENT
-// 1. Connection Badge: Now identical to ChatPanel (Pill shape, green bg, glow).
-// 2. Upload Button: Converted to a clean Icon-only button (Plus icon).
-// 3. Layout: Adjusted header alignment to accommodate the new button styles.
+// PHOENIX PROTOCOL - MOBILE OPTIMIZATION
+// 1. RESPONSIVE PADDING: 'p-4 sm:p-6' for better mobile fit.
+// 2. LAYOUT: Improved flex behavior for header and list items on small screens.
+// 3. TRUNCATION: Enhanced text truncation to prevent overflow.
 
 import React, { useState, useRef, useMemo } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -49,7 +49,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     }
   };
 
-  // PHOENIX UI UPDATE: Matched style with ChatPanel
   const statusColor = (status: ConnectionStatus) => {
     switch (status) {
       case 'CONNECTED': return 'bg-success-start text-white glow-accent';
@@ -133,14 +132,13 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   }, [findings]);
 
   return (
-    <div className="documents-panel bg-background-dark p-6 rounded-2xl shadow-xl flex flex-col h-full">
+    <div className="documents-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col h-full">
       {/* Header */}
       <div className="flex flex-row justify-between items-center border-b border-background-light/50 pb-3 mb-4 flex-shrink-0 gap-2">
-        <div className="flex items-center gap-4 min-w-0">
-            <h2 className="text-xl font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0 overflow-hidden">
+            <h2 className="text-lg sm:text-xl font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
             
-            {/* PHOENIX UI UPDATE: Connection Badge (Identical to ChatPanel) */}
-            <div className={`text-xs font-semibold px-3 py-1 rounded-full flex items-center transition-all whitespace-nowrap ${statusColor(connectionStatus)}`}>
+            <div className={`text-[10px] sm:text-xs font-semibold px-2 sm:px-3 py-1 rounded-full flex items-center transition-all whitespace-nowrap ${statusColor(connectionStatus)}`}>
                 {connectionStatusText(connectionStatus)}
                 {connectionStatus !== 'CONNECTED' && (
                   <motion.button onClick={reconnect} className="ml-2 underline text-white/80 hover:text-white" whileHover={{ scale: 1.05 }}>
@@ -150,29 +148,28 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
             </div>
         </div>
 
-        {/* PHOENIX UI UPDATE: Icon-Only Upload Button */}
         <div className="flex-shrink-0">
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
           <motion.button
             onClick={() => fileInputRef.current?.click()}
-            className="h-10 w-10 flex items-center justify-center rounded-xl transition-all duration-300 shadow-lg glow-primary bg-gradient-to-r from-primary-start to-primary-end text-white"
-            title={t('documentsPanel.uploadDocument')} // Tooltip
+            className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl transition-all duration-300 shadow-lg glow-primary bg-gradient-to-r from-primary-start to-primary-end text-white"
+            title={t('documentsPanel.uploadDocument')} 
             disabled={isUploading} 
             whileHover={{ scale: 1.05 }} 
             whileTap={{ scale: 0.95 }} 
           >
-            {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-6 w-6" />}
+            {isUploading ? <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" /> : <Plus className="h-5 w-5 sm:h-6 sm:w-6" />}
           </motion.button>
         </div>
       </div>
 
-      {uploadError && (<div className="p-3 text-sm text-red-100 bg-red-700 rounded-lg mb-4">{uploadError}</div>)}
+      {uploadError && (<div className="p-3 text-xs sm:text-sm text-red-100 bg-red-700 rounded-lg mb-4">{uploadError}</div>)}
 
-      <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 max-h-[20rem]">
+      <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 max-h-[250px] sm:max-h-[20rem]">
         {(documents.length === 0 && !isUploading) && (
           <div className="text-text-secondary text-center py-5">
-            <FolderOpen className="w-16 h-16 text-text-secondary/50 mx-auto mb-4" />
-            {t('documentsPanel.noDocuments')}
+            <FolderOpen className="w-12 h-12 sm:w-16 sm:h-16 text-text-secondary/50 mx-auto mb-4" />
+            <p className="text-sm sm:text-base">{t('documentsPanel.noDocuments')}</p>
           </div>
         )}
         {documents.map((doc) => {
@@ -186,28 +183,32 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               className="flex items-center justify-between p-3 bg-background-light/50 backdrop-blur-sm border border-glass-edge rounded-xl"
               initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -50 }}
             >
-              <div className="truncate pr-4 min-w-0 flex-1">
-                <p className="text-sm font-medium text-text-primary flex items-center truncate">
-                    <span className="truncate">{doc.file_name}</span>
-                    {hasFindings && <span className="ml-2 text-xs text-primary-end bg-primary-start/20 px-2 py-0.5 rounded-full flex-shrink-0">Findings</span>}
-                </p>
-                <p className="text-xs text-text-secondary">{t('documentsPanel.uploaded')}: {moment(doc.created_at).format('YYYY-MM-DD HH:mm')}</p>
+              <div className="truncate pr-2 min-w-0 flex-1">
+                <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-sm font-medium text-text-primary truncate">{doc.file_name}</p>
+                    {hasFindings && <span className="text-[10px] text-primary-end bg-primary-start/20 px-1.5 py-0.5 rounded-full flex-shrink-0">Findings</span>}
+                </div>
+                <p className="text-[10px] sm:text-xs text-text-secondary truncate">{t('documentsPanel.uploaded')}: {moment(doc.created_at).format('YYYY-MM-DD HH:mm')}</p>
               </div>
+              
               <div className="flex items-center space-x-2 flex-shrink-0">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${statusInfo.color}`}>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold hidden sm:inline-block ${statusInfo.color}`}>
                   {statusInfo.label}
                 </span>
+                {/* Mobile Status Indicator (Dot) */}
+                <span className={`w-2 h-2 rounded-full sm:hidden ${statusInfo.color.split(' ')[0]}`} title={statusInfo.label}></span>
+
                 {isReady && (
-                  <div className="flex items-center space-x-2">
-                    <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-primary-start hover:text-primary-end" whileHover={{ scale: 1.2 }}>
+                  <div className="flex items-center space-x-1 sm:space-x-2">
+                    <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-primary-start hover:text-primary-end p-1" whileHover={{ scale: 1.2 }}>
                       <Eye size={16} />
                     </motion.button>
-                    <motion.button onClick={() => handleReanalyze(doc.id)} title={t('documentsPanel.reanalyze')} className="text-accent-start hover:text-accent-end" whileHover={{ scale: 1.2 }}>
+                    <motion.button onClick={() => handleReanalyze(doc.id)} title={t('documentsPanel.reanalyze')} className="text-accent-start hover:text-accent-end p-1" whileHover={{ scale: 1.2 }}>
                       <Repeat size={16} />
                     </motion.button>
                   </div>
                 )}
-                <motion.button onClick={() => handleDeleteDocument(doc.id)} title={t('documentsPanel.delete')} className="text-red-500 hover:text-red-400" whileHover={{ scale: 1.2 }}>
+                <motion.button onClick={() => handleDeleteDocument(doc.id)} title={t('documentsPanel.delete')} className="text-red-500 hover:text-red-400 p-1" whileHover={{ scale: 1.2 }}>
                   <Trash size={16} />
                 </motion.button>
               </div>

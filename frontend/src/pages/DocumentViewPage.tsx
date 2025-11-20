@@ -1,5 +1,8 @@
-// FILE: /home/user/advocatus-frontend/src/pages/DocumentViewPage.tsx
-
+// FILE: src/pages/DocumentViewPage.tsx
+// PHOENIX PROTOCOL - MOBILE OPTIMIZATION
+// 1. RESPONSIVE GRID: Switched from fixed 'grid-cols-3' to 'grid-cols-1 lg:grid-cols-3'.
+// 2. STACKING: Details panel now stacks above content on mobile.
+// 3. CONTENT HEIGHT: Adjusted content box height for mobile usability.
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -34,7 +37,7 @@ const DocumentViewPage: React.FC = () => {
       const metadata = await apiService.getDocument(caseId, documentId);
       setDocDetails(metadata);
       
-      const isReady = metadata.status === 'READY';
+      const isReady = metadata.status === 'READY' || metadata.status === 'COMPLETED';
 
       if (isReady) {
         const contentResponse = await apiService.getDocumentContent(caseId, documentId);
@@ -75,8 +78,10 @@ const DocumentViewPage: React.FC = () => {
   };
   
   const getStatusInfo = (status: Document['status']) => {
-    switch (status.toUpperCase()) {
+    const s = status ? status.toUpperCase() : 'PENDING';
+    switch (s) {
       case 'READY':
+      case 'COMPLETED':
         return { color: 'bg-success-start text-white', icon: <Zap size={16} />, label: t('documentView.statusReady') };
       case 'PENDING':
         return { color: 'bg-yellow-500 text-white', icon: <Clock size={16} />, label: t('documentView.statusPending') };
@@ -87,33 +92,39 @@ const DocumentViewPage: React.FC = () => {
     }
   };
 
-
   if (isLoading) return <div className="text-center py-10 text-text-primary">{t('loading')}...</div>;
   if (error || !docDetails) return <div className="text-red-500 text-center py-10">{error || t('documentView.notFound')}</div>;
 
   const statusInfo = getStatusInfo(docDetails.status);
-  const isProcessed = docDetails.status.toUpperCase() === 'READY';
+  const isProcessed = docDetails.status.toUpperCase() === 'READY' || docDetails.status.toUpperCase() === 'COMPLETED';
 
   return (
-    <motion.div className="space-y-6 p-6 bg-background-dark rounded-2xl shadow-xl h-full overflow-y-auto" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-      <div className="flex justify-between items-start border-b border-glass-edge pb-4">
-        <div className="flex flex-col">
+    <motion.div 
+        className="space-y-6 p-4 sm:p-6 bg-background-dark rounded-2xl shadow-xl h-full overflow-y-auto" 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        transition={{ duration: 0.3 }}
+    >
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-glass-edge pb-4 gap-4 sm:gap-0">
+        <div className="flex flex-col w-full sm:w-auto">
             <Link to={`/case/${caseId}`} className="text-sm text-primary-start hover:text-primary-end transition-colors mb-2 flex items-center space-x-2">
               <ArrowLeft size={16} /> <span>{t('documentView.backToCase')}</span>
             </Link>
-            <h1 className="text-3xl font-bold text-text-primary flex items-center space-x-3">
-              <FileText size={30} /> 
-              <span>{docDetails.file_name}</span>
+            <h1 className="text-2xl sm:text-3xl font-bold text-text-primary flex items-center space-x-3 break-all">
+              <FileText className="flex-shrink-0 h-6 w-6 sm:h-8 sm:w-8" /> 
+              <span className="truncate">{docDetails.file_name}</span>
             </h1>
         </div>
-        <div className="flex items-center space-x-3 flex-shrink-0">
-            <span className={`text-sm font-semibold px-3 py-1 rounded-full flex items-center space-x-1 ${statusInfo.color}`}>
+        
+        <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-end">
+            <span className={`text-xs sm:text-sm font-semibold px-3 py-1 rounded-full flex items-center space-x-1 ${statusInfo.color}`}>
               {statusInfo.icon} <span>{statusInfo.label}</span>
             </span>
             <motion.button 
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="bg-secondary-start text-white font-semibold py-2 px-4 rounded-xl transition-all duration-300 shadow-lg glow-secondary disabled:opacity-50"
+                className="bg-secondary-start text-white font-semibold py-2 px-4 rounded-xl transition-all duration-300 shadow-lg glow-secondary disabled:opacity-50 flex items-center justify-center"
                 whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                 title={t('documentView.exportPdfTooltip')}
             >
@@ -122,32 +133,37 @@ const DocumentViewPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <div className="col-span-1 space-y-4">
-            <h3 className="text-lg font-semibold text-text-primary">{t('documentView.details')}</h3>
-            <div className="bg-background-light/50 p-4 rounded-xl space-y-2">
-                <p className="text-sm text-text-secondary"><strong>{t('documentView.fileName')}:</strong> <span className="text-text-primary">{docDetails.file_name}</span></p>
-                <p className="text-sm text-text-secondary"><strong>{t('documentView.uploadedAt')}:</strong> <span className="text-text-primary">{moment(docDetails.created_at).format('YYYY-MM-DD HH:mm')}</span></p>
-                <p className="text-sm text-text-secondary"><strong>{t('documentView.fileType')}:</strong> <span className="text-text-primary">{docDetails.mime_type}</span></p>
-                {/* --- PHOENIX PROTOCOL FIX: Document ID field has been removed --- */}
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Sidebar: Details & Summary */}
+        <div className="col-span-1 space-y-6">
+            <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-text-primary">{t('documentView.details')}</h3>
+                <div className="bg-background-light/50 p-4 rounded-xl space-y-2">
+                    <p className="text-sm text-text-secondary break-words"><strong>{t('documentView.fileName')}:</strong> <span className="text-text-primary">{docDetails.file_name}</span></p>
+                    <p className="text-sm text-text-secondary"><strong>{t('documentView.uploadedAt')}:</strong> <span className="text-text-primary">{moment(docDetails.created_at).format('YYYY-MM-DD HH:mm')}</span></p>
+                    <p className="text-sm text-text-secondary"><strong>{t('documentView.fileType')}:</strong> <span className="text-text-primary">{docDetails.mime_type}</span></p>
+                </div>
             </div>
             
-            <h3 className="text-lg font-semibold text-text-primary">{t('documentView.summary')}</h3>
-            <div className="bg-background-light/50 p-4 rounded-xl min-h-[150px] text-text-primary">
-                {/* --- PHOENIX PROTOCOL FIX: Correctly display summary or placeholder --- */}
-                {isProcessed && docDetails.summary ? (
-                    <span className="italic">{docDetails.summary}</span>
-                ) : (
-                    <span className="text-text-secondary italic">
-                        {isProcessed ? t('documentView.summaryPlaceholder') : t('documentView.notProcessed')}
-                    </span>
-                )}
+            <div className="space-y-2">
+                <h3 className="text-lg font-semibold text-text-primary">{t('documentView.summary')}</h3>
+                <div className="bg-background-light/50 p-4 rounded-xl min-h-[150px] text-text-primary text-sm sm:text-base">
+                    {isProcessed && docDetails.summary ? (
+                        <span className="italic">{docDetails.summary}</span>
+                    ) : (
+                        <span className="text-text-secondary italic">
+                            {isProcessed ? t('documentView.summaryPlaceholder') : t('documentView.notProcessed')}
+                        </span>
+                    )}
+                </div>
             </div>
         </div>
 
-        <div className="col-span-2 space-y-4">
+        {/* Content Area */}
+        <div className="col-span-1 lg:col-span-2 space-y-2">
             <h3 className="text-lg font-semibold text-text-primary">{t('documentView.extractedContent')}</h3>
-            <div className="bg-background-light/50 p-4 rounded-xl h-[70vh] overflow-y-auto text-text-primary whitespace-pre-wrap font-mono text-sm">
+            <div className="bg-background-light/50 p-4 rounded-xl h-[50vh] sm:h-[70vh] overflow-y-auto text-text-primary whitespace-pre-wrap font-mono text-xs sm:text-sm custom-scrollbar">
                 {content ? content : (
                     <div className="text-center text-text-secondary py-10">
                         {isProcessed ? t('documentView.noContentFound') : t('documentView.contentProcessing')}

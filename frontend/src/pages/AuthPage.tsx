@@ -1,4 +1,8 @@
 // FILE: /home/user/advocatus-frontend/src/pages/AuthPage.tsx
+// PHOENIX PROTOCOL - MOBILE OPTIMIZATION
+// 1. RESPONSIVE PADDING: Adjusted container to 'p-6 sm:p-8' for better mobile fit.
+// 2. TYPOGRAPHY SCALING: 'text-2xl sm:text-3xl' for the main title.
+// 3. INPUT SPACING: Ensured sufficient vertical spacing for touch keyboards.
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -69,21 +73,16 @@ const AuthPage: React.FC = () => {
         setConfirmPassword('');
       }
     } catch (err: any) {
-      // --- PHOENIX PROTOCOL CURE: Robust error handling for specific API responses ---
       const status = err.response?.status;
-      const detail = err.response?.data?.detail; // FastAPI often includes a detailed message here.
+      const detail = err.response?.data?.detail;
 
       if (status === 422) {
-        // 422: Unprocessable Entity (Validation Error from FastAPI).
         setError(t('auth.validationError'));
       } else if (status === 409) {
-        // 409: Conflict (User already exists). Use backend message if available.
         setError(detail || t('auth.userExists'));
       } else if (status === 401) {
-        // 401: Unauthorized (Incorrect username/password during login).
         setError(t('auth.loginFailed'));
       } else {
-        // Generic fallback for timeouts, server errors, etc.
         setError(t('auth.networkError'));
       }
     } finally {
@@ -101,28 +100,27 @@ const AuthPage: React.FC = () => {
     : (username && password && email && password === confirmPassword && password.length >= 8);
   
   return (
-    <div className="flex items-center justify-center min-h-screen 
+    <div className="flex items-center justify-center min-h-screen px-4
                     bg-background-dark bg-gradient-to-br from-background-dark via-background-light to-background-dark 
                     bg-[length:200%_200%] animate-gradient-shift">
       
       <motion.div 
-        className="w-full max-w-md p-8 space-y-6 bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-2xl glow-primary/20"
+        className="w-full max-w-md p-6 sm:p-8 space-y-6 bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-2xl glow-primary/20"
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ type: "spring", stiffness: 100 }}
       >
         <div className="text-center mb-6">
           <div className="flex items-center justify-center">
-            <Scale className="h-8 w-8 text-text-primary mr-3" />
-            <h1 className="text-3xl font-extrabold text-text-primary">Advocatus AI</h1>
+            <Scale className="h-7 w-7 sm:h-8 sm:w-8 text-text-primary mr-3" />
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary">Advocatus AI</h1>
           </div>
-          <p className="text-text-secondary mt-2">{t('auth.subtitle')}</p>
+          <p className="text-text-secondary mt-2 text-sm sm:text-base">{t('auth.subtitle')}</p>
         </div>
         
         <form onSubmit={handleAuth} className="space-y-4">
           
           {error && (
-             // Use green for success message, red for errors
             <div className={`p-3 text-sm rounded-xl ${error === t('auth.registerSuccess') ? 'text-green-100 bg-green-700' : 'text-red-100 bg-red-700'}`}>
               {error}
             </div>
@@ -134,7 +132,7 @@ const AuthPage: React.FC = () => {
               type="text" 
               value={username} 
               onChange={(e) => setUsername(e.target.value)} 
-              className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge" 
+              className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" 
               disabled={isLoading}
             />
           </div>
@@ -146,7 +144,7 @@ const AuthPage: React.FC = () => {
                 type="email" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)} 
-                className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge" 
+                className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" 
                 disabled={isLoading}
               />
             </div>
@@ -158,7 +156,7 @@ const AuthPage: React.FC = () => {
               type="password" 
               value={password} 
               onChange={(e) => setPassword(e.target.value)} 
-              className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge" 
+              className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" 
               disabled={isLoading}
             />
           </div>
@@ -170,7 +168,7 @@ const AuthPage: React.FC = () => {
                 type="password" 
                 value={confirmPassword} 
                 onChange={(e) => setConfirmPassword(e.target.value)} 
-                className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge" 
+                className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" 
                 disabled={isLoading}
               />
             </div>
@@ -196,8 +194,8 @@ const AuthPage: React.FC = () => {
           </motion.button>
         </form>
 
-        <p className="text-center text-sm text-text-secondary">
-          <button onClick={toggleMode} className="text-secondary-start hover:text-secondary-end transition-colors">
+        <p className="text-center text-sm text-text-secondary mt-6">
+          <button onClick={toggleMode} className="text-secondary-start hover:text-secondary-end transition-colors p-2 rounded-lg hover:bg-white/5">
             {isLoginMode ? t('auth.switchToRegister') : t('auth.switchToLogin')}
           </button>
         </p>

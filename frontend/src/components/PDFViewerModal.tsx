@@ -1,7 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - ZOOM ENABLED
-// 1. Added Zoom In / Zoom Out controls.
-// 2. Added Scale state to the Page component.
+// PHOENIX PROTOCOL - MOBILE OPTIMIZATION
+// 1. FULL SCREEN: Removed modal padding on mobile for immersive view.
+// 2. HEADER: Compact layout for zoom/close controls on small screens.
+// 3. PAGINATION: Larger touch targets for prev/next buttons.
 
 import React, { useState, useEffect } from 'react';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
@@ -32,7 +33,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   // Viewer State
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
-  const [scale, setScale] = useState(1.0); // ZOOM STATE
+  const [scale, setScale] = useState(1.0); 
   const [actualViewerMode, setActualViewerMode] = useState<'PDF' | 'TEXT' | 'IMAGE' | 'DOWNLOAD'>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -112,7 +113,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     } catch (e) { console.error(e); } finally { setIsDownloading(false); }
   };
 
-  // ZOOM HANDLERS
   const zoomIn = () => setScale(prev => Math.min(prev + 0.25, 3.0));
   const zoomOut = () => setScale(prev => Math.max(prev - 0.25, 0.5));
   const zoomReset = () => setScale(1.0);
@@ -144,11 +144,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     switch (actualViewerMode) {
       case 'PDF':
         return (
-          <div className="flex justify-center p-4 min-h-full overflow-auto">
+          <div className="flex justify-center p-4 min-h-full overflow-auto touch-pan-x touch-pan-y">
              <PdfDocument file={fileUrl} onLoadSuccess={({ numPages }) => { setNumPages(numPages); setPageNumber(1); }} loading="">
                  <Page 
                     pageNumber={pageNumber} 
-                    scale={scale} // APPLY ZOOM
+                    scale={scale} 
                     renderTextLayer={false} 
                     renderAnnotationLayer={false}
                     className="shadow-2xl" 
@@ -157,10 +157,10 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           </div>
         );
       case 'TEXT':
-        return <div className="p-8 w-full max-w-4xl mx-auto bg-white shadow-sm min-h-full"><pre className="whitespace-pre-wrap font-mono text-sm text-gray-800 overflow-auto">{textContent}</pre></div>;
+        return <div className="p-4 sm:p-8 w-full max-w-4xl mx-auto bg-white shadow-sm min-h-full"><pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm text-gray-800 overflow-auto">{textContent}</pre></div>;
       case 'IMAGE':
         return (
-            <div className="flex items-center justify-center h-full p-4 overflow-auto">
+            <div className="flex items-center justify-center h-full p-4 overflow-auto touch-pinch-zoom">
                 <img 
                     src={fileUrl!} 
                     alt="Doc" 
@@ -175,24 +175,36 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   return (
     <AnimatePresence>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-4" onClick={onClose}>
-        <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-background-main w-full h-full max-w-6xl max-h-[95vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-glass-edge" onClick={(e) => e.stopPropagation()}>
-          <header className="flex items-center justify-between p-4 bg-background-light/80 border-b border-glass-edge backdrop-blur-sm z-10">
-            <div className="flex items-center gap-4">
-                <h2 className="text-lg font-bold text-text-primary truncate max-w-xs">{documentData.file_name}</h2>
+      <motion.div 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }} 
+        exit={{ opacity: 0 }} 
+        className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-0 sm:p-4" 
+        onClick={onClose}
+      >
+        <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            exit={{ scale: 0.95, opacity: 0 }} 
+            className="bg-background-main w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-glass-edge" 
+            onClick={(e) => e.stopPropagation()}
+        >
+          <header className="flex flex-row items-center justify-between p-3 sm:p-4 bg-background-light/80 border-b border-glass-edge backdrop-blur-sm z-10 gap-2">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                <h2 className="text-base sm:text-lg font-bold text-text-primary truncate">{documentData.file_name}</h2>
                 
-                {/* ZOOM CONTROLS */}
+                {/* ZOOM CONTROLS - Hidden on very small screens to save space, or simplified */}
                 {(actualViewerMode === 'PDF' || actualViewerMode === 'IMAGE') && (
-                    <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10">
+                    <div className="hidden sm:flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10 flex-shrink-0">
                         <button onClick={zoomOut} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded"><ZoomOut size={18} /></button>
-                        <span className="text-xs text-gray-400 w-12 text-center">{Math.round(scale * 100)}%</span>
+                        <span className="text-xs text-gray-400 w-10 text-center">{Math.round(scale * 100)}%</span>
                         <button onClick={zoomIn} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded"><ZoomIn size={18} /></button>
                         <button onClick={zoomReset} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded ml-1" title="Reset"><Maximize size={18} /></button>
                     </div>
                 )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               <button onClick={handleDownloadOriginal} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full"><Download size={20} /></button>
               <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full"><X size={24} /></button>
             </div>
@@ -203,11 +215,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           </div>
 
           {actualViewerMode === 'PDF' && numPages && numPages > 1 && (
-            <footer className="flex items-center justify-center p-3 bg-background-light/80 border-t border-glass-edge backdrop-blur-sm z-10">
+            <footer className="flex items-center justify-center p-3 bg-background-light/80 border-t border-glass-edge backdrop-blur-sm z-10 pb-6 sm:pb-3">
               <div className="flex items-center gap-4 bg-black/40 px-4 py-2 rounded-full border border-white/5">
-                <button onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1} className="p-1 text-gray-400 hover:text-white disabled:opacity-30"><ChevronLeft size={20} /></button>
-                <span className="text-sm font-medium text-gray-200 w-24 text-center">{pageNumber} / {numPages}</span>
-                <button onClick={() => setPageNumber(p => Math.min(numPages, p + 1))} disabled={pageNumber >= numPages} className="p-1 text-gray-400 hover:text-white disabled:opacity-30"><ChevronRight size={20} /></button>
+                <button onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1} className="p-2 text-gray-400 hover:text-white disabled:opacity-30"><ChevronLeft size={24} /></button>
+                <span className="text-sm font-medium text-gray-200 w-20 text-center">{pageNumber} / {numPages}</span>
+                <button onClick={() => setPageNumber(p => Math.min(numPages, p + 1))} disabled={pageNumber >= numPages} className="p-2 text-gray-400 hover:text-white disabled:opacity-30"><ChevronRight size={24} /></button>
               </div>
             </footer>
           )}

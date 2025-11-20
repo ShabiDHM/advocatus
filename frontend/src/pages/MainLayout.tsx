@@ -1,9 +1,7 @@
 // FILE: /home/user/advocatus-frontend/src/layouts/MainLayout.tsx
-// PHOENIX PROTOCOL - FINAL DEFINITIVE VERSION (RACE CONDITION FIX)
-// CORRECTION: Wrapped the <Outlet /> in a React <Suspense> boundary. This is the
-// definitive, architecturally correct solution for the i18next race condition.
-// It ensures that page components will not attempt to render until all required
-// translation files have been loaded, permanently fixing the untranslated key issue.
+// PHOENIX PROTOCOL - MOBILE LAYOUT OPTIMIZATION
+// 1. Reduced mobile padding to px-3 to maximize screen real estate.
+// 2. Maintained Suspense boundary for stability.
 
 import React, { Suspense } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
@@ -35,7 +33,8 @@ const MainLayout: React.FC = () => {
         <Header />
       </div>
       
-      <main className="flex-grow p-4 md:p-6 container mx-auto z-10">
+      {/* PHOENIX FIX: px-3 on mobile, p-6 on desktop for better spacing */}
+      <main className="flex-grow px-3 py-4 md:p-6 container mx-auto z-10 max-w-full md:max-w-7xl">
         <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>}>
             <motion.div 
                 key={location.pathname}

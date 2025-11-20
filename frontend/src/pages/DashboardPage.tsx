@@ -1,4 +1,10 @@
 // FILE: src/pages/DashboardPage.tsx
+// PHOENIX PROTOCOL - MOBILE DASHBOARD OPTIMIZATION
+// 1. HEADER: Stacked Title and 'New Case' button on mobile for better spacing.
+// 2. BUTTONS: 'New Case' and Modal actions are full-width on mobile for easier tapping.
+// 3. MODAL: Added padding to container to prevent edge-touching on small screens.
+// 4. FOOTER: Un-hid footer links on mobile and centered them.
+
 import React, { useState, useEffect } from 'react';
 import { Case, CreateCaseRequest } from '../data/types';
 import { apiService } from '../services/api';
@@ -26,7 +32,6 @@ const DashboardPage: React.FC = () => {
       setCases(fetchedCases);
     } catch (err: any) {
       console.error('[Dashboard] Fetch Error:', err);
-      // Enhanced error logging to help debug 404s
       const status = err.response?.status;
       const url = err.config?.url;
       const fullUrl = err.config?.baseURL ? `${err.config.baseURL}${url}` : url;
@@ -91,13 +96,14 @@ const DashboardPage: React.FC = () => {
       transition={{ duration: 0.3 }}
     >
       <div className="flex-grow">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-extrabold text-text-primary">{t('general.dashboard')}</h1>
+        {/* Header: Stack on mobile, Row on desktop */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 sm:gap-0">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary">{t('general.dashboard')}</h1>
           <motion.button 
             onClick={() => setIsModalOpen(true)}
-            className="text-white font-semibold py-2 px-4 rounded-xl transition-all duration-300 shadow-lg glow-primary
-                       bg-gradient-to-r from-primary-start to-primary-end"
-            whileHover={{ scale: 1.05, boxShadow: '0 0 15px 0 #3b82f6' }}
+            className="w-full sm:w-auto text-white font-semibold py-3 sm:py-2 px-4 rounded-xl transition-all duration-300 shadow-lg glow-primary
+                       bg-gradient-to-r from-primary-start to-primary-end flex justify-center items-center"
+            whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.98 }}
           >
             + {t('dashboard.newCase')}
@@ -117,7 +123,8 @@ const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
+        {/* Grid: Gap-4 on mobile, Gap-6 on desktop */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 pb-20">
           {!isLoading && cases.length === 0 && !error && (
             <div className="col-span-full text-center py-10 text-text-secondary">
               {t('dashboard.noCasesFound')}
@@ -129,10 +136,11 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Footer: Responsive Layout */}
       <footer className="w-full mt-auto py-4 border-t border-glass-edge/50 bg-background-light/50 backdrop-blur-sm">
-        <div className="flex justify-center md:justify-between items-center max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-sm text-text-secondary/80">
-            <p>&copy; {new Date().getFullYear()} Phoenix Protocol AI. {t('general.allRightsReserved')}.</p>
-            <div className="space-x-4 hidden md:block">
+        <div className="flex flex-col md:flex-row justify-center md:justify-between items-center max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-sm text-text-secondary/80 gap-3 md:gap-0">
+            <p className="text-center md:text-left">&copy; {new Date().getFullYear()} Phoenix Protocol AI. {t('general.allRightsReserved')}.</p>
+            <div className="flex space-x-4">
                 <a href="mailto:support@advocatus.ai" className="hover:text-primary-start transition-colors">
                     {t('general.contactSupport')}
                 </a>
@@ -144,11 +152,12 @@ const DashboardPage: React.FC = () => {
         </div>
       </footer>
 
+      {/* Modal: Mobile Safe Padding */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-background-dark bg-opacity-80 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-background-dark bg-opacity-80 flex items-center justify-center z-50 p-4">
           <motion.form 
             onSubmit={handleCreateCase} 
-            className="bg-background-light/70 backdrop-blur-md border border-glass-edge p-8 rounded-2xl w-full max-w-lg shadow-2xl space-y-4"
+            className="bg-background-light/70 backdrop-blur-md border border-glass-edge p-6 sm:p-8 rounded-2xl w-full max-w-lg shadow-2xl space-y-4"
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -184,18 +193,20 @@ const DashboardPage: React.FC = () => {
               onChange={(e) => setNewCasePhone(e.target.value)}
               className="w-full px-4 py-3 bg-background-dark/50 border border-glass-edge rounded-xl text-text-primary placeholder-text-secondary/50 focus:ring-primary-start focus:border-primary-start"
             />
-            <div className="flex justify-end space-x-3 pt-2">
+            
+            {/* Modal Buttons: Stack on mobile */}
+            <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
               <motion.button 
                 type="button" 
                 onClick={() => setIsModalOpen(false)} 
-                className="px-4 py-2 rounded-xl text-text-secondary hover:text-text-primary bg-background-dark/50 border border-glass-edge transition-colors"
+                className="w-full sm:w-auto px-4 py-3 sm:py-2 rounded-xl text-text-secondary hover:text-text-primary bg-background-dark/50 border border-glass-edge transition-colors"
                 whileHover={{ scale: 1.05 }}
               >
                 {t('dashboard.cancelButton')}
               </motion.button>
               <motion.button 
                 type="submit" 
-                className="text-white font-semibold py-2 px-4 rounded-xl transition-all duration-300 shadow-lg glow-primary
+                className="w-full sm:w-auto text-white font-semibold py-3 sm:py-2 px-4 rounded-xl transition-all duration-300 shadow-lg glow-primary
                            bg-gradient-to-r from-primary-start to-primary-end"
                 whileHover={{ scale: 1.05 }}
               >

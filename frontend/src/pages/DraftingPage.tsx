@@ -1,9 +1,8 @@
-// FILE: /advocatus-frontend/src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL MODIFICATION 37.4 (CODE HYGIENE):
-// 1. CLEANUP: Removed the unused 'i18n' variable from the destructuring of the
-//    'useTranslation' hook. This component only requires the 't' function.
-// 2. This resolves the final "is declared but its value is never read" warning, resulting
-//    in a clean, warning-free, and definitive final version of this file.
+// FILE: src/pages/DraftingPage.tsx
+// PHOENIX PROTOCOL - MOBILE OPTIMIZATION
+// 1. LAYOUT: Responsive grid (col-1 mobile, col-2 desktop).
+// 2. HEIGHTS: Enforced min-heights for input/output areas on mobile.
+// 3. TYPOGRAPHY: Scaled titles for better fit.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'; 
 import { apiService } from '../services/api';
@@ -33,7 +32,6 @@ interface JobState {
 const POLL_INTERVAL_MS = 3000;
 
 export const DraftingPage: React.FC = () => {
-  // --- CURE: Removed unused 'i18n' variable ---
   const { t } = useTranslation();
   const [context, setContext] = useState<string>('');
   const [job, setJob] = useState<JobState>({ 
@@ -181,15 +179,16 @@ export const DraftingPage: React.FC = () => {
 
   return (
     <motion.div 
-        className="drafting-container flex flex-col min-h-full"
+        className="drafting-container flex flex-col min-h-[calc(100vh-100px)]"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
     >
-      <h1 className="text-3xl font-extrabold text-text-primary mb-6">{t('drafting.pageTitle')}</h1>
+      <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary mb-4 sm:mb-6">{t('drafting.pageTitle')}</h1>
 
-      <div className="compact-workspace flex-grow grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="compact-input-section flex flex-col">
+      <div className="compact-workspace flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* INPUT SECTION */}
+        <div className="compact-input-section flex flex-col min-h-[50vh] lg:min-h-0">
           <motion.form 
             onSubmit={handleGenerateDocument} 
             className="compact-input-panel flex flex-col flex-1 bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl min-h-0"
@@ -198,19 +197,20 @@ export const DraftingPage: React.FC = () => {
             transition={{ duration: 0.4, delay: 0.1 }}
           >
             <div className="compact-panel-header p-4 border-b border-glass-edge/50">
-              <h2 className="text-xl font-bold text-text-primary">{t('drafting.inputPanelTitle')}</h2>
-              <p className="text-sm text-text-secondary/70">{t('drafting.inputPanelSubtitle')}</p>
+              <h2 className="text-lg sm:text-xl font-bold text-text-primary">{t('drafting.inputPanelTitle')}</h2>
+              <p className="text-xs sm:text-sm text-text-secondary/70">{t('drafting.inputPanelSubtitle')}</p>
             </div>
-            <div className="compact-panel-body flex-1 min-h-0 p-4">
+            <div className="compact-panel-body flex-1 min-h-0 p-3 sm:p-4">
               <textarea 
-                className="compact-drafting-textarea w-full h-full bg-background-dark/80 text-text-primary p-4 rounded-xl resize-none focus:ring-primary-start focus:border-primary-start border border-glass-edge"
+                className="compact-drafting-textarea w-full h-full bg-background-dark/80 text-text-primary p-3 sm:p-4 rounded-xl resize-none focus:ring-primary-start focus:border-primary-start border border-glass-edge text-sm sm:text-base"
                 placeholder={t('drafting.inputPlaceholder')}
                 value={context}
                 onChange={(e) => setContext(e.target.value)}
-                rows={10}
+                // Removed fixed rows to allow flex-grow
+                style={{ minHeight: '200px' }}
               />
             </div>
-            <div className="compact-action-bar p-4 border-t border-glass-edge/50">
+            <div className="compact-action-bar p-3 sm:p-4 border-t border-glass-edge/50">
               <motion.button 
                 type="submit"
                 className="w-full flex justify-center py-3 px-4 rounded-xl shadow-lg glow-primary text-white font-medium 
@@ -233,33 +233,29 @@ export const DraftingPage: React.FC = () => {
           </motion.form>
         </div>
 
-        <div className="compact-output-section flex flex-col min-h-0">
+        {/* OUTPUT SECTION */}
+        <div className="compact-output-section flex flex-col min-h-[50vh] lg:min-h-0">
           <div className="panel compact-output-panel flex flex-col flex-1 bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl min-h-0">
-            <div className="panel-header flex-none p-4 border-b border-glass-edge/50 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-text-primary">{t('drafting.outputPanelTitle')}</h2>
-              {isDocumentReady && (
-                <div className="flex items-center space-x-2">
+            <div className="panel-header flex-none p-4 border-b border-glass-edge/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+              <h2 className="text-lg sm:text-xl font-bold text-text-primary">{t('drafting.outputPanelTitle')}</h2>
+              <div className="flex items-center self-end sm:self-auto">
+                  {isDocumentReady && (
                     <motion.button onClick={handleExportDocx} 
                         className="w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-300 shadow-lg glow-primary
-                                     bg-gradient-to-r from-primary-start to-primary-end" 
+                                     bg-gradient-to-r from-primary-start to-primary-end mr-2" 
                         whileHover={{ scale: 1.05 }}
                         title={t('drafting.exportButton')}
                     >
-                        <DownloadIcon className="w-5 h-5 text-white" />
+                        <DownloadIcon className="w-4 h-4 text-white" />
                     </motion.button>
-                    <div className={`text-sm font-semibold px-3 py-1 rounded-full ${statusColorClasses(job.status)}`}>
-                        {job.status.toUpperCase()}
-                    </div>
-                </div>
-              )}
-              {!isDocumentReady && (
-                <div className={`text-sm font-semibold px-3 py-1 rounded-full ${statusColorClasses(job.status)}`}>
-                    {job.status === 'IDLE' ? t('drafting.idleStatus') : job.status.toUpperCase()}
-                </div>
-              )}
+                  )}
+                  <div className={`text-xs sm:text-sm font-semibold px-3 py-1 rounded-full ${statusColorClasses(job.status)}`}>
+                      {job.status === 'IDLE' ? t('drafting.idleStatus') : job.status.toUpperCase()}
+                  </div>
+              </div>
             </div>
             
-            <div className="panel-body compact-document-container flex-1 min-h-0 overflow-y-auto p-4 custom-scrollbar">
+            <div className="panel-body compact-document-container flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 custom-scrollbar">
               {job.status === 'POLLING' && (
                 <div className="h-full flex flex-col items-center justify-center text-center">
                   <svg className="animate-spin h-10 w-10 text-primary-start glow-primary mb-4" viewBox="0 0 24 24">
@@ -280,13 +276,13 @@ export const DraftingPage: React.FC = () => {
               )}
 
               {isDocumentReady && (
-                <div className="document-view space-y-4">
-                  <div className="text-center p-4 border border-accent-start/30 bg-accent-start/10 rounded-xl">
-                    <h3 className="text-xl font-bold text-accent-start">{t('drafting.readyTitle')}</h3>
-                    <p className="text-sm text-text-secondary/70">{t('drafting.readySubtitle')}</p>
+                <div className="document-view space-y-4 h-full flex flex-col">
+                  <div className="text-center p-3 border border-accent-start/30 bg-accent-start/10 rounded-xl flex-shrink-0">
+                    <h3 className="text-lg font-bold text-accent-start">{t('drafting.readyTitle')}</h3>
+                    <p className="text-xs text-text-secondary/70">{t('drafting.readySubtitle')}</p>
                   </div>
-                  <div className="bg-background-dark/80 text-text-primary p-8 rounded-xl shadow-inner border border-glass-edge overflow-y-auto max-h-[60vh]">
-                    <pre className="whitespace-pre-wrap font-mono text-sm">
+                  <div className="bg-background-dark/80 text-text-primary p-4 sm:p-6 rounded-xl shadow-inner border border-glass-edge overflow-y-auto flex-grow">
+                    <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm">
                       {job.resultText}
                     </pre>
                   </div>
@@ -296,9 +292,9 @@ export const DraftingPage: React.FC = () => {
               {job.status === 'IDLE' && (
                 <div className="h-full flex items-center justify-center text-center">
                   <div className="text-text-secondary">
-                    <div className="text-6xl mb-4">📝</div>
-                    <h3 className="text-xl font-bold text-text-primary mb-2">{t('drafting.emptyTitle')}</h3>
-                    <p className="text-text-secondary/70">{t('drafting.emptySubtitle')}</p>
+                    <div className="text-5xl sm:text-6xl mb-4 opacity-50">📝</div>
+                    <h3 className="text-lg sm:text-xl font-bold text-text-primary mb-2">{t('drafting.emptyTitle')}</h3>
+                    <p className="text-sm text-text-secondary/70">{t('drafting.emptySubtitle')}</p>
                   </div>
                 </div>
               )}
