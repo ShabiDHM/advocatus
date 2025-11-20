@@ -1,7 +1,8 @@
 // FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - PERSISTENT CHAT IMPLEMENTATION
-// 1. Hydrates chat messages from 'caseData.details.chat_history'.
-// 2. Implements 'handleClearChat' to call API and clear local state.
+// PHOENIX PROTOCOL - UI POLISH (FINDINGS PANEL)
+// 1. Redesigned FindingsPanel with 'Smart Cards' and custom scrollbar.
+// 2. Added accent borders, hover effects, and better typography.
+// 3. Included CSS-in-JS styles for the sleek scrollbar to ensure consistency.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -14,7 +15,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import useAuth from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { ArrowLeft, AlertCircle, User, Briefcase, Info } from 'lucide-react';
+import { ArrowLeft, AlertCircle, User, Briefcase, Info, Lightbulb, FileText, Search } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -22,6 +23,24 @@ type CaseData = {
     details: Case | null;
     findings: Finding[];
 };
+
+// --- STYLES FOR CUSTOM SCROLLBAR ---
+const scrollbarStyles = `
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+`;
 
 // --- SUB-COMPONENTS ---
 const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction; }> = ({ caseDetails, t }) => (
@@ -37,18 +56,61 @@ const CaseHeader: React.FC<{ caseDetails: Case; t: TFunction; }> = ({ caseDetail
       </div>
     </motion.div>
 );
+
 const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction; }> = ({ findings, t }) => {
     if (findings.length === 0) return null;
     return (
-        <motion.div className="mt-6 p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }} >
-            <h3 className="text-xl font-bold text-text-primary mb-4">{t('caseView.findingsTitle')}</h3>
-            <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                {findings.map((finding) => (
-                    <div key={finding.id} className="p-3 bg-background-dark/30 rounded-lg border border-glass-edge/50">
-                        <p className="text-sm text-text-secondary">{finding.finding_text}</p>
-                        <span className="text-xs text-text-secondary/60 mt-2 block">{t('caseView.findingSource')}: {finding.document_name || finding.document_id}</span>
-                    </div>
+        <motion.div 
+            className="mt-6 p-6 rounded-2xl shadow-xl bg-background-light/50 backdrop-blur-md border border-glass-edge"
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ duration: 0.5, delay: 0.2 }} 
+        >
+            <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-lg bg-yellow-500/20 text-yellow-400">
+                    <Lightbulb className="h-6 w-6" />
+                </div>
+                <h3 className="text-xl font-bold text-text-primary">{t('caseView.findingsTitle')}</h3>
+                <span className="text-xs font-medium px-2 py-1 rounded-full bg-background-dark border border-glass-edge text-text-secondary">
+                    {findings.length}
+                </span>
+            </div>
+            
+            <style>{scrollbarStyles}</style>
+            
+            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-3 custom-scrollbar">
+                {findings.map((finding, index) => (
+                    <motion.div 
+                        key={finding.id} 
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.05 }}
+                        className="group relative p-5 bg-background-dark/40 rounded-xl border border-glass-edge/30 hover:border-primary-start/50 hover:bg-background-dark/60 transition-all duration-300 hover:shadow-lg hover:shadow-primary-start/5"
+                    >
+                        {/* Accent Border on Left */}
+                        <div className="absolute left-0 top-4 bottom-4 w-1 bg-gradient-to-b from-primary-start to-primary-end rounded-r-full opacity-70 group-hover:opacity-100 transition-opacity" />
+                        
+                        <div className="pl-3">
+                            <p className="text-base text-gray-200 leading-relaxed">
+                                {finding.finding_text}
+                            </p>
+                            
+                            <div className="mt-4 flex items-center justify-between">
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-black/20 border border-white/5 text-xs text-gray-400">
+                                    <FileText className="h-3 w-3 text-primary-start" />
+                                    <span className="font-medium text-gray-300">{t('caseView.findingSource')}:</span>
+                                    <span className="truncate max-w-[150px] sm:max-w-[200px]">{finding.document_name || finding.document_id}</span>
+                                </div>
+                                
+                                {finding.confidence_score !== undefined && finding.confidence_score > 0 && (
+                                    <div className="flex items-center gap-1.5" title="Confidence Score">
+                                        <Search className="h-3 w-3 text-accent-start" />
+                                        <span className="text-xs font-mono text-accent-start">{Math.round(finding.confidence_score * 100)}%</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </motion.div>
                 ))}
             </div>
         </motion.div>
@@ -72,7 +134,7 @@ const CaseViewPage: React.FC = () => {
       documents: liveDocuments,
       setDocuments: setLiveDocuments,
       messages: liveMessages,
-      setMessages, // <--- EXPOSED from Hook
+      setMessages, 
       connectionStatus, 
       reconnect, 
       sendChatMessage, 
@@ -94,7 +156,6 @@ const CaseViewPage: React.FC = () => {
       
       setCaseData({ details, findings: findingsResponse || [] });
       
-      // PHOENIX FIX: Hydrate state on initial load
       if (isInitialLoad) {
           setLiveDocuments((initialDocs || []).map(sanitizeDocument));
           
@@ -104,7 +165,6 @@ const CaseViewPage: React.FC = () => {
               setMessages(details.chat_history);
           }
 
-          // Initialize ready count
           const readyDocs = (initialDocs || []).filter(d => d.status === 'COMPLETED' || d.status === 'READY');
           prevReadyCount.current = readyDocs.length;
       } else {
@@ -148,14 +208,13 @@ const CaseViewPage: React.FC = () => {
     });
   };
 
-  // NEW: Handle Clear Chat
   const handleClearChat = async () => {
       if (!caseId) return;
-      if (!window.confirm(t('chatPanel.confirmClear'))) return; // Ensure you have this translation key
+      if (!window.confirm(t('chatPanel.confirmClear'))) return;
       
       try {
           await apiService.clearChatHistory(caseId);
-          setMessages([]); // Clear local state immediately
+          setMessages([]); 
       } catch (err) {
           console.error("Failed to clear chat:", err);
           alert(t('error.generic'));
@@ -203,7 +262,7 @@ const CaseViewPage: React.FC = () => {
                   onSendMessage={sendChatMessage}
                   isSendingMessage={isSendingMessage}
                   caseId={caseData.details.id}
-                  onClearChat={handleClearChat} // <--- Wired up
+                  onClearChat={handleClearChat}
                   t={t}
                 />
             </div>
