@@ -1,8 +1,7 @@
 # FILE: backend/app/main.py
 # PHOENIX PROTOCOL - CORS & PROXY FIX
-# 1. CORS: Replaced wildcard ["*"] with 'allow_origin_regex' to support credentials.
-#    (Browsers reject 'Access-Control-Allow-Origin: *' when withCredentials=true).
-# 2. PROXY: Trusted hosts set to allow all headers from Caddy/Nginx.
+# 1. CORS: Uses regex to allow Vercel, DuckDNS, and Localhost with credentials.
+# 2. PROXY: Trusted hosts set to allow headers from the reverse proxy.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,9 +43,7 @@ app = FastAPI(title="Advocatus AI API", lifespan=lifespan)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"]) # type: ignore
 
 # 2. CORS (PHOENIX FIX)
-# We use a regex to allow localhost and any Vercel deployment to send credentials.
-# This satisfies the browser security requirement: "The value of the 'Access-Control-Allow-Origin' 
-# header in the response must not be the wildcard '*' when the request's credentials mode is 'include'."
+# Allows requests from localhost, vercel.app, and duckdns.org subdomains
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|.*\.vercel\.app|.*\.duckdns\.org)(:\d+)?",

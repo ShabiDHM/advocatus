@@ -1,7 +1,6 @@
 # FILE: backend/app/models/findings.py
-# PHOENIX PROTOCOL - PYDANTIC INHERITANCE FIX
-# 1. Removed 'document_id' from FindingBase to prevent non-default argument errors.
-# 2. Explicitly defined 'document_id' in FindingInDB and FindingOut.
+# PHOENIX PROTOCOL - COMPATIBILITY FIX
+# 1. Made 'document_id' Optional in FindingOut to prevent crashes on legacy data.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
@@ -19,7 +18,7 @@ class FindingBase(BaseModel):
 class FindingInDB(FindingBase):
     id: PyObjectId = Field(alias="_id")
     case_id: str
-    document_id: str # Required here
+    document_id: str # Required for NEW findings
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     model_config = ConfigDict(
@@ -30,7 +29,8 @@ class FindingInDB(FindingBase):
 class FindingOut(FindingBase):
     id: str
     case_id: str
-    document_id: str # Required here for frontend filtering
+    # PHOENIX FIX: Optional to allow loading old findings without crashing
+    document_id: Optional[str] = None 
     created_at: datetime
 
     model_config = ConfigDict(
