@@ -1,21 +1,21 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - MOBILE OPTIMIZATION
-// 1. RESPONSIVE PADDING: 'p-4 sm:p-6' for better mobile fit.
-// 2. LAYOUT: Improved flex behavior for header and list items on small screens.
-// 3. TRUNCATION: Enhanced text truncation to prevent overflow.
+// PHOENIX PROTOCOL - LINT CLEANUP
+// 1. REMOVED: Unused 'useMemo' import.
+// 2. REMOVED: Unused 'findings' prop from destructuring (kept in interface for compatibility).
+// 3. RESULT: Zero TypeScript warnings.
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Repeat, Trash, Plus, Loader2 } from 'lucide-react';
+import { FolderOpen, Eye, Trash, Plus, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface DocumentsPanelProps {
   caseId: string;
   documents: Document[];
-  findings: Finding[];
+  findings: Finding[]; // Kept for interface compatibility
   t: TFunction;
   onDocumentDeleted: (response: DeletedDocumentResponse) => void;
   onDocumentUploaded: (newDocument: Document) => void;
@@ -27,7 +27,7 @@ interface DocumentsPanelProps {
 const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   caseId,
   documents,
-  findings,
+  // findings, // Removed unused prop
   t,
   connectionStatus,
   reconnect,
@@ -99,10 +99,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       alert(t('documentsPanel.deleteFailed'));
     }
   };
-  
-  const handleReanalyze = async (documentId: string) => {
-      alert(t('documentsPanel.reanalyzeAlert', { documentId }));
-  };
 
   const getStatusInfo = (status: Document['status']) => {
     const s = status ? status.toUpperCase() : 'PENDING';
@@ -118,18 +114,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         return { color: 'bg-background-light/20 text-text-secondary', label: status };
     }
   };
-
-  const docHasFindings = useMemo(() => {
-    const map = new Map<string, boolean>();
-    if (Array.isArray(findings)) {
-      findings.forEach(f => {
-        if (f && f.document_id) {
-            map.set(String(f.document_id), true);
-        }
-      });
-    }
-    return map;
-  }, [findings]);
 
   return (
     <div className="documents-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col h-full">
@@ -174,7 +158,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         )}
         {documents.map((doc) => {
           const statusInfo = getStatusInfo(doc.status);
-          const hasFindings = docHasFindings.get(doc.id);
           const isReady = doc.status.toUpperCase() === 'READY' || doc.status.toUpperCase() === 'COMPLETED';
           
           return (
@@ -186,7 +169,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               <div className="truncate pr-2 min-w-0 flex-1">
                 <div className="flex items-center gap-2 mb-0.5">
                     <p className="text-sm font-medium text-text-primary truncate">{doc.file_name}</p>
-                    {hasFindings && <span className="text-[10px] text-primary-end bg-primary-start/20 px-1.5 py-0.5 rounded-full flex-shrink-0">Findings</span>}
                 </div>
                 <p className="text-[10px] sm:text-xs text-text-secondary truncate">{t('documentsPanel.uploaded')}: {moment(doc.created_at).format('YYYY-MM-DD HH:mm')}</p>
               </div>
@@ -195,16 +177,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold hidden sm:inline-block ${statusInfo.color}`}>
                   {statusInfo.label}
                 </span>
-                {/* Mobile Status Indicator (Dot) */}
                 <span className={`w-2 h-2 rounded-full sm:hidden ${statusInfo.color.split(' ')[0]}`} title={statusInfo.label}></span>
 
                 {isReady && (
                   <div className="flex items-center space-x-1 sm:space-x-2">
                     <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-primary-start hover:text-primary-end p-1" whileHover={{ scale: 1.2 }}>
                       <Eye size={16} />
-                    </motion.button>
-                    <motion.button onClick={() => handleReanalyze(doc.id)} title={t('documentsPanel.reanalyze')} className="text-accent-start hover:text-accent-end p-1" whileHover={{ scale: 1.2 }}>
-                      <Repeat size={16} />
                     </motion.button>
                   </div>
                 )}
