@@ -1,9 +1,9 @@
-// FILE: /home/user/advocatus-frontend/src/components/Header.tsx
-// PHOENIX PROTOCOL - MOBILE HEADER FIX
-// 1. VISIBILITY: "Advocatus AI" text is now visible on ALL screens (removed 'hidden').
-// 2. RESPONSIVENESS: Adjusted font sizes and spacing for better mobile fit.
+// FILE: src/components/Header.tsx
+// PHOENIX PROTOCOL - UX IMPROVEMENT
+// 1. ADDED: Click-outside handler (useRef + useEffect) to auto-close the profile menu.
+// 2. REFACTOR: Attached reference to the profile container.
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,26 @@ const Header: React.FC = () => {
   const navigate = useNavigate();
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false); 
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false); 
+  
+  // Ref for the dropdown container
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    if (isProfileMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileMenuOpen]);
 
   const navItems = useMemo(() => {
     const items = [
@@ -36,7 +56,12 @@ const Header: React.FC = () => {
 
   const handleLanguageChange = (lng: string) => { i18n.changeLanguage(lng); setIsProfileMenuOpen(false); };
   const isActive = (path: string) => location.pathname.startsWith(path);
-  const handleLogout = () => { logout(); navigate('/auth'); };
+  
+  const handleLogout = () => { 
+      setIsProfileMenuOpen(false); 
+      logout(); 
+      navigate('/auth'); 
+  };
 
   const NavLink = ({ item, isMobile = false }: { item: { name: string, path: string }, isMobile?: boolean }) => (
     <MotionLink
@@ -58,7 +83,6 @@ const Header: React.FC = () => {
   return (
     <header className="bg-background-light/50 backdrop-blur-md border-b border-glass-edge shadow-md glow-secondary/10 sticky top-0 z-30">
       <div className="container mx-auto px-3 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
-        {/* PHOENIX FIX: Adjusted spacing and text size for mobile visibility */}
         <Link to="/dashboard" className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
           <Scale className="h-6 w-6 sm:h-7 sm:w-7 text-text-primary" /> 
           <span className="text-lg sm:text-xl font-bold text-text-primary whitespace-nowrap">Advocatus AI</span>
@@ -74,7 +98,8 @@ const Header: React.FC = () => {
             <motion.button onClick={() => handleLanguageChange('al')} className={`px-2 py-1 rounded-lg transition-colors ${i18n.language === 'al' ? 'bg-primary-start text-white shadow-md' : 'text-text-secondary hover:text-text-primary'}`} whileHover={{ scale: 1.05 }}>AL</motion.button>
           </div>
 
-          <div className="relative z-40">
+          {/* Dropdown Container with Ref */}
+          <div className="relative z-40" ref={dropdownRef}>
             <button onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)} className="flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-gradient-to-r from-primary-start to-primary-end text-white font-semibold focus:outline-none glow-primary shadow-xl">
               {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
             </button>
@@ -83,7 +108,6 @@ const Header: React.FC = () => {
                 <motion.div className="absolute right-0 mt-2 w-48 bg-background-light/85 backdrop-blur-md border border-glass-edge rounded-xl shadow-2xl py-1 z-50" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                   <div className="block px-4 py-2 text-sm text-text-primary border-b border-glass-edge/50">{user?.username || t('general.userProfile')}</div>
                   
-                  {/* Mobile Language Switcher inside Menu */}
                   <div className="sm:hidden px-4 py-2 border-b border-glass-edge/50 flex justify-between">
                      <span className="text-sm text-text-secondary">Language</span>
                      <div className="flex space-x-2">
