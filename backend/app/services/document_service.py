@@ -1,7 +1,7 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - CLEANED VERSION
-# 1. Removed legacy HTTP Broadcast (trigger_websocket_broadcast) to fix 404 errors.
-# 2. State updates are now handled exclusively via Redis/SSE in the Task layer.
+# PHOENIX PROTOCOL - INTEGRATION UPDATE
+# 1. CLEANUP: Now calls 'deadline_service.delete_deadlines_by_document_id'.
+# 2. This ensures that when a document is deleted, its calendar events vanish too.
 
 import logging
 from bson import ObjectId
@@ -10,17 +10,13 @@ import datetime
 from datetime import timezone
 from pymongo.database import Database
 import redis
-# REMOVED: import httpx (No longer needed)
-import json
 from fastapi import HTTPException
 
 from ..models.document import DocumentOut, DocumentStatus
 from ..models.user import UserInDB
-from . import vector_store_service, storage_service, findings_service
+from . import vector_store_service, storage_service, findings_service, deadline_service
 
 logger = logging.getLogger(__name__)
-
-# REMOVED: INTERNAL_API_URL & BROADCAST_ENDPOINT (Legacy WebSocket Architecture)
 
 def create_document_record(
     db: Database, owner: UserInDB, case_id: str, file_name: str, storage_key: str, mime_type: str
@@ -49,11 +45,6 @@ def finalize_document_processing(
     processed_text_storage_key: Optional[str] = None, summary: Optional[str] = None,
     preview_storage_key: Optional[str] = None
 ):
-    """
-    Updates the document record in MongoDB.
-    Note: The actual SSE notification is now handled by the Celery Task (document_processing.py),
-    so we don't need to broadcast here anymore.
-    """
     try:
         doc_object_id = ObjectId(doc_id_str)
     except Exception:
@@ -68,12 +59,7 @@ def finalize_document_processing(
     if preview_storage_key:
         update_fields["preview_storage_key"] = preview_storage_key
         
-    result = db.documents.update_one({"_id": doc_object_id}, {"$set": update_fields})
-    
-    if result.modified_count > 0:
-        logger.info(f"Document {doc_id_str} finalized in DB as READY.")
-    else:
-        logger.warning(f"Document {doc_id_str} update attempted but no changes made (or doc not found).")
+    db.documents.update_one({"_id": doc_object_id}, {"$set": update_fields})
 
 def get_documents_by_case_id(db: Database, case_id: str, owner: UserInDB) -> List[DocumentOut]:
     document_dicts = list(db.documents.find({"case_id": ObjectId(case_id), "owner_id": owner.id}).sort("created_at", -1))
@@ -95,8 +81,8 @@ def get_preview_document_stream(db: Database, doc_id: str, owner: UserInDB) -> T
             raise FileNotFoundError("Preview file stream is None.")
         return file_stream, document
     except Exception as e:
-        logger.error(f"Failed to download preview document from storage for key {document.preview_storage_key}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Could not retrieve the document preview from storage.")
+        logger.error(f"Failed to download preview document: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not retrieve the document preview.")
 
 def get_original_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut]:
     document = get_and_verify_document(db, doc_id, owner)
@@ -107,15 +93,15 @@ def get_original_document_stream(db: Database, doc_id: str, owner: UserInDB) -> 
         if file_stream is None: raise FileNotFoundError
         return file_stream, document
     except Exception as e:
-        logger.error(f"Failed to download original document from storage for key {document.storage_key}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Could not retrieve the document file from storage.")
+        logger.error(f"Failed to download original document: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not retrieve the document file.")
 
 def get_document_content_by_key(storage_key: str) -> Optional[str]:
     try:
         content_bytes = storage_service.download_processed_text(storage_key)
         return content_bytes.decode('utf-8') if content_bytes else None
     except Exception as e:
-        logger.error(f"Failed to retrieve content from storage for key {storage_key}: {e}", exc_info=True)
+        logger.error(f"Failed to retrieve content: {e}", exc_info=True)
         return None
 
 def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: ObjectId, owner: UserInDB) -> List[str]:
@@ -130,6 +116,9 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
 
     deleted_finding_ids = findings_service.delete_findings_by_document_id(db=db, document_id=doc_id)
     
+    # PHOENIX FIX: Delete associated calendar events
+    deadline_service.delete_deadlines_by_document_id(db=db, document_id=doc_id_str)
+    
     vector_store_service.delete_document_embeddings(document_id=doc_id_str)
     if storage_key: storage_service.delete_file(storage_key=storage_key)
     if processed_key: storage_service.delete_file(storage_key=processed_key)
@@ -139,8 +128,5 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     
     if delete_result.deleted_count != 1:
         raise HTTPException(status_code=500, detail="Failed to delete document from database.")
-
-    # REMOVED: Legacy Broadcast. The Frontend now handles deletion via the API response
-    # (DeletedDocumentResponse) which contains the deleted IDs. 
     
     return [str(fid) for fid in deleted_finding_ids]
