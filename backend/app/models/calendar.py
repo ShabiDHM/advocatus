@@ -1,10 +1,8 @@
 # FILE: backend/app/models/calendar.py
-# DEFINITIVE VERSION (ARCHITECTURAL CONSISTENCY):
-# 1. Changed the import for PyObjectId from a relative path to an absolute path.
-#    This resolves the "unknown import symbol" error by creating a robust and
-#    unambiguous import path from the application root.
-# 2. All ID fields continue to be consistently typed with the robust 'PyObjectId'.
-# 3. PHOENIX PROTOCOL FIX: Added field validator to handle string case_id from frontend
+# PHOENIX PROTOCOL - MODEL ALIGNMENT
+# 1. RENAMED: 'user_id' -> 'owner_id' to match Service layer and DB schema.
+# 2. TYPE FIX: 'case_id' -> 'str' in DB model to match dashboard counting logic.
+# 3. ADDED: 'document_id' field for tracking source documents.
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List
@@ -12,7 +10,7 @@ from datetime import datetime
 from enum import Enum
 from bson import ObjectId
 
-from app.models.common import PyObjectId # CURE: Changed to absolute import path.
+from app.models.common import PyObjectId 
 
 class EventType(str, Enum):
     DEADLINE = "DEADLINE"
@@ -50,7 +48,6 @@ class CalendarEventBase(BaseModel):
 class CalendarEventCreate(CalendarEventBase):
     case_id: PyObjectId
 
-    # PHOENIX PROTOCOL FIX: Handle both string and ObjectId case_id inputs
     @field_validator('case_id', mode='before')
     @classmethod
     def validate_case_id(cls, v):
@@ -66,8 +63,9 @@ class CalendarEventCreate(CalendarEventBase):
 
 class CalendarEventInDB(CalendarEventBase):
     id: PyObjectId = Field(alias="_id")
-    user_id: PyObjectId
-    case_id: PyObjectId
+    owner_id: PyObjectId # PHOENIX FIX: Renamed from user_id to match DB
+    case_id: str # PHOENIX FIX: Changed to str to match dashboard counters
+    document_id: Optional[str] = None # Added for reference
     status: EventStatus = EventStatus.PENDING
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -75,5 +73,5 @@ class CalendarEventInDB(CalendarEventBase):
     model_config = ConfigDict(populate_by_name=True)
 
 class CalendarEventOut(CalendarEventInDB):
-    # The new PyObjectId class's serialization logic handles the conversion.
+    # Inherits serialization logic from InDB
     pass
