@@ -1,8 +1,8 @@
 # FILE: backend/app/services/deadline_service.py
-# PHOENIX PROTOCOL - DEADLINE SERVICE (VISIBILITY & DELETION FIX)
-# 1. TYPE FIX: Saves 'owner_id' as ObjectId so the Calendar Endpoint can find them.
-# 2. CLEANUP: Added 'delete_deadlines_by_document_id' to prevent duplicate events.
-# 3. PARSING: Retained robust Regex/JSON logic.
+# PHOENIX PROTOCOL - QUALITY & DEDUPLICATION
+# 1. DEDUPLICATION: Merges duplicate dates into single events.
+# 2. CONTEXT AWARENESS: Regex backup now grabs surrounding text for better titles.
+# 3. PROMPT: Tuned for Albanian legal context to prefer LLM over Regex.
 
 import os
 import json
@@ -24,78 +24,77 @@ def _clean_json_string(json_str: str) -> str:
     return cleaned.strip()
 
 def _extract_dates_with_regex(text: str) -> List[Dict[str, str]]:
+    """
+    Backup method: Finds dates and grabs 5 words before/after for context.
+    """
     matches = []
-    date_pattern = r'\b(\d{1,2})\s+(Janar|Shkurt|Mars|Prill|Maj|Qershor|Korrik|Gusht|Shtator|Tetor|Nëntor|Dhjetor|January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b'
+    # Regex capturing date AND surrounding context
+    date_pattern = r'(.{0,30})\b(\d{1,2})\s+(Janar|Shkurt|Mars|Prill|Maj|Qershor|Korrik|Gusht|Shtator|Tetor|Nëntor|Dhjetor|January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b(.{0,30})'
+    
     found = re.findall(date_pattern, text, re.IGNORECASE)
-    for day, month, year in found:
+    for pre, day, month, year, post in found:
         date_str = f"{day} {month} {year}"
+        # Create a better title from context
+        clean_title = f"{pre.strip()}...".replace('\n', ' ')
+        if len(clean_title) < 5: clean_title = "Afat i Dokumentit"
+            
         matches.append({
-            "title": "Afat i Gjetur (Regex)",
+            "title": clean_title, 
             "date_text": date_str,
-            "description": f"U gjet data: {date_str}"
+            "description": f"Konteksti: ...{pre} {date_str} {post}..."
         })
     return matches
 
 def _extract_dates_with_llm(full_text: str) -> List[Dict[str, str]]:
     api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        logger.warning("deadline_service.no_api_key")
-        return []
+    if not api_key: return []
 
     client = Groq(api_key=api_key)
     truncated_text = full_text[:15000] 
 
+    # PHOENIX FIX: Explicit Albanian Prompt
     prompt = f"""
-    Analyze the following legal text and identify strict deadlines.
-    Return ONLY a valid JSON array. 
+    Analizo tekstin e mëposhtëm ligjor dhe gjej afatet, datat e gjyqeve ose skadencat.
+    Kthe vetëm një JSON array valid.
+    
+    Struktura:
     [
       {{
-        "title": "Deadline Title",
-        "date_text": "DD Month YYYY",
-        "description": "Brief context"
+        "title": "Titull i shkurtër (psh: Dorëzimi i Çelësave)",
+        "date_text": "Data e saktë në tekst (psh: 5 Nëntor 2025)",
+        "description": "Shpjegim i shkurtër"
       }}
     ]
-    TEXT:
+
+    Teksti:
     {truncated_text}
     """
 
     try:
         completion = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": "You are a legal assistant. Output JSON only."},
-                {"role": "user", "content": prompt}
-            ],
+            messages=[{"role": "user", "content": prompt}],
             model="llama-3.1-70b-versatile", 
             temperature=0.0,
             response_format={"type": "json_object"}
         )
         
-        response_content = completion.choices[0].message.content
-        cleaned_content = _clean_json_string(response_content or "")
+        content = _clean_json_string(completion.choices[0].message.content or "")
+        data = json.loads(content)
         
-        try:
-            data = json.loads(cleaned_content)
-            if isinstance(data, dict):
-                for key, value in data.items():
-                    if isinstance(value, list): return value
-                return []
-            if isinstance(data, list): return data
-        except json.JSONDecodeError:
-            return _extract_dates_with_regex(response_content or "")
-        return []
+        if isinstance(data, dict):
+            for val in data.values():
+                if isinstance(val, list): return val
+            return []
+        return data if isinstance(data, list) else []
+
     except Exception:
         return _extract_dates_with_regex(truncated_text)
 
 def delete_deadlines_by_document_id(db: Database, document_id: str):
-    """
-    Deletes all calendar events associated with a specific document.
-    """
-    log = logger.bind(document_id=document_id)
     try:
-        result = db.calendar_events.delete_many({"document_id": document_id})
-        log.info("deadline_service.deletion.completed", deleted_count=result.deleted_count)
-    except Exception as e:
-        log.error("deadline_service.deletion.failed", error=str(e))
+        db.calendar_events.delete_many({"document_id": document_id})
+    except Exception:
+        pass
 
 def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
     log = logger.bind(document_id=document_id)
@@ -106,55 +105,56 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
     except Exception:
         return
 
-    if not document or not full_text:
-        return
+    if not document or not full_text: return
 
-    # PHOENIX FIX: Ensure IDs match the database schema types
     case_id_str = str(document.get("case_id", ""))
-    
-    # OWNER ID MUST BE OBJECTID for the Calendar Filter to work
     owner_id = document.get("owner_id")
     if isinstance(owner_id, str):
-        try:
-            owner_id = ObjectId(owner_id)
-        except:
-            pass
+        try: owner_id = ObjectId(owner_id)
+        except: pass
 
-    log.info("deadline_service.starting")
+    # 1. Extract
     raw_deadlines = _extract_dates_with_llm(full_text)
-    
     if not raw_deadlines:
         raw_deadlines = _extract_dates_with_regex(full_text[:5000])
 
-    if not raw_deadlines:
-        return
+    if not raw_deadlines: return
 
-    events_to_insert = []
+    # 2. Deduplicate by Date
+    # We use a dict keyed by the ISO date string to ensure only 1 event per date per document.
+    unique_events = {}
+
     for item in raw_deadlines:
         date_text = item.get("date_text", "")
         if not date_text: continue
 
         parsed_date = dateparser.parse(date_text, languages=['sq', 'en'])
         if not parsed_date: continue
+        
+        iso_date = parsed_date.date().isoformat() # YYYY-MM-DD only (ignore time)
 
-        event = {
-            "case_id": case_id_str,
-            "owner_id": owner_id, # Saved as ObjectId
-            "document_id": document_id,
-            "title": item.get("title", "Afat i Nxjerrë"),
-            "description": item.get("description", "") + f"\n\n(Burimi: {document.get('file_name', 'Document')})",
-            "start_date": parsed_date.isoformat(),
-            "end_date": parsed_date.isoformat(),
-            "is_all_day": True,
-            "event_type": "DEADLINE",
-            "priority": "HIGH",
-            "status": "PENDING",
-            "created_at": datetime.utcnow(),
-            "location": "",
-            "attendees": []
-        }
-        events_to_insert.append(event)
+        # If date already exists, just append info to description, don't create new event
+        if iso_date in unique_events:
+             unique_events[iso_date]["description"] += f"\n• {item.get('title')}"
+        else:
+            unique_events[iso_date] = {
+                "case_id": case_id_str,
+                "owner_id": owner_id,
+                "document_id": document_id,
+                "title": item.get("title", "Afat Ligjor"),
+                "description": item.get("description", "") + f"\n(Burimi: {document.get('file_name')})",
+                "start_date": parsed_date.isoformat(),
+                "end_date": parsed_date.isoformat(),
+                "is_all_day": True,
+                "event_type": "DEADLINE",
+                "priority": "HIGH",
+                "status": "PENDING",
+                "created_at": datetime.utcnow(),
+                "location": "",
+                "attendees": []
+            }
 
-    if events_to_insert:
-        result = db.calendar_events.insert_many(events_to_insert)
-        log.info("deadline_service.success", count=len(result.inserted_ids))
+    # 3. Insert
+    if unique_events:
+        db.calendar_events.insert_many(list(unique_events.values()))
+        log.info("deadline_service.success", count=len(unique_events))

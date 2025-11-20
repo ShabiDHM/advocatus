@@ -1,9 +1,8 @@
-// FILE: /home/user/advocatus-frontend/src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - MOBILE CALENDAR OPTIMIZATION
-// 1. GRID DENSITY: Reduced cell min-height on mobile (80px vs 120px).
-// 2. RESPONSIVE CONTROLS: Stacked header controls on small screens.
-// 3. MODAL SPACING: Added safe margins for modals on mobile.
-// 4. FONT SCALING: Adjusted day numbers and event titles for small screens.
+// FILE: src/pages/CalendarPage.tsx
+// PHOENIX PROTOCOL - FINAL POLISHED VERSION
+// 1. LOGIC: Hides "End Date" in modal if identical to Start Date.
+// 2. MOBILE: Preserves all responsive optimizations (grid sizes, padding).
+// 3. LOCALIZATION: Full support for Albanian date formatting.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -151,7 +150,6 @@ const CalendarPage: React.FC = () => {
     
     const startingDayIndex = (firstDayOfMonth - weekStartsOn + 7) % 7;
 
-    // PHOENIX FIX: Responsive min-height (80px on mobile, 120px on desktop)
     const cellClass = "min-h-[80px] sm:min-h-[120px] border border-glass-edge/50";
 
     const days = Array.from({ length: startingDayIndex }, (_, i) => 
@@ -504,7 +502,9 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
                         {formatFullDateTime(event.start_date)}
                       </div>
                     </div>
-                    {event.end_date && (
+                    
+                    {/* PHOENIX FIX: Only show End Date if different from Start Date */}
+                    {event.end_date && event.end_date !== event.start_date && (
                       <div>
                         <h3 className="text-sm font-medium text-text-secondary mb-1">
                           {t('calendar.detailModal.endDate')}
@@ -573,6 +573,7 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
     );
 };
 
+// Create Event Modal Component
 const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onCreate }) => {
   const { t, i18n } = useTranslation();
   const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
