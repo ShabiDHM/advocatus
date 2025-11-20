@@ -1,7 +1,7 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - CORS & PROXY FIX
-# 1. CORS: Uses regex to allow Vercel, DuckDNS, and Localhost with credentials.
-# 2. PROXY: Trusted hosts set to allow headers from the reverse proxy.
+# PHOENIX PROTOCOL - CLEANUP
+# 1. REMOVED: Search Router import and inclusion.
+# 2. RESULT: Backend no longer attempts to load the deleted search service.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,8 +19,8 @@ try:
     from app.api.endpoints.calendar import router as calendar_router
     from app.api.endpoints.api_keys import router as api_keys_router
     from app.api.endpoints.chat import router as chat_router
-    from app.api.endpoints.search import router as search_router
     from app.api.endpoints.stream import router as stream_router
+    # REMOVED: search_router
     
     try:
         from app.api.endpoints.drafting_v2 import router as drafting_v2_router
@@ -42,8 +42,7 @@ app = FastAPI(title="Advocatus AI API", lifespan=lifespan)
 # 1. Trust the Proxy
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"]) # type: ignore
 
-# 2. CORS (PHOENIX FIX)
-# Allows requests from localhost, vercel.app, and duckdns.org subdomains
+# 2. CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|.*\.vercel\.app|.*\.duckdns\.org)(:\d+)?",
@@ -62,7 +61,7 @@ api_v1_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
 api_v1_router.include_router(calendar_router, prefix="/calendar", tags=["Calendar"])
 api_v1_router.include_router(api_keys_router, prefix="/api-keys", tags=["API Keys"])
 api_v1_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
-api_v1_router.include_router(search_router, prefix="/search", tags=["Search"])
+# REMOVED: api_v1_router.include_router(search_router...)
 api_v1_router.include_router(stream_router, prefix="/stream", tags=["Streaming"])
 
 app.include_router(api_v1_router)
