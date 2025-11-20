@@ -1,39 +1,43 @@
 # FILE: backend/app/models/findings.py
-# PHOENIX PROTOCOL PHASE IV - MODIFICATION 2.0 (Data Contract Finalization)
-# CORRECTION: Adjusted model fields to account for missing data from findings_service.py 
-# (confidence_score and timestamp).
+# PHOENIX PROTOCOL - PYDANTIC INHERITANCE FIX
+# 1. Removed 'document_id' from FindingBase to prevent non-default argument errors.
+# 2. Explicitly defined 'document_id' in FindingInDB and FindingOut.
 
 from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Optional
 from datetime import datetime
-from typing import List, Optional, Dict, Any
 from .common import PyObjectId
 
-class FindingOut(BaseModel):
-    """
-    Structured Pydantic model for a single Legal Finding, serving as the
-    canonical data contract for all finding-related API endpoints.
-    """
-    id: str = Field(alias="_id")
-    case_id: str
-    source_text: str
+class FindingBase(BaseModel):
     finding_text: str
-    # MODIFIED: Made confidence_score optional and defaulted, as findings_service does not retrieve it.
-    confidence_score: float = Field(0.0, ge=0.0, le=1.0) 
-    # MODIFIED: Added extracted_at, defaulted, as findings_service does not retrieve it.
-    extracted_at: datetime = Field(default_factory=datetime.utcnow) 
+    source_text: str
     page_number: Optional[int] = None
     document_name: Optional[str] = None
-    
+    # Removed document_id from here to avoid conflict with defaults
+    confidence_score: float = 0.0
+
+class FindingInDB(FindingBase):
+    id: PyObjectId = Field(alias="_id")
+    case_id: str
+    document_id: str # Required here
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
-        json_encoders={
-            PyObjectId: str,
-            datetime: lambda v: v.isoformat()
-        }
+    )
+
+class FindingOut(FindingBase):
+    id: str
+    case_id: str
+    document_id: str # Required here for frontend filtering
+    created_at: datetime
+
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
     )
 
 class FindingsListOut(BaseModel):
-    """Wrapper model for a list of findings, serving as the new endpoint contract."""
     findings: List[FindingOut]
     count: int
