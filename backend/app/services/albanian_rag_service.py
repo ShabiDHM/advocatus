@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL MODIFICATION 2.1
-# 1. ADDED: 'chat()' method to satisfy the strict interface requirement of chat_service.py.
-#    (This fixes the "AI Unavailable" fallback error).
-# 2. RETAINED: The async timeout fix for preventing vector store hangs.
+# PHOENIX PROTOCOL MODIFICATION 3.0 (RESTORATION)
+# 1. FIX: Restored the AlbanianRAGService class definition.
+# 2. LOGIC: Includes "language='albanian'" for query embeddings.
+# 3. API: Includes 'chat()' method for compatibility.
 
 import os
 import asyncio
@@ -61,9 +61,11 @@ class AlbanianRAGService:
             # Lazy import to avoid circular dependency issues
             from .embedding_service import generate_embedding
 
+            # PHOENIX FIX 3.0: Explicitly use language='albanian' for the query embedding.
+            # This ensures we use the same model that indexed the documents.
             try:
                 query_embedding = await asyncio.wait_for(
-                    asyncio.to_thread(generate_embedding, query),
+                    asyncio.to_thread(generate_embedding, query, language='albanian'),
                     timeout=self.EMBEDDING_TIMEOUT
                 )
             except asyncio.TimeoutError:
@@ -88,6 +90,7 @@ class AlbanianRAGService:
             # --- END FIX ---
 
             if not relevant_chunks:
+                logger.warning(f"RAG: No chunks found for query '{query}' in case {case_id}. (Check language mismatch?)")
                 yield "Nuk munda të gjej informacion relevant në dokumentet e ngarkuara."
                 return
 

@@ -1,8 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - SYSTEM INTEGRITY RESTORATION
-# 1. Added robust error handling for AI service initialization.
-# 2. Added fallback response if AI is unavailable (prevents 500 crashes).
-# 3. Validated ObjectId conversion.
+# PHOENIX PROTOCOL - PYLANCE & RUNTIME FIX
+# 1. Moved AlbanianRAGService import to TOP LEVEL to satisfy Pylance static analysis.
+# 2. Maintained robust error handling: if import fails, the service degrades gracefully.
+# 3. Preserved ObjectId validation and fallback logic.
 
 from __future__ import annotations
 import os
@@ -17,25 +17,39 @@ from bson.errors import InvalidId
 from groq import AsyncGroq
 
 from app.models.case import ChatMessage
-# We keep the lazy import of vector_store_service to avoid circular dependencies
+# We keep the lazy import of vector_store_service inside functions if needed, 
+# but here it is used for type checking or initialization.
 import app.services.vector_store_service as vector_store_service
 
 logger = logging.getLogger(__name__)
 
+# --- TOP LEVEL IMPORT FOR PYLANCE STABILITY ---
+AlbanianRAGService = None
+AlbanianLanguageDetector = None
+
+try:
+    from app.services.albanian_rag_service import AlbanianRAGService
+    from app.services.albanian_language_detector import AlbanianLanguageDetector
+except ImportError as e:
+    logger.warning(f"⚠️ Chat Service: Could not import RAG components (Circular dependency or missing file?). AI Chat will be unavailable. Error: {e}")
+except Exception as e:
+    logger.error(f"⚠️ Chat Service: Unexpected error importing RAG components: {e}")
+
 def _get_rag_service_instance() -> Any:
     """
-    Lazy loads the RAG service to prevent startup crashes if dependencies are missing.
-    Returns None if initialization fails.
+    Initializes the RAG service using the globally imported class.
+    Returns None if initialization fails or class is missing.
     """
     try:
-        # Check API Key first
+        if AlbanianRAGService is None or AlbanianLanguageDetector is None:
+            logger.warning("⚠️ RAG Service classes are not available.")
+            return None
+
+        # Check API Key
         groq_api_key = os.environ.get("GROQ_API_KEY")
         if not groq_api_key:
             logger.warning("⚠️ GROQ_API_KEY is missing. Chat functionality will be limited.")
             return None
-
-        from app.services.albanian_rag_service import AlbanianRAGService
-        from app.services.albanian_language_detector import AlbanianLanguageDetector
         
         language_detector_instance = AlbanianLanguageDetector()
         albanian_groq_client = AsyncGroq(api_key=groq_api_key)
@@ -45,12 +59,9 @@ def _get_rag_service_instance() -> Any:
             llm_client=albanian_groq_client,
             language_detector=language_detector_instance
         )
-        logging.info("✅ On-demand Albanian RAG Service initialized successfully.")
+        # logger.info("✅ On-demand Albanian RAG Service initialized successfully.")
         return instance
 
-    except ImportError as e:
-        logger.error(f"❌ RAG Service Import Error (Missing Files?): {e}")
-        return None
     except Exception as e:
         logger.error(f"❌ RAG Service Initialization Error: {e}", exc_info=True)
         return None
@@ -94,11 +105,14 @@ async def get_http_chat_response(
     try:
         rag_service = _get_rag_service_instance()
         
+        # PHOENIX FIX: Ensure we call the 'chat' method which we added to the service
         if rag_service and hasattr(rag_service, 'chat'):
             full_response_text = await rag_service.chat(query=user_query, case_id=case_id)
         else:
             # Fallback if service is down/misconfigured
-            logger.warning("RAG Service unavailable, returning fallback message.")
+            if not rag_service:
+                 logger.warning("RAG Service instance is None.")
+            
             full_response_text = (
                 "Sistemi AI aktualisht nuk është i disponueshëm (API Key ose shërbimi mungon). "
                 "Ju lutemi provoni përsëri më vonë."
@@ -125,7 +139,6 @@ async def get_http_chat_response(
         )
     except Exception as e:
         logger.error(f"Failed to save AI response to DB: {e}")
-        # We don't raise here because we successfully got a response, even if saving failed logic-wise.
-        # But to be safe for the UI, we return the text.
+        # We don't raise here because we successfully got a response.
 
     return full_response_text
