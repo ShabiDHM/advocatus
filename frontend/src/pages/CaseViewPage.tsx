@@ -1,8 +1,7 @@
-// FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - MOBILE CARD FIX
-// 1. FindingsPanel: Metadata footer now stacks vertically on mobile screens (flex-col sm:flex-row).
-// 2. This ensures the "Source Document" name is fully visible and doesn't overlap the confidence score.
-// 3. LOCALIZATION: Translated "Confidence Score" tooltip.
+// FILE: src/pages/CaseViewPage.tsx
+// PHOENIX PROTOCOL - LAYOUT SYMMETRY
+// 1. ALIGNMENT: Changed 'items-start' to 'items-stretch'.
+// 2. SIZING: Added 'min-h-[600px]' to the grid to ensure robust height.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -32,7 +31,6 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 `;
 
-// --- SUB-COMPONENTS ---
 const CaseHeader: React.FC<{ 
     caseDetails: Case; 
     t: TFunction; 
@@ -108,7 +106,6 @@ const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction; }> = ({ findi
                                     <span className="truncate max-w-full">{finding.document_name || finding.document_id}</span>
                                 </div>
                                 {finding.confidence_score !== undefined && finding.confidence_score > 0 && (
-                                    // PHOENIX FIX: Translated Title
                                     <div className="flex items-center gap-1.5 self-end sm:self-auto" title={t('caseView.confidenceScore')}>
                                         <Search className="h-3 w-3 text-accent-start" />
                                         <span className="text-xs font-mono text-accent-start">{Math.round(finding.confidence_score * 100)}%</span>
@@ -133,7 +130,6 @@ const CaseViewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   
-  // Analysis State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
@@ -271,7 +267,9 @@ const CaseViewPage: React.FC = () => {
                     isAnalyzing={isAnalyzing} 
                 />
             </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start px-4 sm:px-0">
+            
+            {/* PHOENIX FIX: Equal Height Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-stretch px-4 sm:px-0 min-h-[600px]">
                 <DocumentsPanel
                   caseId={caseData.details.id}
                   documents={liveDocuments}
