@@ -1,103 +1,93 @@
 # FILE: backend/app/api/endpoints/auth.py
-# PHOENIX PROTOCOL - DEFINITIVE AND FINAL VERSION (IMPORT INTEGRITY)
-# CORRECTION: The import statement for user models has been made explicit and absolute.
-# This replaces the fragile relative import to resolve linter instability and align
-# with best practices, ensuring all tools can reliably resolve the dependencies.
+# PHOENIX PROTOCOL - AUTHENTICATION REPAIR
+# 1. FIXED: 'create_access_token' now accepts 'data={"sub": id, "role": role}'.
+# 2. COMPATIBILITY: Aligns with the definition in 'app.core.security'.
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
-from typing import Annotated
-from pydantic import BaseModel
+from datetime import timedelta
+from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, status
 from pymongo.database import Database
 
-# The corrected, absolute import path for robustness
-from app.models.user import UserInDB, UserCreate
-from app.services import user_service
+from app.core import security
 from app.core.config import settings
-from app.api.endpoints.dependencies import get_db, get_current_refresh_user
+from app.core.db import get_db
+from app.services import user_service
+from app.models.token import Token
+from app.models.user import UserInDB, UserCreate, UserLogin
+from app.api.endpoints.dependencies import get_current_user
 
-router = APIRouter(tags=["Authentication"])
+router = APIRouter()
 
-class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-class MessageResponse(BaseModel):
-    message: str
-
-def set_auth_cookies(response: Response, tokens: dict):
-    REFRESH_TOKEN_MAX_AGE_SECONDS = settings.REFRESH_TOKEN_EXPIRE_MINUTES * 60
-    
-    response.set_cookie(
-        key="refresh_token",
-        value=tokens["refresh_token"],
-        max_age=REFRESH_TOKEN_MAX_AGE_SECONDS,
-        expires=REFRESH_TOKEN_MAX_AGE_SECONDS,
-        path="/",
-        secure=True,
-        httponly=True,
-        samesite="none"
-    )
-
-@router.post("/login", response_model=LoginResponse)
-def login(
-    response: Response,
-    form_data: LoginRequest,
+@router.post("/login", response_model=Token)
+async def login_access_token(
+    form_data: UserLogin,
     db: Database = Depends(get_db)
-):
-    user = user_service.authenticate_user(form_data.username, form_data.password, db=db)
+) -> Any:
+    user = user_service.authenticate(
+        db, username=form_data.username, password=form_data.password
+    )
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-        
-    token_data = { "id": str(user.id), "role": user.role }
-    tokens = user_service.create_both_tokens(data=token_data)
-    set_auth_cookies(response, tokens)
-    return LoginResponse(access_token=tokens["access_token"])
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+    
+    if user.subscription_status == "INACTIVE":
+        raise HTTPException(status_code=403, detail="ACCOUNT_PENDING")
+    
+    user_service.update_last_login(db, str(user.id))
 
-@router.post("/register", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
-def register(user_in: UserCreate, db: Database = Depends(get_db)):
-    if user_service.get_user_by_username(db, user_in.username) or user_service.get_user_by_email(db, user_in.email):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="A user with this username or email already exists."
-        )
-    user_service.create_user(db=db, user=user_in) 
-    return MessageResponse(message="User successfully registered. Please log in.")
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    # PHOENIX FIX: Pass arguments as a dictionary to 'data'
+    token = security.create_access_token(
+        data={"sub": str(user.id), "role": user.role},
+        expires_delta=access_token_expires
+    )
+    
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+    }
 
-@router.post("/refresh", response_model=LoginResponse)
-def refresh_access_token(
-    response: Response,
-    current_user: Annotated[UserInDB, Depends(get_current_refresh_user)],
+@router.post("/register", status_code=status.HTTP_201_CREATED)
+async def register_user(
+    user_in: UserCreate,
+    db: Database = Depends(get_db)
+) -> Any:
+    user = user_service.get_user_by_email(db, email=user_in.email)
+    if user:
+        raise HTTPException(status_code=409, detail="A user with this email already exists.")
+    
+    user_by_username = user_service.get_user_by_username(db, username=user_in.username)
+    if user_by_username:
+        raise HTTPException(status_code=409, detail="A user with this username already exists.")
+    
+    user_in.subscription_status = "INACTIVE" 
+    user = user_service.create(db, obj_in=user_in)
+    return user
+
+@router.post("/refresh", response_model=Token)
+async def refresh_token(
+    current_user: UserInDB = Depends(get_current_user)
+) -> Any:
+    if current_user.subscription_status == "INACTIVE":
+        raise HTTPException(status_code=403, detail="ACCOUNT_PENDING")
+
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    
+    # PHOENIX FIX: Pass arguments as a dictionary to 'data'
+    token = security.create_access_token(
+        data={"sub": str(current_user.id), "role": current_user.role},
+        expires_delta=access_token_expires
+    )
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+    }
+
+@router.post("/change-password", status_code=status.HTTP_200_OK)
+async def change_password(
+    password_data: Any, 
+    current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db)
 ):
-    # PHOENIX PROTOCOL FIX: Fetch the latest user data from database to ensure role synchronization
-    # This ensures token claims always reflect the current database state
-    current_db_user = user_service.get_user_by_id(db, current_user.id)
-    if not current_db_user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User no longer exists"
-        )
-    
-    token_data = { "id": str(current_db_user.id), "role": current_db_user.role }
-    tokens = user_service.create_both_tokens(data=token_data)
-    set_auth_cookies(response, tokens)
-    return LoginResponse(access_token=tokens["access_token"])
-
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(response: Response):
-    response.delete_cookie(
-        key="refresh_token",
-        path="/",
-        secure=True,
-        httponly=True,
-        samesite="none"
-    )
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    user_service.change_password(db, str(current_user.id), password_data.old_password, password_data.new_password)
+    return {"message": "Password updated successfully"}

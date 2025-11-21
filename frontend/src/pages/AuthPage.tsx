@@ -1,14 +1,14 @@
 // FILE: src/pages/AuthPage.tsx
-// PHOENIX PROTOCOL - IMPORT FIX
-// 1. FIXED: Changed 'import useAuth' to 'import { useAuth }'.
-// 2. REASON: The hook is a named export, not the default export.
+// PHOENIX PROTOCOL - FRONTEND FIX
+// 1. FIXED: 'import { useAuth }' (Named Import).
+// 2. REMOVED: Unused 'CheckCircle'.
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext'; // <--- Fixed: Named Import
+import { useAuth } from '../context/AuthContext'; // <--- NAMED IMPORT
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Scale } from 'lucide-react';
+import { Scale, Clock } from 'lucide-react';
 
 const AuthPage: React.FC = () => {
   const { t } = useTranslation();
@@ -22,6 +22,7 @@ const AuthPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPendingApproval, setIsPendingApproval] = useState(false);
 
   const validateInputs = (): boolean => {
     setError(null);
@@ -39,6 +40,8 @@ const AuthPage: React.FC = () => {
     if (!validateInputs()) return;
     setIsLoading(true);
     setError(null);
+    setIsPendingApproval(false);
+
     try {
       if (isLoginMode) {
         await login({ username, password });
@@ -46,21 +49,29 @@ const AuthPage: React.FC = () => {
       } else {
         await register({ username, password, email });
         setIsLoginMode(true);
-        setError(t('auth.registerSuccess'));
+        setError(t('auth.accountCreatedWaitApproval')); 
         setPassword('');
         setConfirmPassword('');
       }
     } catch (err: any) {
       const status = err.response?.status;
       const detail = err.response?.data?.detail;
-      if (status === 422) setError(t('auth.validationError'));
-      else if (status === 409) setError(detail || t('auth.userExists'));
-      else if (status === 401) setError(t('auth.loginFailed'));
-      else setError(t('auth.networkError'));
+      
+      if (status === 403 && detail === "ACCOUNT_PENDING") {
+          setIsPendingApproval(true);
+      } else if (status === 422) {
+          setError(t('auth.validationError'));
+      } else if (status === 409) {
+          setError(detail || t('auth.userExists'));
+      } else if (status === 401) {
+          setError(t('auth.loginFailed'));
+      } else {
+          setError(t('auth.networkError'));
+      }
     } finally { setIsLoading(false); }
   };
 
-  const toggleMode = () => { setIsLoginMode(!isLoginMode); setError(null); };
+  const toggleMode = () => { setIsLoginMode(!isLoginMode); setError(null); setIsPendingApproval(false); };
   const isFormValid = isLoginMode ? (username && password) : (username && password && email && password === confirmPassword && password.length >= 8);
   
   return (
@@ -78,36 +89,49 @@ const AuthPage: React.FC = () => {
           </div>
           <p className="text-text-secondary mt-2 text-sm sm:text-base">{t('auth.subtitle')}</p>
         </div>
-        
-        <form onSubmit={handleAuth} className="space-y-4">
-          {error && <div className={`p-3 text-sm rounded-xl ${error === t('auth.registerSuccess') ? 'text-green-100 bg-green-700' : 'text-red-100 bg-red-700'}`}>{error}</div>}
-          <div>
-            <label className="block text-sm font-medium text-text-secondary">{t('auth.username')}</label>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" disabled={isLoading} />
-          </div>
-          {!isLoginMode && (
-            <div>
-              <label className="block text-sm font-medium text-text-secondary">{t('auth.email')}</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" disabled={isLoading} />
+
+        {isPendingApproval ? (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-6 text-center space-y-4">
+                <Clock className="h-12 w-12 text-yellow-400 mx-auto" />
+                <h3 className="text-lg font-bold text-white">{t('auth.approvalRequiredTitle')}</h3>
+                <p className="text-sm text-text-secondary">{t('auth.approvalRequiredMessage')}</p>
+                <button onClick={() => setIsPendingApproval(false)} className="text-sm text-primary-start hover:underline mt-2">
+                    {t('general.close')}
+                </button>
             </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-text-secondary">{t('auth.password')}</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" disabled={isLoading} />
-          </div>
-          {!isLoginMode && (
-            <div>
-              <label className="block text-sm font-medium text-text-secondary">{t('auth.passwordConfirm')}</label>
-              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" disabled={isLoading} />
-            </div>
-          )}
-          <motion.button type="submit" className={`w-full text-white font-semibold py-3 rounded-xl transition-all duration-300 shadow-lg glow-primary bg-gradient-to-r from-primary-start to-primary-end ${!isFormValid || isLoading ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={!isFormValid || isLoading} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-            {isLoading ? <span className="flex items-center justify-center"><div className="animate-spin h-5 w-5 mr-3 border-2 border-white border-t-transparent rounded-full"></div>{isLoginMode ? t('general.login') : t('auth.registerButton')}</span> : isLoginMode ? t('auth.loginButton') : t('auth.registerButton')}
-          </motion.button>
-        </form>
-        <p className="text-center text-sm text-text-secondary mt-6">
-          <button onClick={toggleMode} className="text-secondary-start hover:text-secondary-end transition-colors p-2 rounded-lg hover:bg-white/5">{isLoginMode ? t('auth.switchToRegister') : t('auth.switchToLogin')}</button>
-        </p>
+        ) : (
+            <>
+                <form onSubmit={handleAuth} className="space-y-4">
+                {error && <div className={`p-3 text-sm rounded-xl ${error === t('auth.accountCreatedWaitApproval') ? 'text-green-100 bg-green-700' : 'text-red-100 bg-red-700'}`}>{error}</div>}
+                <div>
+                    <label className="block text-sm font-medium text-text-secondary">{t('auth.username')}</label>
+                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" disabled={isLoading} />
+                </div>
+                {!isLoginMode && (
+                    <div>
+                    <label className="block text-sm font-medium text-text-secondary">{t('auth.email')}</label>
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" disabled={isLoading} />
+                    </div>
+                )}
+                <div>
+                    <label className="block text-sm font-medium text-text-secondary">{t('auth.password')}</label>
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" disabled={isLoading} />
+                </div>
+                {!isLoginMode && (
+                    <div>
+                    <label className="block text-sm font-medium text-text-secondary">{t('auth.passwordConfirm')}</label>
+                    <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="block w-full h-10 mt-1 px-4 py-2 bg-background-dark/50 rounded-xl text-text-primary focus:ring-primary-start focus:border-primary-start border border-glass-edge transition-all" disabled={isLoading} />
+                    </div>
+                )}
+                <motion.button type="submit" className={`w-full text-white font-semibold py-3 rounded-xl transition-all duration-300 shadow-lg glow-primary bg-gradient-to-r from-primary-start to-primary-end ${!isFormValid || isLoading ? 'opacity-50 cursor-not-allowed' : ''}`} disabled={!isFormValid || isLoading} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                    {isLoading ? <span className="flex items-center justify-center"><div className="animate-spin h-5 w-5 mr-3 border-2 border-white border-t-transparent rounded-full"></div>{isLoginMode ? t('general.login') : t('auth.registerButton')}</span> : isLoginMode ? t('auth.loginButton') : t('auth.registerButton')}
+                </motion.button>
+                </form>
+                <p className="text-center text-sm text-text-secondary mt-6">
+                <button onClick={toggleMode} className="text-secondary-start hover:text-secondary-end transition-colors p-2 rounded-lg hover:bg-white/5">{isLoginMode ? t('auth.switchToRegister') : t('auth.switchToLogin')}</button>
+                </p>
+            </>
+        )}
       </motion.div>
     </div>
   );

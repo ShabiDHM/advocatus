@@ -33,7 +33,10 @@
     "userExists": "User already exists.",
     "loginFailed": "Invalid username or password.",
     "networkError": "Network error. Please try again.",
-    "registerSuccess": "Registration successful! Please login."
+    "registerSuccess": "Registration successful! Please login.",
+    "accountCreatedWaitApproval": "Account created! Wait for Admin approval.",
+    "approvalRequiredTitle": "Approval Required",
+    "approvalRequiredMessage": "Your account has been created but is pending activation by an Administrator. Please try again later."
   },
   "dashboard": {
     "newCase": "New Case",
@@ -218,10 +221,10 @@
       "OTHER": "Other"
     },
     "priorities": {
-      "LOW": "Low",
-      "MEDIUM": "Medium",
+      "CRITICAL": "Critical",
       "HIGH": "High",
-      "CRITICAL": "Critical"
+      "MEDIUM": "Medium",
+      "LOW": "Low"
     }
   },
   "admin": {

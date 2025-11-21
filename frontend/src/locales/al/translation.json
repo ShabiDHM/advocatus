@@ -16,7 +16,7 @@
     "cancel": "Anulo",
     "loading": "Duke ngarkuar..."
   },
-  "auth": {
+   "auth": {
     "title": "Juristi AI",
     "subtitle": "Platforma e Juristëve",
     "username": "Emri i Përdoruesit",
@@ -35,7 +35,10 @@
     "userExists": "Përdoruesi ekziston tashmë.",
     "loginFailed": "Përdoruesi ose fjalëkalimi i gabuar.",
     "networkError": "Gabim në rrjet. Provoni përsëri.",
-    "registerSuccess": "Regjistrimi u krye! Ju lutemi hyni."
+    "registerSuccess": "Regjistrimi u krye! Ju lutemi hyni.",
+    "accountCreatedWaitApproval": "Llogaria u krijua! Prisni miratimin nga Administratori.",
+    "approvalRequiredTitle": "Kërkohet Miratimi",
+    "approvalRequiredMessage": "Llogaria juaj është krijuar por është në pritje të aktivizimit nga Administratori. Ju lutemi provoni më vonë."
   },
   "dashboard": {
     "newCase": "Rast i Ri",

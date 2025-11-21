@@ -35,7 +35,10 @@
     "userExists": "Korisnik već postoji.",
     "loginFailed": "Pogrešno korisničko ime ili lozinka.",
     "networkError": "Mrežna greška. Pokušajte ponovo.",
-    "registerSuccess": "Registracija uspešna! Molimo prijavite se."
+    "registerSuccess": "Registracija uspešna! Molimo prijavite se.",
+    "accountCreatedWaitApproval": "Nalog kreiran! Sačekajte odobrenje Administratora.",
+    "approvalRequiredTitle": "Potrebno Odobrenje",
+    "approvalRequiredMessage": "Vaš nalog je kreiran, ali čeka aktivaciju od strane Administratora. Molimo pokušajte kasnije."
   },
   "dashboard": {
     "newCase": "Novi Predmet",
