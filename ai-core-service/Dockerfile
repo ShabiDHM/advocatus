@@ -4,7 +4,7 @@ FROM python:3.10-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies (needed for some AI libraries)
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
@@ -16,8 +16,9 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download the specific Albanian Spacy model (if we use it later, ensuring it's ready)
-# RUN python -m spacy download sq_core_news_sm || true
+# CRITICAL: Download the NER Model
+# We install the multilingual model used by the legacy service
+RUN python -m spacy download xx_ent_wiki_sm
 
 # Copy the rest of the application code
 COPY . .

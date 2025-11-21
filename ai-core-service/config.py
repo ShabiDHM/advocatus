@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     # Model Configurations
     EMBEDDING_MODEL_NAME: str = "paraphrase-multilingual-mpnet-base-v2"
     RERANK_MODEL_NAME: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    NER_MODEL_NAME: str = "xx_ent_wiki_sm"
     
     # Feature Flags
     USE_LOCAL_EMBEDDINGS: bool = True

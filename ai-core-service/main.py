@@ -4,9 +4,10 @@ from contextlib import asynccontextmanager
 import logging
 
 from config import settings
-from routers import embeddings, reranking
+from routers import embeddings, reranking, ner
 from services.embedding_manager import embedding_manager
 from services.rerank_manager import rerank_manager
+from services.ner_manager import ner_manager
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -16,9 +17,15 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info(f"🚀 {settings.PROJECT_NAME} Starting...")
     
-    # Load ALL models on startup
+    # Load ALL models on startup (The Brain is waking up)
+    # 1. Embeddings (Vector Search)
     embedding_manager.load_model()
+    
+    # 2. Reranking (Relevance Sorting)
     rerank_manager.load_model()
+    
+    # 3. NER (Entity Extraction)
+    ner_manager.load_model()
     
     yield
     logger.info(f"🛑 Shutting down {settings.PROJECT_NAME}...")
@@ -40,13 +47,14 @@ app.add_middleware(
 # Register Routers
 app.include_router(embeddings.router, prefix="/embeddings", tags=["Embeddings"])
 app.include_router(reranking.router, prefix="/reranking", tags=["Reranking"])
+app.include_router(ner.router, prefix="/ner", tags=["NER"])
 
 @app.get("/")
 def root():
     return {
         "service": settings.PROJECT_NAME,
         "status": "operational", 
-        "modules": ["embeddings", "reranking"]
+        "modules": ["embeddings", "reranking", "ner"]
     }
 
 @app.get("/health")
