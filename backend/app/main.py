@@ -1,7 +1,7 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - ROUTER REGISTRATION
-# 1. IMPORTED: 'support_router'
-# 2. INCLUDED: '/api/v1/support' prefix
+# PHOENIX PROTOCOL - CORS UPDATE
+# 1. ADDED: 'juristi.tech' and subdomains to the allowed origin regex.
+# 2. RESULT: Allows your new professional domain to communicate with the API.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +20,7 @@ try:
     from app.api.endpoints.api_keys import router as api_keys_router
     from app.api.endpoints.chat import router as chat_router
     from app.api.endpoints.stream import router as stream_router
-    from app.api.endpoints.support import router as support_router # <--- NEW IMPORT
+    from app.api.endpoints.support import router as support_router
     
     try:
         from app.api.endpoints.drafting_v2 import router as drafting_v2_router
@@ -35,14 +35,16 @@ except ImportError as e:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Advocatus AI API", lifespan=lifespan)
+app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ASSEMBLY ---
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"]) # type: ignore
 
+# PHOENIX FIX: Added juristi.tech to the allowed regex
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|.*\.vercel\.app|.*\.duckdns\.org)(:\d+)?",
+    # Allows: localhost, vercel apps, duckdns, and YOUR NEW DOMAIN (root + subdomains)
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|.*\.vercel\.app|.*\.duckdns\.org|juristi\.tech|.*\.juristi\.tech)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -59,7 +61,7 @@ api_v1_router.include_router(calendar_router, prefix="/calendar", tags=["Calenda
 api_v1_router.include_router(api_keys_router, prefix="/api-keys", tags=["API Keys"])
 api_v1_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_v1_router.include_router(stream_router, prefix="/stream", tags=["Streaming"])
-api_v1_router.include_router(support_router, prefix="/support", tags=["Support"]) # <--- REGISTERED
+api_v1_router.include_router(support_router, prefix="/support", tags=["Support"])
 
 app.include_router(api_v1_router)
 
