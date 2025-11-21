@@ -4,8 +4,9 @@ from contextlib import asynccontextmanager
 import logging
 
 from config import settings
-from routers import embeddings
+from routers import embeddings, reranking
 from services.embedding_manager import embedding_manager
+from services.rerank_manager import rerank_manager
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -13,12 +14,14 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Load Models
-    logger.info("🚀 Advocatus AI Core Starting...")
+    logger.info(f"🚀 {settings.PROJECT_NAME} Starting...")
+    
+    # Load ALL models on startup
     embedding_manager.load_model()
+    rerank_manager.load_model()
+    
     yield
-    # Shutdown: Cleanup
-    logger.info("🛑 Shutting down AI Core...")
+    logger.info(f"🛑 Shutting down {settings.PROJECT_NAME}...")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -26,7 +29,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,15 +38,15 @@ app.add_middleware(
 )
 
 # Register Routers
-# We prefix with /embeddings to organize, but we can alias if needed
 app.include_router(embeddings.router, prefix="/embeddings", tags=["Embeddings"])
+app.include_router(reranking.router, prefix="/reranking", tags=["Reranking"])
 
 @app.get("/")
 def root():
     return {
-        "service": "Advocatus AI Core",
+        "service": settings.PROJECT_NAME,
         "status": "operational", 
-        "modules": ["embeddings"]
+        "modules": ["embeddings", "reranking"]
     }
 
 @app.get("/health")
