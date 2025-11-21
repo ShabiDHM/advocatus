@@ -1,8 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - LINT CLEANUP
-// 1. REMOVED: Unused 'useMemo' import.
-// 2. REMOVED: Unused 'findings' prop from destructuring (kept in interface for compatibility).
-// 3. RESULT: Zero TypeScript warnings.
+// PHOENIX PROTOCOL - LINT FIX
+// 1. CLEANUP: Removed unused 'useMemo' import.
+// 2. UI: Maintains the polished badge style and responsive layout.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -15,7 +14,7 @@ import { motion } from 'framer-motion';
 interface DocumentsPanelProps {
   caseId: string;
   documents: Document[];
-  findings: Finding[]; // Kept for interface compatibility
+  findings: Finding[];
   t: TFunction;
   onDocumentDeleted: (response: DeletedDocumentResponse) => void;
   onDocumentUploaded: (newDocument: Document) => void;
@@ -27,7 +26,6 @@ interface DocumentsPanelProps {
 const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   caseId,
   documents,
-  // findings, // Removed unused prop
   t,
   connectionStatus,
   reconnect,
@@ -51,11 +49,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
   const statusColor = (status: ConnectionStatus) => {
     switch (status) {
-      case 'CONNECTED': return 'bg-success-start text-white glow-accent';
-      case 'CONNECTING': return 'bg-accent-start text-white';
-      case 'DISCONNECTED': return 'bg-red-500 text-white';
-      case 'ERROR': return 'bg-red-500 text-white';
-      default: return 'bg-background-light text-text-secondary';
+      case 'CONNECTED': return 'bg-green-500/10 text-green-400 border-green-500/20';
+      case 'CONNECTING': return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+      default: return 'bg-red-500/10 text-red-400 border-red-500/20';
     }
   };
 
@@ -122,10 +118,11 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 overflow-hidden">
             <h2 className="text-lg sm:text-xl font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
             
-            <div className={`text-[10px] sm:text-xs font-semibold px-2 sm:px-3 py-1 rounded-full flex items-center transition-all whitespace-nowrap ${statusColor(connectionStatus)}`}>
+            <div className={`text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-full border flex items-center gap-1.5 transition-all whitespace-nowrap ${statusColor(connectionStatus)}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-400' : 'bg-red-400'}`}></span>
                 {connectionStatusText(connectionStatus)}
                 {connectionStatus !== 'CONNECTED' && (
-                  <motion.button onClick={reconnect} className="ml-2 underline text-white/80 hover:text-white" whileHover={{ scale: 1.05 }}>
+                  <motion.button onClick={reconnect} className="ml-1 underline hover:text-white" whileHover={{ scale: 1.05 }}>
                     {t('documentsPanel.reconnect')}
                   </motion.button>
                 )}
