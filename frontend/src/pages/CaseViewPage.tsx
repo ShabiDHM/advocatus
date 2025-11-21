@@ -1,7 +1,8 @@
-// FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - LAYOUT SYMMETRY
-// 1. ALIGNMENT: Changed 'items-start' to 'items-stretch'.
-// 2. SIZING: Added 'min-h-[600px]' to the grid to ensure robust height.
+// FILE: frontend/src/pages/CaseViewPage.tsx
+// PHOENIX PROTOCOL - UI CLEANUP
+// 1. REMOVED: Inline Findings Panel (Moved to Modal).
+// 2. ADDED: Button in Header to open Findings.
+// 3. LAYOUT: Pure split view (Docs | Chat), fixed height, no jumping.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -11,11 +12,12 @@ import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
+import FindingsModal from '../components/FindingsModal'; // <--- NEW IMPORT
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import useAuth from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { ArrowLeft, AlertCircle, User, Briefcase, Info, Lightbulb, FileText, Search, ShieldCheck, Loader2 } from 'lucide-react';
+import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -24,19 +26,13 @@ type CaseData = {
     findings: Finding[];
 };
 
-const scrollbarStyles = `
-  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-  .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 4px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
-`;
-
 const CaseHeader: React.FC<{ 
     caseDetails: Case; 
     t: TFunction; 
     onAnalyze: () => void; 
+    onShowFindings: () => void;
     isAnalyzing: boolean; 
-}> = ({ caseDetails, t, onAnalyze, isAnalyzing }) => (
+}> = ({ caseDetails, t, onAnalyze, onShowFindings, isAnalyzing }) => (
     <motion.div
       className="mb-6 p-4 sm:p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
       initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
@@ -44,16 +40,32 @@ const CaseHeader: React.FC<{
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
           <h1 className="text-xl sm:text-2xl font-bold text-text-primary break-words">{caseDetails.case_name}</h1>
           
-          <motion.button
-            onClick={onAnalyze}
-            disabled={isAnalyzing}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-secondary-start to-secondary-end text-white font-semibold shadow-lg glow-secondary disabled:opacity-50"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
-            {isAnalyzing ? t('analysis.analyzing', 'Duke Analizuar...') : t('analysis.analyzeButton', 'Analizo Rastin')}
-          </motion.button>
+          {/* ACTION BUTTONS */}
+          <div className="flex items-center gap-3 self-end sm:self-auto">
+              {/* Findings Button */}
+              <motion.button
+                onClick={onShowFindings}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-background-dark/50 border border-glass-edge text-text-primary font-semibold shadow hover:bg-background-dark/80 transition-all"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Lightbulb className="h-5 w-5 text-yellow-400" />
+                <span>{t('caseView.findingsTitle')}</span>
+              </motion.button>
+
+              {/* Analysis Button */}
+              <motion.button
+                onClick={onAnalyze}
+                disabled={isAnalyzing}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-secondary-start to-secondary-end text-white font-semibold shadow-lg glow-secondary disabled:opacity-50"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+                <span className="hidden sm:inline">{isAnalyzing ? t('analysis.analyzing', 'Duke Analizuar...') : t('analysis.analyzeButton', 'Analizo Rastin')}</span>
+                <span className="sm:hidden">{isAnalyzing ? '...' : 'Analizo'}</span>
+              </motion.button>
+          </div>
       </div>
       
       <div className="flex flex-wrap items-center gap-x-4 sm:gap-x-6 gap-y-2 text-xs sm:text-sm text-text-secondary">
@@ -63,62 +75,6 @@ const CaseHeader: React.FC<{
       </div>
     </motion.div>
 );
-
-const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction; }> = ({ findings, t }) => {
-    if (findings.length === 0) return null;
-    return (
-        <motion.div 
-            className="mt-6 p-4 sm:p-6 rounded-2xl shadow-xl bg-background-light/50 backdrop-blur-md border border-glass-edge"
-            initial={{ opacity: 0, y: 20 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ duration: 0.5, delay: 0.2 }} 
-        >
-            <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-yellow-500/20 text-yellow-400">
-                    <Lightbulb className="h-5 w-5 sm:h-6 sm:w-6" />
-                </div>
-                <h3 className="text-lg sm:text-xl font-bold text-text-primary">{t('caseView.findingsTitle')}</h3>
-                <span className="text-xs font-medium px-2 py-1 rounded-full bg-background-dark border border-glass-edge text-text-secondary">
-                    {findings.length}
-                </span>
-            </div>
-            
-            <style>{scrollbarStyles}</style>
-            
-            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 sm:pr-3 custom-scrollbar">
-                {findings.map((finding, index) => (
-                    <motion.div 
-                        key={finding.id} 
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        className="group relative p-4 sm:p-5 bg-background-dark/40 rounded-xl border border-glass-edge/30 hover:border-primary-start/50 hover:bg-background-dark/60 transition-all duration-300 hover:shadow-lg hover:shadow-primary-start/5"
-                    >
-                        <div className="absolute left-0 top-4 bottom-4 w-1 bg-gradient-to-b from-primary-start to-primary-end rounded-r-full opacity-70 group-hover:opacity-100 transition-opacity" />
-                        <div className="pl-3">
-                            <p className="text-sm sm:text-base text-gray-200 leading-relaxed">
-                                {finding.finding_text}
-                            </p>
-                            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-black/20 border border-white/5 text-xs text-gray-400 w-full sm:w-auto">
-                                    <FileText className="h-3 w-3 text-primary-start flex-shrink-0" />
-                                    <span className="font-medium text-gray-300 whitespace-nowrap">{t('caseView.findingSource')}:</span>
-                                    <span className="truncate max-w-full">{finding.document_name || finding.document_id}</span>
-                                </div>
-                                {finding.confidence_score !== undefined && finding.confidence_score > 0 && (
-                                    <div className="flex items-center gap-1.5 self-end sm:self-auto" title={t('caseView.confidenceScore')}>
-                                        <Search className="h-3 w-3 text-accent-start" />
-                                        <span className="text-xs font-mono text-accent-start">{Math.round(finding.confidence_score * 100)}%</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </motion.div>
-                ))}
-            </div>
-        </motion.div>
-    );
-};
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -130,9 +86,11 @@ const CaseViewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   
+  // Modals State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+  const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false); // <--- NEW STATE
 
   const prevReadyCount = useRef(0);
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -264,11 +222,11 @@ const CaseViewPage: React.FC = () => {
                     caseDetails={caseData.details} 
                     t={t} 
                     onAnalyze={handleAnalyzeCase} 
+                    onShowFindings={() => setIsFindingsModalOpen(true)} // <--- Open Findings Modal
                     isAnalyzing={isAnalyzing} 
                 />
             </div>
             
-            {/* PHOENIX FIX: Equal Height Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-stretch px-4 sm:px-0 min-h-[600px]">
                 <DocumentsPanel
                   caseId={caseData.details.id}
@@ -292,9 +250,6 @@ const CaseViewPage: React.FC = () => {
                   t={t}
                 />
             </div>
-            <div className="px-4 sm:px-0">
-                <FindingsPanel findings={caseData.findings} t={t} />
-            </div>
         </div>
       </div>
       
@@ -315,6 +270,13 @@ const CaseViewPage: React.FC = () => {
              result={analysisResult}
           />
       )}
+
+      {/* Findings Modal */}
+      <FindingsModal 
+        isOpen={isFindingsModalOpen}
+        onClose={() => setIsFindingsModalOpen(false)}
+        findings={caseData.findings}
+      />
     </motion.div>
   );
 };
