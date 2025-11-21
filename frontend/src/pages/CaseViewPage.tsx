@@ -1,8 +1,7 @@
 // FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - UI CLEANUP
-// 1. REMOVED: Inline Findings Panel (Moved to Modal).
-// 2. ADDED: Button in Header to open Findings.
-// 3. LAYOUT: Pure split view (Docs | Chat), fixed height, no jumping.
+// PHOENIX PROTOCOL - IMPORT FIX
+// 1. FIXED: Changed 'import useAuth' to 'import { useAuth }'.
+// 2. REASON: Ensures the hook function is imported so it can be called.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -12,10 +11,10 @@ import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
-import FindingsModal from '../components/FindingsModal'; // <--- NEW IMPORT
+import FindingsModal from '../components/FindingsModal';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
-import useAuth from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext'; // <--- FIXED: Named Import
 import { motion } from 'framer-motion';
 import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
@@ -40,9 +39,7 @@ const CaseHeader: React.FC<{
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
           <h1 className="text-xl sm:text-2xl font-bold text-text-primary break-words">{caseDetails.case_name}</h1>
           
-          {/* ACTION BUTTONS */}
           <div className="flex items-center gap-3 self-end sm:self-auto">
-              {/* Findings Button */}
               <motion.button
                 onClick={onShowFindings}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-background-dark/50 border border-glass-edge text-text-primary font-semibold shadow hover:bg-background-dark/80 transition-all"
@@ -53,7 +50,6 @@ const CaseHeader: React.FC<{
                 <span>{t('caseView.findingsTitle')}</span>
               </motion.button>
 
-              {/* Analysis Button */}
               <motion.button
                 onClick={onAnalyze}
                 disabled={isAnalyzing}
@@ -86,11 +82,10 @@ const CaseViewPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   
-  // Modals State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
-  const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false); // <--- NEW STATE
+  const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
 
   const prevReadyCount = useRef(0);
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -222,7 +217,7 @@ const CaseViewPage: React.FC = () => {
                     caseDetails={caseData.details} 
                     t={t} 
                     onAnalyze={handleAnalyzeCase} 
-                    onShowFindings={() => setIsFindingsModalOpen(true)} // <--- Open Findings Modal
+                    onShowFindings={() => setIsFindingsModalOpen(true)} 
                     isAnalyzing={isAnalyzing} 
                 />
             </div>
@@ -253,7 +248,6 @@ const CaseViewPage: React.FC = () => {
         </div>
       </div>
       
-      {/* Modals */}
       {viewingDocument && (
         <PDFViewerModal 
           documentData={viewingDocument}
@@ -271,7 +265,6 @@ const CaseViewPage: React.FC = () => {
           />
       )}
 
-      {/* Findings Modal */}
       <FindingsModal 
         isOpen={isFindingsModalOpen}
         onClose={() => setIsFindingsModalOpen(false)}

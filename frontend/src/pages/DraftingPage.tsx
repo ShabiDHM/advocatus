@@ -1,9 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - MOBILE OPTIMIZATION & LOCALIZATION
-// 1. LAYOUT: Responsive grid (col-1 mobile, col-2 desktop).
-// 2. HEIGHTS: Enforced min-heights for input/output areas on mobile.
-// 3. TYPOGRAPHY: Scaled titles for better fit.
-// 4. LOCALIZATION: Now using 't(drafting.status...)' instead of raw uppercase strings.
+// PHOENIX PROTOCOL - LAYOUT PERFECTED
+// 1. LAYOUT: Switched to 'h-full' to snap perfectly into the new MainLayout.
+// 2. SCROLLING: Removed internal window calculations; relies on parent flex container.
+// 3. RESULT: A clean, full-screen app experience without double scrollbars.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'; 
 import { apiService } from '../services/api';
@@ -53,14 +52,12 @@ export const DraftingPage: React.FC = () => {
     };
   }, []);
 
-
   const stopPolling = useCallback(() => {
     if (pollingIntervalRef.current) {
       clearInterval(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
   }, []);
-
 
   const startPolling = useCallback((jobId: string) => {
     stopPolling();
@@ -107,7 +104,6 @@ export const DraftingPage: React.FC = () => {
     setJob(prev => ({ ...prev, status: 'POLLING' }));
   }, [stopPolling, t]);
 
-
   const handleGenerateDocument = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     stopPolling(); 
@@ -141,7 +137,6 @@ export const DraftingPage: React.FC = () => {
       });
     }
   }, [context, startPolling, stopPolling, t]);
-
 
   const timeElapsed = job.startTime ? moment.duration(Date.now() - job.startTime).asSeconds().toFixed(0) : 0;
   const isDocumentReady = job.status === 'SUCCESS' && !!job.resultText;
@@ -177,40 +172,41 @@ export const DraftingPage: React.FC = () => {
     }
   };
 
-
   return (
+    // PHOENIX FIX: Use 'h-full' to fill the available space in MainLayout
     <motion.div 
-        className="drafting-container flex flex-col min-h-[calc(100vh-100px)]"
+        className="drafting-container flex flex-col h-full"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
     >
-      <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary mb-4 sm:mb-6">{t('drafting.pageTitle')}</h1>
+      <div className="flex-shrink-0 mb-4 sm:mb-6">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary">{t('drafting.pageTitle')}</h1>
+      </div>
 
-      <div className="compact-workspace flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <div className="compact-workspace flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-h-0">
         {/* INPUT SECTION */}
-        <div className="compact-input-section flex flex-col min-h-[50vh] lg:min-h-0">
+        <div className="compact-input-section flex flex-col min-h-0 h-full">
           <motion.form 
             onSubmit={handleGenerateDocument} 
-            className="compact-input-panel flex flex-col flex-1 bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl min-h-0"
+            className="compact-input-panel flex flex-col flex-1 bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl min-h-0 overflow-hidden"
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.4, delay: 0.1 }}
           >
-            <div className="compact-panel-header p-4 border-b border-glass-edge/50">
+            <div className="compact-panel-header p-4 border-b border-glass-edge/50 bg-background-light/50">
               <h2 className="text-lg sm:text-xl font-bold text-text-primary">{t('drafting.inputPanelTitle')}</h2>
               <p className="text-xs sm:text-sm text-text-secondary/70">{t('drafting.inputPanelSubtitle')}</p>
             </div>
-            <div className="compact-panel-body flex-1 min-h-0 p-3 sm:p-4">
+            <div className="compact-panel-body flex-1 min-h-0 p-3 sm:p-4 overflow-hidden flex flex-col">
               <textarea 
-                className="compact-drafting-textarea w-full h-full bg-background-dark/80 text-text-primary p-3 sm:p-4 rounded-xl resize-none focus:ring-primary-start focus:border-primary-start border border-glass-edge text-sm sm:text-base"
+                className="compact-drafting-textarea w-full flex-1 bg-background-dark/80 text-text-primary p-3 sm:p-4 rounded-xl resize-none focus:ring-primary-start focus:border-primary-start border border-glass-edge text-sm sm:text-base custom-scrollbar"
                 placeholder={t('drafting.inputPlaceholder')}
                 value={context}
                 onChange={(e) => setContext(e.target.value)}
-                style={{ minHeight: '200px' }}
               />
             </div>
-            <div className="compact-action-bar p-3 sm:p-4 border-t border-glass-edge/50">
+            <div className="compact-action-bar p-3 sm:p-4 border-t border-glass-edge/50 bg-background-light/50">
               <motion.button 
                 type="submit"
                 className="w-full flex justify-center py-3 px-4 rounded-xl shadow-lg glow-primary text-white font-medium 
@@ -234,9 +230,9 @@ export const DraftingPage: React.FC = () => {
         </div>
 
         {/* OUTPUT SECTION */}
-        <div className="compact-output-section flex flex-col min-h-[50vh] lg:min-h-0">
-          <div className="panel compact-output-panel flex flex-col flex-1 bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl min-h-0">
-            <div className="panel-header flex-none p-4 border-b border-glass-edge/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+        <div className="compact-output-section flex flex-col min-h-0 h-full">
+          <div className="panel compact-output-panel flex flex-col flex-1 bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl min-h-0 overflow-hidden">
+            <div className="panel-header flex-none p-4 border-b border-glass-edge/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 bg-background-light/50">
               <h2 className="text-lg sm:text-xl font-bold text-text-primary">{t('drafting.outputPanelTitle')}</h2>
               <div className="flex items-center self-end sm:self-auto">
                   {isDocumentReady && (
@@ -250,13 +246,12 @@ export const DraftingPage: React.FC = () => {
                     </motion.button>
                   )}
                   <div className={`text-xs sm:text-sm font-semibold px-3 py-1 rounded-full ${statusColorClasses(job.status)}`}>
-                      {/* PHOENIX FIX: Translating Job Status */}
                       {t(`drafting.status.${job.status}`, { defaultValue: job.status.toUpperCase() })}
                   </div>
               </div>
             </div>
             
-            <div className="panel-body compact-document-container flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 custom-scrollbar">
+            <div className="panel-body compact-document-container flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 custom-scrollbar bg-background-dark/30">
               {job.status === 'POLLING' && (
                 <div className="h-full flex flex-col items-center justify-center text-center">
                   <svg className="animate-spin h-10 w-10 text-primary-start glow-primary mb-4" viewBox="0 0 24 24">
@@ -282,7 +277,7 @@ export const DraftingPage: React.FC = () => {
                     <h3 className="text-lg font-bold text-accent-start">{t('drafting.readyTitle')}</h3>
                     <p className="text-xs text-text-secondary/70">{t('drafting.readySubtitle')}</p>
                   </div>
-                  <div className="bg-background-dark/80 text-text-primary p-4 sm:p-6 rounded-xl shadow-inner border border-glass-edge overflow-y-auto flex-grow">
+                  <div className="bg-background-dark/80 text-text-primary p-4 sm:p-6 rounded-xl shadow-inner border border-glass-edge overflow-y-auto flex-grow custom-scrollbar">
                     <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm">
                       {job.resultText}
                     </pre>
