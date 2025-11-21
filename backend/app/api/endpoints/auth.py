@@ -1,11 +1,13 @@
 # FILE: backend/app/api/endpoints/auth.py
-# PHOENIX PROTOCOL - AUTHENTICATION REPAIR
-# 1. FIXED: 'create_access_token' now accepts 'data={"sub": id, "role": role}'.
-# 2. COMPATIBILITY: Aligns with the definition in 'app.core.security'.
+# PHOENIX PROTOCOL - AUTHENTICATION STABILIZATION
+# 1. TOKEN PAYLOAD: Includes 'id' alongside 'sub' to satisfy strict security validation.
+# 2. SCHEMA: Added 'ChangePasswordSchema' to prevent AttributeError on dict access.
+# 3. TYPE SAFETY: Explicit string conversion for all ObjectIds.
 
 from datetime import timedelta
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from pymongo.database import Database
 
 from app.core import security
@@ -17,6 +19,11 @@ from app.models.user import UserInDB, UserCreate, UserLogin
 from app.api.endpoints.dependencies import get_current_user
 
 router = APIRouter()
+
+# --- Local Schemas ---
+class ChangePasswordSchema(BaseModel):
+    old_password: str
+    new_password: str
 
 @router.post("/login", response_model=Token)
 async def login_access_token(
@@ -36,9 +43,15 @@ async def login_access_token(
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    # PHOENIX FIX: Pass arguments as a dictionary to 'data'
+    # PHOENIX FIX: Include both 'sub' (standard) and 'id' (custom requirement)
+    token_payload = {
+        "sub": str(user.id),
+        "id": str(user.id), 
+        "role": user.role
+    }
+
     token = security.create_access_token(
-        data={"sub": str(user.id), "role": user.role},
+        data=token_payload,
         expires_delta=access_token_expires
     )
     
@@ -73,9 +86,15 @@ async def refresh_token(
 
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    # PHOENIX FIX: Pass arguments as a dictionary to 'data'
+    # PHOENIX FIX: Consistency in payload
+    token_payload = {
+        "sub": str(current_user.id),
+        "id": str(current_user.id),
+        "role": current_user.role
+    }
+
     token = security.create_access_token(
-        data={"sub": str(current_user.id), "role": current_user.role},
+        data=token_payload,
         expires_delta=access_token_expires
     )
     return {
@@ -85,7 +104,7 @@ async def refresh_token(
 
 @router.post("/change-password", status_code=status.HTTP_200_OK)
 async def change_password(
-    password_data: Any, 
+    password_data: ChangePasswordSchema, # PHOENIX FIX: Use Pydantic model
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db)
 ):
