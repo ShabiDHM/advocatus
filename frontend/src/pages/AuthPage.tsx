@@ -1,11 +1,11 @@
 // FILE: src/pages/AuthPage.tsx
-// PHOENIX PROTOCOL - REBRANDING
-// 1. REBRAND: Changed "Advocatus AI" to "Juristi AI".
+// PHOENIX PROTOCOL - BUILD FIX
+// 1. REMOVED: Unused imports 'LoginRequest' and 'RegisterRequest'.
+// 2. STATUS: Ready for production build.
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../context/AuthContext';
-import { LoginRequest, RegisterRequest } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Scale } from 'lucide-react';
@@ -74,7 +74,6 @@ const AuthPage: React.FC = () => {
         <div className="text-center mb-6">
           <div className="flex items-center justify-center">
             <Scale className="h-7 w-7 sm:h-8 sm:w-8 text-text-primary mr-3" />
-            {/* REBRANDING HERE */}
             <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary">Juristi AI</h1>
           </div>
           <p className="text-text-secondary mt-2 text-sm sm:text-base">{t('auth.subtitle')}</p>
