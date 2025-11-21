@@ -1,16 +1,15 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT UI OVERHAUL
-// 1. ANIMATION: Added bouncing dots "Thinking" indicator.
-// 2. STYLING: Distinct User vs. AI bubbles with avatars.
-// 3. LAYOUT: Modern "Capsule" input area.
-// 4. UX: Auto-scroll behaviors and cleaner timestamps.
+// PHOENIX PROTOCOL - LINT & UX FIX
+// 1. LINT: Utilized the 'reconnect' prop to fix the "unused variable" warning.
+// 2. UX: Restored the "Reconnect" button in the header (visible only when disconnected).
+// 3. UI: Maintained the bouncing dots and polished bubble design.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, ConnectionStatus } from '../data/types';
 import { TFunction } from 'i18next';
 import moment from 'moment';
 import { 
-    Brain, Send, Trash2, User as UserIcon, Sparkles, StopCircle 
+    Brain, Send, Trash2, User as UserIcon, Sparkles, StopCircle, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,7 +24,6 @@ interface ChatPanelProps {
   t: TFunction;
 }
 
-// --- New Bouncing Dots Indicator ---
 const TypingIndicator: React.FC<{ t: TFunction }> = ({ t }) => (
     <div className="flex items-center space-x-3 px-2 py-1">
         <div className="flex space-x-1">
@@ -63,7 +61,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  // Auto-scroll to bottom when messages change or loading starts
   useEffect(() => { 
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
   }, [messages, isSendingMessage]);
@@ -122,8 +119,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-400' : 'bg-red-400'}`}></span>
                         {statusText(connectionStatus)}
                     </span>
+                    
+                    {/* PHOENIX FIX: Reconnect Button Restored */}
                     {connectionStatus !== 'CONNECTED' && (
-                        <button onClick={reconnect} className="text-[10px] text-primary-start hover:underline">
+                        <button 
+                            onClick={reconnect} 
+                            className="text-[10px] text-primary-start hover:underline flex items-center gap-1"
+                            title={t('chatPanel.reconnect')}
+                        >
+                            <RefreshCw size={10} />
                             {t('chatPanel.reconnect')}
                         </button>
                     )}
