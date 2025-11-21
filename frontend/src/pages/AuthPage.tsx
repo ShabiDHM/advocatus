@@ -1,11 +1,11 @@
 // FILE: src/pages/AuthPage.tsx
-// PHOENIX PROTOCOL - BUILD FIX
-// 1. REMOVED: Unused imports 'LoginRequest' and 'RegisterRequest'.
-// 2. STATUS: Ready for production build.
+// PHOENIX PROTOCOL - IMPORT FIX
+// 1. FIXED: Changed 'import useAuth' to 'import { useAuth }'.
+// 2. REASON: The hook is a named export, not the default export.
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import useAuth from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext'; // <--- Fixed: Named Import
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Scale } from 'lucide-react';

@@ -1,9 +1,13 @@
 // FILE: src/context/AuthContext.tsx
+// PHOENIX PROTOCOL - UX UPDATE
+// 1. ADDED: Loading spinner to the initialization screen.
+// 2. LOGIC: Robust session validation loop.
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';
 import { apiService } from '../services/api';
 import { jwtDecode } from 'jwt-decode';
+import { Loader2 } from 'lucide-react'; // Visual feedback
 
 interface DecodedToken {
     sub: string;
@@ -12,7 +16,6 @@ interface DecodedToken {
     role?: string;
 }
 
-// Extended User type that includes the token, strictly for AuthContext usage
 type AuthUser = User & { token?: string };
 
 interface AuthContextType {
@@ -36,7 +39,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
   }, []);
 
-  // Set the logout handler once when the component mounts
   useEffect(() => {
     apiService.setLogoutHandler(logout);
   }, [logout]);
@@ -55,7 +57,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUser({ ...fullUser, token: access_token, role: normalizedRole });
 
       } catch (error) {
-        console.error("Session validation failed. User is not logged in.", error);
+        console.log("No active session found, redirecting to login.");
         logout();
       } finally {
         setIsLoading(false);
@@ -88,7 +90,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   if (isLoading) {
-    return <div className="min-h-screen bg-background-dark flex items-center justify-center"></div>;
+    // PHOENIX FIX: Visual Loading State instead of blank screen
+    return (
+        <div className="min-h-screen bg-background-dark flex items-center justify-center">
+            <div className="text-center">
+                <Loader2 className="h-12 w-12 text-primary-start animate-spin mx-auto mb-4" />
+                <h2 className="text-xl font-bold text-text-primary">Advocatus AI</h2>
+            </div>
+        </div>
+    );
   }
 
   return (
@@ -104,4 +114,4 @@ export const useAuth = (): AuthContextType => {
   return context;
 };
 
-export default useAuth;
+export default AuthContext;

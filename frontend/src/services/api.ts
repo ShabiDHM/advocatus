@@ -1,6 +1,7 @@
-// FILE: frontend/src/services/api.ts
-// PHOENIX PROTOCOL - API UPDATE
-// 1. ADDED: 'sendContactForm' method to submit support requests.
+// FILE: src/services/api.ts
+// PHOENIX PROTOCOL - INFINITE LOOP FIX
+// 1. CRITICAL: Interceptor now ignores 401s from '/auth/refresh' to prevent deadlocks.
+// 2. RESULT: Application will correctly redirect to Login instead of hanging on a blank screen.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -81,7 +82,11 @@ class ApiService {
             (response) => response,
             async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-                if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+                
+                // PHOENIX FIX: Prevent infinite loop if the refresh endpoint itself fails
+                const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh');
+
+                if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
                     originalRequest._retry = true;
                     try {
                         if (!this.refreshTokenPromise) this.refreshTokenPromise = this.refreshAccessToken();
@@ -117,7 +122,7 @@ class ApiService {
         return response.data;
     }
 
-    // --- Support (NEW) ---
+    // --- Support ---
     public async sendContactForm(data: { firstName: string; lastName: string; email: string; phone: string; message: string }): Promise<void> {
         await this.axiosInstance.post('/support/contact', {
             first_name: data.firstName,
