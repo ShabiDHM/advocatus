@@ -1,243 +1,136 @@
-// FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - UX & UI POLISH
-// 1. THINKING: Increased min-display time to 1.5s so the user sees the animation.
-// 2. ANIMATION: Enhanced bouncing dots visibility.
-// 3. STYLE: Maintained the consistent glass-morphism look.
+// FILE: src/components/CaseCard.tsx
+// PHOENIX PROTOCOL - NAVIGATION LOGIC FIX
+// 1. NAVIGATION: Added 'handleCalendarNav' to redirect Alerts/Events clicks to /calendar.
+// 2. INTERACTION: Used e.preventDefault() and e.stopPropagation() to prevent opening the case details.
+// 3. MOBILE: Maintained previous responsive optimizations.
 
-import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage, ConnectionStatus } from '../data/types';
-import { TFunction } from 'i18next';
-import moment from 'moment';
-import { Brain, Send, Trash2, User as UserIcon, Sparkles, StopCircle, RefreshCw } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Case } from '../data/types';
+import { useTranslation } from 'react-i18next';
+import { motion } from 'framer-motion';
+import { Trash2, FileText, AlertTriangle, CalendarDays } from 'lucide-react';
 
-interface ChatPanelProps {
-  caseId: string;
-  messages: ChatMessage[];
-  connectionStatus: ConnectionStatus;
-  onSendMessage: (text: string) => void;
-  isSendingMessage: boolean;
-  reconnect: () => void;
-  onClearChat: () => void;
-  t: TFunction;
+const MotionLink = motion(Link);
+
+interface CaseCardProps {
+  caseData: Case;
+  onDelete: (caseId: string) => void;
 }
 
-const TypingIndicator: React.FC<{ t: TFunction }> = ({ t }) => (
-    <div className="flex items-center space-x-3 px-3 py-2 bg-background-light/50 rounded-2xl rounded-bl-none border border-glass-edge backdrop-blur-md w-fit shadow-lg">
-        <div className="flex space-x-1.5">
-            <motion.div 
-                className="w-2.5 h-2.5 bg-primary-start rounded-full"
-                animate={{ y: [0, -8, 0] }} // Higher bounce
-                transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0 }}
-            />
-            <motion.div 
-                className="w-2.5 h-2.5 bg-primary-start rounded-full"
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0.2 }}
-            />
-            <motion.div 
-                className="w-2.5 h-2.5 bg-primary-start rounded-full"
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 0.8, repeat: Infinity, ease: "easeInOut", delay: 0.4 }}
-            />
-        </div>
-        <span className="text-xs text-text-primary font-semibold animate-pulse">
-            {t('chatPanel.thinking', 'Duke analizuar...')}
-        </span>
-    </div>
-);
+const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
 
-const ChatPanel: React.FC<ChatPanelProps> = ({ 
-    messages, connectionStatus, onSendMessage, isSendingMessage, reconnect, onClearChat, t 
-}) => {
-  const [inputText, setInputText] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [showThinking, setShowThinking] = useState(false);
-
-  useEffect(() => { 
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
-  }, [messages, showThinking]);
-
-  // Force "Thinking" to show for at least 1.5 seconds to give a natural feel
-  useEffect(() => {
-      if (isSendingMessage) {
-          setShowThinking(true);
-      } else {
-          const timer = setTimeout(() => setShowThinking(false), 1500);
-          return () => clearTimeout(timer);
-      }
-  }, [isSendingMessage]);
-
-  const handleSubmit = (e: React.FormEvent) => { 
-      e.preventDefault(); 
-      if (inputText.trim() && !isSendingMessage) { 
-          onSendMessage(inputText.trim()); 
-          setInputText(''); 
-      } 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDelete(caseData.id);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { 
-      if (e.key === 'Enter' && !e.shiftKey) { 
-          e.preventDefault(); 
-          handleSubmit(e as unknown as React.FormEvent); 
-      } 
+  const handleCalendarNav = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Redirect to calendar. In the future, we could append ?caseId=... for filtering
+    navigate('/calendar');
   };
 
-  const statusColor = (status: ConnectionStatus) => {
-    switch (status) {
-      case 'CONNECTED': return 'bg-green-500/10 text-green-400 border-green-500/20';
-      case 'CONNECTING': return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
-      default: return 'bg-red-500/10 text-red-400 border-red-500/20';
-    }
-  };
-
-  const statusText = (status: ConnectionStatus) => {
-    switch (status) {
-      case 'CONNECTED': return t('chatPanel.statusConnected');
-      case 'CONNECTING': return t('chatPanel.statusConnecting');
-      case 'DISCONNECTED': return t('chatPanel.statusDisconnected');
-      case 'ERROR': return t('chatPanel.statusError');
-    }
-  };
+  const formattedDate = new Date(caseData.created_at).toLocaleDateString(undefined, {
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  });
 
   return (
-    <motion.div 
-        className="flex flex-col h-[500px] sm:h-[650px] bg-background-light/30 backdrop-blur-md border border-glass-edge rounded-2xl shadow-2xl overflow-hidden relative" 
-        initial={{ opacity: 0, scale: 0.98 }} 
-        animate={{ opacity: 1, scale: 1 }} 
-        transition={{ duration: 0.4 }}
+    <MotionLink 
+      to={`/case/${caseData.id}`}
+      className="p-4 sm:p-6 rounded-2xl shadow-lg transition-all duration-300 cursor-pointer 
+                 bg-background-light/50 backdrop-blur-sm border border-glass-edge
+                 flex flex-col justify-between h-full"
+      whileHover={{ 
+        scale: 1.02, 
+        boxShadow: '0 0 15px rgba(59, 130, 246, 0.3)'
+      }}
+      whileTap={{ scale: 0.98 }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
     >
-      {/* --- Header --- */}
-      <div className="flex-none p-4 border-b border-glass-edge bg-background-dark/80 flex flex-row justify-between items-center gap-2 z-10">
-        <div className="flex items-center space-x-3 min-w-0">
-            <div className="p-2 bg-primary-start/20 rounded-lg">
-                <Brain className="h-5 w-5 sm:h-6 sm:w-6 text-primary-start" />
-            </div>
-            <div>
-                <h2 className="text-base sm:text-lg font-bold text-text-primary truncate leading-tight">{t('chatPanel.title')}</h2>
-                <div className="flex items-center gap-2">
-                    <div className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1.5 ${statusColor(connectionStatus)}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                        {statusText(connectionStatus)}
-                    </div>
-                    
-                    {connectionStatus !== 'CONNECTED' && (
-                        <button 
-                            onClick={reconnect} 
-                            className="text-[10px] text-primary-start hover:underline flex items-center gap-1"
-                            title={t('chatPanel.reconnect')}
-                        >
-                            <RefreshCw size={10} />
-                            {t('chatPanel.reconnect')}
-                        </button>
-                    )}
-                </div>
-            </div>
+      <div>
+        {/* Header Section */}
+        <div className="flex flex-col mb-3 sm:mb-4">
+          <h2 className="text-lg sm:text-xl font-bold text-text-primary compact-line-clamp-2 pr-2 break-words">
+            {caseData.case_name}
+          </h2>
+          <p className="text-xs text-text-secondary/70 mt-1">
+            {t('caseCard.createdOn')}: {formattedDate}
+          </p>
         </div>
         
-        <button 
-            onClick={onClearChat} 
-            title={t('chatPanel.clearChat')}
-            className="p-2 text-text-secondary hover:text-red-400 hover:bg-white/5 rounded-full transition-colors"
-        >
-            <Trash2 className="h-4 w-4 sm:h-5 sm:w-5" />
-        </button>
+        {/* Client Details Section */}
+        <div className="flex flex-col space-y-1 mb-4">
+          <p className="text-sm sm:text-base font-bold text-text-primary border-b border-glass-edge/50 pb-2 mb-2">
+            {t('caseCard.client')}
+          </p>
+          <div className="flex flex-col space-y-1 pl-1">
+              <p className="text-sm text-text-secondary truncate">{caseData.client?.name || 'N/A'}</p>
+              {caseData.client?.email && (
+                  <p className="text-xs text-text-secondary/80 truncate">E-mail: {caseData.client.email}</p>
+              )}
+              {caseData.client?.phone && (
+                  <p className="text-xs text-text-secondary/80 truncate">Tel: {caseData.client.phone}</p>
+              )}
+          </div>
+        </div>
       </div>
+      
+      <div>
+        {/* Statistics Section - Interactive Icons */}
+        <div className="pt-3 sm:pt-4 border-t border-glass-edge/50 flex items-center justify-start space-x-4 text-text-secondary">
+          {/* Documents - Static (Part of Case View) */}
+          <div className="flex items-center space-x-1" title={`${caseData.document_count} ${t('caseCard.documents')}`}>
+            <FileText className="h-4 w-4 text-primary-start" />
+            <span className="text-xs sm:text-sm font-medium">{caseData.document_count}</span>
+          </div>
 
-      {/* --- Messages Area --- */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-6 custom-scrollbar bg-gradient-to-b from-background-dark/50 to-background-dark/90">
-        
-        {messages.length === 0 && !showThinking && ( 
-            <div className="flex flex-col items-center justify-center h-full text-center text-text-secondary space-y-4 opacity-60">
-                <Sparkles className="w-12 h-12 text-primary-start/50" />
-                <p className="text-sm sm:text-base max-w-xs">{t('chatPanel.welcomeMessage')}</p>
-            </div>
-        )}
-        
-        {messages.map((msg: ChatMessage, index: number) => (
-          <motion.div 
-            key={index} 
-            className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} items-end gap-2`} 
-            initial={{ opacity: 0, y: 10 }} 
-            animate={{ opacity: 1, y: 0 }} 
-            transition={{ duration: 0.3 }}
+          {/* Alerts - Clickable -> Calendar */}
+          <button 
+            onClick={handleCalendarNav}
+            className="flex items-center space-x-1 hover:text-accent-start transition-colors group" 
+            title={`${caseData.alert_count} ${t('caseCard.alerts')}`}
           >
-            {msg.sender === 'ai' && (
-                <div className="w-8 h-8 rounded-full bg-background-light border border-glass-edge flex items-center justify-center flex-shrink-0 shadow-sm">
-                    <Brain className="w-4 h-4 text-primary-start" />
-                </div>
-            )}
+            <AlertTriangle className="h-4 w-4 text-accent-start group-hover:scale-110 transition-transform" />
+            <span className="text-xs sm:text-sm font-medium">{caseData.alert_count}</span>
+          </button>
 
-            <div className={`
-                max-w-[85%] sm:max-w-[75%] p-3 sm:p-4 rounded-2xl shadow-md text-sm sm:text-base leading-relaxed relative
-                ${msg.sender === 'user' 
-                    ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' 
-                    : 'bg-background-light/60 backdrop-blur-md border border-glass-edge text-text-primary rounded-bl-none'
-                }
-            `}>
-              <p className="whitespace-pre-wrap">{msg.content || msg.text || ""}</p>
-              <span className={`text-[10px] absolute bottom-1 right-3 opacity-60 ${msg.sender === 'user' ? 'text-white' : 'text-text-secondary'}`}>
-                 {moment(msg.timestamp).format('HH:mm')}
-              </span>
-            </div>
+          {/* Events - Clickable -> Calendar */}
+          <button 
+            onClick={handleCalendarNav}
+            className="flex items-center space-x-1 hover:text-purple-400 transition-colors group" 
+            title={`${caseData.event_count} ${t('caseCard.events')}`}
+          >
+            <CalendarDays className="h-4 w-4 text-purple-400 group-hover:scale-110 transition-transform" />
+            <span className="text-xs sm:text-sm font-medium">{caseData.event_count}</span>
+          </button>
+        </div>
 
-            {msg.sender === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-secondary-start border border-transparent flex items-center justify-center flex-shrink-0 shadow-sm">
-                    <UserIcon className="w-4 h-4 text-white" />
-                </div>
-            )}
-          </motion.div>
-        ))}
-        
-        <AnimatePresence>
-            {showThinking && (
-            <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                className="flex justify-start items-end gap-2"
-            >
-                <div className="w-8 h-8 rounded-full bg-background-light border border-glass-edge flex items-center justify-center flex-shrink-0">
-                    <Brain className="w-4 h-4 text-primary-start animate-pulse" />
-                </div>
-                <TypingIndicator t={t} />
-            </motion.div>
-            )}
-        </AnimatePresence>
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* --- Input Area --- */}
-      <div className="flex-none p-3 sm:p-4 border-t border-glass-edge bg-background-dark/90 backdrop-blur-xl">
-        <form onSubmit={handleSubmit} className="flex items-end space-x-2 relative">
-          <div className="flex-1 relative">
-              <textarea 
-                value={inputText} 
-                onChange={(e) => setInputText(e.target.value)} 
-                onKeyDown={handleKeyDown} 
-                rows={1} 
-                placeholder={t('chatPanel.inputPlaceholder')} 
-                className="w-full resize-none py-3 pl-4 pr-12 border border-glass-edge rounded-2xl bg-background-light/50 text-text-primary text-sm sm:text-base focus:ring-2 focus:ring-primary-start focus:border-transparent transition-all shadow-inner custom-scrollbar max-h-[100px] placeholder:text-text-secondary/50"
-                disabled={connectionStatus !== 'CONNECTED' || isSendingMessage} 
-                style={{ minHeight: '48px' }}
-              />
+        {/* Footer: Actions */}
+        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-glass-edge/50 flex items-center justify-between text-xs text-text-secondary/70">
+          <div className="text-primary-start hover:text-primary-end transition-colors font-medium flex items-center">
+            {t('caseCard.viewDetails')} <span className="ml-1">→</span>
           </div>
           
-          <motion.button 
-            type="submit" 
-            className={`h-12 w-12 flex-shrink-0 flex items-center justify-center rounded-2xl transition-all duration-300 shadow-lg 
-                        ${isSendingMessage || inputText.trim().length === 0 
-                            ? 'bg-gray-700 cursor-not-allowed text-gray-400' 
-                            : 'bg-gradient-to-r from-primary-start to-primary-end text-white glow-primary hover:scale-105 active:scale-95'}`
-            } 
-            disabled={connectionStatus !== 'CONNECTED' || isSendingMessage || inputText.trim().length === 0}
+          <motion.button
+            onClick={handleDeleteClick}
+            className="p-2 -m-2 text-red-500 hover:text-red-400 transition-colors"
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            title={t('caseCard.deleteCase')}
           >
-            {isSendingMessage ? <StopCircle size={20} className="animate-pulse" /> : <Send size={20} className="ml-0.5" />}
+            <Trash2 className="h-5 w-5" />
           </motion.button>
-        </form>
+        </div>
       </div>
-    </motion.div>
+    </MotionLink>
   );
 };
 
-export default ChatPanel;
+export default CaseCard;
