@@ -1,9 +1,30 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - FINAL PRODUCTION VERSION
-# CORRECTION: Removed the diagnostic 'command' override from the 'caddy' service
-# to restore its standard production startup behavior.
+# PHOENIX PROTOCOL - PHASE 1: FOUNDATION
+# Status: ai-core-service added, legacy services retained for safety.
 
 services:
+  # -------------------------------------------------------
+  # NEW UNIFIED AI CORE (The Future Home of all AI logic)
+  # -------------------------------------------------------
+  ai-core-service:
+    build: 
+      context: ./ai-core-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8010:8000" # Exposed on 8010 to avoid conflict with legacy backend
+    networks:
+      - phoenix_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # -------------------------------------------------------
+  # EXISTING INFRASTRUCTURE
+  # -------------------------------------------------------
   caddy:
     image: caddy:latest
     restart: unless-stopped
@@ -40,6 +61,9 @@ services:
     networks: [phoenix_net]
     depends_on: { redis: { condition: service_healthy }, mongo: { condition: service_healthy }, backend: { condition: service_started } }
 
+  # -------------------------------------------------------
+  # LEGACY MICROSERVICES (To be deprecated in Phase 2)
+  # -------------------------------------------------------
   embedding-service:
     build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: embedding_service } }
     networks: [phoenix_net]
@@ -71,6 +95,9 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8000
     healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
 
+  # -------------------------------------------------------
+  # DATABASE & CACHE
+  # -------------------------------------------------------
   mongo:
     image: mongo:6.0
     restart: unless-stopped
