@@ -11,7 +11,10 @@
     "allRightsReserved": "All Rights Reserved",
     "contactSupport": "Contact Support",
     "privacyPolicy": "Privacy Policy",
-    "notAvailable": "N/A"
+    "notAvailable": "N/A",
+    "close": "Close",
+    "cancel": "Cancel",
+    "loading": "Loading..."
   },
   "admin": {
     "pageTitle": "Admin Panel",
@@ -258,7 +261,8 @@
     "passwordTooShort": "Password must be at least 8 characters.",
     "loginFailed": "Login failed. Please check credentials.",
     "registerFailed": "Registration failed. Please try again.",
-    "networkError": "Network Error. Please contact support."
+    "networkError": "Network Error. Please contact support.",
+    "registerSuccess": "Registration successful! Please login."
   },
   "dashboard": {
     "newCase": "New Case",
@@ -309,6 +313,15 @@
     "genericError": "Case not found or an error occurred.",
     "tryAgain": "Try Again"
   },
+  "analysis": {
+    "analyzeButton": "Analyze Case",
+    "analyzing": "Analyzing...",
+    "modalTitle": "Case Analysis",
+    "summary": "Executive Summary",
+    "risks": "Legal Risks",
+    "contradictions": "Contradictions",
+    "missing": "Missing Information"
+  },
   "documentView": {
     "backToCase": "Back to Case",
     "details": "Details",
@@ -351,7 +364,10 @@
     "statusFailed": "Failed",
     "statusConnected": "Connected",
     "statusConnecting": "Connecting",
-    "statusDisconnected": "Disconnected"
+    "statusDisconnected": "Disconnected",
+    "statusError": "Error",
+    "uploadFailed": "Upload Failed",
+    "reanalyzeAlert": "Re-analysis started for document {documentId}"
   },
   "chatPanel": {
     "title": "Socratic Assistant",
@@ -361,7 +377,10 @@
     "statusConnected": "Connected",
     "statusConnecting": "Connecting",
     "statusDisconnected": "Disconnected",
-    "thinking": "Thinking..."
+    "statusError": "Error",
+    "thinking": "Thinking...",
+    "clearChat": "Clear Chat",
+    "confirmClear": "Are you sure you want to clear the chat history?"
   },
   "accountPage": {
     "pageTitle": "Account Settings",
@@ -392,7 +411,8 @@
       "deleteSuccess": "API key deleted successfully.",
       "deleteFailed": "Failed to delete API key.",
       "fieldsRequired": "Key Name and API Key are required.",
-      "confirmDelete": "Are you sure you want to delete this API key?"
+      "confirmDelete": "Are you sure you want to delete this API key?",
+      "loadingKeys": "Loading keys..."
     },
     "deleteAccount": {
       "title": "Danger Zone",
@@ -409,6 +429,11 @@
     "noCaseId": "No case ID provided.",
     "failedToLoadCase": "Failed to load case details."
   },
+  "footer": {
+    "allRightsReserved": "All Rights Reserved",
+    "contactSupport": "Contact Support",
+    "privacyPolicy": "Privacy Policy"
+  },
   "pdfViewer": {
     "errorTitle": "Display Error",
     "errorPreviewNotReady": "Preview for this document is not ready or has failed. Please try again later or download the original document.",
@@ -417,6 +442,9 @@
     "download": "Download Original",
     "close": "Close",
     "loading": "Loading preview...",
-    "pageLabel": "Page"
+    "pageLabel": "Page",
+    "downloadToViewMessage": "This file type cannot be previewed in browser. Please download.",
+    "downloadOriginal": "Download",
+    "previewNotAvailable": "Preview Not Available"
   }
 }
