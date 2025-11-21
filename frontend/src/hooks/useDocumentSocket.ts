@@ -1,16 +1,18 @@
-// FILE: frontend/src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - STATE EXPOSURE FIX
-// 1. Exposed 'setMessages' to allow hydration of chat history from DB.
+// FILE: src/hooks/useDocumentSocket.ts
+// PHOENIX PROTOCOL - DOMAIN FIX
+// 1. FIX: Removed hardcoded 'duckdns' URL.
+// 2. INTEGRATION: Imports 'API_V1_URL' directly from api.ts.
+//    This ensures it ALWAYS uses the correct 'juristi.tech' domain.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
-import { apiService } from '../services/api';
+import { apiService, API_V1_URL } from '../services/api'; // <--- IMPORT API_V1_URL
 
 interface UseDocumentSocketReturn {
   documents: Document[];
   setDocuments: Dispatch<SetStateAction<Document[]>>;
   messages: ChatMessage[];
-  setMessages: Dispatch<SetStateAction<ChatMessage[]>>; // <--- EXPOSED
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
   sendChatMessage: (content: string) => void;
@@ -52,8 +54,9 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                 return;
             }
 
-            const baseUrl = import.meta.env.VITE_API_URL || 'https://advocatus-prod-api.duckdns.org';
-            const sseUrl = `${baseUrl}/api/v1/stream/updates?token=${token}`;
+            // PHOENIX FIX: Use the shared API URL from services/api.ts
+            // This automatically adapts to whatever is set in Vercel (api.juristi.tech)
+            const sseUrl = `${API_V1_URL}/stream/updates?token=${token}`;
             
             console.log(`SSE: Connecting to ${sseUrl}`);
 
