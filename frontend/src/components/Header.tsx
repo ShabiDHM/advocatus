@@ -1,6 +1,7 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - REBRANDING
-// 1. REBRAND: Changed "Advocatus AI" to "Juristi AI".
+// PHOENIX PROTOCOL - LANGUAGE UPDATE
+// 1. ADDED: 'SR' (Serbian) button to the language switcher.
+// 2. LOGIC: Works instantly with i18next.
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -76,7 +77,6 @@ const Header: React.FC = () => {
       <div className="container mx-auto px-3 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
         <Link to="/dashboard" className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
           <Scale className="h-6 w-6 sm:h-7 sm:w-7 text-text-primary" /> 
-          {/* REBRANDING HERE */}
           <span className="text-lg sm:text-xl font-bold text-text-primary whitespace-nowrap">Juristi AI</span>
         </Link>
 
@@ -88,6 +88,8 @@ const Header: React.FC = () => {
           <div className="hidden sm:flex items-center space-x-1 text-sm font-medium p-1 rounded-xl bg-background-dark/50 border border-glass-edge/50">
             <motion.button onClick={() => handleLanguageChange('en')} className={`px-2 py-1 rounded-lg transition-colors ${i18n.language === 'en' ? 'bg-primary-start text-white shadow-md' : 'text-text-secondary hover:text-text-primary'}`} whileHover={{ scale: 1.05 }}>EN</motion.button>
             <motion.button onClick={() => handleLanguageChange('al')} className={`px-2 py-1 rounded-lg transition-colors ${i18n.language === 'al' ? 'bg-primary-start text-white shadow-md' : 'text-text-secondary hover:text-text-primary'}`} whileHover={{ scale: 1.05 }}>AL</motion.button>
+            {/* PHOENIX FIX: Added Serbian Button */}
+            <motion.button onClick={() => handleLanguageChange('sr')} className={`px-2 py-1 rounded-lg transition-colors ${i18n.language === 'sr' ? 'bg-primary-start text-white shadow-md' : 'text-text-secondary hover:text-text-primary'}`} whileHover={{ scale: 1.05 }}>SR</motion.button>
           </div>
 
           <div className="relative z-40" ref={dropdownRef}>
@@ -98,13 +100,16 @@ const Header: React.FC = () => {
               {isProfileMenuOpen && (
                 <motion.div className="absolute right-0 mt-2 w-48 bg-background-light/85 backdrop-blur-md border border-glass-edge rounded-xl shadow-2xl py-1 z-50" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                   <div className="block px-4 py-2 text-sm text-text-primary border-b border-glass-edge/50">{user?.username || t('general.userProfile')}</div>
+                  
                   <div className="sm:hidden px-4 py-2 border-b border-glass-edge/50 flex justify-between">
-                     <span className="text-sm text-text-secondary">Language</span>
+                     <span className="text-sm text-text-secondary">Gjuha/Jezik</span>
                      <div className="flex space-x-2">
                         <button onClick={() => handleLanguageChange('en')} className={`font-bold ${i18n.language === 'en' ? 'text-primary-start' : 'text-gray-500'}`}>EN</button>
                         <button onClick={() => handleLanguageChange('al')} className={`font-bold ${i18n.language === 'al' ? 'text-primary-start' : 'text-gray-500'}`}>AL</button>
+                        <button onClick={() => handleLanguageChange('sr')} className={`font-bold ${i18n.language === 'sr' ? 'text-primary-start' : 'text-gray-500'}`}>SR</button>
                      </div>
                   </div>
+
                   <MotionLink to="/account" onClick={() => setIsProfileMenuOpen(false)} className="flex items-center w-full px-4 py-2 text-sm text-text-secondary hover:bg-background-dark/50 hover:text-text-primary transition-colors"><User className="h-4 w-4 mr-3" />{t('accountPage.pageTitle')}</MotionLink>
                   <div className="border-t border-glass-edge/50 py-1"><button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-700/80 hover:text-white flex items-center transition-colors"><LogOut className="h-4 w-4 mr-3" />{t('general.logout')}</button></div>
                 </motion.div>

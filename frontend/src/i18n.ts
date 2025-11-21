@@ -1,13 +1,18 @@
-// /home/user/advocatus-frontend/src/i18n.ts
+// FILE: src/i18n.ts
+// PHOENIX PROTOCOL - LANGUAGE REGISTRATION
+// 1. ADDED: Import for 'sr' (Serbian) translations.
+// 2. REGISTERED: Added 'sr' to the resources object.
+
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
-// --- Static Resources (to be loaded from the JSON files in the next steps) ---
+// --- Static Resources ---
 import enTranslation from './locales/en/translation.json';
 import alTranslation from './locales/al/translation.json';
+import srTranslation from './locales/sr/translation.json'; // <--- NEW IMPORT
 
 i18n
-  .use(initReactI18next) // passes i18n instance to react-i18next
+  .use(initReactI18next)
   .init({
     resources: {
       en: {
@@ -15,18 +20,18 @@ i18n
       },
       al: {
         translation: alTranslation
+      },
+      sr: {
+        translation: srTranslation // <--- REGISTERED
       }
     },
-    // IMPORTANT: Set 'al' as the default language as per your market directive
+    // Default language remains Albanian ('al')
     lng: 'al', 
     fallbackLng: 'en', 
 
     interpolation: {
-      escapeValue: false, // react already escapes safe HTML
+      escapeValue: false,
     },
-    
-    // We are pre-loading static JSON files, so no need for backend detection
-    // but keep configuration simple for now.
   });
 
 export default i18n;
