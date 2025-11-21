@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - LANGUAGE ENFORCEMENT FIX
-# 1. PROMPT ENGINEERING: Explicitly instructs the LLM to output findings in ALBANIAN.
-# 2. SYSTEM PROMPT: Added "LANGUAGE INSTRUCTION" section to override English bias.
-# 3. DEFINITION: Ensures 'extract_findings_from_text' is clearly defined.
+# PHOENIX PROTOCOL - MULTILINGUAL UNLOCK
+# 1. PROMPT UPDATE: Removed "STRICTLY ALBANIAN" constraint.
+# 2. LOGIC: Instructs AI to match the document's language for findings.
+# 3. RESULT: Works for Albanian, Serbian, English, etc. automatically.
 
 import os
 import json
@@ -13,7 +13,7 @@ from groq import Groq
 logger = logging.getLogger(__name__)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL_NAME = "llama-3.1-8b-instant" 
+GROQ_MODEL_NAME = "llama-3.3-70b-versatile" # Ensure we use the active model
 
 _client: Groq | None = None
 
@@ -36,7 +36,18 @@ def get_llm_client() -> Groq:
 def generate_summary(text: str) -> str:
     llm_client = get_llm_client()
     truncated_text = text[:6000]
-    prompt = f"Summarize this legal document in Albanian (Shqip). Keep it professional and concise.\n\nText:\n{truncated_text}"
+    # PHOENIX FIX: Dynamic Language Prompt
+    prompt = f"""
+    Summarize this legal document.
+    - If the document is in Albanian, summarize in Albanian.
+    - If the document is in Serbian/Bosnian/Croatian, summarize in that language.
+    - If the document is in English, summarize in English.
+    Keep it professional and concise.
+
+    Text:
+    {truncated_text}
+    """
+    
     try:
         completion = llm_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
@@ -52,48 +63,41 @@ def generate_socratic_response(socratic_context: List[Dict], question: str) -> D
     return {"answer": "Socratic response logic is here.", "sources": []}
 
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
-    # Logic moved to deadline_service.py, kept for interface compatibility
     return [] 
 
-# --- PHOENIX PROTOCOL: ALBANIAN LANGUAGE ENFORCEMENT ---
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     """
     Analyzes document text to extract key legal findings.
-    FORCES output in ALBANIAN.
+    Auto-detects language.
     """
     llm_client = get_llm_client()
     truncated_text = text[:7500]
 
     system_prompt = """
-    You are a precision legal analysis AI. Your single task is to review a legal document and extract critical findings.
-    A "finding" is a significant statement with legal implications (e.g., obligations, duties, risk assignments).
+    You are a precision legal analysis AI. Your task is to review a legal document and extract critical findings.
+    A "finding" is a significant statement with legal implications.
 
-    **LANGUAGE INSTRUCTION: STRICTLY ALBANIAN**
-    The `finding_text` MUST be written in ALBANIAN (Shqip), regardless of the input document's language.
-    The `source_text` must be the exact, verbatim text from the document (do not translate the source).
+    **LANGUAGE INSTRUCTION:**
+    - Output the `finding_text` in the **SAME LANGUAGE** as the source document.
+    - Do NOT translate the `source_text`. Keep it verbatim.
 
-    For each finding, provide:
-    1.  `finding_text`: The core statement of the finding, summarized concisely in ALBANIAN.
-    2.  `source_text`: The exact, verbatim source text from the document that supports the finding.
+    You MUST format your response as a valid JSON object with one key: "findings". 
+    The value is a list of objects with keys: "finding_text" and "source_text".
 
-    You MUST format your entire response as a single, valid JSON object. This object must have one key: "findings". 
-    The value of "findings" must be a list of objects. Each object must have two keys: "finding_text" and "source_text".
-
-    Example of a valid response:
+    Example JSON Structure:
     {
       "findings": [
         {
-          "finding_text": "Qiramarrësit i kërkohet të dorëzojë mallrat brenda 30 ditëve.",
-          "source_text": "Party A hereby agrees and covenants to deliver the aforementioned goods to Party B no later than thirty (30) calendar days..."
+          "finding_text": "Summary of the finding in the document's language.",
+          "source_text": "Exact quote from the document."
         }
       ]
     }
 
-    If you find no relevant legal findings, you MUST return a JSON object with an empty list: {"findings": []}
-    Do not add any commentary or introductory text outside of the JSON structure. Your entire output must be the JSON object itself.
+    If no findings are relevant, return: {"findings": []}
     """
 
-    user_prompt = f"Here is the document text. Please extract the findings:\n\n---\n\n{truncated_text}"
+    user_prompt = f"Here is the document text. Extract findings:\n\n---\n\n{truncated_text}"
     content = ""
 
     try:
@@ -108,7 +112,6 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
         )
         content = chat_completion.choices[0].message.content
         if not content:
-            logger.warning("--- [LLM Service] Groq API returned no content for findings extraction. ---")
             return []
         
         response_data = json.loads(content)
@@ -117,12 +120,11 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
         if isinstance(findings, list):
             return findings
         else:
-            logger.error(f"--- [LLM Service] Findings extraction did not return a list. Received data: {findings} ---")
             return []
 
     except json.JSONDecodeError as e:
-        logger.error(f"--- [LLM Service] Failed to decode JSON from Groq for findings extraction: {e}. Raw content: '{content}' ---")
+        logger.error(f"JSON Decode Error: {e}")
         return []
     except Exception as e:
-        logger.error(f"--- [LLM Service] An unexpected error occurred during findings extraction: {e} ---", exc_info=True)
+        logger.error(f"Findings extraction error: {e}")
         return []
