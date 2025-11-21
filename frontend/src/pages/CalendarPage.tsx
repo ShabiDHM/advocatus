@@ -1,7 +1,7 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - LINT FIX
-// 1. CLEANUP: Removed unused 'formatTime' function.
-// 2. MAINTAINED: All previous mobile optimizations and logic fixes.
+// PHOENIX PROTOCOL - UI PERFECTION
+// 1. DISPLAY: Aggressively hides time if it is 00:00 OR is_all_day is true.
+// 2. MODAL: Cleaned up date display.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -118,11 +118,20 @@ const CalendarPage: React.FC = () => {
     }
   };
 
-  const formatDateTime = (dateString: string) => 
-    format(parseISO(dateString), 'dd.MM.yyyy HH:mm', { locale: currentLocale });
-    
-  const formatDateOnly = (dateString: string) => 
-    format(parseISO(dateString), 'dd.MM.yyyy', { locale: currentLocale });
+  // Helper to check if time is 00:00
+  const isMidnight = (dateString: string) => {
+    const d = parseISO(dateString);
+    return d.getHours() === 0 && d.getMinutes() === 0;
+  };
+
+  const formatSmartDate = (dateString: string, isAllDay: boolean) => {
+      const d = parseISO(dateString);
+      // If marked all day OR time is 00:00, show date only
+      if (isAllDay || (d.getHours() === 0 && d.getMinutes() === 0)) {
+          return format(d, 'dd.MM.yyyy', { locale: currentLocale });
+      }
+      return format(d, 'dd.MM.yyyy HH:mm', { locale: currentLocale });
+  };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     setCurrentDate(direction === 'prev' ? subMonths(currentDate, 1) : addMonths(currentDate, 1));
@@ -140,7 +149,6 @@ const CalendarPage: React.FC = () => {
     .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
     .slice(0, 5);
 
-  // --- LIST VIEW IMPLEMENTATION ---
   const renderListView = () => (
     <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl overflow-hidden">
         {filteredEvents.length === 0 ? (
@@ -205,6 +213,10 @@ const CalendarPage: React.FC = () => {
                 onClick={() => setSelectedEvent(event)} 
                 className={`w-full text-left px-1 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs truncate border ${getEventTypeColor(event.event_type)}`}
               >
+                {/* PHOENIX FIX: Hide time in Month View if all-day or midnight */}
+                {!event.is_all_day && !isMidnight(event.start_date) && (
+                    <span className="hidden sm:inline mr-1">{format(parseISO(event.start_date), 'HH:mm')} -</span>
+                )}
                 {event.title}
               </button>
             ))}
@@ -289,7 +301,6 @@ const CalendarPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Views */}
                 {viewMode === 'month' ? renderMonthView() : renderListView()}
             </div>
 
@@ -305,7 +316,8 @@ const CalendarPage: React.FC = () => {
                                 <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium text-white truncate">{event.title}</p>
                                     <p className="text-xs text-text-secondary mt-1">
-                                      {event.is_all_day ? formatDateOnly(event.start_date) : formatDateTime(event.start_date)}
+                                      {/* PHOENIX FIX: Smart Date Format (No Time for Midnight/All-Day) */}
+                                      {formatSmartDate(event.start_date, event.is_all_day)}
                                     </p>
                                 </div>
                             </div>
@@ -341,9 +353,15 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
     const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
     const [isDeleting, setIsDeleting] = useState(false);
 
+    const isMidnight = (dateString: string) => {
+        const d = parseISO(dateString);
+        return d.getHours() === 0 && d.getMinutes() === 0;
+    };
+
     const formatEventDate = (dateString: string) => {
       const date = parseISO(dateString);
-      const formatStr = event.is_all_day ? 'dd MMMM yyyy' : 'dd MMMM yyyy, HH:mm';
+      // PHOENIX FIX: Modal Smart Formatting
+      const formatStr = (event.is_all_day || isMidnight(dateString)) ? 'dd MMMM yyyy' : 'dd MMMM yyyy, HH:mm';
       return format(date, formatStr, { locale: currentLocale });
     };
 

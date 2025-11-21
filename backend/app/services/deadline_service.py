@@ -1,8 +1,8 @@
 # FILE: backend/app/services/deadline_service.py
-# PHOENIX PROTOCOL - QUALITY UPGRADE
-# 1. TITLES: Regex fallback now uses a clean static title, not random text snippets.
-# 2. AI: Simplified prompt to increase success rate of meaningful titles.
-# 3. DEDUPLICATION: Ensures only one event per date per document.
+# PHOENIX PROTOCOL - DATE FILTERING & CLEANUP
+# 1. FILTER: Automatically ignores dates in the past.
+# 2. TITLES: Cleaned up "Automati" suffix to be more professional ("Afat i Gjetur").
+# 3. LOGIC: Retains deduplication and context extraction.
 
 import os
 import json
@@ -24,19 +24,15 @@ def _clean_json_string(json_str: str) -> str:
     return cleaned.strip()
 
 def _extract_dates_with_regex(text: str) -> List[Dict[str, str]]:
-    """
-    Backup method: Finds dates.
-    """
     matches = []
-    # Regex capturing date AND surrounding context
+    # Regex capturing date AND surrounding context (approx 30 chars)
     date_pattern = r'(.{0,30})\b(\d{1,2})\s+(Janar|Shkurt|Mars|Prill|Maj|Qershor|Korrik|Gusht|Shtator|Tetor|Nëntor|Dhjetor|January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b(.{0,30})'
     
     found = re.findall(date_pattern, text, re.IGNORECASE)
     for pre, day, month, year, post in found:
         date_str = f"{day} {month} {year}"
-        
         matches.append({
-            "title": "Afat i Gjetur (Automati)", # Clean title
+            "title": "Afat i Gjetur",
             "date_text": date_str,
             "description": f"Konteksti: ...{pre.strip()} {date_str} {post.strip()}..."
         })
@@ -49,7 +45,6 @@ def _extract_dates_with_llm(full_text: str) -> List[Dict[str, str]]:
     client = Groq(api_key=api_key)
     truncated_text = full_text[:15000] 
 
-    # PHOENIX FIX: Simplified prompt for better JSON compliance
     prompt = f"""
     Ti je asistent ligjor. Lexo tekstin dhe gjej datat ose afatet.
     Kthe vetëm JSON.
@@ -70,7 +65,7 @@ def _extract_dates_with_llm(full_text: str) -> List[Dict[str, str]]:
     try:
         completion = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.1-70b-versatile", 
+            model="llama-3.3-70b-versatile", 
             temperature=0.0,
             response_format={"type": "json_object"}
         )
@@ -117,8 +112,8 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
 
     if not raw_deadlines: return
 
-    # 2. Deduplicate by Date
     unique_events = {}
+    now_date = datetime.now().date() # Current date (no time)
 
     for item in raw_deadlines:
         date_text = item.get("date_text", "")
@@ -127,14 +122,17 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
         parsed_date = dateparser.parse(date_text, languages=['sq', 'en'])
         if not parsed_date: continue
         
-        iso_date = parsed_date.date().isoformat()
+        # PHOENIX FIX: Filter out past dates
+        if parsed_date.date() < now_date:
+            log.info("deadline_service.skipped_past_date", date=str(parsed_date.date()))
+            continue
 
-        # Use the title from the LLM if available, otherwise fallback
+        iso_date = parsed_date.date().isoformat()
+        
         title = item.get('title', "Afat Ligjor")
         if len(title) > 50: title = title[:47] + "..."
 
         if iso_date in unique_events:
-             # If date exists, append info, don't duplicate
              unique_events[iso_date]["description"] += f"\n\n• {title}: {item.get('description', '')}"
         else:
             unique_events[iso_date] = {
@@ -154,7 +152,6 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
                 "attendees": []
             }
 
-    # 3. Insert
     if unique_events:
         db.calendar_events.insert_many(list(unique_events.values()))
         log.info("deadline_service.success", count=len(unique_events))
