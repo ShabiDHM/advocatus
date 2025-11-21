@@ -1,37 +1,54 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import logging
+
 from config import settings
+from routers import embeddings
+from services.embedding_manager import embedding_manager
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Load Models
+    logger.info("🚀 Advocatus AI Core Starting...")
+    embedding_manager.load_model()
+    yield
+    # Shutdown: Cleanup
+    logger.info("🛑 Shutting down AI Core...")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    lifespan=lifespan
 )
 
-# Set all CORS enabled origins
+# CORS Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+# Register Routers
+# We prefix with /embeddings to organize, but we can alias if needed
+app.include_router(embeddings.router, prefix="/embeddings", tags=["Embeddings"])
 
 @app.get("/")
 def root():
-    """
-    Root endpoint to verify service is running.
-    """
     return {
-        "service": "Advocatus AI Core (Phoenix Protocol)",
-        "status": "operational",
-        "language_focus": "Albanian/Kosovo Legal"
+        "service": "Advocatus AI Core",
+        "status": "operational", 
+        "modules": ["embeddings"]
     }
 
 @app.get("/health")
 def health_check():
-    """
-    Health check for Docker/Orchestration.
-    """
     return {"status": "healthy"}
 
 if __name__ == "__main__":
