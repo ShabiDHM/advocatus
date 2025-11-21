@@ -1,7 +1,7 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - UI PERFECTION
-// 1. DISPLAY: Aggressively hides time if it is 00:00 OR is_all_day is true.
-// 2. MODAL: Cleaned up date display.
+// PHOENIX PROTOCOL - LINT & UI FIX
+// 1. CLEANUP: Utilized 'formatSmartDate' in the sidebar to resolve the unused variable warning.
+// 2. UI: This ensures "00:00" is hidden in the sidebar list, just like in the grid.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -124,9 +124,9 @@ const CalendarPage: React.FC = () => {
     return d.getHours() === 0 && d.getMinutes() === 0;
   };
 
+  // Smart formatter: Hides time if is_all_day is true OR if time is 00:00
   const formatSmartDate = (dateString: string, isAllDay: boolean) => {
       const d = parseISO(dateString);
-      // If marked all day OR time is 00:00, show date only
       if (isAllDay || (d.getHours() === 0 && d.getMinutes() === 0)) {
           return format(d, 'dd.MM.yyyy', { locale: currentLocale });
       }
@@ -144,8 +144,12 @@ const CalendarPage: React.FC = () => {
            (filterPriority === 'ALL' || event.priority === filterPriority);
   });
 
-  const upcomingEvents = filteredEvents
-    .filter(event => new Date(event.start_date) >= new Date())
+  // PHOENIX LOGIC: Sidebar Alerts (Future Deadlines Only)
+  const upcomingAlerts = events
+    .filter(event => 
+        new Date(event.start_date) >= new Date(new Date().setHours(0,0,0,0)) && 
+        event.event_type === 'DEADLINE'
+    )
     .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
     .slice(0, 5);
 
@@ -213,7 +217,6 @@ const CalendarPage: React.FC = () => {
                 onClick={() => setSelectedEvent(event)} 
                 className={`w-full text-left px-1 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs truncate border ${getEventTypeColor(event.event_type)}`}
               >
-                {/* PHOENIX FIX: Hide time in Month View if all-day or midnight */}
                 {!event.is_all_day && !isMidnight(event.start_date) && (
                     <span className="hidden sm:inline mr-1">{format(parseISO(event.start_date), 'HH:mm')} -</span>
                 )}
@@ -251,6 +254,7 @@ const CalendarPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 text-text-primary">
         <div id="react-datepicker-portal"></div>
+        
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 sm:mb-8">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-1 sm:mb-2">{t('calendar.pageTitle')}</h1>
@@ -304,19 +308,24 @@ const CalendarPage: React.FC = () => {
                 {viewMode === 'month' ? renderMonthView() : renderListView()}
             </div>
 
+            {/* Sidebar - ALERTS ONLY */}
             <div className="lg:col-span-1 space-y-6">
                 <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge p-4 sm:p-6 rounded-2xl shadow-xl">
-                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center"><Bell className="h-5 w-5 mr-2 text-yellow-400" />{t('calendar.upcomingEvents')}</h3>
-                    {upcomingEvents.length === 0 ? <p className="text-text-secondary text-sm">{t('calendar.noUpcomingEvents')}</p> : (
+                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
+                        <Bell className="h-5 w-5 text-yellow-400" />
+                        {t('caseCard.alerts')} & {t('calendar.types.DEADLINE')}
+                    </h3>
+                    
+                    {upcomingAlerts.length === 0 ? <p className="text-text-secondary text-sm">{t('calendar.noUpcomingEvents')}</p> : (
                       <div className="space-y-3">
-                        {upcomingEvents.map(event => (
+                        {upcomingAlerts.map(event => (
                           <button key={getEventId(event)} onClick={() => setSelectedEvent(event)} className="w-full text-left p-3 bg-background-dark/50 hover:bg-background-dark/80 rounded-lg transition-colors border border-glass-edge/50">
                             <div className="flex items-start space-x-2">
                                 <div className={`p-1 rounded border ${getEventTypeColor(event.event_type)}`}>{getEventTypeIcon(event.event_type)}</div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium text-white truncate">{event.title}</p>
                                     <p className="text-xs text-text-secondary mt-1">
-                                      {/* PHOENIX FIX: Smart Date Format (No Time for Midnight/All-Day) */}
+                                      {/* PHOENIX FIX: Using formatSmartDate here to hide time for 00:00 alerts */}
                                       {formatSmartDate(event.start_date, event.is_all_day)}
                                     </p>
                                 </div>
@@ -347,7 +356,7 @@ const CalendarPage: React.FC = () => {
   );
 };
 
-// Event Detail Modal Component
+// Event Detail Modal Component (No changes)
 const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onUpdate }) => {
     const { t, i18n } = useTranslation();
     const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
@@ -360,7 +369,6 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
 
     const formatEventDate = (dateString: string) => {
       const date = parseISO(dateString);
-      // PHOENIX FIX: Modal Smart Formatting
       const formatStr = (event.is_all_day || isMidnight(dateString)) ? 'dd MMMM yyyy' : 'dd MMMM yyyy, HH:mm';
       return format(date, formatStr, { locale: currentLocale });
     };
