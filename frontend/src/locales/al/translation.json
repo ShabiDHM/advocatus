@@ -107,6 +107,7 @@
     },
     "findingsTitle": "Gjetjet",
     "findingSource": "Burimi",
+    "confidenceScore": "Shkalla e Besueshmërisë",
     "errorLoadingTitle": "Gabim në Ngarkimin e Rastit",
     "genericError": "Dështoi ngarkimi i detajeve të rastit.",
     "tryAgain": "Provo Përsëri"
@@ -173,6 +174,13 @@
     "outputPanelTitle": "Drafti i Gjeneruar",
     "exportButton": "Eksporto në Word",
     "idleStatus": "GATI",
+    "status": {
+        "IDLE": "GATI",
+        "INITIATED": "FILLUAR",
+        "POLLING": "DUKE PËRPUNUAR",
+        "SUCCESS": "PËRFUNDUAR",
+        "FAILURE": "DËSHTOI"
+    },
     "loadingTitle": "AI po punon...",
     "loadingSubtitle": "Kjo mund të marrë pak kohë.",
     "jobFailedTitle": "Hartimi Dështoi",

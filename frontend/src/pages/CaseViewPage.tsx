@@ -1,9 +1,8 @@
 // FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - FEATURE INTEGRATION (ANALYSIS)
-// 1. IMPORT: Added 'AnalysisModal' and 'CaseAnalysisResult'.
-// 2. STATE: Added 'isAnalysisOpen', 'analysisResult', 'isAnalyzing'.
-// 3. LOGIC: Added 'handleAnalyzeCase' to call API and show modal.
-// 4. UI: Added "Analizo Rastin" button to the Case Header.
+// PHOENIX PROTOCOL - MOBILE CARD FIX
+// 1. FindingsPanel: Metadata footer now stacks vertically on mobile screens (flex-col sm:flex-row).
+// 2. This ensures the "Source Document" name is fully visible and doesn't overlap the confidence score.
+// 3. LOCALIZATION: Translated "Confidence Score" tooltip.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -12,7 +11,7 @@ import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
-import AnalysisModal from '../components/AnalysisModal'; // <--- NEW
+import AnalysisModal from '../components/AnalysisModal';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import useAuth from '../context/AuthContext';
@@ -47,7 +46,6 @@ const CaseHeader: React.FC<{
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
           <h1 className="text-xl sm:text-2xl font-bold text-text-primary break-words">{caseDetails.case_name}</h1>
           
-          {/* PHOENIX FEATURE: Analysis Button */}
           <motion.button
             onClick={onAnalyze}
             disabled={isAnalyzing}
@@ -110,7 +108,8 @@ const FindingsPanel: React.FC<{ findings: Finding[]; t: TFunction; }> = ({ findi
                                     <span className="truncate max-w-full">{finding.document_name || finding.document_id}</span>
                                 </div>
                                 {finding.confidence_score !== undefined && finding.confidence_score > 0 && (
-                                    <div className="flex items-center gap-1.5 self-end sm:self-auto" title="Confidence Score">
+                                    // PHOENIX FIX: Translated Title
+                                    <div className="flex items-center gap-1.5 self-end sm:self-auto" title={t('caseView.confidenceScore')}>
                                         <Search className="h-3 w-3 text-accent-start" />
                                         <span className="text-xs font-mono text-accent-start">{Math.round(finding.confidence_score * 100)}%</span>
                                     </div>

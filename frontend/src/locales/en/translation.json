@@ -228,6 +228,13 @@
     "outputPanelTitle": "Generated Document",
     "exportButton": "Export as .docx",
     "idleStatus": "Waiting",
+    "status": {
+        "IDLE": "READY",
+        "INITIATED": "STARTED",
+        "POLLING": "PROCESSING",
+        "SUCCESS": "COMPLETED",
+        "FAILURE": "FAILED"
+    },
     "loadingTitle": "Drafting Your Document",
     "loadingSubtitle": "Please wait, AI is working...",
     "jobFailedTitle": "Generation Failed",
@@ -301,6 +308,7 @@
     "page": "page {page}",
     "findingsTitle": "Findings",
     "findingSource": "Source",
+    "confidenceScore": "Confidence Score",
     "statusLabel": "Status",
     "statusTypes": {
       "OPEN": "Open",

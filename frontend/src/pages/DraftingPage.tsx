@@ -1,8 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - MOBILE OPTIMIZATION
+// PHOENIX PROTOCOL - MOBILE OPTIMIZATION & LOCALIZATION
 // 1. LAYOUT: Responsive grid (col-1 mobile, col-2 desktop).
 // 2. HEIGHTS: Enforced min-heights for input/output areas on mobile.
 // 3. TYPOGRAPHY: Scaled titles for better fit.
+// 4. LOCALIZATION: Now using 't(drafting.status...)' instead of raw uppercase strings.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'; 
 import { apiService } from '../services/api';
@@ -206,7 +207,6 @@ export const DraftingPage: React.FC = () => {
                 placeholder={t('drafting.inputPlaceholder')}
                 value={context}
                 onChange={(e) => setContext(e.target.value)}
-                // Removed fixed rows to allow flex-grow
                 style={{ minHeight: '200px' }}
               />
             </div>
@@ -250,7 +250,8 @@ export const DraftingPage: React.FC = () => {
                     </motion.button>
                   )}
                   <div className={`text-xs sm:text-sm font-semibold px-3 py-1 rounded-full ${statusColorClasses(job.status)}`}>
-                      {job.status === 'IDLE' ? t('drafting.idleStatus') : job.status.toUpperCase()}
+                      {/* PHOENIX FIX: Translating Job Status */}
+                      {t(`drafting.status.${job.status}`, { defaultValue: job.status.toUpperCase() })}
                   </div>
               </div>
             </div>
