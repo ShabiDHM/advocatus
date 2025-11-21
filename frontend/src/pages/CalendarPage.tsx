@@ -1,8 +1,8 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - LINT & UI FIX
-// 1. FIX: Implemented 'formatSmartDate' in the sidebar (resolving the unused variable warning).
-// 2. CLEANUP: Removed 'formatDateOnly' (replaced by smart formatter).
-// 3. RESULT: Deadlines show as Date-only, Meetings show Date+Time.
+// PHOENIX PROTOCOL - ALERTS WINDOW FIX
+// 1. LOGIC CORRECTION: Added the missing upper-bound check.
+//    Now strictly filters events between Today (00:00) and Today + 7 Days.
+// 2. RESULT: December dates will NO LONGER appear in the sidebar if today is Nov 21.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -119,13 +119,11 @@ const CalendarPage: React.FC = () => {
     }
   };
 
-  // Helper to check if time is 00:00
   const isMidnight = (dateString: string) => {
     const d = parseISO(dateString);
     return d.getHours() === 0 && d.getMinutes() === 0;
   };
 
-  // Smart formatter: Hides time if is_all_day is true OR if time is 00:00
   const formatSmartDate = (dateString: string, isAllDay: boolean) => {
       const d = parseISO(dateString);
       if (isAllDay || (d.getHours() === 0 && d.getMinutes() === 0)) {
@@ -145,12 +143,25 @@ const CalendarPage: React.FC = () => {
            (filterPriority === 'ALL' || event.priority === filterPriority);
   });
 
-  // Sidebar Alerts (Next 7 Days ONLY)
+  // PHOENIX LOGIC FIX: Strict 7-Day Window Check
   const upcomingAlerts = events
-    .filter(event => 
-        new Date(event.start_date) >= new Date(new Date().setHours(0,0,0,0)) && 
-        event.event_type === 'DEADLINE'
-    )
+    .filter(event => {
+        // 1. Must be a Deadline
+        if (event.event_type !== 'DEADLINE') return false;
+
+        const eventDate = new Date(event.start_date);
+        
+        // 2. Define Time Window
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Start of today
+        
+        const sevenDaysFromNow = new Date(today);
+        sevenDaysFromNow.setDate(today.getDate() + 7);
+        sevenDaysFromNow.setHours(23, 59, 59, 999); // End of 7th day
+
+        // 3. Check range
+        return eventDate >= today && eventDate <= sevenDaysFromNow;
+    })
     .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
     .slice(0, 5);
 
@@ -218,7 +229,6 @@ const CalendarPage: React.FC = () => {
                 onClick={() => setSelectedEvent(event)} 
                 className={`w-full text-left px-1 sm:px-2 py-0.5 sm:py-1 rounded text-[10px] sm:text-xs truncate border ${getEventTypeColor(event.event_type)}`}
               >
-                {/* Hide time in Month View if all-day or midnight */}
                 {!event.is_all_day && !isMidnight(event.start_date) && (
                     <span className="hidden sm:inline mr-1">{format(parseISO(event.start_date), 'HH:mm')} -</span>
                 )}
@@ -256,7 +266,6 @@ const CalendarPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8 text-text-primary">
         <div id="react-datepicker-portal"></div>
-        
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 sm:mb-8">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-1 sm:mb-2">{t('calendar.pageTitle')}</h1>
@@ -327,7 +336,7 @@ const CalendarPage: React.FC = () => {
                                 <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium text-white truncate">{event.title}</p>
                                     <p className="text-xs text-text-secondary mt-1">
-                                      {/* PHOENIX FIX: Using formatSmartDate to control time visibility */}
+                                      {/* Used formatSmartDate to control time visibility */}
                                       {formatSmartDate(event.start_date, event.is_all_day)}
                                     </p>
                                 </div>
@@ -358,7 +367,7 @@ const CalendarPage: React.FC = () => {
   );
 };
 
-// Event Detail Modal Component
+// Event Detail Modal Component (unchanged)
 const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onUpdate }) => {
     const { t, i18n } = useTranslation();
     const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
@@ -434,7 +443,7 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
     );
 };
 
-// Create Event Modal Component
+// Create Event Modal Component (unchanged)
 const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onCreate }) => {
   const { t, i18n } = useTranslation();
   const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
