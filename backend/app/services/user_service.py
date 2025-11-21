@@ -1,7 +1,7 @@
 # FILE: backend/app/services/user_service.py
-# PHOENIX PROTOCOL - FULL SERVICE LOGIC
-# 1. IMPLEMENTS: Authenticate, Create, Get by Email/Username, Update Login, Change Password.
-# 2. SECURITY: Handles password hashing and verification.
+# PHOENIX PROTOCOL - RESTORED FUNCTIONALITY
+# 1. RESTORED: 'get_user_by_id' function (Required by dependencies.py).
+# 2. STATUS: Full service logic for authentication flow.
 
 from pymongo.database import Database
 from bson import ObjectId
@@ -20,6 +20,13 @@ def get_user_by_username(db: Database, username: str) -> Optional[UserInDB]:
 
 def get_user_by_email(db: Database, email: str) -> Optional[UserInDB]:
     user_dict = db.users.find_one({"email": email})
+    if user_dict:
+        return UserInDB.model_validate(user_dict)
+    return None
+
+# --- PHOENIX FIX: Restored missing function ---
+def get_user_by_id(db: Database, user_id: ObjectId) -> Optional[UserInDB]:
+    user_dict = db.users.find_one({"_id": user_id})
     if user_dict:
         return UserInDB.model_validate(user_dict)
     return None
