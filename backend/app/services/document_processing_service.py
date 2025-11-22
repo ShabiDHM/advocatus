@@ -1,8 +1,7 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - DIRECT SERVICE EXECUTION
-# 1. REFACTORED: Removed Celery Task imports completely.
-# 2. IMPLEMENTATION: Calls 'deadline_service' and 'findings_service' directly.
-# 3. BENEFIT: Bypasses all Pylance/Type errors and ensures immediate data availability.
+# PHOENIX PROTOCOL - FINAL INTEGRATION
+# 1. ADDED: Step 3.5 - AI Categorization via Juristi Core.
+# 2. UPDATED: Metadata enrichment with 'category'.
 
 import os
 import tempfile
@@ -23,9 +22,11 @@ from . import (
     llm_service, 
     text_extraction_service, 
     conversion_service,
-    deadline_service,  # <--- DIRECT IMPORT
-    findings_service   # <--- DIRECT IMPORT
+    deadline_service,
+    findings_service
 )
+# NEW: Import the Categorization Client
+from .categorization_service import CATEGORIZATION_SERVICE
 from .albanian_language_detector import AlbanianLanguageDetector
 from ..models.document import DocumentStatus
 
@@ -91,18 +92,31 @@ def orchestrate_document_processing_mongo(
         if not extracted_text or not extracted_text.strip():
             raise ValueError("Text extraction returned no content.")
 
-        # Language Detection
+        # Step 3.5: AI Categorization (Juristi Core)
+        # We detect the category before embedding, so we can use it as metadata if needed
+        logger.info(f"Categorizing document {document_id_str}...")
+        detected_category = CATEGORIZATION_SERVICE.categorize_document(extracted_text)
+        logger.info(f"AI Category Detection: {detected_category}")
+        
+        # Update the document immediately with the category
+        db.documents.update_one(
+            {"_id": doc_id},
+            {"$set": {"category": detected_category}}
+        )
+
+        # Step 4: Language Detection
         is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
         detected_lang = 'albanian' if is_albanian else 'standard'
         logger.info(f"Language Detection for {document_id_str}: {detected_lang.upper()}")
 
-        # Step 4: Embeddings (Sync)
+        # Step 5: Embeddings (Sync)
         base_doc_metadata = {
             'document_id': document_id_str,
             'case_id': str(document.get("case_id")),
             'user_id': str(document.get("owner_id")),
             'file_name': document.get("file_name", "Unknown"),
-            'language': detected_lang 
+            'language': detected_lang,
+            'category': detected_category # Add category to vector metadata
         }
         
         enriched_chunks = _process_and_split_text(extracted_text, base_doc_metadata)
@@ -124,22 +138,18 @@ def orchestrate_document_processing_mongo(
                 metadatas=[c['metadata'] for c in batch]
             )
 
-        # Step 5: Summary (Sync)
+        # Step 6: Summary (Sync)
         summary = llm_service.generate_summary(extracted_text)
 
-        # Step 6: Findings Extraction (Direct Service Call)
+        # Step 7: Findings Extraction (Direct Service Call)
         logger.info(f"Starting synchronous findings extraction for {document_id_str}")
-        # PHOENIX FIX: Call service directly, passing the DB instance
         findings_service.extract_and_save_findings(db, document_id_str, extracted_text)
-        logger.info("Findings extraction complete.")
         
-        # Step 7: Deadline Extraction (Direct Service Call)
+        # Step 8: Deadline Extraction (Direct Service Call)
         logger.info(f"Starting synchronous deadline extraction for {document_id_str}")
-        # PHOENIX FIX: Call service directly, passing the DB instance
         deadline_service.extract_and_save_deadlines(db, document_id_str, extracted_text)
-        logger.info("Deadline extraction complete.")
 
-        # Step 8: Finalize (Sets Status to READY)
+        # Step 9: Finalize (Sets Status to READY)
         document_service.finalize_document_processing(
             db=db,
             redis_client=redis_client,
