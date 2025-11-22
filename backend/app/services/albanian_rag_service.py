@@ -53,7 +53,6 @@ class AlbanianRAGService:
         documents = list(text_to_chunk_map.keys())
         
         try:
-            # 2. Call the Unified AI Core
             async with httpx.AsyncClient(timeout=self.RERANK_TIMEOUT) as client:
                 response = await client.post(
                     f"{self.AI_CORE_URL}/reranking/sort",
@@ -62,7 +61,6 @@ class AlbanianRAGService:
                 response.raise_for_status()
                 data = response.json()
                 
-                # 3. Reconstruct list in new sorted order
                 sorted_texts = data.get("reranked_documents", [])
                 reranked_chunks = []
                 for text in sorted_texts:
@@ -73,7 +71,6 @@ class AlbanianRAGService:
                 
         except Exception as e:
             logger.warning(f"⚠️ [RAG] Reranking failed (falling back to vector order): {e}")
-            # Fallback: return original list
             return chunks
 
     async def chat_stream(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> AsyncGenerator[str, None]:
@@ -81,16 +78,15 @@ class AlbanianRAGService:
         try:
             from .embedding_service import generate_embedding
 
-            # 1. Embed the Query
+            # 1. Embed
             try:
                 query_embedding = await asyncio.wait_for(
                     asyncio.to_thread(generate_embedding, query, language='standard'),
                     timeout=self.EMBEDDING_TIMEOUT
                 )
                 
-                # 2. High Recall Retrieval (Fetch 15, Keep 5)
+                # 2. Retrieve
                 initial_fetch_count = 15
-                
                 raw_chunks = await asyncio.to_thread(
                     self.vector_store.query_by_vector,
                     embedding=query_embedding, 
@@ -99,10 +95,9 @@ class AlbanianRAGService:
                     document_ids=document_ids
                 )
                 
-                # 3. High Precision Reranking (Juristi AI Core)
+                # 3. Rerank
                 if raw_chunks:
                     reranked_chunks = await self._rerank_chunks(query, raw_chunks)
-                    # Keep only the Top 5 most relevant
                     relevant_chunks = reranked_chunks[:5]
                 else:
                     relevant_chunks = []
@@ -111,42 +106,39 @@ class AlbanianRAGService:
                 logger.error(f"RAG Search/Rerank failed: {e}")
 
             if not relevant_chunks:
-                yield "Nuk munda të gjej informacion relevant në dokumentet e çështjes. / I couldn't find relevant information. / Nisam mogao pronaći relevantne informacije."
+                yield "Nuk munda të gjej informacion relevant në dokumentet e çështjes."
                 return
 
         except Exception as e:
             logger.error(f"RAG Error: {e}", exc_info=True)
-            yield f"Gabim gjatë kërkimit: {str(e)}"
+            yield f"Gabim teknik: {str(e)}"
             return
 
-        # 4. Context Construction & Generation
+        # 4. Generate
         context_string = self._build_prompt_context(relevant_chunks)
         
-        # PHOENIX FIX: KOSOVO JURISDICTION SPECIALIZATION
+        # PHOENIX FIX: DUAL JURISDICTION (KOSOVO + ALBANIA)
         system_prompt = """
-        Jeni "Juristi AI", asistent ligjor i avancuar i specializuar për legjislacionin dhe praktikën ligjore të Republikës së Kosovës.
+        Jeni "Juristi AI", ekspert ligjor për hapësirën shqipfolëse (Kosovë dhe Shqipëri).
 
-        UDHËZIME STRIKTE TË OPERIMIT:
-        1. **Baza Ligjore:** Përgjigju VETËM duke u bazuar në KONTEKSTIN e dhënë më poshtë. Mos gjenero informata ligjore nga kujtesa e jashtme nëse nuk mbështeten nga dokumentet.
-        2. **Hierarkia e Normave:** Respekto hierarkinë ligjore: Kushtetuta > Ligjet (Gazeta Zyrtare) > Aktet Nënligjore (Udhëzime Administrative/Rregullore).
-        3. **Citimi dhe Referencat:**
-           - Kur citon një ligj, përdor formatin zyrtar: "Sipas Nenit X, paragrafi Y të Ligjit Nr. [Numri]..."
-           - Referoju saktë titujve të dokumenteve.
-        4. **Gjuha dhe Terminologjia:**
-           - Përdor terminologji të saktë juridike në gjuhën Shqipe.
-           - Nëse pyetja është në ANGLISHT -> Përgjigju në ANGLISHT.
-           - Nëse pyetja është në SERBISHT -> Përgjigju në SERBISHT (Gjuhë zyrtare në Kosovë).
-           - Nëse pyetja është në SHQIP -> Përgjigju në SHQIP.
-        5. **Paqartësia:** Nëse konteksti nuk e përmban përgjigjen e plotë, thuaj qartë: "Nuk ka informacion të mjaftueshëm në dokumentet e ofruara për të dhënë një opinion ligjor të saktë."
+        PROTOKOLLI I JURIDIKSIONIT:
+        1. **Identifiko Vendin:** Analizo dokumentet për të kuptuar vendin (p.sh., "Prishtinë", "EUR", "Gjykata Themelore" = KOSOVË. "Tiranë", "LEK", "Gjykata e Rrethit" = SHQIPËRI).
+        2. **Supozimi i Parazgjedhur (Default):** Nëse dokumenti nuk specifikon vendin, supozo se zbatohet ligji i **Republikës së Kosovës** (Ligji për Marrëdhëniet e Detyrimeve, Kodi Penal i Kosovës).
+        3. **Përgjigja e Dyfishtë:** Nëse pyetja është e përgjithshme dhe ka dallime thelbësore, cito ligjin e Kosovës fillimisht, pastaj atë të Shqipërisë.
 
-        Qëllimi yt është të japësh këshilla ligjore të sakta, të bazuara në prova, dhe të formatuara qartë për juristët.
+        UDHËZIME TË TJERA:
+        - Përgjigju VETËM bazuar në KONTEKSTIN e dhënë më poshtë.
+        - Mos shpik ligje. Nëse dokumenti nuk e përmend ligjin, thuaj: "Dokumenti nuk citon ligjin specifik, por në kontekstin e Kosovës kjo rregullohet zakonisht nga..."
+        - Përdor gjuhën e pyetjes (Shqip/Anglisht/Serbisht).
+
+        Qëllimi yt është të japësh interpretim saktë juridik duke i dhënë përparësi kontekstit të Kosovës kur ka paqartësi.
         """
         
         user_prompt = f"""
-        KONTEKSTI LIGJOR (BURIMET):
+        KONTEKSTI NGA DOKUMENTET:
         {context_string}
         
-        PYETJA E PËRDORUESIT: 
+        PYETJA: 
         {query}
         """
 
@@ -157,7 +149,7 @@ class AlbanianRAGService:
                     {"role": "user", "content": user_prompt}
                 ],
                 model=self.fine_tuned_model,
-                temperature=0.1, # Low temperature for legal precision
+                temperature=0.1,
                 stream=True,
             )
             async for chunk in stream:
@@ -165,16 +157,16 @@ class AlbanianRAGService:
                 if content:
                     yield content
                     
-            yield "\n\n**Burimi:** Gjeneruar nga Juristi AI bazuar në dokumentet e çështjes."
+            yield "\n\n**Burimi:** Juristi AI (Analizë e dokumenteve të ofruara)"
 
         except Exception as e:
             logger.error(f"RAG Generation Error: {e}", exc_info=True)
-            yield "Ndodhi një gabim gjatë gjenerimit të përgjigjes."
+            yield "Ndodhi një gabim gjatë gjenerimit."
 
     def _build_prompt_context(self, chunks: List[Dict]) -> str:
         parts = []
         for chunk in chunks:
-            name = chunk.get('document_name', 'Dokument pa titull')
+            name = chunk.get('document_name', 'Dokument')
             text = chunk.get('text', '')
-            parts.append(f"DOKUMENTI: {name}\nPËRMBAJTJA: {text}")
+            parts.append(f"BURIMI: {name}\nTEKSTI: {text}")
         return "\n\n---\n\n".join(parts)
