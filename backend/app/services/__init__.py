@@ -1,7 +1,3 @@
-# FILE: backend/app/services/__init__.py
-# PHOENIX PROTOCOL - SERVICE REGISTRY
-# CLEANED: Removed legacy services to restore system stability.
-
 from . import (
     admin_service,
     analysis_service,
