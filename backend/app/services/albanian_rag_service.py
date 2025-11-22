@@ -89,7 +89,6 @@ class AlbanianRAGService:
                 )
                 
                 # 2. High Recall Retrieval (Fetch 15, Keep 5)
-                # We fetch more documents initially to give the reranker a larger pool to choose from.
                 initial_fetch_count = 15
                 
                 raw_chunks = await asyncio.to_thread(
@@ -112,29 +111,42 @@ class AlbanianRAGService:
                 logger.error(f"RAG Search/Rerank failed: {e}")
 
             if not relevant_chunks:
-                yield "Nuk munda të gjej informacion relevant. / I couldn't find relevant information. / Nisam mogao pronaći relevantne informacije."
+                yield "Nuk munda të gjej informacion relevant në dokumentet e çështjes. / I couldn't find relevant information. / Nisam mogao pronaći relevantne informacije."
                 return
 
         except Exception as e:
             logger.error(f"RAG Error: {e}", exc_info=True)
-            yield f"Error: {str(e)}"
+            yield f"Gabim gjatë kërkimit: {str(e)}"
             return
 
         # 4. Context Construction & Generation
         context_string = self._build_prompt_context(relevant_chunks)
         
+        # PHOENIX FIX: KOSOVO JURISDICTION SPECIALIZATION
         system_prompt = """
-        You are a professional legal AI assistant.
-        1. Analyze the provided Context strictly.
-        2. Answer the User's Question accurately based ONLY on the Context.
-        3. **LANGUAGE INSTRUCTION:** Detect the language of the User's Question (Albanian, Serbian, English, etc.) and reply in that SAME language.
+        Jeni "Juristi AI", asistent ligjor i avancuar i specializuar për legjislacionin dhe praktikën ligjore të Republikës së Kosovës.
+
+        UDHËZIME STRIKTE TË OPERIMIT:
+        1. **Baza Ligjore:** Përgjigju VETËM duke u bazuar në KONTEKSTIN e dhënë më poshtë. Mos gjenero informata ligjore nga kujtesa e jashtme nëse nuk mbështeten nga dokumentet.
+        2. **Hierarkia e Normave:** Respekto hierarkinë ligjore: Kushtetuta > Ligjet (Gazeta Zyrtare) > Aktet Nënligjore (Udhëzime Administrative/Rregullore).
+        3. **Citimi dhe Referencat:**
+           - Kur citon një ligj, përdor formatin zyrtar: "Sipas Nenit X, paragrafi Y të Ligjit Nr. [Numri]..."
+           - Referoju saktë titujve të dokumenteve.
+        4. **Gjuha dhe Terminologjia:**
+           - Përdor terminologji të saktë juridike në gjuhën Shqipe.
+           - Nëse pyetja është në ANGLISHT -> Përgjigju në ANGLISHT.
+           - Nëse pyetja është në SERBISHT -> Përgjigju në SERBISHT (Gjuhë zyrtare në Kosovë).
+           - Nëse pyetja është në SHQIP -> Përgjigju në SHQIP.
+        5. **Paqartësia:** Nëse konteksti nuk e përmban përgjigjen e plotë, thuaj qartë: "Nuk ka informacion të mjaftueshëm në dokumentet e ofruara për të dhënë një opinion ligjor të saktë."
+
+        Qëllimi yt është të japësh këshilla ligjore të sakta, të bazuara në prova, dhe të formatuara qartë për juristët.
         """
         
         user_prompt = f"""
-        CONTEXT:
+        KONTEKSTI LIGJOR (BURIMET):
         {context_string}
         
-        USER QUESTION: 
+        PYETJA E PËRDORUESIT: 
         {query}
         """
 
@@ -145,7 +157,7 @@ class AlbanianRAGService:
                     {"role": "user", "content": user_prompt}
                 ],
                 model=self.fine_tuned_model,
-                temperature=0.1,
+                temperature=0.1, # Low temperature for legal precision
                 stream=True,
             )
             async for chunk in stream:
@@ -153,16 +165,16 @@ class AlbanianRAGService:
                 if content:
                     yield content
                     
-            yield "\n\n**Note:** AI generated response based on provided documents."
+            yield "\n\n**Burimi:** Gjeneruar nga Juristi AI bazuar në dokumentet e çështjes."
 
         except Exception as e:
             logger.error(f"RAG Generation Error: {e}", exc_info=True)
-            yield "Error generating response."
+            yield "Ndodhi një gabim gjatë gjenerimit të përgjigjes."
 
     def _build_prompt_context(self, chunks: List[Dict]) -> str:
         parts = []
         for chunk in chunks:
-            name = chunk.get('document_name', 'Doc')
+            name = chunk.get('document_name', 'Dokument pa titull')
             text = chunk.get('text', '')
-            parts.append(f"SOURCE: {name}\nCONTENT: {text}")
+            parts.append(f"DOKUMENTI: {name}\nPËRMBAJTJA: {text}")
         return "\n\n---\n\n".join(parts)
