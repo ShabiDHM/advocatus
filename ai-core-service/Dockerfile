@@ -1,3 +1,6 @@
+# ai-core-service/Dockerfile
+# FINAL PRODUCTION VERSION - FIXED SPACY URL
+
 # Use a lightweight Python base
 FROM python:3.10-slim
 
@@ -16,9 +19,9 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# CRITICAL: Download the NER Model
-# We install the multilingual model used by the legacy service
-RUN python -m spacy download xx_ent_wiki_sm
+# CRITICAL FIX: Direct download of the Spacy NER model (Version 3.7.0)
+# We use the direct GitHub URL to bypass the broken 'spacy download' lookup
+RUN pip install --no-cache-dir https://github.com/explosion/spacy-models/releases/download/xx_ent_wiki_sm-3.7.0/xx_ent_wiki_sm-3.7.0-py3-none-any.whl
 
 # Copy the rest of the application code
 COPY . .
