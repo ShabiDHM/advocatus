@@ -1,10 +1,11 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - PHASE 1: FOUNDATION
-# Status: ai-core-service added, legacy services retained for safety.
+# PHOENIX PROTOCOL - PHASE 1 COMPLETE
+# Status: Unified Juristi AI Core + Backend + Infrastructure
 
 services:
   # -------------------------------------------------------
-  # NEW UNIFIED AI CORE (The Future Home of all AI logic)
+  # JURISTI AI CORE (The Unified Brain)
+  # Replaces: embedding, ner, rerank, categorization services
   # -------------------------------------------------------
   ai-core-service:
     build: 
@@ -12,18 +13,18 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "8010:8000" # Exposed on 8010 to avoid conflict with legacy backend
+      - "8010:8000"
     networks:
       - phoenix_net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 5
-      start_period: 10s
+      start_period: 30s
 
   # -------------------------------------------------------
-  # EXISTING INFRASTRUCTURE
+  # INFRASTRUCTURE & BACKEND
   # -------------------------------------------------------
   caddy:
     image: caddy:latest
@@ -45,13 +46,13 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers
     env_file: ./.env
     networks: [phoenix_net]
-    depends_on: { mongo: { condition: service_healthy }, redis: { condition: service_healthy } }
+    depends_on: { mongo: { condition: service_healthy }, redis: { condition: service_healthy }, ai-core-service: { condition: service_healthy } }
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 300s
+      start_period: 30s
 
   celery:
     build: { context: ./backend }
@@ -60,40 +61,6 @@ services:
     env_file: ./.env
     networks: [phoenix_net]
     depends_on: { redis: { condition: service_healthy }, mongo: { condition: service_healthy }, backend: { condition: service_started } }
-
-  # -------------------------------------------------------
-  # LEGACY MICROSERVICES (To be deprecated in Phase 2)
-  # -------------------------------------------------------
-  embedding-service:
-    build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: embedding_service } }
-    networks: [phoenix_net]
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
-    healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
-
-  albanian-embedding-service:
-    build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: albanian_embedding_service } }
-    networks: [phoenix_net]
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
-    environment: ["EMBEDDING_MODEL=${ALBANIAN_EMBEDDING_MODEL}"]
-    healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 20, start_period: 300s }
-
-  rerank-service:
-    build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: rerank_service } }
-    networks: [phoenix_net]
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
-    healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
-
-  ner-service:
-    build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: ner_service } }
-    networks: [phoenix_net]
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
-    healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 10, start_period: 60s }
-
-  categorization-service:
-    build: { context: ., dockerfile: ./ai-service.Dockerfile, args: { SERVICE_NAME: categorization_service } }
-    networks: [phoenix_net]
-    command: uvicorn main:app --host 0.0.0.0 --port 8000
-    healthcheck: { test: ["CMD", "curl", "-f", "http://localhost:8000/health"], interval: 30s, timeout: 20s, retries: 5, start_period: 60s }
 
   # -------------------------------------------------------
   # DATABASE & CACHE
