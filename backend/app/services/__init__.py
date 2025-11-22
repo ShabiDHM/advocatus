@@ -1,6 +1,6 @@
 # FILE: backend/app/services/__init__.py
 # PHOENIX PROTOCOL - SERVICE REGISTRY
-# Added 'email_service'
+# CLEANED: Removed legacy services to restore system stability.
 
 from . import (
     admin_service,
@@ -14,7 +14,7 @@ from . import (
     document_processing_service,
     document_service,
     drafting_service,
-    email_service, # <--- ADDED
+    email_service,
     embedding_service,
     encryption_service,
     findings_service,
@@ -27,12 +27,10 @@ from . import (
     user_service,
     vector_store_service,
     
-    # Albanian Specific Services
-    albanian_ai_summary,
+    # Albanian Specific Services (Active Only)
     albanian_document_processor,
     albanian_language_detector,
     albanian_metadata_extractor,
-    albanian_model_manager,
     albanian_ner_service,
     albanian_rag_service
 )
