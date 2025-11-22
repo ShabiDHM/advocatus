@@ -1,11 +1,10 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - PHASE 1 COMPLETE
-# Status: Unified Juristi AI Core + Backend + Infrastructure
+# PHOENIX PROTOCOL - PHASE 2: HYBRID INTELLIGENCE
+# Status: Added 'local-llm' (Ollama) for zero-cost processing.
 
 services:
   # -------------------------------------------------------
-  # JURISTI AI CORE (The Unified Brain)
-  # Replaces: embedding, ner, rerank, categorization services
+  # JURISTI AI CORE (Embeddings, NER, Categorization)
   # -------------------------------------------------------
   ai-core-service:
     build: 
@@ -22,6 +21,18 @@ services:
       timeout: 10s
       retries: 5
       start_period: 30s
+
+  # -------------------------------------------------------
+  # LOCAL LLM ENGINE (The Free Brain)
+  # -------------------------------------------------------
+  local-llm:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - phoenix_net
+    # No healthcheck needed for Ollama, it's robust.
 
   # -------------------------------------------------------
   # INFRASTRUCTURE & BACKEND
@@ -46,7 +57,12 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers
     env_file: ./.env
     networks: [phoenix_net]
-    depends_on: { mongo: { condition: service_healthy }, redis: { condition: service_healthy }, ai-core-service: { condition: service_healthy } }
+    # Backend now depends on local-llm being started
+    depends_on: 
+      mongo: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      ai-core-service: { condition: service_healthy }
+      local-llm: { condition: service_started }
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 15s
@@ -95,6 +111,7 @@ volumes:
   chroma_data: {}
   redis_data: {}
   caddy_data: {}
+  ollama_data: {} # Persists the downloaded models
 
 networks:
   phoenix_net:
