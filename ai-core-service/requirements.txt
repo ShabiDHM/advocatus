@@ -5,7 +5,9 @@ python-multipart==0.0.9
 sentence-transformers==2.7.0
 torch==2.2.2
 transformers==4.40.0
-# Albanian NLP (Strict dependency chain)
+# Categorization Helper
+sentencepiece==0.2.0
+# Albanian NLP
 spacy==3.7.4
 typer==0.9.4
 langdetect==1.0.9
