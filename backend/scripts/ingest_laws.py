@@ -22,7 +22,7 @@ except ImportError as e:
 
 # Configuration
 # We connect to the ChromaDB running in your Docker Container
-CHROMA_HOST = "localhost"
+CHROMA_HOST = "127.0.0.1"
 CHROMA_PORT = 8002 
 COLLECTION_NAME = "legal_knowledge_base"
 
