@@ -1,7 +1,7 @@
 # FILE: /app/app/services/vector_store_service.py
 # PHOENIX PROTOCOL - DUAL RAG ENABLED
-# 1. ADDED: Knowledge Base (KB) connection logic.
-# 2. FEATURE: query_legal_knowledge_base() searches global laws.
+# 1. ADDED: Robust Metadata Handling for KB.
+# 2. ADDED: Collection Count Logging for diagnostics.
 
 import os
 import time
@@ -44,10 +44,14 @@ def connect_chroma_db():
             # 1. User Documents Collection
             _user_collection = _client.get_or_create_collection(name=USER_COLLECTION_NAME)
             
-            # 2. Legal Knowledge Base Collection (Might be empty initially)
+            # 2. Legal Knowledge Base Collection
             try:
                 _kb_collection = _client.get_or_create_collection(name=KB_COLLECTION_NAME)
-                logger.info("✅ Connected to Legal Knowledge Base.")
+                # Diagnostic: Check if KB is empty
+                kb_count = _kb_collection.count()
+                logger.info(f"✅ Connected to Legal Knowledge Base. Documents available: {kb_count}")
+                if kb_count == 0:
+                    logger.warning("⚠️ Legal Knowledge Base is empty! RAG will not find laws.")
             except Exception as e:
                 logger.warning(f"⚠️ Could not connect to KB Collection: {e}")
 
@@ -79,6 +83,7 @@ def get_kb_collection() -> Optional[Collection]:
 def query_legal_knowledge_base(embedding: List[float], n_results: int = 5) -> List[Dict[str, Any]]:
     """
     Searches the Global Legal Knowledge Base (Laws, Codes).
+    Robustly handles missing metadata.
     """
     kb = get_kb_collection()
     if not kb:
@@ -92,19 +97,37 @@ def query_legal_knowledge_base(embedding: List[float], n_results: int = 5) -> Li
         )
         
         if not results: return []
-        docs = results.get('documents')
-        metas = results.get('metadatas')
         
-        if not docs or not metas or not docs[0] or not metas[0]: return []
+        docs_list = results.get('documents')
+        metas_list = results.get('metadatas')
         
-        return [
-            { 
-                "text": doc, 
-                "document_name": meta.get("source", "Ligj i Panjohur"), 
-                "type": "LAW" 
-            }
-            for doc, meta in zip(docs[0], metas[0]) if meta
-        ]
+        # Check if we got any documents back
+        if not docs_list or not docs_list[0]: 
+            return []
+            
+        found_docs = docs_list[0]
+        
+        # Handle case where metadatas might be None or the list inside might be None
+        # If metas_list is None or metas_list[0] is None, create a list of empty dicts or None
+        found_metas = []
+        if metas_list and metas_list[0]:
+            found_metas = metas_list[0]
+        else:
+            # Fill with None so zip still works
+            found_metas = [None] * len(found_docs)
+        
+        response = []
+        for doc, meta in zip(found_docs, found_metas):
+            if doc: # Ensure doc text exists
+                safe_meta = meta or {}
+                response.append({
+                    "text": doc,
+                    "document_name": safe_meta.get("source", "Ligj i Panjohur"),
+                    "type": "LAW"
+                })
+        
+        return response
+
     except Exception as e:
         logger.error(f"❌ Error querying Knowledge Base: {e}")
         return []
