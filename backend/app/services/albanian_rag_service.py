@@ -65,6 +65,10 @@ class AlbanianRAGService:
                 data = response.json()
                 
                 sorted_texts = data.get("reranked_documents", [])
+                
+                # Fallback logic inside reranker: if external service returns empty but we sent docs,
+                # it might mean strict filtering. We return empty here and handle fallback in caller,
+                # or return valid matches if found.
                 reranked_chunks = []
                 for text in sorted_texts:
                     if text in chunk_map:
@@ -111,11 +115,18 @@ class AlbanianRAGService:
                 # Combine results
                 all_candidates = user_docs + law_docs
                 
-                # 3. Unified Reranking
+                # 3. Unified Reranking with Fallback
                 if all_candidates:
                     reranked_chunks = await self._rerank_chunks(query, all_candidates)
-                    # Keep Top 7 (Mix of facts and laws)
-                    relevant_chunks = reranked_chunks[:7]
+                    
+                    if not reranked_chunks:
+                        # FAIL-SAFE: If reranker filtered everything out (strictness or error),
+                        # fall back to the original vector search results.
+                        logger.info("ℹ️ [RAG] Reranker returned 0 results. Falling back to Vector Search results.")
+                        relevant_chunks = all_candidates[:7]
+                    else:
+                        # Keep Top 7 (Mix of facts and laws)
+                        relevant_chunks = reranked_chunks[:7]
                 else:
                     relevant_chunks = []
 
