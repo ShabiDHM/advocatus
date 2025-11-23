@@ -1,7 +1,7 @@
-// FILE: frontend/src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - IMPORT FIX
-// 1. FIXED: Changed 'import useAuth' to 'import { useAuth }'.
-// 2. REASON: Ensures the hook function is imported so it can be called.
+// FILE: src/pages/CaseViewPage.tsx
+// PHOENIX PROTOCOL - CLEAN REPLACEMENT
+// 1. ACTION: Select ALL -> Delete -> Paste.
+// 2. FIXES: Resolved 'useAuth' import and unused variables.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -14,7 +14,7 @@ import AnalysisModal from '../components/AnalysisModal';
 import FindingsModal from '../components/FindingsModal';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../context/AuthContext'; // <--- FIXED: Named Import
+import { useAuth } from '../context/AuthContext'; // Correct Named Import
 import { motion } from 'framer-motion';
 import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
