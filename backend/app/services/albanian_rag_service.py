@@ -1,3 +1,9 @@
+# FILE: backend/app/services/albanian_rag_service.py
+# PHOENIX PROTOCOL - DUAL RAG & DEBUGGING
+# 1. SEARCH: Queries both User Docs and Knowledge Base.
+# 2. DEBUG: Logs exactly what it finds.
+# 3. PROMPT: Optimized for Kosovo/Albania jurisdiction.
+
 import os
 import asyncio
 import logging
@@ -10,7 +16,7 @@ class LLMClientProtocol(Protocol):
     @property
     def chat(self) -> Any: ...
 
-# UPDATED PROTOCOL: Now includes the Knowledge Base query
+# UPDATED PROTOCOL: Includes Knowledge Base query capability
 class VectorStoreServiceProtocol(Protocol):
     def query_by_vector(self, embedding: List[float], case_id: str, n_results: int, document_ids: Optional[List[str]]) -> List[Dict]: ...
     def query_legal_knowledge_base(self, embedding: List[float], n_results: int) -> List[Dict]: ...
@@ -50,7 +56,7 @@ class AlbanianRAGService:
         if not chunks:
             return []
             
-        # Deduplicate chunks based on text content to avoid repetition
+        # Deduplicate based on text
         unique_chunks = {c.get('text', ''): c for c in chunks}
         documents = list(unique_chunks.keys())
         chunk_map = unique_chunks
@@ -66,9 +72,6 @@ class AlbanianRAGService:
                 
                 sorted_texts = data.get("reranked_documents", [])
                 
-                # Fallback logic inside reranker: if external service returns empty but we sent docs,
-                # it might mean strict filtering. We return empty here and handle fallback in caller,
-                # or return valid matches if found.
                 reranked_chunks = []
                 for text in sorted_texts:
                     if text in chunk_map:
@@ -92,7 +95,7 @@ class AlbanianRAGService:
                     timeout=self.EMBEDDING_TIMEOUT
                 )
                 
-                # 2. DUAL SEARCH STRATEGY
+                # 2. DUAL SEARCH STRATEGY (Parallel)
                 # A: Search User Case Documents
                 future_user_docs = asyncio.to_thread(
                     self.vector_store.query_by_vector,
@@ -109,56 +112,68 @@ class AlbanianRAGService:
                     n_results=5 
                 )
                 
-                # Execute both searches in parallel
+                # Execute both
                 user_docs, law_docs = await asyncio.gather(future_user_docs, future_law_docs)
                 
+                # --- DIAGNOSTIC LOGS ---
+                logger.info(f"🔍 RAG DIAGNOSIS -> User Docs Found: {len(user_docs)}")
+                logger.info(f"🔍 RAG DIAGNOSIS -> Law Docs Found: {len(law_docs)}")
+                if law_docs:
+                    logger.info(f"📜 Top Law Match: {law_docs[0].get('document_name')}")
+                # -----------------------
+
                 # Combine results
                 all_candidates = user_docs + law_docs
                 
-                # 3. Unified Reranking with Fallback
+                # 3. Unified Reranking
                 if all_candidates:
                     reranked_chunks = await self._rerank_chunks(query, all_candidates)
                     
                     if not reranked_chunks:
-                        # FAIL-SAFE: If reranker filtered everything out (strictness or error),
-                        # fall back to the original vector search results.
-                        logger.info("ℹ️ [RAG] Reranker returned 0 results. Falling back to Vector Search results.")
+                        logger.warning("⚠️ Reranker returned 0 results. Falling back to raw results.")
                         relevant_chunks = all_candidates[:7]
                     else:
-                        # Keep Top 7 (Mix of facts and laws)
-                        relevant_chunks = reranked_chunks[:7]
+                        # Keep Top 7 (3 for speed limit, 7 for quality if paid)
+                        # Adjust to [:3] if hitting Groq rate limits
+                        relevant_chunks = reranked_chunks[:7] 
                 else:
                     relevant_chunks = []
 
             except Exception as e:
-                logger.error(f"RAG Dual-Search failed: {e}")
+                logger.error(f"RAG Search failed: {e}", exc_info=True)
 
             if not relevant_chunks:
                 yield "Nuk munda të gjej informacion relevant në dokumentet e çështjes ose në bazën ligjore."
                 return
 
         except Exception as e:
-            logger.error(f"RAG Error: {e}", exc_info=True)
+            logger.error(f"RAG System Error: {e}", exc_info=True)
             yield f"Gabim teknik: {str(e)}"
             return
 
         # 4. Generate Response
         context_string = self._build_prompt_context(relevant_chunks)
         
+        # JURISTI SYSTEM PROMPT
         system_prompt = """
         Jeni "Juristi AI", ekspert ligjor për hapësirën shqipfolëse (Kosovë dhe Shqipëri).
 
-        UDHËZIME STRIKTE:
-        1. **Burimi i Informacionit:** Përdor KONTEKSTIN e dhënë më poshtë. Konteksti përmban "DOKUMENTE" (fakte të çështjes) dhe "LIGJE" (baza ligjore).
-        2. **Sinteza:** Kombino faktet nga dokumentet me ligjet përkatëse për të dhënë opinion.
-        3. **Citimi:** Kur përdor informacion nga seksioni "LIGJI", citoje saktë (psh. "Sipas Kodit Penal, Neni...").
-        4. **Gjuha:** Përgjigju në gjuhën e pyetjes (Shqip).
+        PROTOKOLLI I JURIDIKSIONIT:
+        1. **Identifiko Vendin:** 
+           - "Prishtinë", "EUR", "Gjykata Themelore" -> KOSOVË. 
+           - "Tiranë", "LEK", "Gjykata e Rrethit" -> SHQIPËRI.
+        2. **Default:** Nëse nuk specifikohet, supozo se zbatohet ligji i **Republikës së Kosovës**.
+        
+        UDHËZIME TË OPERIMIT:
+        - Përdor KONTEKSTIN e dhënë më poshtë (Dokumente dhe Ligje).
+        - Mos shpik ligje. Cito saktë nga teksti i dhënë (psh. "Sipas Nenit 4...").
+        - Përgjigju në gjuhën e pyetjes.
 
-        Nëse konteksti nuk ka informacion, thuaj: "Nuk kam informacion të mjaftueshëm."
+        Nëse konteksti nuk mjafton, thuaj: "Nuk kam informacion të mjaftueshëm në dokumentet e ofruara."
         """
         
         user_prompt = f"""
-        KONTEKSTI (DOKUMENTE DHE LIGJE):
+        KONTEKSTI (BURIMET LIGJORE DHE FAKTIKE):
         {context_string}
         
         PYETJA: 
@@ -180,20 +195,19 @@ class AlbanianRAGService:
                 if content:
                     yield content
                     
-            yield "\n\n**Burimi:** Juristi AI (Analizë e kombinuar)"
+            yield "\n\n**Burimi:** Juristi AI"
 
         except Exception as e:
             logger.error(f"RAG Generation Error: {e}", exc_info=True)
-            yield "Ndodhi një gabim gjatë gjenerimit."
+            yield "Ndodhi një gabim gjatë gjenerimit (Rate Limit ose Lidhja)."
 
     def _build_prompt_context(self, chunks: List[Dict]) -> str:
         parts = []
         for chunk in chunks:
-            doc_type = chunk.get('type', 'DOKUMENT') # 'LAW' or 'DOKUMENT'
+            doc_type = chunk.get('type', 'DOKUMENT')
             name = chunk.get('document_name', 'Burim')
             text = chunk.get('text', '')
             
             label = "LIGJI (BAZA LIGJORE)" if doc_type == "LAW" else "DOKUMENTI I ÇËSHTJES"
             parts.append(f"[{label}]: {name}\n{text}")
-            
         return "\n\n---\n\n".join(parts)
