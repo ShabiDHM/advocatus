@@ -1,10 +1,11 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - REFACTOR
-// 1. VISUALS: Converted Text mode to "Virtual Paper" (White page, standardized look).
-// 2. CONTROLS: Zoom and Download enabled for ALL document types (PDF, Text, Image).
-// 3. MOBILE: Controls made visible and touch-friendly on small screens.
+// PHOENIX PROTOCOL - ARCHITECTURAL FIX
+// 1. PORTAL IMPLEMENTATION: Uses createPortal to render modal at body level, bypassing all parent stacking contexts.
+// 2. Z-INDEX: Boosted to z-[9999] to ensure it sits above the Global App Header.
+// 3. SCROLLING: Optimized 'touch-action' and mobile padding for professional feel.
 
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
 import { apiService } from '../services/api';
 import { Document } from '../data/types';
@@ -76,7 +77,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       if (actualViewerMode === 'TEXT' || (targetMode === 'TEXT')) {
           const text = await blob.text();
           setTextContent(text);
-          setActualViewerMode('TEXT'); // Ensure mode is set
+          setActualViewerMode('TEXT');
       } else if (actualViewerMode !== 'DOWNLOAD') {
           const url = URL.createObjectURL(blob);
           setFileUrl(url);
@@ -96,7 +97,13 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   
   useEffect(() => {
     fetchDocument();
-    return () => { if (fileUrl) URL.revokeObjectURL(fileUrl); };
+    // Disable body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+    
+    return () => { 
+        if (fileUrl) URL.revokeObjectURL(fileUrl);
+        document.body.style.overflow = 'unset';
+    };
   }, [caseId, documentData.id]);
 
   const handleDownloadOriginal = async () => {
@@ -158,11 +165,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           </div>
         );
       case 'TEXT':
-        // Professional "Paper" View for Text
+        // Professional "Paper" View for Text - Mobile Optimized Padding
         return (
-          <div className="flex justify-center p-4 min-h-full">
+          <div className="flex justify-center p-4 sm:p-8 min-h-full">
             <div 
-                className="bg-white text-gray-900 shadow-2xl p-8 sm:p-12 min-h-[800px] w-full max-w-3xl transition-transform origin-top"
+                className="bg-white text-gray-900 shadow-2xl p-6 sm:p-12 min-h-[600px] sm:min-h-[800px] w-full max-w-3xl transition-transform origin-top rounded-sm sm:rounded-md"
                 style={{ transform: `scale(${scale})` }}
             >
                 <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm leading-relaxed overflow-x-hidden">
@@ -186,13 +193,14 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     }
   };
 
-  return (
+  const modalContent = (
     <AnimatePresence>
       <motion.div 
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         exit={{ opacity: 0 }} 
-        className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex items-center justify-center p-0 sm:p-4" 
+        // Z-9999 ensures it's above everything. Fixed inset-0 covers viewport.
+        className="fixed inset-0 bg-black/95 backdrop-blur-md z-[9999] flex items-center justify-center p-0 sm:p-4" 
         onClick={onClose}
       >
         <motion.div 
@@ -203,11 +211,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             onClick={(e) => e.stopPropagation()}
         >
           {/* HEADER */}
-          <header className="flex flex-wrap items-center justify-between p-3 sm:p-4 bg-background-light/90 border-b border-glass-edge backdrop-blur-sm z-20 gap-2">
+          <header className="flex flex-wrap items-center justify-between p-3 sm:p-4 bg-background-light/95 border-b border-glass-edge backdrop-blur-xl z-20 gap-2 shrink-0">
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 <h2 className="text-sm sm:text-lg font-bold text-gray-200 truncate max-w-[150px] sm:max-w-md">{documentData.file_name}</h2>
                 
-                {/* ZOOM CONTROLS - Visible for ALL modes now */}
+                {/* ZOOM CONTROLS */}
                 {(actualViewerMode !== 'DOWNLOAD') && (
                     <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10 ml-2">
                         <button onClick={zoomOut} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded active:scale-95 transition-transform"><ZoomOut size={16} /></button>
@@ -231,13 +239,13 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           </header>
 
           {/* CONTENT AREA */}
-          <div className="flex-grow relative bg-[#0f0f0f] overflow-auto flex flex-col custom-scrollbar">
+          <div className="flex-grow relative bg-[#0f0f0f] overflow-auto flex flex-col custom-scrollbar touch-pan-y">
             {renderContent()}
           </div>
 
           {/* FOOTER (Only for Multi-page PDF) */}
           {actualViewerMode === 'PDF' && numPages && numPages > 1 && (
-            <footer className="flex items-center justify-center p-3 bg-background-light/90 border-t border-glass-edge backdrop-blur-sm z-20">
+            <footer className="flex items-center justify-center p-3 bg-background-light/95 border-t border-glass-edge backdrop-blur-xl z-20 shrink-0">
               <div className="flex items-center gap-4 bg-black/40 px-4 py-2 rounded-full border border-white/5">
                 <button onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1} className="p-2 text-gray-400 hover:text-white disabled:opacity-30"><ChevronLeft size={24} /></button>
                 <span className="text-sm font-medium text-gray-200 w-20 text-center">{pageNumber} / {numPages}</span>
@@ -249,6 +257,9 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       </motion.div>
     </AnimatePresence>
   );
+
+  // Render via Portal to ensure it sits on top of everything in the DOM
+  return ReactDOM.createPortal(modalContent, document.body);
 };
 
 export default PDFViewerModal;
