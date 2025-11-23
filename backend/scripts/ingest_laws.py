@@ -1,9 +1,8 @@
 # scripts/ingest_laws.py
-# PHOENIX PROTOCOL - REMOTE EMBEDDING VERSION
-# 1. READS PDF locally.
+# PHOENIX PROTOCOL - MULTI-FORMAT SUPPORT
+# 1. READS PDF (.pdf), Word (.docx), and Text (.txt) files.
 # 2. SENDS text to Server (via Tunnel 8010) for Vectorization.
 # 3. SAVES vectors to Server DB (via Tunnel 8002).
-# RESULT: 100% Mathematical Compatibility.
 
 import os
 import sys
@@ -15,12 +14,12 @@ from typing import List, Dict, Any
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 try:
-    from langchain_community.document_loaders import PyPDFLoader
+    from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader, TextLoader
     from langchain_text_splitters import RecursiveCharacterTextSplitter
     import chromadb
     from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 except ImportError as e:
-    print("❌ MISSING LIBRARIES! Run: pip install langchain-community langchain-text-splitters pypdf chromadb requests")
+    print("❌ MISSING LIBRARIES! Run: pip install langchain-community langchain-text-splitters pypdf chromadb requests docx2txt")
     sys.exit(1)
 
 # --- CONFIGURATION ---
@@ -46,7 +45,7 @@ class JuristiRemoteEmbeddings(EmbeddingFunction):
                 vectors.append(data["embedding"])
             except Exception as e:
                 print(f"❌ Embedding Failed for text: {text[:30]}... Error: {e}")
-                # Return zero vector on error to prevent crash, but log it
+                # Return zero vector on error to prevent crash
                 vectors.append([0.0] * 1024) 
         return vectors
 
@@ -55,10 +54,10 @@ def ingest_legal_docs(directory_path: str):
     
     try:
         client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-        # DELETE OLD COLLECTION (To fix dimension mismatch)
+        # DELETE OLD COLLECTION (Optional: Comment this out if you want to append instead of overwrite)
         try:
             client.delete_collection(COLLECTION_NAME)
-            print("🗑️  Deleted old incompatible collection.")
+            print("🗑️  Deleted old collection to ensure clean state.")
         except:
             pass
             
@@ -73,30 +72,52 @@ def ingest_legal_docs(directory_path: str):
         print("👉 Ensure BOTH tunnels are active: ssh -L 8002:... -L 8010:...")
         return
 
-    # Process PDFs
-    pdf_files = glob.glob(os.path.join(directory_path, "*.pdf"))
-    print(f"📚 Found {len(pdf_files)} PDF laws.")
+    # Find all supported files
+    supported_extensions = ['*.pdf', '*.docx', '*.txt']
+    all_files = []
+    for ext in supported_extensions:
+        all_files.extend(glob.glob(os.path.join(directory_path, ext)))
+
+    print(f"📚 Found {len(all_files)} documents to ingest.")
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
 
-    for pdf_path in pdf_files:
+    for file_path in all_files:
         try:
-            print(f"📄 Processing: {os.path.basename(pdf_path)}...")
-            loader = PyPDFLoader(pdf_path)
-            pages = loader.load()
-            chunks = text_splitter.split_documents(pages)
+            print(f"📄 Processing: {os.path.basename(file_path)}...")
             
-            if not chunks: continue
+            # Select appropriate loader
+            ext = os.path.splitext(file_path)[1].lower()
+            loader = None
+            
+            if ext == '.pdf':
+                loader = PyPDFLoader(file_path)
+            elif ext == '.docx':
+                loader = Docx2txtLoader(file_path)
+            elif ext == '.txt':
+                loader = TextLoader(file_path, encoding='utf-8')
+            
+            if not loader:
+                print(f"⚠️ Skipping unsupported file type: {file_path}")
+                continue
 
-            # Batch Processing (to avoid timeouts)
+            # Load and Split
+            docs = loader.load()
+            chunks = text_splitter.split_documents(docs)
+            
+            if not chunks: 
+                print(f"⚠️ No text found in {file_path}")
+                continue
+
+            # Batch Processing
             BATCH_SIZE = 20 
             for i in range(0, len(chunks), BATCH_SIZE):
                 batch = chunks[i:i + BATCH_SIZE]
                 
-                ids = [f"{os.path.basename(pdf_path)}_{i+j}" for j in range(len(batch))]
+                ids = [f"{os.path.basename(file_path)}_{i+j}" for j in range(len(batch))]
                 texts = [c.page_content for c in batch]
                 metadatas: List[Dict[str, Any]] = [
-                    {"source": os.path.basename(pdf_path), "type": "LAW"} 
+                    {"source": os.path.basename(file_path), "type": "LAW"} 
                     for _ in batch
                 ]
                 
@@ -107,10 +128,10 @@ def ingest_legal_docs(directory_path: str):
                 )
                 print(f"   ↳ Ingested batch {i // BATCH_SIZE + 1} ({len(batch)} chunks)")
                 
-            print(f"✅ Finished: {os.path.basename(pdf_path)}")
+            print(f"✅ Finished: {os.path.basename(file_path)}")
             
         except Exception as e:
-            print(f"❌ Failed: {e}")
+            print(f"❌ Failed to process {os.path.basename(file_path)}: {e}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
