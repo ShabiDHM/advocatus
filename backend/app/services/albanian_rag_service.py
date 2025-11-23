@@ -30,9 +30,9 @@ class AlbanianRAGService:
         self.available_doc_ids: List[str] = []
         
         # Configuration
-        self.EMBEDDING_TIMEOUT = 10.0
+        self.EMBEDDING_TIMEOUT = 60.0  # Increased for BGE-M3
         self.AI_CORE_URL = os.getenv("AI_CORE_URL", "http://ai-core-service:8000")
-        self.RERANK_TIMEOUT = 10.0
+        self.RERANK_TIMEOUT = 30.0     # Increased for BGE-Reranker-M3
 
     async def chat(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> str:
         full_response_parts = []
@@ -48,7 +48,7 @@ class AlbanianRAGService:
         if not chunks:
             return []
             
-        # 1. Prepare data: Map text back to chunk objects to reconstruct order
+        # 1. Prepare data
         text_to_chunk_map = {c.get('text', ''): c for c in chunks}
         documents = list(text_to_chunk_map.keys())
         
