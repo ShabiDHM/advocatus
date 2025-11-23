@@ -1,16 +1,16 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - LINT FIX
-// 1. REMOVED: Unused 'useMemo' import.
-// 2. STATUS: Clean, warning-free, and fully functional.
+// PHOENIX PROTOCOL - REFACTOR
+// 1. REMOVED: Google Drive integration (useDrivePicker, handleGoogleDriveClick, downloadFromDrive).
+// 2. REMOVED: Cloud icon and button from UI.
+// 3. MAINTAINED: Mobile responsiveness and existing upload functionality.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Trash, Plus, Loader2, Cloud } from 'lucide-react';
+import { FolderOpen, Eye, Trash, Plus, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import useDrivePicker from 'react-google-drive-picker';
 
 interface DocumentsPanelProps {
   caseId: string;
@@ -38,8 +38,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const [openPicker] = useDrivePicker();
-  
   const performUpload = async (file: File) => {
     setIsUploading(true);
     setUploadError(null);
@@ -64,54 +62,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) performUpload(file);
-  };
-
-  const handleGoogleDriveClick = () => {
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-      const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
-
-      if (!clientId || !apiKey) {
-          alert("Google Drive integration is not configured.");
-          return;
-      }
-
-      openPicker({
-        clientId: clientId,
-        developerKey: apiKey,
-        viewId: "DOCS",
-        showUploadView: true,
-        showUploadFolders: true,
-        supportDrives: true,
-        multiselect: false,
-        customScopes: ['https://www.googleapis.com/auth/drive.file'],
-        callbackFunction: (data: any) => {
-          if (data.action === 'picked') {
-             const fileData = data.docs[0];
-             downloadFromDrive(fileData.id, fileData.name, fileData.mimeType, data.oauthToken);
-          }
-        },
-      });
-  };
-
-  const downloadFromDrive = async (fileId: string, fileName: string, mimeType: string, token: string) => {
-      setIsUploading(true);
-      try {
-          const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-              headers: { Authorization: `Bearer ${token}` }
-          });
-          
-          if (!response.ok) throw new Error("Failed to download from Google Drive");
-
-          const blob = await response.blob();
-          const file = new File([blob], fileName, { type: mimeType });
-          
-          await performUpload(file);
-
-      } catch (error: any) {
-          console.error("Drive Download Error:", error);
-          setUploadError("Failed to import from Drive.");
-          setIsUploading(false);
-      }
   };
 
   const handleDeleteDocument = async (documentId: string | undefined) => {
@@ -179,18 +129,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         </div>
 
         <div className="flex-shrink-0 flex gap-2">
-          {/* Google Drive Button */}
-          <motion.button
-            onClick={handleGoogleDriveClick}
-            className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl transition-all duration-300 shadow-lg bg-white text-gray-700 hover:bg-gray-100 border border-glass-edge"
-            title="Google Drive"
-            disabled={isUploading}
-            whileHover={{ scale: 1.05 }} 
-            whileTap={{ scale: 0.95 }} 
-          >
-            <Cloud className="h-5 w-5 sm:h-6 sm:w-6" />
-          </motion.button>
-
           {/* Standard Upload Button */}
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
           <motion.button
