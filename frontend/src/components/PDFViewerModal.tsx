@@ -1,8 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - MOBILE OPTIMIZATION
-// 1. FULL SCREEN: Removed modal padding on mobile for immersive view.
-// 2. HEADER: Compact layout for zoom/close controls on small screens.
-// 3. PAGINATION: Larger touch targets for prev/next buttons.
+// PHOENIX PROTOCOL - REFACTOR
+// 1. VISUALS: Converted Text mode to "Virtual Paper" (White page, standardized look).
+// 2. CONTROLS: Zoom and Download enabled for ALL document types (PDF, Text, Image).
+// 3. MOBILE: Controls made visible and touch-friendly on small screens.
 
 import React, { useState, useEffect } from 'react';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
@@ -76,6 +76,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       if (actualViewerMode === 'TEXT' || (targetMode === 'TEXT')) {
           const text = await blob.text();
           setTextContent(text);
+          setActualViewerMode('TEXT'); // Ensure mode is set
       } else if (actualViewerMode !== 'DOWNLOAD') {
           const url = URL.createObjectURL(blob);
           setFileUrl(url);
@@ -113,8 +114,8 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     } catch (e) { console.error(e); } finally { setIsDownloading(false); }
   };
 
-  const zoomIn = () => setScale(prev => Math.min(prev + 0.25, 3.0));
-  const zoomOut = () => setScale(prev => Math.max(prev - 0.25, 0.5));
+  const zoomIn = () => setScale(prev => Math.min(prev + 0.1, 3.0));
+  const zoomOut = () => setScale(prev => Math.max(prev - 0.1, 0.5));
   const zoomReset = () => setScale(1.0);
 
   const renderContent = () => {
@@ -144,7 +145,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     switch (actualViewerMode) {
       case 'PDF':
         return (
-          <div className="flex justify-center p-4 min-h-full overflow-auto touch-pan-x touch-pan-y">
+          <div className="flex justify-center p-4 min-h-full">
              <PdfDocument file={fileUrl} onLoadSuccess={({ numPages }) => { setNumPages(numPages); setPageNumber(1); }} loading="">
                  <Page 
                     pageNumber={pageNumber} 
@@ -157,14 +158,26 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           </div>
         );
       case 'TEXT':
-        return <div className="p-4 sm:p-8 w-full max-w-4xl mx-auto bg-white shadow-sm min-h-full"><pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm text-gray-800 overflow-auto">{textContent}</pre></div>;
+        // Professional "Paper" View for Text
+        return (
+          <div className="flex justify-center p-4 min-h-full">
+            <div 
+                className="bg-white text-gray-900 shadow-2xl p-8 sm:p-12 min-h-[800px] w-full max-w-3xl transition-transform origin-top"
+                style={{ transform: `scale(${scale})` }}
+            >
+                <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm leading-relaxed overflow-x-hidden">
+                    {textContent}
+                </pre>
+            </div>
+          </div>
+        );
       case 'IMAGE':
         return (
             <div className="flex items-center justify-center h-full p-4 overflow-auto touch-pinch-zoom">
                 <img 
                     src={fileUrl!} 
                     alt="Doc" 
-                    style={{ transform: `scale(${scale})`, transition: 'transform 0.2s' }}
+                    style={{ transform: `scale(${scale})`, transition: 'transform 0.1s' }}
                     className="max-w-full max-h-full object-contain rounded-lg shadow-lg origin-center" 
                 />
             </div>
@@ -179,43 +192,52 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         exit={{ opacity: 0 }} 
-        className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-0 sm:p-4" 
+        className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 flex items-center justify-center p-0 sm:p-4" 
         onClick={onClose}
       >
         <motion.div 
             initial={{ scale: 0.95, opacity: 0 }} 
             animate={{ scale: 1, opacity: 1 }} 
             exit={{ scale: 0.95, opacity: 0 }} 
-            className="bg-background-main w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-glass-edge" 
+            className="bg-[#1a1a1a] w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-glass-edge" 
             onClick={(e) => e.stopPropagation()}
         >
-          <header className="flex flex-row items-center justify-between p-3 sm:p-4 bg-background-light/80 border-b border-glass-edge backdrop-blur-sm z-10 gap-2">
-            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-                <h2 className="text-base sm:text-lg font-bold text-text-primary truncate">{documentData.file_name}</h2>
+          {/* HEADER */}
+          <header className="flex flex-wrap items-center justify-between p-3 sm:p-4 bg-background-light/90 border-b border-glass-edge backdrop-blur-sm z-20 gap-2">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+                <h2 className="text-sm sm:text-lg font-bold text-gray-200 truncate max-w-[150px] sm:max-w-md">{documentData.file_name}</h2>
                 
-                {/* ZOOM CONTROLS - Hidden on very small screens to save space, or simplified */}
-                {(actualViewerMode === 'PDF' || actualViewerMode === 'IMAGE') && (
-                    <div className="hidden sm:flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10 flex-shrink-0">
-                        <button onClick={zoomOut} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded"><ZoomOut size={18} /></button>
-                        <span className="text-xs text-gray-400 w-10 text-center">{Math.round(scale * 100)}%</span>
-                        <button onClick={zoomIn} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded"><ZoomIn size={18} /></button>
-                        <button onClick={zoomReset} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded ml-1" title="Reset"><Maximize size={18} /></button>
+                {/* ZOOM CONTROLS - Visible for ALL modes now */}
+                {(actualViewerMode !== 'DOWNLOAD') && (
+                    <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10 ml-2">
+                        <button onClick={zoomOut} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded active:scale-95 transition-transform"><ZoomOut size={16} /></button>
+                        <span className="text-[10px] sm:text-xs text-gray-400 w-8 text-center hidden sm:inline-block">{Math.round(scale * 100)}%</span>
+                        <button onClick={zoomIn} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded active:scale-95 transition-transform"><ZoomIn size={16} /></button>
+                        <button onClick={zoomReset} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded ml-1 active:scale-95 transition-transform" title="Reset"><Maximize size={16} /></button>
                     </div>
                 )}
             </div>
 
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              <button onClick={handleDownloadOriginal} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full"><Download size={20} /></button>
-              <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full"><X size={24} /></button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button 
+                onClick={handleDownloadOriginal} 
+                className="p-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg transition-colors border border-primary-start/30"
+                title={t('pdfViewer.downloadOriginal')}
+              >
+                <Download size={20} />
+              </button>
+              <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
             </div>
           </header>
 
-          <div className="flex-grow relative bg-[#1a1a1a] overflow-auto flex flex-col">
+          {/* CONTENT AREA */}
+          <div className="flex-grow relative bg-[#0f0f0f] overflow-auto flex flex-col custom-scrollbar">
             {renderContent()}
           </div>
 
+          {/* FOOTER (Only for Multi-page PDF) */}
           {actualViewerMode === 'PDF' && numPages && numPages > 1 && (
-            <footer className="flex items-center justify-center p-3 bg-background-light/80 border-t border-glass-edge backdrop-blur-sm z-10 pb-6 sm:pb-3">
+            <footer className="flex items-center justify-center p-3 bg-background-light/90 border-t border-glass-edge backdrop-blur-sm z-20">
               <div className="flex items-center gap-4 bg-black/40 px-4 py-2 rounded-full border border-white/5">
                 <button onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1} className="p-2 text-gray-400 hover:text-white disabled:opacity-30"><ChevronLeft size={24} /></button>
                 <span className="text-sm font-medium text-gray-200 w-20 text-center">{pageNumber} / {numPages}</span>
