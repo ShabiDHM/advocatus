@@ -1,7 +1,7 @@
 # FILE: /app/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - FINAL FIX
-# 1. BUG FIX: Ensures BOTH collections are connected.
-# 2. LOGIC: connect_chroma_db now retries KB connection if missing.
+# PHOENIX PROTOCOL - FINAL FIX (PORT CONFIGURATION)
+# 1. CONFIG: Smart detection of Internal vs External Port.
+# 2. LOGIC: Ensures connection works both inside Docker and Locally.
 
 import os
 import time
@@ -14,8 +14,16 @@ from chromadb.types import Metadata
 
 logger = logging.getLogger(__name__)
 
+# --- SMART CONFIGURATION ---
 CHROMA_HOST = os.getenv("CHROMA_HOST", "chroma")
-CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8000))
+
+# PHOENIX FIX:
+# If the host is 'chroma' (Docker Container Name), we MUST use port 8000.
+# If the host is 'localhost' or IP (External), we use the Env Var (likely 8002).
+if CHROMA_HOST == "chroma":
+    CHROMA_PORT = 8000
+else:
+    CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8000))
 
 # Collections
 USER_COLLECTION_NAME = "advocatus_phoenix_documents"
@@ -30,18 +38,19 @@ VECTOR_WRITE_BATCH_SIZE = 64
 def connect_chroma_db():
     global _client, _user_collection, _kb_collection
     
-    # FIX: Only return if BOTH are connected
+    # Return only if BOTH collections and client are established
     if _user_collection and _kb_collection and _client: 
         return
 
-    if not CHROMA_HOST or not CHROMA_PORT:
-        logger.critical("CHROMA_HOST or CHROMA_PORT is missing.")
+    if not CHROMA_HOST:
+        logger.critical("CHROMA_HOST is missing.")
         return 
 
     retries = 5
     while retries > 0:
         try:
             if not _client:
+                logger.info(f"🔌 Connecting to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}...")
                 _client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
                 _client.heartbeat()
             
@@ -50,7 +59,7 @@ def connect_chroma_db():
                 _user_collection = _client.get_or_create_collection(name=USER_COLLECTION_NAME)
                 logger.info("✅ Connected to User Documents Collection.")
             
-            # 2. Connect Knowledge Base (Retry logic included)
+            # 2. Connect Knowledge Base
             if not _kb_collection:
                 try:
                     _kb_collection = _client.get_or_create_collection(name=KB_COLLECTION_NAME)
