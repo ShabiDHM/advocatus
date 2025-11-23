@@ -1,15 +1,16 @@
 // FILE: src/components/DocumentsPanel.tsx
 // PHOENIX PROTOCOL - LINT FIX
-// 1. CLEANUP: Removed unused 'useMemo' import.
-// 2. UI: Maintains the polished badge style and responsive layout.
+// 1. REMOVED: Unused 'useMemo' import.
+// 2. STATUS: Clean, warning-free, and fully functional.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Trash, Plus, Loader2 } from 'lucide-react';
+import { FolderOpen, Eye, Trash, Plus, Loader2, Cloud } from 'lucide-react';
 import { motion } from 'framer-motion';
+import useDrivePicker from 'react-google-drive-picker';
 
 interface DocumentsPanelProps {
   caseId: string;
@@ -37,51 +38,80 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const connectionStatusText = (status: ConnectionStatus) => {
-    switch (status) {
-      case 'CONNECTED': return t('documentsPanel.statusConnected');
-      case 'CONNECTING': return t('documentsPanel.statusConnecting');
-      case 'DISCONNECTED': return t('documentsPanel.statusDisconnected');
-      case 'ERROR': return t('documentsPanel.statusError');
-      default: return status;
-    }
-  };
-
-  const statusColor = (status: ConnectionStatus) => {
-    switch (status) {
-      case 'CONNECTED': return 'bg-green-500/10 text-green-400 border-green-500/20';
-      case 'CONNECTING': return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
-      default: return 'bg-red-500/10 text-red-400 border-red-500/20';
-    }
-  };
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  const [openPicker] = useDrivePicker();
+  
+  const performUpload = async (file: File) => {
     setIsUploading(true);
     setUploadError(null);
-
     try {
       const responseData = await apiService.uploadDocument(caseId, file);
-      
       const rawData = responseData as any;
       const newDoc: Document = {
           ...responseData,
           id: responseData.id || rawData._id, 
           status: 'PENDING' 
       };
-
       if (!newDoc.id) throw new Error("Upload succeeded but ID is missing.");
-
       onDocumentUploaded(newDoc);
-      
     } catch (error: any) {
       setUploadError(t('documentsPanel.uploadFailed') + `: ${error.message}`);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) performUpload(file);
+  };
+
+  const handleGoogleDriveClick = () => {
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+      const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+
+      if (!clientId || !apiKey) {
+          alert("Google Drive integration is not configured.");
+          return;
+      }
+
+      openPicker({
+        clientId: clientId,
+        developerKey: apiKey,
+        viewId: "DOCS",
+        showUploadView: true,
+        showUploadFolders: true,
+        supportDrives: true,
+        multiselect: false,
+        customScopes: ['https://www.googleapis.com/auth/drive.file'],
+        callbackFunction: (data: any) => {
+          if (data.action === 'picked') {
+             const fileData = data.docs[0];
+             downloadFromDrive(fileData.id, fileData.name, fileData.mimeType, data.oauthToken);
+          }
+        },
+      });
+  };
+
+  const downloadFromDrive = async (fileId: string, fileName: string, mimeType: string, token: string) => {
+      setIsUploading(true);
+      try {
+          const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+              headers: { Authorization: `Bearer ${token}` }
+          });
+          
+          if (!response.ok) throw new Error("Failed to download from Google Drive");
+
+          const blob = await response.blob();
+          const file = new File([blob], fileName, { type: mimeType });
+          
+          await performUpload(file);
+
+      } catch (error: any) {
+          console.error("Drive Download Error:", error);
+          setUploadError("Failed to import from Drive.");
+          setIsUploading(false);
+      }
   };
 
   const handleDeleteDocument = async (documentId: string | undefined) => {
@@ -111,25 +141,57 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     }
   };
 
+  const connectionStatusText = (status: ConnectionStatus) => {
+    switch (status) {
+      case 'CONNECTED': return t('documentsPanel.statusConnected');
+      case 'CONNECTING': return t('documentsPanel.statusConnecting');
+      case 'DISCONNECTED': return t('documentsPanel.statusDisconnected');
+      case 'ERROR': return t('documentsPanel.statusError');
+      default: return status;
+    }
+  };
+
+  const statusColor = (status: ConnectionStatus) => {
+    switch (status) {
+      case 'CONNECTED': return 'bg-success-start text-white glow-accent';
+      case 'CONNECTING': return 'bg-accent-start text-white';
+      case 'DISCONNECTED': return 'bg-red-500 text-white';
+      case 'ERROR': return 'bg-red-500 text-white';
+      default: return 'bg-background-light text-text-secondary';
+    }
+  };
+
   return (
-    <div className="documents-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col h-full">
+    <div className="documents-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col h-[500px] sm:h-[600px]">
       {/* Header */}
       <div className="flex flex-row justify-between items-center border-b border-background-light/50 pb-3 mb-4 flex-shrink-0 gap-2">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 overflow-hidden">
             <h2 className="text-lg sm:text-xl font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
             
-            <div className={`text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-full border flex items-center gap-1.5 transition-all whitespace-nowrap ${statusColor(connectionStatus)}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-400' : 'bg-red-400'}`}></span>
+            <div className={`text-[10px] sm:text-xs font-semibold px-2 sm:px-3 py-1 rounded-full flex items-center transition-all whitespace-nowrap ${statusColor(connectionStatus)}`}>
                 {connectionStatusText(connectionStatus)}
                 {connectionStatus !== 'CONNECTED' && (
-                  <motion.button onClick={reconnect} className="ml-1 underline hover:text-white" whileHover={{ scale: 1.05 }}>
+                  <motion.button onClick={reconnect} className="ml-2 underline text-white/80 hover:text-white" whileHover={{ scale: 1.05 }}>
                     {t('documentsPanel.reconnect')}
                   </motion.button>
                 )}
             </div>
         </div>
 
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 flex gap-2">
+          {/* Google Drive Button */}
+          <motion.button
+            onClick={handleGoogleDriveClick}
+            className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl transition-all duration-300 shadow-lg bg-white text-gray-700 hover:bg-gray-100 border border-glass-edge"
+            title="Google Drive"
+            disabled={isUploading}
+            whileHover={{ scale: 1.05 }} 
+            whileTap={{ scale: 0.95 }} 
+          >
+            <Cloud className="h-5 w-5 sm:h-6 sm:w-6" />
+          </motion.button>
+
+          {/* Standard Upload Button */}
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
           <motion.button
             onClick={() => fileInputRef.current?.click()}
@@ -146,7 +208,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
       {uploadError && (<div className="p-3 text-xs sm:text-sm text-red-100 bg-red-700 rounded-lg mb-4">{uploadError}</div>)}
 
-      <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 max-h-[250px] sm:max-h-[20rem]">
+      <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar">
         {(documents.length === 0 && !isUploading) && (
           <div className="text-text-secondary text-center py-5">
             <FolderOpen className="w-12 h-12 sm:w-16 sm:h-16 text-text-secondary/50 mx-auto mb-4" />

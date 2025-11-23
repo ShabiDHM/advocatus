@@ -1,7 +1,8 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CLEAN REPLACEMENT
-// 1. ACTION: Select ALL -> Delete -> Paste.
-// 2. PURPOSE: Fixes corrupted file structure/duplicate code.
+// PHOENIX PROTOCOL - SCROLLING FIX
+// 1. HEIGHT CONSTRAINT: Changed 'h-full' back to 'h-[500px] sm:h-[600px]'.
+//    This forces the panel to stop growing, which makes the scrollbar appear.
+// 2. SCROLLBAR: Ensured the message container handles overflow correctly.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, ConnectionStatus } from '../data/types';
@@ -99,13 +100,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    <div className="chat-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col h-full">
+    // PHOENIX FIX: Changed 'h-full' to explicit 'h-[500px] sm:h-[600px]' to force scrolling
+    <div className="chat-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col h-[500px] sm:h-[600px]">
+      
+      {/* Header */}
       <div className="flex flex-row justify-between items-center border-b border-background-light/50 pb-3 mb-4 flex-shrink-0 gap-2">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 overflow-hidden">
             <h2 className="text-lg sm:text-xl font-bold text-text-primary truncate">{t('chatPanel.title')}</h2>
+            
             <div className={`text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-full border flex items-center gap-1.5 transition-all whitespace-nowrap ${statusColor(connectionStatus)}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-400' : 'bg-red-400'}`}></span>
                 {statusText(connectionStatus)}
+                
                 {connectionStatus !== 'CONNECTED' && (
                     <button onClick={reconnect} className="ml-1 underline hover:text-white" title={t('chatPanel.reconnect')}>
                         <RefreshCw size={10} />
@@ -113,11 +119,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 )}
             </div>
         </div>
-        <button onClick={onClearChat} title={t('chatPanel.clearChat')} className="p-2 text-text-secondary hover:text-red-400 transition-colors rounded-full hover:bg-white/5">
+
+        <button 
+            onClick={onClearChat} 
+            title={t('chatPanel.clearChat')}
+            className="p-2 text-text-secondary hover:text-red-400 transition-colors rounded-full hover:bg-white/5"
+        >
             <Trash2 className="h-5 w-5" />
         </button>
       </div>
 
+      {/* Messages Area (Scrollable) */}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-6 custom-scrollbar pr-2 mb-4">
         {messages.length === 0 && !showThinking && ( 
             <div className="flex flex-col items-center justify-center h-full text-center text-text-secondary opacity-60 space-y-4">
@@ -125,6 +137,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <p className="text-sm">{t('chatPanel.welcomeMessage')}</p>
             </div>
         )}
+        
         {messages.map((msg: ChatMessage, index: number) => (
           <motion.div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} items-end gap-3`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             {msg.sender === 'ai' && <div className="w-8 h-8 rounded-full bg-background-light border border-glass-edge flex items-center justify-center flex-shrink-0"><Brain className="w-4 h-4 text-primary-start" /></div>}
@@ -135,6 +148,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             {msg.sender === 'user' && <div className="w-8 h-8 rounded-full bg-secondary-start flex items-center justify-center flex-shrink-0"><UserIcon className="w-4 h-4 text-white" /></div>}
           </motion.div>
         ))}
+
         <AnimatePresence>
             {showThinking && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex justify-start items-end gap-3">
@@ -146,6 +160,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Input */}
       <div className="flex-none pt-3 border-t border-glass-edge/30">
         <form onSubmit={handleSubmit} className="flex items-end space-x-2">
           <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={handleKeyDown} rows={1} placeholder={t('chatPanel.inputPlaceholder')} className="flex-1 resize-none py-3 px-4 border border-glass-edge/50 rounded-xl bg-background-light/10 text-text-primary focus:ring-1 focus:ring-primary-start focus:border-primary-start min-h-[46px] max-h-[100px] custom-scrollbar text-sm" disabled={connectionStatus !== 'CONNECTED' || isSendingMessage} />

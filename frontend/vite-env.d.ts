@@ -10,3 +10,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// PHOENIX FIX: Declare module for the new library
+declare module 'react-google-drive-picker';
