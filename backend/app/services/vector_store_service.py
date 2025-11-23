@@ -1,7 +1,7 @@
 # FILE: /app/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - DUAL RAG ENABLED
-# 1. ADDED: Robust Metadata Handling for KB.
-# 2. ADDED: Collection Count Logging for diagnostics.
+# PHOENIX PROTOCOL - FINAL FIX
+# 1. BUG FIX: Ensures BOTH collections are connected.
+# 2. LOGIC: connect_chroma_db now retries KB connection if missing.
 
 import os
 import time
@@ -29,7 +29,10 @@ VECTOR_WRITE_BATCH_SIZE = 64
 
 def connect_chroma_db():
     global _client, _user_collection, _kb_collection
-    if _user_collection and _client: return
+    
+    # FIX: Only return if BOTH are connected
+    if _user_collection and _kb_collection and _client: 
+        return
 
     if not CHROMA_HOST or not CHROMA_PORT:
         logger.critical("CHROMA_HOST or CHROMA_PORT is missing.")
@@ -38,33 +41,35 @@ def connect_chroma_db():
     retries = 5
     while retries > 0:
         try:
-            _client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-            _client.heartbeat()
+            if not _client:
+                _client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
+                _client.heartbeat()
             
-            # 1. User Documents Collection
-            _user_collection = _client.get_or_create_collection(name=USER_COLLECTION_NAME)
+            # 1. Connect User Collection
+            if not _user_collection:
+                _user_collection = _client.get_or_create_collection(name=USER_COLLECTION_NAME)
+                logger.info("✅ Connected to User Documents Collection.")
             
-            # 2. Legal Knowledge Base Collection
-            try:
-                _kb_collection = _client.get_or_create_collection(name=KB_COLLECTION_NAME)
-                # Diagnostic: Check if KB is empty
-                kb_count = _kb_collection.count()
-                logger.info(f"✅ Connected to Legal Knowledge Base. Documents available: {kb_count}")
-                if kb_count == 0:
-                    logger.warning("⚠️ Legal Knowledge Base is empty! RAG will not find laws.")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not connect to KB Collection: {e}")
+            # 2. Connect Knowledge Base (Retry logic included)
+            if not _kb_collection:
+                try:
+                    _kb_collection = _client.get_or_create_collection(name=KB_COLLECTION_NAME)
+                    kb_count = _kb_collection.count()
+                    logger.info(f"✅ Connected to Legal Knowledge Base. Documents: {kb_count}")
+                except Exception as e:
+                    logger.warning(f"⚠️ KB Connection Warning: {e}")
 
-            logger.info("✅ Successfully connected to ChromaDB User Collection.")
-            return
+            # If both are connected now, we are good
+            if _user_collection and _kb_collection:
+                return
+
         except Exception as e:
             retries -= 1
             logger.warning(f"ChromaDB connection error: {e}. Retrying... ({retries} left)")
             time.sleep(5)
             
-    logger.critical("❌ Could not connect to ChromaDB after all retries.")
-    _client = None
-    _user_collection = None
+    if not _user_collection:
+        logger.critical("❌ Failed to connect to User Collection.")
 
 def get_user_collection() -> Collection:
     if _user_collection is None:
@@ -83,10 +88,10 @@ def get_kb_collection() -> Optional[Collection]:
 def query_legal_knowledge_base(embedding: List[float], n_results: int = 5) -> List[Dict[str, Any]]:
     """
     Searches the Global Legal Knowledge Base (Laws, Codes).
-    Robustly handles missing metadata.
     """
     kb = get_kb_collection()
     if not kb:
+        logger.error("❌ KB Collection is None (Connection Failed)")
         return []
         
     try:
@@ -101,38 +106,26 @@ def query_legal_knowledge_base(embedding: List[float], n_results: int = 5) -> Li
         docs_list = results.get('documents')
         metas_list = results.get('metadatas')
         
-        # Check if we got any documents back
         if not docs_list or not docs_list[0]: 
             return []
             
         found_docs = docs_list[0]
+        found_metas = metas_list[0] if (metas_list and metas_list[0]) else [None] * len(found_docs)
         
-        # Handle case where metadatas might be None or the list inside might be None
-        # If metas_list is None or metas_list[0] is None, create a list of empty dicts or None
-        found_metas = []
-        if metas_list and metas_list[0]:
-            found_metas = metas_list[0]
-        else:
-            # Fill with None so zip still works
-            found_metas = [None] * len(found_docs)
-        
-        response = []
-        for doc, meta in zip(found_docs, found_metas):
-            if doc: # Ensure doc text exists
-                safe_meta = meta or {}
-                response.append({
-                    "text": doc,
-                    "document_name": safe_meta.get("source", "Ligj i Panjohur"),
-                    "type": "LAW"
-                })
-        
-        return response
+        return [
+            { 
+                "text": doc, 
+                "document_name": (meta or {}).get("source", "Ligj i Panjohur"), 
+                "type": "LAW" 
+            }
+            for doc, meta in zip(found_docs, found_metas) if doc
+        ]
 
     except Exception as e:
         logger.error(f"❌ Error querying Knowledge Base: {e}")
         return []
 
-# --- USER DOCUMENT OPERATIONS (Existing Logic) ---
+# --- USER DOCUMENT OPERATIONS ---
 
 def create_and_store_embeddings_from_chunks(
     document_id: str, case_id: str, chunks: List[str], metadatas: Sequence[Dict[str, Any]]
