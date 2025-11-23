@@ -1,9 +1,7 @@
 # FILE: backend/app/api/endpoints/dependencies.py
-# PHOENIX PROTOCOL - THE DEFINITIVE AND FINAL ARCHITECTURAL CORRECTION (DEPENDENCIES v3)
-# CORRECTION: The flawed 'get_calendar_service' dependency has been completely
-# removed. This decouples the dependency file from the service layer, permanently
-# breaking the import cycle and resolving the 'unknown import symbol' error.
-# SECURITY FIX: Admin users no longer require active subscription status for admin endpoints.
+# PHOENIX PROTOCOL - 403 ERROR FIX
+# 1. CRITICAL FIX: 'get_current_active_user' now bypasses subscription checks for ADMINs.
+# 2. REASONING: Admins should not get 403 errors on standard pages just because they don't have a subscription.
 
 from fastapi import Depends, HTTPException, status, WebSocket, Cookie
 from fastapi.security import OAuth2PasswordBearer
@@ -29,8 +27,6 @@ def get_sync_redis() -> Generator[redis.Redis, None, None]:
     if client is None:
          raise HTTPException(status_code=500, detail="Redis client not initialized.")
     yield client
-
-# The get_calendar_service function has been REMOVED from this file.
 
 def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
@@ -63,15 +59,25 @@ def get_current_user(
 def get_current_active_user(
     current_user: Annotated[UserInDB, Depends(get_current_user)]
 ) -> UserInDB:
+    """
+    Validates that the user is allowed to access the system.
+    """
+    # FIX: Admins are always considered 'active' regardless of subscription status.
+    if current_user.role == 'ADMIN':
+        return current_user
+
+    # Regular users must have an active subscription
     if current_user.subscription_status != 'ACTIVE':
         raise HTTPException(status_code=403, detail="User subscription is not active.")
+        
     return current_user
 
 def get_current_admin_user(
-    current_user: Annotated[UserInDB, Depends(get_current_user)]  # CHANGED: Removed get_current_active_user dependency
+    current_user: Annotated[UserInDB, Depends(get_current_user)]
 ) -> UserInDB:
-    # PHOENIX PROTOCOL FIX: Admin users no longer require active subscription status
-    # This allows administrators to access admin endpoints regardless of subscription status
+    """
+    Validates that the user has ADMIN privileges.
+    """
     if current_user.role != 'ADMIN':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
