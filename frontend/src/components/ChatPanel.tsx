@@ -1,8 +1,8 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - SCROLLING FIX
-// 1. HEIGHT CONSTRAINT: Changed 'h-full' back to 'h-[500px] sm:h-[600px]'.
-//    This forces the panel to stop growing, which makes the scrollbar appear.
-// 2. SCROLLBAR: Ensured the message container handles overflow correctly.
+// PHOENIX PROTOCOL - UX UPGRADE
+// 1. DYNAMIC INPUT: Textarea now auto-expands as user types (up to 200px).
+// 2. RESET LOGIC: Input shrinks back to 1 row upon sending.
+// 3. SCROLLING: Maintained fixed panel height for consistent layout.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, ConnectionStatus } from '../data/types';
@@ -52,12 +52,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null); // Ref for auto-resize
   const [showThinking, setShowThinking] = useState(false);
 
+  // Auto-scroll to bottom
   useEffect(() => { 
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
   }, [messages, showThinking]);
 
+  // Handle thinking state
   useEffect(() => {
       if (isSendingMessage) {
           setShowThinking(true);
@@ -67,11 +70,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
   }, [isSendingMessage]);
 
+  // Auto-Resize Textarea
+  useEffect(() => {
+      const textarea = textareaRef.current;
+      if (textarea) {
+          textarea.style.height = 'auto'; // Reset height to calculate scrollHeight
+          textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`; // Grow up to 200px
+      }
+  }, [inputText]);
+
   const handleSubmit = (e: React.FormEvent) => { 
       e.preventDefault(); 
       if (inputText.trim() && !isSendingMessage) { 
           onSendMessage(inputText.trim()); 
           setInputText(''); 
+          // Reset height manually
+          if (textareaRef.current) {
+              textareaRef.current.style.height = 'auto';
+          }
       } 
   };
 
@@ -100,7 +116,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    // PHOENIX FIX: Changed 'h-full' to explicit 'h-[500px] sm:h-[600px]' to force scrolling
     <div className="chat-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col h-[500px] sm:h-[600px]">
       
       {/* Header */}
@@ -160,11 +175,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
+      {/* Input - Auto-Expanding */}
       <div className="flex-none pt-3 border-t border-glass-edge/30">
         <form onSubmit={handleSubmit} className="flex items-end space-x-2">
-          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} onKeyDown={handleKeyDown} rows={1} placeholder={t('chatPanel.inputPlaceholder')} className="flex-1 resize-none py-3 px-4 border border-glass-edge/50 rounded-xl bg-background-light/10 text-text-primary focus:ring-1 focus:ring-primary-start focus:border-primary-start min-h-[46px] max-h-[100px] custom-scrollbar text-sm" disabled={connectionStatus !== 'CONNECTED' || isSendingMessage} />
-          <motion.button type="submit" className={`h-[46px] w-[46px] flex-shrink-0 flex items-center justify-center rounded-xl shadow-lg transition-all ${isSendingMessage || !inputText.trim() ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-primary-start to-primary-end text-white glow-primary hover:scale-105'}`} disabled={connectionStatus !== 'CONNECTED' || isSendingMessage || !inputText.trim()}>
+          <textarea 
+            ref={textareaRef}
+            value={inputText} 
+            onChange={(e) => setInputText(e.target.value)} 
+            onKeyDown={handleKeyDown} 
+            rows={1} 
+            placeholder={t('chatPanel.inputPlaceholder')} 
+            className="flex-1 resize-none py-3 px-4 border border-glass-edge/50 rounded-xl bg-background-light/10 text-text-primary focus:ring-1 focus:ring-primary-start focus:border-primary-start min-h-[48px] max-h-[200px] custom-scrollbar text-sm transition-all duration-200" 
+            disabled={connectionStatus !== 'CONNECTED' || isSendingMessage} 
+          />
+          <motion.button 
+            type="submit" 
+            className={`h-[48px] w-[48px] flex-shrink-0 flex items-center justify-center rounded-xl shadow-lg transition-all ${isSendingMessage || !inputText.trim() ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-primary-start to-primary-end text-white glow-primary hover:scale-105'}`} 
+            disabled={connectionStatus !== 'CONNECTED' || isSendingMessage || !inputText.trim()}
+          >
             {isSendingMessage ? <StopCircle size={20} className="animate-pulse" /> : <Send size={20} />}
           </motion.button>
         </form>
