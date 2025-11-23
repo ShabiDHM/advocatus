@@ -1,7 +1,6 @@
 from . import (
     admin_service,
     analysis_service,
-    api_key_service,
     calendar_service,
     case_service,
     chat_service,
