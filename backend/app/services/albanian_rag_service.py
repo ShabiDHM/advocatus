@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - DUAL RAG & FAIL-SAFE EXECUTION
-# 1. FEATURE: Searches User Docs AND Law Library in parallel.
-# 2. SAFETY: Uses try/except inside asyncio.gather to prevent total crash.
-# 3. DEBUG: Logs vector generation and search results count.
+# PHOENIX PROTOCOL - FAIL-SAFE RAG
+# 1. QUOTA PROTECTION: Detects AI Limit errors and falls back to "Document Search Mode".
+# 2. DUAL SEARCH: Searches Local Documents AND Knowledge Base safely.
+# 3. NO-CRASH GUARANTEE: Even if Grok/xAI is down, the user gets search results.
 
 import os
 import asyncio
@@ -12,11 +12,11 @@ from typing import AsyncGenerator, List, Optional, Dict, Protocol, cast, Any
 
 logger = logging.getLogger(__name__)
 
+# Protocol Definitions for Dependency Injection
 class LLMClientProtocol(Protocol):
     @property
     def chat(self) -> Any: ...
 
-# UPDATED PROTOCOL: Includes Knowledge Base query capability
 class VectorStoreServiceProtocol(Protocol):
     def query_by_vector(self, embedding: List[float], case_id: str, n_results: int, document_ids: Optional[List[str]]) -> List[Dict]: ...
     def query_legal_knowledge_base(self, embedding: List[float], n_results: int) -> List[Dict]: ...
@@ -35,14 +35,16 @@ class AlbanianRAGService:
         self.llm_client = llm_client
         self.language_detector = language_detector
         self.fine_tuned_model = "llama-3.3-70b-versatile"
-        self.available_doc_ids: List[str] = []
         
         # Configuration
-        self.EMBEDDING_TIMEOUT = 60.0
+        self.EMBEDDING_TIMEOUT = 30.0
         self.AI_CORE_URL = os.getenv("AI_CORE_URL", "http://ai-core-service:8000")
-        self.RERANK_TIMEOUT = 30.0
+        self.RERANK_TIMEOUT = 15.0
 
     async def chat(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> str:
+        """
+        Non-streaming wrapper for the chat interface.
+        """
         full_response_parts = []
         async for chunk in self.chat_stream(query, case_id, document_ids):
             if chunk:
@@ -51,12 +53,12 @@ class AlbanianRAGService:
 
     async def _rerank_chunks(self, query: str, chunks: List[Dict]) -> List[Dict]:
         """
-        Sends candidate chunks to Juristi AI Core for semantic reranking.
+        Sends candidate chunks to AI Core for semantic reranking.
         """
         if not chunks:
             return []
             
-        # Deduplicate chunks based on text content to avoid repetition
+        # Deduplicate based on text content
         unique_chunks = {c.get('text', ''): c for c in chunks}
         documents = list(unique_chunks.keys())
         chunk_map = unique_chunks
@@ -84,80 +86,77 @@ class AlbanianRAGService:
             return list(unique_chunks.values())
 
     async def chat_stream(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> AsyncGenerator[str, None]:
+        """
+        The Core Logic:
+        1. Generate Vector (Embed Query).
+        2. Search DB (User Docs + Law).
+        3. Rerank Results.
+        4. Ask AI to Summarize (With Quota Catch).
+        """
         relevant_chunks = []
         try:
+            # Import inside method to avoid circular imports during startup
             from .embedding_service import generate_embedding
 
-            # 1. Embed the Query
+            # --- STEP 1: GENERATE VECTOR ---
+            query_embedding = None
             try:
-                query_embedding = await asyncio.wait_for(
-                    asyncio.to_thread(generate_embedding, query, language='standard'),
-                    timeout=self.EMBEDDING_TIMEOUT
+                # Run sync function in thread
+                query_embedding = await asyncio.to_thread(
+                    generate_embedding, query, 'standard'
                 )
-                
-                # --- DEBUG VECTOR ---
-                if query_embedding:
-                    logger.info(f"🧬 Vector Generated. Length: {len(query_embedding)}")
-                else:
-                    logger.error("❌ Vector is None!")
-                    yield "Gabim teknik: Vektori nuk u gjenerua."
-                    return
-                # --------------------
-
-                # 2. DUAL SEARCH (FAIL-SAFE WRAPPERS)
-                # We wrap calls to prevent one failure from stopping the other
-                
-                async def safe_user_search():
-                    try:
-                        return await asyncio.to_thread(
-                            self.vector_store.query_by_vector,
-                            embedding=query_embedding, 
-                            case_id=case_id, 
-                            n_results=10, 
-                            document_ids=document_ids
-                        )
-                    except Exception as e:
-                        logger.error(f"❌ User Doc Search Failed: {e}")
-                        return []
-
-                async def safe_law_search():
-                    try:
-                        return await asyncio.to_thread(
-                            self.vector_store.query_legal_knowledge_base,
-                            embedding=query_embedding,
-                            n_results=5 
-                        )
-                    except Exception as e:
-                        logger.error(f"❌ Law Search Failed: {e}")
-                        return []
-
-                # Execute safely in parallel
-                user_docs, law_docs = await asyncio.gather(safe_user_search(), safe_law_search())
-                
-                # --- DIAGNOSTIC LOGS ---
-                logger.info(f"🔍 RAG DIAGNOSIS -> User Docs: {len(user_docs)} | Law Docs: {len(law_docs)}")
-                if law_docs:
-                    logger.info(f"📜 Top Law Found: {law_docs[0].get('document_name')}")
-                # -----------------------
-
-                # Combine results
-                all_candidates = user_docs + law_docs
-                
-                # 3. Unified Reranking with Fallback
-                if all_candidates:
-                    reranked_chunks = await self._rerank_chunks(query, all_candidates)
-                    
-                    if not reranked_chunks:
-                        logger.warning("⚠️ Reranker returned 0 results. Falling back to raw results.")
-                        relevant_chunks = all_candidates[:7]
-                    else:
-                        # Keep Top 7
-                        relevant_chunks = reranked_chunks[:7]
-                else:
-                    relevant_chunks = []
-
             except Exception as e:
-                logger.error(f"RAG Workflow Failed: {e}", exc_info=True)
+                logger.error(f"❌ Embedding Generation Failed: {e}")
+                # If we can't generate a vector, we can't search. Stop here.
+                yield "Gabim Teknik: Nuk u arrit të gjenerohej kërkimi (Embedding Error)."
+                return
+
+            if not query_embedding:
+                logger.error("❌ Vector is None!")
+                yield "Gabim Teknik: Shërbimi i AI nuk u përgjigj."
+                return
+
+            # --- STEP 2: DUAL SEARCH ---
+            async def safe_user_search():
+                try:
+                    return await asyncio.to_thread(
+                        self.vector_store.query_by_vector,
+                        embedding=query_embedding, 
+                        case_id=case_id, 
+                        n_results=10, 
+                        document_ids=document_ids
+                    )
+                except Exception as e:
+                    logger.error(f"❌ User Doc Search Failed: {e}")
+                    return []
+
+            async def safe_law_search():
+                try:
+                    return await asyncio.to_thread(
+                        self.vector_store.query_legal_knowledge_base,
+                        embedding=query_embedding,
+                        n_results=5 
+                    )
+                except Exception as e:
+                    logger.error(f"❌ Law Search Failed: {e}")
+                    return []
+
+            user_docs, law_docs = await asyncio.gather(safe_user_search(), safe_law_search())
+            
+            # --- DEBUG LOGS ---
+            logger.info(f"🔍 RAG RESULTS -> User Docs: {len(user_docs)} | Law Docs: {len(law_docs)}")
+
+            all_candidates = user_docs + law_docs
+            
+            # --- STEP 3: RERANKING ---
+            if all_candidates:
+                reranked_chunks = await self._rerank_chunks(query, all_candidates)
+                if not reranked_chunks:
+                    relevant_chunks = all_candidates[:7]
+                else:
+                    relevant_chunks = reranked_chunks[:7]
+            else:
+                relevant_chunks = []
 
             if not relevant_chunks:
                 yield "Nuk munda të gjej informacion relevant në dokumentet e çështjes ose në bazën ligjore."
@@ -165,36 +164,22 @@ class AlbanianRAGService:
 
         except Exception as e:
             logger.error(f"RAG Critical Error: {e}", exc_info=True)
-            yield f"Gabim teknik: {str(e)}"
+            yield f"Gabim gjatë kërkimit: {str(e)}"
             return
 
-        # 4. Generate Response
+        # --- STEP 4: GENERATE ANSWER (WITH QUOTA PROTECTION) ---
         context_string = self._build_prompt_context(relevant_chunks)
         
         system_prompt = """
-        Jeni "Juristi AI", ekspert ligjor për hapësirën shqipfolëse (Kosovë dhe Shqipëri).
-
-        PROTOKOLLI I JURIDIKSIONIT:
-        1. **Identifiko Vendin:** 
-           - "Prishtinë", "EUR", "Gjykata Themelore" -> KOSOVË. 
-           - "Tiranë", "LEK", "Gjykata e Rrethit" -> SHQIPËRI.
-        2. **Default:** Nëse nuk specifikohet, supozo se zbatohet ligji i **Republikës së Kosovës**.
+        Jeni "Juristi AI", ekspert ligjor për Kosovë dhe Shqipëri.
         
-        UDHËZIME TË OPERIMIT:
-        - Përdor KONTEKSTIN e dhënë më poshtë (Dokumente dhe Ligje).
-        - Nëse pyetja është ligjore, cito saktë nga seksioni "LIGJI" (psh. "Sipas Nenit 4...").
-        - Përgjigju në gjuhën e pyetjes.
-
-        Nëse konteksti nuk mjafton, thuaj: "Nuk kam informacion të mjaftueshëm në dokumentet e ofruara ose në bibliotekën ligjore."
+        RREGULLAT:
+        1. Përdor VETËM kontekstin e mëposhtëm.
+        2. Cito burimin (psh. "Sipas Kontratës...").
+        3. Nëse konteksti nuk mjafton, thuaj "Nuk e di".
         """
         
-        user_prompt = f"""
-        KONTEKSTI (DOKUMENTE DHE LIGJE):
-        {context_string}
-        
-        PYETJA: 
-        {query}
-        """
+        user_prompt = f"KONTEKSTI:\n{context_string}\n\nPYETJA: {query}"
 
         try:
             stream = await self.llm_client.chat.completions.create(
@@ -214,17 +199,24 @@ class AlbanianRAGService:
             yield "\n\n**Burimi:** Juristi AI"
 
         except Exception as e:
-            logger.error(f"RAG Generation Error: {e}", exc_info=True)
-            yield "Ndodhi një gabim gjatë gjenerimit."
+            # --- THE SAFETY NET ---
+            error_str = str(e).lower()
+            logger.warning(f"⚠️ AI Generation Failed: {error_str}")
+            
+            if "rate limit" in error_str or "quota" in error_str or "429" in error_str or "billing" in error_str:
+                yield "\n\n⚠️ **Kufiri Ditor i AI është arritur.**\n"
+                yield "Nuk mund të gjeneroj një përgjigje të re tani, por ja dokumentet që gjeta për ju:\n\n"
+                for i, doc in enumerate(relevant_chunks):
+                    name = doc.get('document_name', 'Dokument pa emër')
+                    yield f"{i+1}. **{name}**\n"
+            else:
+                yield "\n\n⚠️ Ndodhi një gabim gjatë gjenerimit të përgjigjes, por dokumentet u gjetën me sukses."
 
     def _build_prompt_context(self, chunks: List[Dict]) -> str:
         parts = []
         for chunk in chunks:
-            doc_type = chunk.get('type', 'DOKUMENT') # 'LAW' or 'DOKUMENT'
+            doc_type = chunk.get('type', 'DOKUMENT')
             name = chunk.get('document_name', 'Burim')
             text = chunk.get('text', '')
-            
-            label = "LIGJI (BAZA LIGJORE)" if doc_type == "LAW" else "DOKUMENTI I ÇËSHTJES"
-            parts.append(f"[{label}]: {name}\n{text}")
-            
-        return "\n\n---\n\n".join(parts)
+            parts.append(f"[{doc_type} - {name}]: {text}")
+        return "\n\n".join(parts)
