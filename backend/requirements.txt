@@ -1,5 +1,7 @@
-# FILE: backend/requirements.txt (UNIFIED & PINNED - V4.3 with Corrected Compatibility Fix)
-# This file contains all dependencies for ALL Python services.
+# FILE: backend/requirements.txt (UNIFIED & PINNED - V4.4)
+# PHOENIX PROTOCOL - COMPATIBILITY FIX
+# 1. ADDED: langchain-community & langchain-text-splitters (Required for Ingestion).
+# 2. MAINTAINED: All previous pinned versions for stability.
 
 # --- Core Web Framework & Async ---
 fastapi==0.109.2
@@ -20,7 +22,7 @@ python-jose[cryptography]
 email-validator==2.3.0
 
 # --- Database & Cache ---
-# PHOENIX PROTOCOL FIX: Pinned pymongo AND motor to a known compatible pair to resolve startup ImportError.
+# PHOENIX PROTOCOL FIX: Pinned pymongo AND motor to a known compatible pair.
 pymongo==4.6.1
 redis==5.0.4
 motor==3.3.2
@@ -59,6 +61,8 @@ opencv-python-headless==4.9.0.80
 groq==0.31.1
 chromadb-client==1.1.0
 langchain
+langchain-community
+langchain-text-splitters
 langdetect==1.0.9
 numpy<2,>=1.26.4
 
