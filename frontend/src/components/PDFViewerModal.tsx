@@ -1,8 +1,7 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - UI OVERHAUL
-// 1. Z-INDEX FIX: Boosted to z-[100] to cover the App Navbar.
-// 2. LAYOUT: Added Floating Toolbar for Zoom/Pagination (Professional Look).
-// 3. SCROLLBARS: Custom thin, dark scrollbars for a clean look.
+// PHOENIX PROTOCOL - CLEANUP
+// 1. FIXED: Removed unused 'ZoomIn' and 'ZoomOut' imports.
+// 2. STATUS: Clean, warning-free code.
 
 import React, { useState, useEffect } from 'react';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
@@ -11,7 +10,7 @@ import { Document } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
-    Download, RefreshCw, ZoomIn, ZoomOut, Maximize, Minus, Plus 
+    Download, RefreshCw, Maximize, Minus, Plus 
 } from 'lucide-react';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
