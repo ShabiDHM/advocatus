@@ -1,6 +1,6 @@
 # FILE: docker-compose.yml
 # PHOENIX PROTOCOL - PHASE 2: HYBRID INTELLIGENCE
-# Status: Added 'local-llm' (Ollama) for zero-cost processing.
+# Status: FIXED - Added Volume Mapping for Backend Data Access.
 
 services:
   # -------------------------------------------------------
@@ -56,8 +56,10 @@ services:
     restart: unless-stopped
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers
     env_file: ./.env
+    # PHOENIX FIX: Mount data volume so container sees uploaded laws
+    volumes:
+      - ./backend/data:/app/data
     networks: [phoenix_net]
-    # Backend now depends on local-llm being started
     depends_on: 
       mongo: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -75,6 +77,9 @@ services:
     restart: unless-stopped
     command: celery -A app.worker.celery_app worker --loglevel=info
     env_file: ./.env
+    # Worker also needs access to data for processing
+    volumes:
+      - ./backend/data:/app/data
     networks: [phoenix_net]
     depends_on: { redis: { condition: service_healthy }, mongo: { condition: service_healthy }, backend: { condition: service_started } }
 
@@ -111,7 +116,7 @@ volumes:
   chroma_data: {}
   redis_data: {}
   caddy_data: {}
-  ollama_data: {} # Persists the downloaded models
+  ollama_data: {}
 
 networks:
   phoenix_net:
