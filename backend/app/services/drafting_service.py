@@ -1,11 +1,14 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL MODIFICATION: Groq Model Update to Currently Supported Version
-# CORRECTION: Updated default Groq model to 'llama-3.3-70b-versatile' 
-# which is currently supported in production
+# PHOENIX PROTOCOL - HYBRID DRAFTING ENGINE
+# 1. TIER 1: Groq Cloud (High Precision).
+# 2. TIER 2: Local Ollama (Offline/Fallback Mode).
+# 3. STREAMING: Supports streaming for both Cloud and Local engines.
 
 import os
 import asyncio
 import structlog
+import httpx
+import json
 from typing import AsyncGenerator, Optional, List, Any, cast, Dict
 from groq import AsyncGroq
 from groq.types.chat import ChatCompletionMessageParam
@@ -15,6 +18,10 @@ from ..models.user import UserInDB
 from app.services.text_sterilization_service import sterilize_text_for_llm 
 
 logger = structlog.get_logger(__name__)
+
+# --- CONFIGURATION ---
+LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
+LOCAL_MODEL_NAME = "llama3"
 
 def _get_template_augmentation(draft_type: str, jurisdiction: str, favorability: Optional[str], db: Database) -> Optional[str]:
     template_filter = {
@@ -38,6 +45,47 @@ def _get_template_augmentation(draft_type: str, jurisdiction: str, favorability:
         logger.error("drafting_service.template_augmentation_error", error=str(e), exc_info=True)
         return None
 
+async def _stream_local_llm(messages: List[Dict[str, Any]]) -> AsyncGenerator[str, None]:
+    """
+    Tier 2: Streams the draft from the internal Local LLM (Ollama).
+    Used when Cloud API is down or rate-limited.
+    """
+    logger.info("🔄 Switching to LOCAL LLM (Ollama) for drafting...")
+    
+    payload = {
+        "model": LOCAL_MODEL_NAME,
+        "messages": messages,
+        "stream": True,
+        "options": {
+            "temperature": 0.3, 
+            "num_ctx": 8192 # Increased context for drafting
+        }
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream("POST", LOCAL_LLM_URL, json=payload) as response:
+                if response.status_code != 200:
+                    logger.error(f"Local LLM Error: {response.status_code}")
+                    yield "\n[Gabim: Sistemi lokal nuk u përgjigj.]"
+                    return
+
+                async for line in response.aiter_lines():
+                    if not line: continue
+                    try:
+                        data = json.loads(line)
+                        # Ollama chat response format
+                        content = data.get("message", {}).get("content", "")
+                        if content:
+                            yield content
+                        if data.get("done", False):
+                            break
+                    except Exception:
+                        continue
+    except Exception as e:
+        logger.error("drafting_service.local_llm_failed", error=str(e))
+        yield "\n\n[Gabim Kritik: Edhe sistemi lokal nuk është i disponueshëm.]"
+
 async def generate_draft_stream(
     context: str,
     prompt_text: str,
@@ -48,25 +96,14 @@ async def generate_draft_stream(
     favorability: Optional[str] = None,
     db: Optional[Database] = None
 ) -> AsyncGenerator[str, None]:
-    log = logger.bind(case_id=case_id, user_id=str(user.id), draft_type=draft_type, jurisdiction=jurisdiction)
-    if prompt_text is None:
-        prompt_text = ""
+    log = logger.bind(case_id=case_id, user_id=str(user.id), draft_type=draft_type)
+    if prompt_text is None: prompt_text = ""
     log.info("drafting_service.stream_start", prompt_length=len(prompt_text))
 
     sanitized_context = sterilize_text_for_llm(context)
     sanitized_prompt_text = sterilize_text_for_llm(prompt_text)
-    log.info("drafting_service.inputs_sterilized")
 
-    groq_api_key = os.environ.get("GROQ_API_KEY")
-    if not groq_api_key:
-        log.error("drafting_service.stream_failure", error="GROQ_API_KEY is missing.")
-        raise Exception("Gabim: Shërbimi i AI nuk është konfiguruar saktë (Çelësi i API mungon).")
-
-    # PHOENIX PROTOCOL CURE: Updated to currently supported production model
-    groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-    log.info("drafting_service.model_selected", model=groq_model)
-    
-    GROQ_CLIENT = AsyncGroq(api_key=groq_api_key)
+    # Prepare Prompts
     system_prompt = (
         "You are an expert legal drafter for the legal markets of Kosovo and Albania named Phoenix. "
         "Your task is to generate a professional, well-structured document in response to the user's request. "
@@ -76,7 +113,7 @@ async def generate_draft_stream(
     )
     full_prompt = f"Context:\n{sanitized_context}\n\n---\n\nPrompt:\n{sanitized_prompt_text}"
 
-    # Use explicit None check for type safety
+    # Template Augmentation
     if draft_type and jurisdiction and db is not None:
         template_augment = await asyncio.to_thread(_get_template_augmentation, draft_type, jurisdiction, favorability, db)
         if template_augment:
@@ -89,31 +126,49 @@ async def generate_draft_stream(
         {"role": "user", "content": full_prompt}
     ]
 
-    try:
-        typed_messages = cast(List[ChatCompletionMessageParam], messages)
-        stream = await GROQ_CLIENT.chat.completions.create(
-            messages=typed_messages,
-            model=groq_model,
-            temperature=0.3,
-            stream=True,
-        )
-        async for chunk in stream:
-            if chunk.choices[0].delta.content is not None:
-                yield chunk.choices[0].delta.content
-        log.info("drafting_service.stream_success")
-    except Exception as e:
-        log.error("drafting_service.stream_failure", error=str(e), exc_info=True)
-        error_message_str = str(e)
-        
-        if "model_decommissioned" in error_message_str or "invalid_request_error" in error_message_str:
-            user_facing_error = "Gabim: Shërbimi i AI nuk po funksionon për momentin (Problemi me modelin e AI). Ju lutem kontaktoni mbështetjen."
-        else:
-            user_facing_error = "Gabim: Pata një problem gjatë gjenerimit të draftit. Ju lutem provoni përsëri më vonë."
-        
-        raise Exception(user_facing_error)
+    # --- TIER 1: GROQ CLOUD ---
+    tier1_failed = False
+    groq_api_key = os.environ.get("GROQ_API_KEY")
+    
+    if groq_api_key:
+        try:
+            groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+            GROQ_CLIENT = AsyncGroq(api_key=groq_api_key)
+            
+            typed_messages = cast(List[ChatCompletionMessageParam], messages)
+            stream = await GROQ_CLIENT.chat.completions.create(
+                messages=typed_messages,
+                model=groq_model,
+                temperature=0.3,
+                stream=True,
+            )
+            async for chunk in stream:
+                if chunk.choices[0].delta.content is not None:
+                    yield chunk.choices[0].delta.content
+            
+            log.info("drafting_service.stream_success_cloud")
+            return # Tier 1 Success
+
+        except Exception as e:
+            error_str = str(e).lower()
+            log.warning(f"⚠️ Groq Drafting Failed: {e}")
+            if "rate limit" in error_str or "429" in error_str or "quota" in error_str or "model" in error_str:
+                tier1_failed = True
+            else:
+                # For network errors, we also fallback
+                tier1_failed = True
+    else:
+        tier1_failed = True # No key configured
+
+    # --- TIER 2: LOCAL LLM FALLBACK ---
+    if tier1_failed:
+        yield "**[Draft i Gjeneruar nga AI Lokale (Offline Mode)]**\n\n"
+        async for chunk in _stream_local_llm(messages):
+            yield chunk
+        log.info("drafting_service.stream_success_local")
 
 
-# --- Legacy Functions (No Changes) ---
+# --- Legacy Functions ---
 def generate_draft_from_prompt(*args, **kwargs):
     raise NotImplementedError("Use generate_draft_stream instead.")
 def generate_draft(*args, **kwargs):

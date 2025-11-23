@@ -1,17 +1,23 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - MODEL UPDATE
-# 1. MODEL CHANGE: Switched to 'llama-3.3-70b-versatile' (Older 3.1 model is decommissioned).
-# 2. STABILITY: Retains all previous logic and robust error handling.
+# PHOENIX PROTOCOL - HYBRID INTELLIGENCE (CLOUD + LOCAL FALLBACK)
+# 1. TIER 1: Tries Groq (Cloud) for maximum precision.
+# 2. TIER 2: Falls back to 'local-llm' (Ollama) if Groq is Rate Limited (429).
+# 3. TIER 3: Returns Static Analysis if both fail (No Crashes).
 
 import os
 import json
 import structlog
+import httpx 
 from typing import List, Dict, Any, Optional
 from pymongo.database import Database
 from bson import ObjectId
 from groq import Groq
 
 logger = structlog.get_logger(__name__)
+
+# Configuration
+LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
+LOCAL_MODEL_NAME = os.environ.get("LOCAL_MODEL_NAME", "llama3") # or 'mistral'
 
 def _get_case_context(db: Database, case_id: str) -> str:
     try:
@@ -47,66 +53,102 @@ def _get_case_context(db: Database, case_id: str) -> str:
         logger.error("analysis.context_build_failed", error=str(e))
         return ""
 
+def _generate_static_fallback(error_msg: str) -> Dict[str, Any]:
+    """Tier 3: Returns a safe structure so the UI does not crash."""
+    return {
+        "summary_analysis": f"⚠️ Analiza e thellë AI nuk është e disponueshme për momentin (Kufizim Teknik: {error_msg}). Megjithatë, dokumentet tuaja janë të sigurta dhe të indeksuara.",
+        "contradictions": ["Nuk u identifikuan automatikisht."],
+        "risks": ["Ju lutemi rishikoni gjetjet manuale në panelin e dokumenteve."],
+        "missing_info": ["Kontrolloni manualisht dosjen për elemente që mungojnë."]
+    }
+
+def _call_local_llm(system_prompt: str, user_prompt: str) -> Optional[Dict[str, Any]]:
+    """Tier 2: Calls the internal Docker 'local-llm' service."""
+    logger.info("🔄 Switching to LOCAL LLM (Ollama)...")
+    try:
+        payload = {
+            "model": LOCAL_MODEL_NAME,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "stream": False,
+            "format": "json" # Ollama supports native JSON enforcement
+        }
+        
+        # Use sync call (or async if wrapped) - using httpx sync for simplicity here
+        with httpx.Client(timeout=60.0) as client:
+            response = client.post(LOCAL_LLM_URL, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            
+            content = data.get("message", {}).get("content", "")
+            return json.loads(content)
+            
+    except Exception as e:
+        logger.error("analysis.local_llm_failed", error=str(e))
+        return None
+
 def cross_examine_case(db: Database, case_id: str) -> Dict[str, Any]:
     log = logger.bind(case_id=case_id)
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key: 
-        return {"error": "AI service not configured"}
     
-    client = Groq(api_key=api_key)
-    
+    # 1. Prepare Context
     case_context = _get_case_context(db, case_id)
     if not case_context:
         return {"error": "Nuk ka mjaftueshëm të dhëna për analizë. Ngarkoni dokumente fillimisht."}
 
+    # 2. Define Prompts
     system_prompt = """
-    Ti je një Avokat i Lartë ("Senior Litigator") i specializuar në analizën e rreziqeve.
-    Detyra jote është të bësh "Cross-Examination" (Marrje në Pyetje) të dokumenteve të mëposhtme.
-    
-    Ti duhet të kërkosh për:
-    1. KONTRADIKTA: A thotë Dokumenti A diçka ndryshe nga Dokumenti B? (psh. data të ndryshme, shuma të ndryshme).
-    2. RREZIQE: A ka klauzola ose gjetje që e vënë klientin në rrezik ligjor?
-    3. MUNGESA: Çfarë informacioni kritik mungon?
-    
-    Përgjigju VETËM në format JSON. Struktura e kërkuar:
+    Ti je një Avokat i Lartë ("Senior Litigator").
+    Analizo dosjen dhe përgjigju VETËM në format JSON:
     {
-      "contradictions": ["list of strings..."],
-      "risks": ["list of strings..."],
-      "missing_info": ["list of strings..."],
-      "summary_analysis": "A paragraph summarizing the case strength."
+      "contradictions": ["list of strings"],
+      "risks": ["list of strings"],
+      "missing_info": ["list of strings"],
+      "summary_analysis": "Përmbledhje e shkurtër"
     }
-    
     Përgjigju në GJUHËN SHQIPE.
     """
     
-    user_prompt = f"""
-    Analizo këtë dosje gjyqësore:
-    
-    {case_context[:25000]} 
-    """
+    user_prompt = f"Analizo këtë dosje:\n{case_context[:20000]}"
 
-    try:
-        completion = client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            # PHOENIX FIX: Updated model version
-            model="llama-3.3-70b-versatile", 
-            temperature=0.1,
-            response_format={"type": "json_object"}
-        )
-        
-        content = completion.choices[0].message.content
-        
-        if not content:
-            return {"error": "AI returned no content."}
+    # --- TIER 1: GROQ (CLOUD) ---
+    api_key = os.environ.get("GROQ_API_KEY")
+    if api_key:
+        try:
+            client = Groq(api_key=api_key)
+            completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                model="llama-3.3-70b-versatile",
+                temperature=0.1,
+                response_format={"type": "json_object"}
+            )
+            content = completion.choices[0].message.content
+            if content:
+                log.info("analysis.success_tier_1_groq")
+                return json.loads(content)
+
+        except Exception as e:
+            error_str = str(e).lower()
+            log.warning("analysis.groq_failed", error=error_str)
             
-        return json.loads(content)
+            # If it's NOT a rate limit (e.g. invalid key), maybe we shouldn't fallback?
+            # But for robustness, we ALWAYS fallback if Tier 1 fails.
+            pass
+    else:
+        log.warning("analysis.no_groq_key_configured")
 
-    except json.JSONDecodeError:
-        log.error("analysis.json_parse_error")
-        return {"error": "Gabim në formatimin e përgjigjes nga AI."}
-    except Exception as e:
-        log.error("analysis.failed", error=str(e))
-        return {"error": "Analiza dështoi për shkak të një gabimi teknik."}
+    # --- TIER 2: LOCAL LLM (OLLAMA) ---
+    local_result = _call_local_llm(system_prompt, user_prompt)
+    if local_result:
+        log.info("analysis.success_tier_2_local")
+        # Mark as local generated
+        local_result["summary_analysis"] = "[Generated by Local AI] " + local_result.get("summary_analysis", "")
+        return local_result
+
+    # --- TIER 3: STATIC FALLBACK (SAFETY NET) ---
+    log.warning("analysis.all_tiers_failed_using_fallback")
+    return _generate_static_fallback("Cloud & Local AI Unavailable")

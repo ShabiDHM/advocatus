@@ -1,14 +1,16 @@
 # FILE: backend/app/services/deadline_service.py
-# PHOENIX PROTOCOL - DATE FILTERING & CLEANUP
-# 1. FILTER: Automatically ignores dates in the past.
-# 2. TITLES: Cleaned up "Automati" suffix to be more professional ("Afat i Gjetur").
-# 3. LOGIC: Retains deduplication and context extraction.
+# PHOENIX PROTOCOL - HYBRID EXTRACTION (Cloud -> Local -> Regex)
+# 1. TIER 1: Groq (High Precision).
+# 2. TIER 2: Local Ollama (Fallback).
+# 3. TIER 3: Regex Pattern Matching (Ultimate Safety Net).
+# 4. FILTER: Ignores past dates.
 
 import os
 import json
 import structlog
 import dateparser
 import re
+import httpx
 from datetime import datetime
 from typing import List, Dict, Any
 from bson import ObjectId
@@ -17,13 +19,19 @@ from groq import Groq
 
 logger = structlog.get_logger(__name__)
 
+# --- CONFIGURATION ---
+LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
+LOCAL_MODEL_NAME = "llama3"
+
 def _clean_json_string(json_str: str) -> str:
+    """Standardizes JSON string cleaning."""
     cleaned = re.sub(r'^```json\s*', '', json_str, flags=re.MULTILINE)
     cleaned = re.sub(r'^```\s*', '', cleaned, flags=re.MULTILINE)
     cleaned = re.sub(r'```\s*$', '', cleaned, flags=re.MULTILINE)
     return cleaned.strip()
 
 def _extract_dates_with_regex(text: str) -> List[Dict[str, str]]:
+    """Tier 3: Mechanical extraction."""
     matches = []
     # Regex capturing date AND surrounding context (approx 30 chars)
     date_pattern = r'(.{0,30})\b(\d{1,2})\s+(Janar|Shkurt|Mars|Prill|Maj|Qershor|Korrik|Gusht|Shtator|Tetor|Nëntor|Dhjetor|January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b(.{0,30})'
@@ -38,49 +46,78 @@ def _extract_dates_with_regex(text: str) -> List[Dict[str, str]]:
         })
     return matches
 
+def _call_local_llm(prompt: str) -> str:
+    """Tier 2: Local AI extraction."""
+    logger.info("🔄 Switching to LOCAL LLM for Deadlines...")
+    try:
+        payload = {
+            "model": LOCAL_MODEL_NAME,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+            "format": "json" # Force JSON mode in Ollama
+        }
+        
+        with httpx.Client(timeout=45.0) as client:
+            response = client.post(LOCAL_LLM_URL, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("message", {}).get("content", "")
+            
+    except Exception as e:
+        logger.warning(f"⚠️ Local LLM Failed: {e}")
+        return ""
+
 def _extract_dates_with_llm(full_text: str) -> List[Dict[str, str]]:
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key: return []
-
-    client = Groq(api_key=api_key)
     truncated_text = full_text[:15000] 
-
-    prompt = f"""
+    
+    system_instruction = """
     Ti je asistent ligjor. Lexo tekstin dhe gjej datat ose afatet.
     Kthe vetëm JSON.
-    
-    Shembull:
-    [
-      {{
-        "title": "Nënshkrimi i Kontratës",
-        "date_text": "5 Nëntor 2025",
-        "description": "Palët do të nënshkruajnë marrëveshjen."
-      }}
-    ]
-
-    Teksti:
-    {truncated_text}
+    Format: [{"title": "...", "date_text": "...", "description": "..."}]
     """
+    
+    prompt = f"{system_instruction}\n\nTeksti:\n{truncated_text}"
 
-    try:
-        completion = client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile", 
-            temperature=0.0,
-            response_format={"type": "json_object"}
-        )
-        
-        content = _clean_json_string(completion.choices[0].message.content or "")
-        data = json.loads(content)
-        
-        if isinstance(data, dict):
-            for val in data.values():
-                if isinstance(val, list): return val
-            return []
-        return data if isinstance(data, list) else []
+    # --- TIER 1: GROQ CLOUD ---
+    api_key = os.environ.get("GROQ_API_KEY")
+    if api_key:
+        try:
+            client = Groq(api_key=api_key)
+            completion = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama-3.3-70b-versatile", 
+                temperature=0.0,
+                response_format={"type": "json_object"}
+            )
+            content = completion.choices[0].message.content or ""
+            data = json.loads(_clean_json_string(content))
+            
+            # Normalize response structure
+            if isinstance(data, dict):
+                for val in data.values():
+                    if isinstance(val, list): return val
+                return []
+            return data if isinstance(data, list) else []
 
-    except Exception:
-        return _extract_dates_with_regex(truncated_text)
+        except Exception as e:
+            logger.warning(f"⚠️ Groq Deadline Extraction Failed: {e}")
+            # Fall through to Tier 2
+    
+    # --- TIER 2: LOCAL OLLAMA ---
+    local_content = _call_local_llm(prompt)
+    if local_content:
+        try:
+            data = json.loads(_clean_json_string(local_content))
+            if isinstance(data, dict):
+                for val in data.values():
+                    if isinstance(val, list): return val
+            if isinstance(data, list): return data
+        except Exception:
+            logger.warning("❌ Local LLM JSON Parse Failed.")
+
+    # --- TIER 3: FALLBACK TO REGEX ---
+    # Handled by caller if this returns empty
+    return []
 
 def delete_deadlines_by_document_id(db: Database, document_id: str):
     try:
@@ -105,15 +142,18 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
         try: owner_id = ObjectId(owner_id)
         except: pass
 
-    # 1. Extract
+    # 1. Extract (Hybrid Strategy)
     raw_deadlines = _extract_dates_with_llm(full_text)
+    
+    # 2. Fallback to Regex if AI failed completely
     if not raw_deadlines:
+        log.info("deadline_service.switching_to_regex")
         raw_deadlines = _extract_dates_with_regex(full_text[:5000])
 
     if not raw_deadlines: return
 
     unique_events = {}
-    now_date = datetime.now().date() # Current date (no time)
+    now_date = datetime.now().date() 
 
     for item in raw_deadlines:
         date_text = item.get("date_text", "")
@@ -124,7 +164,6 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
         
         # PHOENIX FIX: Filter out past dates
         if parsed_date.date() < now_date:
-            log.info("deadline_service.skipped_past_date", date=str(parsed_date.date()))
             continue
 
         iso_date = parsed_date.date().isoformat()

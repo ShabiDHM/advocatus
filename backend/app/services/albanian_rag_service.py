@@ -1,18 +1,23 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - FAIL-SAFE RAG
-# 1. QUOTA PROTECTION: Detects AI Limit errors and falls back to "Document Search Mode".
-# 2. DUAL SEARCH: Searches Local Documents AND Knowledge Base safely.
-# 3. NO-CRASH GUARANTEE: Even if Grok/xAI is down, the user gets search results.
+# PHOENIX PROTOCOL - HYBRID RAG (Cloud -> Local -> Static)
+# 1. TIER 1: Groq (High IQ, Streaming).
+# 2. TIER 2: Local Ollama (Free, Fail-safe).
+# 3. TIER 3: Document List (Ultimate Fallback).
 
 import os
 import asyncio
 import logging
 import httpx
+import json
 from typing import AsyncGenerator, List, Optional, Dict, Protocol, cast, Any
 
 logger = logging.getLogger(__name__)
 
-# Protocol Definitions for Dependency Injection
+# --- CONFIGURATION ---
+LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
+LOCAL_MODEL_NAME = "llama3"
+
+# Protocol Definitions
 class LLMClientProtocol(Protocol):
     @property
     def chat(self) -> Any: ...
@@ -42,9 +47,7 @@ class AlbanianRAGService:
         self.RERANK_TIMEOUT = 15.0
 
     async def chat(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> str:
-        """
-        Non-streaming wrapper for the chat interface.
-        """
+        """Non-streaming wrapper."""
         full_response_parts = []
         async for chunk in self.chat_stream(query, case_id, document_ids):
             if chunk:
@@ -52,13 +55,7 @@ class AlbanianRAGService:
         return "".join(full_response_parts)
 
     async def _rerank_chunks(self, query: str, chunks: List[Dict]) -> List[Dict]:
-        """
-        Sends candidate chunks to AI Core for semantic reranking.
-        """
-        if not chunks:
-            return []
-            
-        # Deduplicate based on text content
+        if not chunks: return []
         unique_chunks = {c.get('text', ''): c for c in chunks}
         documents = list(unique_chunks.keys())
         chunk_map = unique_chunks
@@ -71,116 +68,97 @@ class AlbanianRAGService:
                 )
                 response.raise_for_status()
                 data = response.json()
-                
                 sorted_texts = data.get("reranked_documents", [])
                 
-                reranked_chunks = []
+                reranked = []
                 for text in sorted_texts:
-                    if text in chunk_map:
-                        reranked_chunks.append(chunk_map[text])
-                
-                return reranked_chunks
-                
+                    if text in chunk_map: reranked.append(chunk_map[text])
+                return reranked
         except Exception as e:
-            logger.warning(f"⚠️ [RAG] Reranking failed (falling back to vector order): {e}")
+            logger.warning(f"⚠️ Reranking failed: {e}")
             return list(unique_chunks.values())
 
+    async def _call_local_llm(self, system_prompt: str, user_prompt: str) -> str:
+        """TIER 2: Internal Local AI Call"""
+        logger.info("🔄 TIER 2: Switching to Local LLM...")
+        try:
+            payload = {
+                "model": LOCAL_MODEL_NAME,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "stream": False
+            }
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(LOCAL_LLM_URL, json=payload)
+                response.raise_for_status()
+                data = response.json()
+                return data.get("message", {}).get("content", "")
+        except Exception as e:
+            logger.error(f"❌ TIER 2 Failed: {e}")
+            return ""
+
     async def chat_stream(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> AsyncGenerator[str, None]:
-        """
-        The Core Logic:
-        1. Generate Vector (Embed Query).
-        2. Search DB (User Docs + Law).
-        3. Rerank Results.
-        4. Ask AI to Summarize (With Quota Catch).
-        """
         relevant_chunks = []
         try:
-            # Import inside method to avoid circular imports during startup
             from .embedding_service import generate_embedding
 
-            # --- STEP 1: GENERATE VECTOR ---
-            query_embedding = None
+            # --- STEP 1: EMBED ---
             try:
-                # Run sync function in thread
-                query_embedding = await asyncio.to_thread(
-                    generate_embedding, query, 'standard'
-                )
-            except Exception as e:
-                logger.error(f"❌ Embedding Generation Failed: {e}")
-                # If we can't generate a vector, we can't search. Stop here.
-                yield "Gabim Teknik: Nuk u arrit të gjenerohej kërkimi (Embedding Error)."
+                query_embedding = await asyncio.to_thread(generate_embedding, query, 'standard')
+            except Exception:
+                yield "Gabim Teknik: Embedding failed."
                 return
 
             if not query_embedding:
-                logger.error("❌ Vector is None!")
-                yield "Gabim Teknik: Shërbimi i AI nuk u përgjigj."
+                yield "Gabim Teknik: AI Core unresponsive."
                 return
 
-            # --- STEP 2: DUAL SEARCH ---
+            # --- STEP 2: SEARCH ---
             async def safe_user_search():
                 try:
                     return await asyncio.to_thread(
                         self.vector_store.query_by_vector,
-                        embedding=query_embedding, 
-                        case_id=case_id, 
-                        n_results=10, 
-                        document_ids=document_ids
+                        embedding=query_embedding, case_id=case_id, n_results=10, document_ids=document_ids
                     )
-                except Exception as e:
-                    logger.error(f"❌ User Doc Search Failed: {e}")
-                    return []
+                except Exception: return []
 
             async def safe_law_search():
                 try:
                     return await asyncio.to_thread(
                         self.vector_store.query_legal_knowledge_base,
-                        embedding=query_embedding,
-                        n_results=5 
+                        embedding=query_embedding, n_results=5 
                     )
-                except Exception as e:
-                    logger.error(f"❌ Law Search Failed: {e}")
-                    return []
+                except Exception: return []
 
             user_docs, law_docs = await asyncio.gather(safe_user_search(), safe_law_search())
-            
-            # --- DEBUG LOGS ---
-            logger.info(f"🔍 RAG RESULTS -> User Docs: {len(user_docs)} | Law Docs: {len(law_docs)}")
-
             all_candidates = user_docs + law_docs
             
-            # --- STEP 3: RERANKING ---
+            # --- STEP 3: RERANK ---
             if all_candidates:
-                reranked_chunks = await self._rerank_chunks(query, all_candidates)
-                if not reranked_chunks:
-                    relevant_chunks = all_candidates[:7]
-                else:
-                    relevant_chunks = reranked_chunks[:7]
+                reranked = await self._rerank_chunks(query, all_candidates)
+                relevant_chunks = reranked[:7] if reranked else all_candidates[:7]
             else:
-                relevant_chunks = []
-
-            if not relevant_chunks:
                 yield "Nuk munda të gjej informacion relevant në dokumentet e çështjes ose në bazën ligjore."
                 return
 
         except Exception as e:
-            logger.error(f"RAG Critical Error: {e}", exc_info=True)
+            logger.error(f"RAG Error: {e}")
             yield f"Gabim gjatë kërkimit: {str(e)}"
             return
 
-        # --- STEP 4: GENERATE ANSWER (WITH QUOTA PROTECTION) ---
+        # --- STEP 4: GENERATE (HYBRID TIERED SYSTEM) ---
         context_string = self._build_prompt_context(relevant_chunks)
         
         system_prompt = """
         Jeni "Juristi AI", ekspert ligjor për Kosovë dhe Shqipëri.
-        
-        RREGULLAT:
-        1. Përdor VETËM kontekstin e mëposhtëm.
-        2. Cito burimin (psh. "Sipas Kontratës...").
-        3. Nëse konteksti nuk mjafton, thuaj "Nuk e di".
+        Përdor VETËM kontekstin e mëposhtëm. Cito burimin.
         """
-        
         user_prompt = f"KONTEKSTI:\n{context_string}\n\nPYETJA: {query}"
 
+        # TIER 1: GROQ (CLOUD)
+        tier1_failed = False
         try:
             stream = await self.llm_client.chat.completions.create(
                 messages=[
@@ -195,22 +173,35 @@ class AlbanianRAGService:
                 content = getattr(chunk.choices[0].delta, 'content', None)
                 if content:
                     yield content
-                    
-            yield "\n\n**Burimi:** Juristi AI"
+            
+            yield "\n\n**Burimi:** Juristi AI (Cloud)"
+            return # Tier 1 Success
 
         except Exception as e:
-            # --- THE SAFETY NET ---
             error_str = str(e).lower()
-            logger.warning(f"⚠️ AI Generation Failed: {error_str}")
-            
-            if "rate limit" in error_str or "quota" in error_str or "429" in error_str or "billing" in error_str:
-                yield "\n\n⚠️ **Kufiri Ditor i AI është arritur.**\n"
-                yield "Nuk mund të gjeneroj një përgjigje të re tani, por ja dokumentet që gjeta për ju:\n\n"
-                for i, doc in enumerate(relevant_chunks):
-                    name = doc.get('document_name', 'Dokument pa emër')
-                    yield f"{i+1}. **{name}**\n"
+            if "rate limit" in error_str or "429" in error_str or "quota" in error_str:
+                logger.warning("⚠️ Cloud Limit Reached. Activating Tier 2.")
+                tier1_failed = True
             else:
-                yield "\n\n⚠️ Ndodhi një gabim gjatë gjenerimit të përgjigjes, por dokumentet u gjetën me sukses."
+                # Genuine error, but we try fallback anyway
+                logger.error(f"Cloud Error: {e}")
+                tier1_failed = True
+
+        # TIER 2: LOCAL LLM (FALLBACK)
+        if tier1_failed:
+            local_content = await self._call_local_llm(system_prompt, user_prompt)
+            if local_content:
+                yield "**[Mode: AI Lokale]**\n\n"
+                yield local_content
+                yield "\n\n**Burimi:** Juristi AI (Local)"
+                return # Tier 2 Success
+        
+        # TIER 3: STATIC LIST (FINAL SAFETY NET)
+        yield "\n\n⚠️ **Kufiri Ditor i AI është arritur dhe AI Lokale nuk u përgjigj.**\n"
+        yield "Ja dokumentet që gjeta për ju:\n\n"
+        for i, doc in enumerate(relevant_chunks):
+            name = doc.get('document_name', 'Dokument pa emër')
+            yield f"{i+1}. **{name}**\n"
 
     def _build_prompt_context(self, chunks: List[Dict]) -> str:
         parts = []
