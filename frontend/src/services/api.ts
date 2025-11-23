@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - INFINITE LOOP FIX
-// 1. CRITICAL: Interceptor now ignores 401s from '/auth/refresh' to prevent deadlocks.
-// 2. RESULT: Application will correctly redirect to Login instead of hanging on a blank screen.
+// PHOENIX PROTOCOL - CLEANUP
+// 1. REMOVED: All API Key related methods and types.
+// 2. STATUS: Frontend service layer is now consistent with the backend changes.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -18,8 +18,6 @@ import type {
     CreateDraftingJobRequest,
     DraftingJobStatus,
     DraftingJobResult,
-    ApiKey,
-    ApiKeyCreateRequest,
     ChangePasswordRequest,
     Finding,
     CaseAnalysisResult
@@ -253,21 +251,6 @@ class ApiService {
     
     public async deleteUser(userId: string): Promise<void> {
         await this.axiosInstance.delete(`/admin/users/${userId}`);
-    }
-
-    // --- API Keys ---
-    public async getUserApiKeys(): Promise<ApiKey[]> {
-        const response = await this.axiosInstance.get<ApiKey[]>('/api-keys');
-        return response.data;
-    }
-    
-    public async addApiKey(data: ApiKeyCreateRequest): Promise<ApiKey> {
-        const response = await this.axiosInstance.post<ApiKey>('/api-keys', data);
-        return response.data;
-    }
-    
-    public async deleteApiKey(keyId: string): Promise<void> {
-        await this.axiosInstance.delete(`/api-keys/${keyId}`);
     }
 
     // --- Calendar ---
