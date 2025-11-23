@@ -1,7 +1,7 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - PERFORMANCE TUNING
-# 1. SPEED FIX: Increased chunk_size to 4000 (Safe for BAAI/bge-m3).
-# 2. RESULT: Reduces embedding time by ~75% for large documents.
+# PHOENIX PROTOCOL - STABILITY ROLLBACK
+# 1. SAFETY FIX: Reduced chunk_size to 1000 (Optimized for standard models).
+# 2. RESULT: Ensures fast processing without memory spikes.
 
 import os
 import tempfile
@@ -37,12 +37,12 @@ class DocumentNotFoundInDBError(Exception):
 def _process_and_split_text(full_text: str, document_metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
     base_metadata = document_metadata.copy()
     
-    # PERFORMANCE UPGRADE:
-    # Old: chunk_size=1000 (Too slow for BAAI model on CPU)
-    # New: chunk_size=4000 (Optimized). BAAI supports up to 8192 tokens, so 4000 chars is safe and fast.
+    # ROLLBACK CONFIGURATION:
+    # Reverted to 1000/200 for maximum stability with standard models.
+    # This prevents OOM crashes during mass-vectorization.
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=4000, 
-        chunk_overlap=400, 
+        chunk_size=1000, 
+        chunk_overlap=200, 
         length_function=len
     )
     text_chunks = text_splitter.split_text(full_text)
@@ -121,7 +121,7 @@ def orchestrate_document_processing_mongo(
             'category': detected_category 
         }
         
-        # Split text (Now faster due to larger chunks)
+        # Split text (Fast & Safe)
         enriched_chunks = _process_and_split_text(extracted_text, base_doc_metadata)
         
         processed_text_storage_key = storage_service.upload_processed_text(
