@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/dependencies.py
-# PHOENIX PROTOCOL - 403 ERROR FIX
-# 1. CRITICAL FIX: 'get_current_active_user' now bypasses subscription checks for ADMINs.
-# 2. REASONING: Admins should not get 403 errors on standard pages just because they don't have a subscription.
+# PHOENIX PROTOCOL - CASE SENSITIVITY FIX
+# 1. CRITICAL FIX: Role checks are now case-insensitive (.upper()).
+# 2. RESULT: 'admin' (lowercase) correctly matches 'ADMIN' (uppercase).
 
 from fastapi import Depends, HTTPException, status, WebSocket, Cookie
 from fastapi.security import OAuth2PasswordBearer
@@ -62,12 +62,18 @@ def get_current_active_user(
     """
     Validates that the user is allowed to access the system.
     """
-    # FIX: Admins are always considered 'active' regardless of subscription status.
-    if current_user.role == 'ADMIN':
+    # FIX: Robust Case-Insensitive Check
+    user_role = str(current_user.role).upper()
+    
+    # Admins are always considered 'active' regardless of subscription status.
+    if user_role == 'ADMIN':
         return current_user
 
     # Regular users must have an active subscription
-    if current_user.subscription_status != 'ACTIVE':
+    # We also normalize the subscription status check just in case
+    sub_status = str(current_user.subscription_status).upper() if current_user.subscription_status else ""
+    
+    if sub_status != 'ACTIVE':
         raise HTTPException(status_code=403, detail="User subscription is not active.")
         
     return current_user
@@ -78,7 +84,10 @@ def get_current_admin_user(
     """
     Validates that the user has ADMIN privileges.
     """
-    if current_user.role != 'ADMIN':
+    # FIX: Robust Case-Insensitive Check
+    user_role = str(current_user.role).upper()
+    
+    if user_role != 'ADMIN':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="The user does not have sufficient privileges."
