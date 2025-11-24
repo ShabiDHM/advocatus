@@ -133,6 +133,10 @@ class AlbanianRAGService:
                 except Exception: return []
 
             user_docs, law_docs = await asyncio.gather(safe_user_search(), safe_law_search())
+            
+            # --- DEBUG LOGS (CRITICAL) ---
+            logger.info(f"🔍 RAG RESULTS -> User Docs: {len(user_docs)} | Law Docs: {len(law_docs)}")
+            
             all_candidates = user_docs + law_docs
             
             # --- STEP 3: RERANK ---
