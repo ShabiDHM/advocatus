@@ -1,15 +1,14 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - REFACTOR
-// 1. REMOVED: Google Drive integration (useDrivePicker, handleGoogleDriveClick, downloadFromDrive).
-// 2. REMOVED: Cloud icon and button from UI.
-// 3. MAINTAINED: Mobile responsiveness and existing upload functionality.
+// PHOENIX PROTOCOL - UI HARMONIZATION
+// 1. BADGE: Updated connection status to match ChatPanel style (Green text/dot).
+// 2. CONSISTENCY: Unified header layout logic.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Trash, Plus, Loader2 } from 'lucide-react';
+import { FolderOpen, Eye, Trash, Plus, Loader2, RefreshCw } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface DocumentsPanelProps {
@@ -91,6 +90,15 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     }
   };
 
+  // Harmonized Status Colors (Matches ChatPanel)
+  const statusColor = (status: ConnectionStatus) => {
+    switch (status) {
+      case 'CONNECTED': return 'bg-green-500/10 text-green-400 border-green-500/20';
+      case 'CONNECTING': return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
+      default: return 'bg-red-500/10 text-red-400 border-red-500/20';
+    }
+  };
+
   const connectionStatusText = (status: ConnectionStatus) => {
     switch (status) {
       case 'CONNECTED': return t('documentsPanel.statusConnected');
@@ -101,16 +109,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     }
   };
 
-  const statusColor = (status: ConnectionStatus) => {
-    switch (status) {
-      case 'CONNECTED': return 'bg-success-start text-white glow-accent';
-      case 'CONNECTING': return 'bg-accent-start text-white';
-      case 'DISCONNECTED': return 'bg-red-500 text-white';
-      case 'ERROR': return 'bg-red-500 text-white';
-      default: return 'bg-background-light text-text-secondary';
-    }
-  };
-
   return (
     <div className="documents-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col h-[500px] sm:h-[600px]">
       {/* Header */}
@@ -118,18 +116,19 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 overflow-hidden">
             <h2 className="text-lg sm:text-xl font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
             
-            <div className={`text-[10px] sm:text-xs font-semibold px-2 sm:px-3 py-1 rounded-full flex items-center transition-all whitespace-nowrap ${statusColor(connectionStatus)}`}>
+            {/* PHOENIX FIX: New Badge Style */}
+            <div className={`text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-full border flex items-center gap-1.5 transition-all whitespace-nowrap ${statusColor(connectionStatus)}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-400' : 'bg-red-400'}`}></span>
                 {connectionStatusText(connectionStatus)}
                 {connectionStatus !== 'CONNECTED' && (
-                  <motion.button onClick={reconnect} className="ml-2 underline text-white/80 hover:text-white" whileHover={{ scale: 1.05 }}>
-                    {t('documentsPanel.reconnect')}
-                  </motion.button>
+                  <button onClick={reconnect} className="ml-1 underline hover:text-white" title={t('documentsPanel.reconnect')}>
+                    <RefreshCw size={10} />
+                  </button>
                 )}
             </div>
         </div>
 
         <div className="flex-shrink-0 flex gap-2">
-          {/* Standard Upload Button */}
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
           <motion.button
             onClick={() => fileInputRef.current?.click()}

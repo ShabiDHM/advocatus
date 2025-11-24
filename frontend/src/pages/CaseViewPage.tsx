@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CLEAN REPLACEMENT
-// 1. ACTION: Select ALL -> Delete -> Paste.
-// 2. FIXES: Resolved 'useAuth' import and unused variables.
+// PHOENIX PROTOCOL - BUTTON HARMONIZATION
+// 1. STYLE: "Analizo Rastin" button matches "Gjetjet" style (Dark + Border).
+// 2. LAYOUT: Preserved responsive positioning.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -14,7 +14,7 @@ import AnalysisModal from '../components/AnalysisModal';
 import FindingsModal from '../components/FindingsModal';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../context/AuthContext'; // Correct Named Import
+import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
@@ -53,11 +53,12 @@ const CaseHeader: React.FC<{
               <motion.button
                 onClick={onAnalyze}
                 disabled={isAnalyzing}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-secondary-start to-secondary-end text-white font-semibold shadow-lg glow-secondary disabled:opacity-50"
+                // PHOENIX FIX: Harmonized style with Findings button
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-background-dark/50 border border-glass-edge text-text-primary font-semibold shadow hover:bg-background-dark/80 transition-all disabled:opacity-50"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+                {isAnalyzing ? <Loader2 className="h-5 w-5 animate-spin text-secondary-start" /> : <ShieldCheck className="h-5 w-5 text-secondary-start" />}
                 <span className="hidden sm:inline">{isAnalyzing ? t('analysis.analyzing', 'Duke Analizuar...') : t('analysis.analyzeButton', 'Analizo Rastin')}</span>
                 <span className="sm:hidden">{isAnalyzing ? '...' : 'Analizo'}</span>
               </motion.button>
