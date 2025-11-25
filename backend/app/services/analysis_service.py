@@ -1,8 +1,8 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - HYBRID INTELLIGENCE (CLOUD + LOCAL FALLBACK)
-# 1. TIER 1: Tries Groq (Cloud) for maximum precision.
-# 2. TIER 2: Falls back to 'local-llm' (Ollama) if Groq is Rate Limited (429).
-# 3. TIER 3: Returns Static Analysis if both fail (No Crashes).
+# PHOENIX PROTOCOL - DEEP LEGAL ANALYSIS
+# 1. LEGAL RAG: Fetches relevant laws from Knowledge Base based on case context.
+# 2. CITATION: Instructs AI to cite specific articles from the fetched laws.
+# 3. HYBRID: Maintains Cloud -> Local fallback.
 
 import os
 import json
@@ -13,11 +13,15 @@ from pymongo.database import Database
 from bson import ObjectId
 from groq import Groq
 
+# PHOENIX IMPORTS: Access the Knowledge Base & Vectors
+from .vector_store_service import query_legal_knowledge_base
+from .embedding_service import generate_embedding
+
 logger = structlog.get_logger(__name__)
 
 # Configuration
 LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
-LOCAL_MODEL_NAME = os.environ.get("LOCAL_MODEL_NAME", "llama3") # or 'mistral'
+LOCAL_MODEL_NAME = "llama3"
 
 def _get_case_context(db: Database, case_id: str) -> str:
     try:
@@ -38,13 +42,8 @@ def _get_case_context(db: Database, case_id: str) -> str:
             doc_context = f"""
             === DOKUMENTI: {name} ===
             PËRMBLEDHJE: {summary}
-            
-            GJETJET KYÇE:
-            {findings_text}
-            
-            AFATET/DATAT:
-            {deadlines_text}
-            ===========================
+            GJETJET KYÇE: {findings_text}
+            AFATET: {deadlines_text}
             """
             context_buffer.append(doc_context)
             
@@ -53,17 +52,42 @@ def _get_case_context(db: Database, case_id: str) -> str:
         logger.error("analysis.context_build_failed", error=str(e))
         return ""
 
+def _fetch_relevant_laws(case_text: str) -> str:
+    """
+    Generates a vector for the case summary and finds relevant laws in ChromaDB.
+    """
+    try:
+        # Create a "Search Query" from the case summary (first 1000 chars)
+        query_text = case_text[:1000].replace("\n", " ")
+        embedding = generate_embedding(query_text)
+        
+        if not embedding: return ""
+
+        # Find top 5 most relevant laws
+        laws = query_legal_knowledge_base(embedding, n_results=5)
+        
+        if not laws: return ""
+
+        law_buffer = ["=== BAZA LIGJORE RELEVANTE (NGA DATABAZA) ==="]
+        for law in laws:
+            source = law.get('document_name', 'Ligj')
+            text = law.get('text', '')[:1500] # Truncate huge laws
+            law_buffer.append(f"BURIMI: {source}\nTEKSTI: {text}\n---")
+            
+        return "\n".join(law_buffer)
+    except Exception as e:
+        logger.warning(f"Failed to fetch relevant laws: {e}")
+        return ""
+
 def _generate_static_fallback(error_msg: str) -> Dict[str, Any]:
-    """Tier 3: Returns a safe structure so the UI does not crash."""
     return {
-        "summary_analysis": f"⚠️ Analiza e thellë AI nuk është e disponueshme për momentin (Kufizim Teknik: {error_msg}). Megjithatë, dokumentet tuaja janë të sigurta dhe të indeksuara.",
+        "summary_analysis": f"⚠️ Analiza e thellë AI nuk është e disponueshme (Kufizim: {error_msg}).",
         "contradictions": ["Nuk u identifikuan automatikisht."],
-        "risks": ["Ju lutemi rishikoni gjetjet manuale në panelin e dokumenteve."],
-        "missing_info": ["Kontrolloni manualisht dosjen për elemente që mungojnë."]
+        "risks": ["Ju lutemi rishikoni gjetjet manuale."],
+        "missing_info": ["Kontrolloni manualisht dosjen."]
     }
 
 def _call_local_llm(system_prompt: str, user_prompt: str) -> Optional[Dict[str, Any]]:
-    """Tier 2: Calls the internal Docker 'local-llm' service."""
     logger.info("🔄 Switching to LOCAL LLM (Ollama)...")
     try:
         payload = {
@@ -73,18 +97,14 @@ def _call_local_llm(system_prompt: str, user_prompt: str) -> Optional[Dict[str, 
                 {"role": "user", "content": user_prompt}
             ],
             "stream": False,
-            "format": "json" # Ollama supports native JSON enforcement
+            "format": "json"
         }
-        
-        # Use sync call (or async if wrapped) - using httpx sync for simplicity here
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(timeout=90.0) as client: # Increased timeout for analysis
             response = client.post(LOCAL_LLM_URL, json=payload)
             response.raise_for_status()
             data = response.json()
-            
             content = data.get("message", {}).get("content", "")
             return json.loads(content)
-            
     except Exception as e:
         logger.error("analysis.local_llm_failed", error=str(e))
         return None
@@ -92,25 +112,41 @@ def _call_local_llm(system_prompt: str, user_prompt: str) -> Optional[Dict[str, 
 def cross_examine_case(db: Database, case_id: str) -> Dict[str, Any]:
     log = logger.bind(case_id=case_id)
     
-    # 1. Prepare Context
+    # 1. Prepare Case Context
     case_context = _get_case_context(db, case_id)
     if not case_context:
-        return {"error": "Nuk ka mjaftueshëm të dhëna për analizë. Ngarkoni dokumente fillimisht."}
+        return {"error": "Nuk ka mjaftueshëm të dhëna për analizë."}
 
-    # 2. Define Prompts
+    # 2. Fetch Legal Grounding (New Step)
+    relevant_laws = _fetch_relevant_laws(case_context)
+    
+    # 3. Define High-IQ Prompt
     system_prompt = """
-    Ti je një Avokat i Lartë ("Senior Litigator").
-    Analizo dosjen dhe përgjigju VETËM në format JSON:
+    Ti je një Avokat i Lartë ("Senior Litigator") i specializuar në Ligjet e Kosovës dhe Shqipërisë.
+    
+    DETYRA: Analizo dosjen duke përdorur DOKUMENTET dhe LIGJET e ofruara.
+    
+    Kërko specifikisht:
+    1. SHKELJE LIGJORE: A ka ndonjë klauzolë në dokumente që bie në kundërshtim me LIGJET e ofruara?
+    2. KONTRADIKTA: A thotë Dokumenti A diçka ndryshe nga Dokumenti B?
+    3. RREZIQE LATENTE: Çfarë mund të shkojë keq për klientin?
+    
+    Përgjigju VETËM në format JSON:
     {
-      "contradictions": ["list of strings"],
-      "risks": ["list of strings"],
-      "missing_info": ["list of strings"],
-      "summary_analysis": "Përmbledhje e shkurtër"
+      "contradictions": ["list of strings..."],
+      "risks": ["list of strings (cite specific laws if applicable)..."],
+      "missing_info": ["list of strings..."],
+      "summary_analysis": "Analizë profesionale (max 150 fjalë)."
     }
     Përgjigju në GJUHËN SHQIPE.
     """
     
-    user_prompt = f"Analizo këtë dosje:\n{case_context[:20000]}"
+    user_prompt = f"""
+    {relevant_laws}
+    
+    === DOSJA E RASTIT ===
+    {case_context[:20000]} 
+    """
 
     # --- TIER 1: GROQ (CLOUD) ---
     api_key = os.environ.get("GROQ_API_KEY")
@@ -132,23 +168,16 @@ def cross_examine_case(db: Database, case_id: str) -> Dict[str, Any]:
                 return json.loads(content)
 
         except Exception as e:
-            error_str = str(e).lower()
-            log.warning("analysis.groq_failed", error=error_str)
-            
-            # If it's NOT a rate limit (e.g. invalid key), maybe we shouldn't fallback?
-            # But for robustness, we ALWAYS fallback if Tier 1 fails.
+            log.warning("analysis.groq_failed", error=str(e))
             pass
-    else:
-        log.warning("analysis.no_groq_key_configured")
 
     # --- TIER 2: LOCAL LLM (OLLAMA) ---
+    # Local LLM gets the laws too!
     local_result = _call_local_llm(system_prompt, user_prompt)
     if local_result:
         log.info("analysis.success_tier_2_local")
-        # Mark as local generated
-        local_result["summary_analysis"] = "[Generated by Local AI] " + local_result.get("summary_analysis", "")
+        local_result["summary_analysis"] = "[AI Lokale] " + local_result.get("summary_analysis", "")
         return local_result
 
-    # --- TIER 3: STATIC FALLBACK (SAFETY NET) ---
-    log.warning("analysis.all_tiers_failed_using_fallback")
+    # --- TIER 3: FALLBACK ---
     return _generate_static_fallback("Cloud & Local AI Unavailable")

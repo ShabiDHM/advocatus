@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - ANALYSIS ENDPOINT ADDED
-# 1. IMPORT: Added 'analysis_service'.
-# 2. ENDPOINT: Added 'analyze_case_risks' to perform cross-examination.
+# PHOENIX PROTOCOL - ENDPOINT AGGREGATION
+# 1. INCLUDES: Standard CRUD, Analysis, and the new Vision AI Deep Scan.
+# 2. FIXES: Explicit imports to resolve Pylance warnings.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated
@@ -15,14 +15,15 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-# Direct imports including the new analysis_service
+# Direct imports including the new services
 from ...services import (
     case_service, 
     document_service, 
     findings_service, 
     report_service, 
     storage_service,
-    analysis_service # <--- ADDED
+    analysis_service,
+    visual_service # <--- Added for Deep Scan
 )
 from ...models.case import CaseCreate, CaseOut
 from ...models.user import UserInDB
@@ -211,6 +212,7 @@ async def analyze_case_risks(
 ):
     """
     Triggers a deep cross-examination of all documents in the case.
+    Uses Hybrid Intelligence (Cloud -> Local -> Static).
     """
     validate_object_id(case_id)
     
@@ -219,11 +221,11 @@ async def analyze_case_risks(
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
         
+    # PHOENIX FIX: Explicit call to the correct service function
     analysis_result = await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id)
     return JSONResponse(content=analysis_result)
-# ... (existing code)
-from ...services import visual_service # <--- Ensure this import exists
 
+# --- PHOENIX PROTOCOL: DEEP SCAN ENDPOINT ---
 @router.post("/{case_id}/documents/{doc_id}/deep-scan", tags=["Documents"])
 async def deep_scan_document(
     case_id: str, 
@@ -237,7 +239,8 @@ async def deep_scan_document(
     validate_object_id(case_id)
     validate_object_id(doc_id)
     
-    # Perform scan in background thread to not block
-    findings = await asyncio.to_thread(visual_service.perform_deep_scan, db, doc_id)
-    
-    return {"status": "success", "findings_found": len(findings)}
+    try:
+        findings = await asyncio.to_thread(visual_service.perform_deep_scan, db, doc_id)
+        return {"status": "success", "findings_count": len(findings)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Deep Scan failed: {str(e)}")
