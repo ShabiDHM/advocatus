@@ -1,12 +1,11 @@
 // FILE: src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - DOMAIN FIX
-// 1. FIX: Removed hardcoded 'duckdns' URL.
-// 2. INTEGRATION: Imports 'API_V1_URL' directly from api.ts.
-//    This ensures it ALWAYS uses the correct 'juristi.tech' domain.
+// PHOENIX PROTOCOL - PROGRESS TRACKING SUPPORT
+// 1. HANDLER: Added listener for 'DOCUMENT_PROGRESS' events.
+// 2. STATE: Updates document state with real-time progress percent/message.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
-import { apiService, API_V1_URL } from '../services/api'; // <--- IMPORT API_V1_URL
+import { apiService, API_V1_URL } from '../services/api';
 
 interface UseDocumentSocketReturn {
   documents: Document[];
@@ -54,10 +53,7 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                 return;
             }
 
-            // PHOENIX FIX: Use the shared API URL from services/api.ts
-            // This automatically adapts to whatever is set in Vercel (api.juristi.tech)
             const sseUrl = `${API_V1_URL}/stream/updates?token=${token}`;
-            
             console.log(`SSE: Connecting to ${sseUrl}`);
 
             const es = new EventSource(sseUrl);
@@ -72,30 +68,46 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                 try {
                     const payload = JSON.parse(event.data);
 
-                    // --- SCENARIO A: Document Status Update ---
-                    if (payload.type === 'DOCUMENT_STATUS') {
+                    // --- SCENARIO A: Document Progress Update (New) ---
+                    if (payload.type === 'DOCUMENT_PROGRESS') {
                         setDocuments(prevDocs => {
                             const targetId = String(payload.document_id);
-                            const index = prevDocs.findIndex(d => String(d.id) === targetId);
-                            
-                            if (index === -1) return prevDocs; 
-
-                            const newDocs = [...prevDocs];
-                            const doc = newDocs[index];
-                            const newStatus = payload.status.toUpperCase();
-
-                            if (newStatus === 'READY' || newStatus === 'COMPLETED') {
-                                doc.status = 'COMPLETED';
-                            } else if (newStatus === 'FAILED') {
-                                doc.status = 'FAILED';
-                                doc.error_message = payload.error;
-                            }
-                            
-                            return newDocs;
+                            return prevDocs.map(doc => {
+                                if (String(doc.id) === targetId) {
+                                    // We inject dynamic properties for the UI
+                                    return {
+                                        ...doc,
+                                        progress_message: payload.message,
+                                        progress_percent: payload.percent
+                                    } as Document;
+                                }
+                                return doc;
+                            });
                         });
                     }
 
-                    // --- SCENARIO B: Chat Message ---
+                    // --- SCENARIO B: Document Status Update ---
+                    if (payload.type === 'DOCUMENT_STATUS') {
+                        setDocuments(prevDocs => {
+                            const targetId = String(payload.document_id);
+                            return prevDocs.map(doc => {
+                                if (String(doc.id) === targetId) {
+                                    const newStatus = payload.status.toUpperCase();
+                                    return {
+                                        ...doc,
+                                        status: (newStatus === 'READY' || newStatus === 'COMPLETED') ? 'COMPLETED' : 
+                                                (newStatus === 'FAILED') ? 'FAILED' : doc.status,
+                                        error_message: newStatus === 'FAILED' ? payload.error : doc.error_message,
+                                        // Clear progress on completion
+                                        progress_percent: newStatus === 'FAILED' ? 0 : 100
+                                    } as Document;
+                                }
+                                return doc;
+                            });
+                        });
+                    }
+
+                    // --- SCENARIO C: Chat Message ---
                     if (payload.type === 'CHAT_MESSAGE' && payload.case_id === caseId) {
                          setMessages(prev => [...prev, {
                              sender: 'ai',

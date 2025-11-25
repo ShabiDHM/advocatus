@@ -1,7 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - UI HARMONIZATION
-// 1. BADGE: Updated connection status to match ChatPanel style (Green text/dot).
-// 2. CONSISTENCY: Unified header layout logic.
+// PHOENIX PROTOCOL - UI UX UPGRADE
+// 1. PROGRESS BARS: Displays granular progress (e.g., "Extracting Text... 25%") for pending docs.
+// 2. ANIMATION: Smooth transitions using Framer Motion.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -46,8 +46,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       const newDoc: Document = {
           ...responseData,
           id: responseData.id || rawData._id, 
-          status: 'PENDING' 
-      };
+          status: 'PENDING',
+          // Initial State for UI
+          progress_percent: 5,
+          progress_message: t('documentsPanel.statusPending')
+      } as any; // Type assertion for dynamic fields
+      
       if (!newDoc.id) throw new Error("Upload succeeded but ID is missing.");
       onDocumentUploaded(newDoc);
     } catch (error: any) {
@@ -90,7 +94,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     }
   };
 
-  // Harmonized Status Colors (Matches ChatPanel)
   const statusColor = (status: ConnectionStatus) => {
     switch (status) {
       case 'CONNECTED': return 'bg-green-500/10 text-green-400 border-green-500/20';
@@ -116,7 +119,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 overflow-hidden">
             <h2 className="text-lg sm:text-xl font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
             
-            {/* PHOENIX FIX: New Badge Style */}
             <div className={`text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-full border flex items-center gap-1.5 transition-all whitespace-nowrap ${statusColor(connectionStatus)}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-400' : 'bg-red-400'}`}></span>
                 {connectionStatusText(connectionStatus)}
@@ -155,7 +157,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         {documents.map((doc) => {
           const statusInfo = getStatusInfo(doc.status);
           const isReady = doc.status.toUpperCase() === 'READY' || doc.status.toUpperCase() === 'COMPLETED';
+          const isPending = doc.status.toUpperCase() === 'PENDING';
           
+          // Use loose typing to access dynamic progress fields
+          const progressMessage = (doc as any).progress_message;
+          const progressPercent = (doc as any).progress_percent;
+
           return (
             <motion.div
               key={doc.id} layout="position"
@@ -166,15 +173,35 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 <div className="flex items-center gap-2 mb-0.5">
                     <p className="text-sm font-medium text-text-primary truncate">{doc.file_name}</p>
                 </div>
-                <p className="text-[10px] sm:text-xs text-text-secondary truncate">{t('documentsPanel.uploaded')}: {moment(doc.created_at).format('YYYY-MM-DD HH:mm')}</p>
+                
+                {/* PROGRESS BAR UI */}
+                {isPending && progressPercent ? (
+                    <div className="w-full max-w-[200px] mt-1.5">
+                        <div className="flex justify-between text-[10px] text-accent-start mb-1 font-medium">
+                            <span className="truncate pr-2">{progressMessage || t('documentsPanel.statusProcessing')}</span>
+                            <span>{progressPercent}%</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-background-dark rounded-full overflow-hidden border border-white/5">
+                            <motion.div 
+                                className="h-full bg-accent-start"
+                                initial={{ width: 0 }}
+                                animate={{ width: `${progressPercent}%` }}
+                                transition={{ duration: 0.3 }}
+                            />
+                        </div>
+                    </div>
+                ) : (
+                    <p className="text-[10px] sm:text-xs text-text-secondary truncate">{t('documentsPanel.uploaded')}: {moment(doc.created_at).format('YYYY-MM-DD HH:mm')}</p>
+                )}
               </div>
               
-              <div className="flex items-center space-x-2 flex-shrink-0">
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold hidden sm:inline-block ${statusInfo.color}`}>
-                  {statusInfo.label}
-                </span>
-                <span className={`w-2 h-2 rounded-full sm:hidden ${statusInfo.color.split(' ')[0]}`} title={statusInfo.label}></span>
-
+              <div className="flex items-center space-x-2 flex-shrink-0 pl-2">
+                {!isPending && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold hidden sm:inline-block ${statusInfo.color}`}>
+                    {statusInfo.label}
+                    </span>
+                )}
+                
                 {isReady && (
                   <div className="flex items-center space-x-1 sm:space-x-2">
                     <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-primary-start hover:text-primary-end p-1" whileHover={{ scale: 1.2 }}>
