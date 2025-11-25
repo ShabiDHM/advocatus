@@ -221,3 +221,23 @@ async def analyze_case_risks(
         
     analysis_result = await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id)
     return JSONResponse(content=analysis_result)
+# ... (existing code)
+from ...services import visual_service # <--- Ensure this import exists
+
+@router.post("/{case_id}/documents/{doc_id}/deep-scan", tags=["Documents"])
+async def deep_scan_document(
+    case_id: str, 
+    doc_id: str, 
+    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    db: Database = Depends(get_db)
+):
+    """
+    Triggers 'Llama 3.2 Vision' to scan the document for signatures and stamps.
+    """
+    validate_object_id(case_id)
+    validate_object_id(doc_id)
+    
+    # Perform scan in background thread to not block
+    findings = await asyncio.to_thread(visual_service.perform_deep_scan, db, doc_id)
+    
+    return {"status": "success", "findings_found": len(findings)}
