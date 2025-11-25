@@ -1,8 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - HYBRID RAG + GRAPH REASONING
-# 1. GRAPH INTEGRATION: Searches Neo4j for entities mentioned in the query.
-# 2. CONTEXT MERGE: Combines Vectors (Text) + Graph (Relationships).
-# 3. RESULT: AI can answer "Who is connected to X?" questions.
+# PHOENIX PROTOCOL - BRANDING UPDATE
+# 1. SIGNATURE: Capitalized "Asistenti Sokratik" (Brand Name).
+# 2. LOGIC: Remains unchanged (Hybrid Graph+Vector RAG).
 
 import os
 import asyncio
@@ -11,7 +10,7 @@ import httpx
 import json
 from typing import AsyncGenerator, List, Optional, Dict, Protocol, cast, Any
 
-# PHOENIX FIX: Import the graph service
+# Import the graph service
 from .graph_service import graph_service
 
 logger = logging.getLogger(__name__)
@@ -111,7 +110,7 @@ class AlbanianRAGService:
                 yield "Gabim Teknik: AI Core unresponsive."
                 return
 
-            # --- STEP 2: PARALLEL SEARCH (Vector + Law + Graph) ---
+            # --- STEP 2: PARALLEL SEARCH ---
             async def safe_user_search():
                 try:
                     return await asyncio.to_thread(
@@ -130,20 +129,16 @@ class AlbanianRAGService:
 
             async def safe_graph_search():
                 try:
-                    # Simple Keyword Extraction: Split query by spaces, filter short words
-                    # In production, use NER. For now, this is fast and effective for names.
                     words = [w for w in query.split() if len(w) > 3]
                     connections = []
                     for word in words:
-                        # Fuzzy search graph for each significant word
                         found = await asyncio.to_thread(graph_service.find_hidden_connections, word)
                         connections.extend(found)
-                    return list(set(connections)) # Deduplicate
+                    return list(set(connections)) 
                 except Exception as e:
                     logger.warning(f"Graph Search Error: {e}")
                     return []
 
-            # Execute all searches
             user_docs, law_docs, graph_results = await asyncio.gather(
                 safe_user_search(), 
                 safe_law_search(),
@@ -168,7 +163,7 @@ class AlbanianRAGService:
             yield f"Gabim gjatë kërkimit: {str(e)}"
             return
 
-        # --- STEP 4: GENERATE (Hybrid Context) ---
+        # --- STEP 4: GENERATE ---
         context_string = self._build_prompt_context(relevant_chunks, graph_knowledge)
         
         system_prompt = """
@@ -199,7 +194,9 @@ class AlbanianRAGService:
                 content = getattr(chunk.choices[0].delta, 'content', None)
                 if content:
                     yield content
-            yield "\n\n**Burimi:** Juristi AI (Cloud + Graph)"
+            
+            # BRANDING CHANGE: Corrected Casing
+            yield "\n\n**Burimi:** Asistenti Sokratik"
             return
 
         except Exception as e:
@@ -216,7 +213,8 @@ class AlbanianRAGService:
             if local_content:
                 yield "**[Mode: AI Lokale]**\n\n"
                 yield local_content
-                yield "\n\n**Burimi:** Juristi AI (Local + Graph)"
+                # BRANDING CHANGE: Corrected Casing
+                yield "\n\n**Burimi:** Asistenti Sokratik"
                 return
         
         # TIER 3: STATIC
@@ -234,18 +232,13 @@ class AlbanianRAGService:
 
     def _build_prompt_context(self, chunks: List[Dict], graph_data: List[str]) -> str:
         parts = []
-        
-        # Add Graph Data First (High Context)
         if graph_data:
             parts.append("=== INFORMACION NGA GRAFI (LIDHJET) ===")
             parts.extend(graph_data)
             parts.append("=====================================\n")
-
-        # Add Text Data
         for chunk in chunks:
             doc_type = chunk.get('type', 'DOKUMENT')
             name = chunk.get('document_name', 'Burim')
             text = chunk.get('text', '')
             parts.append(f"[{doc_type} - {name}]: {text}")
-            
         return "\n\n".join(parts)
