@@ -3,6 +3,7 @@
 // 1. DYNAMIC INPUT: Textarea now auto-expands as user types (up to 200px).
 // 2. RESET LOGIC: Input shrinks back to 1 row upon sending.
 // 3. SCROLLING: Maintained fixed panel height for consistent layout.
+// 4. UPDATED: Changed default thinking text to "Sokrati duke analizuar..."
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, ConnectionStatus } from '../data/types';
@@ -42,7 +43,8 @@ const TypingIndicator: React.FC<{ t: TFunction }> = ({ t }) => (
             />
         </div>
         <span className="text-xs text-text-primary font-semibold animate-pulse">
-            {t('chatPanel.thinking', 'Duke analizuar...')}
+            {/* UPDATED: Default fallback is now Sokrati */}
+            {t('chatPanel.thinking', 'Sokrati duke analizuar...')}
         </span>
     </div>
 );
