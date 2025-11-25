@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - HYBRID RAG (Cloud -> Local -> Static)
-# 1. TIER 1: Groq (High IQ, Streaming).
-# 2. TIER 2: Local Ollama (Free, Fail-safe).
-# 3. TIER 3: Document List (Ultimate Fallback).
+# PHOENIX PROTOCOL - HYBRID RAG + GRAPH REASONING
+# 1. GRAPH INTEGRATION: Searches Neo4j for entities mentioned in the query.
+# 2. CONTEXT MERGE: Combines Vectors (Text) + Graph (Relationships).
+# 3. RESULT: AI can answer "Who is connected to X?" questions.
 
 import os
 import asyncio
@@ -10,6 +10,9 @@ import logging
 import httpx
 import json
 from typing import AsyncGenerator, List, Optional, Dict, Protocol, cast, Any
+
+# PHOENIX FIX: Import the graph service
+from .graph_service import graph_service
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +44,14 @@ class AlbanianRAGService:
         self.language_detector = language_detector
         self.fine_tuned_model = "llama-3.3-70b-versatile"
         
-        # Configuration
         self.EMBEDDING_TIMEOUT = 30.0
         self.AI_CORE_URL = os.getenv("AI_CORE_URL", "http://ai-core-service:8000")
         self.RERANK_TIMEOUT = 15.0
 
     async def chat(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> str:
-        """Non-streaming wrapper."""
         full_response_parts = []
         async for chunk in self.chat_stream(query, case_id, document_ids):
-            if chunk:
-                full_response_parts.append(chunk)
+            if chunk: full_response_parts.append(chunk)
         return "".join(full_response_parts)
 
     async def _rerank_chunks(self, query: str, chunks: List[Dict]) -> List[Dict]:
@@ -59,7 +59,6 @@ class AlbanianRAGService:
         unique_chunks = {c.get('text', ''): c for c in chunks}
         documents = list(unique_chunks.keys())
         chunk_map = unique_chunks
-        
         try:
             async with httpx.AsyncClient(timeout=self.RERANK_TIMEOUT) as client:
                 response = await client.post(
@@ -69,7 +68,6 @@ class AlbanianRAGService:
                 response.raise_for_status()
                 data = response.json()
                 sorted_texts = data.get("reranked_documents", [])
-                
                 reranked = []
                 for text in sorted_texts:
                     if text in chunk_map: reranked.append(chunk_map[text])
@@ -79,15 +77,11 @@ class AlbanianRAGService:
             return list(unique_chunks.values())
 
     async def _call_local_llm(self, system_prompt: str, user_prompt: str) -> str:
-        """TIER 2: Internal Local AI Call"""
         logger.info("🔄 TIER 2: Switching to Local LLM...")
         try:
             payload = {
                 "model": LOCAL_MODEL_NAME,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
+                "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
                 "stream": False
             }
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -101,6 +95,8 @@ class AlbanianRAGService:
 
     async def chat_stream(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> AsyncGenerator[str, None]:
         relevant_chunks = []
+        graph_knowledge = []
+        
         try:
             from .embedding_service import generate_embedding
 
@@ -115,12 +111,12 @@ class AlbanianRAGService:
                 yield "Gabim Teknik: AI Core unresponsive."
                 return
 
-            # --- STEP 2: SEARCH ---
+            # --- STEP 2: PARALLEL SEARCH (Vector + Law + Graph) ---
             async def safe_user_search():
                 try:
                     return await asyncio.to_thread(
                         self.vector_store.query_by_vector,
-                        embedding=query_embedding, case_id=case_id, n_results=10, document_ids=document_ids
+                        embedding=query_embedding, case_id=case_id, n_results=8, document_ids=document_ids
                     )
                 except Exception: return []
 
@@ -128,23 +124,43 @@ class AlbanianRAGService:
                 try:
                     return await asyncio.to_thread(
                         self.vector_store.query_legal_knowledge_base,
-                        embedding=query_embedding, n_results=5 
+                        embedding=query_embedding, n_results=4 
                     )
                 except Exception: return []
 
-            user_docs, law_docs = await asyncio.gather(safe_user_search(), safe_law_search())
+            async def safe_graph_search():
+                try:
+                    # Simple Keyword Extraction: Split query by spaces, filter short words
+                    # In production, use NER. For now, this is fast and effective for names.
+                    words = [w for w in query.split() if len(w) > 3]
+                    connections = []
+                    for word in words:
+                        # Fuzzy search graph for each significant word
+                        found = await asyncio.to_thread(graph_service.find_hidden_connections, word)
+                        connections.extend(found)
+                    return list(set(connections)) # Deduplicate
+                except Exception as e:
+                    logger.warning(f"Graph Search Error: {e}")
+                    return []
+
+            # Execute all searches
+            user_docs, law_docs, graph_results = await asyncio.gather(
+                safe_user_search(), 
+                safe_law_search(),
+                safe_graph_search()
+            )
             
-            # --- DEBUG LOGS (CRITICAL) ---
-            logger.info(f"🔍 RAG RESULTS -> User Docs: {len(user_docs)} | Law Docs: {len(law_docs)}")
-            
+            graph_knowledge = graph_results
+            logger.info(f"🔍 RESULTS -> Vectors: {len(user_docs)}, Laws: {len(law_docs)}, Graph Nodes: {len(graph_results)}")
+
             all_candidates = user_docs + law_docs
             
             # --- STEP 3: RERANK ---
             if all_candidates:
                 reranked = await self._rerank_chunks(query, all_candidates)
                 relevant_chunks = reranked[:7] if reranked else all_candidates[:7]
-            else:
-                yield "Nuk munda të gjej informacion relevant në dokumentet e çështjes ose në bazën ligjore."
+            elif not graph_results:
+                yield "Nuk munda të gjej informacion relevant në dokumentet, ligjet ose analizën grafike."
                 return
 
         except Exception as e:
@@ -152,12 +168,18 @@ class AlbanianRAGService:
             yield f"Gabim gjatë kërkimit: {str(e)}"
             return
 
-        # --- STEP 4: GENERATE (HYBRID TIERED SYSTEM) ---
-        context_string = self._build_prompt_context(relevant_chunks)
+        # --- STEP 4: GENERATE (Hybrid Context) ---
+        context_string = self._build_prompt_context(relevant_chunks, graph_knowledge)
         
         system_prompt = """
         Jeni "Juristi AI", ekspert ligjor për Kosovë dhe Shqipëri.
-        Përdor VETËM kontekstin e mëposhtëm. Cito burimin.
+        Përdor kontekstin e dhënë për të përgjigjur saktë.
+        
+        Konteksti përmban:
+        1. TEKST NGA DOKUMENTET (Përmbajtja).
+        2. INFORMACION NGA GRAFI (Lidhjet, Datat, Entitetet).
+        
+        Nëse informacioni vjen nga GRAFI, thuaj "Sipas analizës së lidhjeve...".
         """
         user_prompt = f"KONTEKSTI:\n{context_string}\n\nPYETJA: {query}"
 
@@ -177,9 +199,8 @@ class AlbanianRAGService:
                 content = getattr(chunk.choices[0].delta, 'content', None)
                 if content:
                     yield content
-            
-            yield "\n\n**Burimi:** Juristi AI (Cloud)"
-            return # Tier 1 Success
+            yield "\n\n**Burimi:** Juristi AI (Cloud + Graph)"
+            return
 
         except Exception as e:
             error_str = str(e).lower()
@@ -187,31 +208,44 @@ class AlbanianRAGService:
                 logger.warning("⚠️ Cloud Limit Reached. Activating Tier 2.")
                 tier1_failed = True
             else:
-                # Genuine error, but we try fallback anyway
-                logger.error(f"Cloud Error: {e}")
                 tier1_failed = True
 
-        # TIER 2: LOCAL LLM (FALLBACK)
+        # TIER 2: LOCAL LLM
         if tier1_failed:
             local_content = await self._call_local_llm(system_prompt, user_prompt)
             if local_content:
                 yield "**[Mode: AI Lokale]**\n\n"
                 yield local_content
-                yield "\n\n**Burimi:** Juristi AI (Local)"
-                return # Tier 2 Success
+                yield "\n\n**Burimi:** Juristi AI (Local + Graph)"
+                return
         
-        # TIER 3: STATIC LIST (FINAL SAFETY NET)
-        yield "\n\n⚠️ **Kufiri Ditor i AI është arritur dhe AI Lokale nuk u përgjigj.**\n"
-        yield "Ja dokumentet që gjeta për ju:\n\n"
+        # TIER 3: STATIC
+        yield "\n\n⚠️ **Kufiri Ditor i AI është arritur.**\n"
+        yield "Ja dokumentet dhe lidhjet që gjeta:\n\n"
+        if graph_knowledge:
+            yield "**🔗 Lidhjet e Gjetura (Graph):**\n"
+            for rel in graph_knowledge[:5]:
+                yield f"- {rel}\n"
+            yield "\n"
+        
         for i, doc in enumerate(relevant_chunks):
-            name = doc.get('document_name', 'Dokument pa emër')
+            name = doc.get('document_name', 'Dokument')
             yield f"{i+1}. **{name}**\n"
 
-    def _build_prompt_context(self, chunks: List[Dict]) -> str:
+    def _build_prompt_context(self, chunks: List[Dict], graph_data: List[str]) -> str:
         parts = []
+        
+        # Add Graph Data First (High Context)
+        if graph_data:
+            parts.append("=== INFORMACION NGA GRAFI (LIDHJET) ===")
+            parts.extend(graph_data)
+            parts.append("=====================================\n")
+
+        # Add Text Data
         for chunk in chunks:
             doc_type = chunk.get('type', 'DOKUMENT')
             name = chunk.get('document_name', 'Burim')
             text = chunk.get('text', '')
             parts.append(f"[{doc_type} - {name}]: {text}")
+            
         return "\n\n".join(parts)
