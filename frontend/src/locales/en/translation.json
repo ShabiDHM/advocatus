@@ -119,7 +119,7 @@
     "statusDisconnected": "Disconnected",
     "statusError": "Error",
     "reconnect": "Reconnect",
-    "thinking": "Juristi AI is thinking...",
+    "thinking": "Socrat is thinking...",
     "inputPlaceholder": "Ask a question about this case...",
     "welcomeMessage": "Type a question to start analyzing the case documents.",
     "clearChat": "Clear Chat History",
@@ -286,22 +286,6 @@
       "confirmText": "DELETE",
       "successMessage": "Account deleted.",
       "failureMessage": "Failed to delete account."
-    },
-    "apiKey": {
-      "title": "API Keys",
-      "description": "Manage your personal API keys for external services.",
-      "keyName": "Key Name (e.g. My OpenAI)",
-      "apiKey": "API Key (sk-...)",
-      "addButton": "Add Key",
-      "addSuccess": "Key added successfully.",
-      "addFailed": "Failed to add key.",
-      "confirmDelete": "Delete this API key?",
-      "deleteSuccess": "Key deleted.",
-      "deleteFailed": "Failed to delete key.",
-      "usage": "Usage",
-      "fieldsRequired": "Name and Key are required.",
-      "fetchFailed": "Failed to load API keys.",
-      "loadingKeys": "Loading keys..."
     }
   },
   "footer": {

@@ -122,7 +122,7 @@
     "statusDisconnected": "Prekinuto",
     "statusError": "Greška",
     "reconnect": "Ponovo poveži",
-    "thinking": "Juristi AI razmišlja...",
+    "thinking": "Sokrat razmišlja...",
     "inputPlaceholder": "Postavite pitanje o ovom predmetu...",
     "welcomeMessage": "Upišite pitanje da biste započeli analizu dokumenata.",
     "clearChat": "Obriši Istoriju",
@@ -289,22 +289,6 @@
       "confirmText": "DELETE",
       "successMessage": "Nalog obrisan.",
       "failureMessage": "Neuspešno brisanje naloga."
-    },
-    "apiKey": {
-      "title": "API Ključevi",
-      "description": "Upravljajte vašim ličnim API ključevima.",
-      "keyName": "Naziv Ključa",
-      "apiKey": "API Ključ",
-      "addButton": "Dodaj Ključ",
-      "addSuccess": "Ključ dodat.",
-      "addFailed": "Neuspešno dodavanje.",
-      "confirmDelete": "Obrisati ovaj ključ?",
-      "deleteSuccess": "Ključ obrisan.",
-      "deleteFailed": "Neuspešno brisanje.",
-      "usage": "Upotreba",
-      "fieldsRequired": "Ime i Ključ su obavezni.",
-      "fetchFailed": "Neuspešno učitavanje ključeva.",
-      "loadingKeys": "Učitavanje ključeva..."
     }
   },
   "footer": {
