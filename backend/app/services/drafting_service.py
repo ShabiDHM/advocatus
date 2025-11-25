@@ -1,8 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - HYBRID DRAFTING ENGINE
-# 1. TIER 1: Groq Cloud (High Precision).
-# 2. TIER 2: Local Ollama (Offline/Fallback Mode).
-# 3. STREAMING: Supports streaming for both Cloud and Local engines.
+# PHOENIX PROTOCOL - LEGALLY GROUNDED DRAFTING
+# 1. RAG INTEGRATION: Fetches specific laws from Knowledge Base to guide the draft.
+# 2. HYBRID ENGINE: Cloud (Groq) -> Local (Ollama) Fallback.
+# 3. TEMPLATES: Combines Database Templates + RAG Laws + User Prompt.
 
 import os
 import asyncio
@@ -16,6 +16,10 @@ from pymongo.database import Database
 
 from ..models.user import UserInDB
 from app.services.text_sterilization_service import sterilize_text_for_llm 
+
+# PHOENIX FIX: Import Retrieval Services
+from .vector_store_service import query_legal_knowledge_base
+from .embedding_service import generate_embedding
 
 logger = structlog.get_logger(__name__)
 
@@ -45,43 +49,55 @@ def _get_template_augmentation(draft_type: str, jurisdiction: str, favorability:
         logger.error("drafting_service.template_augmentation_error", error=str(e), exc_info=True)
         return None
 
+def _fetch_relevant_laws(prompt_text: str) -> str:
+    """
+    Searches the Vector Database for laws relevant to the drafting request.
+    """
+    try:
+        # Generate vector for the prompt to find semantic matches
+        # e.g., "Draft a lease" -> finds Law on Obligational Relationships
+        embedding = generate_embedding(prompt_text[:1000])
+        if not embedding: return ""
+
+        # Fetch top 3 most relevant law chunks
+        laws = query_legal_knowledge_base(embedding, n_results=3)
+        
+        if not laws: return ""
+
+        law_buffer = ["\n=== BAZA LIGJORE E DETYRUESHME (NGA DATABAZA) ==="]
+        for law in laws:
+            source = law.get('document_name', 'Ligj')
+            text = law.get('text', '')[:1500] 
+            law_buffer.append(f"BURIMI: {source}\nNENET: {text}\n---")
+            
+        return "\n".join(law_buffer)
+    except Exception as e:
+        logger.warning(f"Drafting RAG Lookup failed: {e}")
+        return ""
+
 async def _stream_local_llm(messages: List[Dict[str, Any]]) -> AsyncGenerator[str, None]:
-    """
-    Tier 2: Streams the draft from the internal Local LLM (Ollama).
-    Used when Cloud API is down or rate-limited.
-    """
+    """Tier 2: Local LLM Stream"""
     logger.info("🔄 Switching to LOCAL LLM (Ollama) for drafting...")
-    
     payload = {
         "model": LOCAL_MODEL_NAME,
         "messages": messages,
         "stream": True,
-        "options": {
-            "temperature": 0.3, 
-            "num_ctx": 8192 # Increased context for drafting
-        }
+        "options": {"temperature": 0.3, "num_ctx": 8192}
     }
-
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream("POST", LOCAL_LLM_URL, json=payload) as response:
                 if response.status_code != 200:
-                    logger.error(f"Local LLM Error: {response.status_code}")
                     yield "\n[Gabim: Sistemi lokal nuk u përgjigj.]"
                     return
-
                 async for line in response.aiter_lines():
                     if not line: continue
                     try:
                         data = json.loads(line)
-                        # Ollama chat response format
                         content = data.get("message", {}).get("content", "")
-                        if content:
-                            yield content
-                        if data.get("done", False):
-                            break
-                    except Exception:
-                        continue
+                        if content: yield content
+                        if data.get("done", False): break
+                    except: continue
     except Exception as e:
         logger.error("drafting_service.local_llm_failed", error=str(e))
         yield "\n\n[Gabim Kritik: Edhe sistemi lokal nuk është i disponueshëm.]"
@@ -103,23 +119,33 @@ async def generate_draft_stream(
     sanitized_context = sterilize_text_for_llm(context)
     sanitized_prompt_text = sterilize_text_for_llm(prompt_text)
 
-    # Prepare Prompts
+    # 1. Fetch Legal Grounding (NEW)
+    # We perform this synchronously before streaming starts
+    relevant_laws = await asyncio.to_thread(_fetch_relevant_laws, sanitized_prompt_text)
+
+    # 2. Construct System Prompt
     system_prompt = (
-        "You are an expert legal drafter for the legal markets of Kosovo and Albania named Phoenix. "
-        "Your task is to generate a professional, well-structured document in response to the user's request. "
-        "Maintain a formal, objective, and precise tone. "
-        "Your response MUST be ONLY the generated legal text. Do not add any commentary. "
-        "The generated text MUST be in the Albanian language."
+        "Ti je 'Juristi AI', një ekspert për hartimin e dokumenteve ligjore në Kosovë dhe Shqipëri. "
+        "DETYRA: Harto një dokument profesional bazuar në kërkesën e përdoruesit. "
+        "RREGULLAT: "
+        "1. Përdor gjuhë formale juridike. "
+        "2. Nëse ka 'BAZA LIGJORE' të ofruar më poshtë, sigurohu që drafti të jetë në përputhje me to. "
+        "3. Mos shto komente shtesë, vetëm tekstin e dokumentit."
     )
+
+    # 3. Construct Full Prompt
     full_prompt = f"Context:\n{sanitized_context}\n\n---\n\nPrompt:\n{sanitized_prompt_text}"
+    
+    if relevant_laws:
+        full_prompt = f"{relevant_laws}\n\n{full_prompt}"
+        log.info("drafting_service.rag_injected")
 
     # Template Augmentation
     if draft_type and jurisdiction and db is not None:
         template_augment = await asyncio.to_thread(_get_template_augmentation, draft_type, jurisdiction, favorability, db)
         if template_augment:
-            system_prompt = system_prompt.replace("well-structured document", f"well-structured {draft_type} for {jurisdiction}")
-            full_prompt = f"Template/Clause Guidance:\n{template_augment}\n\n---\n\n{full_prompt}"
-            log.info("drafting_service.template_augmented", template=draft_type)
+            system_prompt += f" Përdor strukturën specifike për: {draft_type} ({jurisdiction})."
+            full_prompt = f"Template Instructions:\n{template_augment}\n\n---\n\n{full_prompt}"
 
     messages: List[Dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
@@ -134,8 +160,8 @@ async def generate_draft_stream(
         try:
             groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
             GROQ_CLIENT = AsyncGroq(api_key=groq_api_key)
-            
             typed_messages = cast(List[ChatCompletionMessageParam], messages)
+            
             stream = await GROQ_CLIENT.chat.completions.create(
                 messages=typed_messages,
                 model=groq_model,
@@ -147,29 +173,24 @@ async def generate_draft_stream(
                     yield chunk.choices[0].delta.content
             
             log.info("drafting_service.stream_success_cloud")
-            return # Tier 1 Success
+            return
 
         except Exception as e:
             error_str = str(e).lower()
             log.warning(f"⚠️ Groq Drafting Failed: {e}")
-            if "rate limit" in error_str or "429" in error_str or "quota" in error_str or "model" in error_str:
-                tier1_failed = True
-            else:
-                # For network errors, we also fallback
-                tier1_failed = True
+            tier1_failed = True
     else:
-        tier1_failed = True # No key configured
+        tier1_failed = True
 
     # --- TIER 2: LOCAL LLM FALLBACK ---
     if tier1_failed:
-        yield "**[Draft i Gjeneruar nga AI Lokale (Offline Mode)]**\n\n"
+        yield "**[Draft i Gjeneruar nga AI Lokale]**\n\n"
         async for chunk in _stream_local_llm(messages):
             yield chunk
         log.info("drafting_service.stream_success_local")
 
-
-# --- Legacy Functions ---
+# Legacy
 def generate_draft_from_prompt(*args, **kwargs):
     raise NotImplementedError("Use generate_draft_stream instead.")
 def generate_draft(*args, **kwargs):
-    raise NotImplementedError("This legacy template function is not implemented.")
+    raise NotImplementedError("Use generate_draft_stream instead.")
