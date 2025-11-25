@@ -219,7 +219,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     {/* DEEP SCAN BUTTON */}
                     <motion.button 
                         onClick={() => handleDeepScan(doc.id)} 
-                        title="Deep Scan (Vision AI)" 
+                        title={t('documentsPanel.deepScan')} 
                         className="text-secondary-start hover:text-secondary-end p-1" 
                         whileHover={{ scale: 1.2 }}
                         disabled={scanningId === doc.id}
