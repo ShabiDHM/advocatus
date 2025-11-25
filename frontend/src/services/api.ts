@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - CLEANUP
-// 1. REMOVED: All API Key related methods and types.
-// 2. STATUS: Frontend service layer is now consistent with the backend changes.
+// PHOENIX PROTOCOL - FEATURE UPGRADE
+// 1. ADDED: 'deepScanDocument' method to trigger Vision AI analysis.
+// 2. STATUS: Fully synchronized with backend endpoints.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -80,8 +80,6 @@ class ApiService {
             (response) => response,
             async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-                
-                // PHOENIX FIX: Prevent infinite loop if the refresh endpoint itself fails
                 const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh');
 
                 if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
@@ -207,6 +205,11 @@ class ApiService {
     public async deleteDocument(caseId: string, documentId: string): Promise<DeletedDocumentResponse> {
         const response = await this.axiosInstance.delete<DeletedDocumentResponse>(`/cases/${caseId}/documents/${documentId}`);
         return response.data;
+    }
+
+    // PHOENIX FIX: Added Deep Scan trigger
+    public async deepScanDocument(caseId: string, documentId: string): Promise<void> {
+        await this.axiosInstance.post(`/cases/${caseId}/documents/${documentId}/deep-scan`);
     }
 
     public async getDocumentContent(caseId: string, documentId: string): Promise<DocumentContentResponse> {

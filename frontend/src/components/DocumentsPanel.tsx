@@ -1,14 +1,15 @@
 // FILE: src/components/DocumentsPanel.tsx
 // PHOENIX PROTOCOL - UI UX UPGRADE
-// 1. PROGRESS BARS: Displays granular progress (e.g., "Extracting Text... 25%") for pending docs.
-// 2. ANIMATION: Smooth transitions using Framer Motion.
+// 1. PROGRESS BARS: Displays granular progress for pending docs.
+// 2. DEEP SCAN: Added "Scan" button (ScanEye icon) to trigger Vision AI.
+// 3. FEEDBACK: Shows loading state during scan request.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Trash, Plus, Loader2, RefreshCw } from 'lucide-react';
+import { FolderOpen, Eye, Trash, Plus, Loader2, RefreshCw, ScanEye } from 'lucide-react'; // Added ScanEye
 import { motion } from 'framer-motion';
 
 interface DocumentsPanelProps {
@@ -36,6 +37,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [scanningId, setScanningId] = useState<string | null>(null); // Track which doc is being scanned
 
   const performUpload = async (file: File) => {
     setIsUploading(true);
@@ -47,10 +49,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           ...responseData,
           id: responseData.id || rawData._id, 
           status: 'PENDING',
-          // Initial State for UI
           progress_percent: 5,
           progress_message: t('documentsPanel.statusPending')
-      } as any; // Type assertion for dynamic fields
+      } as any;
       
       if (!newDoc.id) throw new Error("Upload succeeded but ID is missing.");
       onDocumentUploaded(newDoc);
@@ -77,6 +78,20 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       console.error("Failed to delete document:", error);
       alert(t('documentsPanel.deleteFailed'));
     }
+  };
+
+  // PHOENIX FEATURE: Deep Scan Trigger
+  const handleDeepScan = async (docId: string) => {
+      setScanningId(docId);
+      try {
+          await apiService.deepScanDocument(caseId, docId);
+          alert(t('documentsPanel.scanStarted', 'Deep Scan filloi! Kontrolloni gjetjet pas pak.'));
+      } catch (error) {
+          console.error("Deep Scan Failed:", error);
+          alert(t('error.generic'));
+      } finally {
+          setScanningId(null);
+      }
   };
 
   const getStatusInfo = (status: Document['status']) => {
@@ -158,8 +173,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const statusInfo = getStatusInfo(doc.status);
           const isReady = doc.status.toUpperCase() === 'READY' || doc.status.toUpperCase() === 'COMPLETED';
           const isPending = doc.status.toUpperCase() === 'PENDING';
-          
-          // Use loose typing to access dynamic progress fields
           const progressMessage = (doc as any).progress_message;
           const progressPercent = (doc as any).progress_percent;
 
@@ -174,7 +187,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     <p className="text-sm font-medium text-text-primary truncate">{doc.file_name}</p>
                 </div>
                 
-                {/* PROGRESS BAR UI */}
                 {isPending && progressPercent ? (
                     <div className="w-full max-w-[200px] mt-1.5">
                         <div className="flex justify-between text-[10px] text-accent-start mb-1 font-medium">
@@ -204,6 +216,17 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 
                 {isReady && (
                   <div className="flex items-center space-x-1 sm:space-x-2">
+                    {/* DEEP SCAN BUTTON */}
+                    <motion.button 
+                        onClick={() => handleDeepScan(doc.id)} 
+                        title="Deep Scan (Vision AI)" 
+                        className="text-secondary-start hover:text-secondary-end p-1" 
+                        whileHover={{ scale: 1.2 }}
+                        disabled={scanningId === doc.id}
+                    >
+                      {scanningId === doc.id ? <Loader2 size={16} className="animate-spin" /> : <ScanEye size={16} />}
+                    </motion.button>
+
                     <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-primary-start hover:text-primary-end p-1" whileHover={{ scale: 1.2 }}>
                       <Eye size={16} />
                     </motion.button>
