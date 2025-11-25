@@ -113,7 +113,9 @@
     "reanalyzeAlert": "Ponovna analiza za dokument {documentId} je započeta.",
     "delete": "Obriši Dokument",
     "confirmDelete": "Da li ste sigurni da želite da obrišete ovaj dokument?",
-    "deleteFailed": "Neuspešno brisanje dokumenta."
+    "deleteFailed": "Neuspešno brisanje dokumenta.",
+    "deepScan": "Duboko skeniranje (Vision AI)",
+  "scanStarted": "Duboko skeniranje je započelo! Proverite nalaze uskoro."
   },
   "chatPanel": {
     "title": "Sokratski Asistent",

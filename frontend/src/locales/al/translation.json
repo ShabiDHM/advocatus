@@ -113,7 +113,9 @@
     "reanalyzeAlert": "Rianaliza për dokumentin {documentId} filloi.",
     "delete": "Fshi Dokumentin",
     "confirmDelete": "A jeni i sigurt? Gjetjet e nxjerra do të fshihen gjithashtu.",
-    "deleteFailed": "Dështoi fshirja e dokumentit."
+    "deleteFailed": "Dështoi fshirja e dokumentit.",
+     "deepScan": "Skanim i Thellë",
+  "scanStarted": "Skanimi i Thellë filloi! Kontrolloni gjetjet pas pak."
   },
   "chatPanel": {
     "title": "Asistenti Sokratik",

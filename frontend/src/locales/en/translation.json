@@ -110,7 +110,9 @@
     "reanalyzeAlert": "Re-analysis for document {documentId} started.",
     "delete": "Delete Document",
     "confirmDelete": "Are you sure you want to delete this document? Findings extracted from it will also be removed.",
-    "deleteFailed": "Failed to delete document."
+    "deleteFailed": "Failed to delete document.",
+     "deepScan": "Deep Scan",
+  "scanStarted": "Deep Scan initiated! Check findings shortly."
   },
   "chatPanel": {
     "title": "Socratic Assistant",
