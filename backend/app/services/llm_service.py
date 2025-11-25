@@ -3,6 +3,7 @@
 # 1. TIER 1 (Cloud): Groq/Llama-70b (High Precision/IQ).
 # 2. TIER 2 (Local): Ollama/Llama-8b (Zero Cost, High Availability).
 # 3. TIER 3 (Static): Safe fallback messages (No Crashes).
+# 4. GRAPH CAPABILITY: Added 'extract_graph_data'.
 
 import os
 import json
@@ -182,10 +183,62 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     # TIER 3: EMPTY
     return []
 
+# --- GRAPH RAG SERVICE ---
+def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
+    """
+    Extracts Entities and Relationships for GraphRAG.
+    Tier 1: Groq (High Precision JSON)
+    Tier 2: Local (Fallback)
+    """
+    truncated_text = text[:6000]
+    
+    system_prompt = """
+    You are a Knowledge Graph Builder. Extract entities and relationships from the legal text.
+    
+    Entities: Person, Organization, Law, Date, Location, Money.
+    Relations: SIGNED, VIOLATED, PAID, LOCATED_IN, DATED.
+    
+    Return VALID JSON ONLY:
+    {
+      "entities": [{"name": "Artan", "type": "Person"}, {"name": "InovaTech", "type": "Organization"}],
+      "relations": [{"subject": "Artan", "relation": "OWNS", "object": "InovaTech"}]
+    }
+    """
+    
+    user_prompt = f"Extract graph data from:\n{truncated_text}"
+    
+    # Use Hybrid Strategy (Cloud -> Local)
+    # TIER 1: CLOUD
+    client = get_llm_client()
+    if client:
+        try:
+            logger.info("☁️  Extracting Graph Data via Groq...")
+            completion = client.chat.completions.create(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                model=GROQ_MODEL_NAME,
+                response_format={"type": "json_object"},
+                temperature=0.0
+            )
+            return json.loads(completion.choices[0].message.content or "{}")
+        except Exception as e:
+            logger.warning(f"Groq Graph Extraction failed: {e}")
+
+    # TIER 2: FALLBACK LOCAL
+    full_prompt = f"{system_prompt}\n\n{user_prompt}"
+    local_json = _call_local_llm(full_prompt, json_mode=True)
+    if local_json:
+        try:
+            return _parse_json_safely(local_json)
+        except: pass
+        
+    return {"entities": [], "relations": []}
+
 # Legacy stubs
 def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict:
     return {"answer": "Socratic response logic.", "sources": []}
 
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
-    # Can be implemented similarly if needed
     return []
