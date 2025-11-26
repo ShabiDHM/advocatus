@@ -1,7 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES UPDATE
-// 1. SYNC: Added missing fields (notes, location, priority, etc.) to match UI usage.
-// 2. COMPATIBILITY: Added aliases (case_name, result_text) to satisfy build errors.
+// PHOENIX PROTOCOL - TYPES FINALIZATION
+// 1. ADDED: Optional count fields to Case (document_count, alert_count, event_count).
+// 2. MAINTAINED: All previous Business and Calendar types.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -12,14 +12,18 @@ export interface User {
     role: 'ADMIN' | 'LAWYER' | 'CLIENT';
     is_active: boolean;
     created_at: string;
-    token?: string; // Added for AuthContext compatibility
+    token?: string;
+    subscription_status?: string;
 }
+
+// Alias AdminUser to User to fix legacy imports
+export type AdminUser = User; 
 
 export interface Case {
     id: string;
     case_number: string;
     case_name: string;
-    title: string; 
+    title: string;
     status: 'open' | 'closed' | 'pending' | 'archived';
     client?: {
         name: string;
@@ -39,13 +43,18 @@ export interface Case {
     updated_at: string;
     tags: string[];
     chat_history?: ChatMessage[];
+    
+    // ADDED: Aggregated Counts for Dashboard Cards
+    document_count?: number;
+    alert_count?: number;
+    event_count?: number;
 }
 
 export interface Document {
     id: string;
     file_name: string;
     file_type: string;
-    mime_type?: string; // Added to fix DocumentViewPage error
+    mime_type?: string;
     storage_key: string;
     uploaded_by: string;
     created_at: string;
@@ -86,11 +95,10 @@ export interface CalendarEvent {
     start_date: string;
     end_date: string;
     is_all_day: boolean;
-    event_type: 'HEARING' | 'DEADLINE' | 'MEETING' | 'OTHER';
+    event_type: 'HEARING' | 'DEADLINE' | 'MEETING' | 'OTHER' | 'FILING' | 'COURT_DATE' | 'CONSULTATION';
     status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
     case_id?: string;
     document_id?: string;
-    // Added fields to fix CalendarPage errors
     location?: string;
     notes?: string;
     priority?: string;
@@ -141,12 +149,15 @@ export interface ChangePasswordRequest {
 export interface UpdateUserRequest {
     full_name?: string;
     email?: string;
+    role?: string; 
+    subscription_status?: string;
+    is_active?: boolean;
 }
 
 export interface CreateCaseRequest {
     case_number: string;
     title: string;
-    case_name?: string; // Alias for title to fix DashboardPage error
+    case_name?: string;
     description?: string;
     client_name?: string;
     client_email?: string;
@@ -167,7 +178,6 @@ export interface CalendarEventCreateRequest {
     is_all_day?: boolean;
     event_type: string;
     case_id?: string;
-    // Added fields
     location?: string;
     notes?: string;
     priority?: string;
@@ -178,20 +188,20 @@ export type DraftingJobStatus = {
     job_id: string;
     status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
     error?: string;
-    result_summary?: string; // Added to fix DraftingPage error
+    result_summary?: string;
 };
 
 export type DraftingJobResult = {
     document_text: string;
     document_html: string;
-    result_text?: string; // Alias for document_text to fix DraftingPage error
+    result_text?: string;
 };
 
 export interface CreateDraftingJobRequest {
     template_id?: string;
     user_prompt: string;
     case_id?: string;
-    context?: string; // Added to fix DraftingPage error
+    context?: string;
 }
 
 export interface CaseAnalysisResult {

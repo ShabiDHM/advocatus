@@ -1,303 +1,201 @@
-// FILE: /home/user/advocatus-frontend/src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - MOBILE OPTIMIZATION
-// 1. TABLE: Reduced cell padding (px-6 -> px-4) to fit more data on small screens.
-// 2. CARDS: Responsive padding (p-4 sm:p-6) for better mobile density.
-// 3. TYPOGRAPHY: Scaled down headings for mobile devices.
-// 4. LAYOUT: Optimized filter stack spacing.
-
+// FILE: src/pages/AdminDashboardPage.tsx
 import React, { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { AdminUser, UpdateUserRequest, User } from '../data/types';
-import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { 
-  Shield, Users, Search, Filter, Edit, Trash2, Crown, AlertCircle, RefreshCw, UserCheck, UserX, FileText
-} from 'lucide-react';
+import { Users, Search, Edit2, Trash2, Shield, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { apiService } from '../services/api';
+import { User, UpdateUserRequest } from '../data/types'; // Removed AdminUser, using User
 
-// --- HELPER FUNCTIONS ---
-const getRoleColor = (role: AdminUser['role']) => { 
-  switch (role) { 
-    case 'ADMIN': return 'text-purple-300 bg-purple-900/20 border-purple-600'; 
-    default: return 'text-gray-300 bg-gray-900/20 border-gray-600'; 
-  } 
-};
-
-const getStatusColor = (status: AdminUser['subscription_status']) => { 
-  switch (status) { 
-    case 'ACTIVE': return 'text-green-300 bg-green-900/20 border-green-600'; 
-    case 'TRIAL': return 'text-blue-300 bg-blue-900/20 border-blue-600'; 
-    case 'EXPIRED': return 'text-red-300 bg-red-900/20 border-red-600'; 
-    default: return 'text-gray-300 bg-gray-900/20 border-gray-600'; 
-  } 
-};
-
-const formatDate = (dateString?: string) => {
-  if (!dateString) return '—';
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-      return '—';
-    }
-    return date.toLocaleDateString('en-GB', {
-      day: '2-digit', 
-      month: 'short', 
-      year: 'numeric'
-    });
-  } catch {
-    return 'Invalid Date';
-  }
-};
-
-const getUserId = (user: AdminUser): string => {
-  const userWithAny = user as any;
-  return user.id || userWithAny._id || '';
-};
-
-const getCurrentUserId = (user: User): string => {
-  return user.id;
-};
-
-// --- SUB-COMPONENTS ---
-
-const StatCard: React.FC<{ icon: React.ReactNode, title: string, value: number | string }> = ({ icon, title, value }) => (
-  <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl p-4 sm:p-6 shadow-xl">
-    <div className="flex items-center">
-      <div className="flex-shrink-0">{icon}</div>
-      <div className="ml-3 sm:ml-5 w-0 flex-1">
-        <dl>
-          <dt className="text-xs sm:text-sm font-medium text-gray-400 truncate">{title}</dt>
-          <dd className="text-xl sm:text-2xl font-bold text-white">{value}</dd>
-        </dl>
-      </div>
-    </div>
-  </div>
-);
-
-interface UserRowProps { user: AdminUser; currentUserId: string; onEdit: (user: AdminUser) => void; onDelete: (user: AdminUser) => void; }
-const UserRow: React.FC<UserRowProps> = ({ user, currentUserId, onEdit, onDelete }) => (
-  <tr className="hover:bg-background-dark/30">
-    <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-      <div>
-        <div className="text-sm font-medium text-white">{user.username}</div>
-        <div className="text-xs sm:text-sm text-gray-400">{user.email || 'No email'}</div>
-      </div>
-    </td>
-    <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-      <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold border ${getRoleColor(user.role)}`}>{user.role}</span>
-    </td>
-    <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
-      <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold border ${getStatusColor(user.subscription_status)}`}>{user.subscription_status}</span>
-    </td>
-    <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-300">{user.case_count || 0} / {user.document_count || 0}</td>
-    <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-400">{formatDate(user.created_at)}</td>
-    <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-sm text-gray-400">{formatDate(user.last_login)}</td>
-    <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-right text-sm font-medium">
-      <div className="flex items-center justify-end space-x-3">
-        <button onClick={() => onEdit(user)} className="text-blue-400 hover:text-blue-300" title="Edit User"><Edit className="h-4 w-4" /></button>
-        <button onClick={() => onDelete(user)} disabled={currentUserId === getUserId(user)} className="text-red-400 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed" title="Delete User"><Trash2 className="h-4 w-4" /></button>
-      </div>
-    </td>
-  </tr>
-);
-
-interface EditUserModalProps { user: AdminUser; onUpdate: (userId: string, updateData: UpdateUserRequest) => void; onClose: () => void; isUpdating: boolean; t: (key: string, options?: any) => string; }
-const EditUserModal: React.FC<EditUserModalProps> = ({ user, onUpdate, onClose, isUpdating, t }) => {
-  const [formData, setFormData] = useState<UpdateUserRequest>({ subscription_status: user.subscription_status, role: user.role, email: user.email });
-  
-  const handleSubmit = (e: React.FormEvent) => { 
-    e.preventDefault(); 
-    const userId = getUserId(user);
-    if (!userId) return;
-    onUpdate(userId, formData); 
-  };
-  
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-background-dark/90 border border-glass-edge rounded-2xl p-6 w-full max-w-md shadow-2xl mx-2">
-        <h2 className="text-xl font-semibold text-white mb-4">{t('admin.editUserTitle', { username: user.username })}</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">{t('auth.email')}</label>
-            <input type="email" value={formData.email || ''} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))} className="block w-full px-3 py-2 border border-glass-edge rounded-xl bg-background-light/50 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder={t('auth.email')}/>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">{t('admin.role')}</label>
-            <select value={formData.role} onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value as any }))} className="block w-full px-3 py-2 border border-glass-edge rounded-xl bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
-              <option value="USER">User</option>
-              <option value="ADMIN">Administrator</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">{t('admin.status')}</label>
-            <select value={formData.subscription_status} onChange={(e) => setFormData(prev => ({ ...prev, subscription_status: e.target.value as any }))} className="block w-full px-3 py-2 border border-glass-edge rounded-xl bg-background-light/50 text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
-              <option value="ACTIVE">Active</option>
-              <option value="TRIAL">Trial</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="EXPIRED">Expired</option>
-            </select>
-          </div>
-          <div className="flex space-x-3 pt-4">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-glass-edge rounded-md text-gray-300 hover:bg-background-light/50 transition duration-200">{t('dashboard.cancelButton')}</button>
-            <button type="submit" disabled={isUpdating} className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-md transition duration-200">{isUpdating ? t('admin.updating') : t('admin.updateUser')}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-interface DeleteUserModalProps { user: AdminUser; onConfirm: () => void; onClose: () => void; isDeleting: boolean; t: (key: string, options?: any) => string; }
-const DeleteUserModal: React.FC<DeleteUserModalProps> = ({ user, onConfirm, onClose, isDeleting, t }) => (
-  <div className="fixed inset-0 bg-black bg-opacity-70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div className="bg-background-dark/90 border border-glass-edge rounded-2xl p-6 w-full max-w-md shadow-2xl mx-2">
-      <div className="flex items-center mb-4">
-        <AlertCircle className="h-6 w-6 text-red-400 mr-3" />
-        <h2 className="text-xl font-semibold text-white">{t('admin.deleteUserTitle')}</h2>
-      </div>
-      <p className="text-gray-300 mb-6">{t('admin.confirmDeleteUserMessage', { username: user.username })}</p>
-      <div className="flex space-x-3">
-        <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-glass-edge rounded-md text-gray-300 hover:bg-background-light/50 transition duration-200">{t('dashboard.cancelButton')}</button>
-        <button onClick={onConfirm} disabled={isDeleting} className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-md transition duration-200">{isDeleting ? t('admin.deleting') : t('admin.deleteUser')}</button>
-      </div>
-    </div>
-  </div>
-);
-
-// --- MAIN COMPONENT ---
 const AdminDashboardPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user: currentUser } = useAuth();
-  const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | AdminUser['subscription_status']>('ALL');
-  const [roleFilter, setRoleFilter] = useState<'ALL' | AdminUser['role']>('ALL');
-  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
-  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState<UpdateUserRequest>({});
 
-  if (!currentUser || currentUser.role !== 'ADMIN') { return <Navigate to="/dashboard" replace />; }
-
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => {
+    loadUsers();
+  }, []);
 
   const loadUsers = async () => {
-    try { setLoading(true); setError(''); const fetchedUsers = await apiService.getAllUsers(); setUsers(fetchedUsers); } 
-    catch (error: any) { setError(error.response?.data?.message || error.message || t('admin.fetchUsersFailure')); } 
-    finally { setLoading(false); }
+    try {
+      const data = await apiService.getAllUsers();
+      setUsers(data);
+    } catch (error) {
+      console.error("Failed to load users", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleEditUser = (userToEdit: AdminUser) => { 
-    const userId = getUserId(userToEdit);
-    if (!userId) return;
-    setSelectedUser(userToEdit); 
-    setIsEditModalOpen(true); 
-  };
-  
-  const handleDeleteUser = (userToDelete: AdminUser) => { setSelectedUser(userToDelete); setIsDeleteModalOpen(true); };
-  
-  const handleUpdateUser = async (userId: string, updateData: UpdateUserRequest) => {
-    setUpdatingUserId(userId);
-    try { 
-      const updatedUser = await apiService.updateUser(userId, updateData); 
-      setUsers(prev => prev.map(u => getUserId(u) === userId ? updatedUser : u)); 
-      setIsEditModalOpen(false); 
-      setSelectedUser(null); 
-    } 
-    catch (error: any) { alert(error.response?.data?.message || t('admin.updateUserFailure')); } 
-    finally { setUpdatingUserId(null); }
+  const handleEditClick = (user: User) => {
+    setEditingUser(user);
+    setEditForm({
+      full_name: user.full_name,
+      email: user.email,
+      role: user.role,
+      subscription_status: user.subscription_status || 'active',
+      is_active: user.is_active
+    });
   };
 
-  const handleConfirmDelete = async () => {
-    if (!selectedUser) return;
-    const userId = getUserId(selectedUser);
-    setDeletingUserId(userId);
-    try { await apiService.deleteUser(userId); setUsers(prev => prev.filter(u => getUserId(u) !== userId)); setIsDeleteModalOpen(false); setSelectedUser(null); } 
-    catch (error: any) { alert(error.response?.data?.message || t('admin.deleteUserFailure')); } 
-    finally { setDeletingUserId(null); }
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    
+    try {
+      await apiService.updateUser(editingUser.id, editForm);
+      setEditingUser(null);
+      loadUsers();
+      alert(t('admin.userUpdated'));
+    } catch (error) {
+      console.error("Failed to update user", error);
+      alert(t('error.generic'));
+    }
   };
 
-  const filteredUsers = users.filter(u => {
-    const searchContent = `${u.username} ${u.email}`.toLowerCase();
-    const matchesSearch = searchContent.includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || u.subscription_status === statusFilter;
-    const matchesRole = roleFilter === 'ALL' || u.role === roleFilter;
-    return matchesSearch && matchesStatus && matchesRole;
-  });
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm(t('admin.confirmDelete'))) return;
+    try {
+      await apiService.deleteUser(userId);
+      loadUsers();
+    } catch (error) {
+      console.error("Failed to delete user", error);
+    }
+  };
 
-  if (loading) { return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div></div>; }
+  const filteredUsers = users.filter(u => 
+    u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    u.email?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="animate-spin h-8 w-8 text-primary-start" /></div>;
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 text-text-primary">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 sm:mb-8">
-        <div className="flex items-center space-x-3">
-          <div className="bg-purple-600 p-2 sm:p-3 rounded-lg"><Shield className="h-5 w-5 sm:h-6 sm:w-6 text-white" /></div>
-          <div><h1 className="text-2xl sm:text-3xl font-bold text-white">{t('admin.pageTitle')}</h1><p className="text-gray-400 mt-1 text-sm sm:text-base">{t('admin.pageSubtitle')}</p></div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-text-primary mb-2">{t('admin.title', 'Paneli i Administratorit')}</h1>
+        <p className="text-text-secondary">{t('admin.subtitle', 'Menaxhimi i përdoruesve dhe sistemit.')}</p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge flex items-center justify-between">
+          <div>
+            <p className="text-text-secondary text-sm font-medium">Total Users</p>
+            <h3 className="text-3xl font-bold text-white">{users.length}</h3>
+          </div>
+          <div className="p-3 rounded-xl bg-blue-500/20 text-blue-400"><Users /></div>
         </div>
-        <div className="mt-4 sm:mt-0 flex space-x-3">
-          <button onClick={loadUsers} className="inline-flex items-center px-4 py-2 border border-glass-edge/50 rounded-xl shadow-sm text-sm font-medium text-gray-300 bg-background-light/50 hover:bg-background-dark/50 transition duration-200">
-            <RefreshCw className="h-4 w-4 mr-2" />{t('admin.refresh')}
-          </button>
+        <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge flex items-center justify-between">
+          <div>
+            <p className="text-text-secondary text-sm font-medium">Active Lawyers</p>
+            <h3 className="text-3xl font-bold text-white">{users.filter(u => u.role === 'LAWYER').length}</h3>
+          </div>
+          <div className="p-3 rounded-xl bg-purple-500/20 text-purple-400"><Shield /></div>
         </div>
       </div>
-      {error && <div className="bg-red-900/50 border border-red-600 rounded-md p-4 mb-6 flex items-center space-x-2"><AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0" /><span className="text-red-300">{error}</span></div>}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
-        <StatCard icon={<Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-400" />} title={t('admin.totalUsers')} value={users.length} />
-        <StatCard icon={<UserCheck className="h-6 w-6 sm:h-8 sm:w-8 text-green-400" />} title={t('admin.activeUsers')} value={users.filter(u => u.subscription_status === 'ACTIVE').length} />
-        <StatCard icon={<Crown className="h-6 w-6 sm:h-8 sm:w-8 text-purple-400" />} title={t('admin.administrators')} value={users.filter(u => u.role === 'ADMIN').length} />
-        <StatCard icon={<FileText className="h-6 w-6 sm:h-8 sm:w-8 text-yellow-400" />} title={t('admin.totalDocs')} value={users.reduce((sum, u) => sum + (u.document_count || 0), 0)} />
-      </div>
-      <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 mb-6">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input type="text" placeholder={t('admin.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="block w-full pl-10 pr-3 py-2 border border-glass-edge rounded-xl bg-background-dark/50 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+
+      {/* User Table */}
+      <div className="bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge overflow-hidden">
+        <div className="p-4 border-b border-glass-edge flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-white">Përdoruesit e Regjistruar</h3>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+            <input 
+              type="text" 
+              placeholder="Kërko..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 pr-4 py-2 bg-background-dark border border-glass-edge rounded-lg text-sm text-white focus:ring-1 focus:ring-primary-start outline-none"
+            />
+          </div>
         </div>
-        <div className="relative">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)} className="block w-full pl-3 pr-10 py-2 border border-glass-edge rounded-xl bg-background-dark/50 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none">
-            <option value="ALL">{t('admin.allStatuses')}</option>
-            <option value="ACTIVE">Active</option>
-            <option value="TRIAL">Trial</option>
-            <option value="INACTIVE">Inactive</option>
-            <option value="EXPIRED">Expired</option>
-          </select>
-          <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-        </div>
-        <div className="relative">
-          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as any)} className="block w-full pl-3 pr-10 py-2 border border-glass-edge rounded-xl bg-background-dark/50 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 appearance-none">
-            <option value="ALL">{t('admin.allRoles')}</option>
-            <option value="ADMIN">Admin</option>
-            <option value="USER">User</option>
-          </select>
-          <Filter className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-        </div>
-      </div>
-      <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl overflow-hidden">
-        <div className="px-4 sm:px-6 py-4 border-b border-glass-edge/50"><h2 className="text-lg font-semibold text-white">{t('admin.users')} ({filteredUsers.length})</h2></div>
+        
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-glass-edge/50">
-            <thead className="bg-background-dark/50">
+          <table className="w-full text-left text-sm text-text-secondary">
+            <thead className="bg-white/5 text-text-primary uppercase text-xs">
               <tr>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.user')}</th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.role')}</th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.status')}</th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.casesDocs')}</th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.created')}</th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.lastLogin')}</th>
-                <th className="px-4 sm:px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">{t('admin.actions')}</th>
+                <th className="px-6 py-3">Përdoruesi</th>
+                <th className="px-6 py-3">Roli</th>
+                <th className="px-6 py-3">Statusi</th>
+                <th className="px-6 py-3">Regjistruar</th>
+                <th className="px-6 py-3 text-right">Veprime</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-glass-edge/50">
-              {filteredUsers.map((u) => <UserRow key={getUserId(u)} user={u} currentUserId={getCurrentUserId(currentUser)} onEdit={handleEditUser} onDelete={handleDeleteUser} />)}
+            <tbody className="divide-y divide-glass-edge">
+              {filteredUsers.map((user) => (
+                <tr key={user.id} className="hover:bg-white/5 transition-colors">
+                  <td className="px-6 py-4">
+                    <div className="font-medium text-white">{user.full_name}</div>
+                    <div className="text-xs">{user.email}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${user.role === 'ADMIN' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                      {user.role}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    {user.is_active ? 
+                      <span className="flex items-center text-green-400"><CheckCircle className="w-4 h-4 mr-1" /> Aktiv</span> : 
+                      <span className="flex items-center text-red-400"><XCircle className="w-4 h-4 mr-1" /> Inaktiv</span>
+                    }
+                  </td>
+                  <td className="px-6 py-4">{new Date(user.created_at).toLocaleDateString()}</td>
+                  <td className="px-6 py-4 text-right space-x-2">
+                    <button onClick={() => handleEditClick(user)} className="text-blue-400 hover:text-blue-300 p-1"><Edit2 className="w-4 h-4" /></button>
+                    <button onClick={() => handleDeleteUser(user.id)} className="text-red-400 hover:text-red-300 p-1"><Trash2 className="w-4 h-4" /></button>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
-          {filteredUsers.length === 0 && <div className="text-center py-12"><UserX className="mx-auto h-12 w-12 text-gray-400 mb-4" /><h3 className="text-lg font-medium text-gray-300 mb-2">{t('admin.noUsersFound')}</h3><p className="text-gray-400">{users.length === 0 ? t('admin.noUsersInSystem') : t('admin.adjustFilters')}</p></div>}
         </div>
       </div>
-      {isEditModalOpen && selectedUser && <EditUserModal user={selectedUser} onUpdate={handleUpdateUser} onClose={() => { setIsEditModalOpen(false); setSelectedUser(null); }} isUpdating={updatingUserId === getUserId(selectedUser)} t={t} />}
-      {isDeleteModalOpen && selectedUser && <DeleteUserModal user={selectedUser} onConfirm={handleConfirmDelete} onClose={() => { setIsDeleteModalOpen(false); setSelectedUser(null); }} isDeleting={deletingUserId === getUserId(selectedUser)} t={t} />}
+
+      {/* Edit Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-background-dark border border-glass-edge p-6 rounded-2xl w-full max-w-md shadow-2xl">
+            <h3 className="text-xl font-bold text-white mb-4">Modifiko Përdoruesin</h3>
+            <form onSubmit={handleUpdateUser} className="space-y-4">
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">Emri i Plotë</label>
+                <input type="text" value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white" />
+              </div>
+              <div>
+                <label className="block text-sm text-text-secondary mb-1">Email</label>
+                <input type="email" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">Roli</label>
+                  <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value})} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white">
+                    <option value="LAWYER">Lawyer</option>
+                    <option value="ADMIN">Admin</option>
+                    <option value="CLIENT">Client</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-text-secondary mb-1">Statusi</label>
+                  <select 
+                    value={editForm.is_active ? 'active' : 'inactive'} 
+                    onChange={e => setEditForm({...editForm, is_active: e.target.value === 'active'})} 
+                    className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white"
+                  >
+                    <option value="active">Aktiv</option>
+                    <option value="inactive">Inaktiv</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 rounded-lg hover:bg-white/10 text-text-secondary">Anulo</button>
+                <button type="submit" className="px-6 py-2 rounded-lg bg-primary-start hover:bg-primary-end text-white font-semibold">Ruaj</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
