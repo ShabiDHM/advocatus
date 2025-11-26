@@ -1,14 +1,14 @@
 # FILE: backend/scripts/ingest_laws.py
-# PHOENIX PROTOCOL - INCREMENTAL INGESTION
-# 1. SMART CHECK: Checks DB for existing files before processing.
-# 2. NO WIPE: Preserves existing data (does NOT delete collection).
-# 3. EFFICIENCY: Only processes new files.
+# PHOENIX PROTOCOL - SMART INCREMENTAL INGESTION (TYPE SAFE)
+# 1. FIX: Added safety checks for ChromaDB return values.
+# 2. LOGIC: Preserves MD5 fingerprinting and incremental updates.
 
 import os
 import sys
 import glob
 import requests
-from typing import List, Dict, Any, Set
+import hashlib
+from typing import List, Dict, Any, Optional
 
 # Ensure backend is in path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -24,9 +24,10 @@ try:
     from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 except ImportError as e:
     print(f"❌ MISSING LIBRARIES: {e}")
+    print("Run: pip install langchain-community langchain-text-splitters pypdf chromadb requests docx2txt")
     sys.exit(1)
 
-# --- CONFIGURATION ---
+# --- SMART CONFIGURATION ---
 CHROMA_HOST = os.getenv("CHROMA_HOST", "chroma")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8000))
 
@@ -35,6 +36,16 @@ AI_CORE_PORT = int(os.getenv("AI_CORE_SERVICE_PORT", 8000))
 AI_CORE_URL = f"http://{AI_CORE_HOST}:{AI_CORE_PORT}/embeddings/generate"
 
 COLLECTION_NAME = "legal_knowledge_base"
+
+print(f"⚙️  CONFIG: Chroma={CHROMA_HOST}:{CHROMA_PORT} | AI-Core={AI_CORE_URL}")
+
+# --- HELPERS ---
+def calculate_file_hash(filepath: str) -> str:
+    hasher = hashlib.md5()
+    with open(filepath, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
 # --- CUSTOM EMBEDDING FUNCTION ---
 class JuristiRemoteEmbeddings(EmbeddingFunction):
@@ -48,45 +59,24 @@ class JuristiRemoteEmbeddings(EmbeddingFunction):
                 vectors.append(data["embedding"])
             except Exception as e:
                 print(f"❌ Embedding Failed: {e}")
-                vectors.append([0.0] * 768) 
+                vectors.append([0.0] * 768)
         return vectors
-
-def get_existing_sources(collection) -> Set[str]:
-    """Fetches the list of filenames already inside the database."""
-    try:
-        # Fetch only metadata to be fast
-        result = collection.get(include=["metadatas"])
-        existing = set()
-        if result and result["metadatas"]:
-            for meta in result["metadatas"]:
-                if meta and "source" in meta:
-                    existing.add(meta["source"])
-        return existing
-    except Exception:
-        return set()
 
 def ingest_legal_docs(directory_path: str):
     print(f"🔌 Connecting to ChromaDB at {CHROMA_HOST}:{CHROMA_PORT}...")
     
     try:
         client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-        
-        # PHOENIX FIX: Removed 'delete_collection'. We append now.
         collection = client.get_or_create_collection(
             name=COLLECTION_NAME,
             embedding_function=JuristiRemoteEmbeddings()
         )
-        print("✅ Connected to Database.")
+        print("✅ Connected to Knowledge Base.")
     except Exception as e:
         print(f"❌ DB Connection Failed: {e}")
         return
 
-    # 1. Get list of already ingested files
-    print("🔍 Checking existing database records...")
-    existing_files = get_existing_sources(collection)
-    print(f"ℹ️  Database currently contains {len(existing_files)} unique documents.")
-
-    # 2. Find files on disk
+    # Find files
     supported_extensions = ['*.pdf', '*.docx', '*.txt']
     all_files = []
     if os.path.isdir(directory_path):
@@ -96,22 +86,47 @@ def ingest_legal_docs(directory_path: str):
         print(f"❌ Directory not found: {directory_path}")
         return
 
+    print(f"📚 Scanning {len(all_files)} files in library...")
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    
-    new_files_count = 0
+
+    stats = {"skipped": 0, "added": 0, "updated": 0}
 
     for file_path in all_files:
-        filename = os.path.basename(file_path)
-        
-        # PHOENIX FIX: Skip if already exists
-        if filename in existing_files:
-            print(f"⏩ Skipping: {filename} (Already Ingested)")
-            continue
-
-        new_files_count += 1
         try:
-            print(f"👉 Processing: {filename}", end=" ", flush=True)
+            filename = os.path.basename(file_path)
+            current_hash = calculate_file_hash(file_path)
             
+            # --- INCREMENTAL CHECK ---
+            existing_records = collection.get(
+                where={"source": filename},
+                limit=1,
+                include=["metadatas"]
+            )
+            
+            # PHOENIX FIX: Safe Access
+            ids = existing_records.get('ids', []) if existing_records else []
+            metas = existing_records.get('metadatas', []) if existing_records else []
+            
+            is_existing = len(ids) > 0
+            
+            if is_existing:
+                # Check if hash matches (Safely handle nested list/None)
+                first_meta = metas[0] if metas and len(metas) > 0 else {}
+                stored_hash = first_meta.get("file_hash", "") if first_meta else ""
+                
+                if stored_hash == current_hash:
+                    print(f"⏭️  Skipped (Unchanged): {filename}")
+                    stats["skipped"] += 1
+                    continue
+                else:
+                    print(f"🔄 Updating (Modified): {filename}", end=" ", flush=True)
+                    collection.delete(where={"source": filename})
+                    stats["updated"] += 1
+            else:
+                print(f"➕ Adding (New): {filename}", end=" ", flush=True)
+                stats["added"] += 1
+
+            # --- PROCESSING ---
             ext = os.path.splitext(file_path)[1].lower()
             loader = None
             if ext == '.pdf': loader = PyPDFLoader(file_path)
@@ -135,7 +150,7 @@ def ingest_legal_docs(directory_path: str):
                 ids = [f"{filename}_{i+j}" for j in range(len(batch))]
                 texts = [c.page_content for c in batch]
                 metadatas: List[Dict[str, Any]] = [
-                    {"source": filename, "type": "LAW"} 
+                    {"source": filename, "type": "LAW", "file_hash": current_hash} 
                     for _ in batch
                 ]
                 
@@ -147,10 +162,7 @@ def ingest_legal_docs(directory_path: str):
         except Exception as e:
             print(f" -> ❌ Error: {e}")
 
-    if new_files_count == 0:
-        print("\n✨ No new documents to ingest. Database is up to date.")
-    else:
-        print(f"\n✅ Finished. Ingested {new_files_count} new documents.")
+    print(f"\n🏁 Ingestion Summary: {stats['added']} Added, {stats['updated']} Updated, {stats['skipped']} Skipped.")
 
 if __name__ == "__main__":
     default_dir = "/app/data/laws"
