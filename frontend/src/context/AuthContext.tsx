@@ -1,13 +1,14 @@
 // FILE: src/context/AuthContext.tsx
-// PHOENIX PROTOCOL - UX UPDATE
-// 1. ADDED: Loading spinner to the initialization screen.
-// 2. LOGIC: Robust session validation loop.
+// PHOENIX PROTOCOL - AUTH CONTEXT (SAFE UPGRADE)
+// 1. KEEPS: specific JWT decoding logic and Role Normalization.
+// 2. KEEPS: 'isLoading' visual state logic.
+// 3. UPDATES: 'login' function signature to accept (email, password).
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';
 import { apiService } from '../services/api';
 import { jwtDecode } from 'jwt-decode';
-import { Loader2 } from 'lucide-react'; // Visual feedback
+import { Loader2 } from 'lucide-react';
 
 interface DecodedToken {
     sub: string;
@@ -21,7 +22,8 @@ type AuthUser = User & { token?: string };
 interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  login: (data: LoginRequest) => Promise<void>;
+  // UPDATED: Matches the new LoginPage signature
+  login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
@@ -57,7 +59,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setUser({ ...fullUser, token: access_token, role: normalizedRole });
 
       } catch (error) {
-        console.log("No active session found, redirecting to login.");
+        // Silent fail: user is simply not logged in
         logout();
       } finally {
         setIsLoading(false);
@@ -67,13 +69,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     initializeApp();
   }, [logout]);
 
-  const login = async (data: LoginRequest) => {
+  // --- THE CRITICAL UPDATE ---
+  // Takes separate args (UI friendly) -> Converts to Object (Backend friendly)
+  const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const response = await apiService.login(data);
+      // 1. Construct the Payload Object exactly how backend wants it
+      const loginPayload: LoginRequest = { 
+          username: email, 
+          password: password 
+      };
+
+      // 2. Send to API (Same as before)
+      const response = await apiService.login(loginPayload);
       const { access_token } = response;
       localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, access_token);
       
+      // 3. Decode and Set User (Same as before)
       const fullUser = await apiService.fetchUserProfile();
       const decoded = jwtDecode<DecodedToken>(access_token);
       const normalizedRole = (decoded.role || fullUser.role || 'STANDARD').toUpperCase() as User['role'];
@@ -90,12 +102,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   if (isLoading) {
-    // PHOENIX FIX: Visual Loading State instead of blank screen
     return (
         <div className="min-h-screen bg-background-dark flex items-center justify-center">
             <div className="text-center">
                 <Loader2 className="h-12 w-12 text-primary-start animate-spin mx-auto mb-4" />
-                <h2 className="text-xl font-bold text-text-primary">Advocatus AI</h2>
+                <h2 className="text-xl font-bold text-text-primary">Juristi AI</h2>
+                <p className="text-sm text-text-secondary mt-2">Duke u ngarkuar...</p>
             </div>
         </div>
     );

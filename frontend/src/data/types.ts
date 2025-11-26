@@ -1,171 +1,189 @@
-// FILE: frontend/src/data/types.ts
-// PHOENIX PROTOCOL - TYPE DEFINITION UPDATE
-// 1. ADDED: 'CaseAnalysisResult' interface for the Cross-Examination feature.
+// FILE: src/data/types.ts
+// PHOENIX PROTOCOL - DATA TYPES
+// Includes: User, Case, Document, and BusinessProfile definitions.
 
-export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
+export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
 export interface User {
-  id: string;
-  username: string;
-  email: string;
-  role: 'USER' | 'ADMIN';
-  subscription_status: 'ACTIVE' | 'INACTIVE' | 'TRIAL' | 'EXPIRED';
-  created_at: string;
-  last_login?: string;
-  token?: string;
-  case_count?: number;
-  document_count?: number;
-}
-
-// PHOENIX FIX: Alias AdminUser to User to satisfy legacy imports
-export type AdminUser = User;
-
-export interface ChatMessage {
-  sender: 'user' | 'ai';
-  content: string;
-  text?: string; 
-  timestamp: string;
-  isPartial?: boolean;
+    id: string;
+    email: string;
+    full_name: string;
+    role: 'ADMIN' | 'LAWYER' | 'CLIENT';
+    is_active: boolean;
+    created_at: string;
 }
 
 export interface Case {
-  id: string;
-  owner_id: string;
-  case_name: string;
-  client: { name: string | null; email: string | null; phone: string | null; } | null;
-  status: 'OPEN' | 'PENDING' | 'CLOSED' | 'ARCHIVED';
-  created_at: string;
-  document_count: number;
-  alert_count: number;
-  event_count: number;
-  finding_count: number;
-  chat_history?: ChatMessage[];
+    id: string;
+    case_number: string;
+    case_name: string;
+    title: string; // Legacy support
+    status: 'open' | 'closed' | 'pending' | 'archived';
+    client?: {
+        name: string;
+        phone: string;
+        email: string;
+    };
+    opposing_party?: {
+        name: string;
+        lawyer: string;
+    };
+    court_info?: {
+        name: string;
+        judge: string;
+    };
+    description: string;
+    created_at: string;
+    updated_at: string;
+    tags: string[];
+    chat_history?: ChatMessage[];
 }
 
 export interface Document {
-  id: string;
-  case_id: string;
-  file_name: string;
-  mime_type: string;
-  created_at: string;
-  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'READY';
-  summary?: string;
-  error_message?: string;
+    id: string;
+    file_name: string;
+    file_type: string;
+    storage_key: string;
+    uploaded_by: string;
+    created_at: string;
+    status: 'PENDING' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'FAILED';
+    summary?: string;
+    risk_score?: number;
+    ocr_status?: string;
+    processed_text_storage_key?: string;
+    preview_storage_key?: string;
+    error_message?: string;
+    // UI Progress Props
+    progress_percent?: number;
+    progress_message?: string;
 }
 
 export interface Finding {
-  id: string;
-  case_id: string;
-  document_id: string; 
-  finding_text: string;
-  source_text: string;
-  page_number?: number;
-  document_name?: string;
-  confidence_score?: number;
+    id: string;
+    case_id: string;
+    document_id?: string;
+    document_name?: string;
+    finding_text: string;
+    source_text: string;
+    page_number?: number;
+    confidence_score: number;
+    created_at: string;
+}
+
+export interface ChatMessage {
+    sender: 'user' | 'ai';
+    content: string;
+    timestamp: string;
+    text?: string;
 }
 
 export interface CalendarEvent {
-  id: string;
-  case_id: string;
-  title: string;
-  description?: string;
-  start_date: string;
-  end_date?: string;
-  is_all_day: boolean;
-  event_type: 'DEADLINE' | 'HEARING' | 'MEETING' | 'FILING' | 'COURT_DATE' | 'CONSULTATION' | 'OTHER';
-  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
-  location?: string;
-  attendees?: string[];
-  notes?: string;
-}
-
-export interface CalendarEventCreateRequest {
-  case_id: string;
-  title: string;
-  start_date: string;
-  event_type: CalendarEvent['event_type'];
-  priority: CalendarEvent['priority'];
-  description?: string;
-  end_date?: string;
-  is_all_day?: boolean;
-  location?: string;
-  attendees?: string[];
-  notes?: string;
-}
-
-export interface CreateDraftingJobRequest {
-  caseId?: string;
-  documentIds?: string[];
-  prompt?: string;
-  context: string;
-}
-
-export interface DraftingJobStatus {
-  job_id: string;
-  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'SUCCESS' | 'FAILURE';
-  result_summary?: string;
-}
-
-export interface DraftingJobResult {
-    result_text: string;
-}
-
-export interface WebSocketMessage {
-  event: string;
-  data: any;
-}
-
-export interface DeletedDocumentResponse {
-  documentId: string;
-  deletedFindingIds: string[];
-}
-
-// --- API Key & Account Management Types ---
-
-export interface ApiKey {
     id: string;
-    key_name: string;
-    provider: string;
-    key_prefix: string;
-    created_at: string;
-    last_used?: string;
-    usage_count: number;
+    title: string;
+    description?: string;
+    start_date: string;
+    end_date: string;
+    is_all_day: boolean;
+    event_type: 'HEARING' | 'DEADLINE' | 'MEETING' | 'OTHER';
+    status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+    case_id?: string;
+    document_id?: string;
 }
 
-export interface ApiKeyCreateRequest {
-    key_name: string;
-    provider: 'openai' | 'anthropic';
-    api_key: string;
+// --- BUSINESS MODULE TYPES ---
+export interface BusinessProfile {
+    id: string;
+    firm_name: string;
+    address?: string;
+    city?: string;
+    phone?: string;
+    email_public?: string;
+    website?: string;
+    tax_id?: string;
+    branding_color: string;
+    logo_url?: string;
+    is_complete: boolean;
+}
+
+export interface BusinessProfileUpdate {
+    firm_name?: string;
+    address?: string;
+    city?: string;
+    phone?: string;
+    email_public?: string;
+    website?: string;
+    tax_id?: string;
+    branding_color?: string;
+}
+
+// --- AUTH REQUEST TYPES ---
+export interface LoginRequest {
+    username: string;
+    password: string;
+}
+
+export interface RegisterRequest {
+    email: string;
+    password: string;
+    full_name: string;
 }
 
 export interface ChangePasswordRequest {
-    old_password: string;
+    current_password: string;
     new_password: string;
 }
 
-// --- Auth Types ---
-
-export interface LoginRequest { username: string; password: string; }
-export interface RegisterRequest extends LoginRequest { email: string; }
-export interface CreateCaseRequest {
-  case_name: string;
-  clientName: string;
-  clientEmail?: string;
-  clientPhone?: string;
-}
-
 export interface UpdateUserRequest {
-  email?: string;
-  role?: User['role'];
-  subscription_status?: User['subscription_status'];
+    full_name?: string;
+    email?: string;
 }
 
-// --- PHOENIX PROTOCOL: ANALYSIS TYPES ---
+export interface CreateCaseRequest {
+    case_number: string;
+    title: string;
+    description?: string;
+    client_name?: string;
+    client_email?: string;
+    client_phone?: string;
+    status?: string;
+}
+
+export interface DeletedDocumentResponse {
+    documentId: string;
+    deletedFindingIds: string[];
+}
+
+export interface CalendarEventCreateRequest {
+    title: string;
+    description?: string;
+    start_date: string;
+    end_date?: string;
+    is_all_day?: boolean;
+    event_type: string;
+    case_id?: string;
+}
+
+export type DraftingJobStatus = {
+    job_id: string;
+    status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+    error?: string;
+};
+
+export type DraftingJobResult = {
+    document_text: string;
+    document_html: string;
+};
+
+export interface CreateDraftingJobRequest {
+    template_id?: string;
+    user_prompt: string;
+    case_id?: string;
+}
+
 export interface CaseAnalysisResult {
-  contradictions: string[];
-  risks: string[];
-  missing_info: string[];
-  summary_analysis: string;
-  error?: string;
+    summary_analysis: string;
+    contradictions: string[];
+    risks: string[];
+    missing_info: string[];
+    error?: string;
 }

@@ -1,7 +1,6 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - FEATURE UPGRADE
-// 1. ADDED: 'deepScanDocument' method to trigger Vision AI analysis.
-// 2. STATUS: Fully synchronized with backend endpoints.
+// PHOENIX PROTOCOL - API SERVICE
+// Includes: Auth, Cases, Documents, Business, Support, Calendar.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -20,7 +19,9 @@ import type {
     DraftingJobResult,
     ChangePasswordRequest,
     Finding,
-    CaseAnalysisResult
+    CaseAnalysisResult,
+    BusinessProfile,
+    BusinessProfileUpdate
 } from '../data/types';
 
 interface LoginResponse {
@@ -31,7 +32,6 @@ interface DocumentContentResponse {
     text: string;
 }
 
-// Environment check
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
 
@@ -68,7 +68,6 @@ class ApiService {
                     if (config.baseURL?.startsWith('http:')) config.baseURL = config.baseURL.replace('http:', 'https:');
                     if (config.url?.startsWith('http:')) config.url = config.url.replace('http:', 'https:');
                 }
-                
                 const token = localStorage.getItem('jwtToken');
                 if (token) config.headers.Authorization = `Bearer ${token}`;
                 return config;
@@ -118,7 +117,27 @@ class ApiService {
         return response.data;
     }
 
-    // --- Support ---
+    // --- BUSINESS MODULE ---
+    public async getBusinessProfile(): Promise<BusinessProfile> {
+        const response = await this.axiosInstance.get<BusinessProfile>('/business/profile');
+        return response.data;
+    }
+
+    public async updateBusinessProfile(data: BusinessProfileUpdate): Promise<BusinessProfile> {
+        const response = await this.axiosInstance.put<BusinessProfile>('/business/profile', data);
+        return response.data;
+    }
+
+    public async uploadBusinessLogo(file: File): Promise<BusinessProfile> {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await this.axiosInstance.post<BusinessProfile>('/business/logo', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data;
+    }
+
+    // --- SUPPORT ---
     public async sendContactForm(data: { firstName: string; lastName: string; email: string; phone: string; message: string }): Promise<void> {
         await this.axiosInstance.post('/support/contact', {
             first_name: data.firstName,
@@ -129,7 +148,7 @@ class ApiService {
         });
     }
 
-    // --- Cases ---
+    // --- CASES ---
     public async getCases(): Promise<Case[]> {
         const response = await this.axiosInstance.get<Case[]>('/cases');
         return response.data;
@@ -159,7 +178,7 @@ class ApiService {
         return response.data;
     }
     
-    // --- Auth ---
+    // --- AUTH ---
     public async login(data: LoginRequest): Promise<LoginResponse> {
         const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data);
         return response.data;
@@ -182,7 +201,7 @@ class ApiService {
         await this.axiosInstance.delete('/users/me');
     }
 
-    // --- Documents ---
+    // --- DOCUMENTS ---
     public async getDocuments(caseId: string): Promise<Document[]> {
         const response = await this.axiosInstance.get<Document[]>(`/cases/${caseId}/documents`);
         return response.data;
@@ -207,7 +226,6 @@ class ApiService {
         return response.data;
     }
 
-    // PHOENIX FIX: Added Deep Scan trigger
     public async deepScanDocument(caseId: string, documentId: string): Promise<void> {
         await this.axiosInstance.post(`/cases/${caseId}/documents/${documentId}/deep-scan`);
     }
@@ -236,12 +254,12 @@ class ApiService {
         return "";
     }
 
-    // --- Chat ---
+    // --- CHAT ---
     public async clearChatHistory(caseId: string): Promise<void> {
         await this.axiosInstance.delete(`/chat/case/${caseId}/history`);
     }
 
-    // --- Admin ---
+    // --- ADMIN ---
     public async getAllUsers(): Promise<User[]> {
         const response = await this.axiosInstance.get<User[]>('/admin/users');
         return response.data;
@@ -256,7 +274,7 @@ class ApiService {
         await this.axiosInstance.delete(`/admin/users/${userId}`);
     }
 
-    // --- Calendar ---
+    // --- CALENDAR ---
     public async getCalendarEvents(): Promise<CalendarEvent[]> {
         const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events');
         return response.data;
@@ -271,7 +289,7 @@ class ApiService {
         await this.axiosInstance.delete(`/calendar/events/${eventId}`);
     }
 
-    // --- Drafting ---
+    // --- DRAFTING ---
     public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> {
         const response = await this.axiosInstance.post<DraftingJobStatus>(`${API_BASE_URL}/api/v2/drafting/jobs`, data);
         return response.data;
