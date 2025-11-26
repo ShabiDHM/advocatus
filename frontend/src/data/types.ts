@@ -1,6 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - DATA TYPES
-// Includes: User, Case, Document, and BusinessProfile definitions.
+// PHOENIX PROTOCOL - TYPES UPDATE
+// 1. SYNC: Added missing fields (notes, location, priority, etc.) to match UI usage.
+// 2. COMPATIBILITY: Added aliases (case_name, result_text) to satisfy build errors.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -11,13 +12,14 @@ export interface User {
     role: 'ADMIN' | 'LAWYER' | 'CLIENT';
     is_active: boolean;
     created_at: string;
+    token?: string; // Added for AuthContext compatibility
 }
 
 export interface Case {
     id: string;
     case_number: string;
     case_name: string;
-    title: string; // Legacy support
+    title: string; 
     status: 'open' | 'closed' | 'pending' | 'archived';
     client?: {
         name: string;
@@ -43,6 +45,7 @@ export interface Document {
     id: string;
     file_name: string;
     file_type: string;
+    mime_type?: string; // Added to fix DocumentViewPage error
     storage_key: string;
     uploaded_by: string;
     created_at: string;
@@ -53,7 +56,6 @@ export interface Document {
     processed_text_storage_key?: string;
     preview_storage_key?: string;
     error_message?: string;
-    // UI Progress Props
     progress_percent?: number;
     progress_message?: string;
 }
@@ -88,9 +90,13 @@ export interface CalendarEvent {
     status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
     case_id?: string;
     document_id?: string;
+    // Added fields to fix CalendarPage errors
+    location?: string;
+    notes?: string;
+    priority?: string;
+    attendees?: string[]; 
 }
 
-// --- BUSINESS MODULE TYPES ---
 export interface BusinessProfile {
     id: string;
     firm_name: string;
@@ -116,7 +122,6 @@ export interface BusinessProfileUpdate {
     branding_color?: string;
 }
 
-// --- AUTH REQUEST TYPES ---
 export interface LoginRequest {
     username: string;
     password: string;
@@ -141,6 +146,7 @@ export interface UpdateUserRequest {
 export interface CreateCaseRequest {
     case_number: string;
     title: string;
+    case_name?: string; // Alias for title to fix DashboardPage error
     description?: string;
     client_name?: string;
     client_email?: string;
@@ -161,23 +167,31 @@ export interface CalendarEventCreateRequest {
     is_all_day?: boolean;
     event_type: string;
     case_id?: string;
+    // Added fields
+    location?: string;
+    notes?: string;
+    priority?: string;
+    attendees?: string[];
 }
 
 export type DraftingJobStatus = {
     job_id: string;
     status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
     error?: string;
+    result_summary?: string; // Added to fix DraftingPage error
 };
 
 export type DraftingJobResult = {
     document_text: string;
     document_html: string;
+    result_text?: string; // Alias for document_text to fix DraftingPage error
 };
 
 export interface CreateDraftingJobRequest {
     template_id?: string;
     user_prompt: string;
     case_id?: string;
+    context?: string; // Added to fix DraftingPage error
 }
 
 export interface CaseAnalysisResult {

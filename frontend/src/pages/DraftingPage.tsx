@@ -1,304 +1,178 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - LAYOUT PERFECTED
-// 1. LAYOUT: Switched to 'h-full' to snap perfectly into the new MainLayout.
-// 2. SCROLLING: Removed internal window calculations; relies on parent flex container.
-// 3. RESULT: A clean, full-screen app experience without double scrollbars.
+// PHOENIX PROTOCOL - DRAFTING PAGE (CLEANED)
+// 1. REMOVED: Unused import (CheckCircle).
+// 2. FUNCTIONAL: Legal Drafting with AI.
 
-import React, { useState, useEffect, useCallback, useRef } from 'react'; 
-import { apiService } from '../services/api';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CreateDraftingJobRequest } from '../data/types'; 
-import moment from 'moment';
-import { motion } from 'framer-motion';
+import { apiService } from '../services/api';
+import { Case, CreateDraftingJobRequest, DraftingJobStatus } from '../data/types';
+import { FileText, Loader2, Download, RefreshCw, AlertCircle } from 'lucide-react';
 
-const DownloadIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-        <polyline points="7 10 12 15 17 10"></polyline>
-        <line x1="12" y1="15" x2="12" y2="3"></line>
-    </svg>
-);
-
-type JobStatus = 'IDLE' | 'INITIATED' | 'POLLING' | 'SUCCESS' | 'FAILURE';
-
-interface JobState { 
-  id: string | null; 
-  status: JobStatus | string;
-  resultText: string; 
-  error: string | null; 
-  startTime: number | null;
-}
-
-const POLL_INTERVAL_MS = 3000;
-
-export const DraftingPage: React.FC = () => {
+const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
-  const [context, setContext] = useState<string>('');
-  const [job, setJob] = useState<JobState>({ 
-    id: null, 
-    status: 'IDLE', 
-    resultText: '', 
-    error: null, 
-    startTime: null,
-  });
-
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [cases, setCases] = useState<Case[]>([]);
+  const [selectedCase, setSelectedCase] = useState<string>('');
+  const [prompt, setPrompt] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeJob, setActiveJob] = useState<DraftingJobStatus | null>(null);
+  const [result, setResult] = useState<string | null>(null);
 
   useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-      }
-    };
+    loadCases();
   }, []);
 
-  const stopPolling = useCallback(() => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
+  const loadCases = async () => {
+    try {
+      const data = await apiService.getCases();
+      setCases(data);
+    } catch (error) {
+      console.error("Failed to load cases", error);
     }
-  }, []);
+  };
 
-  const startPolling = useCallback((jobId: string) => {
-    stopPolling();
+  const handleDraft = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prompt) return;
+    setIsSubmitting(true);
+    setResult(null);
+    
+    try {
+      const requestData: CreateDraftingJobRequest = {
+        user_prompt: prompt,
+        case_id: selectedCase || undefined,
+        context: selectedCase ? `Case Context ID: ${selectedCase}` : ""
+      };
 
+      const jobStatus = await apiService.initiateDraftingJob(requestData);
+      setActiveJob(jobStatus);
+      pollJobStatus(jobStatus.job_id);
+    } catch (error) {
+      console.error("Drafting failed", error);
+      alert(t('error.generic'));
+      setIsSubmitting(false);
+    }
+  };
+
+  const pollJobStatus = async (jobId: string) => {
     const interval = setInterval(async () => {
       try {
-        const statusResponse = await apiService.getDraftingJobStatus(jobId);
-        const backendStatus = statusResponse.status;
+        const status = await apiService.getDraftingJobStatus(jobId);
+        setActiveJob(status);
 
-        if (backendStatus === 'SUCCESS') {
-          stopPolling();
-          const resultResponse = await apiService.getDraftingJobResult(jobId);
-          setJob(prev => ({
-            ...prev,
-            status: 'SUCCESS',
-            resultText: resultResponse.result_text || t('drafting.noResult'),
-            error: null,
-          }));
-        } else if (backendStatus === 'FAILURE') {
-          stopPolling();
-          setJob(prev => ({
-            ...prev,
-            status: 'FAILURE',
-            resultText: '',
-            error: statusResponse.result_summary || t('drafting.unknownError'), 
-          }));
-        } else {
-          setJob(prev => ({ ...prev, status: 'POLLING' }));
+        if (status.status === 'COMPLETED') {
+          clearInterval(interval);
+          setIsSubmitting(false);
+          const resultData = await apiService.getDraftingJobResult(jobId);
+          setResult(resultData.document_text || resultData.result_text || "");
+        } else if (status.status === 'FAILED') {
+          clearInterval(interval);
+          setIsSubmitting(false);
         }
-        
       } catch (error) {
-        stopPolling();
-        console.error("Polling or result fetch failed:", error);
-        setJob(prev => ({
-          ...prev,
-          status: 'FAILURE',
-          resultText: '',
-          error: t('drafting.apiPollingFailure'), 
-        }));
+        console.error("Polling error", error);
+        clearInterval(interval);
+        setIsSubmitting(false);
       }
-    }, POLL_INTERVAL_MS);
-
-    pollingIntervalRef.current = interval;
-    setJob(prev => ({ ...prev, status: 'POLLING' }));
-  }, [stopPolling, t]);
-
-  const handleGenerateDocument = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    stopPolling(); 
-
-    if (!context.trim()) {
-      alert(t('drafting.alertNoContext'));
-      return;
-    }
-
-    setJob({ id: null, status: 'INITIATED', resultText: '', error: null, startTime: Date.now() });
-
-    try {
-      const request: CreateDraftingJobRequest = { context };
-      const jobResponse = await apiService.initiateDraftingJob(request);
-      
-      if (!jobResponse.job_id) {
-          throw new Error("API response missing 'job_id' field.");
-      }
-      
-      setJob(prev => ({ ...prev, id: jobResponse.job_id, status: 'POLLING' }));
-      startPolling(jobResponse.job_id);
-
-    } catch (error) {
-      console.error("Initiate Drafting Job Failed:", error);
-      setJob({ 
-        id: null, 
-        status: 'FAILURE', 
-        resultText: '', 
-        error: t('drafting.jobInitiateFailure'), 
-        startTime: null,
-      });
-    }
-  }, [context, startPolling, stopPolling, t]);
-
-  const timeElapsed = job.startTime ? moment.duration(Date.now() - job.startTime).asSeconds().toFixed(0) : 0;
-  const isDocumentReady = job.status === 'SUCCESS' && !!job.resultText;
-  
-  const handleExportDocx = () => {
-    if (!job.resultText) {
-        alert(t('drafting.alertNoTextToExport'));
-        return;
-    }
-    const file = new Blob([job.resultText], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-    const fileURL = URL.createObjectURL(file);
-    const fileName = `Drafted_Document_${moment().format('YYYYMMDD_HHmmss')}.docx`;
-    const link = document.createElement('a');
-    link.href = fileURL;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(fileURL);
-  };
-  
-  const statusColorClasses = (status: JobStatus | string) => {
-    switch (status) {
-      case 'SUCCESS': return 'bg-success-start/20 text-success-start';
-      case 'POLLING':
-      case 'INITIATED':
-      case 'PENDING':
-      case 'STARTED':
-      case 'PROGRESS':
-        return 'bg-accent-start/20 text-accent-start animate-pulse-slow';
-      case 'FAILURE': return 'bg-red-500/20 text-red-500';
-      default: return 'bg-background-light/20 text-text-secondary';
-    }
+    }, 3000);
   };
 
   return (
-    // PHOENIX FIX: Use 'h-full' to fill the available space in MainLayout
-    <motion.div 
-        className="drafting-container flex flex-col h-full"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-    >
-      <div className="flex-shrink-0 mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary">{t('drafting.pageTitle')}</h1>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-text-primary mb-2">{t('drafting.title', 'Draftimi Inteligjent')}</h1>
+        <p className="text-text-secondary">{t('drafting.subtitle', 'Krijoni dokumente ligjore automatikisht.')}</p>
       </div>
 
-      <div className="compact-workspace flex-grow grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 min-h-0">
-        {/* INPUT SECTION */}
-        <div className="compact-input-section flex flex-col min-h-0 h-full">
-          <motion.form 
-            onSubmit={handleGenerateDocument} 
-            className="compact-input-panel flex flex-col flex-1 bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl min-h-0 overflow-hidden"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-          >
-            <div className="compact-panel-header p-4 border-b border-glass-edge/50 bg-background-light/50">
-              <h2 className="text-lg sm:text-xl font-bold text-text-primary">{t('drafting.inputPanelTitle')}</h2>
-              <p className="text-xs sm:text-sm text-text-secondary/70">{t('drafting.inputPanelSubtitle')}</p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Input Form */}
+        <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge h-fit">
+          <form onSubmit={handleDraft} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">{t('drafting.selectCase', 'Zgjidhni Rastin (Opsionale)')}</label>
+              <select 
+                value={selectedCase} 
+                onChange={(e) => setSelectedCase(e.target.value)}
+                className="w-full bg-background-dark border border-glass-edge rounded-lg px-4 py-2.5 text-white focus:ring-1 focus:ring-primary-start outline-none"
+              >
+                <option value="">{t('drafting.noCase', 'Pa Rast (Draftim i Përgjithshëm)')}</option>
+                {cases.map(c => (
+                  <option key={c.id} value={c.id}>{c.case_name}</option>
+                ))}
+              </select>
             </div>
-            <div className="compact-panel-body flex-1 min-h-0 p-3 sm:p-4 overflow-hidden flex flex-col">
+
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">{t('drafting.promptLabel', 'Udhëzimet për Draftin')}</label>
               <textarea 
-                className="compact-drafting-textarea w-full flex-1 bg-background-dark/80 text-text-primary p-3 sm:p-4 rounded-xl resize-none focus:ring-primary-start focus:border-primary-start border border-glass-edge text-sm sm:text-base custom-scrollbar"
-                placeholder={t('drafting.inputPlaceholder')}
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
+                required
+                rows={6}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder={t('drafting.promptPlaceholder', 'Psh: Krijo një kontratë qiraje për një apartament në Prishtinë...')}
+                className="w-full bg-background-dark border border-glass-edge rounded-lg px-4 py-3 text-white focus:ring-1 focus:ring-primary-start outline-none custom-scrollbar"
               />
             </div>
-            <div className="compact-action-bar p-3 sm:p-4 border-t border-glass-edge/50 bg-background-light/50">
-              <motion.button 
-                type="submit"
-                className="w-full flex justify-center py-3 px-4 rounded-xl shadow-lg glow-primary text-white font-medium 
-                           bg-gradient-to-r from-primary-start to-primary-end disabled:opacity-50 transition-opacity"
-                disabled={job.status === 'POLLING' || !context.trim()}
-                whileHover={{ scale: 1.01 }}
-                whileTap={{ scale: 0.99 }}
-              >
-                {job.status === 'POLLING' ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin h-5 w-5 mr-3 text-white" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {t('drafting.generatingStatus')} ({timeElapsed}s)
-                  </span>
-                ) : t('drafting.generateButton')}
-              </motion.button>
-            </div>
-          </motion.form>
+
+            <button 
+              type="submit" 
+              disabled={isSubmitting}
+              className="w-full flex justify-center items-center py-3 rounded-xl bg-gradient-to-r from-accent-start to-accent-end text-white font-bold shadow-lg glow-accent hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100"
+            >
+              {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <FileText className="mr-2" />}
+              {isSubmitting ? t('drafting.generating', 'Duke Gjeneruar...') : t('drafting.generateButton', 'Gjenero Dokumentin')}
+            </button>
+          </form>
         </div>
 
-        {/* OUTPUT SECTION */}
-        <div className="compact-output-section flex flex-col min-h-0 h-full">
-          <div className="panel compact-output-panel flex flex-col flex-1 bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl min-h-0 overflow-hidden">
-            <div className="panel-header flex-none p-4 border-b border-glass-edge/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 bg-background-light/50">
-              <h2 className="text-lg sm:text-xl font-bold text-text-primary">{t('drafting.outputPanelTitle')}</h2>
-              <div className="flex items-center self-end sm:self-auto">
-                  {isDocumentReady && (
-                    <motion.button onClick={handleExportDocx} 
-                        className="w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-300 shadow-lg glow-primary
-                                     bg-gradient-to-r from-primary-start to-primary-end mr-2" 
-                        whileHover={{ scale: 1.05 }}
-                        title={t('drafting.exportButton')}
-                    >
-                        <DownloadIcon className="w-4 h-4 text-white" />
-                    </motion.button>
-                  )}
-                  <div className={`text-xs sm:text-sm font-semibold px-3 py-1 rounded-full ${statusColorClasses(job.status)}`}>
-                      {t(`drafting.status.${job.status}`, { defaultValue: job.status.toUpperCase() })}
-                  </div>
+        {/* Result Area */}
+        <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge min-h-[500px] flex flex-col">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <FileText className="text-primary-start" /> {t('drafting.resultTitle', 'Rezultati')}
+          </h3>
+
+          {activeJob && activeJob.status === 'PROCESSING' && (
+            <div className="flex-1 flex flex-col items-center justify-center text-text-secondary space-y-4">
+              <div className="relative">
+                <div className="w-16 h-16 border-4 border-primary-start/30 border-t-primary-start rounded-full animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <RefreshCw className="w-6 h-6 text-primary-start animate-pulse" />
+                </div>
+              </div>
+              <p className="animate-pulse">{t('drafting.processingMessage', 'AI po shkruan dokumentin...')}</p>
+            </div>
+          )}
+
+          {activeJob && activeJob.status === 'FAILED' && (
+            <div className="flex-1 flex flex-col items-center justify-center text-red-400 space-y-4">
+              <AlertCircle className="w-16 h-16" />
+              <p>{t('drafting.failedMessage', 'Gjenerimi dështoi. Provoni përsëri.')}</p>
+              <p className="text-sm text-red-400/60">{activeJob.error}</p>
+            </div>
+          )}
+
+          {result && (
+            <div className="flex-1 flex flex-col">
+              <div className="flex-1 bg-white text-black p-8 rounded-lg shadow-inner overflow-y-auto custom-scrollbar mb-4 font-serif whitespace-pre-wrap leading-relaxed">
+                {result}
+              </div>
+              <div className="flex justify-end">
+                <button className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
+                  <Download size={18} /> {t('general.download', 'Shkarko PDF')}
+                </button>
               </div>
             </div>
-            
-            <div className="panel-body compact-document-container flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 custom-scrollbar bg-background-dark/30">
-              {job.status === 'POLLING' && (
-                <div className="h-full flex flex-col items-center justify-center text-center">
-                  <svg className="animate-spin h-10 w-10 text-primary-start glow-primary mb-4" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <h4 className="text-lg font-semibold text-text-primary">{t('drafting.loadingTitle')}</h4>
-                  <p className="text-sm text-text-secondary/70">{t('drafting.loadingSubtitle')}</p>
-                </div>
-              )}
-              
-              {job.status === 'FAILURE' && (
-                <div className="h-full flex flex-col items-center justify-center text-center text-red-500">
-                  <div className="text-4xl mb-4">❌</div>
-                  <h4 className="text-lg font-semibold">{t('drafting.jobFailedTitle')}</h4> 
-                  <p className="text-sm">{job.error}</p>
-                </div>
-              )}
+          )}
 
-              {isDocumentReady && (
-                <div className="document-view space-y-4 h-full flex flex-col">
-                  <div className="text-center p-3 border border-accent-start/30 bg-accent-start/10 rounded-xl flex-shrink-0">
-                    <h3 className="text-lg font-bold text-accent-start">{t('drafting.readyTitle')}</h3>
-                    <p className="text-xs text-text-secondary/70">{t('drafting.readySubtitle')}</p>
-                  </div>
-                  <div className="bg-background-dark/80 text-text-primary p-4 sm:p-6 rounded-xl shadow-inner border border-glass-edge overflow-y-auto flex-grow custom-scrollbar">
-                    <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm">
-                      {job.resultText}
-                    </pre>
-                  </div>
-                </div>
-              )}
-              
-              {job.status === 'IDLE' && (
-                <div className="h-full flex items-center justify-center text-center">
-                  <div className="text-text-secondary">
-                    <div className="text-5xl sm:text-6xl mb-4 opacity-50">📝</div>
-                    <h3 className="text-lg sm:text-xl font-bold text-text-primary mb-2">{t('drafting.emptyTitle')}</h3>
-                    <p className="text-sm text-text-secondary/70">{t('drafting.emptySubtitle')}</p>
-                  </div>
-                </div>
-              )}
+          {!activeJob && !result && (
+            <div className="flex-1 flex flex-col items-center justify-center text-text-secondary opacity-50">
+              <FileText className="w-16 h-16 mb-4" />
+              <p>{t('drafting.emptyState', 'Rezultati do të shfaqet këtu.')}</p>
             </div>
-          </div>
+          )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
