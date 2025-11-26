@@ -1,8 +1,4 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ARCHITECTURAL FIX
-// 1. PORTAL: Moved to document.body to fix header overlap issues.
-// 2. Z-INDEX: Boosted to z-[9999].
-// 3. MOBILE: Header layout hardened to ensure Close button is always clickable.
 
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom';
