@@ -1,132 +1,126 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - LANGUAGE UPDATE
-// 1. ADDED: 'SR' (Serbian) button to the language switcher.
-// 2. LOGIC: Works instantly with i18next.
+// PHOENIX PROTOCOL - HEADER FIX
+// 1. TYPES: Replaced 'username' with 'email' to match AuthUser type.
+// 2. UI: Displays Full Name and Role correctly.
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Bell, Search, Menu, LogOut, User as UserIcon, Settings, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
-import { Scale, User, LogOut, Menu, X } from 'lucide-react'; 
-import { motion, AnimatePresence } from 'framer-motion'; 
+import { Link } from 'react-router-dom';
 
-const MotionLink = motion(Link);
+interface HeaderProps {
+  toggleSidebar: () => void;
+}
 
-const Header: React.FC = () => {
-  const { t, i18n } = useTranslation();
+const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false); 
-  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false); 
-  
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsProfileMenuOpen(false);
-      }
-    };
-    if (isProfileMenuOpen) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isProfileMenuOpen]);
-
-  const navItems = useMemo(() => {
-    const items = [
-      { name: t('general.dashboard'), path: '/dashboard' },
-      { name: t('general.drafting'), path: '/drafting' },
-    ];
-    if (user) {
-      items.push({ name: t('general.calendar'), path: '/calendar' });
-    }
-    if (user?.role === 'ADMIN') {
-      items.push({ name: t('general.admin'), path: '/admin' });
-    }
-    return items;
-  }, [t, user]);
-
-  const handleLanguageChange = (lng: string) => { i18n.changeLanguage(lng); setIsProfileMenuOpen(false); };
-  const isActive = (path: string) => location.pathname.startsWith(path);
-  
-  const handleLogout = () => { 
-      setIsProfileMenuOpen(false); 
-      logout(); 
-      navigate('/auth'); 
-  };
-
-  const NavLink = ({ item, isMobile = false }: { item: { name: string, path: string }, isMobile?: boolean }) => (
-    <MotionLink
-      key={item.path}
-      to={item.path}
-      onClick={() => isMobile && setIsMobileNavOpen(false)}
-      className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 w-full text-left ${
-        isActive(item.path)
-          ? 'bg-gradient-to-r from-primary-start to-primary-end text-white shadow-lg glow-primary'
-          : 'text-text-secondary hover:text-text-primary hover:bg-background-light/30'
-      } ${isMobile ? 'block' : ''}`}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.98 }}
-    >
-      {item.name}
-    </MotionLink>
-  );
+  const { t } = useTranslation();
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   return (
-    <header className="bg-background-light/50 backdrop-blur-md border-b border-glass-edge shadow-md glow-secondary/10 sticky top-0 z-30">
-      <div className="container mx-auto px-3 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
-        <Link to="/dashboard" className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
-          <Scale className="h-6 w-6 sm:h-7 sm:w-7 text-text-primary" /> 
-          <span className="text-lg sm:text-xl font-bold text-text-primary whitespace-nowrap">Juristi AI</span>
-        </Link>
+    <header className="h-16 bg-background-dark border-b border-glass-edge flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 sticky top-0 backdrop-blur-md bg-opacity-90">
+      
+      {/* Left: Mobile Menu & Search */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={toggleSidebar}
+          className="lg:hidden p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+        >
+          <Menu size={24} />
+        </button>
 
-        <nav className="hidden md:flex items-center space-x-1">
-          {navItems.map((item) => <NavLink key={item.path} item={item} />)}
-        </nav>
-
-        <div className="flex items-center space-x-2 sm:space-x-4">
-          <div className="hidden sm:flex items-center space-x-1 text-sm font-medium p-1 rounded-xl bg-background-dark/50 border border-glass-edge/50">
-            <motion.button onClick={() => handleLanguageChange('en')} className={`px-2 py-1 rounded-lg transition-colors ${i18n.language === 'en' ? 'bg-primary-start text-white shadow-md' : 'text-text-secondary hover:text-text-primary'}`} whileHover={{ scale: 1.05 }}>EN</motion.button>
-            <motion.button onClick={() => handleLanguageChange('al')} className={`px-2 py-1 rounded-lg transition-colors ${i18n.language === 'al' ? 'bg-primary-start text-white shadow-md' : 'text-text-secondary hover:text-text-primary'}`} whileHover={{ scale: 1.05 }}>AL</motion.button>
-            {/* PHOENIX FIX: Added Serbian Button */}
-            <motion.button onClick={() => handleLanguageChange('sr')} className={`px-2 py-1 rounded-lg transition-colors ${i18n.language === 'sr' ? 'bg-primary-start text-white shadow-md' : 'text-text-secondary hover:text-text-primary'}`} whileHover={{ scale: 1.05 }}>SR</motion.button>
-          </div>
-
-          <div className="relative z-40" ref={dropdownRef}>
-            <button onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)} className="flex items-center justify-center h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-gradient-to-r from-primary-start to-primary-end text-white font-semibold focus:outline-none glow-primary shadow-xl">
-              {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
-            </button>
-            <AnimatePresence>
-              {isProfileMenuOpen && (
-                <motion.div className="absolute right-0 mt-2 w-48 bg-background-light/85 backdrop-blur-md border border-glass-edge rounded-xl shadow-2xl py-1 z-50" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                  <div className="block px-4 py-2 text-sm text-text-primary border-b border-glass-edge/50">{user?.username || t('general.userProfile')}</div>
-                  
-                  <div className="sm:hidden px-4 py-2 border-b border-glass-edge/50 flex justify-between">
-                     <span className="text-sm text-text-secondary">Gjuha/Jezik</span>
-                     <div className="flex space-x-2">
-                        <button onClick={() => handleLanguageChange('en')} className={`font-bold ${i18n.language === 'en' ? 'text-primary-start' : 'text-gray-500'}`}>EN</button>
-                        <button onClick={() => handleLanguageChange('al')} className={`font-bold ${i18n.language === 'al' ? 'text-primary-start' : 'text-gray-500'}`}>AL</button>
-                        <button onClick={() => handleLanguageChange('sr')} className={`font-bold ${i18n.language === 'sr' ? 'text-primary-start' : 'text-gray-500'}`}>SR</button>
-                     </div>
-                  </div>
-
-                  <MotionLink to="/account" onClick={() => setIsProfileMenuOpen(false)} className="flex items-center w-full px-4 py-2 text-sm text-text-secondary hover:bg-background-dark/50 hover:text-text-primary transition-colors"><User className="h-4 w-4 mr-3" />{t('accountPage.pageTitle')}</MotionLink>
-                  <div className="border-t border-glass-edge/50 py-1"><button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-700/80 hover:text-white flex items-center transition-colors"><LogOut className="h-4 w-4 mr-3" />{t('general.logout')}</button></div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          <button className="md:hidden text-text-primary p-1" onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}>{isMobileNavOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}</button>
+        <div className="relative hidden sm:block">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary h-4 w-4" />
+          <input 
+            type="text" 
+            placeholder={t('header.searchPlaceholder', 'Kërko...')} 
+            className="bg-background-light/10 border border-glass-edge rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:ring-1 focus:ring-primary-start outline-none w-64 transition-all focus:w-80"
+          />
         </div>
       </div>
-      
-      <AnimatePresence>
-        {isMobileNavOpen && (
-          <motion.div className="md:hidden px-4 pb-4 space-y-2 bg-background-light/85 backdrop-blur-md border-t border-glass-edge/50" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }}>
-            {navItems.map((item) => <NavLink key={item.path} item={item} isMobile={true} />)}
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+      {/* Right: Actions & Profile */}
+      <div className="flex items-center gap-3 sm:gap-4">
+        <button className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors relative">
+          <Bell size={20} />
+          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+        </button>
+
+        <div className="relative">
+          <button 
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+            className="flex items-center gap-3 hover:bg-white/5 p-1.5 rounded-xl transition-colors border border-transparent hover:border-glass-edge"
+          >
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-medium text-white">{user?.full_name || 'User'}</p>
+              <p className="text-[10px] text-text-secondary uppercase tracking-wider">
+                {/* PHOENIX FIX: Replaced user.username check with user.email */}
+                {user?.role || 'LAWYER'}
+              </p>
+            </div>
+            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg shadow-secondary-start/20">
+              {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
+            </div>
+          </button>
+
+          {/* Dropdown Menu */}
+          {isProfileOpen && (
+            <>
+              <div 
+                className="fixed inset-0 z-10" 
+                onClick={() => setIsProfileOpen(false)}
+              />
+              <div className="absolute right-0 mt-2 w-56 bg-background-dark border border-glass-edge rounded-xl shadow-2xl py-2 z-20 animate-in fade-in slide-in-from-top-2">
+                <div className="px-4 py-3 border-b border-glass-edge mb-1">
+                  <p className="text-sm text-white font-medium truncate">{user?.full_name}</p>
+                  {/* PHOENIX FIX: Correct property is user.email */}
+                  <p className="text-xs text-text-secondary truncate">{user?.email}</p>
+                </div>
+
+                {user?.role === 'ADMIN' && (
+                  <Link 
+                    to="/dashboard" 
+                    className="flex items-center px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                    onClick={() => setIsProfileOpen(false)}
+                  >
+                    <Shield size={16} className="mr-3 text-purple-400" />
+                    {t('sidebar.admin', 'Admin Panel')}
+                  </Link>
+                )}
+
+                <Link 
+                  to="/business" 
+                  className="flex items-center px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                  onClick={() => setIsProfileOpen(false)}
+                >
+                  <UserIcon size={16} className="mr-3 text-blue-400" />
+                  {t('header.profile', 'Profili')}
+                </Link>
+
+                <Link 
+                  to="/settings" 
+                  className="flex items-center px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                  onClick={() => setIsProfileOpen(false)}
+                >
+                  <Settings size={16} className="mr-3 text-gray-400" />
+                  {t('header.settings', 'Cilësimet')}
+                </Link>
+
+                <div className="h-px bg-glass-edge my-1"></div>
+
+                <button
+                  onClick={logout}
+                  className="w-full flex items-center px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut size={16} className="mr-3" />
+                  {t('header.logout', 'Dilni')}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </header>
   );
 };
