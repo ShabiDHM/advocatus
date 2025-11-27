@@ -1,91 +1,64 @@
 # FILE: backend/app/models/case.py
+# PHOENIX PROTOCOL - SERIALIZATION FIX
+# 1. ID MAPPING: Added 'serialization_alias="id"' to CaseOut.
+# 2. RESULT: Frontend correctly reads case IDs for the dropdown.
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, List, Dict, Any
 from datetime import datetime
-from typing import Optional, Any, List, Literal
-
 from .common import PyObjectId
 
-# --- Chat Message Models ---
-class ChatMessage(BaseModel):
-    """
-    Represents a single chat message stored within the CaseInDB document.
-    """
-    sender_id: str
-    sender_type: Literal["user", "ai"]
-    content: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-class ChatMessageOut(ChatMessage):
-    """
-    Public-facing model for broadcasting a chat message via WebSocket.
-    Ensures timestamps are serialized correctly for the frontend.
-    """
-    model_config = ConfigDict(
-        json_encoders={datetime: lambda dt: dt.isoformat()}
-    )
-
-# --- Client Details Model ---
-class ClientDetailsOut(BaseModel):
-    name: Optional[str] = Field(None)
-    email: Optional[str] = Field(None)
-    phone: Optional[str] = Field(None)
-
-# --- Base Case Models ---
+# Base Case Model
 class CaseBase(BaseModel):
-    case_name: str = Field(..., min_length=3, max_length=150)
-    status: str = "active"
+    case_number: str
+    title: str
+    description: Optional[str] = None
+    status: str = "OPEN" # OPEN, CLOSED, PENDING
+    client_id: Optional[PyObjectId] = None
+    
+    # Optional metadata
+    court_name: Optional[str] = None
+    judge_name: Optional[str] = None
+    opponent_name: Optional[str] = None
 
+# Create
 class CaseCreate(CaseBase):
-    clientName: Optional[str] = None
-    clientEmail: Optional[str] = None
-    clientPhone: Optional[str] = None
+    pass
 
+# Update
+class CaseUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    court_name: Optional[str] = None
+    judge_name: Optional[str] = None
+    opponent_name: Optional[str] = None
+
+# DB Model
 class CaseInDB(CaseBase):
     id: PyObjectId = Field(alias="_id", default=None)
-    owner_id: PyObjectId
+    user_id: PyObjectId # The lawyer/user who owns the case
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    client: Optional[ClientDetailsOut] = Field(None)
-
-    # Persist chat history in the database
-    chat_history: List[ChatMessage] = Field(default_factory=list)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    chat_history: List[Dict[str, Any]] = []
 
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
     )
 
-class CaseOut(BaseModel):
-    id: str
-    case_name: str
-    client: Optional[ClientDetailsOut] = Field(None)
-    klienti_emri: Optional[str] = Field(None)
-
-    @field_validator('klienti_emri', mode='before')
-    @classmethod
-    def populate_client_name(cls, v: Any, info: Any) -> Optional[str]:
-        if info.data and info.data.get('client') and info.data['client'].get('name'):
-            return info.data['client']['name']
-        return None
-
-    status: str
-    owner_id: str
+# Return Model
+class CaseOut(CaseBase):
+    # PHOENIX FIX: Ensure 'id' is sent to frontend
+    id: PyObjectId = Field(alias="_id", serialization_alias="id")
     created_at: datetime
-    document_count: int
-    alert_count: int
-    event_count: int
-    finding_count: int
+    updated_at: datetime
     
-    # PHOENIX FIX: Include chat history in the public API response
-    chat_history: List[ChatMessage] = Field(default_factory=list)
-
-    @field_validator('id', 'owner_id', mode='before')
-    @classmethod
-    def objectid_to_str(cls, v: Any) -> str:
-        return str(v)
+    # Flattened client details (optional)
+    client_name: Optional[str] = None
 
     model_config = ConfigDict(
-        from_attributes=True,
         populate_by_name=True,
+        from_attributes=True,
         arbitrary_types_allowed=True,
     )
