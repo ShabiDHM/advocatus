@@ -1,11 +1,12 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - STATE CONFIRMED (FINAL)
-// 1. ARCHITECTURE: This version is validated to be correct, with the redundant 'My Account' link properly removed.
-// 2. VERIFIED: All other navigation links, including the conditional Admin route, are preserved.
+// PHOENIX PROTOCOL - ARCHITECTURAL CONSOLIDATION (FINAL)
+// 1. UI CLEANUP: Removed the entire redundant user profile and logout section from the bottom of the sidebar.
+// 2. SINGLE SOURCE OF TRUTH: The Header component is now the single, authoritative location for user session controls.
+// 3. VERIFIED: All primary navigation functionality is preserved.
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, LogOut, MessageSquare, Building2, Shield } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, MessageSquare, Building2, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from './BrandLogo';
@@ -17,7 +18,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const { t } = useTranslation();
-  const { logout, user } = useAuth();
+  const { user } = useAuth(); // Note: 'logout' is no longer needed here.
   const location = useLocation();
 
   const getNavItems = () => {
@@ -89,25 +90,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             })}
           </nav>
 
-          <div className="p-4 border-t border-glass-edge bg-background-light/5">
-            <div className="flex items-center mb-4 px-2">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary-start to-primary-end flex items-center justify-center text-white font-bold shadow-md">
-                    {user?.username?.charAt(0)?.toUpperCase() || 'U'}
-                </div>
-                <div className="ml-3 overflow-hidden">
-                    <p className="text-sm font-medium text-white truncate">{user?.username || 'User'}</p>
-                    <p className="text-xs text-text-secondary truncate">{user?.email}</p>
-                </div>
-            </div>
-            
-            <button
-              onClick={logout}
-              className="w-full flex items-center justify-center px-4 py-2 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              {t('sidebar.logout')}
-            </button>
-          </div>
+          {/* PHOENIX FIX: The redundant user profile and logout section has been removed. */}
+          
         </div>
       </aside>
     </>
