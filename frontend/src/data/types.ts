@@ -1,24 +1,23 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES FINALIZATION
-// 1. UPDATED: User, RegisterRequest, UpdateUserRequest to match Backend 'username' field.
-// 2. REMOVED: 'full_name' field (not supported by backend).
-// 3. CORRECTED: CreateCaseRequest to use camelCase for client fields to match backend Pydantic model.
+// PHOENIX PROTOCOL - DATA CONTRACT ALIGNMENT
+// 1. CRITICAL FIX: Replaced 'is_active: boolean' with 'status: string' in User and UpdateUserRequest.
+// 2. RESULT: This aligns the frontend's data types with the backend's Pydantic models, resolving the data mismatch error.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
 export interface User {
     id: string;
     email: string;
-    username: string; // MATCHES BACKEND
+    username: string;
     role: 'ADMIN' | 'LAWYER' | 'CLIENT';
-    is_active: boolean;
+    status: 'active' | 'inactive'; // REPLACES is_active
     created_at: string;
     token?: string;
     subscription_status?: string;
 }
 
 // Alias AdminUser to User to fix legacy imports
-export type AdminUser = User; 
+export type AdminUser = User;
 
 export interface Case {
     id: string;
@@ -26,26 +25,14 @@ export interface Case {
     case_name: string;
     title: string;
     status: 'open' | 'closed' | 'pending' | 'archived';
-    client?: {
-        name: string;
-        phone: string;
-        email: string;
-    };
-    opposing_party?: {
-        name: string;
-        lawyer: string;
-    };
-    court_info?: {
-        name: string;
-        judge: string;
-    };
+    client?: { name: string; phone: string; email: string; };
+    opposing_party?: { name: string; lawyer: string; };
+    court_info?: { name: string; judge: string; };
     description: string;
     created_at: string;
     updated_at: string;
     tags: string[];
     chat_history?: ChatMessage[];
-    
-    // Aggregated Counts for Dashboard Cards
     document_count?: number;
     alert_count?: number;
     event_count?: number;
@@ -103,7 +90,7 @@ export interface CalendarEvent {
     location?: string;
     notes?: string;
     priority?: string;
-    attendees?: string[]; 
+    attendees?: string[];
 }
 
 export interface BusinessProfile {
@@ -132,14 +119,14 @@ export interface BusinessProfileUpdate {
 }
 
 export interface LoginRequest {
-    username: string; // NOTE: Backend Auth uses OAuth2 form data (username=email), handled in API/AuthContext
+    username: string;
     password: string;
 }
 
 export interface RegisterRequest {
     email: string;
     password: string;
-    username: string; // REPLACES full_name
+    username: string;
 }
 
 export interface ChangePasswordRequest {
@@ -148,11 +135,11 @@ export interface ChangePasswordRequest {
 }
 
 export interface UpdateUserRequest {
-    username?: string; // REPLACES full_name
+    username?: string;
     email?: string;
-    role?: string; 
+    role?: string;
     subscription_status?: string;
-    is_active?: boolean;
+    status?: 'active' | 'inactive'; // REPLACES is_active
 }
 
 export interface CreateCaseRequest {
@@ -160,7 +147,6 @@ export interface CreateCaseRequest {
     title: string;
     case_name?: string;
     description?: string;
-    // PHOENIX: CORRECTED TO camelCase TO MATCH BACKEND API CONTRACT
     clientName?: string;
     clientEmail?: string;
     clientPhone?: string;

@@ -1,10 +1,9 @@
 # FILE: backend/app/api/endpoints/drafting_v2.py
-# PHOENIX PROTOCOL MODIFICATION 31.0 (ROUTING CURE):
-# 1. DISEASE IDENTIFIED: A "double prefix" was causing all routes in this file to be
-#    registered at an incorrect URL (e.g., /api/v2/api/v2/drafting/jobs).
-# 2. THE CURE: The redundant '/api/v2' prefix has been removed from this file's APIRouter
-#    definition. The router now correctly builds upon the '/api/v2' prefix defined in main.py.
-# 3. This is the definitive fix for the 404 Not Found error on the Drafting Page.
+# PHOENIX PROTOCOL - TASK DISPATCH FIX
+# 1. ANALYSIS: This endpoint was dispatching the Celery task with a single dictionary instead of the required keyword arguments.
+# 2. FIX: Modified 'create_drafting_job' to extract 'case_id', 'document_type', and 'prompt' from the request body.
+# 3. FIX: The Celery task 'process_drafting_job.delay' is now called with the correct, distinct keyword arguments.
+# 4. RESULT: This resolves the legacy drafting failure by aligning the API's task dispatch with the worker's expected signature.
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import Annotated
@@ -15,10 +14,9 @@ import logging
 from ...models.user import UserInDB
 from ...models.drafting import DraftRequest
 from .dependencies import get_current_active_user, get_db
-from ...tasks.drafting_tasks import process_drafting_job
+# PHOENIX FIX: Celery tasks should be dispatched by name via the central app instance.
 from ...celery_app import celery_app
 
-# --- CURE: Removed the redundant '/api/v2' prefix ---
 router = APIRouter(prefix="/drafting", tags=["Drafting V2"])
 logger = logging.getLogger(__name__)
 
@@ -30,11 +28,18 @@ async def create_drafting_job(
 ):
     """
     Initiates a new drafting job.
+    NOTE: This is a legacy endpoint. Prefer the case-specific endpoint: POST /cases/{case_id}/drafts
     """
     try:
-        task = process_drafting_job.delay(
-            user_id=str(current_user.id),
-            request_data_dict=request_data.model_dump()
+        # PHOENIX FIX: Deconstruct the request and pass arguments correctly.
+        task = celery_app.send_task(
+            "process_drafting_job",
+            kwargs={
+                "case_id": request_data.case_id,
+                "user_id": str(current_user.id),
+                "draft_type": request_data.document_type,
+                "user_prompt": request_data.prompt
+            }
         )
         job_id = task.id
         logger.info(f"Dispatched drafting job with Celery Task ID: {job_id}")
