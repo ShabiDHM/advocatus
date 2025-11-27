@@ -18,7 +18,8 @@
     "save": "Ruaj",
     "saveSuccess": "U ruajt me sukses!",
     "download": "Shkarko",
-    "loading": "Duke ngarkuar..."
+    "loading": "Duke ngarkuar...",
+    "copied": "U kopjua në kujtesë!"
   },
   "auth": {
     "loginTitle": "Hyni në Juristi AI",
@@ -136,16 +137,24 @@
   "drafting": {
     "title": "Draftimi Inteligjent",
     "subtitle": "Krijoni dokumente ligjore automatikisht.",
-    "selectCase": "Zgjidhni Rastin (Opsionale)",
-    "noCase": "Pa Rast (Draftim i Përgjithshëm)",
-    "promptLabel": "Udhëzimet për Draftin",
-    "promptPlaceholder": "Psh: Krijo një kontratë qiraje për një apartament në Prishtinë...",
-    "generateButton": "Gjenero Dokumentin",
-    "generating": "Duke Gjeneruar...",
-    "resultTitle": "Rezultati",
-    "processingMessage": "AI po shkruan dokumentin...",
-    "failedMessage": "Gjenerimi dështoi. Provoni përsëri.",
-    "emptyState": "Rezultati do të shfaqet këtu."
+    "configuration": "Konfigurimi",
+    "selectCaseLabel": "Zgjidhni Rastin",
+    "generalDraft": "Draftim i Përgjithshëm",
+    "instructionsLabel": "Udhëzimet",
+    "promptPlaceholder": "Psh: Krijo një kontratë qiraje për një apartament...",
+    "generateBtn": "Gjenero Dokumentin",
+    "statusCompleted": "Përfunduar",
+    "statusFailed": "Dështoi",
+    "statusWorking": "Duke punuar...",
+    "statusResult": "Rezultati",
+    "copyTitle": "Kopjo",
+    "downloadTitle": "Shkarko",
+    "generatingMessage": "Duke gjeneruar draftin...",
+    "emptyState": "Rezultati do të shfaqet këtu",
+    "errorFetchResult": "Dështoi marrja e rezultatit",
+    "errorJobFailed": "Puna e draftimit dështoi",
+    "errorConnectionLost": "Lidhja me serverin u humb",
+    "errorStartJob": "Dështoi fillimi i punës së draftimit"
   },
   "business": {
     "title": "Qendra e Biznesit",
@@ -184,19 +193,68 @@
     "confirmDelete": "A jeni të sigurt që doni të fshini këtë përdorues?"
   },
   "calendar": {
-    "pageTitle": "Kalendari",
-    "newEvent": "Ngjarje e Re",
+    "loadFailure": "Dështoi ngarkimi i të dhënave të kalendarit.",
+    "noEventsFound": "Nuk u gjetën ngjarje.",
     "today": "Sot",
-    "month": "Muaji",
+    "pageTitle": "Kalendari",
+    "pageSubtitle": "Menaxho ngjarjet, afatet dhe seancat e tua.",
+    "newEvent": "Ngjarje e Re",
+    "month": "Muaj",
     "list": "Listë",
     "searchPlaceholder": "Kërko ngjarje...",
-    "createModal": {
-      "title": "Krijo Ngjarje",
-      "eventTitle": "Titulli",
+    "allTypes": "Të gjitha Llojet",
+    "allPriorities": "Të gjitha Prioritetet",
+    "noUpcomingEvents": "Nuk ka afate të ardhshme në 7 ditët e ardhshme.",
+    "eventTypes": "Llojet e Ngjarjeve",
+    "types": {
+      "DEADLINE": "Afati",
+      "HEARING": "Seancë",
+      "MEETING": "Takim",
+      "FILING": "Dorëzim",
+      "COURT_DATE": "Datë Gjykimi",
+      "CONSULTATION": "Konsultim"
+    },
+    "priorities": {
+      "CRITICAL": "Kritike",
+      "HIGH": "Lartë",
+      "MEDIUM": "Mesatare",
+      "LOW": "Ulët"
+    },
+    "detailModal": {
+      "deleteConfirm": "Jeni i sigurt që doni të fshini këtë ngjarje?",
+      "deleteFailed": "Fshirja e ngjarjes dështoi.",
       "description": "Përshkrimi",
-      "create": "Krijo",
-      "cancel": "Anulo"
+      "startDate": "Data e Fillimit",
+      "endDate": "Data e Mbarimit",
+      "location": "Vendndodhja",
+      "attendees": "Pjesëmarrësit",
+      "notes": "Shënime",
+      "close": "Mbyll",
+      "deleting": "Duke fshirë...",
+      "delete": "Fshij"
+    },
+    "createModal": {
+      "dateTimePlaceholder": "Zgjidhni një datë",
+      "createFailed": "Krijimi i ngjarjes dështoi.",
+      "title": "Krijo Ngjarje të Re",
+      "relatedCase": "Rasti i Lidhur",
+      "selectCase": "Zgjidhni një rast",
+      "eventTitle": "Titulli i Ngjarjes",
+      "eventType": "Lloji i Ngjarjes",
+      "priority": "Prioriteti",
+      "eventDate": "Data e Ngjarjes",
+      "addDetails": "Shto më shumë Detaje",
+      "description": "Përshkrimi (Opsional)",
+      "location": "Vendndodhja (Opsional)",
+      "attendees": "Pjesëmarrësit (ndarë me presje)",
+      "notes": "Shënime (Opsional)",
+      "cancel": "Anulo",
+      "creating": "Duke krijuar...",
+      "create": "Krijo Ngjarje"
     }
+  },
+  "caseCard": {
+    "alerts": "Alarmet"
   },
   "support": {
     "contactInfo": "Informacion Kontakti",

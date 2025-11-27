@@ -18,7 +18,8 @@
     "save": "Sačuvaj",
     "saveSuccess": "Uspešno sačuvano!",
     "download": "Preuzmi",
-    "loading": "Učitavanje..."
+    "loading": "Učitavanje...",
+    "copied": "Kopirano u klipbord!"
   },
   "auth": {
     "loginTitle": "Prijavite se na Juristi AI",
@@ -134,18 +135,26 @@
     "missing": "Nedostaje"
   },
   "drafting": {
-    "title": "Pametno Pisanje",
-    "subtitle": "Automatsko kreiranje dokumenata.",
-    "selectCase": "Izaberite Predmet (Opciono)",
-    "noCase": "Bez Predmeta (Opšti Nacrt)",
-    "promptLabel": "Uputstva",
-    "promptPlaceholder": "Npr: Kreiraj ugovor o zakupu stana u Prištini...",
-    "generateButton": "Generiši Dokument",
-    "generating": "Generisanje...",
-    "resultTitle": "Rezultat",
-    "processingMessage": "AI piše dokument...",
-    "failedMessage": "Neuspešno. Pokušajte ponovo.",
-    "emptyState": "Rezultat će se pojaviti ovde."
+    "title": "Inteligentno Pisanje",
+    "subtitle": "Automatski kreirajte pravne dokumente.",
+    "configuration": "Konfiguracija",
+    "selectCaseLabel": "Izaberite Slučaj",
+    "generalDraft": "Opšti Nacrt",
+    "instructionsLabel": "Uputstva",
+    "promptPlaceholder": "Npr: Kreiraj ugovor o zakupu stana...",
+    "generateBtn": "Generiši Dokument",
+    "statusCompleted": "Završeno",
+    "statusFailed": "Neuspelo",
+    "statusWorking": "Radi se...",
+    "statusResult": "Rezultat",
+    "copyTitle": "Kopiraj",
+    "downloadTitle": "Preuzmi",
+    "generatingMessage": "Generisanje nacrta...",
+    "emptyState": "Rezultat će se pojaviti ovde",
+    "errorFetchResult": "Nije uspelo preuzimanje rezultata",
+    "errorJobFailed": "Posao izrade nacrta nije uspeo",
+    "errorConnectionLost": "Veza sa serverom je prekinuta",
+    "errorStartJob": "Nije uspelo pokretanje posla izrade nacrta"
   },
   "business": {
     "title": "Poslovni Centar",
@@ -184,19 +193,68 @@
     "confirmDelete": "Da li ste sigurni da želite da obrišete ovog korisnika?"
   },
   "calendar": {
-    "pageTitle": "Kalendar",
-    "newEvent": "Novi Događaj",
+    "loadFailure": "Učitavanje podataka kalendara nije uspelo.",
+    "noEventsFound": "Nema pronađenih događaja.",
     "today": "Danas",
+    "pageTitle": "Kalendar",
+    "pageSubtitle": "Upravljajte svojim događajima, rokovima i ročištima.",
+    "newEvent": "Novi Događaj",
     "month": "Mesec",
     "list": "Lista",
-    "searchPlaceholder": "Pretraži događaje...",
-    "createModal": {
-      "title": "Kreiraj Događaj",
-      "eventTitle": "Naslov",
+    "searchPlaceholder": "Pretražite događaje...",
+    "allTypes": "Svi Tipovi",
+    "allPriorities": "Svi Prioriteti",
+    "noUpcomingEvents": "Nema predstojećih rokova u narednih 7 dana.",
+    "eventTypes": "Tipovi Događaja",
+    "types": {
+      "DEADLINE": "Rok",
+      "HEARING": "Ročište",
+      "MEETING": "Sastanak",
+      "FILING": "Podnošenje",
+      "COURT_DATE": "Datum Suda",
+      "CONSULTATION": "Konsultacije"
+    },
+    "priorities": {
+      "CRITICAL": "Kritično",
+      "HIGH": "Visoko",
+      "MEDIUM": "Srednje",
+      "LOW": "Nisko"
+    },
+    "detailModal": {
+      "deleteConfirm": "Da li ste sigurni da želite da obrišete ovaj događaj?",
+      "deleteFailed": "Brisanje događaja nije uspelo.",
       "description": "Opis",
-      "create": "Kreiraj",
-      "cancel": "Otkaži"
+      "startDate": "Datum Početka",
+      "endDate": "Datum Završetka",
+      "location": "Lokacija",
+      "attendees": "Učesnici",
+      "notes": "Beleške",
+      "close": "Zatvori",
+      "deleting": "Brisanje...",
+      "delete": "Obriši"
+    },
+    "createModal": {
+      "dateTimePlaceholder": "Izaberite datum",
+      "createFailed": "Kreiranje događaja nije uspelo.",
+      "title": "Kreiraj Novi Događaj",
+      "relatedCase": "Povezani Slučaj",
+      "selectCase": "Izaberite slučaj",
+      "eventTitle": "Naziv Događaja",
+      "eventType": "Tip Događaja",
+      "priority": "Prioritet",
+      "eventDate": "Datum Događaja",
+      "addDetails": "Dodaj Više Detalja",
+      "description": "Opis (Opciono)",
+      "location": "Lokacija (Opciono)",
+      "attendees": "Učesnici (odvojeni zarezom)",
+      "notes": "Beleške (Opciono)",
+      "cancel": "Otkaži",
+      "creating": "Kreiranje...",
+      "create": "Kreiraj Događaj"
     }
+  },
+  "caseCard": {
+    "alerts": "Uzbune"
   },
   "support": {
     "contactInfo": "Kontakt Informacije",
