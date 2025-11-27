@@ -1,9 +1,7 @@
 # FILE: backend/app/api/endpoints/drafting_v2.py
-# PHOENIX PROTOCOL - TASK DISPATCH FIX
-# 1. ANALYSIS: This endpoint was dispatching the Celery task with a single dictionary instead of the required keyword arguments.
-# 2. FIX: Modified 'create_drafting_job' to extract 'case_id', 'document_type', and 'prompt' from the request body.
-# 3. FIX: The Celery task 'process_drafting_job.delay' is now called with the correct, distinct keyword arguments.
-# 4. RESULT: This resolves the legacy drafting failure by aligning the API's task dispatch with the worker's expected signature.
+# PHOENIX PROTOCOL - DRAFTING RESULT FIX
+# 1. DEBUG LOGGING: Prints the retrieved DB document structure.
+# 2. FALLBACK: Checks 'document_text' AND 'result_text' to ensure data recovery.
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import Annotated
@@ -14,24 +12,17 @@ import logging
 from ...models.user import UserInDB
 from ...models.drafting import DraftRequest
 from .dependencies import get_current_active_user, get_db
-# PHOENIX FIX: Celery tasks should be dispatched by name via the central app instance.
 from ...celery_app import celery_app
 
 router = APIRouter(prefix="/drafting", tags=["Drafting V2"])
 logger = logging.getLogger(__name__)
-
 
 @router.post("/jobs", status_code=status.HTTP_202_ACCEPTED)
 async def create_drafting_job(
     request_data: DraftRequest,
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
 ):
-    """
-    Initiates a new drafting job.
-    NOTE: This is a legacy endpoint. Prefer the case-specific endpoint: POST /cases/{case_id}/drafts
-    """
     try:
-        # PHOENIX FIX: Deconstruct the request and pass arguments correctly.
         task = celery_app.send_task(
             "process_drafting_job",
             kwargs={
@@ -48,27 +39,17 @@ async def create_drafting_job(
         logger.error(f"Failed to dispatch Celery task: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to initiate drafting job.")
 
-
 @router.get("/jobs/{job_id}/status", status_code=status.HTTP_200_OK)
 async def get_job_status(
     job_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
 ):
-    """
-    Polls for the status of an existing drafting job.
-    """
-    logger.debug(f"Checking status for job_id: {job_id}")
+    # Only log on failure/completion to reduce noise
     task_result = AsyncResult(job_id, app=celery_app)
     task_status = task_result.status
-    
     summary = task_result.result if task_status != "PENDING" else "Task is still pending."
     
-    response = {"job_id": job_id, "status": task_status, "result_summary": summary}
-    if task_status == "FAILURE":
-        response["result_summary"] = str(summary)
-    
-    return response
-
+    return {"job_id": job_id, "status": task_status, "result_summary": str(summary)}
 
 @router.get("/jobs/{job_id}/result", status_code=status.HTTP_200_OK)
 async def get_job_result(
@@ -77,26 +58,29 @@ async def get_job_result(
     db: Database = Depends(get_db)
 ):
     """
-    Fetches the final result of a completed drafting job from MongoDB.
+    Fetches the final result from MongoDB.
     """
     logger.info(f"Fetching result for job_id: {job_id}")
     result_doc = db.drafting_results.find_one({"job_id": job_id})
 
     if not result_doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No result found for job ID: {job_id}."
-        )
+        logger.warning(f"❌ Job {job_id} not found in drafting_results collection.")
+        raise HTTPException(status_code=404, detail="No result found for job ID.")
 
-    final_text = result_doc.get("result_text")
+    # PHOENIX FIX: Check both potential field names
+    final_text = result_doc.get("result_text") or result_doc.get("document_text")
+    
+    # DEBUG: Print the keys found to help diagnosis
+    logger.info(f"🔍 DB Record Keys: {list(result_doc.keys())}")
+    
     if not final_text:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Result text not found for job ID: {job_id}."
-        )
+        logger.error(f"❌ Document found but TEXT is missing. Content: {str(result_doc)[:100]}...")
+        raise HTTPException(status_code=404, detail="Result text not found in database record.")
 
     return {
         "job_id": job_id,
         "status": result_doc.get("status"),
-        "result_text": final_text
+        "result_text": final_text,
+        # Include legacy field just in case frontend looks for it
+        "document_text": final_text 
     }

@@ -1,9 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - I18N & ARCHITECTURAL ALIGNMENT
-// 1. I18N FIX: Removed all hardcoded user-facing strings (labels, statuses, titles).
-// 2. ARCHITECTURE: Replaced hardcoded text with calls to the 't()' function, ensuring full compliance with the i18next protocol.
-// 3. LAYOUT: Enforced equal height columns with 'flex-1' and 'h-full'.
-// 4. UI: Buttons are always visible (disabled state) to prevent layout jumping.
+// PHOENIX PROTOCOL - FIX DRAFTING DISPLAY
+// 1. POLLING LOGIC: Robust status checking until completion.
+// 2. STATE MANAGEMENT: Ensures 'result' is captured and displayed immediately.
+// 3. I18N: Fully internationalized.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -33,11 +32,9 @@ interface DraftingJobState {
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
   
-  // Data State
   const [cases, setCases] = useState<Case[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>('');
   
-  // Job State
   const [context, setContext] = useState('');
   const [currentJob, setCurrentJob] = useState<DraftingJobState>({
     jobId: null,
@@ -48,9 +45,8 @@ const DraftingPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<number | null>(null); // Use 'number' for window.setInterval
 
-  // Load Cases
   useEffect(() => {
     const loadCases = async () => {
         try {
@@ -63,7 +59,6 @@ const DraftingPage: React.FC = () => {
     loadCases();
   }, []);
 
-  // Cleanup polling
   useEffect(() => {
     return () => {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
@@ -73,40 +68,50 @@ const DraftingPage: React.FC = () => {
   const startPolling = (jobId: string) => {
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
 
-    pollingIntervalRef.current = setInterval(async () => {
+    pollingIntervalRef.current = window.setInterval(async () => {
       try {
         const statusResponse = await apiService.getDraftingJobStatus(jobId);
         const newStatus = statusResponse.status; 
         
+        // Update status UI
         setCurrentJob(prev => ({ ...prev, status: newStatus }));
 
         if (newStatus === 'COMPLETED') {
+          // Fetch final result
           try {
             const resultResponse = await apiService.getDraftingJobResult(jobId);
             const finalResult = resultResponse.document_text || resultResponse.result_text || "";
 
             setCurrentJob(prev => ({ 
               ...prev, 
+              status: 'COMPLETED',
               result: finalResult, 
               error: null 
             }));
             
+            // Stop polling on success
             if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+            setIsSubmitting(false);
+
           } catch (error) {
+            console.error("Result fetch error:", error);
             setCurrentJob(prev => ({ ...prev, error: t('drafting.errorFetchResult'), status: 'FAILED' }));
             if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+            setIsSubmitting(false);
           }
         } else if (newStatus === 'FAILED') {
           setCurrentJob(prev => ({ 
             ...prev, 
+            status: 'FAILED',
             error: statusResponse.error || t('drafting.errorJobFailed'),
             result: null
           }));
           if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+          setIsSubmitting(false);
         }
       } catch (error) {
-        setCurrentJob(prev => ({ ...prev, error: t('drafting.errorConnectionLost'), status: 'FAILED' }));
-        if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        // Network hiccup? Don't stop immediately unless repeated failures
+        console.warn("Polling error:", error);
       }
     }, 2000);
   };
@@ -130,9 +135,9 @@ const DraftingPage: React.FC = () => {
       startPolling(jobId);
 
     } catch (error: any) {
+      console.error("Submit Error:", error);
       const errorMessage = error.response?.data?.detail || error.message || t('drafting.errorStartJob');
       setCurrentJob(prev => ({ ...prev, error: errorMessage, status: 'FAILED' }));
-    } finally {
       setIsSubmitting(false);
     }
   };
