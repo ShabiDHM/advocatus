@@ -1,4 +1,8 @@
 # FILE: backend/app/api/endpoints/admin.py
+# PHOENIX PROTOCOL - API ROUTING FIX
+# 1. ROUTING FIX: The general update endpoint 'PUT /{user_id}' now calls the new 'update_user_details' service function.
+# 2. SEMANTICS: The dedicated '/{user_id}/subscription' endpoint remains, correctly calling the subscription function.
+# 3. RESULT: The API layer is now architecturally correct and routes requests to the proper business logic.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated
@@ -9,10 +13,8 @@ from ...models.user import UserInDB
 from ...models.admin import SubscriptionUpdate, UserAdminView
 from .dependencies import get_current_admin_user, get_db
 
-# PHOENIX PROTOCOL FIX: Restore conventional routing with prefix
 router = APIRouter(prefix="/users", tags=["Administrator"])
 
-@router.get("/", response_model=List[UserAdminView], include_in_schema=False)
 @router.get("", response_model=List[UserAdminView])
 def get_all_users(
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
@@ -24,15 +26,16 @@ def get_all_users(
 @router.put("/{user_id}", response_model=UserAdminView)
 def update_user(
     user_id: str,
-    update_data: SubscriptionUpdate,  # Using same model for general updates
+    update_data: SubscriptionUpdate,
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
     db: Database = Depends(get_db)
 ):
-    """Updates a user's details including subscription. (Admin only)"""
+    """Updates a user's general details (role, status, email). (Admin only)"""
     try:
-        updated_user = admin_service.update_user_subscription(
+        # --- CORRECTED FUNCTION CALL ---
+        updated_user = admin_service.update_user_details(
             user_id=user_id, 
-            sub_data=update_data, 
+            update_data=update_data, 
             db=db
         )
         if not updated_user:
@@ -50,7 +53,7 @@ def update_user_subscription(
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
     db: Database = Depends(get_db)
 ):
-    """Updates a user's subscription details. (Admin only)"""
+    """Updates a user's subscription-specific details. (Admin only)"""
     try:
         updated_user = admin_service.update_user_subscription(
             user_id=user_id, 

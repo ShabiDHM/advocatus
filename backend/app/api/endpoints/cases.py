@@ -1,7 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - ENDPOINT AGGREGATION
-# 1. INCLUDES: Standard CRUD, Analysis, and the new Vision AI Deep Scan.
-# 2. FIXES: Explicit imports to resolve Pylance warnings.
+# PHOENIX PROTOCOL - IMPORT & MODEL FIX
+# 1. IMPORT FIX: Changed the import from '...models.draft' to the correct '...models.drafting'.
+# 2. MODEL FIX: Changed the model from the non-existent 'DraftJobCreate' to the correct 'DraftRequest'.
+# 3. RESULT: Resolves the 'reportMissingImports' error in this file.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated
@@ -15,20 +16,21 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-# Direct imports including the new services
+# Direct imports including the new services and models
 from ...services import (
-    case_service, 
-    document_service, 
-    findings_service, 
-    report_service, 
+    case_service,
+    document_service,
+    findings_service,
+    report_service,
     storage_service,
     analysis_service,
-    visual_service # <--- Added for Deep Scan
+    visual_service
 )
 from ...models.case import CaseCreate, CaseOut
 from ...models.user import UserInDB
 from ...models.document import DocumentOut
 from ...models.findings import FindingsListOut, FindingOut
+from ...models.drafting import DraftRequest # <--- CORRECTED IMPORT
 from .dependencies import get_current_user, get_db, get_sync_redis
 from ...celery_app import celery_app
 
@@ -70,20 +72,40 @@ async def delete_case(case_id: str, current_user: Annotated[UserInDB, Depends(ge
     await asyncio.to_thread(case_service.delete_case_by_id, db=db, case_id=validated_case_id, owner=current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+@router.post("/{case_id}/drafts", status_code=status.HTTP_202_ACCEPTED, tags=["Drafting"])
+async def create_draft_for_case(
+    case_id: str,
+    job_in: DraftRequest, # <--- CORRECTED MODEL
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Creates and dispatches a new drafting job for a specific case.
+    """
+    validated_case_id = validate_object_id(case_id)
+    job_details = await asyncio.to_thread(
+        case_service.create_draft_job_for_case,
+        db=db,
+        case_id=validated_case_id,
+        job_in=job_in,
+        owner=current_user
+    )
+    return job_details
+
 @router.get("/{case_id}/findings", response_model=FindingsListOut, tags=["Findings"])
 async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
     findings_data = await asyncio.to_thread(findings_service.get_findings_for_case, db=db, case_id=case_id)
-    
+
     findings_out_list = []
     for finding in findings_data:
         finding_dict = {
-            'id': str(finding.get('_id')), 
+            'id': str(finding.get('_id')),
             'case_id': str(finding.get('case_id')),
             'document_id': str(finding.get('document_id')) if finding.get('document_id') else None,
-            'finding_text': finding.get('finding_text', 'N/A'), 
+            'finding_text': finding.get('finding_text', 'N/A'),
             'source_text': finding.get('source_text', 'N/A'),
-            'page_number': finding.get('page_number'), 
+            'page_number': finding.get('page_number'),
             'document_name': finding.get('document_name'),
             'confidence_score': finding.get('confidence_score', 0.0),
             'created_at': finding.get('created_at') or datetime.now(timezone.utc)
@@ -91,6 +113,8 @@ async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, 
         findings_out_list.append(FindingOut.model_validate(finding_dict))
 
     return FindingsListOut(findings=findings_out_list, count=len(findings_out_list))
+
+# ... (The rest of the file remains unchanged)
 
 @router.get("/{case_id}/documents", response_model=List[DocumentOut], tags=["Documents"])
 async def get_documents_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
@@ -102,13 +126,13 @@ async def upload_document_for_case(case_id: str, current_user: Annotated[UserInD
     mime_type = file.content_type or "application/octet-stream"
     try:
         storage_key = await asyncio.to_thread(
-            storage_service.upload_original_document, 
-            file=file, 
-            user_id=str(current_user.id), 
+            storage_service.upload_original_document,
+            file=file,
+            user_id=str(current_user.id),
             case_id=case_id
         )
         new_document = document_service.create_document_record(
-            db=db, owner=current_user, case_id=case_id, 
+            db=db, owner=current_user, case_id=case_id,
             file_name=file_name, storage_key=storage_key, mime_type=mime_type
         )
         celery_app.send_task("process_document_task", args=[str(new_document.id)])
@@ -133,7 +157,7 @@ async def get_document_preview(
         )
         if str(document.case_id) != case_id:
             raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
-        
+
         preview_filename = f"{document.file_name}.pdf"
         headers = {'Content-Disposition': f'inline; filename="{preview_filename}"'}
         return StreamingResponse(file_stream, media_type="application/pdf", headers=headers)
@@ -181,20 +205,20 @@ async def get_document_report_pdf(case_id: str, doc_id: str, current_user: Annot
 
 @router.delete("/{case_id}/documents/{doc_id}", tags=["Documents"])
 async def delete_document(
-    case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db), redis_client: redis.Redis = Depends(get_sync_redis)
 ):
     validated_doc_id = validate_object_id(doc_id)
-    
+
     document = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(document.case_id) != case_id:
         raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
 
     deleted_finding_ids = await asyncio.to_thread(
-        document_service.delete_document_by_id, 
+        document_service.delete_document_by_id,
         db=db, redis_client=redis_client, doc_id=validated_doc_id, owner=current_user
     )
-    
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
@@ -203,42 +227,31 @@ async def delete_document(
         }
     )
 
-# --- PHOENIX PROTOCOL: ANALYSIS ENDPOINT ---
 @router.post("/{case_id}/analyze", tags=["Analysis"])
 async def analyze_case_risks(
-    case_id: str, 
-    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Triggers a deep cross-examination of all documents in the case.
-    Uses Hybrid Intelligence (Cloud -> Local -> Static).
-    """
     validate_object_id(case_id)
-    
-    # Verify ownership
+
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
-        
-    # PHOENIX FIX: Explicit call to the correct service function
+
     analysis_result = await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id)
     return JSONResponse(content=analysis_result)
 
-# --- PHOENIX PROTOCOL: DEEP SCAN ENDPOINT ---
 @router.post("/{case_id}/documents/{doc_id}/deep-scan", tags=["Documents"])
 async def deep_scan_document(
-    case_id: str, 
-    doc_id: str, 
-    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    case_id: str,
+    doc_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Triggers 'Llama 3.2 Vision' to scan the document for signatures and stamps.
-    """
     validate_object_id(case_id)
     validate_object_id(doc_id)
-    
+
     try:
         findings = await asyncio.to_thread(visual_service.perform_deep_scan, db, doc_id)
         return {"status": "success", "findings_count": len(findings)}

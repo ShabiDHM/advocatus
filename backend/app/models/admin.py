@@ -1,41 +1,33 @@
 # FILE: backend/app/models/admin.py
-# DEFINITIVE VERSION 5.1 (TYPO CORRECTION):
-# 1. CRITICAL FIX: Corrected the decorator typo from '@field_tolower' to the valid
-#    Pydantic decorator '@field_validator'.
-# 2. This resolves the 'reportUndefinedVariable' build error and restores the integrity
-#    of the data model.
-# 3. PHOENIX PROTOCOL FIX: Updated SubscriptionUpdate to accept both frontend and backend status formats
+# PHOENIX PROTOCOL - USER STATUS FIX
+# 1. NEW FIELD: Added the missing 'status' field to the SubscriptionUpdate model.
+# 2. VALIDATOR: Added a validator to normalize the status to lowercase, matching other fields.
+# 3. RESULT: The backend model now correctly aligns with the frontend, resolving the 422 error.
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-from typing import Optional, Literal, Any
+from typing import Optional, Any
 from datetime import datetime
 
 from .common import PyObjectId
 
 class SubscriptionUpdate(BaseModel):
-    # PHOENIX PROTOCOL FIX: Accept both frontend (uppercase) and backend (lowercase) status formats
     subscription_status: Optional[str] = None
     subscription_expiry_date: Optional[datetime] = None
     last_payment_date: Optional[datetime] = None
     last_payment_amount: Optional[float] = None
     admin_notes: Optional[str] = None
-    # Added fields for general user updates
     email: Optional[str] = None
     role: Optional[str] = None
+    status: Optional[str] = None # <--- ADDED MISSING FIELD
 
-    @field_validator('subscription_status', mode='before')
+    @field_validator('subscription_status', 'status', mode='before')
     @classmethod
-    def normalize_subscription_status(cls, v: Any) -> Optional[str]:
+    def normalize_status_fields(cls, v: Any) -> Optional[str]:
         if v is None:
             return None
         if isinstance(v, str):
             # Normalize to backend format (lowercase)
-            normalized = v.lower()
-            # Map frontend values to backend values
-            if normalized in ['active', 'inactive', 'trial', 'expired']:
-                return normalized
-            # Allow any value but normalize case
-            return normalized
+            return v.lower()
         return v
 
     @field_validator('role', mode='before')
@@ -48,15 +40,12 @@ class SubscriptionUpdate(BaseModel):
         return v
 
 class AdminUserOut(BaseModel):
-    """
-    Definitive data model for the admin dashboard user list. Includes aggregated counts
-    and matches the frontend's 'AdminUser' TypeScript interface precisely.
-    """
     id: str = Field(alias="_id")
     username: str
     email: str
     role: str
-    subscription_status: str
+    status: Optional[str] = 'active' # Ensure status is part of the output
+    subscription_status: Optional[str] = None
     created_at: datetime
     last_login: Optional[datetime] = None
     case_count: int
@@ -67,7 +56,6 @@ class AdminUserOut(BaseModel):
     def id_to_str(cls, v: Any) -> str:
         return str(v)
 
-    # PHOENIX PROTOCOL CURE: Corrected the decorator name from '@field_tolower'
     @field_validator('role', mode='before')
     @classmethod
     def role_to_uppercase(cls, v: str) -> str:
@@ -81,5 +69,4 @@ class AdminUserOut(BaseModel):
         arbitrary_types_allowed=True,
     )
 
-# Retaining the old model name to avoid breaking other dependencies, but pointing it to the new one.
 UserAdminView = AdminUserOut
