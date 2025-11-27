@@ -1,14 +1,15 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER FIX
-// 1. REFACTOR: Replaced 'full_name' with 'username' to match updated User type.
-// 2. VERIFIED: Uses 'username' for display and avatar initials.
-// 3. CORRECTED: Admin Panel link now points to the correct '/admin' route.
+// PHOENIX PROTOCOL - HEADER FIX & FEATURE ADDITION
+// 1. FEATURE: Integrated the new LanguageSwitcher component to provide user-facing language selection.
+// 2. REFACTOR: Preserved all existing functionality, including search and profile dropdown.
+// 3. VERIFIED: Corrected '/admin' route link is maintained.
 
 import React, { useState } from 'react';
 import { Bell, Search, Menu, LogOut, User as UserIcon, Settings, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import LanguageSwitcher from './LanguageSwitcher'; // PHOENIX: Import the new component
 
 interface HeaderProps {
   toggleSidebar: () => void;
@@ -42,11 +43,16 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
       </div>
 
       {/* Right: Actions & Profile */}
-      <div className="flex items-center gap-3 sm:gap-4">
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* PHOENIX: Added Language Switcher */}
+        <LanguageSwitcher />
+
         <button className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors relative">
           <Bell size={20} />
           <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
         </button>
+        
+        <div className="h-6 w-px bg-glass-edge/50"></div>
 
         <div className="relative">
           <button 
@@ -78,7 +84,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                 </div>
 
                 {user?.role === 'ADMIN' && (
-                  // PHOENIX FIX: Changed link from '/dashboard' to the correct '/admin' route.
                   <Link 
                     to="/admin" 
                     className="flex items-center px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"

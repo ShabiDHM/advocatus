@@ -1,3 +1,9 @@
+// FILE: src/pages/DashboardPage.tsx
+// PHOENIX PROTOCOL - ARCHITECTURAL VALIDATION & I18N FIX
+// 1. STYLING: Adjusted modal width from 'max-w-md' to 'max-w-sm' for a more compact layout, per Operator feedback.
+// 2. I18N: This file now correctly uses translation keys provided in the updated JSON files.
+// 3. API CONTRACT: State and payload management remain aligned with the camelCase API contract.
+
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Briefcase, Clock, CheckCircle } from 'lucide-react';
@@ -13,7 +19,6 @@ const DashboardPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   
-  // PHOENIX: ALIGN STATE WITH camelCase API CONTRACT
   const initialNewCaseData = { 
     title: '', 
     case_number: '', 
@@ -49,7 +54,6 @@ const DashboardPage: React.FC = () => {
   const handleCreateCase = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // PHOENIX: ALIGN PAYLOAD WITH camelCase API CONTRACT
       const payload: CreateCaseRequest = {
           case_number: newCaseData.case_number,
           title: newCaseData.title,
@@ -62,7 +66,7 @@ const DashboardPage: React.FC = () => {
       };
       await apiService.createCase(payload);
       setShowCreateModal(false);
-      setNewCaseData(initialNewCaseData); // Reset the form state
+      setNewCaseData(initialNewCaseData);
       loadCases();
     } catch (error) {
       console.error("Failed to create case", error);
@@ -93,7 +97,7 @@ const DashboardPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-bold text-white">{t('dashboard.welcome', { name: user?.username?.split(' ')[0] })}</h1>
-          <p className="text-text-secondary mt-1">{t('dashboard.subtitle', 'Pasqyra e rasteve tuaja aktive.')}</p>
+          <p className="text-text-secondary mt-1">{t('dashboard.subtitle')}</p>
         </div>
         <button 
           onClick={() => setShowCreateModal(true)}
@@ -128,7 +132,7 @@ const DashboardPage: React.FC = () => {
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-background-dark border border-glass-edge p-8 rounded-2xl w-full max-w-md shadow-2xl">
+          <div className="bg-background-dark border border-glass-edge p-8 rounded-2xl w-full max-w-sm shadow-2xl">
             <h2 className="text-2xl font-bold text-white mb-6">{t('dashboard.createCaseTitle')}</h2>
             <form onSubmit={handleCreateCase} className="space-y-4">
               <div>
@@ -143,7 +147,6 @@ const DashboardPage: React.FC = () => {
               <div className="pt-4 mt-4 border-t border-glass-edge/50">
                 <label className="block text-sm text-text-secondary mb-1">{t('caseCard.client')}</label>
                 <div className="space-y-4">
-                    {/* PHOENIX: ALIGN INPUT NAMES WITH camelCase STATE */}
                     <input required name="clientName" placeholder={t('dashboard.clientName')} type="text" value={newCaseData.clientName} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
                     <input name="clientEmail" placeholder={t('dashboard.clientEmail')} type="email" value={newCaseData.clientEmail} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
                     <input name="clientPhone" placeholder={t('dashboard.clientPhone')} type="tel" value={newCaseData.clientPhone} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />

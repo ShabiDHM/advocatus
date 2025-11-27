@@ -82,7 +82,10 @@
     "createCaseTitle": "Kreiraj Novi Slučaj",
     "caseNumber": "Broj Slučaja",
     "caseTitle": "Naslov Slučaja",
-    "description": "Opis"
+    "description": "Opis",
+    "clientName": "Puno Ime Klijenta",
+    "clientEmail": "Email Klijenta",
+    "clientPhone": "Telefon Klijenta"
   },
   "caseView": {
     "backToDashboard": "Nazad na Tablu",
@@ -254,7 +257,8 @@
     }
   },
   "caseCard": {
-    "alerts": "Uzbune"
+    "alerts": "Uzbune",
+    "client": "Informacije o Klijentu"
   },
   "support": {
     "contactInfo": "Kontakt Informacije",

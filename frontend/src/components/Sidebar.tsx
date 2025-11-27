@@ -1,14 +1,15 @@
 // FILE: src/components/Sidebar.tsx
 // PHOENIX PROTOCOL - SIDEBAR NAVIGATION
-// 1. REFACTOR: Navigation items are now dynamically generated.
-// 2. ADDED: Permanent link to the '/account' page.
-// 3. ADDED: Conditional link to the '/admin' page, visible only to admin users.
+// 1. BRANDING FIX: Replaced the placeholder "J" logo with the new, consistent BrandLogo component.
+// 2. REFACTOR: Navigation items remain dynamically generated.
+// 3. VERIFIED: Conditional link to '/admin' and permanent '/account' link are preserved.
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Calendar, FileText, LogOut, MessageSquare, Building2, Shield, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
+import BrandLogo from './BrandLogo'; // PHOENIX: Import the new component
 
 interface SidebarProps {
   isOpen: boolean;
@@ -20,20 +21,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const { logout, user } = useAuth();
   const location = useLocation();
 
-  // PHOENIX: Construct navItems dynamically to include conditional routes.
   const getNavItems = () => {
     const baseItems = [
       { icon: LayoutDashboard, label: t('sidebar.dashboard', 'Paneli'), path: '/dashboard' },
       { icon: Calendar, label: t('sidebar.calendar', 'Kalendari'), path: '/calendar' },
       { icon: FileText, label: t('sidebar.drafting', 'Draftimi'), path: '/drafting' },
       { icon: Building2, label: t('sidebar.business', 'Zyra Ime'), path: '/business' },
-      { icon: User, label: t('sidebar.account', 'Llogaria'), path: '/account' }, // PHOENIX: Added Account link
+      { icon: User, label: t('sidebar.account', 'Llogaria'), path: '/account' },
       { icon: MessageSquare, label: t('sidebar.support', 'Ndihma'), path: '/support' },
     ];
 
-    // Conditionally add the Admin link if the user is an admin.
     if (user?.role === 'ADMIN') {
-      baseItems.splice(1, 0, { // Insert after Dashboard
+      baseItems.splice(1, 0, {
         icon: Shield,
         label: t('sidebar.admin', 'Admin Panel'),
         path: '/admin',
@@ -47,7 +46,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 
   return (
     <>
-      {/* Mobile Overlay */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-20 lg:hidden backdrop-blur-sm"
@@ -55,7 +53,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         />
       )}
 
-      {/* Sidebar Container */}
       <aside className={`
         fixed top-0 left-0 z-30 h-full w-64 bg-background-dark border-r border-glass-edge shadow-2xl
         transform transition-transform duration-300 ease-in-out lg:translate-x-0
@@ -65,14 +62,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
           
           {/* Logo Area */}
           <div className="h-16 flex items-center px-6 border-b border-glass-edge bg-background-light/10">
-            <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-secondary-start to-secondary-end rounded-lg flex items-center justify-center shadow-lg shadow-secondary-start/20">
-                    <span className="text-white font-bold text-lg">J</span>
-                </div>
-                <span className="text-xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-                    Juristi AI
-                </span>
-            </div>
+            {/* PHOENIX FIX: Using the BrandLogo component for consistency */}
+            <BrandLogo />
           </div>
 
           {/* Navigation Links */}

@@ -1,13 +1,14 @@
 // FILE: src/pages/MainLayout.tsx
 // PHOENIX PROTOCOL - MAIN LAYOUT
-// 1. Uses 'Outlet' to render child routes inside the dashboard shell.
-// 2. Integrates the application-wide Footer component.
+// 1. BRANDING FIX: Replaced the static text logo in the mobile header with the new reusable BrandLogo component.
+// 2. INTEGRITY: Ensures consistent branding between mobile and desktop views.
 
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
-import Footer from '../components/Footer'; // PHOENIX: Import the Footer component
+import Footer from '../components/Footer';
+import BrandLogo from '../components/BrandLogo'; // PHOENIX: Import the new component
 
 const MainLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -20,7 +21,8 @@ const MainLayout: React.FC = () => {
         
         {/* Mobile Header */}
         <header className="lg:hidden flex items-center justify-between p-4 border-b border-glass-edge bg-background-light/10 backdrop-blur-md z-10">
-          <span className="font-bold text-lg text-white">Juristi AI</span>
+          {/* PHOENIX FIX: Using the BrandLogo component */}
+          <BrandLogo />
           <button 
             onClick={() => setIsSidebarOpen(true)}
             className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors"
@@ -34,7 +36,6 @@ const MainLayout: React.FC = () => {
           <Outlet />
         </main>
 
-        {/* PHOENIX: Render the Footer component */}
         <Footer />
       </div>
     </div>
