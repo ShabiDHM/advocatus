@@ -1,7 +1,7 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD (CLEANED)
-// 1. REMOVED: Unused imports (Search, AlertTriangle).
-// 2. FUNCTIONAL: Case creation and stats display.
+// PHOENIX PROTOCOL - DASHBOARD FIX
+// 1. REFACTOR: Replaced 'full_name' with 'username' in welcome message.
+// 2. VERIFIED: Matches updated User type definition.
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
@@ -59,7 +59,8 @@ const DashboardPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">{t('dashboard.welcome', { name: user?.full_name?.split(' ')[0] })}</h1>
+          {/* FIXED: user.username instead of full_name */}
+          <h1 className="text-3xl font-bold text-white">{t('dashboard.welcome', { name: user?.username?.split(' ')[0] })}</h1>
           <p className="text-text-secondary mt-1">{t('dashboard.subtitle', 'Pasqyra e rasteve tuaja aktive.')}</p>
         </div>
         <button 

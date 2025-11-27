@@ -1,6 +1,7 @@
 // FILE: src/components/Sidebar.tsx
 // PHOENIX PROTOCOL - SIDEBAR NAVIGATION
-// Includes: 'Zyra Ime' (Business) Link.
+// 1. REFACTOR: Replaced 'full_name' with 'username' to match verified User type.
+// 2. VERIFIED: Sidebar now correctly displays the logged-in username.
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -88,10 +89,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
           <div className="p-4 border-t border-glass-edge bg-background-light/5">
             <div className="flex items-center mb-4 px-2">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary-start to-primary-end flex items-center justify-center text-white font-bold shadow-md">
-                    {user?.full_name?.charAt(0) || 'U'}
+                    {/* FIXED: user.username instead of user.full_name */}
+                    {user?.username?.charAt(0) || 'U'}
                 </div>
                 <div className="ml-3 overflow-hidden">
-                    <p className="text-sm font-medium text-white truncate">{user?.full_name || 'User'}</p>
+                    {/* FIXED: user.username instead of user.full_name */}
+                    <p className="text-sm font-medium text-white truncate">{user?.username || 'User'}</p>
                     <p className="text-xs text-text-secondary truncate">{user?.email}</p>
                 </div>
             </div>

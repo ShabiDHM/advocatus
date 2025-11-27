@@ -1,14 +1,14 @@
 // FILE: src/data/types.ts
 // PHOENIX PROTOCOL - TYPES FINALIZATION
-// 1. ADDED: Optional count fields to Case (document_count, alert_count, event_count).
-// 2. MAINTAINED: All previous Business and Calendar types.
+// 1. UPDATED: User, RegisterRequest, UpdateUserRequest to match Backend 'username' field.
+// 2. REMOVED: 'full_name' field (not supported by backend).
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
 export interface User {
     id: string;
     email: string;
-    full_name: string;
+    username: string; // MATCHES BACKEND
     role: 'ADMIN' | 'LAWYER' | 'CLIENT';
     is_active: boolean;
     created_at: string;
@@ -44,7 +44,7 @@ export interface Case {
     tags: string[];
     chat_history?: ChatMessage[];
     
-    // ADDED: Aggregated Counts for Dashboard Cards
+    // Aggregated Counts for Dashboard Cards
     document_count?: number;
     alert_count?: number;
     event_count?: number;
@@ -131,14 +131,14 @@ export interface BusinessProfileUpdate {
 }
 
 export interface LoginRequest {
-    username: string;
+    username: string; // NOTE: Backend Auth uses OAuth2 form data (username=email), handled in API/AuthContext
     password: string;
 }
 
 export interface RegisterRequest {
     email: string;
     password: string;
-    full_name: string;
+    username: string; // REPLACES full_name
 }
 
 export interface ChangePasswordRequest {
@@ -147,7 +147,7 @@ export interface ChangePasswordRequest {
 }
 
 export interface UpdateUserRequest {
-    full_name?: string;
+    username?: string; // REPLACES full_name
     email?: string;
     role?: string; 
     subscription_status?: string;

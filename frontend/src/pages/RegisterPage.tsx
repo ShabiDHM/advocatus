@@ -1,14 +1,13 @@
 // FILE: src/pages/RegisterPage.tsx
-// PHOENIX PROTOCOL - CLEANED (No Unused Imports)
-
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { User, Mail, Lock, Loader2, CheckCircle, ShieldAlert } from 'lucide-react';
+import { User, Mail, Lock, Loader2, ArrowRight, CheckCircle, ShieldAlert } from 'lucide-react';
+import { RegisterRequest } from '../data/types';
 
 const RegisterPage: React.FC = () => {
-  const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string>('');
@@ -19,18 +18,40 @@ const RegisterPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    // Pre-flight Validation
+    if (username.length < 3) {
+        setError(t('auth.usernameTooShort', 'Username must be at least 3 characters.'));
+        return;
+    }
+    if (password.length < 8) {
+        setError(t('auth.passwordTooShort', 'Password must be at least 8 characters.'));
+        return;
+    }
+
     setIsSubmitting(true);
+    
+    // Construct payload strictly typed
+    const payload: RegisterRequest = {
+        email,
+        password,
+        username
+    };
+
+    console.log("Submitting Registration Payload:", payload);
+
     try {
-      await apiService.register({ email, password, full_name: fullName });
+      await apiService.register(payload);
       setIsSuccess(true);
     } catch (err: any) {
-      console.error("Registration Error:", err);
-      let msg = t('auth.registerFailed', 'Regjistrimi dështoi.');
+      console.error("Registration Error:", err.response?.data);
+      
+      let msg = t('auth.registerFailed', 'Registration failed.');
       if (err.response?.data?.detail) {
           if (typeof err.response.data.detail === 'string') {
               msg = err.response.data.detail;
           } else if (Array.isArray(err.response.data.detail)) {
-              msg = err.response.data.detail.map((e: any) => e.msg).join(', ');
+              msg = err.response.data.detail.map((e: any) => `${e.loc[1]}: ${e.msg}`).join(', ');
           } else {
               msg = JSON.stringify(err.response.data.detail);
           }
@@ -42,72 +63,105 @@ const RegisterPage: React.FC = () => {
   };
 
   if (isSuccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background-dark px-4">
-        <div className="max-w-md w-full p-8 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge shadow-2xl text-center">
-            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-500/10">
-                <CheckCircle className="w-10 h-10 text-green-400" />
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background-dark px-4">
+            <div className="max-w-md w-full p-8 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge text-center">
+                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                <h2 className="text-3xl font-bold text-white mb-2">{t('auth.successTitle', 'Account Created')}</h2>
+                <p className="text-gray-300 mb-6">{t('auth.successMessage', 'Your account has been created successfully.')}</p>
+                <Link to="/login" className="inline-flex items-center text-primary-400 hover:text-primary-300 font-semibold">
+                    {t('auth.loginNow', 'Proceed to Login')} <ArrowRight className="ml-2 w-4 h-4" />
+                </Link>
             </div>
-            <h2 className="text-2xl font-bold text-white mb-4">{t('auth.registrationSuccess', 'Llogaria u Krijua!')}</h2>
-            <p className="text-text-secondary mb-8 leading-relaxed">{t('auth.gatekeeperMessage', 'Llogaria juaj është krijuar...')}</p>
-            
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-8 flex items-start gap-3 text-left">
-                <ShieldAlert className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-                <div>
-                    <p className="text-sm font-semibold text-yellow-200 mb-1">{t('auth.securityNotice', 'Njoftim Sigurie')}</p>
-                    <p className="text-xs text-yellow-200/80">{t('auth.approvalWait', 'Ju lutemi prisni njoftimin...')}</p>
-                </div>
-            </div>
-
-            <Link to="/login" className="block w-full py-3 px-4 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl text-white font-semibold transition-all">
-                {t('auth.backToLogin', 'Kthehu te Hyrja')}
-            </Link>
         </div>
-      </div>
-    );
+      );
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background-dark px-4">
-      <div className="max-w-md w-full space-y-8 p-8 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge shadow-2xl">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-white">{t('auth.registerTitle', 'Krijoni Llogari')}</h2>
-          <p className="mt-2 text-sm text-text-secondary">{t('auth.registerSubtitle', 'Bashkohuni me platformën...')}</p>
+      <div className="max-w-md w-full p-8 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge shadow-xl">
+        <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-2">{t('auth.registerTitle', 'Create Account')}</h2>
+            <p className="text-gray-400">{t('auth.registerSubtitle', 'Join the platform today')}</p>
         </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">{t('auth.fullName', 'Emri i Plotë')}</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><User className="h-5 w-5 text-text-secondary" /></div>
-                <input type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="block w-full pl-10 px-3 py-2 bg-background-dark/50 border border-glass-edge rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-primary-start outline-none" placeholder="Emri Mbiemri" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">{t('auth.email', 'Email')}</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Mail className="h-5 w-5 text-text-secondary" /></div>
-                <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="block w-full pl-10 px-3 py-2 bg-background-dark/50 border border-glass-edge rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-primary-start outline-none" placeholder="emri@shembull.com" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">{t('auth.password', 'Fjalëkalimi')}</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Lock className="h-5 w-5 text-text-secondary" /></div>
-                <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="block w-full pl-10 px-3 py-2 bg-background-dark/50 border border-glass-edge rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-primary-start outline-none" placeholder="••••••••" />
-              </div>
-            </div>
-          </div>
 
-          {error && <div className="text-red-400 text-sm text-center bg-red-900/20 p-2 rounded-lg border border-red-500/30">{error}</div>}
+        <form className="space-y-6" onSubmit={handleSubmit}>
+            <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300 ml-1">Username</label>
+                <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <input 
+                        type="text" 
+                        required 
+                        minLength={3}
+                        placeholder="jdoe"
+                        value={username}
+                        onChange={e => setUsername(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
+                    />
+                </div>
+            </div>
 
-          <button type="submit" disabled={isSubmitting} className="w-full flex justify-center py-2.5 px-4 rounded-xl text-white bg-gradient-to-r from-primary-start to-primary-end font-medium shadow-lg hover:opacity-90 disabled:opacity-50 transition-all">
-            {isSubmitting ? <Loader2 className="animate-spin h-5 w-5" /> : t('auth.registerButton', 'Regjistrohu')}
-          </button>
+            <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300 ml-1">Email</label>
+                <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <input 
+                        type="email" 
+                        required 
+                        placeholder="john@example.com"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
+                    />
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300 ml-1">Password</label>
+                <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <input 
+                        type="password" 
+                        required 
+                        minLength={8}
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
+                    />
+                </div>
+                <p className="text-xs text-gray-500 text-right">Min. 8 characters</p>
+            </div>
+            
+            {error && (
+                <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm">
+                    <ShieldAlert className="w-5 h-5 shrink-0" />
+                    <span>{error}</span>
+                </div>
+            )}
+
+            <button 
+                type="submit" 
+                disabled={isSubmitting} 
+                className="w-full py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+                {isSubmitting ? (
+                    <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Processing...</span>
+                    </>
+                ) : (
+                    "Create Account"
+                )}
+            </button>
         </form>
-        <div className="text-center text-sm">
-          <span className="text-text-secondary">{t('auth.hasAccount', 'Keni llogari?')} </span>
-          <Link to="/login" className="font-medium text-primary-start hover:text-primary-end transition-colors">{t('auth.loginLink', 'Hyni këtu')}</Link>
+
+        <div className="mt-6 text-center text-sm text-gray-400">
+            Already have an account?{' '}
+            <Link to="/login" className="text-primary-400 hover:text-primary-300 font-medium hover:underline">
+                Sign in
+            </Link>
         </div>
       </div>
     </div>

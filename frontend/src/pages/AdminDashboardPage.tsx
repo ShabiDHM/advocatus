@@ -1,9 +1,13 @@
 // FILE: src/pages/AdminDashboardPage.tsx
+// PHOENIX PROTOCOL - ADMIN DASHBOARD FIX
+// 1. REFACTOR: Replaced 'full_name' with 'username' throughout (Filter, Display, Edit Form).
+// 2. UI: Updated labels to match new schema.
+
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Users, Search, Edit2, Trash2, Shield, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { apiService } from '../services/api';
-import { User, UpdateUserRequest } from '../data/types'; // Removed AdminUser, using User
+import { User, UpdateUserRequest } from '../data/types'; 
 
 const AdminDashboardPage: React.FC = () => {
   const { t } = useTranslation();
@@ -31,7 +35,8 @@ const AdminDashboardPage: React.FC = () => {
   const handleEditClick = (user: User) => {
     setEditingUser(user);
     setEditForm({
-      full_name: user.full_name,
+      // FIXED: username instead of full_name
+      username: user.username,
       email: user.email,
       role: user.role,
       subscription_status: user.subscription_status || 'active',
@@ -47,7 +52,7 @@ const AdminDashboardPage: React.FC = () => {
       await apiService.updateUser(editingUser.id, editForm);
       setEditingUser(null);
       loadUsers();
-      alert(t('admin.userUpdated'));
+      alert(t('admin.userUpdated', 'Përdoruesi u përditësua.'));
     } catch (error) {
       console.error("Failed to update user", error);
       alert(t('error.generic'));
@@ -65,7 +70,8 @@ const AdminDashboardPage: React.FC = () => {
   };
 
   const filteredUsers = users.filter(u => 
-    u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    // FIXED: Search by username instead of full_name
+    u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     u.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -127,7 +133,8 @@ const AdminDashboardPage: React.FC = () => {
               {filteredUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-white/5 transition-colors">
                   <td className="px-6 py-4">
-                    <div className="font-medium text-white">{user.full_name}</div>
+                    {/* FIXED: Display username */}
+                    <div className="font-medium text-white">{user.username}</div>
                     <div className="text-xs">{user.email}</div>
                   </td>
                   <td className="px-6 py-4">
@@ -160,17 +167,23 @@ const AdminDashboardPage: React.FC = () => {
             <h3 className="text-xl font-bold text-white mb-4">Modifiko Përdoruesin</h3>
             <form onSubmit={handleUpdateUser} className="space-y-4">
               <div>
-                <label className="block text-sm text-text-secondary mb-1">Emri i Plotë</label>
-                <input type="text" value={editForm.full_name} onChange={e => setEditForm({...editForm, full_name: e.target.value})} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white" />
+                {/* FIXED: Label and Input for Username */}
+                <label className="block text-sm text-text-secondary mb-1">Username</label>
+                <input 
+                    type="text" 
+                    value={editForm.username || ''} 
+                    onChange={e => setEditForm({...editForm, username: e.target.value})} 
+                    className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white" 
+                />
               </div>
               <div>
                 <label className="block text-sm text-text-secondary mb-1">Email</label>
-                <input type="email" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white" />
+                <input type="email" value={editForm.email || ''} onChange={e => setEditForm({...editForm, email: e.target.value})} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-text-secondary mb-1">Roli</label>
-                  <select value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value})} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white">
+                  <select value={editForm.role || 'LAWYER'} onChange={e => setEditForm({...editForm, role: e.target.value})} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white">
                     <option value="LAWYER">Lawyer</option>
                     <option value="ADMIN">Admin</option>
                     <option value="CLIENT">Client</option>

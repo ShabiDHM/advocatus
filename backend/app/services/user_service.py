@@ -1,7 +1,7 @@
 # FILE: backend/app/services/user_service.py
-# PHOENIX PROTOCOL - RESTORED FUNCTIONALITY
-# 1. RESTORED: 'get_user_by_id' function (Required by dependencies.py).
-# 2. STATUS: Full service logic for authentication flow.
+# PHOENIX PROTOCOL - USER SERVICE
+# 1. AUTHENTICATION: Now supports login via Username OR Email.
+# 2. INTEGRITY: Preserves all previous Pydantic validations.
 
 from pymongo.database import Database
 from bson import ObjectId
@@ -24,7 +24,6 @@ def get_user_by_email(db: Database, email: str) -> Optional[UserInDB]:
         return UserInDB.model_validate(user_dict)
     return None
 
-# --- PHOENIX FIX: Restored missing function ---
 def get_user_by_id(db: Database, user_id: ObjectId) -> Optional[UserInDB]:
     user_dict = db.users.find_one({"_id": user_id})
     if user_dict:
@@ -33,13 +32,21 @@ def get_user_by_id(db: Database, user_id: ObjectId) -> Optional[UserInDB]:
 
 def authenticate(db: Database, username: str, password: str) -> Optional[UserInDB]:
     """
-    Checks if user exists and password matches hash. Returns User object or None.
+    Checks if user exists (by Username OR Email) and password matches hash.
     """
+    # 1. Try finding by Username
     user = get_user_by_username(db, username)
+    
+    # 2. If not found, try finding by Email
+    if not user:
+        user = get_user_by_email(db, username)
+        
     if not user:
         return None
+        
     if not verify_password(password, user.hashed_password):
         return None
+        
     return user
 
 def create(db: Database, obj_in: UserCreate) -> UserInDB:

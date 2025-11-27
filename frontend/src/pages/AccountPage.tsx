@@ -1,7 +1,7 @@
 // FILE: src/pages/AccountPage.tsx
 // PHOENIX PROTOCOL - ACCOUNT PAGE FIX
-// 1. TYPES: Corrected 'username' -> 'email'.
-// 2. PASSWORD: Corrected 'old_password' -> 'current_password'.
+// 1. REFACTOR: Replaced 'full_name' with 'username' to match verified User type.
+// 2. UI: Updated label to reflect 'Username' field.
 
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -63,9 +63,10 @@ const AccountPage: React.FC = () => {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-sm text-text-secondary mb-1">{t('auth.fullName', 'Emri i Plotë')}</label>
+                        {/* FIXED: Label and Value updated to Username */}
+                        <label className="block text-sm text-text-secondary mb-1">{t('auth.username', 'Username')}</label>
                         <div className="px-4 py-2 bg-background-dark rounded-lg text-white border border-glass-edge">
-                            {user.full_name}
+                            {user.username}
                         </div>
                     </div>
                     <div>
