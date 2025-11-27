@@ -15,20 +15,17 @@ router = APIRouter()
 
 @router.get("/me", response_model=UserOut)
 def get_current_user_profile(
-    # Switched dependency from the overly restrictive
-    # get_current_active_user to get_current_user. Any authenticated user,
-    # regardless of subscription status, must be able to view their own profile.
     current_user: Annotated[UserInDB, Depends(get_current_user)]
 ):
     """
     Retrieves the profile for the currently authenticated user.
     """
-    return current_user
+    # PHOENIX FIX: Explicitly construct the UserOut model from the UserInDB object.
+    # This ensures correct serialization and that all fields, including 'role', are included in the response.
+    return UserOut.model_validate(current_user)
 
-@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/me", status_code=status.HTTP_2_NO_CONTENT)
 def delete_own_account(
-    # Aligned the dependency for the delete action as well.
-    # A user should be able to delete their account without an active subscription.
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):

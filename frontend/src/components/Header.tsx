@@ -2,6 +2,7 @@
 // PHOENIX PROTOCOL - HEADER FIX
 // 1. REFACTOR: Replaced 'full_name' with 'username' to match updated User type.
 // 2. VERIFIED: Uses 'username' for display and avatar initials.
+// 3. CORRECTED: Admin Panel link now points to the correct '/admin' route.
 
 import React, { useState } from 'react';
 import { Bell, Search, Menu, LogOut, User as UserIcon, Settings, Shield } from 'lucide-react';
@@ -53,14 +54,12 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
             className="flex items-center gap-3 hover:bg-white/5 p-1.5 rounded-xl transition-colors border border-transparent hover:border-glass-edge"
           >
             <div className="text-right hidden sm:block">
-              {/* FIXED: user.username instead of full_name */}
               <p className="text-sm font-medium text-white">{user?.username || 'User'}</p>
               <p className="text-[10px] text-text-secondary uppercase tracking-wider">
                 {user?.role || 'LAWYER'}
               </p>
             </div>
             <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg shadow-secondary-start/20">
-              {/* FIXED: user.username for initials */}
               {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
             </div>
           </button>
@@ -74,14 +73,14 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
               />
               <div className="absolute right-0 mt-2 w-56 bg-background-dark border border-glass-edge rounded-xl shadow-2xl py-2 z-20 animate-in fade-in slide-in-from-top-2">
                 <div className="px-4 py-3 border-b border-glass-edge mb-1">
-                  {/* FIXED: user.username */}
                   <p className="text-sm text-white font-medium truncate">{user?.username}</p>
                   <p className="text-xs text-text-secondary truncate">{user?.email}</p>
                 </div>
 
                 {user?.role === 'ADMIN' && (
+                  // PHOENIX FIX: Changed link from '/dashboard' to the correct '/admin' route.
                   <Link 
-                    to="/dashboard" 
+                    to="/admin" 
                     className="flex items-center px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
                     onClick={() => setIsProfileOpen(false)}
                   >
