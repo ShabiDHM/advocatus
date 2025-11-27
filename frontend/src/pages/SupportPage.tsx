@@ -1,20 +1,19 @@
 // FILE: src/pages/SupportPage.tsx
-// PHOENIX PROTOCOL - FUNCTIONALITY CONSOLIDATION
-// 1. ADDED: "Privacy Policy" button and its corresponding modal trigger, consolidating all support-related actions here.
-// 2. REFACTOR: Contact form remains, ensuring all support functionality is centralized on this page as per the mandate.
-// 3. INTEGRATED: Imports and manages the state for PrivacyModal.
+// PHOENIX PROTOCOL - BUILD FIX
+// 1. INTEGRITY FIX: Removed the unused 'FileText' icon import from 'lucide-react' to resolve the TS6133 compilation error.
+// 2. VERIFIED: All other functionality related to functionality consolidation remains intact.
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Mail, Phone, MapPin, Send, Loader2, FileText, Lock } from 'lucide-react';
+import { Mail, Phone, MapPin, Send, Loader2, Lock } from 'lucide-react';
 import { apiService } from '../services/api';
-import PrivacyModal from '../components/PrivacyModal'; // PHOENIX: Import PrivacyModal
+import PrivacyModal from '../components/PrivacyModal';
 
 const SupportPage: React.FC = () => {
   const { t } = useTranslation();
   const [formData, setFormData] = useState({ firstName: '', lastName: '', email: '', phone: '', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false); // PHOENIX: Add state for modal
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +47,6 @@ const SupportPage: React.FC = () => {
               </div>
             </div>
 
-            {/* PHOENIX: Added Privacy Policy section */}
             <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge">
               <h3 className="text-xl font-semibold mb-4 text-white">{t('support.legalInfo', 'Informacione Ligjore')}</h3>
               <p className="text-text-secondary text-sm mb-4">{t('support.legalDesc', 'Lexoni politikën tonë të privatësisë për të kuptuar se si i mbrojmë të dhënat tuaja.')}</p>
