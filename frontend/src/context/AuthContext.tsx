@@ -1,9 +1,4 @@
 // FILE: src/context/AuthContext.tsx
-// PHOENIX PROTOCOL - AUTH CONTEXT (SAFE UPGRADE)
-// 1. KEEPS: specific JWT decoding logic and Role Normalization.
-// 2. KEEPS: 'isLoading' visual state logic.
-// 3. UPDATES: 'login' function signature to accept (email, password).
-
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';
 import { apiService } from '../services/api';
@@ -22,7 +17,6 @@ type AuthUser = User & { token?: string };
 interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
-  // UPDATED: Matches the new LoginPage signature
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
@@ -54,7 +48,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         const fullUser = await apiService.fetchUserProfile();
         const decoded = jwtDecode<DecodedToken>(access_token);
-        const normalizedRole = (decoded.role || fullUser.role || 'STANDARD').toUpperCase() as User['role'];
+        
+        // PHOENIX FIX: Prioritize the API response as the source of truth for the user's role.
+        const normalizedRole = (fullUser.role || decoded.role || 'STANDARD').toUpperCase() as User['role'];
         
         setUser({ ...fullUser, token: access_token, role: normalizedRole });
 
@@ -69,26 +65,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     initializeApp();
   }, [logout]);
 
-  // --- THE CRITICAL UPDATE ---
-  // Takes separate args (UI friendly) -> Converts to Object (Backend friendly)
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // 1. Construct the Payload Object exactly how backend wants it
       const loginPayload: LoginRequest = { 
           username: email, 
           password: password 
       };
 
-      // 2. Send to API (Same as before)
       const response = await apiService.login(loginPayload);
       const { access_token } = response;
       localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, access_token);
       
-      // 3. Decode and Set User (Same as before)
       const fullUser = await apiService.fetchUserProfile();
       const decoded = jwtDecode<DecodedToken>(access_token);
-      const normalizedRole = (decoded.role || fullUser.role || 'STANDARD').toUpperCase() as User['role'];
+
+      // PHOENIX FIX: Prioritize the API response as the source of truth for the user's role.
+      const normalizedRole = (fullUser.role || decoded.role || 'STANDARD').toUpperCase() as User['role'];
       
       setUser({ ...fullUser, token: access_token, role: normalizedRole });
 
