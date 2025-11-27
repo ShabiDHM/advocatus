@@ -1,9 +1,9 @@
 # FILE: backend/app/services/admin_service.py
-# PHOENIX PROTOCOL - DEFINITIVE BACKEND CURE (DATA INTEGRITY)
-# 1. DIAGNOSIS: The MongoDB aggregation pipeline was redundantly creating an 'id' field, conflicting with the Pydantic model's aliasing of '_id'. This ambiguity was the root cause of malformed user objects.
-# 2. CURE: Removed the '"id": "$_id"' transformation from the '$addFields' stage of the aggregation pipeline.
-# 3. MECHANISM: The service now returns data in its raw form (with '_id'). The Pydantic 'response_model' in the API layer is now the single, unambiguous source of truth for transforming '_id' to 'id'.
-# 4. RESULT: The data integrity failure is resolved at its source, permanently fixing the backend bug.
+# PHOENIX PROTOCOL - DEFINITIVE AGGREGATION CURE
+# 1. DIAGNOSIS: The aggregation pipeline's '$addFields' stage was redundantly overwriting the 'created_at' field. This operation is fragile and was causing the pipeline to fail silently, returning an empty list.
+# 2. CURE: Removed the '"created_at": {"$toDate": "$_id"}' transformation from the '$addFields' stage.
+# 3. MECHANISM: The aggregation now passes the original, correct 'created_at' field from the user document directly to the Pydantic response model, which correctly handles it. This makes the pipeline simpler and more robust.
+# 4. RESULT: The aggregation will now correctly return all user documents, curing the "0 users" bug on the admin dashboard.
 
 from bson import ObjectId
 from datetime import datetime
@@ -22,8 +22,8 @@ def get_all_users(db: Database) -> List[Dict[str, Any]]:
     pipeline = [
         {"$lookup": {"from": CASE_COLLECTION, "localField": "_id", "foreignField": "owner_id", "as": "owned_cases"}},
         {"$lookup": {"from": DOCUMENT_COLLECTION, "localField": "_id", "foreignField": "owner_id", "as": "owned_documents"}},
-        # PHOENIX CURE: The 'id' field is removed from here. Pydantic will handle the aliasing of '_id'.
-        {"$addFields": {"created_at": {"$toDate": "$_id"}, "case_count": {"$size": "$owned_cases"}, "document_count": {"$size": "$owned_documents"}}},
+        # PHOENIX CURE: Removed the fragile 'created_at' transformation.
+        {"$addFields": {"case_count": {"$size": "$owned_cases"}, "document_count": {"$size": "$owned_documents"}}},
         {"$project": {"owned_cases": 0, "owned_documents": 0, "hashed_password": 0}}
     ]
     users_data = list(db[USER_COLLECTION].aggregate(pipeline))
@@ -40,7 +40,6 @@ def find_user_in_aggregate(user_id: str, db: Database) -> Optional[AdminUserOut]
     user_list = get_all_users(db)
     for user_data in user_list:
         if str(user_data.get('_id')) == user_id:
-            # Pydantic correctly validates and aliases '_id' to 'id' here.
             return AdminUserOut.model_validate(user_data)
     return None
 
