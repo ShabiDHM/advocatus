@@ -21,29 +21,31 @@
     "loading": "Duke ngarkuar...",
     "copied": "U kopjua në kujtesë!"
   },
-  "auth": {
+   "auth": {
     "loginTitle": "Hyni në Juristi AI",
     "loginSubtitle": "Menaxhoni çështjet ligjore me inteligjencë.",
-    "email": "Email",
+    "usernameOrEmail": "Përdoruesi ose Email",
+    "usernameOrEmailPlaceholder": "psh: jdoe ose jdoe@example.com",
     "password": "Fjalëkalimi",
-    "firstName": "Emri",
-    "lastName": "Mbiemri",
     "loginButton": "Hyni",
+    "noAccount": "Nuk keni llogari?",
+    "registerLink": "Regjistrohu",
+    "loginFailed": "Hyrja dështoi. Ju lutemi kontrolloni kredencialet tuaja.",
     "registerTitle": "Krijoni Llogari",
     "registerSubtitle": "Bashkohuni me platformën më të avancuar ligjore.",
-    "fullName": "Emri i Plotë",
-    "registerButton": "Regjistrohu",
-    "noAccount": "Nuk keni llogari?",
-    "hasAccount": "Keni llogari?",
-    "registerLink": "Regjistrohu",
-    "loginLink": "Hyni këtu",
-    "loginFailed": "Identifikimi dështoi.",
-    "registerFailed": "Regjistrimi dështoi.",
-    "registrationSuccess": "Llogaria u Krijua!",
-    "gatekeeperMessage": "Llogaria juaj është krijuar me sukses. Për arsye sigurie, ajo duhet të miratohet nga Administratori para se të mund të hyni.",
-    "securityNotice": "Njoftim Sigurie",
-    "approvalWait": "Ju lutemi prisni njoftimin ose provoni të hyni pas pak.",
-    "backToLogin": "Kthehu te Hyrja"
+    "usernamePlaceholder": "psh: jdoe",
+    "emailPlaceholder": "psh: jdoe@example.com",
+    "passwordMinChars": "Min. 8 karaktere",
+    "createAccount": "Krijo Llogari",
+    "processing": "Duke procesuar...",
+    "hasAccount": "Tashmë keni një llogari?",
+    "signInLink": "Hyni",
+    "usernameTooShort": "Përdoruesi duhet të ketë të paktën 3 karaktere.",
+    "passwordTooShort": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.",
+    "registerFailed": "Regjistrimi dështoi. Ju lutemi provoni përsëri.",
+    "successTitle": "Llogaria u Krijua",
+    "successMessage": "Llogaria juaj është krijuar me sukses.",
+    "loginNow": "Vazhdoni te Hyrja"
   },
   "landing": {
     "heroTitle": "Inteligjenca Artificiale",
@@ -54,13 +56,13 @@
     "feature1Desc": "Skanoni dokumente për rreziqe ligjore dhe shkelje të kodit civil/penal.",
     "feature2Title": "AI Sokratike",
     "feature2Desc": "Bisedoni me dokumentet tuaja. Bëni pyetje dhe merrni përgjigje me citime.",
-    "feature3Title": "Draftim Inteligjent",
+    "feature3Title": "Hartim Inteligjent",
     "feature3Desc": "Krijoni kontrata dhe padi të personalizuara bazuar në shabllone të verifikuara."
   },
   "sidebar": {
     "dashboard": "Paneli",
     "calendar": "Kalendari",
-    "drafting": "Draftimi",
+    "drafting": "Hartimi",
     "business": "Zyra Ime",
     "support": "Ndihma",
     "admin": "Admin Panel",
@@ -139,11 +141,11 @@
     "missing": "Informacion i Munguar"
   },
   "drafting": {
-    "title": "Draftimi Inteligjent",
+    "title": "Hartimi Inteligjent",
     "subtitle": "Krijoni dokumente ligjore automatikisht.",
     "configuration": "Konfigurimi",
     "selectCaseLabel": "Zgjidhni Rastin",
-    "generalDraft": "Draftim i Përgjithshëm",
+    "generalDraft": "Hartim i Përgjithshëm",
     "instructionsLabel": "Udhëzimet",
     "promptPlaceholder": "Psh: Krijo një kontratë qiraje për një apartament...",
     "generateBtn": "Gjenero Dokumentin",
@@ -156,9 +158,9 @@
     "generatingMessage": "Duke gjeneruar draftin...",
     "emptyState": "Rezultati do të shfaqet këtu",
     "errorFetchResult": "Dështoi marrja e rezultatit",
-    "errorJobFailed": "Puna e draftimit dështoi",
+    "errorJobFailed": "Puna e hartimit dështoi",
     "errorConnectionLost": "Lidhja me serverin u humb",
-    "errorStartJob": "Dështoi fillimi i punës së draftimit"
+    "errorStartJob": "Dështoi fillimi i punës së hartimit"
   },
   "business": {
     "title": "Qendra e Biznesit",
@@ -279,6 +281,5 @@
     "legalInfo": "Informacione Ligjore",
     "legalDesc": "Lexoni politikën tonë të privatësisë për të kuptuar se si i mbrojmë të dhënat tuaja.",
     "privacyTitle": "Politika e Privatësisë"
-
   }
 }

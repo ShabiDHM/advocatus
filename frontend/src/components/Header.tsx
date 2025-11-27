@@ -1,11 +1,11 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - BUILD FIX & FUNCTIONALITY RESTORATION
-// 1. SYNTAX FIX: Corrected the closing JSX tag from </A> to </Link>, resolving the compilation error.
-// 2. RESTORATION: The temporary diagnostic block has been removed.
-// 3. RE-INTEGRATION: The LanguageSwitcher component has been restored to its correct position.
+// PHOENIX PROTOCOL - ARCHITECTURAL & UI REALIGNMENT
+// 1. NAVIGATION CLEANUP: Removed the redundant "Admin Panel" link. The sidebar is the single source of truth for main modules.
+// 2. UI FIX: Corrected inconsistent font size. Changed user role text from 'text-[10px]' to 'text-xs' for design consistency.
+// 3. VERIFIED: The "My Account" link remains correctly placed within this user-centric dropdown.
 
 import React, { useState } from 'react';
-import { Bell, Search, Menu, LogOut, User as UserIcon, Shield } from 'lucide-react';
+import { Bell, Search, Menu, LogOut, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -60,7 +60,8 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           >
             <div className="text-right hidden sm:block">
               <p className="text-sm font-medium text-white">{user?.username || 'User'}</p>
-              <p className="text-[10px] text-text-secondary uppercase tracking-wider">
+              {/* PHOENIX UI FIX: Corrected font size for consistency */}
+              <p className="text-xs text-text-secondary uppercase tracking-wider">
                 {user?.role || 'LAWYER'}
               </p>
             </div>
@@ -81,16 +82,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                   <p className="text-xs text-text-secondary truncate">{user?.email}</p>
                 </div>
 
-                {user?.role === 'ADMIN' && (
-                  <Link 
-                    to="/admin" 
-                    className="flex items-center px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
-                    onClick={() => setIsProfileOpen(false)}
-                  >
-                    <Shield size={16} className="mr-3 text-purple-400" />
-                    {t('sidebar.admin')}
-                  </Link>
-                )}
+                {/* PHOENIX ARCHITECTURAL FIX: "Admin Panel" removed. It belongs in the main sidebar. */}
 
                 <Link 
                   to="/account" 

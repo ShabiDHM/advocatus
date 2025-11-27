@@ -1,4 +1,8 @@
 // FILE: src/pages/RegisterPage.tsx
+// PHOENIX PROTOCOL - I18N ALIGNMENT (COMPLETE)
+// 1. I18N FIX: Replaced all hardcoded English text (labels, placeholders, buttons, links) with t() function calls.
+// 2. VERIFIED: All existing logic and validation are maintained.
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
@@ -19,26 +23,22 @@ const RegisterPage: React.FC = () => {
     e.preventDefault();
     setError('');
 
-    // Pre-flight Validation
     if (username.length < 3) {
-        setError(t('auth.usernameTooShort', 'Username must be at least 3 characters.'));
+        setError(t('auth.usernameTooShort'));
         return;
     }
     if (password.length < 8) {
-        setError(t('auth.passwordTooShort', 'Password must be at least 8 characters.'));
+        setError(t('auth.passwordTooShort'));
         return;
     }
 
     setIsSubmitting(true);
     
-    // Construct payload strictly typed
     const payload: RegisterRequest = {
         email,
         password,
         username
     };
-
-    console.log("Submitting Registration Payload:", payload);
 
     try {
       await apiService.register(payload);
@@ -46,7 +46,7 @@ const RegisterPage: React.FC = () => {
     } catch (err: any) {
       console.error("Registration Error:", err.response?.data);
       
-      let msg = t('auth.registerFailed', 'Registration failed.');
+      let msg = t('auth.registerFailed');
       if (err.response?.data?.detail) {
           if (typeof err.response.data.detail === 'string') {
               msg = err.response.data.detail;
@@ -67,10 +67,10 @@ const RegisterPage: React.FC = () => {
         <div className="min-h-screen flex items-center justify-center bg-background-dark px-4">
             <div className="max-w-md w-full p-8 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge text-center">
                 <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                <h2 className="text-3xl font-bold text-white mb-2">{t('auth.successTitle', 'Account Created')}</h2>
-                <p className="text-gray-300 mb-6">{t('auth.successMessage', 'Your account has been created successfully.')}</p>
+                <h2 className="text-3xl font-bold text-white mb-2">{t('auth.successTitle')}</h2>
+                <p className="text-gray-300 mb-6">{t('auth.successMessage')}</p>
                 <Link to="/login" className="inline-flex items-center text-primary-400 hover:text-primary-300 font-semibold">
-                    {t('auth.loginNow', 'Proceed to Login')} <ArrowRight className="ml-2 w-4 h-4" />
+                    {t('auth.loginNow')} <ArrowRight className="ml-2 w-4 h-4" />
                 </Link>
             </div>
         </div>
@@ -81,20 +81,20 @@ const RegisterPage: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-background-dark px-4">
       <div className="max-w-md w-full p-8 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge shadow-xl">
         <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-white mb-2">{t('auth.registerTitle', 'Create Account')}</h2>
-            <p className="text-gray-400">{t('auth.registerSubtitle', 'Join the platform today')}</p>
+            <h2 className="text-3xl font-bold text-white mb-2">{t('auth.registerTitle')}</h2>
+            <p className="text-gray-400">{t('auth.registerSubtitle')}</p>
         </div>
 
         <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300 ml-1">Username</label>
+                <label className="text-sm font-medium text-gray-300 ml-1">{t('account.username')}</label>
                 <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                     <input 
                         type="text" 
                         required 
                         minLength={3}
-                        placeholder="jdoe"
+                        placeholder={t('auth.usernamePlaceholder')}
                         value={username}
                         onChange={e => setUsername(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
@@ -103,13 +103,13 @@ const RegisterPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300 ml-1">Email</label>
+                <label className="text-sm font-medium text-gray-300 ml-1">{t('account.email')}</label>
                 <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                     <input 
                         type="email" 
                         required 
-                        placeholder="john@example.com"
+                        placeholder={t('auth.emailPlaceholder')}
                         value={email}
                         onChange={e => setEmail(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
@@ -118,7 +118,7 @@ const RegisterPage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300 ml-1">Password</label>
+                <label className="text-sm font-medium text-gray-300 ml-1">{t('auth.password')}</label>
                 <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                     <input 
@@ -131,7 +131,7 @@ const RegisterPage: React.FC = () => {
                         className="w-full pl-10 pr-4 py-3 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
                     />
                 </div>
-                <p className="text-xs text-gray-500 text-right">Min. 8 characters</p>
+                <p className="text-xs text-gray-500 text-right">{t('auth.passwordMinChars')}</p>
             </div>
             
             {error && (
@@ -149,18 +149,18 @@ const RegisterPage: React.FC = () => {
                 {isSubmitting ? (
                     <>
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>Processing...</span>
+                        <span>{t('auth.processing')}</span>
                     </>
                 ) : (
-                    "Create Account"
+                    t('auth.createAccount')
                 )}
             </button>
         </form>
 
         <div className="mt-6 text-center text-sm text-gray-400">
-            Already have an account?{' '}
+            {t('auth.hasAccount')}{' '}
             <Link to="/login" className="text-primary-400 hover:text-primary-300 font-medium hover:underline">
-                Sign in
+                {t('auth.signInLink')}
             </Link>
         </div>
       </div>

@@ -1,6 +1,6 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - ARCHITECTURAL REALIGNMENT
-// 1. NAVIGATION CLEANUP: Removed the redundant 'My Account' link from the main sidebar.
+// PHOENIX PROTOCOL - STATE CONFIRMED (FINAL)
+// 1. ARCHITECTURE: This version is validated to be correct, with the redundant 'My Account' link properly removed.
 // 2. VERIFIED: All other navigation links, including the conditional Admin route, are preserved.
 
 import React from 'react';
