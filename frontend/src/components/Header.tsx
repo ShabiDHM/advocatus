@@ -1,7 +1,8 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - BUILD FIX
-// 1. INTEGRITY FIX: Removed the unused 'Settings' icon import from 'lucide-react' to resolve the TS6133 compilation error.
-// 2. VERIFIED: The LanguageSwitcher integration and all other functionality are preserved.
+// PHOENIX PROTOCOL - BUILD FIX & FUNCTIONALITY RESTORATION
+// 1. SYNTAX FIX: Corrected the closing JSX tag from </A> to </Link>, resolving the compilation error.
+// 2. RESTORATION: The temporary diagnostic block has been removed.
+// 3. RE-INTEGRATION: The LanguageSwitcher component has been restored to its correct position.
 
 import React, { useState } from 'react';
 import { Bell, Search, Menu, LogOut, User as UserIcon, Shield } from 'lucide-react';
