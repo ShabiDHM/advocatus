@@ -1,5 +1,3 @@
-// FILE: src/components/CaseCard.tsx
-
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Case } from '../data/types';
@@ -27,7 +25,6 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
   const handleCalendarNav = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Redirect to calendar. In the future, we could append ?caseId=... for filtering
     navigate('/calendar');
   };
 
@@ -37,7 +34,8 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
 
   return (
     <MotionLink 
-      to={`/case/${caseData.id}`}
+      // PHOENIX FIX: Changed path from '/case/' to '/cases/' to match the router definition in App.tsx.
+      to={`/cases/${caseData.id}`}
       className="p-4 sm:p-6 rounded-2xl shadow-lg transition-all duration-300 cursor-pointer 
                  bg-background-light/50 backdrop-blur-sm border border-glass-edge
                  flex flex-col justify-between h-full"

@@ -1,11 +1,13 @@
 // FILE: src/pages/MainLayout.tsx
 // PHOENIX PROTOCOL - MAIN LAYOUT
-// Uses 'Outlet' to render child routes inside the dashboard shell.
+// 1. Uses 'Outlet' to render child routes inside the dashboard shell.
+// 2. Integrates the application-wide Footer component.
 
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
+import Footer from '../components/Footer'; // PHOENIX: Import the Footer component
 
 const MainLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -31,6 +33,9 @@ const MainLayout: React.FC = () => {
         <main className="flex-1 overflow-y-auto p-0 bg-gradient-to-br from-background-dark to-background-light/5 custom-scrollbar">
           <Outlet />
         </main>
+
+        {/* PHOENIX: Render the Footer component */}
+        <Footer />
       </div>
     </div>
   );
