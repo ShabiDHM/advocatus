@@ -1,8 +1,4 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - NAVIGATION LOGIC FIX
-// 1. NAVIGATION: Added 'handleCalendarNav' to redirect Alerts/Events clicks to /calendar.
-// 2. INTERACTION: Used e.preventDefault() and e.stopPropagation() to prevent opening the case details.
-// 3. MOBILE: Maintained previous responsive optimizations.
 
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';

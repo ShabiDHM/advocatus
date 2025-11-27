@@ -2,6 +2,7 @@
 // PHOENIX PROTOCOL - TYPES FINALIZATION
 // 1. UPDATED: User, RegisterRequest, UpdateUserRequest to match Backend 'username' field.
 // 2. REMOVED: 'full_name' field (not supported by backend).
+// 3. CORRECTED: CreateCaseRequest to use camelCase for client fields to match backend Pydantic model.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -159,9 +160,10 @@ export interface CreateCaseRequest {
     title: string;
     case_name?: string;
     description?: string;
-    client_name?: string;
-    client_email?: string;
-    client_phone?: string;
+    // PHOENIX: CORRECTED TO camelCase TO MATCH BACKEND API CONTRACT
+    clientName?: string;
+    clientEmail?: string;
+    clientPhone?: string;
     status?: string;
 }
 

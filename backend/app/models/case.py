@@ -1,7 +1,4 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - CHAT PERSISTENCE ENABLED
-# 1. Added 'chat_history' to CaseOut. This allows the frontend to receive 
-#    stored messages when loading the case (fixing the "disappearing chat" bug).
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from datetime import datetime

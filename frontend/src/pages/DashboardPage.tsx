@@ -1,15 +1,10 @@
-// FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD FIX
-// 1. REFACTOR: Replaced 'full_name' with 'username' in welcome message.
-// 2. VERIFIED: Matches updated User type definition.
-
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Plus, Briefcase, Clock, CheckCircle } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest } from '../data/types';
 import { useAuth } from '../context/AuthContext';
+import CaseCard from '../components/CaseCard';
 
 const DashboardPage: React.FC = () => {
   const { t } = useTranslation();
@@ -17,16 +12,33 @@ const DashboardPage: React.FC = () => {
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newCaseData, setNewCaseData] = useState({ title: '', case_number: '', description: '' });
+  
+  // PHOENIX: ALIGN STATE WITH camelCase API CONTRACT
+  const initialNewCaseData = { 
+    title: '', 
+    case_number: '', 
+    description: '',
+    clientName: '',
+    clientEmail: '',
+    clientPhone: ''
+  };
+  const [newCaseData, setNewCaseData] = useState(initialNewCaseData);
 
   useEffect(() => {
     loadCases();
   }, []);
 
   const loadCases = async () => {
+    setIsLoading(true);
     try {
       const data = await apiService.getCases();
-      setCases(data);
+      const casesWithDefaults = data.map(c => ({
+          ...c,
+          document_count: c.document_count || 0,
+          alert_count: c.alert_count || 0,
+          event_count: c.event_count || 0,
+      }));
+      setCases(casesWithDefaults);
     } catch (error) {
       console.error("Failed to load cases", error);
     } finally {
@@ -37,16 +49,20 @@ const DashboardPage: React.FC = () => {
   const handleCreateCase = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // PHOENIX: ALIGN PAYLOAD WITH camelCase API CONTRACT
       const payload: CreateCaseRequest = {
           case_number: newCaseData.case_number,
           title: newCaseData.title,
-          case_name: newCaseData.title, // Mapped alias
+          case_name: newCaseData.title,
           description: newCaseData.description,
+          clientName: newCaseData.clientName,
+          clientEmail: newCaseData.clientEmail,
+          clientPhone: newCaseData.clientPhone,
           status: 'open'
       };
       await apiService.createCase(payload);
       setShowCreateModal(false);
-      setNewCaseData({ title: '', case_number: '', description: '' });
+      setNewCaseData(initialNewCaseData); // Reset the form state
       loadCases();
     } catch (error) {
       console.error("Failed to create case", error);
@@ -54,12 +70,28 @@ const DashboardPage: React.FC = () => {
     }
   };
 
+  const handleDeleteCase = async (caseId: string) => {
+    if (window.confirm(t('dashboard.confirmDelete'))) {
+        try {
+            await apiService.deleteCase(caseId);
+            setCases(prevCases => prevCases.filter(c => c.id !== caseId));
+        } catch (error) {
+            console.error("Failed to delete case", error);
+            alert(t('error.generic'));
+        }
+    }
+  };
+
+  const handleModalInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setNewCaseData(prev => ({ ...prev, [name]: value }));
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
-          {/* FIXED: user.username instead of full_name */}
           <h1 className="text-3xl font-bold text-white">{t('dashboard.welcome', { name: user?.username?.split(' ')[0] })}</h1>
           <p className="text-text-secondary mt-1">{t('dashboard.subtitle', 'Pasqyra e rasteve tuaja aktive.')}</p>
         </div>
@@ -84,23 +116,11 @@ const DashboardPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {cases.map((c) => (
-            <Link key={c.id} to={`/cases/${c.id}`} className="group bg-background-light/30 backdrop-blur-md p-6 rounded-2xl border border-glass-edge hover:border-primary-start/50 transition-all hover:shadow-xl hover:-translate-y-1 block">
-              <div className="flex justify-between items-start mb-4">
-                <div className="p-3 rounded-xl bg-white/5 group-hover:bg-primary-start/20 transition-colors">
-                  <Briefcase className="h-6 w-6 text-text-primary group-hover:text-primary-start" />
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${c.status === 'open' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                  {c.status.toUpperCase()}
-                </span>
-              </div>
-              <h3 className="text-xl font-bold text-white mb-2 group-hover:text-primary-start transition-colors truncate">{c.case_name || c.title}</h3>
-              <p className="text-text-secondary text-sm mb-4 line-clamp-2">{c.description || "No description."}</p>
-              <div className="flex items-center text-xs text-text-secondary pt-4 border-t border-glass-edge/50">
-                <Clock size={14} className="mr-1" /> {new Date(c.created_at).toLocaleDateString()}
-                <span className="mx-2">•</span>
-                <span>#{c.case_number}</span>
-              </div>
-            </Link>
+            <CaseCard 
+              key={c.id} 
+              caseData={c} 
+              onDelete={handleDeleteCase} 
+            />
           ))}
         </div>
       )}
@@ -113,15 +133,26 @@ const DashboardPage: React.FC = () => {
             <form onSubmit={handleCreateCase} className="space-y-4">
               <div>
                 <label className="block text-sm text-text-secondary mb-1">{t('dashboard.caseNumber')}</label>
-                <input required type="text" value={newCaseData.case_number} onChange={e => setNewCaseData({...newCaseData, case_number: e.target.value})} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
+                <input required name="case_number" type="text" value={newCaseData.case_number} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
               </div>
               <div>
                 <label className="block text-sm text-text-secondary mb-1">{t('dashboard.caseTitle')}</label>
-                <input required type="text" value={newCaseData.title} onChange={e => setNewCaseData({...newCaseData, title: e.target.value})} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
+                <input required name="title" type="text" value={newCaseData.title} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
               </div>
+              
+              <div className="pt-4 mt-4 border-t border-glass-edge/50">
+                <label className="block text-sm text-text-secondary mb-1">{t('caseCard.client')}</label>
+                <div className="space-y-4">
+                    {/* PHOENIX: ALIGN INPUT NAMES WITH camelCase STATE */}
+                    <input required name="clientName" placeholder={t('dashboard.clientName')} type="text" value={newCaseData.clientName} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
+                    <input name="clientEmail" placeholder={t('dashboard.clientEmail')} type="email" value={newCaseData.clientEmail} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
+                    <input name="clientPhone" placeholder={t('dashboard.clientPhone')} type="tel" value={newCaseData.clientPhone} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm text-text-secondary mb-1">{t('dashboard.description')}</label>
-                <textarea value={newCaseData.description} onChange={e => setNewCaseData({...newCaseData, description: e.target.value})} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" rows={3} />
+                <textarea name="description" value={newCaseData.description} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" rows={3} />
               </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 rounded-lg hover:bg-white/10 text-text-secondary transition-colors">{t('general.cancel')}</button>
