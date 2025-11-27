@@ -1,7 +1,7 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - SERIALIZATION FIX
-# 1. ID MAPPING: Added 'serialization_alias="id"' to CaseOut.
-# 2. RESULT: Frontend correctly reads case IDs for the dropdown.
+# PHOENIX PROTOCOL - MODEL REPAIR (RESTORED MISSING CLASS)
+# 1. RESTORED: 'ClientDetailsOut' which is required by 'case_service.py'.
+# 2. MAINTAINED: Serialization fixes for dropdown IDs.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any
@@ -57,6 +57,19 @@ class CaseOut(CaseBase):
     # Flattened client details (optional)
     client_name: Optional[str] = None
 
+    model_config = ConfigDict(
+        populate_by_name=True,
+        from_attributes=True,
+        arbitrary_types_allowed=True,
+    )
+
+# PHOENIX RESTORATION: Required by case_service.py
+class ClientDetailsOut(BaseModel):
+    id: PyObjectId = Field(alias="_id", serialization_alias="id")
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    
     model_config = ConfigDict(
         populate_by_name=True,
         from_attributes=True,
