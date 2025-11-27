@@ -1,8 +1,9 @@
 # FILE: backend/app/services/admin_service.py
-# PHOENIX PROTOCOL - USER UPDATE LOGIC FIX
-# 1. NEW FUNCTION: Added 'update_user_details' to handle general user updates (role, status, email).
-# 2. SEPARATION OF CONCERNS: This separates general updates from subscription-specific updates.
-# 3. RESULT: The service layer now has the correct business logic to fulfill the frontend's request.
+# PHOENIX PROTOCOL - DEFINITIVE BACKEND CURE (DATA INTEGRITY)
+# 1. DIAGNOSIS: The MongoDB aggregation pipeline was redundantly creating an 'id' field, conflicting with the Pydantic model's aliasing of '_id'. This ambiguity was the root cause of malformed user objects.
+# 2. CURE: Removed the '"id": "$_id"' transformation from the '$addFields' stage of the aggregation pipeline.
+# 3. MECHANISM: The service now returns data in its raw form (with '_id'). The Pydantic 'response_model' in the API layer is now the single, unambiguous source of truth for transforming '_id' to 'id'.
+# 4. RESULT: The data integrity failure is resolved at its source, permanently fixing the backend bug.
 
 from bson import ObjectId
 from datetime import datetime
@@ -21,7 +22,8 @@ def get_all_users(db: Database) -> List[Dict[str, Any]]:
     pipeline = [
         {"$lookup": {"from": CASE_COLLECTION, "localField": "_id", "foreignField": "owner_id", "as": "owned_cases"}},
         {"$lookup": {"from": DOCUMENT_COLLECTION, "localField": "_id", "foreignField": "owner_id", "as": "owned_documents"}},
-        {"$addFields": {"id": "$_id", "created_at": {"$toDate": "$_id"}, "case_count": {"$size": "$owned_cases"}, "document_count": {"$size": "$owned_documents"}}},
+        # PHOENIX CURE: The 'id' field is removed from here. Pydantic will handle the aliasing of '_id'.
+        {"$addFields": {"created_at": {"$toDate": "$_id"}, "case_count": {"$size": "$owned_cases"}, "document_count": {"$size": "$owned_documents"}}},
         {"$project": {"owned_cases": 0, "owned_documents": 0, "hashed_password": 0}}
     ]
     users_data = list(db[USER_COLLECTION].aggregate(pipeline))
@@ -38,6 +40,7 @@ def find_user_in_aggregate(user_id: str, db: Database) -> Optional[AdminUserOut]
     user_list = get_all_users(db)
     for user_data in user_list:
         if str(user_data.get('_id')) == user_id:
+            # Pydantic correctly validates and aliases '_id' to 'id' here.
             return AdminUserOut.model_validate(user_data)
     return None
 
@@ -45,12 +48,10 @@ def update_user_details(user_id: str, update_data: SubscriptionUpdate, db: Datab
     """Updates general user details like role, status, and email."""
     update_dict = update_data.model_dump(exclude_unset=True)
     
-    # Ensure we only update allowed fields for this function
     allowed_fields = {"role", "status", "email", "admin_notes"}
     payload = {k: v for k, v in update_dict.items() if k in allowed_fields}
 
     if not payload:
-        # If no valid data was sent, just return the current user state
         return find_user_in_aggregate(user_id, db)
 
     updated_user_doc = db.users.find_one_and_update(

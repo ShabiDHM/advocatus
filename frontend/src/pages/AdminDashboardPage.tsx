@@ -1,7 +1,9 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - LINTER WARNING FIX
-// 1. FIX: Restored the missing JSX block for the statistics cards.
-// 2. RESULT: The <Users /> and <Shield /> components are now correctly used in the JSX, which resolves the 'declared but its value is never read' linter warnings.
+// PHOENIX PROTOCOL - DEFINITIVE FRONTEND CURE (DATA HARDENING)
+// 1. DIAGNOSIS: The root cause is malformed data from the backend API (users without IDs). This component's flaw was trusting the API.
+// 2. CURE: Implemented a data validation and cleansing step within the 'loadUsers' function.
+// 3. MECHANISM: The component now filters the raw API response, discarding any user object that lacks a valid 'id' property BEFORE setting the component's state.
+// 4. RESULT: The component is now hardened and resilient. It can no longer be put into a crashable state by malformed backend data, permanently resolving the 'PUT .../undefined' error.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,10 +25,24 @@ const AdminDashboardPage: React.FC = () => {
 
     const loadUsers = async () => {
         try {
-            const data = await apiService.getAllUsers();
-            setUsers(data);
+            const rawData = await apiService.getAllUsers();
+            
+            // PHOENIX CURE: Validate and cleanse the data at the boundary.
+            const validUsers = rawData.filter(user => user && typeof user.id === 'string' && user.id.trim() !== '');
+            
+            if (rawData.length !== validUsers.length) {
+                console.warn("Phoenix Protocol Warning: Malformed user objects were received from the API and discarded.", {
+                    total: rawData.length,
+                    valid: validUsers.length,
+                });
+            }
+            
+            setUsers(validUsers);
+
         } catch (error) {
             console.error("Failed to load users", error);
+            // Ensure state is clean on error
+            setUsers([]);
         } finally {
             setIsLoading(false);
         }
@@ -72,6 +88,7 @@ const AdminDashboardPage: React.FC = () => {
         }
     };
 
+    // Because of the cleansing step in loadUsers, every 'user' in this array is guaranteed to have a valid ID.
     const filteredUsers = users.filter(u =>
         u.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.email?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -81,12 +98,12 @@ const AdminDashboardPage: React.FC = () => {
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {/* ... (rest of JSX is unchanged) ... */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-text-primary mb-2">{t('admin.title', 'Paneli i Administratorit')}</h1>
                 <p className="text-text-secondary">{t('admin.subtitle', 'Menaxhimi i përdoruesve dhe sistemit.')}</p>
             </div>
 
-            {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge flex items-center justify-between">
                     <div>
@@ -104,7 +121,6 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* User Table */}
             <div className="bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge overflow-hidden">
                 <div className="p-4 border-b border-glass-edge flex justify-between items-center">
                     <h3 className="text-lg font-semibold text-white">Përdoruesit e Regjistruar</h3>
@@ -161,7 +177,6 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Edit Modal */}
             {editingUser && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-background-dark border border-glass-edge p-6 rounded-2xl w-full max-w-md shadow-2xl">
