@@ -1,7 +1,7 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - MODEL REPAIR (RESTORED MISSING CLASS)
-# 1. RESTORED: 'ClientDetailsOut' which is required by 'case_service.py'.
-# 2. MAINTAINED: Serialization fixes for dropdown IDs.
+# PHOENIX PROTOCOL - MODEL RESTORATION
+# 1. RESTORED: 'ChatMessage' (Required by chat_service.py).
+# 2. MAINTAINED: All previous fixes (ClientDetailsOut, Serialization aliases).
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any
@@ -37,7 +37,7 @@ class CaseUpdate(BaseModel):
 # DB Model
 class CaseInDB(CaseBase):
     id: PyObjectId = Field(alias="_id", default=None)
-    user_id: PyObjectId # The lawyer/user who owns the case
+    user_id: PyObjectId 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     chat_history: List[Dict[str, Any]] = []
@@ -49,12 +49,9 @@ class CaseInDB(CaseBase):
 
 # Return Model
 class CaseOut(CaseBase):
-    # PHOENIX FIX: Ensure 'id' is sent to frontend
     id: PyObjectId = Field(alias="_id", serialization_alias="id")
     created_at: datetime
     updated_at: datetime
-    
-    # Flattened client details (optional)
     client_name: Optional[str] = None
 
     model_config = ConfigDict(
@@ -63,7 +60,7 @@ class CaseOut(CaseBase):
         arbitrary_types_allowed=True,
     )
 
-# PHOENIX RESTORATION: Required by case_service.py
+# Required by case_service.py
 class ClientDetailsOut(BaseModel):
     id: PyObjectId = Field(alias="_id", serialization_alias="id")
     name: str
@@ -75,3 +72,9 @@ class ClientDetailsOut(BaseModel):
         from_attributes=True,
         arbitrary_types_allowed=True,
     )
+
+# PHOENIX RESTORATION: Required by chat_service.py
+class ChatMessage(BaseModel):
+    role: str # "user" or "ai"
+    content: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
