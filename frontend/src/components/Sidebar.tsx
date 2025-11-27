@@ -1,11 +1,12 @@
 // FILE: src/components/Sidebar.tsx
 // PHOENIX PROTOCOL - SIDEBAR NAVIGATION
-// 1. REFACTOR: Replaced 'full_name' with 'username' to match verified User type.
-// 2. VERIFIED: Sidebar now correctly displays the logged-in username.
+// 1. REFACTOR: Navigation items are now dynamically generated.
+// 2. ADDED: Permanent link to the '/account' page.
+// 3. ADDED: Conditional link to the '/admin' page, visible only to admin users.
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, LogOut, MessageSquare, Building2 } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, LogOut, MessageSquare, Building2, Shield, User } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 
@@ -19,13 +20,30 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const { logout, user } = useAuth();
   const location = useLocation();
 
-  const navItems = [
-    { icon: LayoutDashboard, label: t('sidebar.dashboard', 'Paneli'), path: '/dashboard' },
-    { icon: Calendar, label: t('sidebar.calendar', 'Kalendari'), path: '/calendar' },
-    { icon: FileText, label: t('sidebar.drafting', 'Draftimi'), path: '/drafting' },
-    { icon: Building2, label: t('sidebar.business', 'Zyra Ime'), path: '/business' },
-    { icon: MessageSquare, label: t('sidebar.support', 'Ndihma'), path: '/support' },
-  ];
+  // PHOENIX: Construct navItems dynamically to include conditional routes.
+  const getNavItems = () => {
+    const baseItems = [
+      { icon: LayoutDashboard, label: t('sidebar.dashboard', 'Paneli'), path: '/dashboard' },
+      { icon: Calendar, label: t('sidebar.calendar', 'Kalendari'), path: '/calendar' },
+      { icon: FileText, label: t('sidebar.drafting', 'Draftimi'), path: '/drafting' },
+      { icon: Building2, label: t('sidebar.business', 'Zyra Ime'), path: '/business' },
+      { icon: User, label: t('sidebar.account', 'Llogaria'), path: '/account' }, // PHOENIX: Added Account link
+      { icon: MessageSquare, label: t('sidebar.support', 'Ndihma'), path: '/support' },
+    ];
+
+    // Conditionally add the Admin link if the user is an admin.
+    if (user?.role === 'ADMIN') {
+      baseItems.splice(1, 0, { // Insert after Dashboard
+        icon: Shield,
+        label: t('sidebar.admin', 'Admin Panel'),
+        path: '/admin',
+      });
+    }
+
+    return baseItems;
+  };
+
+  const navItems = getNavItems();
 
   return (
     <>
@@ -89,11 +107,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
           <div className="p-4 border-t border-glass-edge bg-background-light/5">
             <div className="flex items-center mb-4 px-2">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary-start to-primary-end flex items-center justify-center text-white font-bold shadow-md">
-                    {/* FIXED: user.username instead of user.full_name */}
-                    {user?.username?.charAt(0) || 'U'}
+                    {user?.username?.charAt(0)?.toUpperCase() || 'U'}
                 </div>
                 <div className="ml-3 overflow-hidden">
-                    {/* FIXED: user.username instead of user.full_name */}
                     <p className="text-sm font-medium text-white truncate">{user?.username || 'User'}</p>
                     <p className="text-xs text-text-secondary truncate">{user?.email}</p>
                 </div>
