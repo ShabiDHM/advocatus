@@ -64,7 +64,8 @@
     "business": "Poslovni Centar",
     "support": "Pomoć",
     "admin": "Admin Panel",
-    "logout": "Odjava"
+    "logout": "Odjava",
+    "account": "Moj Nalog"
   },
   "header": {
     "searchPlaceholder": "Pretraži...",
@@ -172,7 +173,8 @@
     "taxId": "Poreski ID",
     "address": "Adresa",
     "city": "Grad",
-    "website": "Vebsajt"
+    "website": "Vebsajt",
+    "logoUploadFailed": "Postavljanje logotipa nije uspelo."
   },
   "account": {
     "title": "Podešavanja Naloga",
@@ -261,11 +263,15 @@
     "client": "Informacije o Klijentu"
   },
   "support": {
+    "title": "Centar za Pomoć",
     "contactInfo": "Kontakt Informacije",
     "sendMessage": "Pošaljite nam poruku",
     "messagePlaceholder": "Vaša poruka...",
     "sendButton": "Pošalji",
-    "successMessage": "Poruka uspešno poslata!"
+    "successMessage": "Poruka uspešno poslata!",
+    "legalInfo": "Pravne Informacije",
+    "legalDesc": "Pročitajte našu politiku privatnosti da biste razumeli kako štitimo vaše podatke.",
+    "privacyTitle": "Politika Privatnosti"
   },
   "footer": {
     "allRightsReserved": "Sva prava zadržana.",
