@@ -1,7 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - FINAL POLISH
-// 1. CLEANUP: Removed unused 'DraftingJobStatus' import.
-// 2. STATUS: Zero warnings, full UI/Logic restoration.
+// PHOENIX PROTOCOL - BUSINESS LOGIC RESTORATION
+// 1. INTEGRATION: Added 'Case Selection' dropdown (Business Logic).
+// 2. LOGIC: Fetches active cases on mount.
+// 3. UI: Aligned layout with the 'Draftimi Inteligjent' screenshot.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -16,8 +17,10 @@ import {
   CheckCircle,
   Clock,
   FileText,
-  Sparkles
+  Sparkles,
+  Briefcase
 } from 'lucide-react';
+import { Case } from '../data/types';
 
 interface DraftingJobState {
   jobId: string | null;
@@ -28,6 +31,11 @@ interface DraftingJobState {
 
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
+  
+  // State for Business Logic
+  const [cases, setCases] = useState<Case[]>([]);
+  const [selectedCaseId, setSelectedCaseId] = useState<string>('');
+  
   const [context, setContext] = useState('');
   const [currentJob, setCurrentJob] = useState<DraftingJobState>({
     jobId: null,
@@ -37,7 +45,6 @@ const DraftingPage: React.FC = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // History state
   const [jobHistory, setJobHistory] = useState<Array<{
     id: string;
     context: string;
@@ -48,6 +55,19 @@ const DraftingPage: React.FC = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+
+  // Load Cases on Mount (Business Logic)
+  useEffect(() => {
+    const loadCases = async () => {
+        try {
+            const data = await apiService.getCases();
+            setCases(data);
+        } catch (err) {
+            console.error("Failed to load cases for drafting context", err);
+        }
+    };
+    loadCases();
+  }, []);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -64,7 +84,7 @@ const DraftingPage: React.FC = () => {
     }
   }, [currentJob.result]);
 
-  // Cleanup polling on unmount
+  // Cleanup polling
   useEffect(() => {
     return () => {
       if (pollingIntervalRef.current) {
@@ -81,17 +101,13 @@ const DraftingPage: React.FC = () => {
     pollingIntervalRef.current = setInterval(async () => {
       try {
         const statusResponse = await apiService.getDraftingJobStatus(jobId);
-        // Map backend status to frontend state
         const newStatus = statusResponse.status; 
         
         setCurrentJob(prev => ({ ...prev, status: newStatus }));
 
         if (newStatus === 'COMPLETED') {
-          // Fetch the result
           try {
             const resultResponse = await apiService.getDraftingJobResult(jobId);
-            
-            // Prefer HTML, fallback to text
             const finalResult = resultResponse.document_text || resultResponse.result_text || "";
 
             setCurrentJob(prev => ({ 
@@ -100,26 +116,17 @@ const DraftingPage: React.FC = () => {
               error: null 
             }));
 
-            // Add to history
             setJobHistory(prev => [{
               id: jobId,
               context,
               result: finalResult,
               timestamp: new Date(),
-            }, ...prev.slice(0, 9)]); // Keep last 10 jobs
+            }, ...prev.slice(0, 9)]);
 
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-            }
+            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
           } catch (error: any) {
-            setCurrentJob(prev => ({ 
-              ...prev, 
-              error: 'Failed to fetch result',
-              status: 'FAILED'
-            }));
-            if (pollingIntervalRef.current) {
-              clearInterval(pollingIntervalRef.current);
-            }
+            setCurrentJob(prev => ({ ...prev, error: 'Failed to fetch result', status: 'FAILED' }));
+            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
           }
         } else if (newStatus === 'FAILED') {
           setCurrentJob(prev => ({ 
@@ -127,67 +134,37 @@ const DraftingPage: React.FC = () => {
             error: statusResponse.error || 'Job failed to complete',
             result: null
           }));
-          if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-          }
+          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
         }
       } catch (error: any) {
-        console.error('Polling error:', error);
-        setCurrentJob(prev => ({ 
-          ...prev, 
-          error: 'Failed to check job status',
-          status: 'FAILED'
-        }));
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current);
-        }
+        setCurrentJob(prev => ({ ...prev, error: 'Polling failed', status: 'FAILED' }));
+        if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       }
-    }, 3000); // Poll every 3 seconds
+    }, 3000);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!context.trim()) return;
 
     setIsSubmitting(true);
-    
-    // Reset current job state
-    setCurrentJob({
-      jobId: null,
-      status: null,
-      result: null,
-      error: null,
-    });
+    setCurrentJob({ jobId: null, status: null, result: null, error: null });
 
     try {
-      // Step 1: Initiate the drafting job using the verified apiService method
+      // INCLUDE case_id (Business Logic)
       const jobResponse = await apiService.initiateDraftingJob({
-        user_prompt: context.trim(), // API expects 'user_prompt'
-        context: context.trim()      // Legacy support just in case
+        user_prompt: context.trim(),
+        context: context.trim(),
+        case_id: selectedCaseId || undefined 
       });
 
       const jobId = jobResponse.job_id;
-      
-      setCurrentJob({
-        jobId,
-        status: 'PENDING',
-        result: null,
-        error: null,
-      });
-
-      // Step 2: Start polling for status
+      setCurrentJob({ jobId, status: 'PENDING', result: null, error: null });
       startPolling(jobId);
 
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || 
-                          error.message || 
-                          'Failed to create drafting job';
-      setCurrentJob(prev => ({ 
-        ...prev, 
-        error: errorMessage,
-        status: 'FAILED'
-      }));
+      const errorMessage = error.response?.data?.detail || error.message || 'Failed';
+      setCurrentJob(prev => ({ ...prev, error: errorMessage, status: 'FAILED' }));
     } finally {
       setIsSubmitting(false);
     }
@@ -195,12 +172,8 @@ const DraftingPage: React.FC = () => {
 
   const handleCopyResult = async () => {
     if (currentJob.result) {
-      try {
-        await navigator.clipboard.writeText(currentJob.result);
-        alert(t('general.copied', 'Copied to clipboard!'));
-      } catch (error) {
-        console.error('Failed to copy to clipboard:', error);
-      }
+      await navigator.clipboard.writeText(currentJob.result);
+      alert(t('general.copied', 'Copied!'));
     }
   };
 
@@ -219,218 +192,154 @@ const DraftingPage: React.FC = () => {
   };
 
   const handleNewDraft = () => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-    }
-    setCurrentJob({
-      jobId: null,
-      status: null,
-      result: null,
-      error: null,
-    });
+    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    setCurrentJob({ jobId: null, status: null, result: null, error: null });
     setContext('');
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-    }
   };
 
   const loadHistoryItem = (item: typeof jobHistory[0]) => {
     setContext(item.context);
-    setCurrentJob({
-      jobId: item.id,
-      status: 'COMPLETED',
-      result: item.result,
-      error: null,
-    });
+    setCurrentJob({ jobId: item.id, status: 'COMPLETED', result: item.result, error: null });
   };
 
   const getStatusIcon = () => {
     switch (currentJob.status) {
       case 'PENDING':
-      case 'PROCESSING':
-        return <Clock className="h-5 w-5 text-yellow-400 animate-pulse" />;
-      case 'COMPLETED':
-        return <CheckCircle className="h-5 w-5 text-green-400" />;
-      case 'FAILED':
-        return <AlertCircle className="h-5 w-5 text-red-400" />;
-      default:
-        return null;
-    }
-  };
-
-  const getStatusText = () => {
-    switch (currentJob.status) {
-      case 'PENDING':
-        return t('drafting.statusQueued', 'Job queued for processing...');
-      case 'PROCESSING':
-        return t('drafting.statusProcessing', 'AI is drafting your document...');
-      case 'COMPLETED':
-        return t('drafting.statusSuccess', 'Draft completed successfully!');
-      case 'FAILED':
-        return t('drafting.statusFailed', 'Draft generation failed');
-      default:
-        return '';
+      case 'PROCESSING': return <Clock className="h-5 w-5 text-yellow-400 animate-pulse" />;
+      case 'COMPLETED': return <CheckCircle className="h-5 w-5 text-green-400" />;
+      case 'FAILED': return <AlertCircle className="h-5 w-5 text-red-400" />;
+      default: return null;
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="text-center mb-8">
         <div className="flex justify-center mb-4">
-          <div className="bg-primary-600 p-3 rounded-full shadow-lg shadow-primary-600/20">
-            <PenTool className="h-8 w-8 text-white" />
-          </div>
+            <PenTool className="h-10 w-10 text-white" />
         </div>
-        <h1 className="text-3xl font-bold text-white mb-2">{t('drafting.title', 'AI Legal Drafting')}</h1>
-        <p className="text-gray-400 max-w-2xl mx-auto">
-          {t('drafting.subtitle', 'Provide context and instructions to generate professional legal documents.')}
-        </p>
+        <h1 className="text-3xl font-bold text-white mb-2">{t('drafting.title', 'Draftimi Inteligjent')}</h1>
+        <p className="text-gray-400">{t('drafting.subtitle', 'Krijoni dokumente ligjore automatikisht.')}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Main Content */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Input Form */}
-          <div className="bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl">
-            <form onSubmit={handleSubmit}>
-              <label htmlFor="context" className="block text-lg font-medium text-white mb-4">
-                {t('drafting.inputLabel', 'Document Context & Instructions')}
-              </label>
-              <textarea
-                ref={textareaRef}
-                id="context"
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                placeholder={t('drafting.placeholder', "Describe the legal document you need drafted...")}
-                className="block w-full px-4 py-3 border border-glass-edge rounded-xl bg-black/50 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none min-h-[200px] transition-all"
-                disabled={isSubmitting || (currentJob.status !== null && currentJob.status !== 'FAILED')}
-                required
-              />
-              <div className="flex justify-between items-center mt-4">
-                <span className="text-sm text-gray-500">
-                  {context.length} characters
-                </span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* LEFT COLUMN: Controls & Input */}
+        <div className="space-y-6">
+          <div className="bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+                
+                {/* CASE SELECTION (Business Logic) */}
+                <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                        {t('drafting.selectCase', 'Zgjidhni Rastin (Opsionale)')}
+                    </label>
+                    <div className="relative">
+                        <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <select 
+                            value={selectedCaseId}
+                            onChange={(e) => setSelectedCaseId(e.target.value)}
+                            className="w-full pl-10 pr-4 py-3 bg-black/50 border border-glass-edge rounded-xl text-white appearance-none focus:ring-1 focus:ring-primary-500 outline-none"
+                        >
+                            <option value="">{t('drafting.noCase', 'Pa Rast (Draftim i Përgjithshëm)')}</option>
+                            {cases.map(c => (
+                                <option key={c.id} value={c.id}>
+                                    {c.case_number} - {c.title}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                {/* CONTEXT INPUT */}
+                <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                        {t('drafting.inputLabel', 'Udhëzimet për Draftin')}
+                    </label>
+                    <textarea
+                        ref={textareaRef}
+                        value={context}
+                        onChange={(e) => setContext(e.target.value)}
+                        placeholder={t('drafting.placeholder', "Psh: Krijo një kontratë qiraje për një apartament në Prishtinë...")}
+                        className="w-full px-4 py-3 bg-black/50 border border-glass-edge rounded-xl text-white placeholder-gray-500 focus:ring-1 focus:ring-primary-500 outline-none min-h-[200px]"
+                        disabled={isSubmitting}
+                        required
+                    />
+                </div>
+
                 <button
                   type="submit"
-                  disabled={isSubmitting || !context.trim() || (currentJob.status !== null && currentJob.status !== 'FAILED')}
-                  className="inline-flex items-center px-6 py-2.5 rounded-xl shadow-lg text-sm font-bold text-white bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105"
+                  disabled={isSubmitting || !context.trim()}
+                  className="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-xl transition-all flex items-center justify-center gap-2"
                 >
-                  {isSubmitting ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      {t('general.processing', 'Submitting...')}
-                    </>
-                  ) : (
-                    <>
-                      <Send className="h-4 w-4 mr-2" />
-                      {t('drafting.generateBtn', 'Generate Draft')}
-                    </>
-                  )}
+                  {isSubmitting ? <RefreshCw className="animate-spin" /> : <Send />}
+                  {t('drafting.generateBtn', 'Gjenero Dokumentin')}
                 </button>
-              </div>
             </form>
           </div>
-
-          {/* Status Display */}
-          {currentJob.status && (
-            <div className="bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 animate-in fade-in slide-in-from-top-4">
-              <div className="flex items-center space-x-3 mb-4">
-                {getStatusIcon()}
-                <h2 className="text-xl font-semibold text-white">
-                  {t('drafting.statusTitle', 'Generation Status')}
-                </h2>
-              </div>
-              <p className="text-gray-300 mb-4">{getStatusText()}</p>
-              
-              {currentJob.error && (
-                <div className="bg-red-900/20 border border-red-500/50 rounded-xl p-4 mb-4">
-                  <div className="flex items-center space-x-2">
-                    <AlertCircle className="h-4 w-4 text-red-400 flex-shrink-0" />
-                    <span className="text-red-300">{currentJob.error}</span>
-                  </div>
-                </div>
-              )}
-              
-              {(currentJob.status === 'PENDING' || currentJob.status === 'PROCESSING') && (
-                <div className="w-full bg-black/50 rounded-full h-2 overflow-hidden">
-                  <div className="bg-primary-500 h-2 rounded-full animate-progress" style={{ width: '100%' }}></div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Result Display */}
-          {currentJob.result && (
-            <div ref={resultRef} className="bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-2xl animate-in fade-in slide-in-from-bottom-4">
-              <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-                <div className="flex items-center space-x-3">
-                  <Sparkles className="h-6 w-6 text-secondary-400" />
-                  <h2 className="text-xl font-semibold text-white">{t('drafting.resultTitle', 'Generated Draft')}</h2>
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={handleCopyResult}
-                    className="inline-flex items-center px-3 py-2 border border-glass-edge rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5 transition duration-200"
-                  >
-                    <Copy className="h-4 w-4 mr-2" />
-                    {t('general.copy', 'Copy')}
-                  </button>
-                  <button
-                    onClick={handleDownloadResult}
-                    className="inline-flex items-center px-3 py-2 border border-glass-edge rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/5 transition duration-200"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    {t('general.download', 'Download')}
-                  </button>
-                  <button
-                    onClick={handleNewDraft}
-                    className="inline-flex items-center px-3 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg text-sm transition duration-200 shadow-lg"
-                  >
-                    <PenTool className="h-4 w-4 mr-2" />
-                    {t('drafting.newDraft', 'New Draft')}
-                  </button>
-                </div>
-              </div>
-              
-              <div className="bg-black/80 rounded-xl p-6 border border-white/10 overflow-x-auto">
-                <pre className="whitespace-pre-wrap text-gray-300 font-mono text-sm leading-relaxed">
-                  {currentJob.result}
-                </pre>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Sidebar - History */}
-        <div className="lg:col-span-1">
-          <div className="bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 sticky top-8">
-            <h3 className="text-lg font-semibold text-white mb-4">{t('drafting.historyTitle', 'Recent Drafts')}</h3>
-            
-            {jobHistory.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText className="mx-auto h-12 w-12 text-gray-600 mb-4 opacity-50" />
-                <p className="text-gray-500 text-sm">{t('drafting.noHistory', 'No drafts generated yet')}</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {jobHistory.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => loadHistoryItem(item)}
-                    className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 transition duration-200 group"
-                  >
-                    <p className="text-gray-300 text-sm font-medium mb-1 line-clamp-2 group-hover:text-white">
-                      {item.context.substring(0, 100)}...
+        {/* RIGHT COLUMN: Results & Status */}
+        <div className="space-y-6">
+            {/* Status Panel */}
+            {currentJob.status && (
+                <div className="bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 animate-fade-in">
+                    <div className="flex items-center gap-3 mb-2">
+                        {getStatusIcon()}
+                        <h3 className="font-bold text-white">Statusi</h3>
+                    </div>
+                    <p className="text-gray-300 text-sm mb-3">
+                        {currentJob.status === 'PENDING' && "Duke u përgatitur..."}
+                        {currentJob.status === 'PROCESSING' && "Duke gjeneruar dokumentin..."}
+                        {currentJob.status === 'COMPLETED' && "Përfunduar me sukses!"}
+                        {currentJob.status === 'FAILED' && "Dështoi."}
                     </p>
-                    <p className="text-gray-500 text-xs">
-                      {item.timestamp.toLocaleDateString()} {item.timestamp.toLocaleTimeString()}
-                    </p>
-                  </button>
-                ))}
-              </div>
+                    {currentJob.error && <div className="text-red-400 text-sm">{currentJob.error}</div>}
+                </div>
             )}
-          </div>
+
+            {/* Result Display */}
+            <div className={`bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 min-h-[400px] flex flex-col ${!currentJob.result ? 'items-center justify-center text-center' : ''}`}>
+                {currentJob.result ? (
+                    <>
+                        <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-4">
+                            <div className="flex items-center gap-2 text-white font-bold">
+                                <Sparkles className="text-yellow-400" /> Rezultati
+                            </div>
+                            <div className="flex gap-2">
+                                <button onClick={handleCopyResult} className="p-2 hover:bg-white/10 rounded-lg text-gray-300"><Copy size={18}/></button>
+                                <button onClick={handleDownloadResult} className="p-2 hover:bg-white/10 rounded-lg text-gray-300"><Download size={18}/></button>
+                            </div>
+                        </div>
+                        <pre className="whitespace-pre-wrap text-gray-300 font-mono text-sm leading-relaxed overflow-x-auto">
+                            {currentJob.result}
+                        </pre>
+                        <button onClick={handleNewDraft} className="mt-4 w-full py-2 border border-white/20 hover:bg-white/5 text-white rounded-lg">
+                            Draft i Ri
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <FileText className="w-16 h-16 text-gray-600 mb-4" />
+                        <h3 className="text-xl font-bold text-white mb-2">Rezultati</h3>
+                        <p className="text-gray-500">Rezultati do të shfaqet këtu.</p>
+                    </>
+                )}
+            </div>
+            
+             {/* Simple History List */}
+             {jobHistory.length > 0 && (
+                <div className="bg-background-light/10 rounded-xl p-4 border border-glass-edge">
+                    <h4 className="text-white font-bold mb-3">Historiku</h4>
+                    <div className="space-y-2">
+                        {jobHistory.map((item) => (
+                            <button key={item.id} onClick={() => loadHistoryItem(item)} className="w-full text-left p-2 hover:bg-white/5 rounded text-gray-400 text-sm truncate">
+                                {item.timestamp.toLocaleTimeString()} - {item.context}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+             )}
         </div>
       </div>
     </div>
