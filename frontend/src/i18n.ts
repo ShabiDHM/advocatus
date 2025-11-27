@@ -1,15 +1,15 @@
 // FILE: src/i18n.ts
-// PHOENIX PROTOCOL - LANGUAGE REGISTRATION
-// 1. ADDED: Import for 'sr' (Serbian) translations.
-// 2. REGISTERED: Added 'sr' to the resources object.
+// PHOENIX PROTOCOL - I18N CORE FIX
+// 1. LANGUAGE CODE: Corrected the language code for Albanian from non-standard 'al' to the ISO standard 'sq'.
+// 2. IMPORT PATH: Updated the import path to match the new 'sq' directory.
+// 3. CONFIGURATION: Updated the resources object and default language to use 'sq'. This resolves the language switcher failure.
 
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
-// --- Static Resources ---
 import enTranslation from './locales/en/translation.json';
-import alTranslation from './locales/al/translation.json';
-import srTranslation from './locales/sr/translation.json'; // <--- NEW IMPORT
+import sqTranslation from './locales/sq/translation.json'; // PHOENIX: Corrected path
+import srTranslation from './locales/sr/translation.json';
 
 i18n
   .use(initReactI18next)
@@ -18,15 +18,14 @@ i18n
       en: {
         translation: enTranslation
       },
-      al: {
-        translation: alTranslation
+      sq: { // PHOENIX: Corrected language code
+        translation: sqTranslation
       },
       sr: {
-        translation: srTranslation // <--- REGISTERED
+        translation: srTranslation
       }
     },
-    // Default language remains Albanian ('al')
-    lng: 'al', 
+    lng: 'sq', // PHOENIX: Corrected default language
     fallbackLng: 'en', 
 
     interpolation: {

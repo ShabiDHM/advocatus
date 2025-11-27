@@ -1,7 +1,7 @@
 // FILE: src/pages/AccountPage.tsx
-// PHOENIX PROTOCOL - ACCOUNT PAGE FIX
-// 1. REFACTOR: Replaced 'full_name' with 'username' to match verified User type.
-// 2. UI: Updated label to reflect 'Username' field.
+// PHOENIX PROTOCOL - I18N ALIGNMENT
+// 1. I18N FIX: Replaced all hardcoded labels with t() function calls using the 'account' namespace for consistency.
+// 2. VERIFIED: All password change and account deletion functionality is preserved.
 
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
@@ -19,7 +19,7 @@ const AccountPage: React.FC = () => {
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwords.new !== passwords.confirm) {
-        alert(t('account.passwordMismatch', 'Fjalëkalimet nuk përputhen.'));
+        alert(t('account.passwordMismatch'));
         return;
     }
     setIsSaving(true);
@@ -28,7 +28,7 @@ const AccountPage: React.FC = () => {
             current_password: passwords.current,
             new_password: passwords.new
         });
-        alert(t('account.passwordUpdated', 'Fjalëkalimi u ndryshua me sukses.'));
+        alert(t('account.passwordUpdated'));
         setPasswords({ current: '', new: '', confirm: '' });
     } catch (error) {
         console.error(error);
@@ -39,7 +39,7 @@ const AccountPage: React.FC = () => {
   };
 
   const handleDeleteAccount = async () => {
-      if (!window.confirm(t('account.confirmDelete', 'A jeni të sigurt? Ky veprim është i pakthyeshëm.'))) return;
+      if (!window.confirm(t('account.confirmDelete'))) return;
       try {
           await apiService.deleteAccount();
           logout();
@@ -53,30 +53,29 @@ const AccountPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-3xl font-bold text-text-primary mb-8">{t('account.title', 'Llogaria Ime')}</h1>
+        <h1 className="text-3xl font-bold text-text-primary mb-8">{t('account.title')}</h1>
         
         <div className="grid gap-8">
             {/* Profile Info */}
             <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge">
                 <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-                    <User className="text-primary-start" /> {t('account.profileInfo', 'Informacione Personale')}
+                    <User className="text-primary-start" /> {t('account.profileInfo')}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        {/* FIXED: Label and Value updated to Username */}
-                        <label className="block text-sm text-text-secondary mb-1">{t('auth.username', 'Username')}</label>
+                        <label className="block text-sm text-text-secondary mb-1">{t('account.username')}</label>
                         <div className="px-4 py-2 bg-background-dark rounded-lg text-white border border-glass-edge">
                             {user.username}
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm text-text-secondary mb-1">{t('auth.email', 'Email')}</label>
+                        <label className="block text-sm text-text-secondary mb-1">{t('account.email')}</label>
                         <div className="px-4 py-2 bg-background-dark rounded-lg text-white border border-glass-edge">
                             {user.email}
                         </div>
                     </div>
                     <div>
-                        <label className="block text-sm text-text-secondary mb-1">{t('account.role', 'Roli')}</label>
+                        <label className="block text-sm text-text-secondary mb-1">{t('account.role')}</label>
                         <div className="px-4 py-2 bg-background-dark rounded-lg text-white border border-glass-edge capitalize">
                             {user.role.toLowerCase()}
                         </div>
@@ -87,12 +86,12 @@ const AccountPage: React.FC = () => {
             {/* Password Change */}
             <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge">
                 <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-                    <Lock className="text-secondary-start" /> {t('account.security', 'Siguria')}
+                    <Lock className="text-secondary-start" /> {t('account.security')}
                 </h3>
                 <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
                     <input 
                         type="password" 
-                        placeholder={t('account.currentPassword', 'Fjalëkalimi Aktual')}
+                        placeholder={t('account.currentPassword')}
                         required
                         value={passwords.current}
                         onChange={e => setPasswords({...passwords, current: e.target.value})}
@@ -100,7 +99,7 @@ const AccountPage: React.FC = () => {
                     />
                     <input 
                         type="password" 
-                        placeholder={t('account.newPassword', 'Fjalëkalimi i Ri')}
+                        placeholder={t('account.newPassword')}
                         required
                         value={passwords.new}
                         onChange={e => setPasswords({...passwords, new: e.target.value})}
@@ -108,7 +107,7 @@ const AccountPage: React.FC = () => {
                     />
                     <input 
                         type="password" 
-                        placeholder={t('account.confirmPassword', 'Konfirmo Fjalëkalimin')}
+                        placeholder={t('account.confirmPassword')}
                         required
                         value={passwords.confirm}
                         onChange={e => setPasswords({...passwords, confirm: e.target.value})}
@@ -116,7 +115,7 @@ const AccountPage: React.FC = () => {
                     />
                     <button type="submit" disabled={isSaving} className="px-6 py-2 rounded-lg bg-secondary-start hover:bg-secondary-end text-white font-medium transition-colors flex items-center gap-2 disabled:opacity-50">
                         {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
-                        {t('general.save', 'Ruaj')}
+                        {t('general.save')}
                     </button>
                 </form>
             </div>
@@ -124,11 +123,11 @@ const AccountPage: React.FC = () => {
             {/* Danger Zone */}
             <div className="bg-red-900/10 p-6 rounded-2xl border border-red-500/20">
                 <h3 className="text-xl font-semibold text-red-400 mb-4 flex items-center gap-2">
-                    <Trash2 /> {t('account.dangerZone', 'Zona e Rrezikut')}
+                    <Trash2 /> {t('account.dangerZone')}
                 </h3>
-                <p className="text-sm text-red-300/70 mb-4">{t('account.deleteWarning', 'Fshirja e llogarisë do të largojë të gjitha të dhënat tuaja përgjithmonë.')}</p>
+                <p className="text-sm text-red-300/70 mb-4">{t('account.deleteWarning')}</p>
                 <button onClick={handleDeleteAccount} className="px-4 py-2 rounded-lg border border-red-500 text-red-400 hover:bg-red-500 hover:text-white transition-all">
-                    {t('account.deleteAccount', 'Fshij Llogarinë')}
+                    {t('account.deleteAccount')}
                 </button>
             </div>
         </div>

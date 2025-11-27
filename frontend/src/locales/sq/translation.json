@@ -176,9 +176,11 @@
     "website": "Webfaqja",
     "logoUploadFailed": "Ngarkimi i logos dështoi."
   },
-  "account": {
+ "account": {
     "title": "Llogaria Ime",
     "profileInfo": "Informacione Personale",
+    "username": "Emri i përdoruesit",
+    "email": "Email",
     "role": "Roli",
     "security": "Siguria",
     "currentPassword": "Fjalëkalimi Aktual",

@@ -176,9 +176,11 @@
     "website": "Website",
     "logoUploadFailed": "Logo upload failed."
   },
-  "account": {
+    "account": {
     "title": "My Account",
     "profileInfo": "Personal Information",
+    "username": "Username",
+    "email": "Email",
     "role": "Role",
     "security": "Security",
     "currentPassword": "Current Password",

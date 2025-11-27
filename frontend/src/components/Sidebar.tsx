@@ -1,15 +1,14 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - SIDEBAR NAVIGATION
-// 1. BRANDING FIX: Replaced the placeholder "J" logo with the new, consistent BrandLogo component.
-// 2. REFACTOR: Navigation items remain dynamically generated.
-// 3. VERIFIED: Conditional link to '/admin' and permanent '/account' link are preserved.
+// PHOENIX PROTOCOL - ARCHITECTURAL REALIGNMENT
+// 1. NAVIGATION CLEANUP: Removed the redundant 'My Account' link from the main sidebar.
+// 2. VERIFIED: All other navigation links, including the conditional Admin route, are preserved.
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, LogOut, MessageSquare, Building2, Shield, User } from 'lucide-react';
+import { LayoutDashboard, Calendar, FileText, LogOut, MessageSquare, Building2, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import BrandLogo from './BrandLogo'; // PHOENIX: Import the new component
+import BrandLogo from './BrandLogo';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -23,18 +22,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 
   const getNavItems = () => {
     const baseItems = [
-      { icon: LayoutDashboard, label: t('sidebar.dashboard', 'Paneli'), path: '/dashboard' },
-      { icon: Calendar, label: t('sidebar.calendar', 'Kalendari'), path: '/calendar' },
-      { icon: FileText, label: t('sidebar.drafting', 'Draftimi'), path: '/drafting' },
-      { icon: Building2, label: t('sidebar.business', 'Zyra Ime'), path: '/business' },
-      { icon: User, label: t('sidebar.account', 'Llogaria'), path: '/account' },
-      { icon: MessageSquare, label: t('sidebar.support', 'Ndihma'), path: '/support' },
+      { icon: LayoutDashboard, label: t('sidebar.dashboard'), path: '/dashboard' },
+      { icon: Calendar, label: t('sidebar.calendar'), path: '/calendar' },
+      { icon: FileText, label: t('sidebar.drafting'), path: '/drafting' },
+      { icon: Building2, label: t('sidebar.business'), path: '/business' },
+      { icon: MessageSquare, label: t('sidebar.support'), path: '/support' },
     ];
 
     if (user?.role === 'ADMIN') {
       baseItems.splice(1, 0, {
         icon: Shield,
-        label: t('sidebar.admin', 'Admin Panel'),
+        label: t('sidebar.admin'),
         path: '/admin',
       });
     }
@@ -60,13 +58,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
       `}>
         <div className="flex flex-col h-full">
           
-          {/* Logo Area */}
           <div className="h-16 flex items-center px-6 border-b border-glass-edge bg-background-light/10">
-            {/* PHOENIX FIX: Using the BrandLogo component for consistency */}
             <BrandLogo />
           </div>
 
-          {/* Navigation Links */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -94,7 +89,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             })}
           </nav>
 
-          {/* User Profile & Logout */}
           <div className="p-4 border-t border-glass-edge bg-background-light/5">
             <div className="flex items-center mb-4 px-2">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary-start to-primary-end flex items-center justify-center text-white font-bold shadow-md">
@@ -111,7 +105,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
               className="w-full flex items-center justify-center px-4 py-2 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200"
             >
               <LogOut className="h-4 w-4 mr-2" />
-              {t('sidebar.logout', 'Dilni')}
+              {t('sidebar.logout')}
             </button>
           </div>
         </div>

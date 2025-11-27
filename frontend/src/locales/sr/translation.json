@@ -176,9 +176,11 @@
     "website": "Vebsajt",
     "logoUploadFailed": "Postavljanje logotipa nije uspelo."
   },
-  "account": {
-    "title": "Podešavanja Naloga",
+   "account": {
+    "title": "Moj Nalog",
     "profileInfo": "Lični Podaci",
+    "username": "Korisničko ime",
+    "email": "Email",
     "role": "Uloga",
     "security": "Bezbednost",
     "currentPassword": "Trenutna Lozinka",
