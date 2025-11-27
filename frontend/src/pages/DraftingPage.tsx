@@ -1,30 +1,23 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - FIX DRAFTING DISPLAY
-// 1. POLLING LOGIC: Robust status checking until completion.
-// 2. STATE MANAGEMENT: Ensures 'result' is captured and displayed immediately.
-// 3. I18N: Fully internationalized.
+// PHOENIX PROTOCOL - FINAL TYPE FIX
+// 1. INTERFACE: Strict union type for status.
+// 2. STATE: Correctly typed initialization.
+// 3. LOGIC: Safe string comparisons to satisfy TypeScript.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { 
-  PenTool, 
-  Send, 
-  Copy, 
-  Download, 
-  RefreshCw, 
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  FileText,
-  Sparkles,
-  Briefcase
+  PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, FileText, Sparkles, Briefcase
 } from 'lucide-react';
 import { Case } from '../data/types';
 
+// Define the Status Type explicitly
+type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'SUCCESS' | 'FAILED' | 'FAILURE';
+
 interface DraftingJobState {
   jobId: string | null;
-  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | null;
+  status: JobStatus | null;
   result: string | null;
   error: string | null;
 }
@@ -34,18 +27,19 @@ const DraftingPage: React.FC = () => {
   
   const [cases, setCases] = useState<Case[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>('');
-  
   const [context, setContext] = useState('');
+  
+  // Initialize with explicit type to avoid inference issues
   const [currentJob, setCurrentJob] = useState<DraftingJobState>({
-    jobId: null,
-    status: null,
-    result: null,
+    jobId: null, 
+    status: null, 
+    result: null, 
     error: null,
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
   
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const pollingIntervalRef = useRef<number | null>(null); // Use 'number' for window.setInterval
+  const pollingIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
     const loadCases = async () => {
@@ -71,13 +65,12 @@ const DraftingPage: React.FC = () => {
     pollingIntervalRef.current = window.setInterval(async () => {
       try {
         const statusResponse = await apiService.getDraftingJobStatus(jobId);
-        const newStatus = statusResponse.status; 
+        // Cast backend string to our JobStatus type
+        const newStatus = statusResponse.status as JobStatus; 
         
-        // Update status UI
         setCurrentJob(prev => ({ ...prev, status: newStatus }));
 
-        if (newStatus === 'COMPLETED') {
-          // Fetch final result
+        if (newStatus === 'COMPLETED' || newStatus === 'SUCCESS') {
           try {
             const resultResponse = await apiService.getDraftingJobResult(jobId);
             const finalResult = resultResponse.document_text || resultResponse.result_text || "";
@@ -89,17 +82,15 @@ const DraftingPage: React.FC = () => {
               error: null 
             }));
             
-            // Stop polling on success
             if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
             setIsSubmitting(false);
 
           } catch (error) {
-            console.error("Result fetch error:", error);
             setCurrentJob(prev => ({ ...prev, error: t('drafting.errorFetchResult'), status: 'FAILED' }));
             if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
             setIsSubmitting(false);
           }
-        } else if (newStatus === 'FAILED') {
+        } else if (newStatus === 'FAILED' || newStatus === 'FAILURE') {
           setCurrentJob(prev => ({ 
             ...prev, 
             status: 'FAILED',
@@ -110,7 +101,6 @@ const DraftingPage: React.FC = () => {
           setIsSubmitting(false);
         }
       } catch (error) {
-        // Network hiccup? Don't stop immediately unless repeated failures
         console.warn("Polling error:", error);
       }
     }, 2000);
@@ -164,8 +154,10 @@ const DraftingPage: React.FC = () => {
 
   const getStatusDisplay = () => {
     switch(currentJob.status) {
-      case 'COMPLETED': return { text: t('drafting.statusCompleted'), color: 'text-green-400', icon: <CheckCircle className="h-5 w-5 text-green-400" /> };
-      case 'FAILED': return { text: t('drafting.statusFailed'), color: 'text-red-400', icon: <AlertCircle className="h-5 w-5 text-red-400" /> };
+      case 'COMPLETED': 
+      case 'SUCCESS': return { text: t('drafting.statusCompleted'), color: 'text-green-400', icon: <CheckCircle className="h-5 w-5 text-green-400" /> };
+      case 'FAILED': 
+      case 'FAILURE': return { text: t('drafting.statusFailed'), color: 'text-red-400', icon: <AlertCircle className="h-5 w-5 text-red-400" /> };
       case 'PROCESSING':
       case 'PENDING': return { text: t('drafting.statusWorking'), color: 'text-yellow-400', icon: <Clock className="h-5 w-5 animate-pulse text-yellow-400" /> };
       default: return { text: t('drafting.statusResult'), color: 'text-white', icon: <Sparkles className="h-5 w-5 text-gray-500" /> };
@@ -176,7 +168,6 @@ const DraftingPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-[calc(100vh-theme(spacing.20))] flex flex-col">
-      {/* Page Header */}
       <div className="text-center mb-6 flex-shrink-0">
         <h1 className="text-3xl font-bold text-white mb-1 flex items-center justify-center gap-3">
              <PenTool className="text-primary-500" /> 
@@ -185,22 +176,16 @@ const DraftingPage: React.FC = () => {
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
 
-      {/* Main Grid - Equal Height Columns */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
-        
-        {/* LEFT COLUMN: Input */}
+        {/* Input Column */}
         <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
                 <FileText className="text-primary-400" size={20} />
                 {t('drafting.configuration')}
             </h3>
-            
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4">
-                {/* Case Selection */}
                 <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">
-                        {t('drafting.selectCaseLabel')}
-                    </label>
+                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.selectCaseLabel')}</label>
                     <div className="relative">
                         <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                         <select 
@@ -209,20 +194,12 @@ const DraftingPage: React.FC = () => {
                             className="w-full pl-9 pr-4 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white appearance-none focus:ring-1 focus:ring-primary-500 outline-none text-sm"
                         >
                             <option value="">-- {t('drafting.generalDraft')} --</option>
-                            {cases.map(c => (
-                                <option key={c.id} value={c.id}>
-                                    {c.case_number} - {c.title}
-                                </option>
-                            ))}
+                            {cases.map(c => <option key={c.id} value={c.id}>{c.case_number} - {c.title}</option>)}
                         </select>
                     </div>
                 </div>
-
-                {/* Prompt Input - Grows to fill space */}
                 <div className="flex-1 flex flex-col">
-                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">
-                        {t('drafting.instructionsLabel')}
-                    </label>
+                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.instructionsLabel')}</label>
                     <textarea
                         ref={textareaRef}
                         value={context}
@@ -232,8 +209,6 @@ const DraftingPage: React.FC = () => {
                         disabled={isSubmitting}
                     />
                 </div>
-
-                {/* Generate Button */}
                 <button
                   type="submit"
                   disabled={isSubmitting || !context.trim()}
@@ -245,69 +220,35 @@ const DraftingPage: React.FC = () => {
             </form>
         </div>
 
-        {/* RIGHT COLUMN: Status & Result */}
+        {/* Result Column */}
         <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl">
-            
-            {/* Header with Actions */}
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5 flex-shrink-0">
                 <h3 className="text-white font-semibold flex items-center gap-2">
                     {statusDisplay.icon}
-                    <span className={statusDisplay.color}>
-                        {statusDisplay.text}
-                    </span>
+                    <span className={statusDisplay.color}>{statusDisplay.text}</span>
                 </h3>
                 <div className="flex gap-2">
-                    <button 
-                        onClick={handleCopyResult} 
-                        disabled={!currentJob.result}
-                        className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors"
-                        title={t('drafting.copyTitle')}
-                    >
-                        <Copy size={18}/>
-                    </button>
-                    <button 
-                        onClick={handleDownloadResult} 
-                        disabled={!currentJob.result}
-                        className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors"
-                        title={t('drafting.downloadTitle')}
-                    >
-                        <Download size={18}/>
-                    </button>
+                    <button onClick={handleCopyResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.copyTitle')}><Copy size={18}/></button>
+                    <button onClick={handleDownloadResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.downloadTitle')}><Download size={18}/></button>
                 </div>
             </div>
-
-            {/* Error Message (Conditional) */}
             {currentJob.error && (
-                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-4 text-sm text-red-300 flex items-center gap-2 flex-shrink-0">
-                    <AlertCircle size={16} />
-                    {currentJob.error}
-                </div>
+                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-4 text-sm text-red-300 flex items-center gap-2 flex-shrink-0"><AlertCircle size={16} />{currentJob.error}</div>
             )}
-
-            {/* Result Area - Fills remaining space */}
             <div className="flex-1 bg-black/50 rounded-xl border border-white/5 p-4 overflow-auto custom-scrollbar relative">
                 {currentJob.result ? (
-                    <pre className="whitespace-pre-wrap text-gray-300 font-mono text-sm leading-relaxed">
-                        {currentJob.result}
-                    </pre>
+                    <pre className="whitespace-pre-wrap text-gray-300 font-mono text-sm leading-relaxed">{currentJob.result}</pre>
                 ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 opacity-50">
                         {isSubmitting || (currentJob.status === 'PENDING' || currentJob.status === 'PROCESSING') ? (
-                            <>
-                                <RefreshCw className="w-12 h-12 animate-spin mb-4 text-primary-500" />
-                                <p>{t('drafting.generatingMessage')}</p>
-                            </>
+                            <><RefreshCw className="w-12 h-12 animate-spin mb-4 text-primary-500" /><p>{t('drafting.generatingMessage')}</p></>
                         ) : (
-                            <>
-                                <FileText className="w-16 h-16 mb-4" />
-                                <p>{t('drafting.emptyState')}</p>
-                            </>
+                            <><FileText className="w-16 h-16 mb-4" /><p>{t('drafting.emptyState')}</p></>
                         )}
                     </div>
                 )}
             </div>
         </div>
-
       </div>
     </div>
   );
