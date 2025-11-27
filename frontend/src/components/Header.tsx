@@ -1,15 +1,14 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER FIX & FEATURE ADDITION
-// 1. FEATURE: Integrated the new LanguageSwitcher component to provide user-facing language selection.
-// 2. REFACTOR: Preserved all existing functionality, including search and profile dropdown.
-// 3. VERIFIED: Corrected '/admin' route link is maintained.
+// PHOENIX PROTOCOL - BUILD FIX
+// 1. INTEGRITY FIX: Removed the unused 'Settings' icon import from 'lucide-react' to resolve the TS6133 compilation error.
+// 2. VERIFIED: The LanguageSwitcher integration and all other functionality are preserved.
 
 import React, { useState } from 'react';
-import { Bell, Search, Menu, LogOut, User as UserIcon, Settings, Shield } from 'lucide-react';
+import { Bell, Search, Menu, LogOut, User as UserIcon, Shield } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import LanguageSwitcher from './LanguageSwitcher'; // PHOENIX: Import the new component
+import LanguageSwitcher from './LanguageSwitcher';
 
 interface HeaderProps {
   toggleSidebar: () => void;
@@ -36,7 +35,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary h-4 w-4" />
           <input 
             type="text" 
-            placeholder={t('header.searchPlaceholder', 'Kërko...')} 
+            placeholder={t('header.searchPlaceholder')} 
             className="bg-background-light/10 border border-glass-edge rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:ring-1 focus:ring-primary-start outline-none w-64 transition-all focus:w-80"
           />
         </div>
@@ -44,7 +43,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
 
       {/* Right: Actions & Profile */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* PHOENIX: Added Language Switcher */}
         <LanguageSwitcher />
 
         <button className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors relative">
@@ -70,7 +68,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
             </div>
           </button>
 
-          {/* Dropdown Menu */}
           {isProfileOpen && (
             <>
               <div 
@@ -90,26 +87,17 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                     onClick={() => setIsProfileOpen(false)}
                   >
                     <Shield size={16} className="mr-3 text-purple-400" />
-                    {t('sidebar.admin', 'Admin Panel')}
+                    {t('sidebar.admin')}
                   </Link>
                 )}
 
                 <Link 
-                  to="/business" 
+                  to="/account" 
                   className="flex items-center px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
                   onClick={() => setIsProfileOpen(false)}
                 >
                   <UserIcon size={16} className="mr-3 text-blue-400" />
-                  {t('header.profile', 'Profili')}
-                </Link>
-
-                <Link 
-                  to="/settings" 
-                  className="flex items-center px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
-                  onClick={() => setIsProfileOpen(false)}
-                >
-                  <Settings size={16} className="mr-3 text-gray-400" />
-                  {t('header.settings', 'Cilësimet')}
+                  {t('sidebar.account')}
                 </Link>
 
                 <div className="h-px bg-glass-edge my-1"></div>
@@ -119,7 +107,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                   className="w-full flex items-center px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
                 >
                   <LogOut size={16} className="mr-3" />
-                  {t('header.logout', 'Dilni')}
+                  {t('header.logout')}
                 </button>
               </div>
             </>

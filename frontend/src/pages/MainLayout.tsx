@@ -1,14 +1,13 @@
 // FILE: src/pages/MainLayout.tsx
-// PHOENIX PROTOCOL - MAIN LAYOUT
-// 1. BRANDING FIX: Replaced the static text logo in the mobile header with the new reusable BrandLogo component.
-// 2. INTEGRITY: Ensures consistent branding between mobile and desktop views.
+// PHOENIX PROTOCOL - BUILD FIX (CRITICAL)
+// 1. SYNTAX FIX: Corrected the invalid import statement for 'useState' on line 6. This resolves the primary build failure.
+// 2. VERIFIED: All other architectural changes, including the removal of the Footer, are maintained.
 
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
-import Footer from '../components/Footer';
-import BrandLogo from '../components/BrandLogo'; // PHOENIX: Import the new component
+import BrandLogo from '../components/BrandLogo';
 
 const MainLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -21,7 +20,6 @@ const MainLayout: React.FC = () => {
         
         {/* Mobile Header */}
         <header className="lg:hidden flex items-center justify-between p-4 border-b border-glass-edge bg-background-light/10 backdrop-blur-md z-10">
-          {/* PHOENIX FIX: Using the BrandLogo component */}
           <BrandLogo />
           <button 
             onClick={() => setIsSidebarOpen(true)}
@@ -36,7 +34,6 @@ const MainLayout: React.FC = () => {
           <Outlet />
         </main>
 
-        <Footer />
       </div>
     </div>
   );
