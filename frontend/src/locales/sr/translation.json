@@ -259,8 +259,13 @@
     }
   },
   "caseCard": {
+    "createdOn": "Kreirano",
+    "client": "Informacije o Klijentu",
+    "documents": "Dokumenti",
     "alerts": "Uzbune",
-    "client": "Informacije o Klijentu"
+    "events": "Događaji",
+    "viewDetails": "Pogledaj Detalje",
+    "deleteCase": "Obriši Slučaj"
   },
   "support": {
     "title": "Centar za Pomoć",
@@ -272,10 +277,6 @@
     "legalInfo": "Pravne Informacije",
     "legalDesc": "Pročitajte našu politiku privatnosti da biste razumeli kako štitimo vaše podatke.",
     "privacyTitle": "Politika Privatnosti"
-  },
-  "footer": {
-    "allRightsReserved": "Sva prava zadržana.",
-    "contactSupport": "Kontaktirajte Podršku",
-    "privacyPolicy": "Politika Privatnosti"
+ 
   }
 }

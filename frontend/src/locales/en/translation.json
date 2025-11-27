@@ -258,9 +258,14 @@
       "create": "Create Event"
     }
   },
-  "caseCard": {
+   "caseCard": {
+    "createdOn": "Created",
+    "client": "Client Information",
+    "documents": "Documents",
     "alerts": "Alerts",
-    "client": "Client Information"
+    "events": "Events",
+    "viewDetails": "View Details",
+    "deleteCase": "Delete Case"
   },
   "support": {
     "title": "Support Center",
@@ -272,10 +277,6 @@
     "legalInfo": "Legal Information",
     "legalDesc": "Read our privacy policy to understand how we protect your data.",
     "privacyTitle": "Privacy Policy"
-  },
-  "footer": {
-    "allRightsReserved": "All rights reserved.",
-    "contactSupport": "Contact Support",
-    "privacyPolicy": "Privacy Policy"
+ 
   }
 }

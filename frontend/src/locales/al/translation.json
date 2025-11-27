@@ -258,9 +258,14 @@
       "create": "Krijo Ngjarje"
     }
   },
-  "caseCard": {
-    "alerts": "Alarmet",
-    "client": "Informacioni i Klientit"
+   "caseCard": {
+    "createdOn": "Krijuar më",
+    "client": "Informacioni i Klientit",
+    "documents": "Dokumente",
+    "alerts": "Alarme",
+    "events": "Ngjarje",
+    "viewDetails": "Shiko Detajet",
+    "deleteCase": "Fshij Rastin"
   },
   "support": {
     "title": "Qendra e Ndihmës",
@@ -272,10 +277,6 @@
     "legalInfo": "Informacione Ligjore",
     "legalDesc": "Lexoni politikën tonë të privatësisë për të kuptuar se si i mbrojmë të dhënat tuaja.",
     "privacyTitle": "Politika e Privatësisë"
-  },
-  "footer": {
-    "allRightsReserved": "Të gjitha të drejtat e rezervuara.",
-    "contactSupport": "Kontakto Mbështetjen",
-    "privacyPolicy": "Politika e Privatësisë"
+
   }
 }
