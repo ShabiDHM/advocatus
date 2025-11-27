@@ -1,5 +1,3 @@
-# FILE: backend/app/api/endpoints/users.py
-
 from fastapi import APIRouter, Depends, status
 from typing import Annotated
 from pymongo.database import Database
@@ -24,7 +22,8 @@ def get_current_user_profile(
     # This ensures correct serialization and that all fields, including 'role', are included in the response.
     return UserOut.model_validate(current_user)
 
-@router.delete("/me", status_code=status.HTTP_2_NO_CONTENT)
+# PHOENIX FIX: Corrected the invalid status code to resolve the container startup crash.
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_own_account(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
