@@ -1,8 +1,7 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - ALERTS WINDOW FIX
-// 1. LOGIC CORRECTION: Added the missing upper-bound check.
-//    Now strictly filters events between Today (00:00) and Today + 7 Days.
-// 2. RESULT: December dates will NO LONGER appear in the sidebar if today is Nov 21.
+// PHOENIX PROTOCOL - LOCALIZATION FIX
+// 1. LOCALE: Mapped 'sq' directly to date-fns Albanian locale.
+// 2. FORMATTING: Ensures Month names (November -> Nëntor) are translated.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -22,7 +21,7 @@ import {
   addDays,
   Locale 
 } from 'date-fns';
-import { sq } from 'date-fns/locale';
+import { sq, enUS } from 'date-fns/locale'; // Import enUS for fallback
 import {
   Calendar as CalendarIcon, Clock, MapPin, Users, AlertCircle, Plus, ChevronLeft, ChevronRight,
   Search, FileText, Gavel, Briefcase, AlertTriangle, XCircle, Bell, ChevronDown
@@ -34,9 +33,11 @@ import '../styles/DatePicker.css';
 
 const DatePicker = (ReactDatePicker as any).default;
 
+// PHOENIX FIX: Map 'sq' (from i18next) to 'sq' (from date-fns)
 const localeMap: { [key: string]: Locale } = { 
-  al: sq,
-  en: undefined as unknown as Locale 
+  sq: sq, // Albanian
+  al: sq, // Fallback for legacy code
+  en: enUS  // English
 };
 
 interface EventDetailModalProps { event: CalendarEvent; onClose: () => void; onUpdate: () => void; }
@@ -96,7 +97,8 @@ const CalendarPage: React.FC = () => {
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterPriority, setFilterPriority] = useState<string>('ALL');
 
-  const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
+  // PHOENIX FIX: Ensure locale defaults to English if not found
+  const currentLocale = localeMap[i18n.language] || enUS;
 
   useEffect(() => { 
     loadData(); 
@@ -143,23 +145,15 @@ const CalendarPage: React.FC = () => {
            (filterPriority === 'ALL' || event.priority === filterPriority);
   });
 
-  // PHOENIX LOGIC FIX: Strict 7-Day Window Check
   const upcomingAlerts = events
     .filter(event => {
-        // 1. Must be a Deadline
         if (event.event_type !== 'DEADLINE') return false;
-
         const eventDate = new Date(event.start_date);
-        
-        // 2. Define Time Window
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Start of today
-        
+        today.setHours(0, 0, 0, 0);
         const sevenDaysFromNow = new Date(today);
         sevenDaysFromNow.setDate(today.getDate() + 7);
-        sevenDaysFromNow.setHours(23, 59, 59, 999); // End of 7th day
-
-        // 3. Check range
+        sevenDaysFromNow.setHours(23, 59, 59, 999);
         return eventDate >= today && eventDate <= sevenDaysFromNow;
     })
     .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
@@ -179,6 +173,7 @@ const CalendarPage: React.FC = () => {
                     <div key={getEventId(event)} onClick={() => setSelectedEvent(event)} className="p-4 hover:bg-background-dark/30 cursor-pointer transition-colors flex items-center justify-between">
                         <div className="flex items-start space-x-4">
                             <div className="flex-shrink-0 mt-1 text-center min-w-[50px]">
+                                {/* PHOENIX FIX: Month name localization */}
                                 <div className="text-xs text-text-secondary uppercase">{format(parseISO(event.start_date), 'MMM', { locale: currentLocale })}</div>
                                 <div className="text-xl font-bold text-text-primary">{format(parseISO(event.start_date), 'dd')}</div>
                             </div>
@@ -260,6 +255,7 @@ const CalendarPage: React.FC = () => {
     );
   };
 
+  // PHOENIX FIX: Translates 'November' to 'Nëntor'
   const monthName = format(currentDate, 'LLLL yyyy', { locale: currentLocale });
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
 
@@ -287,6 +283,7 @@ const CalendarPage: React.FC = () => {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
                         <div className="flex items-center justify-between sm:justify-start sm:space-x-4 w-full sm:w-auto">
                             <button onClick={() => navigateMonth('prev')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronLeft className="h-5 w-5" /></button>
+                            {/* PHOENIX FIX: Capitalize Month Name */}
                             <h2 className="text-lg sm:text-xl font-semibold text-text-primary capitalize">{monthName}</h2>
                             <button onClick={() => navigateMonth('next')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronRight className="h-5 w-5" /></button>
                             <button onClick={() => setCurrentDate(new Date())} className="hidden sm:block px-3 py-1 text-sm text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-md transition-colors border border-glass-edge">{t('calendar.today')}</button>
@@ -370,7 +367,7 @@ const CalendarPage: React.FC = () => {
 // Event Detail Modal Component (unchanged)
 const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onUpdate }) => {
     const { t, i18n } = useTranslation();
-    const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
+    const currentLocale = localeMap[i18n.language] || enUS; // PHOENIX FIX
     const [isDeleting, setIsDeleting] = useState(false);
 
     const isMidnight = (dateString: string) => {
@@ -446,7 +443,7 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
 // Create Event Modal Component (unchanged)
 const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onCreate }) => {
   const { t, i18n } = useTranslation();
-  const currentLocale = localeMap[i18n.language as keyof typeof localeMap] || undefined;
+  const currentLocale = localeMap[i18n.language] || enUS; // PHOENIX FIX
   const [isCreating, setIsCreating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [eventDate, setEventDate] = useState<Date | null>(null);
