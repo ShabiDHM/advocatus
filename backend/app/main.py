@@ -1,7 +1,7 @@
 # FILE: backend/app/main.py
 # PHOENIX PROTOCOL - ROUTER REGISTRATION
-# 1. ADDED: graph_router for visualization.
-# 2. STATUS: All modules (Finance, Graph, etc.) are active.
+# 1. ADDED: library_router for "Arkiva".
+# 2. STATUS: All modules (Finance, Graph, Library) active.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +22,8 @@ from app.api.endpoints.stream import router as stream_router
 from app.api.endpoints.support import router as support_router
 from app.api.endpoints.business import router as business_router
 from app.api.endpoints.finance import router as finance_router
-from app.api.endpoints.graph import router as graph_router # <--- NEW
+from app.api.endpoints.graph import router as graph_router
+from app.api.endpoints.library import router as library_router # <--- NEW
 
 # Drafting V2 (Safe Import)
 try:
@@ -77,7 +78,8 @@ api_v1_router.include_router(stream_router, prefix="/stream", tags=["Streaming"]
 api_v1_router.include_router(support_router, prefix="/support", tags=["Support"])
 api_v1_router.include_router(business_router, prefix="/business", tags=["Business"])
 api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"])
-api_v1_router.include_router(graph_router, prefix="/graph", tags=["Graph"]) # <--- NEW
+api_v1_router.include_router(graph_router, prefix="/graph", tags=["Graph"])
+api_v1_router.include_router(library_router, prefix="/library", tags=["Library"]) # <--- NEW
 
 app.include_router(api_v1_router)
 
