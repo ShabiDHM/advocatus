@@ -2,6 +2,7 @@
 // PHOENIX PROTOCOL - API MASTER FILE
 // 1. ADDED: Library methods (getTemplates, createTemplate, deleteTemplate).
 // 2. STATUS: Includes all previous modules (Finance, Graph, etc.).
+// 3. FIX: Excluded Authorization header from /auth/refresh requests to prevent middleware conflicts.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -39,12 +40,23 @@ class ApiService {
     private setupInterceptors() {
         this.axiosInstance.interceptors.request.use(
             (config) => {
+                // Ensure HTTPS if the window is HTTPS
                 if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
                     if (config.baseURL?.startsWith('http:')) config.baseURL = config.baseURL.replace('http:', 'https:');
                     if (config.url?.startsWith('http:')) config.url = config.url.replace('http:', 'https:');
                 }
-                const token = localStorage.getItem('jwtToken');
-                if (token) config.headers.Authorization = `Bearer ${token}`;
+
+                // Attach Access Token, BUT skip for the refresh endpoint
+                // The refresh endpoint relies solely on the HttpOnly cookie.
+                // Sending an expired Bearer token here can confuse backend middleware.
+                const isRefreshRequest = config.url?.includes('/auth/refresh');
+                if (!isRefreshRequest) {
+                    const token = localStorage.getItem('jwtToken');
+                    if (token) {
+                        config.headers.Authorization = `Bearer ${token}`;
+                    }
+                }
+
                 return config;
             },
             (error) => Promise.reject(error)
@@ -55,14 +67,17 @@ class ApiService {
             async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
                 const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh');
+
                 if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
                     originalRequest._retry = true;
                     try {
                         if (!this.refreshTokenPromise) this.refreshTokenPromise = this.refreshAccessToken();
                         await this.refreshTokenPromise;
                         this.refreshTokenPromise = null;
+                        
                         const newToken = localStorage.getItem('jwtToken');
                         if (newToken) originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                        
                         return this.axiosInstance(originalRequest);
                     } catch (refreshError) {
                         this.refreshTokenPromise = null;
@@ -78,7 +93,14 @@ class ApiService {
 
     public getToken(): string | null { return localStorage.getItem('jwtToken'); }
     public async post<T>(url: string, data: any): Promise<T> { const response = await this.axiosInstance.post<T>(url, data); return response.data; }
-    public async refreshAccessToken(): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); if (response.data.access_token) localStorage.setItem('jwtToken', response.data.access_token); return response.data; }
+    
+    // Note: This calls axiosInstance, which triggers the request interceptor.
+    // The interceptor now explicitly ignores adding the Authorization header for this URL.
+    public async refreshAccessToken(): Promise<LoginResponse> { 
+        const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); 
+        if (response.data.access_token) localStorage.setItem('jwtToken', response.data.access_token); 
+        return response.data; 
+    }
 
     // --- Business Profile ---
     public async getBusinessProfile(): Promise<BusinessProfile> { const response = await this.axiosInstance.get<BusinessProfile>('/business/profile'); return response.data; }
