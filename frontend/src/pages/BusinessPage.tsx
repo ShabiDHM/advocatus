@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUILD FIX
-// 1. TYPES: Aligned state and API calls with BusinessProfile interface.
-// 2. STATE: Handles null profile initialization gracefully.
-// 3. UI: Updated input fields to match BusinessProfileUpdate type.
+// PHOENIX PROTOCOL - INPUT SANITIZATION
+// 1. SAFETY: Converts empty strings ("") to null before sending to API.
+//    This prevents 422 Errors for optional fields like Website/Email.
+// 2. VALIDATION: Ensures 'firm_name' is never empty.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -39,9 +39,8 @@ const BusinessPage: React.FC = () => {
       setLoading(true);
       const data = await apiService.getBusinessProfile();
       setProfile(data);
-      // Initialize form with fetched data
       setFormData({
-        firm_name: data.firm_name,
+        firm_name: data.firm_name || '',
         email_public: data.email_public || '',
         phone: data.phone || '',
         address: data.address || '',
@@ -65,10 +64,27 @@ const BusinessPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+
     try {
-      const updatedProfile = await apiService.updateBusinessProfile(formData);
-      setProfile(updatedProfile);
-      alert(t('settings.successMessage', 'Profili u përditësua me sukses!'));
+        // PHOENIX FIX: Sanitize Data
+        // Convert empty strings to null so backend Pydantic models don't complain
+        // about invalid formats (e.g. empty string is not a valid EmailStr)
+        const cleanData: any = { ...formData };
+        
+        Object.keys(cleanData).forEach(key => {
+            if (cleanData[key] === '') {
+                cleanData[key] = null;
+            }
+        });
+
+        // Enforce required fields visually if needed, though backend handles defaults
+        if (!cleanData.firm_name) {
+            cleanData.firm_name = "Zyra Ligjore";
+        }
+
+        const updatedProfile = await apiService.updateBusinessProfile(cleanData);
+        setProfile(updatedProfile);
+        alert(t('settings.successMessage', 'Profili u përditësua me sukses!'));
     } catch (error) {
       console.error("Update failed:", error);
       alert(t('error.generic', 'Gabim gjatë ruajtjes.'));
