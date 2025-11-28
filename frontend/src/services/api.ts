@@ -1,6 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE
-// Includes: Auth, Cases, Documents, Business, Support, Calendar.
+// PHOENIX PROTOCOL - INTERCEPTOR LOGIC FIX
+// 1. FIX: Excludes '/auth/login' from auto-refresh logic.
+// 2. RESULT: 401 on Login correctly returns "Invalid Credentials" instead of triggering network loops.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -19,9 +20,7 @@ import type {
     DraftingJobResult,
     ChangePasswordRequest,
     Finding,
-    CaseAnalysisResult,
-    BusinessProfile,
-    BusinessProfileUpdate
+    CaseAnalysisResult
 } from '../data/types';
 
 interface LoginResponse {
@@ -32,6 +31,7 @@ interface DocumentContentResponse {
     text: string;
 }
 
+// Environment check
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
 
@@ -68,6 +68,7 @@ class ApiService {
                     if (config.baseURL?.startsWith('http:')) config.baseURL = config.baseURL.replace('http:', 'https:');
                     if (config.url?.startsWith('http:')) config.url = config.url.replace('http:', 'https:');
                 }
+                
                 const token = localStorage.getItem('jwtToken');
                 if (token) config.headers.Authorization = `Bearer ${token}`;
                 return config;
@@ -79,9 +80,18 @@ class ApiService {
             (response) => response,
             async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+                
+                // PHOENIX FIX: Don't refresh if the failure was the Refresh endpoint OR the Login endpoint
                 const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh');
+                const isLoginRequest = originalRequest?.url?.includes('/auth/login');
 
-                if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
+                if (
+                    error.response?.status === 401 && 
+                    originalRequest && 
+                    !originalRequest._retry && 
+                    !isRefreshRequest && 
+                    !isLoginRequest 
+                ) {
                     originalRequest._retry = true;
                     try {
                         if (!this.refreshTokenPromise) this.refreshTokenPromise = this.refreshAccessToken();
@@ -117,27 +127,7 @@ class ApiService {
         return response.data;
     }
 
-    // --- BUSINESS MODULE ---
-    public async getBusinessProfile(): Promise<BusinessProfile> {
-        const response = await this.axiosInstance.get<BusinessProfile>('/business/profile');
-        return response.data;
-    }
-
-    public async updateBusinessProfile(data: BusinessProfileUpdate): Promise<BusinessProfile> {
-        const response = await this.axiosInstance.put<BusinessProfile>('/business/profile', data);
-        return response.data;
-    }
-
-    public async uploadBusinessLogo(file: File): Promise<BusinessProfile> {
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await this.axiosInstance.post<BusinessProfile>('/business/logo', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        return response.data;
-    }
-
-    // --- SUPPORT ---
+    // --- Support ---
     public async sendContactForm(data: { firstName: string; lastName: string; email: string; phone: string; message: string }): Promise<void> {
         await this.axiosInstance.post('/support/contact', {
             first_name: data.firstName,
@@ -148,7 +138,7 @@ class ApiService {
         });
     }
 
-    // --- CASES ---
+    // --- Cases ---
     public async getCases(): Promise<Case[]> {
         const response = await this.axiosInstance.get<Case[]>('/cases');
         return response.data;
@@ -178,7 +168,7 @@ class ApiService {
         return response.data;
     }
     
-    // --- AUTH ---
+    // --- Auth ---
     public async login(data: LoginRequest): Promise<LoginResponse> {
         const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data);
         return response.data;
@@ -201,7 +191,7 @@ class ApiService {
         await this.axiosInstance.delete('/users/me');
     }
 
-    // --- DOCUMENTS ---
+    // --- Documents ---
     public async getDocuments(caseId: string): Promise<Document[]> {
         const response = await this.axiosInstance.get<Document[]>(`/cases/${caseId}/documents`);
         return response.data;
@@ -254,12 +244,12 @@ class ApiService {
         return "";
     }
 
-    // --- CHAT ---
+    // --- Chat ---
     public async clearChatHistory(caseId: string): Promise<void> {
         await this.axiosInstance.delete(`/chat/case/${caseId}/history`);
     }
 
-    // --- ADMIN ---
+    // --- Admin ---
     public async getAllUsers(): Promise<User[]> {
         const response = await this.axiosInstance.get<User[]>('/admin/users');
         return response.data;
@@ -274,7 +264,7 @@ class ApiService {
         await this.axiosInstance.delete(`/admin/users/${userId}`);
     }
 
-    // --- CALENDAR ---
+    // --- Calendar ---
     public async getCalendarEvents(): Promise<CalendarEvent[]> {
         const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events');
         return response.data;
@@ -289,7 +279,7 @@ class ApiService {
         await this.axiosInstance.delete(`/calendar/events/${eventId}`);
     }
 
-    // --- DRAFTING ---
+    // --- Drafting ---
     public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> {
         const response = await this.axiosInstance.post<DraftingJobStatus>(`${API_BASE_URL}/api/v2/drafting/jobs`, data);
         return response.data;
