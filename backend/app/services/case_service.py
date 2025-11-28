@@ -1,19 +1,19 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - TYPE VALIDATION FIX
-# 1. FIX: Passed raw 'ObjectId' to return dict instead of 'str'.
-# 2. REASONING: Pydantic 'PyObjectId' requires the object instance for validation.
-# 3. SAFETY: Strings are still used for internal DB queries (counts/deletes).
+# PHOENIX PROTOCOL - TYPE SAFE
+# 1. FIX: Added 'cast(Dict[str, Any], new_case)' to satisfy Pylance.
+# 2. INTEGRATION: Maintains graph cleanup logic.
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
 from bson import ObjectId
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional, List
+from datetime import datetime, timezone
+from typing import Dict, Any, Optional, List, cast
 
 from ..models.case import CaseCreate
 from ..models.user import UserInDB
 from ..models.drafting import DraftRequest
 from ..celery_app import celery_app
+from .graph_service import graph_service
 
 # --- HELPER: DATA ADAPTER ---
 def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) -> Optional[Dict[str, Any]]:
@@ -21,7 +21,6 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
     Normalizes a MongoDB case document to match the CaseOut schema.
     """
     try:
-        # We need the string version for DB queries (counts)
         case_id_str = str(case_doc["_id"])
         
         title = case_doc.get("title") or case_doc.get("case_name") or "Untitled Case"
@@ -44,8 +43,6 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             }
 
         return {
-            # PHOENIX FIX: Pass the raw ObjectId, not the string.
-            # Pydantic's PyObjectId validator expects an instance of ObjectId.
             "id": case_doc["_id"],
             "case_number": case_number,
             "title": title,
@@ -86,7 +83,8 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
     if not new_case:
         raise HTTPException(status_code=500, detail="Failed to create case.")
 
-    return _map_case_document(new_case, db)
+    # PHOENIX FIX: Explicit cast to satisfy strict type checking
+    return _map_case_document(cast(Dict[str, Any], new_case), db)
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     results = []
@@ -108,13 +106,23 @@ def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional
     return _map_case_document(case, db)
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
-    result = db.cases.delete_one({
+    case = db.cases.find_one({
         "_id": case_id, 
         "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]
     })
-    if result.deleted_count == 0:
+    if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
 
+    # Clean up Graph Nodes
+    docs = db.documents.find({"case_id": case_id})
+    for doc in docs:
+        try:
+            graph_service.delete_document_nodes(str(doc["_id"]))
+        except Exception:
+            pass
+
+    result = db.cases.delete_one({"_id": case_id})
+    
     case_id_str = str(case_id)
     db.documents.delete_many({"case_id": case_id})
     db.calendar_events.delete_many({"case_id": case_id_str})

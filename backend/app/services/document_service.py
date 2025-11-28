@@ -1,7 +1,7 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - INTEGRATION UPDATE
-# 1. CLEANUP: Now calls 'deadline_service.delete_deadlines_by_document_id'.
-# 2. This ensures that when a document is deleted, its calendar events vanish too.
+# PHOENIX PROTOCOL - IMPORT FIX
+# 1. FIX: Imported 'graph_service' instance explicitly from its module.
+# 2. LOGIC: Ensures 'delete_document_nodes' is called on the object, not the module.
 
 import logging
 from bson import ObjectId
@@ -14,7 +14,10 @@ from fastapi import HTTPException
 
 from ..models.document import DocumentOut, DocumentStatus
 from ..models.user import UserInDB
+
+# PHOENIX FIX: Separated imports to ensure we get the INSTANCE of graph_service
 from . import vector_store_service, storage_service, findings_service, deadline_service
+from .graph_service import graph_service 
 
 logger = logging.getLogger(__name__)
 
@@ -115,11 +118,16 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     preview_key = document_to_delete.get("preview_storage_key")
 
     deleted_finding_ids = findings_service.delete_findings_by_document_id(db=db, document_id=doc_id)
-    
-    # PHOENIX FIX: Delete associated calendar events
     deadline_service.delete_deadlines_by_document_id(db=db, document_id=doc_id_str)
     
+    # PHOENIX FIX: Clean graph
+    try:
+        graph_service.delete_document_nodes(doc_id_str)
+    except Exception as e:
+        logger.warning(f"Failed to clean graph nodes for doc {doc_id_str}: {e}")
+
     vector_store_service.delete_document_embeddings(document_id=doc_id_str)
+    
     if storage_key: storage_service.delete_file(storage_key=storage_key)
     if processed_key: storage_service.delete_file(storage_key=processed_key)
     if preview_key: storage_service.delete_file(storage_key=preview_key)
