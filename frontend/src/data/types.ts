@@ -1,7 +1,7 @@
 // FILE: src/data/types.ts
 // PHOENIX PROTOCOL - DATA TYPES
-// 1. ADDED: LibraryTemplate, CreateTemplateRequest interfaces.
-// 2. STATUS: Fully synchronized with Backend.
+// 1. ADDED: 'use_library' boolean to CreateDraftingJobRequest.
+// 2. STATUS: Synchronized with Backend DraftRequest model.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -184,9 +184,32 @@ export interface UpdateUserRequest { username?: string; email?: string; role?: s
 export interface CreateCaseRequest { case_number: string; title: string; case_name?: string; description?: string; clientName?: string; clientEmail?: string; clientPhone?: string; status?: string; }
 export interface DeletedDocumentResponse { documentId: string; deletedFindingIds: string[]; }
 export interface CalendarEventCreateRequest { title: string; description?: string; start_date: string; end_date?: string; is_all_day?: boolean; event_type: string; case_id?: string; location?: string; notes?: string; priority?: string; attendees?: string[]; }
-export interface CreateDraftingJobRequest { template_id?: string; user_prompt: string; case_id?: string; context?: string; }
-export type DraftingJobStatus = { job_id: string; status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; error?: string; result_summary?: string; };
-export type DraftingJobResult = { document_text: string; document_html: string; result_text?: string; };
+
+// --- DRAFTING ---
+export interface CreateDraftingJobRequest { 
+    user_prompt: string; 
+    template_id?: string; 
+    case_id?: string; 
+    context?: string;
+    draft_type?: string;   // Added for compatibility with backend document_type
+    use_library?: boolean; // PHOENIX FIX: Added for Arkiva Toggle
+}
+
+export type DraftingJobStatus = { 
+    job_id: string; 
+    status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; 
+    error?: string; 
+    result_summary?: string; 
+};
+
+export type DraftingJobResult = { 
+    document_text: string; 
+    document_html?: string; 
+    result_text?: string; 
+    job_id?: string;
+    status?: string;
+};
+
 export interface CaseAnalysisResult { summary_analysis: string; contradictions: string[]; risks: string[]; missing_info: string[]; error?: string; }
 export interface GraphNode { id: string; name: string; group: string; val: number; }
 export interface GraphLink { source: string; target: string; label: string; }

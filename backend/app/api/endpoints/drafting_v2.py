@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/drafting_v2.py
-# PHOENIX PROTOCOL - DRAFTING RESULT FIX
-# 1. DEBUG LOGGING: Prints the retrieved DB document structure.
-# 2. FALLBACK: Checks 'document_text' AND 'result_text' to ensure data recovery.
+# PHOENIX PROTOCOL - DRAFTING ENDPOINT V2
+# 1. UPDATE: Passes 'use_library' flag to Celery worker.
+# 2. STATUS: Connects Frontend Toggle -> Backend Logic.
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import Annotated
@@ -23,17 +23,19 @@ async def create_drafting_job(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
 ):
     try:
+        # PHOENIX FIX: Included 'use_library' in the task arguments
         task = celery_app.send_task(
             "process_drafting_job",
             kwargs={
                 "case_id": request_data.case_id,
                 "user_id": str(current_user.id),
                 "draft_type": request_data.document_type,
-                "user_prompt": request_data.prompt
+                "user_prompt": request_data.prompt,
+                "use_library": request_data.use_library # <--- PASSED HERE
             }
         )
         job_id = task.id
-        logger.info(f"Dispatched drafting job with Celery Task ID: {job_id}")
+        logger.info(f"Dispatched drafting job with Celery Task ID: {job_id} (Library: {request_data.use_library})")
         return {"status": "Job initiated successfully", "job_id": job_id}
     except Exception as e:
         logger.error(f"Failed to dispatch Celery task: {e}", exc_info=True)
@@ -44,7 +46,6 @@ async def get_job_status(
     job_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
 ):
-    # Only log on failure/completion to reduce noise
     task_result = AsyncResult(job_id, app=celery_app)
     task_status = task_result.status
     summary = task_result.result if task_status != "PENDING" else "Task is still pending."
@@ -67,11 +68,7 @@ async def get_job_result(
         logger.warning(f"❌ Job {job_id} not found in drafting_results collection.")
         raise HTTPException(status_code=404, detail="No result found for job ID.")
 
-    # PHOENIX FIX: Check both potential field names
     final_text = result_doc.get("result_text") or result_doc.get("document_text")
-    
-    # DEBUG: Print the keys found to help diagnosis
-    logger.info(f"🔍 DB Record Keys: {list(result_doc.keys())}")
     
     if not final_text:
         logger.error(f"❌ Document found but TEXT is missing. Content: {str(result_doc)[:100]}...")
@@ -81,6 +78,5 @@ async def get_job_result(
         "job_id": job_id,
         "status": result_doc.get("status"),
         "result_text": final_text,
-        # Include legacy field just in case frontend looks for it
         "document_text": final_text 
     }

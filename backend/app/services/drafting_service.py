@@ -1,8 +1,7 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - BUSINESS PROFILE RESTORED
-# 1. FIX: Updated 'user.full_name' to 'user.username' to match User model.
-# 2. PROFILE LOOKUP: Fetches 'business_profiles' to get Firm Name/Address.
-# 3. HYBRID AI: Retains Cloud/Local fallback.
+# PHOENIX PROTOCOL - DRAFTING ENGINE V2.4 (TYPE CASTING FIX)
+# 1. FIX: Added 'cast(Database, db)' to satisfy strict Pylance checks in asyncio.to_thread.
+# 2. STATUS: Type-safe and operational.
 
 import os
 import asyncio
@@ -13,6 +12,7 @@ from typing import AsyncGenerator, Optional, List, Any, cast, Dict
 from groq import AsyncGroq
 from groq.types.chat import ChatCompletionMessageParam
 from pymongo.database import Database
+from bson import ObjectId
 
 from ..models.user import UserInDB
 from app.services.text_sterilization_service import sterilize_text_for_llm 
@@ -25,7 +25,11 @@ logger = structlog.get_logger(__name__)
 LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
 LOCAL_MODEL_NAME = "llama3"
 
+# --- HELPER FUNCTIONS ---
+
 def _get_template_augmentation(draft_type: str, jurisdiction: str, favorability: Optional[str], db: Database) -> Optional[str]:
+    if db is None: return None
+    
     template_filter = {
         "document_type": draft_type,
         "jurisdiction": jurisdiction,
@@ -53,7 +57,7 @@ def _fetch_relevant_laws(prompt_text: str) -> str:
         laws = query_legal_knowledge_base(embedding, n_results=3)
         if not laws: return ""
 
-        law_buffer = ["\n=== BAZA LIGJORE E DETYRUESHME (NGA DATABAZA) ==="]
+        law_buffer = ["\n=== BAZA LIGJORE E DETYRUESHME (NGA DATABAZA PUBLIKE) ==="]
         for law in laws:
             source = law.get('document_name', 'Ligj')
             text = law.get('text', '')[:1500] 
@@ -63,37 +67,78 @@ def _fetch_relevant_laws(prompt_text: str) -> str:
         logger.warning(f"Drafting RAG Lookup failed: {e}")
         return ""
 
+def _fetch_library_context(db: Database, user_id: str, prompt_text: str) -> str:
+    # Explicit check for safety, though caller should handle types
+    if db is None: return ""
+    
+    try:
+        cursor = db.library.find({"user_id": ObjectId(user_id)})
+        templates = list(cursor)
+        
+        if not templates: return ""
+
+        matches = []
+        prompt_lower = prompt_text.lower()
+
+        for t in templates:
+            title = t.get("title", "").lower()
+            if title in prompt_lower or any(word in prompt_lower for word in title.split() if len(word) > 4):
+                matches.append(t)
+                continue
+            
+            tags = [tag.lower() for tag in t.get("tags", [])]
+            if any(tag in prompt_lower for tag in tags):
+                matches.append(t)
+                continue
+            
+            category = t.get("category", "").lower() 
+            if category in prompt_lower:
+                matches.append(t)
+
+        if not matches: return ""
+
+        buffer = ["\n=== ARKIVA LIGJORE E PËRDORUESIT (MODELET PERSONALIZUARA) ==="]
+        buffer.append("Instruksion: Përdoruesi ka modele të ruajtura që mund të jenë relevante. Nëse përshtaten, përdori ato me përparësi.")
+        
+        for m in matches[:3]: 
+            buffer.append(f"--- MODEL: {m.get('title')} ---")
+            buffer.append(f"TIPI: {m.get('category', 'N/A')}")
+            buffer.append(f"PËRMBAJTJA:\n{m.get('content')}\n")
+        
+        buffer.append("============================================================\n")
+        
+        logger.info(f"📚 Library Integration: Found {len(matches)} relevant templates for user prompt.")
+        return "\n".join(buffer)
+
+    except Exception as e:
+        logger.error(f"Library lookup failed: {e}")
+        return ""
+
 def _format_business_identity(db: Database, user: UserInDB) -> str:
-    """
-    Retrieves the White-Label Business Profile for the user.
-    If no profile exists, falls back to User details.
-    """
+    if db is None:
+        return _fallback_identity(user)
+
     try:
         profile = db.business_profiles.find_one({"user_id": str(user.id)})
-        
         if profile:
-            # PHOENIX FIX: Use username instead of full_name
             name_to_use = profile.get('firm_name') or user.username
-            
             info = f"""
             === HARTUESI I DOKUMENTIT (ZYRA LIGJORE/BIZNESI) ===
             Emri i Zyrës: {name_to_use}
             Adresa: {profile.get('address', 'N/A')}
             Email: {profile.get('contact_email', user.email)}
             """
-            if profile.get('phone'):
-                info += f"Tel: {profile.get('phone')}\n"
-            if profile.get('website'):
-                info += f"Web: {profile.get('website')}\n"
-                
+            if profile.get('phone'): info += f"Tel: {profile.get('phone')}\n"
+            if profile.get('website'): info += f"Web: {profile.get('website')}\n"
             info += "==============================================\n"
             return info
             
     except Exception as e:
         logger.warning(f"Failed to fetch business profile: {e}")
 
-    # Fallback if no profile
-    # PHOENIX FIX: Use username
+    return _fallback_identity(user)
+
+def _fallback_identity(user: UserInDB) -> str:
     return f"""
     === HARTUESI (INFORMACION NGA LLOGARIA) ===
     Emri: {user.username}
@@ -101,6 +146,7 @@ def _format_business_identity(db: Database, user: UserInDB) -> str:
     ===========================================
     """
 
+# --- LOCAL LLM STREAMER ---
 async def _stream_local_llm(messages: List[Dict[str, Any]]) -> AsyncGenerator[str, None]:
     logger.info("🔄 Switching to LOCAL LLM (Ollama) for drafting...")
     payload = {
@@ -127,6 +173,7 @@ async def _stream_local_llm(messages: List[Dict[str, Any]]) -> AsyncGenerator[st
         logger.error("drafting_service.local_llm_failed", error=str(e))
         yield "\n\n[Gabim Kritik: Edhe sistemi lokal nuk është i disponueshëm.]"
 
+# --- MAIN GENERATION FUNCTION ---
 async def generate_draft_stream(
     context: str,
     prompt_text: str,
@@ -135,20 +182,41 @@ async def generate_draft_stream(
     case_id: Optional[str] = None,
     jurisdiction: Optional[str] = None,
     favorability: Optional[str] = None,
+    use_library: bool = False,
     db: Optional[Database] = None
 ) -> AsyncGenerator[str, None]:
+    
     log = logger.bind(case_id=case_id, user_id=str(user.id), draft_type=draft_type)
     if prompt_text is None: prompt_text = ""
-    log.info("drafting_service.stream_start", prompt_length=len(prompt_text))
+    log.info("drafting_service.stream_start", prompt_length=len(prompt_text), use_library=use_library)
 
     sanitized_context = sterilize_text_for_llm(context)
     sanitized_prompt_text = sterilize_text_for_llm(prompt_text)
 
+    # 1. Fetch Public Laws (Async)
     relevant_laws = await asyncio.to_thread(_fetch_relevant_laws, sanitized_prompt_text)
+    
+    # 2. Fetch Personal Library Templates (Async) - CONDITIONAL
+    library_context = ""
+    
+    if db is not None and use_library: 
+        # PHOENIX FIX: Strict cast to Database to satisfy Pylance
+        library_context = await asyncio.to_thread(
+            _fetch_library_context, 
+            cast(Database, db), 
+            str(user.id), 
+            sanitized_prompt_text
+        )
 
+    # 3. Fetch Business Identity
     business_identity = ""
     if db is not None:
-        business_identity = await asyncio.to_thread(_format_business_identity, db, user)
+        # PHOENIX FIX: Strict cast to Database
+        business_identity = await asyncio.to_thread(
+            _format_business_identity, 
+            cast(Database, db), 
+            user
+        )
 
     system_prompt = (
         "Ti je 'Juristi AI', një ekspert për hartimin e dokumenteve ligjore në Kosovë dhe Shqipëri. "
@@ -157,7 +225,7 @@ async def generate_draft_stream(
         "RREGULLAT KRITIKE:\n"
         "1. Përdor 'HARTUESI I DOKUMENTIT' për të vendosur Zyrën Ligjore/Biznesin si palë ose në kokë të dokumentit.\n"
         "2. Përdor 'BAZA LIGJORE' për të cituar nenet e duhura.\n"
-        "3. Përdor gjuhë formale juridike.\n"
+        "3. Përdor 'ARKIVA LIGJORE' nëse ka modele të përshtatshme nga përdoruesi.\n"
         "4. Mos shto komente shtesë, vetëm tekstin e dokumentit."
     )
 
@@ -165,6 +233,8 @@ async def generate_draft_stream(
     {business_identity}
     
     {relevant_laws}
+
+    {library_context}
     
     KONTEKSTI SHTESË:
     {sanitized_context}
@@ -175,7 +245,7 @@ async def generate_draft_stream(
     """
 
     if draft_type and jurisdiction and db is not None:
-        template_augment = await asyncio.to_thread(_get_template_augmentation, draft_type, jurisdiction, favorability, db)
+        template_augment = await asyncio.to_thread(_get_template_augmentation, draft_type, jurisdiction, favorability, cast(Database, db))
         if template_augment:
             system_prompt += f" Përdor strukturën specifike për: {draft_type} ({jurisdiction})."
             full_prompt = f"Template Instructions:\n{template_augment}\n\n---\n\n{full_prompt}"
@@ -208,7 +278,6 @@ async def generate_draft_stream(
             return
 
         except Exception as e:
-            error_str = str(e).lower()
             log.warning(f"⚠️ Groq Drafting Failed: {e}")
             tier1_failed = True
     else:

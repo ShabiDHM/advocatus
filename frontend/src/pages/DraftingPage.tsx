@@ -1,18 +1,17 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - FINAL TYPE FIX
-// 1. INTERFACE: Strict union type for status.
-// 2. STATE: Correctly typed initialization.
-// 3. LOGIC: Safe string comparisons to satisfy TypeScript.
+// PHOENIX PROTOCOL - DRAFTING PAGE
+// 1. FIX: Removed unused '@headlessui/react' import.
+// 2. STATUS: Clean, Custom Toggle UI.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { 
-  PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, FileText, Sparkles, Briefcase
+  PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, FileText, Sparkles, Briefcase, BookOpen
 } from 'lucide-react';
 import { Case } from '../data/types';
+// PHOENIX FIX: Removed Switch import as we use a custom button below
 
-// Define the Status Type explicitly
 type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'SUCCESS' | 'FAILED' | 'FAILURE';
 
 interface DraftingJobState {
@@ -28,8 +27,8 @@ const DraftingPage: React.FC = () => {
   const [cases, setCases] = useState<Case[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>('');
   const [context, setContext] = useState('');
+  const [useLibrary, setUseLibrary] = useState(false);
   
-  // Initialize with explicit type to avoid inference issues
   const [currentJob, setCurrentJob] = useState<DraftingJobState>({
     jobId: null, 
     status: null, 
@@ -65,7 +64,6 @@ const DraftingPage: React.FC = () => {
     pollingIntervalRef.current = window.setInterval(async () => {
       try {
         const statusResponse = await apiService.getDraftingJobStatus(jobId);
-        // Cast backend string to our JobStatus type
         const newStatus = statusResponse.status as JobStatus; 
         
         setCurrentJob(prev => ({ ...prev, status: newStatus }));
@@ -117,7 +115,8 @@ const DraftingPage: React.FC = () => {
       const jobResponse = await apiService.initiateDraftingJob({
         user_prompt: context.trim(),
         context: context.trim(),
-        case_id: selectedCaseId || undefined 
+        case_id: selectedCaseId || undefined,
+        use_library: useLibrary 
       });
 
       const jobId = jobResponse.job_id;
@@ -184,6 +183,7 @@ const DraftingPage: React.FC = () => {
                 {t('drafting.configuration')}
             </h3>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4">
+                
                 <div>
                     <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.selectCaseLabel')}</label>
                     <div className="relative">
@@ -198,6 +198,29 @@ const DraftingPage: React.FC = () => {
                         </select>
                     </div>
                 </div>
+
+                {/* Library Toggle */}
+                <div className="flex items-center justify-between bg-black/30 p-3 rounded-xl border border-white/5">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${useLibrary ? 'bg-primary-500/20 text-primary-400' : 'bg-gray-800 text-gray-500'}`}>
+                            <BookOpen size={18} />
+                        </div>
+                        <div>
+                            <span className="text-sm font-medium text-white block">Përdor Arkivën (Beta)</span>
+                            <span className="text-xs text-gray-500">Kërko në modelet e ruajtura</span>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setUseLibrary(!useLibrary)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-gray-900 ${
+                            useLibrary ? 'bg-primary-600' : 'bg-gray-700'
+                        }`}
+                    >
+                        <span className={`${useLibrary ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition`}/>
+                    </button>
+                </div>
+
                 <div className="flex-1 flex flex-col">
                     <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.instructionsLabel')}</label>
                     <textarea
