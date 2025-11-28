@@ -1,8 +1,28 @@
 # FILE: Caddyfile
+# PHOENIX PROTOCOL - REVERSE PROXY CONFIG
+# 1. STATUS: Routing to backend:8000.
+# 2. ENHANCEMENT: Added security headers (HSTS, NoSniff, etc.).
+
 {
     email shabanbala@gmail.com
 }
 
 api.juristi.tech {
+    # Reverse proxy to the backend container
     reverse_proxy backend:8000
+
+    # Security Headers for System Integrity
+    header {
+        # Enable HTTP Strict Transport Security (HSTS)
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        
+        # Prevent browsers from MIME-sniffing a response away from the declared content-type
+        X-Content-Type-Options "nosniff"
+        
+        # Prevent clickjacking attacks
+        X-Frame-Options "DENY"
+        
+        # Cross-Site Scripting (XSS) Protection
+        X-XSS-Protection "1; mode=block"
+    }
 }
