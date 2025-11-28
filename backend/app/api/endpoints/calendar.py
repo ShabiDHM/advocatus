@@ -1,6 +1,7 @@
 # FILE: backend/app/api/endpoints/calendar.py
 # PHOENIX PROTOCOL - ALERT ENDPOINT
-# 1. ADDED: GET /alerts endpoint for the notification bell.
+# 1. ENDPOINT: GET /alerts returns {"count": X}
+# 2. SECURITY: Scoped to current user.
 
 from __future__ import annotations
 from fastapi import APIRouter, Depends, status, HTTPException, Response

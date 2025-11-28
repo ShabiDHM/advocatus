@@ -8,7 +8,7 @@ import { Bell, Search, Menu, LogOut, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { apiService } from '../services/api'; // Import API
+import { apiService } from '../services/api';
 import LanguageSwitcher from './LanguageSwitcher';
 
 interface HeaderProps {
@@ -21,22 +21,21 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
 
-  // PHOENIX FIX: Check for alerts on mount
+  // Poll for alerts
   useEffect(() => {
     const checkAlerts = async () => {
+      if (!user) return;
       try {
-        if (user) {
-            const data = await apiService.getAlertsCount();
-            setAlertCount(data.count);
-        }
+        const data = await apiService.getAlertsCount();
+        setAlertCount(data.count);
       } catch (err) {
-        console.error("Failed to fetch alerts", err);
+        // Silently fail if calendar service isn't ready
+        console.warn("Alert check skipped");
       }
     };
-    checkAlerts();
     
-    // Optional: Poll every 5 minutes
-    const interval = setInterval(checkAlerts, 300000);
+    checkAlerts();
+    const interval = setInterval(checkAlerts, 60000); // Check every minute
     return () => clearInterval(interval);
   }, [user]);
 

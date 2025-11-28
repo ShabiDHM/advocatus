@@ -1,7 +1,7 @@
 # FILE: backend/app/services/calendar_service.py
-# PHOENIX PROTOCOL - ALERTS ACTIVATION
-# 1. ADDED: 'get_upcoming_alerts_count' to check for deadlines in next 7 days.
-# 2. LOGIC: Supports both String (ISO) and Date (BSON) formats for safety.
+# PHOENIX PROTOCOL - ALERTS LOGIC
+# 1. LOGIC: Counts 'PENDING' events occurring in the next 7 days.
+# 2. COMPATIBILITY: Handles both ISO Strings and DateTime objects.
 
 from __future__ import annotations
 from typing import List, Any
@@ -57,7 +57,7 @@ class CalendarService:
             raise HTTPException(status_code=404, detail="Event not found.")
         return True
 
-    # PHOENIX ADDITION: The Alert Logic
+    # --- THE ALERT LOGIC ---
     async def get_upcoming_alerts_count(self, user_id: ObjectId, days: int = 7) -> int:
         """
         Returns count of PENDING events starting in the next 'days'.
@@ -65,7 +65,6 @@ class CalendarService:
         now = datetime.now(timezone.utc)
         future = now + timedelta(days=days)
         
-        # Support both String ISO and DateTime storage to be safe
         now_str = now.isoformat()
         future_str = future.isoformat()
         
@@ -73,9 +72,9 @@ class CalendarService:
             "owner_id": user_id,
             "status": "PENDING",
             "$or": [
-                # If stored as String (e.g. from Deadline Service)
+                # Matches ISO String dates (e.g. from Extraction)
                 {"start_date": {"$gte": now_str, "$lte": future_str}},
-                # If stored as Date (e.g. from Manual Entry)
+                # Matches DateTime objects (e.g. from Manual Entry)
                 {"start_date": {"$gte": now, "$lte": future}}
             ]
         }
