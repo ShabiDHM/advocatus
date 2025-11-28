@@ -1,7 +1,7 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - REAL-TIME PROGRESS TRACKING (FINAL FIX)
-# 1. FIX: Corrected graph_service import to point to the instance.
-# 2. REPORTING: Emits SSE progress events correctly.
+# PHOENIX PROTOCOL - GRAPH INGESTION FIX
+# 1. FIX: Passed 'doc_name' into the graph_service call.
+# 2. STATUS: Ensures Document nodes in Neo4j have the correct filename.
 
 import os
 import tempfile
@@ -27,7 +27,6 @@ from . import (
     deadline_service,
     findings_service
 )
-# PHOENIX FIX: Import the INSTANCE directly to avoid module confusion
 from .graph_service import graph_service 
 from .categorization_service import CATEGORIZATION_SERVICE
 from .albanian_language_detector import AlbanianLanguageDetector
@@ -75,6 +74,7 @@ def orchestrate_document_processing_mongo(
         raise DocumentNotFoundInDBError(f"Document with ID {document_id_str} not found.")
 
     user_id = str(document.get("owner_id"))
+    doc_name = document.get("file_name", "Unknown Document")
     _emit_progress(redis_client, user_id, document_id_str, "Starting initialization...", 5)
 
     temp_original_file_path = ""
@@ -85,7 +85,7 @@ def orchestrate_document_processing_mongo(
         # --- PHASE 1: PREPARATION ---
         _emit_progress(redis_client, user_id, document_id_str, "Downloading document...", 10)
         
-        suffix = os.path.splitext(document.get("file_name", ""))[1]
+        suffix = os.path.splitext(doc_name)[1]
         temp_file_descriptor, temp_original_file_path = tempfile.mkstemp(suffix=suffix)
         
         file_stream = storage_service.download_original_document_stream(document["storage_key"])
@@ -132,7 +132,7 @@ def orchestrate_document_processing_mongo(
                     'document_id': document_id_str,
                     'case_id': str(document.get("case_id")),
                     'user_id': user_id,
-                    'file_name': document.get("file_name", "Unknown"),
+                    'file_name': doc_name,
                     'language': detected_lang,
                     'category': detected_category 
                 }
@@ -188,14 +188,16 @@ def orchestrate_document_processing_mongo(
                 entities = graph_data.get("entities", [])
                 relations = graph_data.get("relations", [])
                 if entities or relations:
-                    # PHOENIX FIX: Call instance method directly
+                    # PHOENIX FIX: Pass doc_name to the graph service
                     graph_service.ingest_entities_and_relations(
                         case_id=str(document.get("case_id")),
                         document_id=document_id_str,
+                        doc_name=doc_name, # <-- CRITICAL FIX
                         entities=entities,
                         relations=relations
                     )
-            except Exception: pass
+            except Exception as e:
+                logger.error(f"Graph ingestion task failed: {e}")
 
         # EXECUTE
         summary_result = None
@@ -209,7 +211,6 @@ def orchestrate_document_processing_mongo(
             future_deadlines = executor.submit(task_deadlines)
             future_graph = executor.submit(task_graph)
             
-            # PHOENIX FIX: Type hinting for Futures
             futures_list: List[concurrent.futures.Future] = [
                 future_embed, future_storage, future_summary, 
                 future_findings, future_deadlines, future_graph
