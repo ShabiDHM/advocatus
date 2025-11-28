@@ -1,12 +1,12 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - DATA ADAPTER & ROBUSTNESS (TYPE SAFE)
-# 1. FIX: Updated type hints to allow Optional returns.
-# 2. FIX: Explicit 'is not None' check for Database object.
+# PHOENIX PROTOCOL - CLIENT DATA MAPPING
+# 1. LOGIC: Extracts 'clientName' etc. from input and builds 'client' object.
+# 2. MAPPING: Ensures 'client' object is returned in _map_case_document.
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
 from bson import ObjectId
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 
 from ..models.case import CaseCreate
@@ -17,41 +17,27 @@ from ..celery_app import celery_app
 # --- HELPER: DATA ADAPTER ---
 def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) -> Optional[Dict[str, Any]]:
     """
-    Normalizes a MongoDB case document to match the CaseOut Pydantic schema.
+    Normalizes a MongoDB case document to match the CaseOut schema.
     """
     try:
         case_id_str = str(case_doc["_id"])
-        
-        # 1. Handle Title/Name discrepancy
         title = case_doc.get("title") or case_doc.get("case_name") or "Untitled Case"
-        
-        # 2. Handle Case Number
-        case_number = case_doc.get("case_number") or f"LEGACY-{str(case_doc['_id'])[-6:]}"
-        
-        # 3. Handle Timestamps
+        case_number = case_doc.get("case_number") or f"REF-{str(case_doc['_id'])[-6:]}"
         created_at = case_doc.get("created_at") or datetime.now(timezone.utc)
         updated_at = case_doc.get("updated_at") or created_at
 
-        # 4. Optional Counts
+        # Counts
         counts = {}
-        # PHOENIX FIX: Explicit check for None
         if db is not None:
             doc_count = db.documents.count_documents({"case_id": case_doc["_id"]})
             event_count = db.calendar_events.count_documents({"case_id": case_id_str})
             finding_count = db.findings.count_documents({"case_id": case_id_str})
-            
-            alert_query = {
-                "case_id": case_id_str,
-                "status": "PENDING",
-                "start_date": {"$gte": datetime.now().isoformat()}
-            }
-            alert_count = db.calendar_events.count_documents(alert_query)
-            
+            alert_count = db.calendar_events.count_documents({
+                "case_id": case_id_str, "status": "PENDING", "start_date": {"$gte": datetime.now().isoformat()}
+            })
             counts = {
-                "document_count": doc_count,
-                "alert_count": alert_count,
-                "event_count": event_count,
-                "finding_count": finding_count,
+                "document_count": doc_count, "alert_count": alert_count,
+                "event_count": event_count, "finding_count": finding_count,
             }
 
         return {
@@ -61,6 +47,8 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             "description": case_doc.get("description"),
             "status": case_doc.get("status", "OPEN"),
             "client_id": str(case_doc.get("client_id")) if case_doc.get("client_id") else None,
+            # PHOENIX FIX: Return the client structure
+            "client": case_doc.get("client"), 
             "created_at": created_at,
             "updated_at": updated_at,
             **counts
@@ -70,15 +58,29 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         return None
 
 def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[Dict[str, Any]]:
-    case_dict = case_in.model_dump(by_alias=True)
+    # 1. Convert Pydantic to Dict
+    case_dict = case_in.model_dump(exclude={"clientName", "clientEmail", "clientPhone"})
+    
+    # 2. Extract Ad-Hoc Client Data
+    if case_in.clientName:
+        case_dict["client"] = {
+            "name": case_in.clientName,
+            "email": case_in.clientEmail,
+            "phone": case_in.clientPhone
+        }
+    
+    # 3. Add Metadata
     case_dict["owner_id"] = owner.id
+    case_dict["user_id"] = owner.id # Redundant but safe
     now = datetime.now(timezone.utc)
     case_dict["created_at"] = now
     case_dict["updated_at"] = now
     
-    if "status" not in case_dict:
-        case_dict["status"] = "OPEN"
+    if not case_dict.get("case_number"):
+        # Auto-generate temporary number if missing (fixed in mapping later or here)
+        case_dict["case_number"] = f"NEW-{int(datetime.utcnow().timestamp())}"
 
+    # 4. Insert
     result = db.cases.insert_one(case_dict)
     new_case = db.cases.find_one({"_id": result.inserted_id})
 
@@ -89,24 +91,29 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     results = []
-    cursor = db.cases.find({"owner_id": owner.id}).sort("updated_at", -1)
+    # Support both owner_id and user_id legacy fields
+    cursor = db.cases.find({"$or": [{"owner_id": owner.id}, {"user_id": owner.id}]}).sort("updated_at", -1)
     
     for case_doc in cursor:
-        mapped_case = _map_case_document(case_doc, db) # Pass db to get counts
+        mapped_case = _map_case_document(case_doc, db)
         if mapped_case:
             results.append(mapped_case)
             
     return results
 
 def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional[Dict[str, Any]]:
-    case = db.cases.find_one({"_id": case_id, "owner_id": owner.id})
-    if not case:
-        return None
-        
+    case = db.cases.find_one({
+        "_id": case_id, 
+        "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]
+    })
+    if not case: return None
     return _map_case_document(case, db)
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
-    result = db.cases.delete_one({"_id": case_id, "owner_id": owner.id})
+    result = db.cases.delete_one({
+        "_id": case_id, 
+        "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]
+    })
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Case not found.")
 
@@ -115,28 +122,3 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     db.calendar_events.delete_many({"case_id": case_id_str})
     db.findings.delete_many({"case_id": case_id_str})
     db.alerts.delete_many({"case_id": case_id_str})
-
-def create_draft_job_for_case(
-    db: Database,
-    case_id: ObjectId,
-    job_in: DraftRequest,
-    owner: UserInDB
-) -> Dict[str, str]:
-    case = db.cases.find_one({"_id": case_id, "owner_id": owner.id})
-    if not case:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Case not found or access denied."
-        )
-
-    task = celery_app.send_task(
-        "process_drafting_job",
-        kwargs={
-            "case_id": str(case_id),
-            "user_id": str(owner.id),
-            "draft_type": job_in.document_type,
-            "user_prompt": job_in.prompt
-        }
-    )
-
-    return {"job_id": task.id}
