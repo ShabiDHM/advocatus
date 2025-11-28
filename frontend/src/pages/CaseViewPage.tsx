@@ -1,7 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - BUTTON HARMONIZATION
-// 1. STYLE: "Analizo Rastin" button matches "Gjetjet" style (Dark + Border).
-// 2. LAYOUT: Preserved responsive positioning.
+// PHOENIX PROTOCOL - 2D GRAPH VISUALIZATION INTEGRATION
+// 1. NAVIGATION: Added Tabs (Documents / Graph) for the left panel.
+// 2. FEATURE: Integrated 'CaseGraph' component for the "Detective Board".
+// 3. UX: Chat remains persistent on the right while switching views.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -9,6 +10,7 @@ import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } 
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
+import CaseGraph from '../components/CaseGraph'; // <--- NEW IMPORT
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import FindingsModal from '../components/FindingsModal';
@@ -16,7 +18,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb } from 'lucide-react';
+import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb, FileText, Network } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -24,6 +26,8 @@ type CaseData = {
     details: Case | null;
     findings: Finding[];
 };
+
+type ViewTab = 'documents' | 'graph';
 
 const CaseHeader: React.FC<{ 
     caseDetails: Case; 
@@ -53,7 +57,6 @@ const CaseHeader: React.FC<{
               <motion.button
                 onClick={onAnalyze}
                 disabled={isAnalyzing}
-                // PHOENIX FIX: Harmonized style with Findings button
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-background-dark/50 border border-glass-edge text-text-primary font-semibold shadow hover:bg-background-dark/80 transition-all disabled:opacity-50"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -87,6 +90,9 @@ const CaseViewPage: React.FC = () => {
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
+
+  // PHOENIX NEW: Tab State
+  const [activeTab, setActiveTab] = useState<ViewTab>('documents');
 
   const prevReadyCount = useRef(0);
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -222,19 +228,46 @@ const CaseViewPage: React.FC = () => {
                     isAnalyzing={isAnalyzing} 
                 />
             </div>
+
+            {/* PHOENIX NEW: Tab Navigation */}
+            <div className="px-4 sm:px-0 flex gap-4 border-b border-glass-edge mb-2">
+                <button 
+                    onClick={() => setActiveTab('documents')}
+                    className={`pb-2 px-1 flex items-center gap-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'documents' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+                >
+                    <FileText className="w-4 h-4" />
+                    Dokumentet
+                </button>
+                <button 
+                    onClick={() => setActiveTab('graph')}
+                    className={`pb-2 px-1 flex items-center gap-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'graph' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+                >
+                    <Network className="w-4 h-4" />
+                    Harta e Çështjes
+                </button>
+            </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-stretch px-4 sm:px-0 min-h-[600px]">
-                <DocumentsPanel
-                  caseId={caseData.details.id}
-                  documents={liveDocuments}
-                  findings={caseData.findings} 
-                  t={t}
-                  connectionStatus={connectionStatus}
-                  reconnect={reconnect}
-                  onDocumentUploaded={handleDocumentUploaded}
-                  onDocumentDeleted={handleDocumentDeleted}
-                  onViewOriginal={setViewingDocument}
-                />
+                {/* Left Panel: Switchable */}
+                <div className="flex flex-col h-full">
+                    {activeTab === 'documents' ? (
+                        <DocumentsPanel
+                            caseId={caseData.details.id}
+                            documents={liveDocuments}
+                            findings={caseData.findings} 
+                            t={t}
+                            connectionStatus={connectionStatus}
+                            reconnect={reconnect}
+                            onDocumentUploaded={handleDocumentUploaded}
+                            onDocumentDeleted={handleDocumentDeleted}
+                            onViewOriginal={setViewingDocument}
+                        />
+                    ) : (
+                        <CaseGraph caseId={caseData.details.id} />
+                    )}
+                </div>
+
+                {/* Right Panel: Chat (Always Persistent) */}
                 <ChatPanel
                   messages={liveMessages}
                   connectionStatus={connectionStatus}
