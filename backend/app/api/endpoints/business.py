@@ -1,105 +1,61 @@
 # FILE: backend/app/api/endpoints/business.py
-# PHOENIX PROTOCOL - BUSINESS ENDPOINTS (TYPE SAFE)
-# 1. FIX: Added 'Optional' type hints.
-# 2. FIX: Safe file name handling.
-# 3. FIX: Driver connectivity check before session usage.
+# PHOENIX PROTOCOL - BUSINESS ROUTER (ALIGNED)
+# 1. FIX: Changed /logo to PUT to match Frontend.
+# 2. FIX: Replaced legacy /settings with /profile endpoints.
+# 3. INTEGRATION: Uses BusinessService for logic and storage.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import Annotated, Dict, Any, Optional
 from pymongo.database import Database
 import logging
-import os
-import boto3
-from botocore.exceptions import NoCredentialsError
 
 from ...models.user import UserInDB
-from .dependencies import get_current_user, get_db
+from ...models.business import BusinessProfileInDB, BusinessProfileUpdate
+from ...services.business_service import BusinessService
 from ...services.graph_service import graph_service
+from .dependencies import get_current_user, get_db
 
 router = APIRouter(tags=["Business"])
 logger = logging.getLogger(__name__)
 
-# B2 Config
-B2_KEY_ID = os.getenv("B2_KEY_ID")
-B2_APP_KEY = os.getenv("B2_APPLICATION_KEY")
-B2_BUCKET = os.getenv("B2_BUCKET_NAME")
-B2_ENDPOINT = os.getenv("B2_ENDPOINT_URL")
+# --- DEPENDENCY ---
+def get_business_service(db: Database = Depends(get_db)) -> BusinessService:
+    return BusinessService(db)
 
-def get_b2_client():
-    return boto3.client(
-        's3',
-        endpoint_url=B2_ENDPOINT,
-        aws_access_key_id=B2_KEY_ID,
-        aws_secret_access_key=B2_APP_KEY
-    )
+# --- PROFILE MANAGEMENT (Matches Frontend api.ts) ---
 
-# --- FIRM MANAGEMENT ---
-
-@router.get("/settings", response_model=Dict[str, Any])
-async def get_business_settings(
+@router.get("/profile", response_model=BusinessProfileInDB)
+async def get_business_profile(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
+    service: BusinessService = Depends(get_business_service)
 ):
-    settings = db.business_settings.find_one({"user_id": current_user.id})
-    if not settings:
-        return {"firm_name": "My Law Firm", "setup_complete": False}
-    return {k: v for k, v in settings.items() if k != "_id"}
+    """Retrieves the business profile for the current user."""
+    return service.get_or_create_profile(str(current_user.id))
 
-@router.post("/settings", status_code=status.HTTP_200_OK)
-async def update_business_settings(
-    settings: Dict[str, Any],
+@router.put("/profile", response_model=BusinessProfileInDB)
+async def update_business_profile(
+    data: BusinessProfileUpdate,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
+    service: BusinessService = Depends(get_business_service)
 ):
-    db.business_settings.update_one(
-        {"user_id": current_user.id},
-        {"$set": settings},
-        upsert=True
-    )
-    return {"status": "updated"}
+    """Updates the business profile details."""
+    return service.update_profile(str(current_user.id), data)
 
-@router.post("/logo", status_code=status.HTTP_200_OK)
+@router.put("/logo", response_model=BusinessProfileInDB)
 async def upload_business_logo(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db),
-    file: UploadFile = File(...) # Moved to end to satisfy some linters, though FastAPI handles dependency order.
+    service: BusinessService = Depends(get_business_service),
+    file: UploadFile = File(...)
 ):
-    """Uploads a business logo to B2 and updates settings."""
-    if not B2_BUCKET or not B2_KEY_ID:
-        raise HTTPException(status_code=500, detail="Storage not configured")
+    """Uploads a logo via the Service (handles Storage + DB update)."""
+    return service.update_logo(str(current_user.id), file)
 
-    try:
-        s3 = get_b2_client()
-        
-        # PHOENIX FIX: Safe filename handling
-        filename = file.filename or "logo.png"
-        file_ext = filename.split(".")[-1] if "." in filename else "png"
-        
-        key = f"logos/{current_user.id}_logo.{file_ext}"
-        
-        s3.upload_fileobj(file.file, B2_BUCKET, key)
-        
-        # Simple URL construction
-        logo_url = f"{B2_ENDPOINT}/{B2_BUCKET}/{key}".replace("s3.eu-central-003.backblazeb2.com", "f003.backblazeb2.com/file") 
-        
-        db.business_settings.update_one(
-            {"user_id": current_user.id},
-            {"$set": {"logo_url": logo_url}},
-            upsert=True
-        )
-        
-        return {"url": logo_url}
-
-    except Exception as e:
-        logger.error(f"Logo Upload Failed: {e}")
-        raise HTTPException(status_code=500, detail="Logo upload failed")
-
-# --- SENTIENT PARTNER ---
+# --- LEGACY / GRAPH (Preserved) ---
 
 @router.get("/graph/visualize", response_model=Dict[str, Any])
 async def get_graph_data(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
-    center_node: Optional[str] = None # PHOENIX FIX: Added Optional type hint
+    center_node: Optional[str] = None
 ):
     try:
         query_center = center_node or current_user.username
@@ -110,7 +66,7 @@ async def get_graph_data(
         LIMIT 50
         """
         
-        # PHOENIX FIX: Explicit connection check
+        # Explicit connection check
         graph_service._connect()
         if not graph_service._driver:
              return {"nodes": [], "links": [], "error": "Graph DB unavailable"}
