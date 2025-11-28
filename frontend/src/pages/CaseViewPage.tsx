@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - 2D GRAPH VISUALIZATION INTEGRATION
-// 1. NAVIGATION: Added Tabs (Documents / Graph) for the left panel.
-// 2. FEATURE: Integrated 'CaseGraph' component for the "Detective Board".
-// 3. UX: Chat remains persistent on the right while switching views.
+// PHOENIX PROTOCOL - CASE VIEW (GRAPH INTEGRATED)
+// 1. CLEANUP: Removed unused imports.
+// 2. FEATURE: Tabbed view for Documents vs. Case Graph.
+// 3. UX: Persistent Chat Panel.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } 
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
-import CaseGraph from '../components/CaseGraph'; // <--- NEW IMPORT
+import CaseGraph from '../components/CaseGraph'; // Integrated Component
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import FindingsModal from '../components/FindingsModal';
@@ -91,7 +91,7 @@ const CaseViewPage: React.FC = () => {
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
 
-  // PHOENIX NEW: Tab State
+  // Tab State
   const [activeTab, setActiveTab] = useState<ViewTab>('documents');
 
   const prevReadyCount = useRef(0);
@@ -229,7 +229,7 @@ const CaseViewPage: React.FC = () => {
                 />
             </div>
 
-            {/* PHOENIX NEW: Tab Navigation */}
+            {/* Tab Navigation */}
             <div className="px-4 sm:px-0 flex gap-4 border-b border-glass-edge mb-2">
                 <button 
                     onClick={() => setActiveTab('documents')}
