@@ -1,7 +1,8 @@
 // FILE: src/components/CaseGraph.tsx
-// PHOENIX PROTOCOL - CLEANUP
-// 1. FIX: Resolved unused 't' variable by implementing translation wrappers.
-// 2. LOGIC: Maintained 2D Graph visualization engine.
+// PHOENIX PROTOCOL - 2D VISUALIZATION (POLISHED)
+// 1. RENDERING: Added text background for readability.
+// 2. LAYOUT: Adjusted label position to be tighter to the node.
+// 3. UI: Updated Legend to match new backend data.
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -42,13 +43,13 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId }) => {
     // --- Color Palette ---
     const getNodeColor = (group: string) => {
         switch (group?.toLowerCase()) {
-            case 'document': return '#ef4444'; // Red (Center)
+            case 'document': return '#ef4444'; // Red
             case 'person': return '#3b82f6';   // Blue
             case 'organization': return '#10b981'; // Green
             case 'money': return '#f59e0b';    // Orange
             case 'date': return '#8b5cf6';     // Purple
             case 'location': return '#ec4899'; // Pink
-            default: return '#6b7280';         // Gray
+            default: return '#9ca3af';         // Gray
         }
     };
 
@@ -57,7 +58,6 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId }) => {
         setLoading(true);
         try {
             const graphData = await apiService.getCaseGraph(caseId);
-            // Safety check for backend response format
             const safeNodes = graphData.nodes || [];
             const safeLinks = graphData.links || [];
             setData({ nodes: safeNodes, links: safeLinks });
@@ -72,7 +72,6 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId }) => {
         fetchData();
     }, [fetchData]);
 
-    // Responsive Sizing
     useEffect(() => {
         const updateDimensions = () => {
             if (containerRef.current) {
@@ -82,13 +81,9 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId }) => {
                 });
             }
         };
-
         window.addEventListener('resize', updateDimensions);
         updateDimensions();
-        
-        // Short timeout to ensure container is rendered
         const timeout = setTimeout(updateDimensions, 100);
-
         return () => {
             window.removeEventListener('resize', updateDimensions);
             clearTimeout(timeout);
@@ -101,24 +96,33 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId }) => {
         const fontSize = 12 / globalScale;
         const radius = node.val ? Math.sqrt(node.val) * 2 : 5;
 
-        // Draw Circle
+        // 1. Draw Circle
         ctx.beginPath();
         ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
         ctx.fillStyle = getNodeColor(node.group);
         ctx.fill();
         
-        // Border
-        ctx.strokeStyle = '#ffffff';
+        // 2. Draw Border
+        ctx.strokeStyle = '#1f2937'; // Dark border for contrast
         ctx.lineWidth = 1.5 / globalScale;
         ctx.stroke();
 
-        // Text Label
+        // 3. Draw Text Label (Only if zoomed in or it's a Document)
         if (globalScale > 0.8 || node.group === 'DOCUMENT') {
             ctx.font = `${fontSize}px Sans-Serif`;
+            const textWidth = ctx.measureText(label).width;
+            const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2); // Padding
+
+            // Text Background (Semi-transparent black)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+            const textY = node.y + radius + 2; // Just below the node
+            ctx.fillRect(node.x - bckgDimensions[0] / 2, textY, bckgDimensions[0], bckgDimensions[1]);
+
+            // Text Itself
             ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#ffffff'; // White text
-            ctx.fillText(label, node.x, node.y + radius + fontSize);
+            ctx.textBaseline = 'top'; // Draw from top
+            ctx.fillStyle = '#e5e7eb'; // Light gray text
+            ctx.fillText(label, node.x, textY + (fontSize * 0.1));
         }
     }, []);
 
@@ -158,12 +162,12 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId }) => {
                 nodeLabel="name"
                 nodeRelSize={6}
                 nodeCanvasObject={paintNode}
-                linkColor={() => '#4b5563'} // Gray links
+                linkColor={() => '#4b5563'}
                 linkDirectionalArrowLength={3.5}
                 linkDirectionalArrowRelPos={1}
-                backgroundColor="#0f172a" // Matches background-dark
+                backgroundColor="#0f172a"
                 cooldownTicks={100}
-                onEngineStop={() => fgRef.current?.zoomToFit(400, 50)} // Auto-fit on load
+                onEngineStop={() => fgRef.current?.zoomToFit(400, 50)}
             />
         </div>
     );
