@@ -1,12 +1,14 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - FINAL ROUTER ASSEMBLY
-# 1. ACTIVATED: 'business_router' for Graph Visualization & Firm Settings.
-# 2. FIX: Added type ignore to ProxyHeadersMiddleware to silence Pylance false positive.
+# PHOENIX PROTOCOL - CORS & STABILITY FIX
+# 1. CORS: Switched to explicit 'allow_origins' for production domains to guarantee access.
+# 2. ROUTERS: Kept all previous router activations (Business, Auth, Cases, etc.).
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import logging
+import os
+import json
 from app.core.lifespan import lifespan
 
 # --- Router Imports ---
@@ -18,7 +20,6 @@ from app.api.endpoints.calendar import router as calendar_router
 from app.api.endpoints.chat import router as chat_router
 from app.api.endpoints.stream import router as stream_router
 from app.api.endpoints.support import router as support_router
-# PHOENIX FIX: Now active
 from app.api.endpoints.business import router as business_router
 
 # Drafting V2 (Safe Import)
@@ -34,12 +35,32 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ---
-# PHOENIX FIX: Added type: ignore because Uvicorn middleware typing doesn't match FastAPI expectation exactly
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"]) # type: ignore
+
+# PHOENIX FIX: Explicitly list production origins
+# This is safer and more reliable than regex for the main domain
+origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://juristi.tech",
+    "https://www.juristi.tech",
+    "https://api.juristi.tech"
+]
+
+# Try to load extra origins from ENV
+try:
+    env_origins = os.getenv("BACKEND_CORS_ORIGINS")
+    if env_origins:
+        parsed = json.loads(env_origins)
+        origins.extend(parsed)
+except Exception:
+    pass
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1|.*\.vercel\.app|.*\.duckdns\.org|juristi\.tech|.*\.juristi\.tech)(:\d+)?",
+    allow_origins=origins,
+    # Keep regex for dynamic subdomains (e.g. Vercel previews) if needed
+    allow_origin_regex=r"https?://(.*\.vercel\.app|.*\.duckdns\.org)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,7 +77,6 @@ api_v1_router.include_router(calendar_router, prefix="/calendar", tags=["Calenda
 api_v1_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_v1_router.include_router(stream_router, prefix="/stream", tags=["Streaming"])
 api_v1_router.include_router(support_router, prefix="/support", tags=["Support"])
-# PHOENIX FIX: Registered
 api_v1_router.include_router(business_router, prefix="/business", tags=["Business"])
 
 app.include_router(api_v1_router)
