@@ -1,8 +1,7 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - FINANCE MODULE ACTIVATION
-# 1. IMPORT: Added 'finance_router'.
-# 2. ROUTE: Registered '/finance' endpoints under API V1.
-# 3. STATUS: Backend is now ready for Invoicing.
+# PHOENIX PROTOCOL - ROUTER REGISTRATION
+# 1. ADDED: graph_router for visualization.
+# 2. STATUS: All modules (Finance, Graph, etc.) are active.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +21,8 @@ from app.api.endpoints.chat import router as chat_router
 from app.api.endpoints.stream import router as stream_router
 from app.api.endpoints.support import router as support_router
 from app.api.endpoints.business import router as business_router
-from app.api.endpoints.finance import router as finance_router # <--- NEW
+from app.api.endpoints.finance import router as finance_router
+from app.api.endpoints.graph import router as graph_router # <--- NEW
 
 # Drafting V2 (Safe Import)
 try:
@@ -39,7 +39,6 @@ app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 # --- MIDDLEWARE ---
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"]) # type: ignore
 
-# Explicitly list production origins
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",
@@ -48,7 +47,6 @@ origins = [
     "https://api.juristi.tech"
 ]
 
-# Try to load extra origins from ENV
 try:
     env_origins = os.getenv("BACKEND_CORS_ORIGINS")
     if env_origins:
@@ -78,7 +76,8 @@ api_v1_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_v1_router.include_router(stream_router, prefix="/stream", tags=["Streaming"])
 api_v1_router.include_router(support_router, prefix="/support", tags=["Support"])
 api_v1_router.include_router(business_router, prefix="/business", tags=["Business"])
-api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"]) # <--- NEW
+api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"])
+api_v1_router.include_router(graph_router, prefix="/graph", tags=["Graph"]) # <--- NEW
 
 app.include_router(api_v1_router)
 

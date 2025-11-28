@@ -1,14 +1,14 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - ARCHITECTURAL & UI REALIGNMENT
-// 1. NAVIGATION CLEANUP: Removed the redundant "Admin Panel" link. The sidebar is the single source of truth for main modules.
-// 2. UI FIX: Corrected inconsistent font size. Changed user role text from 'text-[10px]' to 'text-xs' for design consistency.
-// 3. VERIFIED: The "My Account" link remains correctly placed within this user-centric dropdown.
+// PHOENIX PROTOCOL - ACTIVE ALERTS
+// 1. LIVE DATA: Polls /calendar/alerts to check for upcoming deadlines (7 days).
+// 2. VISUAL: Shows Red Dot only if count > 0.
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, Search, Menu, LogOut, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
+import { apiService } from '../services/api'; // Import API
 import LanguageSwitcher from './LanguageSwitcher';
 
 interface HeaderProps {
@@ -19,6 +19,26 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [alertCount, setAlertCount] = useState(0);
+
+  // PHOENIX FIX: Check for alerts on mount
+  useEffect(() => {
+    const checkAlerts = async () => {
+      try {
+        if (user) {
+            const data = await apiService.getAlertsCount();
+            setAlertCount(data.count);
+        }
+      } catch (err) {
+        console.error("Failed to fetch alerts", err);
+      }
+    };
+    checkAlerts();
+    
+    // Optional: Poll every 5 minutes
+    const interval = setInterval(checkAlerts, 300000);
+    return () => clearInterval(interval);
+  }, [user]);
 
   return (
     <header className="h-16 bg-background-dark border-b border-glass-edge flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 sticky top-0 backdrop-blur-md bg-opacity-90">
@@ -46,10 +66,13 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
       <div className="flex items-center gap-2 sm:gap-3">
         <LanguageSwitcher />
 
-        <button className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors relative">
+        <Link to="/calendar" className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors relative" title="Njoftimet">
           <Bell size={20} />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
-        </button>
+          {/* PHOENIX LOGIC: Only show if alertCount > 0 */}
+          {alertCount > 0 && (
+            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+          )}
+        </Link>
         
         <div className="h-6 w-px bg-glass-edge/50"></div>
 
@@ -60,7 +83,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           >
             <div className="text-right hidden sm:block">
               <p className="text-sm font-medium text-white">{user?.username || 'User'}</p>
-              {/* PHOENIX UI FIX: Corrected font size for consistency */}
               <p className="text-xs text-text-secondary uppercase tracking-wider">
                 {user?.role || 'LAWYER'}
               </p>
@@ -81,8 +103,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                   <p className="text-sm text-white font-medium truncate">{user?.username}</p>
                   <p className="text-xs text-text-secondary truncate">{user?.email}</p>
                 </div>
-
-                {/* PHOENIX ARCHITECTURAL FIX: "Admin Panel" removed. It belongs in the main sidebar. */}
 
                 <Link 
                   to="/account" 

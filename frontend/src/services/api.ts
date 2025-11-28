@@ -1,8 +1,7 @@
 // FILE: src/services/api.ts
 // PHOENIX PROTOCOL - API MASTER FILE
-// 1. MODULES: Auth, Cases, Documents, Chat, Calendar, Admin, Drafting, Business, Finance.
-// 2. FEATURES: Deep Scan, Invoice Generation, White-Labeling.
-// 3. STATUS: Fully synchronized with Backend V1.
+// 1. UPDATED: Added 'getAlertsCount' for the Header Bell.
+// 2. UPDATED: Added 'getCaseGraph' for the Detective Board.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -36,7 +35,23 @@ interface DocumentContentResponse {
     text: string;
 }
 
-// Environment check
+// Graph Types
+interface GraphNode {
+    id: string;
+    name: string;
+    group: string;
+    val: number;
+}
+interface GraphLink {
+    source: string;
+    target: string;
+    label: string;
+}
+interface GraphData {
+    nodes: GraphNode[];
+    links: GraphLink[];
+}
+
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
 
@@ -143,7 +158,7 @@ class ApiService {
         return response.data;
     }
 
-    // --- Finance / Invoicing ---
+    // --- Finance ---
     public async getInvoices(): Promise<Invoice[]> {
         const response = await this.axiosInstance.get<Invoice[]>('/finance/invoices');
         return response.data;
@@ -161,8 +176,6 @@ class ApiService {
 
     public async downloadInvoicePdf(invoiceId: string): Promise<void> {
         const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { responseType: 'blob' });
-        
-        // Trigger Browser Download
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;
@@ -322,6 +335,18 @@ class ApiService {
     
     public async deleteCalendarEvent(eventId: string): Promise<void> {
         await this.axiosInstance.delete(`/calendar/events/${eventId}`);
+    }
+
+    // --- PHOENIX NEW: ALERTS ---
+    public async getAlertsCount(): Promise<{ count: number }> {
+        const response = await this.axiosInstance.get<{ count: number }>('/calendar/alerts');
+        return response.data;
+    }
+
+    // --- PHOENIX NEW: GRAPH VISUALIZATION ---
+    public async getCaseGraph(caseId: string): Promise<GraphData> {
+        const response = await this.axiosInstance.get<GraphData>(`/graph/graph/${caseId}`);
+        return response.data;
     }
 
     // --- Drafting ---

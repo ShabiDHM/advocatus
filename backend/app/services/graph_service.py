@@ -1,7 +1,8 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH INTERFACE (FUZZY SEARCH ENABLED)
-# 1. SEARCH: Added Case-Insensitive Fuzzy Matching (CONTAINS).
-# 2. SAFETY: Added optional chaining for driver.
+# PHOENIX PROTOCOL - GRAPH INTERFACE (VISUALIZATION ENABLED)
+# 1. SEARCH: Fuzzy matching for smart lookups.
+# 2. VISUALIZATION: Added 'get_case_graph' for 2D React Force Graph.
+# 3. SAFETY: Robust error handling and connection management.
 
 import os
 import structlog
@@ -94,13 +95,10 @@ class GraphService:
     def find_hidden_connections(self, query_term: str) -> List[str]:
         """
         Finds connections using FUZZY matching (Case Insensitive).
-        Input: "Artan" -> Finds "Artan Hoxha", "Mr. Artan", etc.
         """
         self._connect()
         if not self._driver: return []
         
-        # Cypher: Find any node where name contains the query (case-insensitive)
-        # Then find immediate connections (1 hop)
         query = """
         MATCH (a)-[r]-(b)
         WHERE toLower(a.name) CONTAINS toLower($term)
@@ -113,12 +111,92 @@ class GraphService:
                 connections = []
                 for record in result:
                     target_type = record['type'][0] if record['type'] else "Entity"
-                    # Format: "Artan Hoxha --SIGNED--> Contract (Document)"
                     connections.append(f"{record['source']} --{record['relation']}--> {record['target']} ({target_type})")
                 return connections
         except Exception as e:
             logger.warning(f"Graph Search Error: {e}")
             return []
+
+    def get_case_graph(self, case_id: str) -> Dict[str, List]:
+        """
+        Retrieves the full knowledge graph for a specific case.
+        Returns strict Node/Link structure for React 2D Graph.
+        """
+        self._connect()
+        if not self._driver: return {"nodes": [], "links": []}
+
+        # 1. Find Documents for Case
+        # 2. Find Entities linked to those Documents
+        # 3. Find relationships between those entities
+        query = """
+        MATCH (d:Document {case_id: $case_id})
+        OPTIONAL MATCH (d)-[r]-(target)
+        RETURN d, r, target
+        """
+        
+        nodes = {}
+        links = []
+        
+        try:
+            with self._driver.session() as session:
+                result = session.run(query, case_id=case_id)
+                
+                for record in result:
+                    # 1. Document Node (The Center)
+                    doc_node = record['d']
+                    if doc_node:
+                        # Use element_id (Neo4j 5) or id (older)
+                        doc_id = getattr(doc_node, "element_id", str(doc_node.id))
+                        # Or rely on the property 'id' we set
+                        doc_prop_id = doc_node.get("id", doc_id)
+                        
+                        if doc_prop_id not in nodes:
+                            nodes[doc_prop_id] = {
+                                "id": doc_prop_id,
+                                "name": "DOKUMENTI",
+                                "group": "DOCUMENT",
+                                "val": 20 # Size
+                            }
+                    
+                    # 2. Target Node (The Entity)
+                    target = record['target']
+                    rel = record['r']
+                    
+                    if target and rel:
+                        target_id = getattr(target, "element_id", str(target.id))
+                        # Prefer name as ID for visualization stability if unique, else use element_id
+                        # Here using element_id for uniqueness
+                        
+                        target_labels = list(target.labels)
+                        group_type = target_labels[0] if target_labels else "Entity"
+                        target_name = target.get("name", "Unknown")
+                        
+                        # Use name as ID to merge same entities across docs? 
+                        # Better to use a unique key. Let's use the DB ID.
+                        node_key = target_id 
+                        
+                        if node_key not in nodes:
+                            nodes[node_key] = {
+                                "id": node_key,
+                                "name": target_name,
+                                "group": group_type,
+                                "val": 10
+                            }
+                        
+                        # 3. Link
+                        links.append({
+                            "source": doc_prop_id,
+                            "target": node_key,
+                            "label": type(rel).__name__ # Relationship type
+                        })
+                        
+            return {
+                "nodes": list(nodes.values()),
+                "links": links
+            }
+        except Exception as e:
+            logger.error(f"Graph Retrieval Failed: {e}")
+            return {"nodes": [], "links": []}
 
 # Global Instance
 graph_service = GraphService()
