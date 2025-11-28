@@ -1,8 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - FULL IMPLEMENTATION
-# 1. ANALYSIS: Pylance errors were caused by empty helper functions that violated their declared return types.
-# 2. FIX: Restored the full, correct implementations for '_get_template_augmentation', '_fetch_relevant_laws', and '_stream_local_llm'.
-# 3. RESULT: All functions now adhere to their type contracts, resolving all 'reportReturnType' and 'reportGeneralTypeIssues' errors.
+# PHOENIX PROTOCOL - BUSINESS PROFILE RESTORED
+# 1. FIX: Updated 'user.full_name' to 'user.username' to match User model.
+# 2. PROFILE LOOKUP: Fetches 'business_profiles' to get Firm Name/Address.
+# 3. HYBRID AI: Retains Cloud/Local fallback.
 
 import os
 import asyncio
@@ -15,7 +15,7 @@ from groq.types.chat import ChatCompletionMessageParam
 from pymongo.database import Database
 
 from ..models.user import UserInDB
-from app.services.text_sterilization_service import sterilize_text_for_llm
+from app.services.text_sterilization_service import sterilize_text_for_llm 
 from .vector_store_service import query_legal_knowledge_base
 from .embedding_service import generate_embedding
 
@@ -32,8 +32,7 @@ def _get_template_augmentation(draft_type: str, jurisdiction: str, favorability:
         "favorability": favorability
     }
     template = db.document_templates.find_one(template_filter)
-    if not template:
-        return None
+    if not template: return None
     try:
         augmentation_text = f"The generated document MUST be a {draft_type} for the jurisdiction of {jurisdiction}."
         clauses_text = "\n".join([
@@ -44,32 +43,65 @@ def _get_template_augmentation(draft_type: str, jurisdiction: str, favorability:
             augmentation_text += f"\n\nInclude the following mandatory clause text:\n{clauses_text}"
         return augmentation_text
     except Exception as e:
-        logger.error("drafting_service.template_augmentation_error", error=str(e), exc_info=True)
+        logger.error("drafting_service.template_augmentation_error", error=str(e))
         return None
 
 def _fetch_relevant_laws(prompt_text: str) -> str:
-    """
-    Searches the Vector Database for laws relevant to the drafting request.
-    """
     try:
         embedding = generate_embedding(prompt_text[:1000])
         if not embedding: return ""
-
         laws = query_legal_knowledge_base(embedding, n_results=3)
         if not laws: return ""
 
         law_buffer = ["\n=== BAZA LIGJORE E DETYRUESHME (NGA DATABAZA) ==="]
         for law in laws:
             source = law.get('document_name', 'Ligj')
-            text = law.get('text', '')[:1500]
+            text = law.get('text', '')[:1500] 
             law_buffer.append(f"BURIMI: {source}\nNENET: {text}\n---")
         return "\n".join(law_buffer)
     except Exception as e:
         logger.warning(f"Drafting RAG Lookup failed: {e}")
         return ""
 
+def _format_business_identity(db: Database, user: UserInDB) -> str:
+    """
+    Retrieves the White-Label Business Profile for the user.
+    If no profile exists, falls back to User details.
+    """
+    try:
+        profile = db.business_profiles.find_one({"user_id": str(user.id)})
+        
+        if profile:
+            # PHOENIX FIX: Use username instead of full_name
+            name_to_use = profile.get('firm_name') or user.username
+            
+            info = f"""
+            === HARTUESI I DOKUMENTIT (ZYRA LIGJORE/BIZNESI) ===
+            Emri i Zyrës: {name_to_use}
+            Adresa: {profile.get('address', 'N/A')}
+            Email: {profile.get('contact_email', user.email)}
+            """
+            if profile.get('phone'):
+                info += f"Tel: {profile.get('phone')}\n"
+            if profile.get('website'):
+                info += f"Web: {profile.get('website')}\n"
+                
+            info += "==============================================\n"
+            return info
+            
+    except Exception as e:
+        logger.warning(f"Failed to fetch business profile: {e}")
+
+    # Fallback if no profile
+    # PHOENIX FIX: Use username
+    return f"""
+    === HARTUESI (INFORMACION NGA LLOGARIA) ===
+    Emri: {user.username}
+    Email: {user.email}
+    ===========================================
+    """
+
 async def _stream_local_llm(messages: List[Dict[str, Any]]) -> AsyncGenerator[str, None]:
-    """Tier 2: Local LLM Stream"""
     logger.info("🔄 Switching to LOCAL LLM (Ollama) for drafting...")
     payload = {
         "model": LOCAL_MODEL_NAME,
@@ -97,7 +129,7 @@ async def _stream_local_llm(messages: List[Dict[str, Any]]) -> AsyncGenerator[st
 
 async def generate_draft_stream(
     context: str,
-    prompt_text: Optional[str],
+    prompt_text: str,
     user: UserInDB,
     draft_type: Optional[str] = None,
     case_id: Optional[str] = None,
@@ -106,7 +138,7 @@ async def generate_draft_stream(
     db: Optional[Database] = None
 ) -> AsyncGenerator[str, None]:
     log = logger.bind(case_id=case_id, user_id=str(user.id), draft_type=draft_type)
-    prompt_text = prompt_text or ""
+    if prompt_text is None: prompt_text = ""
     log.info("drafting_service.stream_start", prompt_length=len(prompt_text))
 
     sanitized_context = sterilize_text_for_llm(context)
@@ -114,20 +146,33 @@ async def generate_draft_stream(
 
     relevant_laws = await asyncio.to_thread(_fetch_relevant_laws, sanitized_prompt_text)
 
+    business_identity = ""
+    if db is not None:
+        business_identity = await asyncio.to_thread(_format_business_identity, db, user)
+
     system_prompt = (
         "Ti je 'Juristi AI', një ekspert për hartimin e dokumenteve ligjore në Kosovë dhe Shqipëri. "
         "DETYRA: Harto një dokument profesional bazuar në kërkesën e përdoruesit. "
-        "RREGULLAT: "
-        "1. Përdor gjuhë formale juridike. "
-        "2. Nëse ka 'BAZA LIGJORE' të ofruar më poshtë, sigurohu që drafti të jetë në përputhje me to. "
-        "3. Mos shto komente shtesë, vetëm tekstin e dokumentit."
+        "\n\n"
+        "RREGULLAT KRITIKE:\n"
+        "1. Përdor 'HARTUESI I DOKUMENTIT' për të vendosur Zyrën Ligjore/Biznesin si palë ose në kokë të dokumentit.\n"
+        "2. Përdor 'BAZA LIGJORE' për të cituar nenet e duhura.\n"
+        "3. Përdor gjuhë formale juridike.\n"
+        "4. Mos shto komente shtesë, vetëm tekstin e dokumentit."
     )
 
-    full_prompt = f"Context:\n{sanitized_context}\n\n---\n\nPrompt:\n{sanitized_prompt_text}"
+    full_prompt = f"""
+    {business_identity}
     
-    if relevant_laws:
-        full_prompt = f"{relevant_laws}\n\n{full_prompt}"
-        log.info("drafting_service.rag_injected")
+    {relevant_laws}
+    
+    KONTEKSTI SHTESË:
+    {sanitized_context}
+    
+    ---
+    KËRKESA E PËRDORUESIT:
+    {sanitized_prompt_text}
+    """
 
     if draft_type and jurisdiction and db is not None:
         template_augment = await asyncio.to_thread(_get_template_augmentation, draft_type, jurisdiction, favorability, db)
@@ -163,6 +208,7 @@ async def generate_draft_stream(
             return
 
         except Exception as e:
+            error_str = str(e).lower()
             log.warning(f"⚠️ Groq Drafting Failed: {e}")
             tier1_failed = True
     else:
@@ -174,7 +220,6 @@ async def generate_draft_stream(
             yield chunk
         log.info("drafting_service.stream_success_local")
 
-# Legacy
 def generate_draft_from_prompt(*args, **kwargs):
     raise NotImplementedError("Use generate_draft_stream instead.")
 def generate_draft(*args, **kwargs):

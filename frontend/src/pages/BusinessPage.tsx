@@ -1,151 +1,286 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - I18N ALIGNMENT
-// 1. I18N FIX: Replaced hardcoded Albanian alert text with a proper translation key ('business.logoUploadFailed').
-// 2. VERIFIED: All other functionality remains unchanged.
+// PHOENIX PROTOCOL - BUILD FIX
+// 1. TYPES: Aligned state and API calls with BusinessProfile interface.
+// 2. STATE: Handles null profile initialization gracefully.
+// 3. UI: Updated input fields to match BusinessProfileUpdate type.
 
 import React, { useEffect, useState, useRef } from 'react';
-import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Building2, BarChart3, Save, Upload, Briefcase, FileText, Clock, Loader2 } from 'lucide-react';
-import { apiService, API_V1_URL } from '../services/api';
-import { BusinessProfile } from '../data/types';
-
-const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; color: string }> = ({ title, value, icon, color }) => (
-    <div className="bg-background-light/30 backdrop-blur-md p-6 rounded-2xl border border-glass-edge shadow-lg flex items-center justify-between">
-        <div>
-            <p className="text-text-secondary text-sm font-medium mb-1">{title}</p>
-            <h3 className="text-2xl font-bold text-text-primary">{value}</h3>
-        </div>
-        <div className={`p-3 rounded-xl ${color} bg-opacity-20`}>
-            {icon}
-        </div>
-    </div>
-);
+import { Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, CreditCard } from 'lucide-react';
+import { apiService } from '../services/api';
+import { BusinessProfile, BusinessProfileUpdate } from '../data/types';
+import { useTranslation } from 'react-i18next';
 
 const BusinessPage: React.FC = () => {
-    const { t } = useTranslation();
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'profile'>('dashboard');
-    const [profile, setProfile] = useState<BusinessProfile | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isSaving, setIsSaving] = useState(false);
-    
-    const [stats, setStats] = useState({ cases: 0 });
-    const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t } = useTranslation();
+  const [profile, setProfile] = useState<BusinessProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        loadData();
-    }, []);
+  // Form State
+  const [formData, setFormData] = useState<BusinessProfileUpdate>({
+    firm_name: '',
+    email_public: '',
+    phone: '',
+    address: '',
+    city: '',
+    website: '',
+    tax_id: '',
+    branding_color: '#1f2937'
+  });
 
-    const loadData = async () => {
-        setIsLoading(true);
-        try {
-            const [profData, casesData] = await Promise.all([
-                apiService.getBusinessProfile(),
-                apiService.getCases()
-            ]);
-            setProfile(profData);
-            setStats({ cases: casesData.length });
-        } catch (error) {
-            console.error("Failed to load business data", error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
-    const handleSaveProfile = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!profile) return;
-        setIsSaving(true);
-        try {
-            const updated = await apiService.updateBusinessProfile({
-                firm_name: profile.firm_name,
-                address: profile.address,
-                city: profile.city,
-                phone: profile.phone,
-                email_public: profile.email_public,
-                website: profile.website,
-                tax_id: profile.tax_id
-            });
-            setProfile(updated);
-            alert(t('general.saveSuccess'));
-        } catch (error) {
-            console.error(error);
-            alert(t('error.generic'));
-        } finally {
-            setIsSaving(false);
-        }
-    };
+  const fetchProfile = async () => {
+    try {
+      setLoading(true);
+      const data = await apiService.getBusinessProfile();
+      setProfile(data);
+      // Initialize form with fetched data
+      setFormData({
+        firm_name: data.firm_name,
+        email_public: data.email_public || '',
+        phone: data.phone || '',
+        address: data.address || '',
+        city: data.city || '',
+        website: data.website || '',
+        tax_id: data.tax_id || '',
+        branding_color: data.branding_color || '#1f2937'
+      });
+    } catch (error) {
+      console.error("Failed to load business profile:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        try {
-            const updated = await apiService.uploadBusinessLogo(file);
-            setProfile(updated);
-        } catch (error) {
-            console.error("Logo upload failed", error);
-            alert(t('business.logoUploadFailed'));
-        }
-    };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
-    if (isLoading) return <div className="flex justify-center items-center h-96"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-secondary-start"></div></div>;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const updatedProfile = await apiService.updateBusinessProfile(formData);
+      setProfile(updatedProfile);
+      alert(t('settings.successMessage', 'Profili u përditësua me sukses!'));
+    } catch (error) {
+      console.error("Update failed:", error);
+      alert(t('error.generic', 'Gabim gjatë ruajtjes.'));
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-text-primary mb-2">{t('business.title')}</h1>
-                <p className="text-text-secondary">{t('business.subtitle')}</p>
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setSaving(true);
+      const updatedProfile = await apiService.uploadBusinessLogo(file);
+      setProfile(updatedProfile);
+    } catch (error) {
+      console.error("Logo upload failed:", error);
+      alert(t('error.uploadFailed', 'Ngarkimi i logos dështoi.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-96"><Loader2 className="w-8 h-8 animate-spin text-primary-start" /></div>;
+  }
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }} 
+      animate={{ opacity: 1, y: 0 }} 
+      className="max-w-4xl mx-auto py-8 px-4"
+    >
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-white mb-2">{t('business.title', 'Profili i Biznesit')}</h1>
+        <p className="text-gray-400">{t('business.subtitle', 'Menaxhoni identitetin e zyrës suaj ligjore.')}</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Left Column: Logo & Branding */}
+        <div className="space-y-6">
+          <div className="bg-background-dark border border-glass-edge rounded-2xl p-6 text-center">
+            <div className="relative w-32 h-32 mx-auto mb-4 bg-background-light rounded-full flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-600 group hover:border-primary-start transition-colors">
+              {profile?.logo_url ? (
+                <img src={profile.logo_url} alt="Logo" className="w-full h-full object-cover" />
+              ) : (
+                <Building2 className="w-12 h-12 text-gray-500" />
+              )}
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="w-6 h-6 text-white" />
+              </div>
             </div>
+            <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" />
+            <h3 className="text-lg font-semibold text-white mb-1">{formData.firm_name || 'Emri i Zyrës'}</h3>
+            <p className="text-sm text-gray-400">Logo & Identiteti Vizual</p>
+          </div>
 
-            <div className="flex space-x-4 mb-8 border-b border-glass-edge">
-                <button onClick={() => setActiveTab('dashboard')} className={`pb-3 px-1 text-sm font-medium transition-colors relative ${activeTab === 'dashboard' ? 'text-secondary-start' : 'text-text-secondary hover:text-text-primary'}`}>
-                    <div className="flex items-center gap-2"><BarChart3 size={18} />{t('business.dashboard')}</div>
-                    {activeTab === 'dashboard' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-secondary-start" />}
-                </button>
-                <button onClick={() => setActiveTab('profile')} className={`pb-3 px-1 text-sm font-medium transition-colors relative ${activeTab === 'profile' ? 'text-secondary-start' : 'text-text-secondary hover:text-text-primary'}`}>
-                    <div className="flex items-center gap-2"><Building2 size={18} />{t('business.profile')}</div>
-                    {activeTab === 'profile' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-secondary-start" />}
-                </button>
+          <div className="bg-background-dark border border-glass-edge rounded-2xl p-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Palette className="w-5 h-5 text-accent-start" /> Branding
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Ngjyra Kryesore (HEX)</label>
+                <div className="flex gap-3">
+                  <input 
+                    type="color" 
+                    name="branding_color"
+                    value={formData.branding_color}
+                    onChange={handleInputChange}
+                    className="h-10 w-16 bg-transparent border-0 rounded cursor-pointer"
+                  />
+                  <input 
+                    type="text" 
+                    name="branding_color"
+                    value={formData.branding_color}
+                    onChange={handleInputChange}
+                    className="flex-1 bg-background-light border border-glass-edge rounded-lg px-3 py-2 text-white font-mono"
+                  />
+                </div>
+              </div>
             </div>
-
-            <div className="min-h-[500px]">
-                {activeTab === 'dashboard' && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <StatCard title={t('business.totalCases')} value={stats.cases} icon={<Briefcase className="text-blue-400" />} color="bg-blue-500" />
-                        <StatCard title={t('business.documentsProcessed')} value="--" icon={<FileText className="text-green-400" />} color="bg-green-500" />
-                        <StatCard title={t('business.efficiency')} value="High" icon={<Clock className="text-purple-400" />} color="bg-purple-500" />
-                    </motion.div>
-                )}
-
-                {activeTab === 'profile' && profile && (
-                    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        <div className="col-span-1">
-                            <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge text-center">
-                                <div className="w-32 h-32 mx-auto bg-background-dark rounded-full flex items-center justify-center mb-4 overflow-hidden border-2 border-secondary-start/30 relative group">
-                                    {profile.logo_url ? <img src={`${API_V1_URL}${profile.logo_url}`} alt="Logo" className="w-full h-full object-cover" /> : <Building2 className="w-12 h-12 text-text-secondary" />}
-                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRef.current?.click()}><Upload className="text-white w-8 h-8" /></div>
-                                </div>
-                                <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" />
-                                <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 rounded-lg bg-secondary-start/10 text-secondary-start text-sm font-medium hover:bg-secondary-start/20 transition-colors">{t('business.changeLogo')}</button>
-                            </div>
-                        </div>
-                        <div className="col-span-1 lg:col-span-2">
-                            <form onSubmit={handleSaveProfile} className="space-y-6 bg-background-light/30 p-6 sm:p-8 rounded-2xl border border-glass-edge">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('business.firmName')}</label><input type="text" value={profile.firm_name} onChange={(e) => setProfile({...profile, firm_name: e.target.value})} className="w-full px-4 py-2 bg-background-dark border border-glass-edge rounded-lg text-text-primary focus:ring-1 focus:ring-secondary-start outline-none" /></div>
-                                    <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('business.taxId')}</label><input type="text" value={profile.tax_id || ''} onChange={(e) => setProfile({...profile, tax_id: e.target.value})} className="w-full px-4 py-2 bg-background-dark border border-glass-edge rounded-lg text-text-primary focus:ring-1 focus:ring-secondary-start outline-none" /></div>
-                                    <div className="md:col-span-2"><label className="block text-sm font-medium text-text-secondary mb-1">{t('business.address')}</label><input type="text" value={profile.address || ''} onChange={(e) => setProfile({...profile, address: e.target.value})} className="w-full px-4 py-2 bg-background-dark border border-glass-edge rounded-lg text-text-primary focus:ring-1 focus:ring-secondary-start outline-none" /></div>
-                                    <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('business.city')}</label><input type="text" value={profile.city || ''} onChange={(e) => setProfile({...profile, city: e.target.value})} className="w-full px-4 py-2 bg-background-dark border border-glass-edge rounded-lg text-text-primary focus:ring-1 focus:ring-secondary-start outline-none" /></div>
-                                    <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('business.website')}</label><input type="text" value={profile.website || ''} onChange={(e) => setProfile({...profile, website: e.target.value})} className="w-full px-4 py-2 bg-background-dark border border-glass-edge rounded-lg text-text-primary focus:ring-1 focus:ring-secondary-start outline-none" /></div>
-                                </div>
-                                <div className="pt-4 flex justify-end"><button type="submit" disabled={isSaving} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-secondary-start to-secondary-end text-white font-semibold shadow-lg hover:opacity-90 transition-opacity disabled:opacity-50">{isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}<span>{t('general.save')}</span></button></div>
-                            </form>
-                        </div>
-                    </motion.div>
-                )}
-            </div>
+          </div>
         </div>
-    );
+
+        {/* Right Column: Details Form */}
+        <div className="md:col-span-2">
+          <form onSubmit={handleSubmit} className="bg-background-dark border border-glass-edge rounded-2xl p-6 space-y-6">
+            
+            <div className="grid grid-cols-1 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Emri i Zyrës Ligjore</label>
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
+                  <input 
+                    type="text" 
+                    name="firm_name"
+                    value={formData.firm_name}
+                    onChange={handleInputChange}
+                    className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-start outline-none"
+                    placeholder="Juristi Partners Sh.p.k"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Email Publik</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
+                    <input 
+                      type="email" 
+                      name="email_public"
+                      value={formData.email_public}
+                      onChange={handleInputChange}
+                      className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-start outline-none"
+                      placeholder="contact@example.com"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Telefon</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
+                    <input 
+                      type="text" 
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-start outline-none"
+                      placeholder="+383 44 ..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Adresa</label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
+                  <input 
+                    type="text" 
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-start outline-none"
+                    placeholder="Rruga, Nr..."
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Qyteti</label>
+                  <input 
+                    type="text" 
+                    name="city"
+                    value={formData.city}
+                    onChange={handleInputChange}
+                    className="w-full bg-background-light border border-glass-edge rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-primary-start outline-none"
+                    placeholder="Prishtinë"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Website</label>
+                  <div className="relative">
+                    <Globe className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
+                    <input 
+                      type="text" 
+                      name="website"
+                      value={formData.website}
+                      onChange={handleInputChange}
+                      className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-start outline-none"
+                      placeholder="www.example.com"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Numri Fiskal / NUI</label>
+                <div className="relative">
+                  <CreditCard className="absolute left-3 top-3 w-5 h-5 text-gray-500" />
+                  <input 
+                    type="text" 
+                    name="tax_id"
+                    value={formData.tax_id}
+                    onChange={handleInputChange}
+                    className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-start outline-none"
+                    placeholder="123456789"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 flex justify-end">
+              <button 
+                type="submit" 
+                disabled={saving}
+                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                {t('general.save', 'Ruaj Ndryshimet')}
+              </button>
+            </div>
+
+          </form>
+        </div>
+      </div>
+    </motion.div>
+  );
 };
 
 export default BusinessPage;

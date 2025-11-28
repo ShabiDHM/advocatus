@@ -1,6 +1,8 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REBRANDING
-# 1. REBRAND: Changed header to "Juristi AI Platform".
+# PHOENIX PROTOCOL - BRANDED REPORTS (FIXED)
+# 1. FIX: Corrected variable scope error in _get_branding.
+# 2. QUERY: Searches by 'username' or 'email' to find user ID.
+# 3. BRANDING: Applies Firm Name & Color from profile.
 
 from io import BytesIO
 from datetime import datetime
@@ -18,27 +20,57 @@ from xml.sax.saxutils import escape
 
 logger = structlog.get_logger(__name__)
 
-def _header_footer(canvas: canvas.Canvas, doc: BaseDocTemplate, header_right_text: str):
+# --- HELPER: Fetch Branding ---
+def _get_branding(db: Database, search_term: str) -> dict:
+    """
+    Fetches branding using username or email string.
+    """
+    try:
+        # PHOENIX FIX: Query matches User Model (username/email)
+        user = db.users.find_one({"$or": [{"email": search_term}, {"username": search_term}]})
+        
+        if user:
+            profile = db.business_profiles.find_one({"user_id": str(user["_id"])})
+            if profile:
+                return {
+                    "header_text": profile.get("firm_name", "Juristi AI Platform"),
+                    "color": profile.get("branding_color", "#1f2937")
+                }
+    except Exception as e:
+        # Fail silently to default branding
+        pass
+    
+    return {"header_text": "Juristi AI Platform", "color": "#1f2937"}
+
+def _header_footer(canvas: canvas.Canvas, doc: BaseDocTemplate, header_right_text: str, branding: dict):
     canvas.saveState()
-    # REBRANDING HERE
-    header_text = "Juristi AI Platform"
-    canvas.setFont('Helvetica', 9)
+    
+    # Dynamic Branding
+    header_text = branding["header_text"]
+    
+    canvas.setFont('Helvetica-Bold', 10)
     canvas.drawString(15 * mm, 282 * mm, header_text)
+    
     canvas.setFont('Helvetica-Oblique', 9)
     canvas.drawRightString(195 * mm, 282 * mm, header_right_text)
+    
+    # Branding Line Color
+    canvas.setStrokeColor(HexColor(branding["color"]))
+    canvas.setLineWidth(1)
     canvas.line(15 * mm, 278 * mm, 195 * mm, 278 * mm)
     
     footer_text = f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     page_num_text = f"Page {doc.page}"
     canvas.setFont('Helvetica', 8)
+    canvas.setFillColor(HexColor("#666666"))
     canvas.drawString(15 * mm, 15 * mm, footer_text)
     canvas.drawRightString(195 * mm, 15 * mm, page_num_text)
     canvas.restoreState()
 
-def _build_enhanced_doc_template(buffer: BytesIO, header_right_text: str) -> BaseDocTemplate:
+def _build_enhanced_doc_template(buffer: BytesIO, header_right_text: str, branding: dict) -> BaseDocTemplate:
     doc = BaseDocTemplate(buffer, pagesize=A4, leftMargin=20*mm, rightMargin=20*mm, topMargin=25*mm, bottomMargin=25*mm)
     frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='normal')
-    template = PageTemplate(id='main_template', frames=[frame], onPage=lambda canvas, doc: _header_footer(canvas, doc, header_right_text))
+    template = PageTemplate(id='main_template', frames=[frame], onPage=lambda canvas, doc: _header_footer(canvas, doc, header_right_text, branding))
     doc.addPageTemplates([template])
     return doc
 
@@ -61,8 +93,12 @@ def _create_summary_table(findings: list, case_title: str, username: str) -> Tab
 
 def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, username: str) -> BytesIO:
     log = logger.bind(case_id=case_id, username=username)
+    
+    # 1. Resolve Branding (Pass the username as search_term)
+    branding = _get_branding(db, username)
+
     buffer = BytesIO()
-    doc = _build_enhanced_doc_template(buffer, "Raport Konfidencial i Gjetjeve")
+    doc = _build_enhanced_doc_template(buffer, "Raport Konfidencial i Gjetjeve", branding)
     
     styles = getSampleStyleSheet()
     styles['h1'].alignment = TA_CENTER
@@ -94,8 +130,10 @@ def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, us
     return buffer
 
 def create_pdf_from_text(text: str, document_title: str = "Dokument") -> BytesIO:
+    # Standard documents default to platform branding if no user context provided
+    branding = {"header_text": "Juristi AI Platform", "color": "#1f2937"}
     buffer = BytesIO()
-    doc = _build_enhanced_doc_template(buffer, f"Dokument: {escape(document_title)}")
+    doc = _build_enhanced_doc_template(buffer, f"Dokument: {escape(document_title)}", branding)
     styles = getSampleStyleSheet()
     styles['Normal'].alignment = TA_JUSTIFY
     Story: List[Flowable] = [Paragraph(escape(p).replace('\n', '<br/>'), styles['Normal']) for p in text.split('\n\n') if p.strip()]

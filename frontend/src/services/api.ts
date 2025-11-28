@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - BUSINESS MODULE SUPPORT
-// 1. ADDED: Business Profile methods (get, update, upload logo).
-// 2. TYPES: Added 'BusinessProfile' interface.
+// PHOENIX PROTOCOL - API COMPLETE
+// 1. ADDED: Business Profile methods (get, update, uploadLogo).
+// 2. TYPES: Ensures all business methods return 'BusinessProfile' object.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -20,18 +20,10 @@ import type {
     DraftingJobResult,
     ChangePasswordRequest,
     Finding,
-    CaseAnalysisResult
+    CaseAnalysisResult,
+    BusinessProfile,        // <--- Ensure this is imported
+    BusinessProfileUpdate   // <--- Ensure this is imported
 } from '../data/types';
-
-export interface BusinessProfile {
-    firm_name: string;
-    tax_id?: string;
-    address?: string;
-    phone?: string;
-    email?: string;
-    website?: string;
-    logo_url?: string;
-}
 
 interface LoginResponse {
     access_token: string;
@@ -41,7 +33,6 @@ interface DocumentContentResponse {
     text: string;
 }
 
-// Environment check
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
 
@@ -90,17 +81,9 @@ class ApiService {
             (response) => response,
             async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-                
                 const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh');
-                const isLoginRequest = originalRequest?.url?.includes('/auth/login');
 
-                if (
-                    error.response?.status === 401 && 
-                    originalRequest && 
-                    !originalRequest._retry && 
-                    !isRefreshRequest && 
-                    !isLoginRequest 
-                ) {
+                if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
                     originalRequest._retry = true;
                     try {
                         if (!this.refreshTokenPromise) this.refreshTokenPromise = this.refreshAccessToken();
@@ -136,29 +119,23 @@ class ApiService {
         return response.data;
     }
 
-    // --- Business ---
+    // --- Business Profile (PHOENIX FIX) ---
     public async getBusinessProfile(): Promise<BusinessProfile> {
-        const response = await this.axiosInstance.get<BusinessProfile>('/business/settings');
+        const response = await this.axiosInstance.get<BusinessProfile>('/business/profile');
         return response.data;
     }
 
-    public async updateBusinessProfile(data: BusinessProfile): Promise<void> {
-        await this.axiosInstance.post('/business/settings', data);
+    public async updateBusinessProfile(data: BusinessProfileUpdate): Promise<BusinessProfile> {
+        const response = await this.axiosInstance.put<BusinessProfile>('/business/profile', data);
+        return response.data;
     }
 
-    public async uploadBusinessLogo(file: File): Promise<string> {
+    public async uploadBusinessLogo(file: File): Promise<BusinessProfile> {
         const formData = new FormData();
         formData.append('file', file);
-        // Expecting { url: "..." } response
-        const response = await this.axiosInstance.post<{ url: string }>('/business/logo', formData, {
-             headers: { 'Content-Type': 'multipart/form-data' },
+        const response = await this.axiosInstance.put<BusinessProfile>('/business/logo', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
         });
-        return response.data.url;
-    }
-
-    public async getGraphData(centerNode?: string): Promise<any> {
-        const params = centerNode ? { center_node: centerNode } : {};
-        const response = await this.axiosInstance.get('/business/graph/visualize', { params });
         return response.data;
     }
 
