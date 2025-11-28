@@ -1,7 +1,7 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - TYPE SAFE
-# 1. FIX: Added 'cast(Dict[str, Any], new_case)' to satisfy Pylance.
-# 2. INTEGRATION: Maintains graph cleanup logic.
+# PHOENIX PROTOCOL - CASE SERVICE (TYPE SAFE)
+# 1. FIX: Added Dict[str, Any] annotation to resolve Pylance update error.
+# 2. STATUS: Robust counting logic maintained.
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
@@ -21,7 +21,8 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
     Normalizes a MongoDB case document to match the CaseOut schema.
     """
     try:
-        case_id_str = str(case_doc["_id"])
+        case_id_obj = case_doc["_id"]
+        case_id_str = str(case_id_obj)
         
         title = case_doc.get("title") or case_doc.get("case_name") or "Untitled Case"
         case_number = case_doc.get("case_number") or f"REF-{case_id_str[-6:]}"
@@ -29,21 +30,31 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         updated_at = case_doc.get("updated_at") or created_at
 
         # Counts
-        counts = {}
+        counts = {
+            "document_count": 0,
+            "alert_count": 0,
+            "event_count": 0,
+            "finding_count": 0
+        }
+        
         if db is not None:
-            doc_count = db.documents.count_documents({"case_id": case_doc["_id"]})
-            event_count = db.calendar_events.count_documents({"case_id": case_id_str})
-            finding_count = db.findings.count_documents({"case_id": case_id_str})
-            alert_count = db.calendar_events.count_documents({
-                "case_id": case_id_str, "status": "PENDING", "start_date": {"$gte": datetime.now().isoformat()}
+            # PHOENIX FIX: Explicit type hint to allow .update() later
+            any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id_obj, case_id_str]}}
+            
+            counts["document_count"] = db.documents.count_documents(any_id_query)
+            counts["event_count"] = db.calendar_events.count_documents(any_id_query)
+            counts["finding_count"] = db.findings.count_documents(any_id_query)
+            
+            # Alerts: Pending events in the future
+            alert_query = any_id_query.copy()
+            alert_query.update({
+                "status": "PENDING", 
+                "start_date": {"$gte": datetime.now().isoformat()}
             })
-            counts = {
-                "document_count": doc_count, "alert_count": alert_count,
-                "event_count": event_count, "finding_count": finding_count,
-            }
+            counts["alert_count"] = db.calendar_events.count_documents(alert_query)
 
         return {
-            "id": case_doc["_id"],
+            "id": case_id_obj,
             "case_number": case_number,
             "title": title,
             "description": case_doc.get("description"),
@@ -83,7 +94,6 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
     if not new_case:
         raise HTTPException(status_code=500, detail="Failed to create case.")
 
-    # PHOENIX FIX: Explicit cast to satisfy strict type checking
     return _map_case_document(cast(Dict[str, Any], new_case), db)
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
@@ -121,10 +131,13 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
         except Exception:
             pass
 
-    result = db.cases.delete_one({"_id": case_id})
+    db.cases.delete_one({"_id": case_id})
     
+    # Robust cleanup using both ID types
     case_id_str = str(case_id)
-    db.documents.delete_many({"case_id": case_id})
-    db.calendar_events.delete_many({"case_id": case_id_str})
-    db.findings.delete_many({"case_id": case_id_str})
-    db.alerts.delete_many({"case_id": case_id_str})
+    any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
+    
+    db.documents.delete_many(any_id_query)
+    db.calendar_events.delete_many(any_id_query)
+    db.findings.delete_many(any_id_query)
+    db.alerts.delete_many(any_id_query)

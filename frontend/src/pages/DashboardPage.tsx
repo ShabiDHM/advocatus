@@ -1,12 +1,11 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - FORM OPTIMIZATION
-// 1. SIMPLIFICATION: Removed 'case_number' and 'description' inputs.
-// 2. AUTO-FILL: Sends generated case number to backend (though backend double-checks).
-// 3. UX: Compact form focused on Title + Client.
+// PHOENIX PROTOCOL - DASHBOARD (CLEANED)
+// 1. UPDATE: Removed 'Stats Row' (Active/Pending/Completed) as requested.
+// 2. FOCUS: Minimalist view showing only Title, Create Button, and Case Cards.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Briefcase, Clock, CheckCircle } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest } from '../data/types';
 import { useAuth } from '../context/AuthContext';
@@ -52,14 +51,13 @@ const DashboardPage: React.FC = () => {
   const handleCreateCase = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Auto-generate a temp number for the payload (Backend will finalize/overwrite if needed)
       const tempCaseNumber = `R-${Date.now().toString().slice(-6)}`;
       
       const payload: CreateCaseRequest = {
           case_number: tempCaseNumber,
           title: newCaseData.title,
           case_name: newCaseData.title,
-          description: "", // Default empty description
+          description: "", 
           clientName: newCaseData.clientName,
           clientEmail: newCaseData.clientEmail,
           clientPhone: newCaseData.clientPhone,
@@ -76,7 +74,7 @@ const DashboardPage: React.FC = () => {
   };
 
   const handleDeleteCase = async (caseId: string) => {
-    if (window.confirm(t('dashboard.confirmDelete'))) {
+    if (window.confirm(t('dashboard.confirmDelete', 'A jeni i sigurt?'))) {
         try {
             await apiService.deleteCase(caseId);
             setCases(prevCases => prevCases.filter(c => c.id !== caseId));
@@ -106,13 +104,6 @@ const DashboardPage: React.FC = () => {
         >
           <Plus size={20} /> {t('dashboard.newCase')}
         </button>
-      </div>
-
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <StatCard title={t('dashboard.activeCases')} value={cases.filter(c => c.status === 'open').length} icon={<Briefcase className="text-blue-400" />} color="bg-blue-500" />
-        <StatCard title={t('dashboard.pendingDocs')} value={0} icon={<Clock className="text-yellow-400" />} color="bg-yellow-500" />
-        <StatCard title={t('dashboard.completed')} value={cases.filter(c => c.status === 'closed').length} icon={<CheckCircle className="text-green-400" />} color="bg-green-500" />
       </div>
 
       {/* Case Grid */}
@@ -162,15 +153,5 @@ const DashboardPage: React.FC = () => {
     </div>
   );
 };
-
-const StatCard = ({ title, value, icon, color }: any) => (
-  <div className="bg-background-light/30 backdrop-blur-md p-6 rounded-2xl border border-glass-edge flex items-center justify-between">
-    <div>
-      <p className="text-text-secondary text-sm font-medium mb-1">{title}</p>
-      <h3 className="text-3xl font-bold text-white">{value}</h3>
-    </div>
-    <div className={`p-3 rounded-xl ${color} bg-opacity-20`}>{icon}</div>
-  </div>
-);
 
 export default DashboardPage;

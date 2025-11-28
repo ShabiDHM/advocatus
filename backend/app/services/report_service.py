@@ -1,8 +1,7 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT ENGINE v2.1 (STRICT TYPES + I18N)
-# 1. FIX: Resolved Pylance type errors (List covariance, NoneType).
-# 2. I18N: Added Serbian (sr) and expanded coverage.
-# 3. DESIGN: Standardized Paragraph usage for all table cells.
+# PHOENIX PROTOCOL - REPORT ENGINE v2.3 (TYPE FIX)
+# 1. FIX: _fetch_logo_image now accepts Optional[str] for url.
+# 2. STATUS: Fully typed and compliant.
 
 import io
 import structlog
@@ -11,17 +10,18 @@ from datetime import datetime
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
-from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Table, TableStyle, Flowable, Image
+from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Table, TableStyle, Flowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.colors import HexColor
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_RIGHT, TA_LEFT
+from reportlab.lib.enums import TA_RIGHT
 from reportlab.lib.utils import ImageReader
 from pymongo.database import Database
-from typing import List, Optional, Any, Union
+from typing import List, Optional, Any
 from xml.sax.saxutils import escape
 
 # Phoenix Imports
 from ..models.finance import InvoiceInDB
+from ..services import storage_service
 
 logger = structlog.get_logger(__name__)
 
@@ -99,12 +99,12 @@ TRANSLATIONS = {
 }
 
 def _get_text(key: str, lang: str = "sq") -> str:
-    # Fallback to English if lang not found, then to key
     lang_map = TRANSLATIONS.get(lang, TRANSLATIONS["sq"])
     return lang_map.get(key, key)
 
 # --- BRANDING & ASSETS ---
 def _get_branding(db: Database, search_term: str) -> dict:
+    """Fetches branding including Logo Storage Key."""
     try:
         user = db.users.find_one({"$or": [{"email": search_term}, {"username": search_term}]})
         if user:
@@ -117,32 +117,49 @@ def _get_branding(db: Database, search_term: str) -> dict:
                     "phone": profile.get("phone", ""),
                     "color": profile.get("branding_color", "#1f2937"),
                     "logo_url": profile.get("logo_url"),
+                    "logo_storage_key": profile.get("logo_storage_key"),
                     "website": profile.get("website", "")
                 }
     except Exception as e:
         logger.warning(f"Branding fetch failed: {e}")
     return {"header_text": "Juristi AI Platform", "color": "#1f2937", "address": "", "email": "", "phone": ""}
 
-def _fetch_logo_image(url: str) -> Optional[ImageReader]:
-    if not url: return None
-    try:
-        # Ignore internal routing for now, assume public URL or handle locally
-        if url.startswith("/"): return None 
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            return ImageReader(io.BytesIO(response.content))
-    except Exception as e:
-        logger.warning(f"Failed to download logo: {e}")
+# PHOENIX FIX: Changed url type to Optional[str]
+def _fetch_logo_image(url: Optional[str], storage_key: Optional[str] = None) -> Optional[ImageReader]:
+    """
+    Downloads logo. 
+    Priority 1: Direct from Storage (Fastest/Safest).
+    Priority 2: Public URL (Fallback).
+    """
+    # 1. Try Direct Storage Access
+    if storage_key:
+        try:
+            stream = storage_service.get_file_stream(storage_key)
+            return ImageReader(io.BytesIO(stream.read()))
+        except Exception as e:
+            logger.warning(f"Failed to fetch logo from storage: {e}")
+
+    # 2. Try URL Fallback
+    if url and not url.startswith("/"):
+        try:
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                return ImageReader(io.BytesIO(response.content))
+        except Exception as e:
+            logger.warning(f"Failed to download logo from URL: {e}")
+            
     return None
 
 def _header_footer(canvas: canvas.Canvas, doc: BaseDocTemplate, header_right_text: str, branding: dict, lang: str):
     canvas.saveState()
     
-    # Logo
+    # 1. Logo
     logo_drawn = False
+    logo_key = branding.get("logo_storage_key")
     logo_url = branding.get("logo_url")
-    if logo_url:
-        logo_img = _fetch_logo_image(logo_url)
+    
+    if logo_key or logo_url:
+        logo_img = _fetch_logo_image(logo_url, logo_key)
         if logo_img:
             iw, ih = logo_img.getSize()
             aspect = ih / float(iw)
@@ -155,13 +172,13 @@ def _header_footer(canvas: canvas.Canvas, doc: BaseDocTemplate, header_right_tex
             canvas.drawImage(logo_img, 15 * mm, 272 * mm, width=width, height=height, mask='auto')
             logo_drawn = True
 
-    # Header Text
+    # 2. Header Text (Firm Name)
     text_x = 15 * mm if not logo_drawn else 60 * mm
     canvas.setFont('Helvetica-Bold', 12)
     canvas.setFillColor(HexColor(branding["color"]))
     canvas.drawString(text_x, 285 * mm, branding["header_text"])
     
-    # Right Header (e.g. Invoice #)
+    # 3. Right Header Text (Invoice #)
     canvas.setFont('Helvetica', 10)
     canvas.setFillColor(HexColor("#666666"))
     canvas.drawRightString(195 * mm, 285 * mm, header_right_text)
@@ -206,13 +223,11 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
     styles = getSampleStyleSheet()
     brand_color = HexColor(branding["color"])
     
-    # Explicit List[Flowable] to satisfy Pylance
     Story: List[Flowable] = []
     
     # Styles
     label_style = ParagraphStyle('Label', parent=styles['Normal'], fontSize=8, textColor=HexColor("#666666"))
     val_style = ParagraphStyle('Val', parent=styles['Normal'], fontSize=10, leading=12)
-    val_bold_style = ParagraphStyle('ValBold', parent=styles['Normal'], fontSize=10, leading=12, fontName='Helvetica-Bold')
     meta_label_style = ParagraphStyle('MetaLabel', parent=styles['Normal'], alignment=TA_RIGHT, fontSize=8, textColor=HexColor("#666666"))
     meta_val_style = ParagraphStyle('MetaVal', parent=styles['Normal'], alignment=TA_RIGHT, fontSize=10)
     meta_val_bold_style = ParagraphStyle('MetaValBold', parent=styles['Normal'], alignment=TA_RIGHT, fontSize=10, fontName='Helvetica-Bold')
@@ -256,11 +271,8 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
     Story.append(Spacer(1, 15*mm))
     
     # 2. ITEMS TABLE
-    # Convert all headers to Paragraphs for type consistency
     h_style = ParagraphStyle('THead', parent=styles['Normal'], textColor=HexColor("#FFFFFF"), fontName='Helvetica-Bold', fontSize=10)
     
-    # PHOENIX FIX: Row data must be homogeneous for strict type checkers or explicitly cast.
-    # We will use Paragraphs for EVERYTHING in the table cells.
     headers = [
         Paragraph(_get_text('desc', lang), h_style),
         Paragraph(_get_text('qty', lang), ParagraphStyle('HQty', parent=h_style, alignment=TA_RIGHT)),
@@ -295,7 +307,6 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
     total_lbl_style = ParagraphStyle('TLbl', parent=styles['Normal'], fontSize=12, textColor=brand_color, alignment=TA_RIGHT)
     total_val_style = ParagraphStyle('TVal', parent=styles['Normal'], fontSize=12, textColor=brand_color, alignment=TA_RIGHT, fontName='Helvetica-Bold')
     
-    # Helper to clean up the nesting
     def _p_right(text, bold=False):
         return Paragraph(text, total_val_style if bold else total_lbl_style)
 
@@ -311,7 +322,6 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
         ('TOPPADDING', (0,0), (-1,-1), 4),
     ]))
     
-    # Align entire totals block to right
     outer_table = Table([[ "", totals_table ]], colWidths=[95*mm, 85*mm])
     outer_table.setStyle(TableStyle([('ALIGN', (-1,0), (-1,-1), 'RIGHT')]))
     
@@ -329,20 +339,15 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
     return buffer
 
 def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, username: str, lang: str = "sq") -> io.BytesIO:
-    """Independent Findings Report Generator."""
     branding = _get_branding(db, username)
     buffer = io.BytesIO()
-    
     doc = _build_doc(buffer, _get_text('report_title', lang), branding, lang)
     styles = getSampleStyleSheet()
-    
-    # Explicit type annotation
     Story: List[Flowable] = []
     
     Story.append(Paragraph(_get_text('report_title', lang), styles['h1']))
     Story.append(Spacer(1, 10 * mm))
     
-    # Metadata
     meta_data = [
         [Paragraph(f"<b>{_get_text('case', lang)}:</b>", styles['Normal']), Paragraph(case_title, styles['Normal'])],
         [Paragraph(f"<b>{_get_text('generated_for', lang)}:</b>", styles['Normal']), Paragraph(username, styles['Normal'])]
@@ -372,7 +377,6 @@ def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, us
 def create_pdf_from_text(text: str, document_title: str) -> io.BytesIO:
     buffer = io.BytesIO()
     doc = _build_doc(buffer, document_title, {"header_text": "Juristi AI", "color": "#333333"}, "sq")
-    # Wrap in list literal
     Story: List[Flowable] = [Paragraph(escape(text).replace('\n', '<br/>'), getSampleStyleSheet()['Normal'])]
     doc.build(Story)
     buffer.seek(0)

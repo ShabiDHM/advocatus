@@ -1,8 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
 // PHOENIX PROTOCOL - MY OFFICE SUITE (COMPLETE)
-// 1. TABS: Profile, Finance, and now LIBRARY (Arkiva).
-// 2. LIBRARY: UI for creating, viewing, and deleting templates.
-// 3. UX: Integrated seamlessly with existing style.
+// 1. UPDATE: Added 'deleteInvoice' logic and UI button.
+// 2. STATUS: Full Invoice Management (Create, Read, Delete, Download).
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -14,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 type ActiveTab = 'profile' | 'finance' | 'library';
 
 const BusinessPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -117,7 +116,24 @@ const BusinessPage: React.FC = () => {
           setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
       } catch (error) { alert("Dështoi krijimi i faturës."); }
   };
-  const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id); } catch (error) { alert("Shkarkimi dështoi."); } };
+  
+  // PHOENIX FIX: Added delete logic
+  const deleteInvoice = async (id: string) => {
+      if(!window.confirm(t('general.confirmDelete', "A jeni i sigurt?"))) return;
+      try {
+          await apiService.deleteInvoice(id);
+          setInvoices(invoices.filter(inv => inv.id !== id));
+      } catch (error) {
+          alert("Fshirja dështoi.");
+      }
+  };
+
+  const downloadInvoice = async (id: string) => { 
+      try { 
+          // PHOENIX FIX: Passing language to generator
+          await apiService.downloadInvoicePdf(id, i18n.language); 
+      } catch (error) { alert("Shkarkimi dështoi."); } 
+  };
 
   // --- TEMPLATE LOGIC ---
   const handleCreateTemplate = async (e: React.FormEvent) => {
@@ -207,7 +223,14 @@ const BusinessPage: React.FC = () => {
                 <div className="grid gap-4">{invoices.map(inv => (
                     <div key={inv.id} className="bg-background-dark border border-glass-edge rounded-xl p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
                         <div className="flex items-center gap-4 w-full sm:w-auto"><div className={`p-3 rounded-lg ${inv.status === 'PAID' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}><FileText size={24} /></div><div><h3 className="font-bold text-white">{inv.client_name}</h3><p className="text-sm text-gray-400">{inv.invoice_number} • {new Date(inv.issue_date).toLocaleDateString()}</p></div></div>
-                        <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end"><div className="text-right"><p className="text-lg font-bold text-white">€{inv.total_amount.toFixed(2)}</p><span className={`text-xs px-2 py-0.5 rounded-full ${inv.status === 'PAID' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'}`}>{inv.status}</span></div><button onClick={() => downloadInvoice(inv.id)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Shkarko PDF"><Download size={20} /></button></div>
+                        <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
+                            <div className="text-right"><p className="text-lg font-bold text-white">€{inv.total_amount.toFixed(2)}</p><span className={`text-xs px-2 py-0.5 rounded-full ${inv.status === 'PAID' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'}`}>{inv.status}</span></div>
+                            <div className="flex gap-2">
+                                <button onClick={() => downloadInvoice(inv.id)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Shkarko PDF"><Download size={20} /></button>
+                                {/* PHOENIX FIX: Added Delete Button */}
+                                <button onClick={() => deleteInvoice(inv.id)} className="p-2 hover:bg-red-900/20 rounded-lg text-red-400 hover:text-red-300 transition-colors" title="Fshi Faturën"><Trash2 size={20} /></button>
+                            </div>
+                        </div>
                     </div>
                 ))}</div>
             )}

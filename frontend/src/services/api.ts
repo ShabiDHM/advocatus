@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
 // PHOENIX PROTOCOL - API MASTER FILE
-// 1. UPDATE: downloadInvoicePdf now accepts 'lang' parameter.
-// 2. STATUS: Fully synchronized.
+// 1. ADDED: deleteInvoice method.
+// 2. STATUS: Ready for UI implementation.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -94,8 +94,6 @@ class ApiService {
     public async getInvoices(): Promise<Invoice[]> { const response = await this.axiosInstance.get<Invoice[]>('/finance/invoices'); return response.data; }
     public async createInvoice(data: InvoiceCreateRequest): Promise<Invoice> { const response = await this.axiosInstance.post<Invoice>('/finance/invoices', data); return response.data; }
     public async updateInvoiceStatus(invoiceId: string, status: string): Promise<Invoice> { const response = await this.axiosInstance.put<Invoice>(`/finance/invoices/${invoiceId}/status`, { status }); return response.data; }
-    
-    // PHOENIX FIX: Added 'lang' parameter to downloadInvoicePdf
     public async downloadInvoicePdf(invoiceId: string, lang: string = 'sq'): Promise<void> { 
         const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { 
             params: { lang },
@@ -109,6 +107,8 @@ class ApiService {
         link.click(); 
         link.parentNode?.removeChild(link); 
     }
+    // PHOENIX FIX: Added deleteInvoice
+    public async deleteInvoice(invoiceId: string): Promise<void> { await this.axiosInstance.delete(`/finance/invoices/${invoiceId}`); }
 
     // --- Library (Arkiva) ---
     public async getTemplates(category?: string): Promise<LibraryTemplate[]> { const params = category ? { category } : {}; const response = await this.axiosInstance.get<LibraryTemplate[]>('/library/templates', { params }); return response.data; }

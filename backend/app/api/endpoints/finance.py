@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE API (I18N ENABLED)
-# 1. UPGRADE: download_invoice_pdf accepts 'lang' query param.
-# 2. STATUS: Fully integrated with Report Service v2.
+# PHOENIX PROTOCOL - FINANCE API v1.2
+# 1. ADDED: DELETE /invoices/{invoice_id} endpoint.
+# 2. STATUS: Fully supports Invoice Lifecycle.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
@@ -21,7 +21,6 @@ def get_invoices(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """List all invoices for the current user."""
     service = FinanceService(db)
     return service.get_invoices(str(current_user.id))
 
@@ -31,7 +30,6 @@ def create_invoice(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """Create a new invoice (Auto-calculates totals)."""
     service = FinanceService(db)
     return service.create_invoice(str(current_user.id), invoice_in)
 
@@ -41,7 +39,6 @@ def get_invoice_details(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """Get single invoice details."""
     service = FinanceService(db)
     return service.get_invoice(str(current_user.id), invoice_id)
 
@@ -52,11 +49,20 @@ def update_invoice_status(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """Update status (e.g. mark as PAID)."""
     service = FinanceService(db)
     if not status_update.status:
         raise HTTPException(status_code=400, detail="Status is required")
     return service.update_invoice_status(str(current_user.id), invoice_id, status_update.status)
+
+@router.delete("/invoices/{invoice_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_invoice(
+    invoice_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """Permanently delete an invoice."""
+    service = FinanceService(db)
+    service.delete_invoice(str(current_user.id), invoice_id)
 
 @router.get("/invoices/{invoice_id}/pdf")
 def download_invoice_pdf(
@@ -65,11 +71,8 @@ def download_invoice_pdf(
     db: Database = Depends(get_db),
     lang: Optional[str] = Query("sq", description="Language code (sq, en, sr)")
 ):
-    """Generates and streams the Branded PDF Invoice in the requested language."""
     service = FinanceService(db)
     invoice = service.get_invoice(str(current_user.id), invoice_id)
-    
-    # Pass username and language to the report generator
     pdf_buffer = generate_invoice_pdf(invoice, db, current_user.username, lang=lang or "sq")
     
     filename = f"Invoice_{invoice.invoice_number}.pdf"
