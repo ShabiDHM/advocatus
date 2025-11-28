@@ -1,8 +1,7 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - MODEL ALIGNMENT
-# 1. ADDED: 'ClientData' to handle ad-hoc client info (Name, Email, Phone).
-# 2. UPDATED: 'CaseCreate' now accepts clientName/Email/Phone inputs.
-# 3. UPDATED: 'CaseOut' now returns a structured 'client' object matching Frontend types.
+# PHOENIX PROTOCOL - MODEL UPDATE
+# 1. ADDED: Count fields (document_count, alert_count, etc.) to CaseOut.
+# 2. STATUS: Allows dashboard metrics to pass through the API.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any
@@ -17,11 +16,11 @@ class ClientData(BaseModel):
 
 # Base Case Model
 class CaseBase(BaseModel):
-    case_number: Optional[str] = None # Made optional, auto-generated if missing
+    case_number: Optional[str] = None 
     title: str
     description: Optional[str] = None
     status: str = "OPEN"
-    client_id: Optional[PyObjectId] = None # Reference to registered user (optional)
+    client_id: Optional[PyObjectId] = None 
     
     # Optional metadata
     court_name: Optional[str] = None
@@ -30,7 +29,6 @@ class CaseBase(BaseModel):
 
 # Create - Accepts Form Data
 class CaseCreate(CaseBase):
-    # Ad-hoc client fields sent by Frontend Form
     clientName: Optional[str] = None
     clientEmail: Optional[str] = None
     clientPhone: Optional[str] = None
@@ -49,10 +47,7 @@ class CaseUpdate(BaseModel):
 class CaseInDB(CaseBase):
     id: PyObjectId = Field(alias="_id", default=None)
     user_id: PyObjectId 
-    
-    # Embedded client data (for ad-hoc clients)
     client: Optional[ClientData] = None
-    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     chat_history: List[Dict[str, Any]] = []
@@ -68,8 +63,13 @@ class CaseOut(CaseBase):
     created_at: datetime
     updated_at: datetime
     
-    # Structure matching frontend { name, email, phone }
     client: Optional[ClientData] = None
+
+    # PHOENIX FIX: Explicitly exposed counters
+    document_count: int = 0
+    alert_count: int = 0
+    event_count: int = 0
+    finding_count: int = 0
 
     model_config = ConfigDict(
         populate_by_name=True,
