@@ -199,3 +199,43 @@ export interface CaseAnalysisResult {
     missing_info: string[];
     error?: string;
 }
+
+// --- FINANCE & INVOICING ---
+export interface InvoiceItem {
+    description: string;
+    quantity: number;
+    unit_price: number;
+    total: number;
+}
+
+export interface Invoice {
+    id: string;
+    invoice_number: string;
+    client_name: string;
+    client_email?: string;
+    client_address?: string;
+    issue_date: string;
+    due_date: string;
+    items: InvoiceItem[];
+    subtotal: number;
+    tax_rate: number;
+    tax_amount: number;
+    total_amount: number;
+    currency: string;
+    status: 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+    notes?: string;
+}
+
+export interface InvoiceCreateRequest {
+    client_name: string;
+    client_email?: string;
+    client_address?: string;
+    items: InvoiceItem[];
+    tax_rate: number;
+    due_date?: string;
+    notes?: string;
+}
+
+export interface InvoiceUpdateStatus {
+    status: string;
+}

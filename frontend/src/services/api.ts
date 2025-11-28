@@ -1,7 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API COMPLETE
-// 1. ADDED: Business Profile methods (get, update, uploadLogo).
-// 2. TYPES: Ensures all business methods return 'BusinessProfile' object.
+// PHOENIX PROTOCOL - API MASTER FILE
+// 1. MODULES: Auth, Cases, Documents, Chat, Calendar, Admin, Drafting, Business, Finance.
+// 2. FEATURES: Deep Scan, Invoice Generation, White-Labeling.
+// 3. STATUS: Fully synchronized with Backend V1.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -21,8 +22,10 @@ import type {
     ChangePasswordRequest,
     Finding,
     CaseAnalysisResult,
-    BusinessProfile,        // <--- Ensure this is imported
-    BusinessProfileUpdate   // <--- Ensure this is imported
+    BusinessProfile,
+    BusinessProfileUpdate,
+    Invoice,
+    InvoiceCreateRequest
 } from '../data/types';
 
 interface LoginResponse {
@@ -33,6 +36,7 @@ interface DocumentContentResponse {
     text: string;
 }
 
+// Environment check
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
 
@@ -119,7 +123,7 @@ class ApiService {
         return response.data;
     }
 
-    // --- Business Profile (PHOENIX FIX) ---
+    // --- Business Profile ---
     public async getBusinessProfile(): Promise<BusinessProfile> {
         const response = await this.axiosInstance.get<BusinessProfile>('/business/profile');
         return response.data;
@@ -137,6 +141,35 @@ class ApiService {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
         return response.data;
+    }
+
+    // --- Finance / Invoicing ---
+    public async getInvoices(): Promise<Invoice[]> {
+        const response = await this.axiosInstance.get<Invoice[]>('/finance/invoices');
+        return response.data;
+    }
+
+    public async createInvoice(data: InvoiceCreateRequest): Promise<Invoice> {
+        const response = await this.axiosInstance.post<Invoice>('/finance/invoices', data);
+        return response.data;
+    }
+
+    public async updateInvoiceStatus(invoiceId: string, status: string): Promise<Invoice> {
+        const response = await this.axiosInstance.put<Invoice>(`/finance/invoices/${invoiceId}/status`, { status });
+        return response.data;
+    }
+
+    public async downloadInvoicePdf(invoiceId: string): Promise<void> {
+        const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { responseType: 'blob' });
+        
+        // Trigger Browser Download
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Invoice_${invoiceId}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
     }
 
     // --- Support ---
