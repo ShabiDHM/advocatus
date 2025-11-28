@@ -1,12 +1,13 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CLIENT DATA MAPPING
-# 1. LOGIC: Extracts 'clientName' etc. from input and builds 'client' object.
-# 2. MAPPING: Ensures 'client' object is returned in _map_case_document.
+# PHOENIX PROTOCOL - TYPE VALIDATION FIX
+# 1. FIX: Passed raw 'ObjectId' to return dict instead of 'str'.
+# 2. REASONING: Pydantic 'PyObjectId' requires the object instance for validation.
+# 3. SAFETY: Strings are still used for internal DB queries (counts/deletes).
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
 from bson import ObjectId
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
 
 from ..models.case import CaseCreate
@@ -20,9 +21,11 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
     Normalizes a MongoDB case document to match the CaseOut schema.
     """
     try:
+        # We need the string version for DB queries (counts)
         case_id_str = str(case_doc["_id"])
+        
         title = case_doc.get("title") or case_doc.get("case_name") or "Untitled Case"
-        case_number = case_doc.get("case_number") or f"REF-{str(case_doc['_id'])[-6:]}"
+        case_number = case_doc.get("case_number") or f"REF-{case_id_str[-6:]}"
         created_at = case_doc.get("created_at") or datetime.now(timezone.utc)
         updated_at = case_doc.get("updated_at") or created_at
 
@@ -41,13 +44,14 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
             }
 
         return {
-            "id": case_id_str,
+            # PHOENIX FIX: Pass the raw ObjectId, not the string.
+            # Pydantic's PyObjectId validator expects an instance of ObjectId.
+            "id": case_doc["_id"],
             "case_number": case_number,
             "title": title,
             "description": case_doc.get("description"),
             "status": case_doc.get("status", "OPEN"),
             "client_id": str(case_doc.get("client_id")) if case_doc.get("client_id") else None,
-            # PHOENIX FIX: Return the client structure
             "client": case_doc.get("client"), 
             "created_at": created_at,
             "updated_at": updated_at,
@@ -58,10 +62,8 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         return None
 
 def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[Dict[str, Any]]:
-    # 1. Convert Pydantic to Dict
     case_dict = case_in.model_dump(exclude={"clientName", "clientEmail", "clientPhone"})
     
-    # 2. Extract Ad-Hoc Client Data
     if case_in.clientName:
         case_dict["client"] = {
             "name": case_in.clientName,
@@ -69,29 +71,25 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
             "phone": case_in.clientPhone
         }
     
-    # 3. Add Metadata
     case_dict["owner_id"] = owner.id
-    case_dict["user_id"] = owner.id # Redundant but safe
+    case_dict["user_id"] = owner.id
     now = datetime.now(timezone.utc)
     case_dict["created_at"] = now
     case_dict["updated_at"] = now
     
     if not case_dict.get("case_number"):
-        # Auto-generate temporary number if missing (fixed in mapping later or here)
         case_dict["case_number"] = f"NEW-{int(datetime.utcnow().timestamp())}"
 
-    # 4. Insert
     result = db.cases.insert_one(case_dict)
     new_case = db.cases.find_one({"_id": result.inserted_id})
 
     if not new_case:
         raise HTTPException(status_code=500, detail="Failed to create case.")
 
-    return _map_case_document(new_case)
+    return _map_case_document(new_case, db)
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     results = []
-    # Support both owner_id and user_id legacy fields
     cursor = db.cases.find({"$or": [{"owner_id": owner.id}, {"user_id": owner.id}]}).sort("updated_at", -1)
     
     for case_doc in cursor:
