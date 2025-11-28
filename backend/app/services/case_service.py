@@ -1,36 +1,83 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - DRAFTING LOGIC & IMPORT FIX
-# 1. IMPORT FIX: Changed model import to '...models.drafting.DraftRequest'.
-# 2. TASK DISPATCH FIX: Removed direct import from 'worker' and now imports 'celery_app' to dispatch tasks by name.
-# 3. LOGIC FIX: Aligned the service function with the correct fields from the 'DraftRequest' model (prompt, document_type).
-# 4. RESULT: Resolves both 'reportMissingImports' and 'reportAttributeAccessIssue' errors.
+# PHOENIX PROTOCOL - DATA ADAPTER & ROBUSTNESS (TYPE SAFE)
+# 1. FIX: Updated type hints to allow Optional returns.
+# 2. FIX: Explicit 'is not None' check for Database object.
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
 from bson import ObjectId
 from datetime import datetime, timezone, timedelta
+from typing import Dict, Any, Optional, List
 
-from ..models.case import CaseCreate, ClientDetailsOut
+from ..models.case import CaseCreate
 from ..models.user import UserInDB
-from ..models.drafting import DraftRequest # <--- CORRECTED IMPORT
-from ..celery_app import celery_app # <--- CORRECTED IMPORT
+from ..models.drafting import DraftRequest
+from ..celery_app import celery_app
 
-def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> dict:
+# --- HELPER: DATA ADAPTER ---
+def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) -> Optional[Dict[str, Any]]:
+    """
+    Normalizes a MongoDB case document to match the CaseOut Pydantic schema.
+    """
+    try:
+        case_id_str = str(case_doc["_id"])
+        
+        # 1. Handle Title/Name discrepancy
+        title = case_doc.get("title") or case_doc.get("case_name") or "Untitled Case"
+        
+        # 2. Handle Case Number
+        case_number = case_doc.get("case_number") or f"LEGACY-{str(case_doc['_id'])[-6:]}"
+        
+        # 3. Handle Timestamps
+        created_at = case_doc.get("created_at") or datetime.now(timezone.utc)
+        updated_at = case_doc.get("updated_at") or created_at
+
+        # 4. Optional Counts
+        counts = {}
+        # PHOENIX FIX: Explicit check for None
+        if db is not None:
+            doc_count = db.documents.count_documents({"case_id": case_doc["_id"]})
+            event_count = db.calendar_events.count_documents({"case_id": case_id_str})
+            finding_count = db.findings.count_documents({"case_id": case_id_str})
+            
+            alert_query = {
+                "case_id": case_id_str,
+                "status": "PENDING",
+                "start_date": {"$gte": datetime.now().isoformat()}
+            }
+            alert_count = db.calendar_events.count_documents(alert_query)
+            
+            counts = {
+                "document_count": doc_count,
+                "alert_count": alert_count,
+                "event_count": event_count,
+                "finding_count": finding_count,
+            }
+
+        return {
+            "id": case_id_str,
+            "case_number": case_number,
+            "title": title,
+            "description": case_doc.get("description"),
+            "status": case_doc.get("status", "OPEN"),
+            "client_id": str(case_doc.get("client_id")) if case_doc.get("client_id") else None,
+            "created_at": created_at,
+            "updated_at": updated_at,
+            **counts
+        }
+    except Exception as e:
+        print(f"Error mapping case {case_doc.get('_id')}: {e}")
+        return None
+
+def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[Dict[str, Any]]:
     case_dict = case_in.model_dump(by_alias=True)
-
-    client_obj = ClientDetailsOut(
-        name=case_in.clientName,
-        email=case_in.clientEmail,
-        phone=case_in.clientPhone
-    )
-    case_dict["client"] = client_obj.model_dump(exclude_none=True)
-
-    case_dict.pop("clientName", None)
-    case_dict.pop("clientEmail", None)
-    case_dict.pop("clientPhone", None)
-
     case_dict["owner_id"] = owner.id
-    case_dict["created_at"] = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)
+    case_dict["created_at"] = now
+    case_dict["updated_at"] = now
+    
+    if "status" not in case_dict:
+        case_dict["status"] = "OPEN"
 
     result = db.cases.insert_one(case_dict)
     new_case = db.cases.find_one({"_id": result.inserted_id})
@@ -38,54 +85,25 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> dict:
     if not new_case:
         raise HTTPException(status_code=500, detail="Failed to create case.")
 
-    return {
-        "id": str(new_case["_id"]),
-        "case_name": new_case["case_name"],
-        "client": new_case.get("client"),
-        "status": new_case.get("status", "active"),
-        "owner_id": str(new_case["owner_id"]),
-        "created_at": new_case.get("created_at"),
-        "document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0
-    }
+    return _map_case_document(new_case)
 
-def get_cases_for_user(db: Database, owner: UserInDB) -> list[dict]:
+def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     results = []
-    for case in db.cases.find({"owner_id": owner.id}).sort("created_at", -1):
-        results.append(get_case_by_id(db=db, case_id=case["_id"], owner=owner) or {})
-    return [r for r in results if r]
+    cursor = db.cases.find({"owner_id": owner.id}).sort("updated_at", -1)
+    
+    for case_doc in cursor:
+        mapped_case = _map_case_document(case_doc, db) # Pass db to get counts
+        if mapped_case:
+            results.append(mapped_case)
+            
+    return results
 
-
-def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> dict | None:
+def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional[Dict[str, Any]]:
     case = db.cases.find_one({"_id": case_id, "owner_id": owner.id})
-    if case:
-        case_id_str = str(case_id)
-
-        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        next_week = today_start + timedelta(days=7)
-
-        alert_query = {
-            "case_id": case_id_str,
-            "status": "PENDING",
-            "start_date": {
-                "$gte": today_start.isoformat(),
-                "$lte": next_week.isoformat()
-            }
-        }
-
-        doc_count = db.documents.count_documents({"case_id": case_id})
-        event_count = db.calendar_events.count_documents({"case_id": case_id_str})
-        finding_count = db.findings.count_documents({"case_id": case_id_str})
-
-        calculated_alerts = db.calendar_events.count_documents(alert_query)
-
-        counts = {
-            "document_count": doc_count,
-            "alert_count": calculated_alerts,
-            "event_count": event_count,
-            "finding_count": finding_count,
-        }
-        return {**case, **counts, "id": str(case["_id"])}
-    return None
+    if not case:
+        return None
+        
+    return _map_case_document(case, db)
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     result = db.cases.delete_one({"_id": case_id, "owner_id": owner.id})
@@ -101,13 +119,9 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
 def create_draft_job_for_case(
     db: Database,
     case_id: ObjectId,
-    job_in: DraftRequest, # <--- CORRECTED MODEL
+    job_in: DraftRequest,
     owner: UserInDB
-) -> dict:
-    """
-    Validates that a case exists and belongs to the user, then dispatches a
-    Celery task to process the drafting job with the correct arguments.
-    """
+) -> Dict[str, str]:
     case = db.cases.find_one({"_id": case_id, "owner_id": owner.id})
     if not case:
         raise HTTPException(
@@ -115,15 +129,14 @@ def create_draft_job_for_case(
             detail="Case not found or access denied."
         )
 
-    # --- CORRECTED TASK DISPATCH ---
     task = celery_app.send_task(
         "process_drafting_job",
-        args=[
-            str(case_id),
-            str(owner.id),
-            job_in.document_type, # <--- CORRECTED FIELD
-            job_in.prompt          # <--- CORRECTED FIELD
-        ]
+        kwargs={
+            "case_id": str(case_id),
+            "user_id": str(owner.id),
+            "draft_type": job_in.document_type,
+            "user_prompt": job_in.prompt
+        }
     )
 
     return {"job_id": task.id}
