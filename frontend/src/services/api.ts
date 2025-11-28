@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - INTERCEPTOR LOGIC FIX
-// 1. FIX: Excludes '/auth/login' from auto-refresh logic.
-// 2. RESULT: 401 on Login correctly returns "Invalid Credentials" instead of triggering network loops.
+// PHOENIX PROTOCOL - BUSINESS MODULE SUPPORT
+// 1. ADDED: Business Profile methods (get, update, upload logo).
+// 2. TYPES: Added 'BusinessProfile' interface.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -22,6 +22,16 @@ import type {
     Finding,
     CaseAnalysisResult
 } from '../data/types';
+
+export interface BusinessProfile {
+    firm_name: string;
+    tax_id?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    website?: string;
+    logo_url?: string;
+}
 
 interface LoginResponse {
     access_token: string;
@@ -81,7 +91,6 @@ class ApiService {
             async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
                 
-                // PHOENIX FIX: Don't refresh if the failure was the Refresh endpoint OR the Login endpoint
                 const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh');
                 const isLoginRequest = originalRequest?.url?.includes('/auth/login');
 
@@ -124,6 +133,32 @@ class ApiService {
     public async refreshAccessToken(): Promise<LoginResponse> {
         const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh');
         if (response.data.access_token) localStorage.setItem('jwtToken', response.data.access_token);
+        return response.data;
+    }
+
+    // --- Business ---
+    public async getBusinessProfile(): Promise<BusinessProfile> {
+        const response = await this.axiosInstance.get<BusinessProfile>('/business/settings');
+        return response.data;
+    }
+
+    public async updateBusinessProfile(data: BusinessProfile): Promise<void> {
+        await this.axiosInstance.post('/business/settings', data);
+    }
+
+    public async uploadBusinessLogo(file: File): Promise<string> {
+        const formData = new FormData();
+        formData.append('file', file);
+        // Expecting { url: "..." } response
+        const response = await this.axiosInstance.post<{ url: string }>('/business/logo', formData, {
+             headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return response.data.url;
+    }
+
+    public async getGraphData(centerNode?: string): Promise<any> {
+        const params = centerNode ? { center_node: centerNode } : {};
+        const response = await this.axiosInstance.get('/business/graph/visualize', { params });
         return response.data;
     }
 
