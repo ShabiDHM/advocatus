@@ -1,7 +1,8 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - CORS & STABILITY FIX
-# 1. CORS: Switched to explicit 'allow_origins' for production domains to guarantee access.
-# 2. ROUTERS: Kept all previous router activations (Business, Auth, Cases, etc.).
+# PHOENIX PROTOCOL - FINANCE MODULE ACTIVATION
+# 1. IMPORT: Added 'finance_router'.
+# 2. ROUTE: Registered '/finance' endpoints under API V1.
+# 3. STATUS: Backend is now ready for Invoicing.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +22,7 @@ from app.api.endpoints.chat import router as chat_router
 from app.api.endpoints.stream import router as stream_router
 from app.api.endpoints.support import router as support_router
 from app.api.endpoints.business import router as business_router
+from app.api.endpoints.finance import router as finance_router # <--- NEW
 
 # Drafting V2 (Safe Import)
 try:
@@ -37,8 +39,7 @@ app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 # --- MIDDLEWARE ---
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=["*"]) # type: ignore
 
-# PHOENIX FIX: Explicitly list production origins
-# This is safer and more reliable than regex for the main domain
+# Explicitly list production origins
 origins = [
     "http://localhost:3000",
     "http://localhost:5173",
@@ -59,7 +60,6 @@ except Exception:
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    # Keep regex for dynamic subdomains (e.g. Vercel previews) if needed
     allow_origin_regex=r"https?://(.*\.vercel\.app|.*\.duckdns\.org)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
@@ -78,6 +78,7 @@ api_v1_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_v1_router.include_router(stream_router, prefix="/stream", tags=["Streaming"])
 api_v1_router.include_router(support_router, prefix="/support", tags=["Support"])
 api_v1_router.include_router(business_router, prefix="/business", tags=["Business"])
+api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"]) # <--- NEW
 
 app.include_router(api_v1_router)
 

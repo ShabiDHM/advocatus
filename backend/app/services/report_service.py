@@ -1,8 +1,7 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - BRANDED REPORTS (FIXED)
-# 1. FIX: Corrected variable scope error in _get_branding.
-# 2. QUERY: Searches by 'username' or 'email' to find user ID.
-# 3. BRANDING: Applies Firm Name & Color from profile.
+# PHOENIX PROTOCOL - INVOICE GENERATOR ADDED
+# 1. UPGRADE: Added 'generate_invoice_pdf' function.
+# 2. BRANDING: Uses the same white-label logic (Logo, Colors) for Invoices.
 
 from io import BytesIO
 from datetime import datetime
@@ -12,11 +11,14 @@ from reportlab.lib.units import mm
 from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Table, TableStyle, Flowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.colors import HexColor
-from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
+from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_RIGHT
 import structlog
 from pymongo.database import Database
 from typing import List
 from xml.sax.saxutils import escape
+
+# Phoenix Imports
+from ..models.finance import InvoiceInDB
 
 logger = structlog.get_logger(__name__)
 
@@ -26,35 +28,32 @@ def _get_branding(db: Database, search_term: str) -> dict:
     Fetches branding using username or email string.
     """
     try:
-        # PHOENIX FIX: Query matches User Model (username/email)
         user = db.users.find_one({"$or": [{"email": search_term}, {"username": search_term}]})
-        
         if user:
             profile = db.business_profiles.find_one({"user_id": str(user["_id"])})
             if profile:
                 return {
                     "header_text": profile.get("firm_name", "Juristi AI Platform"),
-                    "color": profile.get("branding_color", "#1f2937")
+                    "address": profile.get("address", ""),
+                    "email": profile.get("email_public", user["email"]),
+                    "phone": profile.get("phone", ""),
+                    "color": profile.get("branding_color", "#1f2937"),
+                    # Add Logo logic here later if needed
                 }
-    except Exception as e:
-        # Fail silently to default branding
+    except Exception:
         pass
-    
-    return {"header_text": "Juristi AI Platform", "color": "#1f2937"}
+    return {"header_text": "Juristi AI Platform", "color": "#1f2937", "address": "", "email": "", "phone": ""}
 
 def _header_footer(canvas: canvas.Canvas, doc: BaseDocTemplate, header_right_text: str, branding: dict):
     canvas.saveState()
-    
     # Dynamic Branding
     header_text = branding["header_text"]
-    
     canvas.setFont('Helvetica-Bold', 10)
     canvas.drawString(15 * mm, 282 * mm, header_text)
     
     canvas.setFont('Helvetica-Oblique', 9)
     canvas.drawRightString(195 * mm, 282 * mm, header_right_text)
     
-    # Branding Line Color
     canvas.setStrokeColor(HexColor(branding["color"]))
     canvas.setLineWidth(1)
     canvas.line(15 * mm, 278 * mm, 195 * mm, 278 * mm)
@@ -75,6 +74,7 @@ def _build_enhanced_doc_template(buffer: BytesIO, header_right_text: str, brandi
     return doc
 
 def _create_summary_table(findings: list, case_title: str, username: str) -> Table:
+    # (Previous implementation remains unchanged)
     styles = getSampleStyleSheet()
     header_style = ParagraphStyle(name='HeaderStyle', parent=styles['Normal'], fontName='Helvetica-Bold')
     data = [
@@ -92,11 +92,8 @@ def _create_summary_table(findings: list, case_title: str, username: str) -> Tab
     return table
 
 def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, username: str) -> BytesIO:
-    log = logger.bind(case_id=case_id, username=username)
-    
-    # 1. Resolve Branding (Pass the username as search_term)
+    # (Previous implementation remains unchanged)
     branding = _get_branding(db, username)
-
     buffer = BytesIO()
     doc = _build_enhanced_doc_template(buffer, "Raport Konfidencial i Gjetjeve", branding)
     
@@ -130,7 +127,7 @@ def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, us
     return buffer
 
 def create_pdf_from_text(text: str, document_title: str = "Dokument") -> BytesIO:
-    # Standard documents default to platform branding if no user context provided
+    # (Previous implementation remains unchanged)
     branding = {"header_text": "Juristi AI Platform", "color": "#1f2937"}
     buffer = BytesIO()
     doc = _build_enhanced_doc_template(buffer, f"Dokument: {escape(document_title)}", branding)
@@ -138,6 +135,82 @@ def create_pdf_from_text(text: str, document_title: str = "Dokument") -> BytesIO
     styles['Normal'].alignment = TA_JUSTIFY
     Story: List[Flowable] = [Paragraph(escape(p).replace('\n', '<br/>'), styles['Normal']) for p in text.split('\n\n') if p.strip()]
     if not Story: Story.append(Paragraph("Ky dokument nuk ka përmbajtje të nxjerrshme.", styles['Normal']))
+    doc.build(Story)
+    buffer.seek(0)
+    return buffer
+
+# --- NEW: INVOICE GENERATOR ---
+def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str) -> BytesIO:
+    """Generates a professional Invoice PDF."""
+    branding = _get_branding(db, username)
+    buffer = BytesIO()
+    doc = _build_enhanced_doc_template(buffer, f"Fatura #{invoice.invoice_number}", branding)
+    
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='RightAlign', parent=styles['Normal'], alignment=TA_RIGHT))
+    
+    Story: List[Flowable] = []
+    
+    # 1. Title
+    Story.append(Paragraph("FATURA / INVOICE", styles['h1']))
+    Story.append(Spacer(1, 5 * mm))
+    
+    # 2. Meta Info Table (Date, #)
+    meta_data = [
+        ["Numri i Faturës:", invoice.invoice_number],
+        ["Data e Lëshimit:", invoice.issue_date.strftime("%d-%m-%Y")],
+        ["Afati i Pagesës:", invoice.due_date.strftime("%d-%m-%Y")],
+        ["Statusi:", invoice.status.upper()]
+    ]
+    meta_table = Table(meta_data, colWidths=[40*mm, 60*mm], hAlign='RIGHT')
+    meta_table.setStyle(TableStyle([('FONTNAME', (0,0), (0,-1), 'Helvetica-Bold')]))
+    Story.append(meta_table)
+    Story.append(Spacer(1, 10 * mm))
+    
+    # 3. From / To Section
+    from_text = f"<b>Nga:</b><br/>{branding['header_text']}<br/>{branding.get('address','')}<br/>{branding.get('email','')}"
+    to_text = f"<b>Për:</b><br/>{invoice.client_name}<br/>{invoice.client_address or ''}<br/>{invoice.client_email or ''}"
+    
+    address_table = Table([[Paragraph(from_text, styles['Normal']), Paragraph(to_text, styles['Normal'])]], colWidths=[90*mm, 90*mm])
+    address_table.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
+    Story.append(address_table)
+    Story.append(Spacer(1, 15 * mm))
+    
+    # 4. Items Table
+    data = [["Përshkrimi / Description", "Sasia", "Çmimi", "Totali"]]
+    for item in invoice.items:
+        data.append([
+            item.description,
+            str(item.quantity),
+            f"€{item.unit_price:.2f}",
+            f"€{item.total:.2f}"
+        ])
+    
+    # Add Totals
+    data.append(["", "", "Nëntotali:", f"€{invoice.subtotal:.2f}"])
+    data.append(["", "", f"TVSH ({invoice.tax_rate}%):", f"€{invoice.tax_amount:.2f}"])
+    data.append(["", "", "TOTALI:", f"€{invoice.total_amount:.2f}"])
+    
+    t = Table(data, colWidths=[90*mm, 25*mm, 35*mm, 30*mm])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), HexColor(branding['color'])),
+        ('TEXTCOLOR', (0,0), (-1,0), HexColor("#FFFFFF")),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('ALIGN', (1,0), (-1,-1), 'RIGHT'), # Numbers right aligned
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0,0), (-1,0), 12),
+        ('GRID', (0,0), (-1,-3), 1, HexColor("#EEEEEE")),
+        ('FONTNAME', (-2,-1), (-1,-1), 'Helvetica-Bold'), # Total Bold
+        ('BACKGROUND', (-2,-1), (-1,-1), HexColor("#F0F0F0")),
+    ]))
+    Story.append(t)
+    
+    # 5. Notes
+    if invoice.notes:
+        Story.append(Spacer(1, 10 * mm))
+        Story.append(Paragraph("Shënime:", styles['h4']))
+        Story.append(Paragraph(invoice.notes, styles['Normal']))
+
     doc.build(Story)
     buffer.seek(0)
     return buffer
