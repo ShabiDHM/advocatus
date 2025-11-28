@@ -1,37 +1,50 @@
 # FILE: backend/app/celery_app.py
-# PHOENIX PROTOCOL - CLEANUP
-# 1. REMOVED: 'app.tasks.document_reprocessing' from autodiscover_tasks.
-# 2. This prevents "ModuleNotFoundError" after deleting the file.
+# PHOENIX PROTOCOL - CELERY ROBUSTNESS (TYPE FIX)
+# 1. FIX: Used conf.update() instead of direct assignment to satisfy Pylance.
+# 2. STATUS: Type-safe and decoupled configuration.
 
 from celery import Celery
 import logging
+import os
 
-from .core.config import settings
+# Use os.getenv directly for the initial definition to prevent startup race conditions.
+redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
-celery_app = Celery("tasks", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
+celery_app = Celery("tasks", broker=redis_url, backend=redis_url)
 
-# Load task-related configuration.
-celery_app.config_from_object('app.celery_config')
+def configure_celery_app():
+    """
+    This function applies the full configuration to the Celery app.
+    It is called EXPLICITLY by the worker entrypoint (worker.py).
+    """
+    from .core.config import settings
+    
+    # PHOENIX FIX: Use .update() for type safety instead of direct assignment.
+    celery_app.conf.update(
+        broker_url=settings.REDIS_URL,
+        result_backend=settings.REDIS_URL,
+        task_serializer='json',
+        accept_content=['json'],
+        result_serializer='json',
+        timezone='UTC',
+        enable_utc=True,
+        worker_prefetch_multiplier=1,
+        task_acks_late=True,
+    )
 
-# Set core Celery protocol settings.
-celery_app.conf.update(
-    task_serializer='json',
-    accept_content=['json'],
-    result_serializer='json',
-    timezone='UTC',
-    enable_utc=True,
-    worker_prefetch_multiplier=1,
-    task_acks_late=True,
-)
+    # Load any additional task-related configuration from celery_config.py
+    celery_app.config_from_object('app.celery_config')
 
-# Define the modules where tasks are located.
-celery_app.autodiscover_tasks([
-    'app.tasks.document_processing',
-    'app.tasks.deadline_extraction',
-    'app.tasks.findings_extraction',
-    'app.tasks.chat_tasks',
-    'app.tasks.drafting_tasks',
+    # Define the modules where tasks are located.
+    celery_app.autodiscover_tasks([
+        'app.tasks.document_processing',
+        'app.tasks.deadline_extraction',
+        'app.tasks.findings_extraction',
+        'app.tasks.chat_tasks',
+        'app.tasks.drafting_tasks',
+    ])
+    
+    logging.getLogger(__name__).info("--- [Celery App] Celery application fully configured for worker. ---")
 
-])
-
-logging.getLogger(__name__).info("--- [Celery App] Celery application configured successfully. ---")
+# The configuration is NOT called automatically here.
+# It is the responsibility of worker.py to call it.
