@@ -1,12 +1,11 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE API
-# 1. CRUD: Create, List, and Update Invoices.
-# 2. PDF GENERATION: Endpoint to download the Branded Invoice.
-# 3. SECURITY: Scoped strictly to the current user.
+# PHOENIX PROTOCOL - FINANCE API (I18N ENABLED)
+# 1. UPGRADE: download_invoice_pdf accepts 'lang' query param.
+# 2. STATUS: Fully integrated with Report Service v2.
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
-from typing import List, Annotated
+from typing import List, Annotated, Optional
 from pymongo.database import Database
 
 from ...models.user import UserInDB
@@ -63,14 +62,15 @@ def update_invoice_status(
 def download_invoice_pdf(
     invoice_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
+    db: Database = Depends(get_db),
+    lang: Optional[str] = Query("sq", description="Language code (sq, en, sr)")
 ):
-    """Generates and streams the Branded PDF Invoice."""
+    """Generates and streams the Branded PDF Invoice in the requested language."""
     service = FinanceService(db)
     invoice = service.get_invoice(str(current_user.id), invoice_id)
     
-    # Pass username to fetch the correct branding/logo
-    pdf_buffer = generate_invoice_pdf(invoice, db, current_user.username)
+    # Pass username and language to the report generator
+    pdf_buffer = generate_invoice_pdf(invoice, db, current_user.username, lang=lang or "sq")
     
     filename = f"Invoice_{invoice.invoice_number}.pdf"
     headers = {'Content-Disposition': f'inline; filename="{filename}"'}

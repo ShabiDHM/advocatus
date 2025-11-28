@@ -1,8 +1,7 @@
 // FILE: src/services/api.ts
 // PHOENIX PROTOCOL - API MASTER FILE
-// 1. ADDED: Library methods (getTemplates, createTemplate, deleteTemplate).
-// 2. STATUS: Includes all previous modules (Finance, Graph, etc.).
-// 3. FIX: Excluded Authorization header from /auth/refresh requests to prevent middleware conflicts.
+// 1. UPDATE: downloadInvoicePdf now accepts 'lang' parameter.
+// 2. STATUS: Fully synchronized.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -40,15 +39,10 @@ class ApiService {
     private setupInterceptors() {
         this.axiosInstance.interceptors.request.use(
             (config) => {
-                // Ensure HTTPS if the window is HTTPS
                 if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
                     if (config.baseURL?.startsWith('http:')) config.baseURL = config.baseURL.replace('http:', 'https:');
                     if (config.url?.startsWith('http:')) config.url = config.url.replace('http:', 'https:');
                 }
-
-                // Attach Access Token, BUT skip for the refresh endpoint
-                // The refresh endpoint relies solely on the HttpOnly cookie.
-                // Sending an expired Bearer token here can confuse backend middleware.
                 const isRefreshRequest = config.url?.includes('/auth/refresh');
                 if (!isRefreshRequest) {
                     const token = localStorage.getItem('jwtToken');
@@ -56,7 +50,6 @@ class ApiService {
                         config.headers.Authorization = `Bearer ${token}`;
                     }
                 }
-
                 return config;
             },
             (error) => Promise.reject(error)
@@ -67,17 +60,14 @@ class ApiService {
             async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
                 const isRefreshRequest = originalRequest?.url?.includes('/auth/refresh');
-
                 if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
                     originalRequest._retry = true;
                     try {
                         if (!this.refreshTokenPromise) this.refreshTokenPromise = this.refreshAccessToken();
                         await this.refreshTokenPromise;
                         this.refreshTokenPromise = null;
-                        
                         const newToken = localStorage.getItem('jwtToken');
                         if (newToken) originalRequest.headers.Authorization = `Bearer ${newToken}`;
-                        
                         return this.axiosInstance(originalRequest);
                     } catch (refreshError) {
                         this.refreshTokenPromise = null;
@@ -93,14 +83,7 @@ class ApiService {
 
     public getToken(): string | null { return localStorage.getItem('jwtToken'); }
     public async post<T>(url: string, data: any): Promise<T> { const response = await this.axiosInstance.post<T>(url, data); return response.data; }
-    
-    // Note: This calls axiosInstance, which triggers the request interceptor.
-    // The interceptor now explicitly ignores adding the Authorization header for this URL.
-    public async refreshAccessToken(): Promise<LoginResponse> { 
-        const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); 
-        if (response.data.access_token) localStorage.setItem('jwtToken', response.data.access_token); 
-        return response.data; 
-    }
+    public async refreshAccessToken(): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); if (response.data.access_token) localStorage.setItem('jwtToken', response.data.access_token); return response.data; }
 
     // --- Business Profile ---
     public async getBusinessProfile(): Promise<BusinessProfile> { const response = await this.axiosInstance.get<BusinessProfile>('/business/profile'); return response.data; }
@@ -111,7 +94,21 @@ class ApiService {
     public async getInvoices(): Promise<Invoice[]> { const response = await this.axiosInstance.get<Invoice[]>('/finance/invoices'); return response.data; }
     public async createInvoice(data: InvoiceCreateRequest): Promise<Invoice> { const response = await this.axiosInstance.post<Invoice>('/finance/invoices', data); return response.data; }
     public async updateInvoiceStatus(invoiceId: string, status: string): Promise<Invoice> { const response = await this.axiosInstance.put<Invoice>(`/finance/invoices/${invoiceId}/status`, { status }); return response.data; }
-    public async downloadInvoicePdf(invoiceId: string): Promise<void> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Invoice_${invoiceId}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
+    
+    // PHOENIX FIX: Added 'lang' parameter to downloadInvoicePdf
+    public async downloadInvoicePdf(invoiceId: string, lang: string = 'sq'): Promise<void> { 
+        const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { 
+            params: { lang },
+            responseType: 'blob' 
+        }); 
+        const url = window.URL.createObjectURL(new Blob([response.data])); 
+        const link = document.createElement('a'); 
+        link.href = url; 
+        link.setAttribute('download', `Invoice_${invoiceId}.pdf`); 
+        document.body.appendChild(link); 
+        link.click(); 
+        link.parentNode?.removeChild(link); 
+    }
 
     // --- Library (Arkiva) ---
     public async getTemplates(category?: string): Promise<LibraryTemplate[]> { const params = category ? { category } : {}; const response = await this.axiosInstance.get<LibraryTemplate[]>('/library/templates', { params }); return response.data; }
