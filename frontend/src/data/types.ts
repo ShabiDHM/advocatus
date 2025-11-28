@@ -1,7 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - DATA CONTRACT ALIGNMENT
-// 1. CRITICAL FIX: Replaced 'is_active: boolean' with 'status: string' in User and UpdateUserRequest.
-// 2. RESULT: This aligns the frontend's data types with the backend's Pydantic models, resolving the data mismatch error.
+// PHOENIX PROTOCOL - DATA TYPES
+// 1. ADDED: LibraryTemplate, CreateTemplateRequest interfaces.
+// 2. STATUS: Fully synchronized with Backend.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -10,13 +10,12 @@ export interface User {
     email: string;
     username: string;
     role: 'ADMIN' | 'LAWYER' | 'CLIENT';
-    status: 'active' | 'inactive'; // REPLACES is_active
+    status: 'active' | 'inactive';
     created_at: string;
     token?: string;
     subscription_status?: string;
 }
 
-// Alias AdminUser to User to fix legacy imports
 export type AdminUser = User;
 
 export interface Case {
@@ -36,6 +35,7 @@ export interface Case {
     document_count?: number;
     alert_count?: number;
     event_count?: number;
+    finding_count?: number;
 }
 
 export interface Document {
@@ -89,7 +89,7 @@ export interface CalendarEvent {
     document_id?: string;
     location?: string;
     notes?: string;
-    priority?: string;
+    priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
     attendees?: string[];
 }
 
@@ -118,89 +118,7 @@ export interface BusinessProfileUpdate {
     branding_color?: string;
 }
 
-export interface LoginRequest {
-    username: string;
-    password: string;
-}
-
-export interface RegisterRequest {
-    email: string;
-    password: string;
-    username: string;
-}
-
-export interface ChangePasswordRequest {
-    current_password: string;
-    new_password: string;
-}
-
-export interface UpdateUserRequest {
-    username?: string;
-    email?: string;
-    role?: string;
-    subscription_status?: string;
-    status?: 'active' | 'inactive'; // REPLACES is_active
-}
-
-export interface CreateCaseRequest {
-    case_number: string;
-    title: string;
-    case_name?: string;
-    description?: string;
-    clientName?: string;
-    clientEmail?: string;
-    clientPhone?: string;
-    status?: string;
-}
-
-export interface DeletedDocumentResponse {
-    documentId: string;
-    deletedFindingIds: string[];
-}
-
-export interface CalendarEventCreateRequest {
-    title: string;
-    description?: string;
-    start_date: string;
-    end_date?: string;
-    is_all_day?: boolean;
-    event_type: string;
-    case_id?: string;
-    location?: string;
-    notes?: string;
-    priority?: string;
-    attendees?: string[];
-}
-
-export type DraftingJobStatus = {
-    job_id: string;
-    status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-    error?: string;
-    result_summary?: string;
-};
-
-export type DraftingJobResult = {
-    document_text: string;
-    document_html: string;
-    result_text?: string;
-};
-
-export interface CreateDraftingJobRequest {
-    template_id?: string;
-    user_prompt: string;
-    case_id?: string;
-    context?: string;
-}
-
-export interface CaseAnalysisResult {
-    summary_analysis: string;
-    contradictions: string[];
-    risks: string[];
-    missing_info: string[];
-    error?: string;
-}
-
-// --- FINANCE & INVOICING ---
+// --- FINANCE ---
 export interface InvoiceItem {
     description: string;
     quantity: number;
@@ -236,6 +154,40 @@ export interface InvoiceCreateRequest {
     notes?: string;
 }
 
-export interface InvoiceUpdateStatus {
-    status: string;
+// --- LIBRARY (ARKIVA) ---
+export interface LibraryTemplate {
+    id: string;
+    title: string;
+    content: string;
+    category: 'CLAUSE' | 'CONTRACT' | 'LETTER' | 'MEMO';
+    tags: string[];
+    description?: string;
+    is_favorite: boolean;
+    created_at: string;
+    updated_at: string;
 }
+
+export interface CreateTemplateRequest {
+    title: string;
+    content: string;
+    category: string;
+    tags?: string[];
+    description?: string;
+    is_favorite?: boolean;
+}
+
+// --- SHARED ---
+export interface LoginRequest { username: string; password: string; }
+export interface RegisterRequest { email: string; password: string; username: string; }
+export interface ChangePasswordRequest { current_password: string; new_password: string; }
+export interface UpdateUserRequest { username?: string; email?: string; role?: string; subscription_status?: string; status?: 'active' | 'inactive'; }
+export interface CreateCaseRequest { case_number: string; title: string; case_name?: string; description?: string; clientName?: string; clientEmail?: string; clientPhone?: string; status?: string; }
+export interface DeletedDocumentResponse { documentId: string; deletedFindingIds: string[]; }
+export interface CalendarEventCreateRequest { title: string; description?: string; start_date: string; end_date?: string; is_all_day?: boolean; event_type: string; case_id?: string; location?: string; notes?: string; priority?: string; attendees?: string[]; }
+export interface CreateDraftingJobRequest { template_id?: string; user_prompt: string; case_id?: string; context?: string; }
+export type DraftingJobStatus = { job_id: string; status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; error?: string; result_summary?: string; };
+export type DraftingJobResult = { document_text: string; document_html: string; result_text?: string; };
+export interface CaseAnalysisResult { summary_analysis: string; contradictions: string[]; risks: string[]; missing_info: string[]; error?: string; }
+export interface GraphNode { id: string; name: string; group: string; val: number; }
+export interface GraphLink { source: string; target: string; label: string; }
+export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
