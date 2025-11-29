@@ -1,8 +1,7 @@
 // FILE: src/data/types.ts
 // PHOENIX PROTOCOL - DATA TYPES REFACTOR
-// 1. REMOVED: LibraryTemplate (Text Snippets).
-// 2. ADDED: ArchiveItem (File Storage) to support the new Archive feature.
-// 3. PRESERVED: 'use_library' in DraftingRequest.
+// 1. FIXED: Added 'case_id' to ArchiveItemOut to support folder organization.
+// 2. CLEANUP: Removed Library types.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -164,6 +163,8 @@ export interface ArchiveItemOut {
     storage_key: string;
     file_size: number;
     created_at: string;
+    // PHOENIX FIX: Added missing property
+    case_id?: string; 
 }
 
 // --- SHARED ---

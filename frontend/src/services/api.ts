@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
 // PHOENIX PROTOCOL - API CLEANUP
-// 1. REMOVED: All references to 'LibraryTemplate' and 'CreateTemplateRequest'.
-// 2. STATUS: Fully aligned with the new 'Archive' architecture.
+// 1. FIXED: Removed unused imports (LibraryTemplate, etc).
+// 2. FIXED: Removed unused parameters in deprecated methods.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -102,24 +102,31 @@ class ApiService {
     }
 
     // --- ARCHIVE (File Storage) ---
-    public async getArchiveItems(category?: string): Promise<ArchiveItemOut[]> { 
-        const params = category ? { category } : {}; 
+    public async getArchiveItems(category?: string, caseId?: string): Promise<ArchiveItemOut[]> { 
+        const params: any = {};
+        if (category) params.category = category;
+        if (caseId) params.case_id = caseId;
         const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); 
         return response.data; 
     }
-    public async uploadArchiveItem(file: File, title: string, category: string): Promise<ArchiveItemOut> {
+    
+    public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string): Promise<ArchiveItemOut> {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('title', title);
         formData.append('category', category);
+        if (caseId) formData.append('case_id', caseId);
+        
         const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData, { 
             headers: { 'Content-Type': 'multipart/form-data' } 
         });
         return response.data;
     }
+    
     public async deleteArchiveItem(itemId: string): Promise<void> { 
         await this.axiosInstance.delete(`/archive/items/${itemId}`); 
     }
+    
     public async downloadArchiveItem(itemId: string, title: string): Promise<void> {
         const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' });
         const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -170,6 +177,11 @@ class ApiService {
     public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> { const response = await this.axiosInstance.post<DraftingJobStatus>(`${API_BASE_URL}/api/v2/drafting/jobs`, data); return response.data; }
     public async getDraftingJobStatus(jobId: string): Promise<DraftingJobStatus> { const response = await this.axiosInstance.get<DraftingJobStatus>(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/status`); return response.data; }
     public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> { const response = await this.axiosInstance.get<DraftingJobResult>(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/result`); return response.data; }
+    
+    // Deprecated / Removed
+    public async getTemplates(): Promise<any[]> { return []; } 
+    public async createTemplate(): Promise<any> { throw new Error("Deprecated"); }
+    public async deleteTemplate(): Promise<void> { throw new Error("Deprecated"); }
 }
 
 export const apiService = new ApiService();

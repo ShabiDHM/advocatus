@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
 // PHOENIX PROTOCOL - CLEANUP
-// 1. FIX: Removed local 'ArchiveItem' interface.
-// 2. FIX: Uses 'ArchiveItemOut' imported from types.ts.
-// 3. STATUS: No linter warnings.
+// 1. FIX: Removed unused 'ArrowLeft' import.
+// 2. TYPES: Strictly uses 'ArchiveItemOut' for the Archive list.
+// 3. STATUS: Zero linter errors.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
