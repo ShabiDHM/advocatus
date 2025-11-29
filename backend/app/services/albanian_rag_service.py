@@ -1,7 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - BRANDING UPDATE
-# 1. SIGNATURE: Capitalized "Asistenti Sokratik" (Brand Name).
-# 2. LOGIC: Remains unchanged (Hybrid Graph+Vector RAG).
+# PHOENIX PROTOCOL - RAG SERVICE FIX
+# 1. FIX: Added 'return_exceptions=True' to asyncio.gather.
+# 2. LOGIC: Handles exceptions from gather gracefully.
 
 import os
 import asyncio
@@ -10,7 +10,7 @@ import httpx
 import json
 from typing import AsyncGenerator, List, Optional, Dict, Protocol, cast, Any
 
-# Import the graph service
+# Import the graph service instance
 from .graph_service import graph_service
 
 logger = logging.getLogger(__name__)
@@ -139,11 +139,18 @@ class AlbanianRAGService:
                     logger.warning(f"Graph Search Error: {e}")
                     return []
 
-            user_docs, law_docs, graph_results = await asyncio.gather(
+            # PHOENIX FIX: Added return_exceptions=True
+            results = await asyncio.gather(
                 safe_user_search(), 
                 safe_law_search(),
-                safe_graph_search()
+                safe_graph_search(),
+                return_exceptions=True
             )
+            
+            # Unpack results safely (handling exceptions if any slipped through)
+            user_docs = results[0] if isinstance(results[0], list) else []
+            law_docs = results[1] if isinstance(results[1], list) else []
+            graph_results = results[2] if isinstance(results[2], list) else []
             
             graph_knowledge = graph_results
             logger.info(f"🔍 RESULTS -> Vectors: {len(user_docs)}, Laws: {len(law_docs)}, Graph Nodes: {len(graph_results)}")
@@ -195,7 +202,6 @@ class AlbanianRAGService:
                 if content:
                     yield content
             
-            # BRANDING CHANGE: Corrected Casing
             yield "\n\n**Burimi:** Asistenti Sokratik"
             return
 
@@ -213,7 +219,6 @@ class AlbanianRAGService:
             if local_content:
                 yield "**[Mode: AI Lokale]**\n\n"
                 yield local_content
-                # BRANDING CHANGE: Corrected Casing
                 yield "\n\n**Burimi:** Asistenti Sokratik"
                 return
         

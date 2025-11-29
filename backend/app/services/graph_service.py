@@ -1,8 +1,8 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH SERVICE v2.0 (PROFESSIONAL GRADE)
-# 1. INGESTION: Uses MERGE for relations to ensure no data is lost.
-# 2. RETRIEVAL: Fetches deep relationships (Entity<->Entity) for a richer graph.
-# 3. ROBUSTNESS: Handles connection errors gracefully.
+# PHOENIX PROTOCOL - GRAPH MASTER SERVICE
+# 1. SEARCH: 'find_hidden_connections' for RAG.
+# 2. VISUALIZATION: 'get_case_graph' for 2D UI.
+# 3. CLEANUP: 'delete_document_nodes' for data hygiene.
 
 import os
 import structlog
@@ -30,7 +30,7 @@ class GraphService:
                 auth=basic_auth(NEO4J_USER, NEO4J_PASSWORD)
             )
             self._driver.verify_connectivity()
-            # logger.info("✅ Connected to Neo4j Graph Database.")
+            logger.info("✅ Connected to Neo4j Graph Database.")
         except Exception as e:
             logger.error(f"❌ Failed to connect to Neo4j: {e}")
             self._driver = None
@@ -40,13 +40,23 @@ class GraphService:
             self._driver.close()
 
     def delete_document_nodes(self, document_id: str):
-        """Removes a document and cleans up orphan nodes."""
+        """
+        Removes a document and its exclusive entities from the graph.
+        """
         self._connect()
         if not self._driver: return
 
-        query = "MATCH (d:Document {id: $doc_id}) DETACH DELETE d"
-        cleanup_query = "MATCH (n) WHERE NOT (n)--() DELETE n"
-        
+        # Delete the document node and its relationships
+        query = """
+        MATCH (d:Document {id: $doc_id})
+        DETACH DELETE d
+        """
+        # Cleanup orphan nodes (entities connected to nothing)
+        cleanup_query = """
+        MATCH (n)
+        WHERE NOT (n)--()
+        DELETE n
+        """
         try:
             with self._driver.session() as session:
                 session.run(query, doc_id=document_id)
@@ -56,38 +66,34 @@ class GraphService:
             logger.error(f"Graph Deletion Failed: {e}")
 
     def ingest_entities_and_relations(self, case_id: str, document_id: str, doc_name: str, entities: List[Dict], relations: List[Dict]):
-        """Creates nodes and relationships. Uses MERGE aggressively to prevent data loss."""
+        """Creates nodes and relationships from AI-extracted data."""
         self._connect()
         if not self._driver: return
 
         def _tx_ingest(tx, c_id, d_id, d_name, ents, rels):
-            # 1. Ensure Document Node Exists
+            # 1. Document Node
             tx.run("""
                 MERGE (d:Document {id: $doc_id})
-                SET d.case_id = $case_id, d.name = $doc_name, d.type = 'Document'
+                SET d.case_id = $case_id, d.name = $doc_name
             """, doc_id=d_id, case_id=c_id, doc_name=d_name)
 
-            # 2. Ingest Entities (Nodes)
+            # 2. Entities
             for ent in ents:
                 label = ent.get("type", "Entity").capitalize()
                 name = ent.get("name", "").strip()
                 if not name: continue
                 
-                # Sanitize Label (Neo4j labels cannot be dynamic parameters easily in pure python without risk, strictly allowlist or default)
                 allowed_labels = ["Person", "Organization", "Location", "Date", "Money", "Law", "Entity"]
                 if label not in allowed_labels: label = "Entity"
 
-                # Link Document -> Mentions -> Entity
                 query = f"""
                 MERGE (e:{label} {{name: $name}})
-                SET e.type = $label
-                WITH e
-                MATCH (d:Document {{id: $doc_id}})
+                MERGE (d:Document {{id: $doc_id}})
                 MERGE (d)-[:MENTIONS]->(e)
                 """
-                tx.run(query, name=name, doc_id=d_id, label=label)
+                tx.run(query, name=name, doc_id=d_id)
 
-            # 3. Ingest Relationships (Edges)
+            # 3. Relationships
             for rel in rels:
                 subj = rel.get("subject", "").strip()
                 obj = rel.get("object", "").strip()
@@ -95,108 +101,121 @@ class GraphService:
                 
                 if not subj or not obj: continue
 
-                # PHOENIX FIX: Use MERGE for nodes too. 
-                # If the AI found a relationship but missed the entity extraction, we create the node anyway.
                 query = f"""
-                MERGE (a {{name: $subj}})
-                MERGE (b {{name: $obj}})
+                MATCH (a {{name: $subj}})
+                MATCH (b {{name: $obj}})
                 MERGE (a)-[:{predicate}]->(b)
                 """
                 try:
                     tx.run(query, subj=subj, obj=obj)
-                except Exception as e:
-                    logger.warning(f"Failed to create relation {subj}->{obj}: {e}")
+                except Exception:
+                    pass
 
         try:
             with self._driver.session() as session:
                 session.execute_write(_tx_ingest, case_id, document_id, doc_name, entities, relations)
-            logger.info(f"🕸️ Graph Ingestion Complete: {len(entities)} Entities, {len(relations)} Relations.")
+            logger.info(f"🕸️ Graph Ingestion Complete: {len(entities)} Nodes.")
         except Exception as e:
             logger.error(f"Graph Transaction Failed: {e}")
 
+    def find_hidden_connections(self, query_term: str) -> List[str]:
+        """
+        Finds connections using FUZZY matching (Case Insensitive).
+        Used by RAG Chat to inject graph knowledge.
+        """
+        self._connect()
+        if not self._driver: return []
+        
+        query = """
+        MATCH (a)-[r]-(b)
+        WHERE toLower(a.name) CONTAINS toLower($term)
+        RETURN a.name as source, type(r) as relation, b.name as target, labels(b) as type
+        LIMIT 15
+        """
+        try:
+            with self._driver.session() as session:
+                result = session.run(query, term=query_term)
+                connections = []
+                for record in result:
+                    target_type = record['type'][0] if record['type'] else "Entity"
+                    # Format: "Artan --SIGNED--> Contract (Person)"
+                    connections.append(f"{record['source']} --{record['relation']}--> {record['target']} ({target_type})")
+                return connections
+        except Exception as e:
+            logger.warning(f"Graph Search Error: {e}")
+            return []
+
     def get_case_graph(self, case_id: str) -> Dict[str, List]:
         """
-        Retrieves the 'Professional' subgraph for a case.
-        Includes Documents, Entities, and ALL relationships between them.
+        Retrieves the full knowledge graph for a specific case.
+        Used by the 2D Visualization UI.
         """
         self._connect()
         if not self._driver: return {"nodes": [], "links": []}
 
-        # PHOENIX FIX: Expanded Query
-        # 1. Find all documents for the case.
-        # 2. Find all entities mentioned by those documents.
-        # 3. Find relationships between those entities (The "Intelligence" layer).
         query = """
         MATCH (d:Document {case_id: $case_id})
-        OPTIONAL MATCH (d)-[:MENTIONS]->(e)
-        WITH collect(d) + collect(e) as case_nodes
-        UNWIND case_nodes as n
-        OPTIONAL MATCH (n)-[r]-(m)
-        WHERE m IN case_nodes
-        RETURN n, r, m
-        LIMIT 300
+        OPTIONAL MATCH (d)-[r]-(target)
+        RETURN d, r, target
         """
         
-        nodes_dict = {}
-        links_list = []
+        nodes = {}
+        links = []
         
         try:
             with self._driver.session() as session:
                 result = session.run(query, case_id=case_id)
                 
                 for record in result:
-                    n = record['n']
-                    m = record['m']
-                    r = record['r']
-                    
-                    if n:
-                        n_id = n.get("id", n.element_id) # Use prop ID if set (docs), else internal ID
-                        if n_id not in nodes_dict:
-                            # Determine Group/Color
-                            labels = list(n.labels)
-                            group = "Entity"
-                            if "Document" in labels: group = "Document"
-                            elif "Person" in labels: group = "Person"
-                            elif "Organization" in labels: group = "Organization"
-                            elif "Law" in labels: group = "Law"
-                            
-                            nodes_dict[n_id] = {
-                                "id": n_id,
-                                "name": n.get("name", "Unknown"),
-                                "group": group,
-                                "val": 20 if group == "Document" else 10
+                    # 1. Document Node
+                    doc_node = record['d']
+                    if doc_node:
+                        doc_id = getattr(doc_node, "element_id", str(doc_node.id))
+                        doc_prop_id = doc_node.get("id", doc_id)
+                        doc_name = doc_node.get("name", "Document")
+                        
+                        if doc_prop_id not in nodes:
+                            nodes[doc_prop_id] = {
+                                "id": doc_prop_id,
+                                "name": doc_name,
+                                "group": "DOCUMENT",
+                                "val": 20
                             }
-
-                    if m:
-                        m_id = m.get("id", m.element_id)
-                        if m_id not in nodes_dict:
-                            labels = list(m.labels)
-                            group = "Entity"
-                            if "Document" in labels: group = "Document"
-                            elif "Person" in labels: group = "Person"
-                            elif "Organization" in labels: group = "Organization"
-                            elif "Law" in labels: group = "Law"
-
-                            nodes_dict[m_id] = {
-                                "id": m_id,
-                                "name": m.get("name", "Unknown"),
-                                "group": group,
+                    
+                    # 2. Target Node
+                    target = record['target']
+                    rel = record['r']
+                    
+                    if target and rel:
+                        target_id = getattr(target, "element_id", str(target.id))
+                        target_labels = list(target.labels)
+                        group_type = target_labels[0] if target_labels else "Entity"
+                        target_name = target.get("name", "Unknown")
+                        
+                        node_key = target_id
+                        
+                        if node_key not in nodes:
+                            nodes[node_key] = {
+                                "id": node_key,
+                                "name": target_name,
+                                "group": group_type,
                                 "val": 10
                             }
-
-                    if r and n and m:
-                        links_list.append({
-                            "source": n.get("id", n.element_id),
-                            "target": m.get("id", m.element_id),
-                            "label": type(r).__name__
+                        
+                        # 3. Link
+                        links.append({
+                            "source": doc_prop_id,
+                            "target": node_key,
+                            "label": type(rel).__name__
                         })
                         
             return {
-                "nodes": list(nodes_dict.values()),
-                "links": links_list
+                "nodes": list(nodes.values()),
+                "links": links
             }
         except Exception as e:
             logger.error(f"Graph Retrieval Failed: {e}")
             return {"nodes": [], "links": []}
 
+# Global Instance
 graph_service = GraphService()
