@@ -1,10 +1,10 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE LOGIC (TYPE FIX)
-# 1. FIX: Explicitly typed queries as 'Dict[str, Any]' to allow mixed types (ObjectId + String).
-# 2. LOGIC: Retains full functionality for Upload/List/Delete.
+# PHOENIX PROTOCOL - ARCHIVE LOGIC (INTERNAL SAVE SUPPORT)
+# 1. ADDED: 'save_generated_file' to allow saving generated PDFs (Invoices/Reports) directly.
+# 2. STATUS: Supports both User Uploads and System Generated files.
 
 import os
-from typing import List, Optional, Tuple, Any, Dict
+from typing import List, Optional, Tuple, Any, cast, Dict
 from datetime import datetime, timezone
 from bson import ObjectId
 from pymongo.database import Database
@@ -20,13 +20,21 @@ class ArchiveService:
     def __init__(self, db: Database):
         self.db = db
 
-    async def add_file_to_archive(self, user_id: str, file: UploadFile, category: str, title: str) -> ArchiveItemInDB:
+    def _to_oid(self, id_str: str) -> ObjectId:
+        return ObjectId(cast(Any, id_str))
+
+    async def add_file_to_archive(
+        self, 
+        user_id: str, 
+        file: UploadFile, 
+        category: str, 
+        title: str,
+        case_id: Optional[str] = None
+    ) -> ArchiveItemInDB:
         s3_client = get_s3_client()
-        
         filename = file.filename or "untitled"
         file_ext = filename.split('.')[-1] if '.' in filename else "BIN"
         timestamp = int(datetime.now().timestamp())
-        
         storage_key = f"archive/{user_id}/{timestamp}_{filename}"
         
         try:
@@ -39,7 +47,7 @@ class ArchiveService:
             raise HTTPException(status_code=500, detail=f"Storage Upload Failed: {str(e)}")
         
         doc_data = {
-            "user_id": ObjectId(str(user_id)), # type: ignore
+            "user_id": self._to_oid(user_id),
             "title": title or filename,
             "file_type": file_ext.upper(),
             "category": category,
@@ -48,48 +56,80 @@ class ArchiveService:
             "created_at": datetime.now(timezone.utc),
             "description": ""
         }
+        if case_id: doc_data["case_id"] = self._to_oid(case_id)
         
         result = self.db.archives.insert_one(doc_data)
         return ArchiveItemInDB(**doc_data, _id=result.inserted_id)
 
-    def get_archive_items(self, user_id: str, category: Optional[str] = None) -> List[ArchiveItemInDB]:
-        # PHOENIX FIX: Explicit annotation Dict[str, Any] allows strings to be added later
-        query: Dict[str, Any] = {"user_id": ObjectId(str(user_id))} # type: ignore
+    # PHOENIX NEW: Save raw bytes (for Invoices/Reports)
+    async def save_generated_file(
+        self,
+        user_id: str,
+        filename: str,
+        content: bytes,
+        category: str,
+        title: str,
+        case_id: Optional[str] = None
+    ) -> ArchiveItemInDB:
+        s3_client = get_s3_client()
+        timestamp = int(datetime.now().timestamp())
+        storage_key = f"archive/{user_id}/{timestamp}_{filename}"
         
-        if category and category != "ALL":
-            query["category"] = category
+        try:
+            s3_client.put_object(
+                Bucket=B2_BUCKET_NAME, 
+                Key=storage_key, 
+                Body=content
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Internal Storage Save Failed: {str(e)}")
+            
+        file_ext = filename.split('.')[-1].upper() if '.' in filename else "PDF"
+        
+        doc_data = {
+            "user_id": self._to_oid(user_id),
+            "title": title,
+            "file_type": file_ext,
+            "category": category,
+            "storage_key": storage_key,
+            "file_size": len(content),
+            "created_at": datetime.now(timezone.utc),
+            "description": "Generated System Document"
+        }
+        if case_id: doc_data["case_id"] = self._to_oid(case_id)
+        
+        result = self.db.archives.insert_one(doc_data)
+        return ArchiveItemInDB(**doc_data, _id=result.inserted_id)
+
+    def get_archive_items(
+        self, 
+        user_id: str, 
+        category: Optional[str] = None,
+        case_id: Optional[str] = None
+    ) -> List[ArchiveItemInDB]:
+        query: Dict[str, Any] = {"user_id": self._to_oid(user_id)}
+        if category and category != "ALL": query["category"] = category
+        if case_id: query["case_id"] = self._to_oid(case_id)
             
         cursor = self.db.archives.find(query).sort("created_at", -1)
         return [ArchiveItemInDB(**doc, _id=doc["_id"]) for doc in cursor]
 
     def delete_archive_item(self, user_id: str, item_id: str):
-        # Explicit annotation here too for safety
-        query: Dict[str, Any] = {
-            "_id": ObjectId(str(item_id)), # type: ignore
-            "user_id": ObjectId(str(user_id)) # type: ignore
-        }
+        query: Dict[str, Any] = {"_id": self._to_oid(item_id), "user_id": self._to_oid(user_id)}
         item = self.db.archives.find_one(query)
-        
-        if not item:
-            raise HTTPException(status_code=404, detail="Item not found")
+        if not item: raise HTTPException(status_code=404, detail="Item not found")
         
         try:
             s3_client = get_s3_client()
             s3_client.delete_object(Bucket=B2_BUCKET_NAME, Key=item["storage_key"])
-        except Exception:
-            pass
+        except Exception: pass
         
-        self.db.archives.delete_one({"_id": ObjectId(str(item_id))}) # type: ignore
+        self.db.archives.delete_one(query)
 
     def get_file_stream(self, user_id: str, item_id: str) -> Tuple[Any, str]:
-        query: Dict[str, Any] = {
-            "_id": ObjectId(str(item_id)), # type: ignore
-            "user_id": ObjectId(str(user_id)) # type: ignore
-        }
+        query: Dict[str, Any] = {"_id": self._to_oid(item_id), "user_id": self._to_oid(user_id)}
         item = self.db.archives.find_one(query)
-        
-        if not item:
-            raise HTTPException(status_code=404, detail="Item not found")
+        if not item: raise HTTPException(status_code=404, detail="Item not found")
             
         try:
             s3_client = get_s3_client()

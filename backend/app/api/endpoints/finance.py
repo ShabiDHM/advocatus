@@ -1,7 +1,8 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE API v1.2
-# 1. ADDED: DELETE /invoices/{invoice_id} endpoint.
-# 2. STATUS: Fully supports Invoice Lifecycle.
+# PHOENIX PROTOCOL - FINANCE API (ARCHIVE ENABLED)
+# 1. ADDED: POST /invoices/{invoice_id}/archive endpoint.
+# 2. INTEGRATION: Connects Finance -> Report -> Archive services seamlessly.
+# 3. VERIFIED: Preserves existing 'lang' support and relative imports.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
@@ -10,7 +11,10 @@ from pymongo.database import Database
 
 from ...models.user import UserInDB
 from ...models.finance import InvoiceCreate, InvoiceOut, InvoiceUpdate
+# PHOENIX NEW: Import Archive components
+from ...models.archive import ArchiveItemOut 
 from ...services.finance_service import FinanceService
+from ...services.archive_service import ArchiveService
 from ...services.report_service import generate_invoice_pdf
 from .dependencies import get_current_user, get_db
 
@@ -78,3 +82,41 @@ def download_invoice_pdf(
     filename = f"Invoice_{invoice.invoice_number}.pdf"
     headers = {'Content-Disposition': f'inline; filename="{filename}"'}
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
+
+# PHOENIX NEW: Archive Endpoint
+@router.post("/invoices/{invoice_id}/archive", response_model=ArchiveItemOut)
+async def archive_invoice(
+    invoice_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db),
+    case_id: Optional[str] = Query(None, description="Optional Case ID to link the invoice"),
+    lang: Optional[str] = Query("sq", description="Language for the PDF")
+):
+    """
+    Generates the PDF for an invoice and saves it directly to the Archive.
+    Optionally links it to a Case.
+    """
+    finance_service = FinanceService(db)
+    archive_service = ArchiveService(db)
+    
+    # 1. Fetch Invoice Data
+    invoice = finance_service.get_invoice(str(current_user.id), invoice_id)
+    
+    # 2. Generate PDF (In Memory)
+    pdf_buffer = generate_invoice_pdf(invoice, db, current_user.username, lang=lang or "sq")
+    pdf_content = pdf_buffer.getvalue()
+    
+    # 3. Save to Archive
+    filename = f"Invoice_{invoice.invoice_number}.pdf"
+    title = f"Fatura #{invoice.invoice_number} - {invoice.client_name}"
+    
+    archived_item = await archive_service.save_generated_file(
+        user_id=str(current_user.id),
+        filename=filename,
+        content=pdf_content,
+        category="INVOICE",
+        title=title,
+        case_id=case_id
+    )
+    
+    return archived_item

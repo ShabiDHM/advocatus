@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/archive.py
-# PHOENIX PROTOCOL - ARCHIVE API (FIXED)
-# 1. FIX: Changed to Absolute Import 'from app.services...' to resolve symbol error.
-# 2. TYPES: Kept strict typing for safety.
+# PHOENIX PROTOCOL - ARCHIVE API (CASE AWARE)
+# 1. UPDATE: Added 'case_id' parameter to list and upload endpoints.
+# 2. FEATURE: Allows linking files to specific cases via API.
 
 from fastapi import APIRouter, Depends, status, UploadFile, Form
 from fastapi.responses import StreamingResponse
@@ -11,7 +11,6 @@ import urllib.parse
 
 from app.models.user import UserInDB
 from app.models.archive import ArchiveItemOut
-# PHOENIX FIX: Absolute import is more reliable than relative '...'
 from app.services.archive_service import ArchiveService 
 from app.api.endpoints.dependencies import get_current_user, get_db
 
@@ -21,10 +20,14 @@ router = APIRouter(tags=["Archive"])
 def get_archive_items(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db),
-    category: Optional[str] = None
+    category: Optional[str] = None,
+    case_id: Optional[str] = None # <--- NEW PARAMETER
 ):
+    """
+    List archived files. Optional filter by category or case_id.
+    """
     service = ArchiveService(db)
-    return service.get_archive_items(str(current_user.id), category)
+    return service.get_archive_items(str(current_user.id), category, case_id)
 
 @router.post("/upload", response_model=ArchiveItemOut)
 async def upload_archive_item(
@@ -32,10 +35,14 @@ async def upload_archive_item(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     title: str = Form(...),
     category: str = Form("UPLOAD"),
+    case_id: Optional[str] = Form(None), # <--- NEW PARAMETER
     db: Database = Depends(get_db)
 ):
+    """
+    Upload a file to the archive. Can be linked to a specific case.
+    """
     service = ArchiveService(db)
-    return await service.add_file_to_archive(str(current_user.id), file, category, title)
+    return await service.add_file_to_archive(str(current_user.id), file, category, title, case_id)
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_archive_item(
