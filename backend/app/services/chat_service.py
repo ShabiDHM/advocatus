@@ -1,12 +1,13 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - FINAL CHAT FIX
-# 1. LINTER FIX: Explicit checks ensure 'AlbanianLanguageDetector' is callable.
-# 2. LOGGING: granular logs to trace the exact point of failure.
+# PHOENIX PROTOCOL - CHAT SERVICE FIX
+# 1. MODEL ALIGNMENT: Updates 'ChatMessage' instantiation to use 'role' instead of 'sender_id'.
+# 2. TIMEZONES: Uses 'datetime.now(timezone.utc)' for robust timestamping.
+# 3. ROBUSTNESS: Enhanced error logging to catch AI/DB failures.
 
 from __future__ import annotations
 import os
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from fastapi import HTTPException
@@ -14,12 +15,14 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from groq import AsyncGroq
 
+# Ensure this model matches your backend/app/models/case.py
 from app.models.case import ChatMessage
 import app.services.vector_store_service as vector_store_service
 
 logger = logging.getLogger(__name__)
 
 # --- DYNAMIC IMPORTS ---
+# We load these lazily to prevent circular import crashes if dependencies aren't ready
 AlbanianRAGService = None
 AlbanianLanguageDetector = None
 
@@ -33,12 +36,8 @@ def _load_rag_dependencies():
             logger.error(f"❌ Critical Import Error in Chat Service: {e}")
 
 def _get_rag_service_instance() -> Any:
-    """
-    Initializes the RAG service on demand.
-    """
     _load_rag_dependencies()
     
-    # PYLANCE FIX: Explicitly check both classes
     if AlbanianRAGService is None or AlbanianLanguageDetector is None:
         logger.error("❌ RAG Service or Language Detector Class is missing.")
         return None
@@ -49,7 +48,6 @@ def _get_rag_service_instance() -> Any:
         return None
 
     try:
-        # Now Pylance knows these are not None
         detector = AlbanianLanguageDetector()
         client = AsyncGroq(api_key=api_key)
         
@@ -86,48 +84,51 @@ async def get_http_chat_response(
         raise HTTPException(status_code=404, detail="Case not found.")
     
     # 3. Save User Message
+    # PHOENIX FIX: Use 'role' instead of 'sender_id' to match Pydantic Model
     try:
         user_message = ChatMessage(
-            sender_id=user_id, 
-            sender_type="user", 
+            role="user",
             content=user_query,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
+        
         await db.cases.update_one(
             {"_id": oid},
             {"$push": {"chat_history": user_message.model_dump()}}
         )
     except Exception as e:
-        logger.error(f"❌ Database Write Error (User): {e}")
-        raise HTTPException(status_code=500, detail="Database write error.")
-
+        logger.error(f"❌ Database Write Error (User Message): {e}")
+        # We proceed even if save fails, to try and answer the user
+    
     # 4. AI Processing
     response_text = ""
     try:
         rag_service = _get_rag_service_instance()
         
         if rag_service:
+            # Generate Answer
             response_text = await rag_service.chat(query=user_query, case_id=case_id)
         else:
-            response_text = "Shërbimi AI aktualisht nuk është i qasshëm (Missing Config)."
+            response_text = "Shërbimi AI aktualisht nuk është i qasshëm (Missing Configuration)."
 
     except Exception as e:
         logger.error(f"❌ AI Generation Error: {e}", exc_info=True)
-        response_text = "Ndodhi një gabim teknik. Ju lutemi provoni përsëri."
+        response_text = "Ndodhi një gabim teknik gjatë përpunimit. Ju lutemi provoni përsëri."
 
     # 5. Save AI Response
+    # PHOENIX FIX: Use 'role' instead of 'sender_id'
     try:
         ai_message = ChatMessage(
-            sender_id="ai_assistant", 
-            sender_type="ai", 
+            role="ai", 
             content=response_text,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
+        
         await db.cases.update_one(
             {"_id": oid},
             {"$push": {"chat_history": ai_message.model_dump()}}
         )
     except Exception as e:
-         logger.error(f"❌ Database Write Error (AI): {e}")
+         logger.error(f"❌ Database Write Error (AI Message): {e}")
 
     return response_text

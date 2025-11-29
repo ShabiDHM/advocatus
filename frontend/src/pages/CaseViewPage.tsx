@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW (GRAPH INTEGRATED)
-// 1. CLEANUP: Removed unused imports.
-// 2. FEATURE: Tabbed view for Documents vs. Case Graph.
-// 3. UX: Persistent Chat Panel.
+// PHOENIX PROTOCOL - STABILIZATION & CLEANUP
+// 1. CHAT FIX: Enforced 'h-[calc(100vh-200px)]' and sticky positioning to ensure Chat is always accessible and scrolling works.
+// 2. GRAPH REMOVAL: Temporarily replaced the "Ball Graph" with a professional "Construction" placeholder to stop the "joke" visual.
+// 3. DATA SAFETY: Improved 'fetchCaseData' to ensure chat history is set robustly.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } 
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
-import CaseGraph from '../components/CaseGraph'; // Integrated Component
+// import CaseGraph from '../components/CaseGraph'; // DISABLED: Replaced with Placeholder
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import FindingsModal from '../components/FindingsModal';
@@ -18,7 +18,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb, FileText, Network } from 'lucide-react';
+import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb, FileText, Network, Construction } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -91,7 +91,6 @@ const CaseViewPage: React.FC = () => {
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
 
-  // Tab State
   const [activeTab, setActiveTab] = useState<ViewTab>('documents');
 
   const prevReadyCount = useRef(0);
@@ -125,7 +124,8 @@ const CaseViewPage: React.FC = () => {
       
       if (isInitialLoad) {
           setLiveDocuments((initialDocs || []).map(sanitizeDocument));
-          if (details.chat_history) {
+          // PHOENIX FIX: Ensure chat history is set properly
+          if (details.chat_history && details.chat_history.length > 0) {
               setMessages(details.chat_history);
           }
           const readyDocs = (initialDocs || []).filter(d => d.status === 'COMPLETED' || d.status === 'READY');
@@ -229,7 +229,6 @@ const CaseViewPage: React.FC = () => {
                 />
             </div>
 
-            {/* Tab Navigation */}
             <div className="px-4 sm:px-0 flex gap-4 border-b border-glass-edge mb-2">
                 <button 
                     onClick={() => setActiveTab('documents')}
@@ -247,9 +246,10 @@ const CaseViewPage: React.FC = () => {
                 </button>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-stretch px-4 sm:px-0 min-h-[600px]">
-                {/* Left Panel: Switchable */}
-                <div className="flex flex-col h-full">
+            {/* PHOENIX FIX: Sticky grid with defined height for desktop */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start px-4 sm:px-0">
+                {/* Left Panel */}
+                <div className="flex flex-col h-full min-h-[500px]">
                     {activeTab === 'documents' ? (
                         <DocumentsPanel
                             caseId={caseData.details.id}
@@ -263,21 +263,30 @@ const CaseViewPage: React.FC = () => {
                             onViewOriginal={setViewingDocument}
                         />
                     ) : (
-                        <CaseGraph caseId={caseData.details.id} />
+                        // PHOENIX FIX: Placeholder for Professional Graph Alternative
+                        <div className="bg-background-dark/50 border border-glass-edge rounded-2xl p-12 text-center h-[500px] flex flex-col items-center justify-center">
+                            <Construction className="w-16 h-16 text-primary-start mb-4 animate-pulse" />
+                            <h3 className="text-xl font-bold text-white mb-2">Harta Interaktive në Ndërtim</h3>
+                            <p className="text-gray-400 max-w-md">
+                                Ne jemi duke ridizenjuar vizualizimin e çështjes për t'ju ofruar një përvojë profesionale dhe të qartë.
+                            </p>
+                        </div>
                     )}
                 </div>
 
-                {/* Right Panel: Chat (Always Persistent) */}
-                <ChatPanel
-                  messages={liveMessages}
-                  connectionStatus={connectionStatus}
-                  reconnect={reconnect}
-                  onSendMessage={sendChatMessage}
-                  isSendingMessage={isSendingMessage}
-                  caseId={caseData.details.id}
-                  onClearChat={handleClearChat}
-                  t={t}
-                />
+                {/* Right Panel: Chat - PHOENIX FIX: Sticky Position */}
+                <div className="lg:sticky lg:top-24 h-[600px] lg:h-[calc(100vh-200px)] min-h-[500px]">
+                    <ChatPanel
+                        messages={liveMessages}
+                        connectionStatus={connectionStatus}
+                        reconnect={reconnect}
+                        onSendMessage={sendChatMessage}
+                        isSendingMessage={isSendingMessage}
+                        caseId={caseData.details.id}
+                        onClearChat={handleClearChat}
+                        t={t}
+                    />
+                </div>
             </div>
         </div>
       </div>
