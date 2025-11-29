@@ -1,7 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE FIX
-# 1. FIX: Added 'return_exceptions=True' to asyncio.gather.
-# 2. LOGIC: Handles exceptions from gather gracefully.
+# PHOENIX PROTOCOL - PROFESSIONAL TONE UPGRADE
+# 1. PROMPT ENGINEERING: Upgraded System Prompt to "Senior Legal Analyst" persona.
+# 2. SYNTHESIS: Instructs AI to weave Graph data into a narrative, not a list.
+# 3. ROBUSTNESS: Keeps the return_exceptions=True fix.
 
 import os
 import asyncio
@@ -139,7 +140,6 @@ class AlbanianRAGService:
                     logger.warning(f"Graph Search Error: {e}")
                     return []
 
-            # PHOENIX FIX: Added return_exceptions=True
             results = await asyncio.gather(
                 safe_user_search(), 
                 safe_law_search(),
@@ -147,7 +147,6 @@ class AlbanianRAGService:
                 return_exceptions=True
             )
             
-            # Unpack results safely (handling exceptions if any slipped through)
             user_docs = results[0] if isinstance(results[0], list) else []
             law_docs = results[1] if isinstance(results[1], list) else []
             graph_results = results[2] if isinstance(results[2], list) else []
@@ -162,7 +161,7 @@ class AlbanianRAGService:
                 reranked = await self._rerank_chunks(query, all_candidates)
                 relevant_chunks = reranked[:7] if reranked else all_candidates[:7]
             elif not graph_results:
-                yield "Nuk munda të gjej informacion relevant në dokumentet, ligjet ose analizën grafike."
+                yield "Nuk munda të gjej informacion relevant në dokumentet, ligjet ose analizën grafike për t'iu përgjigjur pyetjes suaj."
                 return
 
         except Exception as e:
@@ -170,20 +169,37 @@ class AlbanianRAGService:
             yield f"Gabim gjatë kërkimit: {str(e)}"
             return
 
-        # --- STEP 4: GENERATE ---
+        # --- STEP 4: GENERATE (PROFESSIONAL PROMPT) ---
         context_string = self._build_prompt_context(relevant_chunks, graph_knowledge)
         
         system_prompt = """
-        Jeni "Juristi AI", ekspert ligjor për Kosovë dhe Shqipëri.
-        Përdor kontekstin e dhënë për të përgjigjur saktë.
-        
-        Konteksti përmban:
-        1. TEKST NGA DOKUMENTET (Përmbajtja).
-        2. INFORMACION NGA GRAFI (Lidhjet, Datat, Entitetet).
-        
-        Nëse informacioni vjen nga GRAFI, thuaj "Sipas analizës së lidhjeve...".
+        Ju jeni "Asistenti Sokratik", një konsulent ligjor i nivelit të lartë (Senior Legal Associate) i specializuar në ligjet e Kosovës dhe Shqipërisë.
+        Qëllimi juaj është të ofroni analiza profesionale, të sakta dhe të strukturuara.
+
+        UDHËZIME PËR PËRGJIGJEN:
+        1. MOS bëj thjesht listimin e të dhënave (mos thuaj "kam gjetur këto data...").
+        2. SINTETIZO: Përdor informacionin e gjetur për të ndërtuar një narrativë logjike.
+           - Shembull: Në vend të "Artan -> Nënshkroi -> Kontratën", thuaj "Kontrata është nënshkruar ligjërisht nga z. Artan Hoxha."
+        3. INTEGRIMI I GRAFIT: Të dhënat nga 'Analiza e Lidhjeve' janë fakte të konfirmuara (data, shuma, palë). Përdori ato për të saktësuar përgjigjen.
+        4. STILI: Përdor gjuhë juridike formale, objektive dhe profesionale.
+        5. Nëse pyetja kërkon opinion, bazoje atë vetëm në dokumentet e ofruara.
+
+        FORMATI:
+        - Fillo me një përmbledhje ekzekutive.
+        - Analizo detajet (Palët, Objektin, Afatet, Detyrimet).
+        - Përfundo me një konkluzion ose rekomandim nëse është e përshtatshme.
         """
-        user_prompt = f"KONTEKSTI:\n{context_string}\n\nPYETJA: {query}"
+        
+        user_prompt = f"""
+        PYETJA E PËRDORUESIT: {query}
+
+        ---
+        MATERIALI I SHQYRTUAR (Nga Dokumentet dhe Analiza e Lidhjeve):
+        {context_string}
+        ---
+        
+        Bazuar në materialin e mësipërm, ju lutem hartoni përgjigjen tuaj profesionale:
+        """
 
         # TIER 1: GROQ (CLOUD)
         tier1_failed = False
@@ -194,7 +210,7 @@ class AlbanianRAGService:
                     {"role": "user", "content": user_prompt}
                 ],
                 model=self.fine_tuned_model,
-                temperature=0.1,
+                temperature=0.2, # Lower temperature for more factual/professional output
                 stream=True,
             )
             async for chunk in stream:
@@ -222,28 +238,30 @@ class AlbanianRAGService:
                 yield "\n\n**Burimi:** Asistenti Sokratik"
                 return
         
-        # TIER 3: STATIC
+        # TIER 3: STATIC FALLBACK
         yield "\n\n⚠️ **Kufiri Ditor i AI është arritur.**\n"
-        yield "Ja dokumentet dhe lidhjet që gjeta:\n\n"
+        yield "Më poshtë gjeni të dhënat e papërpunuara të gjetura në dosje:\n\n"
         if graph_knowledge:
-            yield "**🔗 Lidhjet e Gjetura (Graph):**\n"
+            yield "**🔗 Analiza e Lidhjeve:**\n"
             for rel in graph_knowledge[:5]:
                 yield f"- {rel}\n"
             yield "\n"
         
         for i, doc in enumerate(relevant_chunks):
             name = doc.get('document_name', 'Dokument')
-            yield f"{i+1}. **{name}**\n"
+            yield f"{i+1}. **{name}** (Fragment tekstual)\n"
 
     def _build_prompt_context(self, chunks: List[Dict], graph_data: List[str]) -> str:
         parts = []
         if graph_data:
-            parts.append("=== INFORMACION NGA GRAFI (LIDHJET) ===")
+            parts.append("=== TË DHËNA NGA ANALIZA E LIDHJEVE (STRUKTUAR) ===")
             parts.extend(graph_data)
-            parts.append("=====================================\n")
+            parts.append("==================================================\n")
+        
+        parts.append("=== PËRMBAJTJA E DOKUMENTEVE (TEKST) ===")
         for chunk in chunks:
             doc_type = chunk.get('type', 'DOKUMENT')
-            name = chunk.get('document_name', 'Burim')
+            name = chunk.get('document_name', 'Burim i Panjohur')
             text = chunk.get('text', '')
-            parts.append(f"[{doc_type} - {name}]: {text}")
-        return "\n\n".join(parts)
+            parts.append(f"Burimi: {name} ({doc_type})\nPërmbajtja: {text}\n---")
+        return "\n".join(parts)
