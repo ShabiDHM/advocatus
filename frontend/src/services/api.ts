@@ -1,7 +1,6 @@
 // FILE: src/services/api.ts
 // PHOENIX PROTOCOL - API MASTER FILE
 // 1. ADDED: deleteInvoice method.
-// 2. STATUS: Ready for UI implementation.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
