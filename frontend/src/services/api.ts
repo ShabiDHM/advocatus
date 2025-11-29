@@ -1,6 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER FILE
-// 1. ADDED: deleteInvoice method.
+// PHOENIX PROTOCOL - API CLEANUP
+// 1. REMOVED: All references to 'LibraryTemplate' and 'CreateTemplateRequest'.
+// 2. STATUS: Fully aligned with the new 'Archive' architecture.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -8,7 +9,7 @@ import type {
     DeletedDocumentResponse, CalendarEvent, CalendarEventCreateRequest, CreateDraftingJobRequest,
     DraftingJobStatus, DraftingJobResult, ChangePasswordRequest, Finding, CaseAnalysisResult,
     BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest,
-    LibraryTemplate, CreateTemplateRequest, GraphData
+    GraphData, ArchiveItemOut
 } from '../data/types';
 
 interface LoginResponse { access_token: string; }
@@ -42,13 +43,8 @@ class ApiService {
                     if (config.baseURL?.startsWith('http:')) config.baseURL = config.baseURL.replace('http:', 'https:');
                     if (config.url?.startsWith('http:')) config.url = config.url.replace('http:', 'https:');
                 }
-                const isRefreshRequest = config.url?.includes('/auth/refresh');
-                if (!isRefreshRequest) {
-                    const token = localStorage.getItem('jwtToken');
-                    if (token) {
-                        config.headers.Authorization = `Bearer ${token}`;
-                    }
-                }
+                const token = localStorage.getItem('jwtToken');
+                if (token) config.headers.Authorization = `Bearer ${token}`;
                 return config;
             },
             (error) => Promise.reject(error)
@@ -93,11 +89,9 @@ class ApiService {
     public async getInvoices(): Promise<Invoice[]> { const response = await this.axiosInstance.get<Invoice[]>('/finance/invoices'); return response.data; }
     public async createInvoice(data: InvoiceCreateRequest): Promise<Invoice> { const response = await this.axiosInstance.post<Invoice>('/finance/invoices', data); return response.data; }
     public async updateInvoiceStatus(invoiceId: string, status: string): Promise<Invoice> { const response = await this.axiosInstance.put<Invoice>(`/finance/invoices/${invoiceId}/status`, { status }); return response.data; }
+    public async deleteInvoice(invoiceId: string): Promise<void> { await this.axiosInstance.delete(`/finance/invoices/${invoiceId}`); }
     public async downloadInvoicePdf(invoiceId: string, lang: string = 'sq'): Promise<void> { 
-        const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { 
-            params: { lang },
-            responseType: 'blob' 
-        }); 
+        const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); 
         const url = window.URL.createObjectURL(new Blob([response.data])); 
         const link = document.createElement('a'); 
         link.href = url; 
@@ -106,13 +100,36 @@ class ApiService {
         link.click(); 
         link.parentNode?.removeChild(link); 
     }
-    // PHOENIX FIX: Added deleteInvoice
-    public async deleteInvoice(invoiceId: string): Promise<void> { await this.axiosInstance.delete(`/finance/invoices/${invoiceId}`); }
 
-    // --- Library (Arkiva) ---
-    public async getTemplates(category?: string): Promise<LibraryTemplate[]> { const params = category ? { category } : {}; const response = await this.axiosInstance.get<LibraryTemplate[]>('/library/templates', { params }); return response.data; }
-    public async createTemplate(data: CreateTemplateRequest): Promise<LibraryTemplate> { const response = await this.axiosInstance.post<LibraryTemplate>('/library/templates', data); return response.data; }
-    public async deleteTemplate(templateId: string): Promise<void> { await this.axiosInstance.delete(`/library/templates/${templateId}`); }
+    // --- ARCHIVE (File Storage) ---
+    public async getArchiveItems(category?: string): Promise<ArchiveItemOut[]> { 
+        const params = category ? { category } : {}; 
+        const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); 
+        return response.data; 
+    }
+    public async uploadArchiveItem(file: File, title: string, category: string): Promise<ArchiveItemOut> {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('title', title);
+        formData.append('category', category);
+        const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData, { 
+            headers: { 'Content-Type': 'multipart/form-data' } 
+        });
+        return response.data;
+    }
+    public async deleteArchiveItem(itemId: string): Promise<void> { 
+        await this.axiosInstance.delete(`/archive/items/${itemId}`); 
+    }
+    public async downloadArchiveItem(itemId: string, title: string): Promise<void> {
+        const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', title);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+    }
 
     // --- Graph ---
     public async getCaseGraph(caseId: string): Promise<GraphData> { const response = await this.axiosInstance.get<GraphData>(`/graph/graph/${caseId}`); return response.data; }

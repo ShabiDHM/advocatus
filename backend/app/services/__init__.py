@@ -1,3 +1,8 @@
+# FILE: backend/app/services/__init__.py
+# PHOENIX PROTOCOL - SERVICE REGISTRY
+# 1. UPDATE: Removed 'library_service'.
+# 2. STATUS: Archive, Finance, Graph are active.
+
 from . import (
     admin_service,
     analysis_service,
@@ -21,6 +26,12 @@ from . import (
     text_sterilization_service,
     user_service,
     vector_store_service,
+    
+    # PHOENIX NEW SERVICES
+    archive_service,
+    finance_service,
+    graph_service,
+    # library_service,  <-- REMOVED
     
     # Albanian Specific Services (Active Only)
     albanian_document_processor,

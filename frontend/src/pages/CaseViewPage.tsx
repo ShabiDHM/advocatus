@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - STABILIZATION & CLEANUP
-// 1. CHAT FIX: Enforced 'h-[calc(100vh-200px)]' and sticky positioning to ensure Chat is always accessible and scrolling works.
-// 2. GRAPH REMOVAL: Temporarily replaced the "Ball Graph" with a professional "Construction" placeholder to stop the "joke" visual.
-// 3. DATA SAFETY: Improved 'fetchCaseData' to ensure chat history is set robustly.
+// PHOENIX PROTOCOL - GRAPH RESTORED
+// 1. GRAPH: Removed "Construction" placeholder and restored <CaseGraph />.
+// 2. LAYOUT: Chat remains sticky.
+// 3. STATUS: Full features active.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } 
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
-// import CaseGraph from '../components/CaseGraph'; // DISABLED: Replaced with Placeholder
+import CaseGraph from '../components/CaseGraph'; // <--- ACTIVE IMPORT
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import FindingsModal from '../components/FindingsModal';
@@ -18,7 +18,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb, FileText, Network, Construction } from 'lucide-react';
+import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb, FileText, Network } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -124,7 +124,6 @@ const CaseViewPage: React.FC = () => {
       
       if (isInitialLoad) {
           setLiveDocuments((initialDocs || []).map(sanitizeDocument));
-          // PHOENIX FIX: Ensure chat history is set properly
           if (details.chat_history && details.chat_history.length > 0) {
               setMessages(details.chat_history);
           }
@@ -246,7 +245,6 @@ const CaseViewPage: React.FC = () => {
                 </button>
             </div>
             
-            {/* PHOENIX FIX: Sticky grid with defined height for desktop */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start px-4 sm:px-0">
                 {/* Left Panel */}
                 <div className="flex flex-col h-full min-h-[500px]">
@@ -263,18 +261,12 @@ const CaseViewPage: React.FC = () => {
                             onViewOriginal={setViewingDocument}
                         />
                     ) : (
-                        // PHOENIX FIX: Placeholder for Professional Graph Alternative
-                        <div className="bg-background-dark/50 border border-glass-edge rounded-2xl p-12 text-center h-[500px] flex flex-col items-center justify-center">
-                            <Construction className="w-16 h-16 text-primary-start mb-4 animate-pulse" />
-                            <h3 className="text-xl font-bold text-white mb-2">Harta Interaktive në Ndërtim</h3>
-                            <p className="text-gray-400 max-w-md">
-                                Ne jemi duke ridizenjuar vizualizimin e çështjes për t'ju ofruar një përvojë profesionale dhe të qartë.
-                            </p>
-                        </div>
+                        // PHOENIX FIX: Active Graph
+                        <CaseGraph caseId={caseData.details.id} />
                     )}
                 </div>
 
-                {/* Right Panel: Chat - PHOENIX FIX: Sticky Position */}
+                {/* Right Panel: Chat */}
                 <div className="lg:sticky lg:top-24 h-[600px] lg:h-[calc(100vh-200px)] min-h-[500px]">
                     <ChatPanel
                         messages={liveMessages}

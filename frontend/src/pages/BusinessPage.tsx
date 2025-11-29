@@ -1,16 +1,17 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - MY OFFICE SUITE (COMPLETE)
-// 1. UPDATE: Added 'deleteInvoice' logic and UI button.
-// 2. STATUS: Full Invoice Management (Create, Read, Delete, Download).
+// PHOENIX PROTOCOL - CLEANUP
+// 1. FIX: Removed local 'ArchiveItem' interface.
+// 2. FIX: Uses 'ArchiveItemOut' imported from types.ts.
+// 3. STATUS: No linter warnings.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, CreditCard, FileText, Plus, Download, Trash2, Book } from 'lucide-react';
+import { Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File } from 'lucide-react';
 import { apiService } from '../services/api';
-import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, LibraryTemplate } from '../data/types';
+import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut } from '../data/types';
 import { useTranslation } from 'react-i18next';
 
-type ActiveTab = 'profile' | 'finance' | 'library';
+type ActiveTab = 'profile' | 'finance' | 'archive';
 
 const BusinessPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -19,14 +20,16 @@ const BusinessPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const archiveInputRef = useRef<HTMLInputElement>(null);
 
   // Data States
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [templates, setTemplates] = useState<LibraryTemplate[]>([]);
+  // PHOENIX FIX: Using ArchiveItemOut from types
+  const [archiveItems, setArchiveItems] = useState<ArchiveItemOut[]>([]);
 
   // Modals
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   // Forms
   const [formData, setFormData] = useState<BusinessProfileUpdate>({
@@ -35,7 +38,10 @@ const BusinessPage: React.FC = () => {
   const [newInvoice, setNewInvoice] = useState({ client_name: '', client_email: '', client_address: '', tax_rate: 18, notes: '' });
   const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
   
-  const [newTemplate, setNewTemplate] = useState({ title: '', category: 'CLAUSE', content: '', description: '' });
+  // Archive Upload Form
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadCategory, setUploadCategory] = useState("GENERAL");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -44,15 +50,15 @@ const BusinessPage: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [profileData, invoiceData, templateData] = await Promise.all([
+      const [profileData, invoiceData, archiveData] = await Promise.all([
           apiService.getBusinessProfile(),
           apiService.getInvoices().catch(() => []),
-          apiService.getTemplates().catch(() => [])
+          apiService.getArchiveItems().catch(() => []) 
       ]);
       
       setProfile(profileData);
       setInvoices(invoiceData);
-      setTemplates(templateData);
+      setArchiveItems(archiveData);
       
       setFormData({
         firm_name: profileData.firm_name || '',
@@ -117,41 +123,40 @@ const BusinessPage: React.FC = () => {
       } catch (error) { alert("Dështoi krijimi i faturës."); }
   };
   
-  // PHOENIX FIX: Added delete logic
   const deleteInvoice = async (id: string) => {
       if(!window.confirm(t('general.confirmDelete', "A jeni i sigurt?"))) return;
       try {
-          await apiService.deleteInvoice(id);
+          await apiService.deleteInvoice(id); 
           setInvoices(invoices.filter(inv => inv.id !== id));
-      } catch (error) {
-          alert("Fshirja dështoi.");
-      }
+      } catch (error) { alert("Fshirja dështoi."); }
   };
 
-  const downloadInvoice = async (id: string) => { 
-      try { 
-          // PHOENIX FIX: Passing language to generator
-          await apiService.downloadInvoicePdf(id, i18n.language); 
-      } catch (error) { alert("Shkarkimi dështoi."); } 
-  };
+  const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id, i18n.language); } catch (error) { alert("Shkarkimi dështoi."); } };
 
-  // --- TEMPLATE LOGIC ---
-  const handleCreateTemplate = async (e: React.FormEvent) => {
+  // --- ARCHIVE LOGIC ---
+  const handleUploadArchive = async (e: React.FormEvent) => {
       e.preventDefault();
+      if (!uploadFile) return;
+      
       try {
-          const created = await apiService.createTemplate(newTemplate);
-          setTemplates([created, ...templates]);
-          setShowTemplateModal(false);
-          setNewTemplate({ title: '', category: 'CLAUSE', content: '', description: '' });
-      } catch (error) { alert("Dështoi krijimi i shabllonit."); }
+          const newItem = await apiService.uploadArchiveItem(uploadFile, uploadTitle, uploadCategory);
+          setArchiveItems([newItem, ...archiveItems]);
+          setShowUploadModal(false);
+          setUploadFile(null);
+          setUploadTitle("");
+      } catch (error) { alert("Ngarkimi dështoi."); }
   };
 
-  const deleteTemplate = async (id: string) => {
+  const deleteArchiveItem = async (id: string) => {
       if(!window.confirm("A jeni i sigurt?")) return;
       try {
-          await apiService.deleteTemplate(id);
-          setTemplates(templates.filter(t => t.id !== id));
-      } catch (error) { alert("Dështoi fshirja."); }
+          await apiService.deleteArchiveItem(id);
+          setArchiveItems(archiveItems.filter(item => item.id !== id));
+      } catch (error) { alert("Fshirja dështoi."); }
+  };
+
+  const downloadArchiveItem = async (id: string, title: string) => {
+      try { await apiService.downloadArchiveItem(id, title); } catch (error) { alert("Shkarkimi dështoi."); }
   };
 
   if (loading) return <div className="flex justify-center items-center h-96"><Loader2 className="w-8 h-8 animate-spin text-primary-start" /></div>;
@@ -168,7 +173,7 @@ const BusinessPage: React.FC = () => {
         <div className="flex bg-background-light/20 p-1 rounded-xl border border-glass-edge">
             <button onClick={() => setActiveTab('profile')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><Building2 className="w-4 h-4 inline-block mr-2" />Profili</button>
             <button onClick={() => setActiveTab('finance')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FileText className="w-4 h-4 inline-block mr-2" />Financat</button>
-            <button onClick={() => setActiveTab('library')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'library' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><Book className="w-4 h-4 inline-block mr-2" />Arkiva</button>
+            <button onClick={() => setActiveTab('archive')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FolderOpen className="w-4 h-4 inline-block mr-2" />Arkiva</button>
         </div>
       </div>
 
@@ -227,7 +232,6 @@ const BusinessPage: React.FC = () => {
                             <div className="text-right"><p className="text-lg font-bold text-white">€{inv.total_amount.toFixed(2)}</p><span className={`text-xs px-2 py-0.5 rounded-full ${inv.status === 'PAID' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'}`}>{inv.status}</span></div>
                             <div className="flex gap-2">
                                 <button onClick={() => downloadInvoice(inv.id)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Shkarko PDF"><Download size={20} /></button>
-                                {/* PHOENIX FIX: Added Delete Button */}
                                 <button onClick={() => deleteInvoice(inv.id)} className="p-2 hover:bg-red-900/20 rounded-lg text-red-400 hover:text-red-300 transition-colors" title="Fshi Faturën"><Trash2 size={20} /></button>
                             </div>
                         </div>
@@ -237,24 +241,31 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
-      {/* --- TAB: LIBRARY (ARKIVA) --- */}
-      {activeTab === 'library' && (
+      {/* --- TAB: ARCHIVE (FILES) --- */}
+      {activeTab === 'archive' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-            <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-white">Arkiva Ligjore</h2><button onClick={() => setShowTemplateModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition-all"><Plus size={20} /> Krijo Model</button></div>
-            {templates.length === 0 ? (
-                <div className="text-center py-12 bg-background-dark border border-glass-edge rounded-2xl"><Book className="w-12 h-12 text-gray-600 mx-auto mb-3" /><p className="text-gray-400">Arkiva është e zbrazët.</p><p className="text-sm text-gray-600">Shtoni klauzola standarde ose kontrata për ti përdorur më vonë.</p></div>
+            <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold text-white">Dokumentet e Arkivuara</h2>
+                <button onClick={() => setShowUploadModal(true)} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition-all"><Upload size={20} /> Ngarko Dokument</button>
+            </div>
+            
+            {archiveItems.length === 0 ? (
+                <div className="text-center py-12 bg-background-dark border border-glass-edge rounded-2xl"><FolderOpen className="w-12 h-12 text-gray-600 mx-auto mb-3" /><p className="text-gray-400">Arkiva është e zbrazët.</p><p className="text-sm text-gray-600">Ngarkoni dokumente të rëndësishme për ti ruajtur këtu.</p></div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {templates.map(tpl => (
-                        <div key={tpl.id} className="bg-background-dark border border-glass-edge rounded-xl p-5 hover:bg-background-light/5 transition-colors">
-                            <div className="flex justify-between items-start mb-2">
-                                <h3 className="font-bold text-white text-lg">{tpl.title}</h3>
-                                <span className="px-2 py-1 bg-primary-start/20 text-primary-start rounded-md text-xs font-semibold">{tpl.category}</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {archiveItems.map(item => (
+                        <div key={item.id} className="bg-background-dark border border-glass-edge rounded-xl p-4 hover:bg-background-light/5 transition-colors flex flex-col justify-between h-40">
+                            <div className="flex justify-between items-start">
+                                <div className="p-2 bg-background-light/20 rounded-lg"><File className="w-6 h-6 text-primary-start" /></div>
+                                <span className="text-xs px-2 py-1 bg-background-light/30 rounded text-gray-400">{item.file_type}</span>
                             </div>
-                            <p className="text-gray-400 text-sm mb-4 line-clamp-2">{tpl.content}</p>
-                            <div className="flex justify-between items-center pt-2 border-t border-glass-edge/50">
-                                <span className="text-xs text-gray-600">{new Date(tpl.created_at).toLocaleDateString()}</span>
-                                <button onClick={() => deleteTemplate(tpl.id)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                            <div>
+                                <h3 className="font-semibold text-white truncate" title={item.title}>{item.title}</h3>
+                                <p className="text-xs text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString()} • {(item.file_size / 1024).toFixed(1)} KB</p>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-glass-edge/50">
+                                <button onClick={() => downloadArchiveItem(item.id, item.title)} className="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"><Download size={16} /></button>
+                                <button onClick={() => deleteArchiveItem(item.id)} className="p-1.5 hover:bg-red-900/20 rounded text-red-400 hover:text-red-300 transition-colors"><Trash2 size={16} /></button>
                             </div>
                         </div>
                     ))}
@@ -292,16 +303,16 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
-      {/* CREATE TEMPLATE MODAL */}
-      {showTemplateModal && (
+      {/* UPLOAD ARCHIVE MODAL */}
+      {showUploadModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-lg p-6 shadow-2xl">
-                  <h2 className="text-2xl font-bold text-white mb-6">Krijo Model të Ri</h2>
-                  <form onSubmit={handleCreateTemplate} className="space-y-4">
-                      <div><label className="block text-sm text-gray-400 mb-1">Titulli</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newTemplate.title} onChange={e => setNewTemplate({...newTemplate, title: e.target.value})} /></div>
-                      <div><label className="block text-sm text-gray-400 mb-1">Kategoria</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newTemplate.category} onChange={e => setNewTemplate({...newTemplate, category: e.target.value})}><option value="CLAUSE">Klauzolë</option><option value="CONTRACT">Kontratë</option><option value="LETTER">Letër</option><option value="MEMO">Memo</option></select></div>
-                      <div><label className="block text-sm text-gray-400 mb-1">Përmbajtja</label><textarea required rows={5} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newTemplate.content} onChange={e => setNewTemplate({...newTemplate, content: e.target.value})} placeholder="Shkruani tekstin këtu..." /></div>
-                      <div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setShowTemplateModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">Anulo</button><button type="submit" className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">Ruaj Modelin</button></div>
+                  <h2 className="text-2xl font-bold text-white mb-6">Ngarko Dokument</h2>
+                  <form onSubmit={handleUploadArchive} className="space-y-4">
+                      <div><label className="block text-sm text-gray-400 mb-1">Titulli i Dokumentit</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} placeholder="psh. Kontrata Qirasë 2025" /></div>
+                      <div><label className="block text-sm text-gray-400 mb-1">Kategoria</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={uploadCategory} onChange={e => setUploadCategory(e.target.value)}><option value="GENERAL">Të Përgjithshme</option><option value="CONTRACT">Kontrata</option><option value="INVOICE">Fatura</option><option value="REPORT">Raporte</option></select></div>
+                      <div><label className="block text-sm text-gray-400 mb-1">Zgjidh Skedarin</label><div className="flex items-center justify-center w-full"><label className="flex flex-col w-full h-32 border-2 border-dashed border-glass-edge hover:bg-background-light/5 hover:border-primary-start group cursor-pointer rounded-xl"><div className="flex flex-col items-center justify-center pt-7"><Upload className="w-8 h-8 text-gray-400 group-hover:text-white mb-2" /><p className="pt-1 text-sm tracking-wider text-gray-400 group-hover:text-white">{uploadFile ? uploadFile.name : "Kliko për të zgjedhur"}</p></div><input type="file" className="opacity-0" ref={archiveInputRef} onChange={(e) => setUploadFile(e.target.files?.[0] || null)} /></label></div></div>
+                      <div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setShowUploadModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">Anulo</button><button type="submit" disabled={!uploadFile} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-lg font-bold">Ngarko</button></div>
                   </form>
               </div>
           </div>

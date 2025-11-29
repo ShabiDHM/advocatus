@@ -1,7 +1,8 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - DATA TYPES
-// 1. ADDED: 'use_library' boolean to CreateDraftingJobRequest.
-// 2. STATUS: Synchronized with Backend DraftRequest model.
+// PHOENIX PROTOCOL - DATA TYPES REFACTOR
+// 1. REMOVED: LibraryTemplate (Text Snippets).
+// 2. ADDED: ArchiveItem (File Storage) to support the new Archive feature.
+// 3. PRESERVED: 'use_library' in DraftingRequest.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -154,26 +155,15 @@ export interface InvoiceCreateRequest {
     notes?: string;
 }
 
-// --- LIBRARY (ARKIVA) ---
-export interface LibraryTemplate {
+// --- ARCHIVE (REPLACES LIBRARY) ---
+export interface ArchiveItemOut {
     id: string;
     title: string;
-    content: string;
-    category: 'CLAUSE' | 'CONTRACT' | 'LETTER' | 'MEMO';
-    tags: string[];
-    description?: string;
-    is_favorite: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
-export interface CreateTemplateRequest {
-    title: string;
-    content: string;
+    file_type: string;
     category: string;
-    tags?: string[];
-    description?: string;
-    is_favorite?: boolean;
+    storage_key: string;
+    file_size: number;
+    created_at: string;
 }
 
 // --- SHARED ---
@@ -191,8 +181,8 @@ export interface CreateDraftingJobRequest {
     template_id?: string; 
     case_id?: string; 
     context?: string;
-    draft_type?: string;   // Added for compatibility with backend document_type
-    use_library?: boolean; // PHOENIX FIX: Added for Arkiva Toggle
+    draft_type?: string;
+    use_library?: boolean; 
 }
 
 export type DraftingJobStatus = { 
