@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API CLEANUP
-// 1. FIXED: Removed unused imports (LibraryTemplate, etc).
-// 2. FIXED: Removed unused parameters in deprecated methods.
+// PHOENIX PROTOCOL - API MASTER FILE
+// 1. ADDED: 'archiveInvoice' method to bridge Finance -> Archive.
+// 2. STATUS: Fully supports all UI features.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -100,6 +100,12 @@ class ApiService {
         link.click(); 
         link.parentNode?.removeChild(link); 
     }
+    // PHOENIX NEW: Archive Invoice
+    public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> {
+        const params = caseId ? { case_id: caseId } : {};
+        const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/invoices/${invoiceId}/archive`, null, { params });
+        return response.data;
+    }
 
     // --- ARCHIVE (File Storage) ---
     public async getArchiveItems(category?: string, caseId?: string): Promise<ArchiveItemOut[]> { 
@@ -109,7 +115,6 @@ class ApiService {
         const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); 
         return response.data; 
     }
-    
     public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string): Promise<ArchiveItemOut> {
         const formData = new FormData();
         formData.append('file', file);
@@ -122,11 +127,9 @@ class ApiService {
         });
         return response.data;
     }
-    
     public async deleteArchiveItem(itemId: string): Promise<void> { 
         await this.axiosInstance.delete(`/archive/items/${itemId}`); 
     }
-    
     public async downloadArchiveItem(itemId: string, title: string): Promise<void> {
         const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' });
         const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -136,6 +139,10 @@ class ApiService {
         document.body.appendChild(link);
         link.click();
         link.parentNode?.removeChild(link);
+    }
+    public async getArchiveFileBlob(itemId: string): Promise<Blob> {
+        const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' });
+        return response.data;
     }
 
     // --- Graph ---
@@ -178,7 +185,7 @@ class ApiService {
     public async getDraftingJobStatus(jobId: string): Promise<DraftingJobStatus> { const response = await this.axiosInstance.get<DraftingJobStatus>(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/status`); return response.data; }
     public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> { const response = await this.axiosInstance.get<DraftingJobResult>(`${API_BASE_URL}/api/v2/drafting/jobs/${jobId}/result`); return response.data; }
     
-    // Deprecated / Removed
+    // Deprecated
     public async getTemplates(): Promise<any[]> { return []; } 
     public async createTemplate(): Promise<any> { throw new Error("Deprecated"); }
     public async deleteTemplate(): Promise<void> { throw new Error("Deprecated"); }

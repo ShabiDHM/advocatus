@@ -1,21 +1,18 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - ARCHIVE V2 (FOLDERS)
-// 1. STRUCTURE: Root view shows 'Cases' as Folders.
-// 2. NAVIGATION: Drill down into specific cases to see files.
-// 3. UPLOAD: Context-aware one-click upload (No complex modal).
+// PHOENIX PROTOCOL - MY OFFICE SUITE (FINAL)
+// 1. FIX: Archive Folders now display 'c.title' (Case Title).
+// 2. FEATURE: Added 'Archive' button to Invoice List.
+// 3. UI: Select Case Modal for invoicing.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
     Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, 
-    CreditCard, FileText, Plus, Download, Trash2, Folder, File, ArrowLeft,
-    Briefcase
+    CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File, ArrowLeft,
+    Briefcase, Eye, X, Archive
 } from 'lucide-react';
 import { apiService } from '../services/api';
-import { 
-    BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, 
-    ArchiveItemOut, Case 
-} from '../data/types';
+import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut, Case } from '../data/types';
 import { useTranslation } from 'react-i18next';
 
 type ActiveTab = 'profile' | 'finance' | 'archive';
@@ -27,31 +24,36 @@ const BusinessPage: React.FC = () => {
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  
-  // File Refs
-  const fileInputRef = useRef<HTMLInputElement>(null); // For Logo
-  const archiveInputRef = useRef<HTMLInputElement>(null); // For Archive Upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const archiveInputRef = useRef<HTMLInputElement>(null);
 
-  // Data States
+  // Data
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [archiveItems, setArchiveItems] = useState<ArchiveItemOut[]>([]);
   const [cases, setCases] = useState<Case[]>([]);
-  
+
   // Archive State
   const [archiveView, setArchiveView] = useState<ArchiveView>('ROOT');
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null); // null = General, string = CaseID
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [currentFolderName, setCurrentFolderName] = useState<string>("Të Përgjithshme");
-  const [folderFiles, setFolderFiles] = useState<ArchiveItemOut[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-
-  // Invoice Modal
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [newInvoice, setNewInvoice] = useState({ client_name: '', client_email: '', client_address: '', tax_rate: 18, notes: '' });
-  const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
   
-  // Profile Form
+  // Preview State
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewTitle, setPreviewTitle] = useState("");
+
+  // Modals
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showArchiveInvoiceModal, setShowArchiveInvoiceModal] = useState(false);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [selectedCaseForInvoice, setSelectedCaseForInvoice] = useState<string>("");
+
+  // Forms
   const [formData, setFormData] = useState<BusinessProfileUpdate>({
     firm_name: '', email_public: '', phone: '', address: '', city: '', website: '', tax_id: '', branding_color: '#1f2937'
   });
+  const [newInvoice, setNewInvoice] = useState({ client_name: '', client_email: '', client_address: '', tax_rate: 18, notes: '' });
+  const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
 
   useEffect(() => {
     fetchData();
@@ -63,7 +65,7 @@ const BusinessPage: React.FC = () => {
       const [profileData, invoiceData, casesData] = await Promise.all([
           apiService.getBusinessProfile(),
           apiService.getInvoices().catch(() => []),
-          apiService.getCases().catch(() => []) // Fetch cases for folders
+          apiService.getCases().catch(() => []) 
       ]);
       
       setProfile(profileData);
@@ -87,22 +89,12 @@ const BusinessPage: React.FC = () => {
     }
   };
 
-  // --- ARCHIVE NAVIGATION LOGIC ---
-  
+  // --- ARCHIVE LOGIC ---
   const openFolder = async (folderId: string | null, name: string) => {
       setLoading(true);
       try {
-          // Fetch files specific to this folder/case
-          // If folderId is null (General), we fetch items with no case_id? 
-          // Or we can assume API handles filtering.
-          // Let's implement client-side filtering or assume API support.
-          // For now, we fetch all and filter client side for responsiveness, 
-          // or ideally API supports params.
-          
-          // Using API params from updated api.ts
           const files = await apiService.getArchiveItems(undefined, folderId || undefined);
-          
-          setFolderFiles(files);
+          setArchiveItems(files);
           setCurrentFolderId(folderId);
           setCurrentFolderName(name);
           setArchiveView('FOLDER');
@@ -119,11 +111,6 @@ const BusinessPage: React.FC = () => {
 
       setIsUploading(true);
       try {
-          // Context-Aware Upload:
-          // Title = Filename
-          // Category = Auto-detect based on extension/name
-          // Case ID = Current Folder ID
-          
           let category = "GENERAL";
           const nameLower = file.name.toLowerCase();
           if (nameLower.includes("fatura") || nameLower.includes("invoice")) category = "INVOICE";
@@ -131,38 +118,55 @@ const BusinessPage: React.FC = () => {
           
           const newItem = await apiService.uploadArchiveItem(
               file, 
-              file.name, // Auto Title
+              file.name, 
               category, 
-              currentFolderId || undefined // Link to Case if inside folder
+              currentFolderId || undefined 
           );
-          
-          setFolderFiles([newItem, ...folderFiles]);
+          setArchiveItems([newItem, ...archiveItems]);
       } catch (error) {
           alert("Ngarkimi dështoi.");
       } finally {
           setIsUploading(false);
-          // Reset input to allow re-uploading same file
           if (archiveInputRef.current) archiveInputRef.current.value = '';
       }
   };
 
-  const deleteArchiveItem = async (id: string) => {
-      if(!window.confirm("A jeni i sigurt?")) return;
+  // Invoice Archiving
+  const handleArchiveInvoiceClick = (invoiceId: string) => {
+      setSelectedInvoiceId(invoiceId);
+      setShowArchiveInvoiceModal(true);
+  };
+
+  const submitArchiveInvoice = async () => {
+      if (!selectedInvoiceId) return;
       try {
-          await apiService.deleteArchiveItem(id);
-          setFolderFiles(folderFiles.filter(item => item.id !== id));
-      } catch (error) { alert("Fshirja dështoi."); }
+          // Pass undefined if empty string to send null
+          const caseId = selectedCaseForInvoice || undefined;
+          await apiService.archiveInvoice(selectedInvoiceId, caseId);
+          alert("Fatura u arkivua me sukses!");
+          setShowArchiveInvoiceModal(false);
+          setSelectedCaseForInvoice("");
+      } catch (error) {
+          alert("Arkivimi dështoi.");
+      }
   };
 
-  const downloadArchiveItem = async (id: string, title: string) => {
-      try { await apiService.downloadArchiveItem(id, title); } catch (error) { alert("Shkarkimi dështoi."); }
+  // Standard Actions
+  const handleViewItem = async (id: string, title: string) => {
+      try {
+          const blob = await apiService.getArchiveFileBlob(id);
+          const url = window.URL.createObjectURL(blob);
+          setPreviewUrl(url);
+          setPreviewTitle(title);
+      } catch (error) { alert("Nuk mund të hapet dokumenti."); }
   };
+  const closePreview = () => { if (previewUrl) window.URL.revokeObjectURL(previewUrl); setPreviewUrl(null); setPreviewTitle(""); };
+  const deleteArchiveItem = async (id: string) => { if(!window.confirm("A jeni i sigurt?")) return; try { await apiService.deleteArchiveItem(id); setArchiveItems(archiveItems.filter(item => item.id !== id)); } catch (error) { alert("Fshirja dështoi."); } };
+  const downloadArchiveItem = async (id: string, title: string) => { try { await apiService.downloadArchiveItem(id, title); } catch (error) { alert("Shkarkimi dështoi."); } };
 
-  // --- STANDARD LOGIC (Profile/Finance) ---
-  const handleProfileSubmit = async (e: React.FormEvent) => { e.preventDefault(); setSaving(true); try { const cleanData: any = { ...formData }; Object.keys(cleanData).forEach(key => { if (cleanData[key] === '') cleanData[key] = null; }); if (!cleanData.firm_name) cleanData.firm_name = "Zyra Ligjore"; const updatedProfile = await apiService.updateBusinessProfile(cleanData); setProfile(updatedProfile); alert(t('settings.successMessage', 'Profili u përditësua me sukses!')); } catch (error) { alert(t('error.generic')); } finally { setSaving(false); } };
+  // Profile & Invoice Forms
+  const handleProfileSubmit = async (e: React.FormEvent) => { e.preventDefault(); setSaving(true); try { const cleanData: any = { ...formData }; Object.keys(cleanData).forEach(key => { if (cleanData[key] === '') cleanData[key] = null; }); if (!cleanData.firm_name) cleanData.firm_name = "Zyra Ligjore"; const updatedProfile = await apiService.updateBusinessProfile(cleanData); setProfile(updatedProfile); alert(t('settings.successMessage')); } catch (error) { alert(t('error.generic')); } finally { setSaving(false); } };
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; try { setSaving(true); const updatedProfile = await apiService.uploadBusinessLogo(file); setProfile(updatedProfile); } catch (error) { alert(t('error.uploadFailed')); } finally { setSaving(false); } };
-  
-  // Finance Logic
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
   const removeLineItem = (index: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, i) => i !== index));
   const updateLineItem = (index: number, field: keyof InvoiceItem, value: any) => { const newItems = [...lineItems]; newItems[index] = { ...newItems[index], [field]: value }; newItems[index].total = newItems[index].quantity * newItems[index].unit_price; setLineItems(newItems); };
@@ -174,21 +178,15 @@ const BusinessPage: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
-      {/* Header & Tabs */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <div>
-            <h1 className="text-3xl font-bold text-white mb-2">{t('business.title', 'Zyra Ime')}</h1>
-            <p className="text-gray-400">Qendra Administrative për Zyrën tuaj Ligjore.</p>
-        </div>
-        
+        <div><h1 className="text-3xl font-bold text-white mb-2">{t('business.title', 'Zyra Ime')}</h1><p className="text-gray-400">Qendra Administrative për Zyrën tuaj Ligjore.</p></div>
         <div className="flex bg-background-light/20 p-1 rounded-xl border border-glass-edge">
             <button onClick={() => setActiveTab('profile')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><Building2 className="w-4 h-4 inline-block mr-2" />Profili</button>
             <button onClick={() => setActiveTab('finance')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FileText className="w-4 h-4 inline-block mr-2" />Financat</button>
-            <button onClick={() => setActiveTab('archive')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><Folder className="w-4 h-4 inline-block mr-2" />Arkiva</button>
+            <button onClick={() => setActiveTab('archive')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FolderOpen className="w-4 h-4 inline-block mr-2" />Arkiva</button>
         </div>
       </div>
 
-      {/* --- TAB: PROFILE --- */}
       {activeTab === 'profile' && (
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-6">
@@ -229,7 +227,6 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
-      {/* --- TAB: FINANCE --- */}
       {activeTab === 'finance' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-white">Faturat e Lëshuara</h2><button onClick={() => setShowInvoiceModal(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-lg transition-all"><Plus size={20} /> Krijo Faturë</button></div>
@@ -243,6 +240,8 @@ const BusinessPage: React.FC = () => {
                             <div className="text-right"><p className="text-lg font-bold text-white">€{inv.total_amount.toFixed(2)}</p><span className={`text-xs px-2 py-0.5 rounded-full ${inv.status === 'PAID' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'}`}>{inv.status}</span></div>
                             <div className="flex gap-2">
                                 <button onClick={() => downloadInvoice(inv.id)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Shkarko PDF"><Download size={20} /></button>
+                                {/* PHOENIX FIX: Added Archive Button */}
+                                <button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2 hover:bg-blue-900/20 rounded-lg text-blue-400 hover:text-blue-300 transition-colors" title="Arkivo Faturën"><Archive size={20} /></button>
                                 <button onClick={() => deleteInvoice(inv.id)} className="p-2 hover:bg-red-900/20 rounded-lg text-red-400 hover:text-red-300 transition-colors" title="Fshi Faturën"><Trash2 size={20} /></button>
                             </div>
                         </div>
@@ -252,74 +251,47 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
-      {/* --- TAB: ARCHIVE (FOLDERS) --- */}
       {activeTab === 'archive' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-            
-            {/* VIEW: ROOT (FOLDERS) */}
             {archiveView === 'ROOT' && (
                 <>
                     <h2 className="text-xl font-bold text-white mb-4">Dosjet e Çështjeve</h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {/* 1. General Folder */}
                         <div onClick={() => openFolder(null, "Të Përgjithshme")} className="bg-background-dark border border-glass-edge rounded-xl p-6 hover:bg-background-light/10 transition-colors cursor-pointer text-center group">
-                            <Folder className="w-12 h-12 text-yellow-500 mx-auto mb-3 group-hover:scale-110 transition-transform" />
+                            <FolderOpen className="w-12 h-12 text-yellow-500 mx-auto mb-3 group-hover:scale-110 transition-transform" />
                             <h3 className="text-sm font-medium text-white">Të Përgjithshme</h3>
                             <p className="text-xs text-gray-500 mt-1">Dokumente Zyre</p>
                         </div>
-
-                        {/* 2. Case Folders */}
                         {cases.map(c => (
-                            <div key={c.id} onClick={() => openFolder(c.id, c.case_name)} className="bg-background-dark border border-glass-edge rounded-xl p-6 hover:bg-background-light/10 transition-colors cursor-pointer text-center group">
+                            <div key={c.id} onClick={() => openFolder(c.id, c.title)} className="bg-background-dark border border-glass-edge rounded-xl p-6 hover:bg-background-light/10 transition-colors cursor-pointer text-center group">
                                 <Briefcase className="w-12 h-12 text-primary-start mx-auto mb-3 group-hover:scale-110 transition-transform" />
-                                <h3 className="text-sm font-medium text-white truncate px-2">{c.case_name}</h3>
-                                <p className="text-xs text-gray-500 mt-1">{c.case_number}</p>
+                                {/* PHOENIX FIX: Showing Case Title and Client Name */}
+                                <h3 className="text-sm font-medium text-white truncate px-2">{c.title}</h3>
+                                <p className="text-xs text-gray-500 mt-1">{c.client?.name || c.case_number}</p>
                             </div>
                         ))}
                     </div>
                 </>
             )}
 
-            {/* VIEW: FOLDER CONTENT (FILES) */}
             {archiveView === 'FOLDER' && (
                 <>
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-4">
-                            <button onClick={() => setArchiveView('ROOT')} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
-                                <ArrowLeft size={20} />
-                            </button>
-                            <div>
-                                <h2 className="text-xl font-bold text-white">{currentFolderName}</h2>
-                                <p className="text-sm text-gray-400">Arkiva / {currentFolderName}</p>
-                            </div>
+                            <button onClick={() => setArchiveView('ROOT')} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"><ArrowLeft size={20} /></button>
+                            <div><h2 className="text-xl font-bold text-white">{currentFolderName}</h2><p className="text-sm text-gray-400">Arkiva / {currentFolderName}</p></div>
                         </div>
                         <div className="relative">
-                            <input 
-                                type="file" 
-                                ref={archiveInputRef} 
-                                className="hidden" 
-                                onChange={handleSmartUpload} 
-                            />
-                            <button 
-                                onClick={() => archiveInputRef.current?.click()} 
-                                disabled={isUploading}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition-all disabled:opacity-50"
-                            >
-                                {isUploading ? <Loader2 className="animate-spin w-5 h-5" /> : <Upload size={20} />}
-                                Ngarko Dokument
-                            </button>
+                            <input type="file" ref={archiveInputRef} className="hidden" onChange={handleSmartUpload} />
+                            <button onClick={() => archiveInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-lg transition-all disabled:opacity-50">{isUploading ? <Loader2 className="animate-spin w-5 h-5" /> : <Upload size={20} />} Ngarko Dokument</button>
                         </div>
                     </div>
 
-                    {folderFiles.length === 0 ? (
-                        <div className="text-center py-12 bg-background-dark border border-glass-edge rounded-2xl">
-                            <Folder className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                            <p className="text-gray-400">Kjo dosje është e zbrazët.</p>
-                            <p className="text-sm text-gray-600">Përdorni butonin 'Ngarko' për të shtuar dokumente.</p>
-                        </div>
+                    {archiveItems.length === 0 ? (
+                        <div className="text-center py-12 bg-background-dark border border-glass-edge rounded-2xl"><FolderOpen className="w-12 h-12 text-gray-600 mx-auto mb-3" /><p className="text-gray-400">Kjo dosje është e zbrazët.</p><p className="text-sm text-gray-600">Përdorni butonin 'Ngarko' për të shtuar dokumente.</p></div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {folderFiles.map(item => (
+                            {archiveItems.map(item => (
                                 <div key={item.id} className="bg-background-dark border border-glass-edge rounded-xl p-4 hover:bg-background-light/5 transition-colors flex flex-col justify-between h-40">
                                     <div className="flex justify-between items-start">
                                         <div className="p-2 bg-background-light/20 rounded-lg"><File className="w-6 h-6 text-primary-start" /></div>
@@ -330,6 +302,7 @@ const BusinessPage: React.FC = () => {
                                         <p className="text-xs text-gray-500 mt-1">{new Date(item.created_at).toLocaleDateString()} • {(item.file_size / 1024).toFixed(1)} KB</p>
                                     </div>
                                     <div className="flex justify-end gap-2 mt-2 pt-2 border-t border-glass-edge/50">
+                                        <button onClick={() => handleViewItem(item.id, item.title)} className="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors" title="Shiko"><Eye size={16} /></button>
                                         <button onClick={() => downloadArchiveItem(item.id, item.title)} className="p-1.5 hover:bg-white/10 rounded text-gray-400 hover:text-white transition-colors"><Download size={16} /></button>
                                         <button onClick={() => deleteArchiveItem(item.id)} className="p-1.5 hover:bg-red-900/20 rounded text-red-400 hover:text-red-300 transition-colors"><Trash2 size={16} /></button>
                                     </div>
@@ -342,7 +315,7 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
-      {/* CREATE INVOICE MODAL (Unchanged) */}
+      {/* CREATE INVOICE MODAL */}
       {showInvoiceModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
@@ -367,6 +340,50 @@ const BusinessPage: React.FC = () => {
                       <div className="flex justify-between items-center pt-4 border-t border-white/10"><div className="text-right w-full"><p className="text-gray-400">TVSH: 18%</p><p className="text-xl font-bold text-white">Totali: €{lineItems.reduce((acc, i) => acc + (i.quantity * i.unit_price), 0) * 1.18}</p></div></div>
                       <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowInvoiceModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">Anulo</button><button type="submit" className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold">Krijo Faturën</button></div>
                   </form>
+              </div>
+          </div>
+      )}
+
+      {/* PHOENIX NEW: ARCHIVE INVOICE MODAL */}
+      {showArchiveInvoiceModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl">
+                  <h2 className="text-xl font-bold text-white mb-4">Arkivo Faturën</h2>
+                  <p className="text-gray-400 text-sm mb-6">Zgjidhni se në cilën dosje dëshironi ta ruani këtë faturë.</p>
+                  
+                  <div className="space-y-3 mb-6">
+                      <label className="block text-sm text-gray-400 mb-1">Dosja e Çështjes</label>
+                      <select 
+                          className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-start"
+                          value={selectedCaseForInvoice}
+                          onChange={(e) => setSelectedCaseForInvoice(e.target.value)}
+                      >
+                          <option value="">Të Përgjithshme (Pa Dosje)</option>
+                          {cases.map(c => (
+                              <option key={c.id} value={c.id}>{c.title}</option>
+                          ))}
+                      </select>
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                      <button onClick={() => setShowArchiveInvoiceModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">Anulo</button>
+                      <button onClick={submitArchiveInvoice} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">Arkivo</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* PREVIEW MODAL */}
+      {previewUrl && (
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="relative w-full h-full max-w-5xl bg-background-dark border border-glass-edge rounded-2xl overflow-hidden flex flex-col">
+                  <div className="flex justify-between items-center p-4 border-b border-glass-edge bg-background-dark/80">
+                      <h3 className="text-white font-semibold truncate">{previewTitle}</h3>
+                      <button onClick={closePreview} className="p-2 hover:bg-white/10 rounded-full text-white transition-colors"><X size={24} /></button>
+                  </div>
+                  <div className="flex-1 bg-white">
+                      <iframe src={previewUrl} className="w-full h-full border-0" title="Document Preview" />
+                  </div>
               </div>
           </div>
       )}

@@ -1,7 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE (COMPLETE)
-# 1. ADDED: 'create_draft_job_for_case' to resolve AttributeError.
-# 2. STATUS: Fully bridges Case Management with Drafting Engine.
+# PHOENIX PROTOCOL - CASE SERVICE (DEEP CLEAN ENABLED)
+# 1. UPDATE: 'delete_case_by_id' now wipes associated Archive files from S3/MinIO and DB.
+# 2. LOGIC: Uses 'storage_service' to ensure no orphaned files remain in cloud storage.
+# 3. STATUS: Fully implements the "Digital Shredder" for cases.
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
@@ -14,6 +15,8 @@ from ..models.user import UserInDB
 from ..models.drafting import DraftRequest
 from ..celery_app import celery_app
 from .graph_service import graph_service
+# PHOENIX NEW: Import Storage Service for file cleanup
+from . import storage_service
 
 # --- HELPER: DATA ADAPTER ---
 def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) -> Optional[Dict[str, Any]]:
@@ -38,6 +41,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         }
         
         if db is not None:
+            # Handle potential inconsistency between ObjectId and String storage
             any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id_obj, case_id_str]}}
             
             counts["document_count"] = db.documents.count_documents(any_id_query)
@@ -121,7 +125,24 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
 
-    # Clean up Graph Nodes
+    case_id_str = str(case_id)
+    any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
+
+    # --- 1. ARCHIVE CLEANUP (Deep Clean) ---
+    # Find all archive items linked to this case
+    archive_items = db.archives.find(any_id_query)
+    for item in archive_items:
+        if "storage_key" in item:
+            try:
+                # Delete physical file from Cloud Storage
+                storage_service.delete_file(item["storage_key"])
+            except Exception as e:
+                print(f"Warning: Failed to delete archive file {item.get('title')}: {e}")
+    
+    # Delete Archive records
+    db.archives.delete_many(any_id_query)
+
+    # --- 2. GRAPH CLEANUP ---
     docs = db.documents.find({"case_id": case_id})
     for doc in docs:
         try:
@@ -129,23 +150,19 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
         except Exception:
             pass
 
+    # --- 3. DELETE CASE ENTITY ---
     db.cases.delete_one({"_id": case_id})
     
-    # Robust cleanup
-    case_id_str = str(case_id)
-    any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
-    
+    # --- 4. CLEANUP ASSOCIATED DATA ---
     db.documents.delete_many(any_id_query)
     db.calendar_events.delete_many(any_id_query)
     db.findings.delete_many(any_id_query)
     db.alerts.delete_many(any_id_query)
 
-# PHOENIX FIX: Added missing function
 def create_draft_job_for_case(db: Database, case_id: ObjectId, job_in: DraftRequest, owner: UserInDB) -> Dict[str, Any]:
     """
     Validates case ownership and dispatches a drafting job linked to the case.
     """
-    # 1. Verify Case
     case = db.cases.find_one({
         "_id": case_id, 
         "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]
@@ -153,7 +170,6 @@ def create_draft_job_for_case(db: Database, case_id: ObjectId, job_in: DraftRequ
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
 
-    # 2. Dispatch Task
     task = celery_app.send_task(
         "process_drafting_job",
         kwargs={
@@ -161,7 +177,7 @@ def create_draft_job_for_case(db: Database, case_id: ObjectId, job_in: DraftRequ
             "user_id": str(owner.id),
             "draft_type": job_in.document_type,
             "user_prompt": job_in.prompt,
-            "use_library": job_in.use_library # Propagate library setting
+            "use_library": job_in.use_library
         }
     )
     
