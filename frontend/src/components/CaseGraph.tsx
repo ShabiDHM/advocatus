@@ -1,7 +1,8 @@
 // FILE: src/components/CaseGraph.tsx
-// PHOENIX PROTOCOL - CLEAN BUILD
-// 1. FIX: Removed unused imports (useMemo, RefreshCw) and unused translation hook.
-// 2. STATUS: Warning-free, exact Neo4j styling retained.
+// PHOENIX PROTOCOL - SCALING & PHYSICS FIX
+// 1. SCALING: Reduced node radius (22 -> 6) to fix massive overlapping.
+// 2. PHYSICS: Added active force configuration (Charge -120, Link Distance 70).
+// 3. TEXT: Capped font size and added zoom-level constraints for cleanliness.
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ForceGraph2D, { ForceGraphMethods, NodeObject, LinkObject } from 'react-force-graph-2d';
@@ -35,23 +36,22 @@ interface CaseGraphProps {
     className?: string;
 }
 
-// --- NEO4J STYLE CONSTANTS ---
-const NODE_R = 22; // Larger nodes for better readability
-const FONT_SIZE = 14;
+// --- CONFIGURATION ---
+const NODE_R = 6; // Significantly reduced for correct scaling
+const FONT_SIZE_MAX = 4; // Capped font size in graph units
 
-// Neo4j Default Color Palette
+// Neo4j Color Palette
 const COLORS: Record<string, string> = {
-    'DOCUMENT': '#8DCC93',      // Soft Green
-    'PERSON': '#F79767',        // Orange
-    'ORGANIZATION': '#57C7E3',  // Light Blue
+    'DOCUMENT': '#8DCC93',      
+    'PERSON': '#F79767',        
+    'ORGANIZATION': '#57C7E3',  
     'COMPANY': '#57C7E3',
-    'MONEY': '#FFC454',         // Yellow/Gold
-    'DATE': '#D9C8AE',          // Beige
-    'LOCATION': '#F16667',      // Red
-    'DEFAULT': '#C990C0'        // Purple/Pink for unknown
+    'MONEY': '#FFC454',         
+    'DATE': '#D9C8AE',          
+    'LOCATION': '#F16667',      
+    'DEFAULT': '#C990C0'        
 };
 
-// Albanian Label Mapping
 const LEGEND_LABELS: Record<string, string> = {
     'DOCUMENT': 'Dokument',
     'PERSON': 'Person',
@@ -83,13 +83,11 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId, className }) => {
         try {
             const response = await apiService.getCaseGraph(caseId);
             
-            // Transform API data to ForceGraph objects
             const nodesMap = new Map<string, GraphNode>();
             response.nodes.forEach((n: APINode) => {
                 nodesMap.set(n.id, { ...n });
             });
 
-            // Map links and ensure source/target exist
             const validLinks: any[] = response.links
                 .filter((l: APILink) => nodesMap.has(l.source) && nodesMap.has(l.target))
                 .map((l: APILink) => ({
@@ -110,6 +108,17 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId, className }) => {
     }, [caseId]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
+
+    // --- PHYSICS ENGINE CONFIGURATION ---
+    useEffect(() => {
+        if (fgRef.current) {
+            // Apply stronger repulsive forces to spread nodes out
+            fgRef.current.d3Force('charge')?.strength(-120);
+            fgRef.current.d3Force('link')?.distance(70);
+            // Re-heat simulation to apply changes
+            fgRef.current.d3ReheatSimulation();
+        }
+    }, [data]);
 
     // --- RESIZE OBSERVER ---
     useEffect(() => {
@@ -133,20 +142,21 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId, className }) => {
         return COLORS[key] || COLORS['DEFAULT'];
     };
 
-    // Helper: Fit text inside circle
     const drawText = (ctx: CanvasRenderingContext2D, node: GraphNode, r: number) => {
         const label = node.name || node.id;
-        const fontSize = Math.min(r * 0.5, FONT_SIZE);
-        ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+        // Keep font size relative to node, but capped
+        const fontSize = Math.min(r * 0.8, FONT_SIZE_MAX); 
+        ctx.font = `600 ${fontSize}px Inter, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#1e293b'; // Dark text for contrast inside colored bubbles
+        ctx.fillStyle = '#1e293b'; 
         
-        // Simple truncation
-        const maxWidth = r * 1.8;
+        const maxWidth = r * 2.5;
         let text = label;
+        // Aggressive truncation for cleanliness
         if (ctx.measureText(text).width > maxWidth) {
-            text = label.substring(0, 8) + '...';
+            // Approx char count based on width
+            text = label.substring(0, 10) + '..';
         }
         ctx.fillText(text, node.x!, node.y!);
     };
@@ -158,7 +168,6 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId, className }) => {
 
         if (node) {
             newHighlightNodes.add(node.id);
-            // We need to traverse links to find neighbors
             data.links.forEach(link => {
                 if (link.source.id === node.id) {
                     newHighlightNodes.add(link.target.id);
@@ -185,25 +194,25 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId, className }) => {
         const isDimmed = hoverNode && !isHovered && !isNeighbor;
         
         const color = getNodeColor(node.group);
-        const radius = isHovered ? NODE_R * 1.15 : NODE_R;
+        const radius = isHovered ? NODE_R * 1.3 : NODE_R;
 
-        // Dimming effect
         ctx.globalAlpha = isDimmed ? 0.2 : 1;
 
-        // 1. Node Circle
+        // 1. Circle
         ctx.beginPath();
         ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
         ctx.fillStyle = color;
         ctx.fill();
         
-        // 2. Node Border (Neo4j style: darker shade of fill)
-        ctx.lineWidth = isHovered ? 3 / globalScale : 1.5 / globalScale;
-        ctx.strokeStyle = 'rgba(0,0,0,0.2)'; 
+        // 2. Border
+        ctx.lineWidth = isHovered ? 2 / globalScale : 1 / globalScale;
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)'; 
         ctx.stroke();
 
-        // 3. Text
-        // Only show text if global zoom is decent or hovered
-        if (globalScale > 0.6 || isHovered || isNeighbor) {
+        // 3. Text - Only draw if zoomed in enough or hovered
+        // k = globalScale. If k=1, 1px = 1 unit.
+        // We want text to appear when nodes are large enough to read.
+        if (globalScale > 2 || isHovered) {
             drawText(ctx, node, radius);
         }
         
@@ -220,48 +229,43 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId, className }) => {
 
         ctx.globalAlpha = isDimmed ? 0.1 : (isHighlighted ? 1 : 0.6);
 
-        // 1. Draw Line
+        // 1. Line
         ctx.beginPath();
         ctx.moveTo(start.x, start.y);
         ctx.lineTo(end.x, end.y);
-        ctx.strokeStyle = isHighlighted ? '#94a3b8' : '#475569'; // Slate 400/600
-        ctx.lineWidth = (isHighlighted ? 2 : 1) / globalScale;
+        ctx.strokeStyle = isHighlighted ? '#94a3b8' : '#475569'; 
+        ctx.lineWidth = (isHighlighted ? 1.5 : 0.5) / globalScale;
         ctx.stroke();
 
-        // 2. Draw Label (The "Relationship Badge")
-        if (link.label && (globalScale > 1.2 || isHighlighted)) {
+        // 2. Badge (Only if zoomed in very close)
+        if (link.label && (globalScale > 3.5 || isHighlighted)) {
             const midX = start.x + (end.x - start.x) * 0.5;
             const midY = start.y + (end.y - start.y) * 0.5;
             
-            const fontSize = 4; // Tiny scale-invariant font
+            const fontSize = 2.5; 
             ctx.font = `600 ${fontSize}px sans-serif`;
             const textMetrics = ctx.measureText(link.label);
-            const padding = 2;
+            const padding = 1;
             const rectW = textMetrics.width + padding * 2;
             const rectH = fontSize + padding * 2;
 
-            // Rotate badge to align with edge
             const angle = Math.atan2(end.y - start.y, end.x - start.x);
-            // Flip text if upside down
             const textAngle = (angle > Math.PI / 2 || angle < -Math.PI / 2) ? angle + Math.PI : angle;
 
             ctx.save();
             ctx.translate(midX, midY);
             ctx.rotate(textAngle);
 
-            // Badge Background (White)
             ctx.fillStyle = '#ffffff';
             ctx.beginPath();
             ctx.roundRect(-rectW / 2, -rectH / 2, rectW, rectH, 1);
             ctx.fill();
             
-            // Badge Border
             ctx.strokeStyle = '#e2e8f0';
-            ctx.lineWidth = 0.5;
+            ctx.lineWidth = 0.2;
             ctx.stroke();
 
-            // Text
-            ctx.fillStyle = '#0f172a'; // Dark Slate
+            ctx.fillStyle = '#0f172a';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(link.label, 0, 0);
@@ -271,7 +275,7 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId, className }) => {
         ctx.globalAlpha = 1;
     }, [hoverNode, highlightLinks]);
 
-    // --- ZOOM CONTROLS ---
+    // --- CONTROLS ---
     const zoomIn = () => fgRef.current?.zoom(fgRef.current.zoom() * 1.5, 400);
     const zoomOut = () => fgRef.current?.zoom(fgRef.current.zoom() * 0.6, 400);
     const zoomFit = () => fgRef.current?.zoomToFit(400, 50);
@@ -327,9 +331,9 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId, className }) => {
                 height={dimensions.height}
                 graphData={data}
                 
-                // Physics - Neo4j Feel
-                d3VelocityDecay={0.3} // Higher friction = less jitter
-                d3AlphaDecay={0.02}   // Slower cooling
+                // Physics Config
+                d3VelocityDecay={0.3}
+                d3AlphaDecay={0.02}
                 
                 // Custom Rendering
                 nodeCanvasObject={paintNode}
@@ -340,9 +344,9 @@ const CaseGraph: React.FC<CaseGraphProps> = ({ caseId, className }) => {
                 onEngineStop={() => fgRef.current?.zoomToFit(500, 50)}
                 
                 // Appearance
-                backgroundColor="#0B1120" // Deep Dark Blue/Black
-                linkDirectionalArrowLength={4}
-                linkDirectionalArrowRelPos={1} // Arrow at end
+                backgroundColor="#0B1120"
+                linkDirectionalArrowLength={3}
+                linkDirectionalArrowRelPos={1}
             />
         </div>
     );
