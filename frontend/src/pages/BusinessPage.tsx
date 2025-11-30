@@ -1,7 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS SUITE (TS STRICT FIX)
-// 1. FIX: Captured 'profile.logo_url' in local variable to persist type narrowing in async closures.
-// 2. STATUS: Fully verified for strict null checks.
+// PHOENIX PROTOCOL - BUSINESS SUITE (LOGO DISPLAY FIX)
+// 1. FIX: Added robust fallback to Absolute URL if Blob fetch fails.
+// 2. FIX: Imports API_V1_URL to construct correct image paths.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -10,7 +10,8 @@ import {
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File, ArrowLeft,
     Briefcase, Eye, X, Archive, Camera, Check
 } from 'lucide-react';
-import { apiService } from '../services/api';
+// PHOENIX FIX: Import API_V1_URL for fallback URL construction
+import { apiService, API_V1_URL } from '../services/api';
 import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut, Case } from '../data/types';
 import { useTranslation } from 'react-i18next';
 
@@ -64,17 +65,18 @@ const BusinessPage: React.FC = () => {
     fetchData();
   }, []);
 
-  // PHOENIX FIX: Securely fetch logo when profile updates
+  // PHOENIX FIX: Securely fetch logo with robust fallback
   useEffect(() => {
-    const url = profile?.logo_url; // Capture locally to ensure type safety in async/callbacks
+    const url = profile?.logo_url;
     
     if (url) {
-        // Optimization: If it's already a blob/data URI (e.g. from immediate upload), don't refetch
+        // 1. If it's already a local blob/data URL (immediate upload preview), use it.
         if (url.startsWith('blob:') || url.startsWith('data:')) {
             setLogoSrc(url);
             return;
         }
 
+        // 2. Try to fetch as Blob (Secure, sends Auth headers)
         setLogoLoading(true);
         apiService.fetchImageBlob(url)
             .then(blob => {
@@ -82,8 +84,17 @@ const BusinessPage: React.FC = () => {
                 setLogoSrc(objectUrl);
             })
             .catch(err => {
-                console.warn("Secure logo fetch failed, falling back to URL", err);
-                setLogoSrc(url); // Now safe because 'url' is string
+                console.warn("Secure logo fetch failed, falling back to absolute URL", err);
+                
+                // 3. Fallback: Construct Absolute URL for <img> tag
+                // If url is relative (e.g. "business/logo/..."), prepend API base
+                if (!url.startsWith('http')) {
+                    const cleanBase = API_V1_URL.endsWith('/') ? API_V1_URL.slice(0, -1) : API_V1_URL;
+                    const cleanPath = url.startsWith('/') ? url.slice(1) : url;
+                    setLogoSrc(`${cleanBase}/${cleanPath}`);
+                } else {
+                    setLogoSrc(url);
+                }
             })
             .finally(() => setLogoLoading(false));
     }
@@ -210,6 +221,7 @@ const BusinessPage: React.FC = () => {
           setLogoLoading(true); 
           const updatedProfile = await apiService.uploadBusinessLogo(file); 
           setProfile(updatedProfile); 
+          
           const reader = new FileReader();
           reader.onload = (e) => {
              if(e.target?.result) setLogoSrc(e.target.result as string);
@@ -428,8 +440,6 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
-      {/* Archive View... */}
-      {/* (Rest of the file remains same) */}
       {activeTab === 'archive' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             {archiveView === 'ROOT' && (

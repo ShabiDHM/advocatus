@@ -1,7 +1,7 @@
 # FILE: backend/app/models/business.py
-# PHOENIX PROTOCOL - BUSINESS ENTITY (TYPE SAFE)
-# 1. FIX: Used 'PyObjectId' for '_id' and 'user_id' to handle MongoDB ObjectIds.
-# 2. STATUS: Compatible with Pydantic V2 and MongoDB.
+# PHOENIX PROTOCOL - BUSINESS ENTITY (SOURCE OF TRUTH)
+# 1. DEFINES: BusinessProfileUpdate and BusinessProfileInDB.
+# 2. FIX: Explicitly includes 'logo_url' for frontend display.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
@@ -19,10 +19,17 @@ class BusinessProfileBase(BaseModel):
     branding_color: str = "#1f2937"
 
 class BusinessProfileUpdate(BusinessProfileBase):
+    """
+    Schema for updating profile details.
+    Inherits fields from Base, all optional by default in Pydantic for updates 
+    if strictly typed, but here we treat Base fields as updatable.
+    """
     pass
 
 class BusinessProfileInDB(BusinessProfileBase):
-    # PHOENIX FIX: Use PyObjectId to accept BSON ObjectIds from Mongo
+    """
+    Schema for the Database Record.
+    """
     id: PyObjectId = Field(alias="_id")
     user_id: PyObjectId
     

@@ -1,8 +1,7 @@
 # FILE: backend/app/services/business_service.py
-# PHOENIX PROTOCOL - BUSINESS SERVICE (LOGO STREAMING)
-# 1. ADDED: get_logo_stream() to serve images.
-# 2. FIX: update_logo now stores relative URL for correct Axios baseURL composition.
-# 3. TYPE SAFETY: Pydantic models for all returns.
+# PHOENIX PROTOCOL - BUSINESS SERVICE
+# 1. IMPORTS: Correctly imports form ..models.business
+# 2. LOGIC: Handles logo relative URL generation.
 
 import structlog
 import mimetypes
@@ -12,6 +11,7 @@ from bson import ObjectId
 from pymongo.database import Database
 from fastapi import UploadFile, HTTPException
 
+# RELATIVE IMPORT CHECK: This requires 'app/models/business.py' to exist
 from ..models.business import BusinessProfileUpdate, BusinessProfileInDB
 from ..services import storage_service
 
@@ -22,7 +22,6 @@ class BusinessService:
         self.db = db
 
     def get_or_create_profile(self, user_id: str) -> BusinessProfileInDB:
-        """Retrieves the user's firm profile or creates a default one."""
         profile = self.db.business_profiles.find_one({"user_id": ObjectId(user_id)})
         
         if not profile:
@@ -40,7 +39,6 @@ class BusinessService:
         return BusinessProfileInDB(**profile)
 
     def update_profile(self, user_id: str, data: BusinessProfileUpdate) -> BusinessProfileInDB:
-        """Updates text fields of the profile."""
         current_profile = self.get_or_create_profile(user_id)
         
         update_data = data.model_dump(exclude_unset=True)
@@ -58,21 +56,18 @@ class BusinessService:
         return BusinessProfileInDB(**result)
 
     def update_logo(self, user_id: str, file: UploadFile) -> BusinessProfileInDB:
-        """Uploads a new logo and updates the profile record."""
         current_profile = self.get_or_create_profile(user_id)
         
         if file.content_type not in ["image/jpeg", "image/png", "image/webp"]:
             raise HTTPException(400, "Format i pavlefshëm. Lejohen vetëm PNG, JPG, WEBP.")
         
         try:
-            # Upload to MinIO/S3 via Storage Service
             storage_key = storage_service.upload_file_raw(
                 file=file,
                 folder=f"branding/{user_id}"
             )
             
-            # PHOENIX FIX: Store RELATIVE URL so frontend axios can append it to baseURL.
-            # e.g. "business/logo/65d4...?ts=123" -> http://api/v1/business/logo/...
+            # Store relative URL
             logo_url = f"business/logo/{user_id}?ts={int(datetime.now().timestamp())}"
             
             result = self.db.business_profiles.find_one_and_update(
@@ -94,7 +89,6 @@ class BusinessService:
             raise HTTPException(500, "Ngarkimi i logos dështoi.")
 
     def get_logo_stream(self, user_id: str) -> Tuple[Any, str]:
-        """Retrieves the file stream for the user's logo."""
         profile = self.db.business_profiles.find_one({"user_id": ObjectId(user_id)})
         
         if not profile or "logo_storage_key" not in profile:
@@ -104,7 +98,6 @@ class BusinessService:
         
         try:
             stream = storage_service.get_file_stream(key)
-            # Guess MIME type based on key extension, default to PNG
             mime_type, _ = mimetypes.guess_type(key)
             return stream, mime_type or "image/png"
         except Exception as e:
