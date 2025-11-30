@@ -1,15 +1,15 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - ACCOUNTANT AI INTEGRATION
-// 1. FEATURE: Added 'Kontabilisti AI' button in Finance tab.
-// 2. UI: Implemented 'AccountantModal' to showcase AI Accounting capabilities.
-// 3. STATUS: Clean build, fully integrated into the Finance workflow.
+// PHOENIX PROTOCOL - INVOICE FORM EXPANSION
+// 1. FEATURE: Expanded 'Create Invoice' modal to mirror 'Business Profile' layout.
+// 2. DATA: Added inputs for Client Phone, City, Address, Tax ID.
+// 3. LOGIC: Composites detailed client info into 'client_address' for storage.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
     Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, 
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File, ArrowLeft,
-    Briefcase, Eye, Archive, Camera, Check, Bot, X
+    Briefcase, Eye, Archive, Camera, Check, Bot, X, User
 } from 'lucide-react';
 import { apiService, API_V1_URL } from '../services/api';
 import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut, Case, Document } from '../data/types';
@@ -52,7 +52,7 @@ const BusinessPage: React.FC = () => {
   // Modals
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showArchiveInvoiceModal, setShowArchiveInvoiceModal] = useState(false);
-  const [showAccountantModal, setShowAccountantModal] = useState(false); // NEW: Accountant Modal State
+  const [showAccountantModal, setShowAccountantModal] = useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [selectedCaseForInvoice, setSelectedCaseForInvoice] = useState<string>("");
 
@@ -60,7 +60,19 @@ const BusinessPage: React.FC = () => {
   const [formData, setFormData] = useState<BusinessProfileUpdate>({
     firm_name: '', email_public: '', phone: '', address: '', city: '', website: '', tax_id: '', branding_color: DEFAULT_COLOR
   });
-  const [newInvoice, setNewInvoice] = useState({ client_name: '', client_email: '', client_address: '', tax_rate: 18, notes: '' });
+  
+  // Expanded Invoice State
+  const [newInvoice, setNewInvoice] = useState({ 
+      client_name: '', 
+      client_email: '', 
+      client_phone: '',     // New
+      client_address: '',   // Base Address
+      client_city: '',      // New
+      client_tax_id: '',    // New
+      client_website: '',   // New (optional)
+      tax_rate: 18, 
+      notes: '' 
+  });
   const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
 
   useEffect(() => {
@@ -233,7 +245,44 @@ const BusinessPage: React.FC = () => {
   const removeLineItem = (index: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, i) => i !== index));
   const updateLineItem = (index: number, field: keyof InvoiceItem, value: any) => { const newItems = [...lineItems]; newItems[index] = { ...newItems[index], [field]: value }; newItems[index].total = newItems[index].quantity * newItems[index].unit_price; setLineItems(newItems); };
   
-  const handleCreateInvoice = async (e: React.FormEvent) => { e.preventDefault(); try { const created = await apiService.createInvoice({ ...newInvoice, items: lineItems }); setInvoices([created, ...invoices]); setShowInvoiceModal(false); setNewInvoice({ client_name: '', client_email: '', client_address: '', tax_rate: 18, notes: '' }); setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); } catch (error) { alert("Dështoi krijimi i faturës."); } };
+  const handleCreateInvoice = async (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      try { 
+          // COMPOSITE FIELD LOGIC: Combine all address details into one string for the backend
+          const fullAddressParts = [
+              newInvoice.client_address,
+              newInvoice.client_city,
+              newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '',
+              newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : ''
+          ].filter(Boolean);
+
+          const compositeAddress = fullAddressParts.join('\n');
+
+          const payload = {
+              client_name: newInvoice.client_name,
+              client_email: newInvoice.client_email,
+              client_address: compositeAddress, // Sending the formatted block
+              items: lineItems,
+              tax_rate: newInvoice.tax_rate,
+              notes: newInvoice.notes
+          };
+
+          const created = await apiService.createInvoice(payload); 
+          setInvoices([created, ...invoices]); 
+          setShowInvoiceModal(false); 
+          
+          // Reset Form
+          setNewInvoice({ 
+              client_name: '', client_email: '', client_phone: '', 
+              client_address: '', client_city: '', client_tax_id: '', client_website: '',
+              tax_rate: 18, notes: '' 
+          }); 
+          setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); 
+      } catch (error) { 
+          alert("Dështoi krijimi i faturës."); 
+      } 
+  };
+  
   const deleteInvoice = async (id: string) => { if(!window.confirm(t('general.confirmDelete', "A jeni i sigurt?"))) return; try { await apiService.deleteInvoice(id); setInvoices(invoices.filter(inv => inv.id !== id)); } catch (error) { alert("Fshirja dështoi."); } };
   const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id, i18n.language); } catch (error) { alert("Shkarkimi dështoi."); } };
 
@@ -375,14 +424,82 @@ const BusinessPage: React.FC = () => {
       {showInvoiceModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
-                  <h2 className="text-2xl font-bold text-white mb-6">Krijo Faturë të Re</h2>
+                  <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-white">Krijo Faturë të Re</h2>
+                    <button onClick={() => setShowInvoiceModal(false)} className="text-gray-400 hover:text-white"><X size={24} /></button>
+                  </div>
+                  
                   <form onSubmit={handleCreateInvoice} className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div><label className="block text-sm text-gray-400 mb-1">Klienti</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} placeholder="Emri i Klientit" /></div>
-                          <div><label className="block text-sm text-gray-400 mb-1">Email</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} placeholder="email@client.com" /></div>
+                      
+                      {/* CLIENT DETAILS SECTION */}
+                      <div className="space-y-4">
+                          <h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2">
+                              <User size={16} /> Të Dhënat e Klientit
+                          </h3>
+                          
+                          {/* Row 1: Name */}
+                          <div>
+                              <label className="block text-sm text-gray-300 mb-1">Emri i Klientit</label>
+                              <div className="relative group">
+                                <Building2 className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+                                <input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg pl-9 pr-3 py-2 text-white focus:ring-2 focus:ring-primary-start outline-none" 
+                                    value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} placeholder="Emri i Klientit / Biznesit" />
+                              </div>
+                          </div>
+
+                          {/* Row 2: Email & Phone */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                  <label className="block text-sm text-gray-300 mb-1">Email</label>
+                                  <div className="relative group">
+                                    <Mail className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+                                    <input type="email" className="w-full bg-background-light border-glass-edge rounded-lg pl-9 pr-3 py-2 text-white focus:ring-2 focus:ring-primary-start outline-none" 
+                                        value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} placeholder="email@client.com" />
+                                  </div>
+                              </div>
+                              <div>
+                                  <label className="block text-sm text-gray-300 mb-1">Telefon</label>
+                                  <div className="relative group">
+                                    <Phone className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+                                    <input type="text" className="w-full bg-background-light border-glass-edge rounded-lg pl-9 pr-3 py-2 text-white focus:ring-2 focus:ring-primary-start outline-none" 
+                                        value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} placeholder="+383 4X XXX XXX" />
+                                  </div>
+                              </div>
+                          </div>
+
+                          {/* Row 3: Address */}
+                          <div>
+                              <label className="block text-sm text-gray-300 mb-1">Adresa</label>
+                              <div className="relative group">
+                                <MapPin className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+                                <input type="text" className="w-full bg-background-light border-glass-edge rounded-lg pl-9 pr-3 py-2 text-white focus:ring-2 focus:ring-primary-start outline-none" 
+                                    value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} placeholder="Rruga, Numri..." />
+                              </div>
+                          </div>
+
+                          {/* Row 4: City & Tax ID */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                  <label className="block text-sm text-gray-300 mb-1">Qyteti</label>
+                                  <input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:ring-2 focus:ring-primary-start outline-none" 
+                                      value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} placeholder="Prishtinë" />
+                              </div>
+                              <div>
+                                  <label className="block text-sm text-gray-300 mb-1">Numri Fiskal / NUI</label>
+                                  <div className="relative group">
+                                    <CreditCard className="absolute left-3 top-2.5 w-4 h-4 text-gray-500" />
+                                    <input type="text" className="w-full bg-background-light border-glass-edge rounded-lg pl-9 pr-3 py-2 text-white focus:ring-2 focus:ring-primary-start outline-none" 
+                                        value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} placeholder="XXXXXXXX" />
+                                  </div>
+                              </div>
+                          </div>
                       </div>
-                      <div className="space-y-3">
-                          <label className="block text-sm text-gray-400">Shërbimet / Produktet</label>
+
+                      {/* SERVICES SECTION */}
+                      <div className="space-y-3 pt-4 border-t border-white/10">
+                          <h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2">
+                              <FileText size={16} /> Shërbimet / Produktet
+                          </h3>
                           {lineItems.map((item, index) => (
                               <div key={index} className="flex gap-2 items-center">
                                   <input type="text" placeholder="Përshkrimi" className="flex-1 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required />
@@ -393,6 +510,7 @@ const BusinessPage: React.FC = () => {
                           ))}
                           <button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> Shto Rresht</button>
                       </div>
+
                       <div className="flex justify-between items-center pt-4 border-t border-white/10"><div className="text-right w-full"><p className="text-gray-400">TVSH: 18%</p><p className="text-xl font-bold text-white">Totali: €{lineItems.reduce((acc, i) => acc + (i.quantity * i.unit_price), 0) * 1.18}</p></div></div>
                       <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowInvoiceModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">Anulo</button><button type="submit" className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold">Krijo Faturën</button></div>
                   </form>
