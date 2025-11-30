@@ -1,7 +1,7 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - UNIFIED VIEWER (BLOB & TEXT FIX)
-// 1. FIX: correctly handles 'directUrl' for non-PDF types (Text/Image).
-// 2. LOGIC: Fetches text content from blob URL if mode is TEXT.
+// PHOENIX PROTOCOL - PDF VIEWER (TYPE FIX)
+// 1. FIX: Changed 't' prop to 'TFunction' to match i18next type signature.
+// 2. STATUS: Type-safe and compatible with parent components.
 
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
@@ -14,14 +14,17 @@ import {
     Download, RefreshCw, ZoomIn, ZoomOut, Maximize, ExternalLink, FileText 
 } from 'lucide-react';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
+// PHOENIX FIX: Import TFunction type
+import { TFunction } from 'i18next';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface PDFViewerModalProps {
   documentData: Document;
-  caseId?: string; // Optional: Business docs might not have caseId
+  caseId?: string; 
   onClose: () => void;
-  t: (key: string) => string;
+  // PHOENIX FIX: Use standard TFunction type
+  t: TFunction; 
   directUrl?: string | null; 
 }
 
@@ -45,10 +48,8 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   };
 
   const fetchDocument = async () => {
-    // 1. Calculate mode based on MIME type first
     const targetMode = getTargetMode(documentData.mime_type || '');
 
-    // 2. Handle Direct URL (Blob) Scenario
     if (directUrl) {
         if (targetMode === 'TEXT') {
              try {
@@ -63,10 +64,8 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         } else if (documentData.mime_type?.startsWith('image/')) {
              setActualViewerMode('IMAGE');
         } else {
-             // Default to PDF for everything else
              setActualViewerMode('PDF');
         }
-        
         setIsLoading(false);
         return;
     }
@@ -81,7 +80,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
       if (targetMode === 'PDF_PREVIEW') {
          try {
-             // TS FIX: Cast caseId to string (guaranteed by !caseId check above)
              blob = await apiService.getPreviewDocument(caseId as string, documentData.id);
              setActualViewerMode('PDF');
          } catch (e) {
@@ -116,7 +114,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           // Handled
       } else {
           console.error("Viewer Error:", err);
-          setError(t('pdfViewer.errorFetch'));
+          setError(t('pdfViewer.errorFetch', { defaultValue: 'Gabim gjatë ngarkimit të dokumentit' }));
       }
     } finally {
       setIsLoading(false);
@@ -162,16 +160,16 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const zoomReset = () => setScale(1.0);
 
   const renderContent = () => {
-    if (isLoading) return <div className="flex flex-col items-center justify-center h-full text-text-secondary"><Loader className="animate-spin h-10 w-10 mb-3 text-primary-start" /><p>{t('pdfViewer.loading')}</p></div>;
+    if (isLoading) return <div className="flex flex-col items-center justify-center h-full text-text-secondary"><Loader className="animate-spin h-10 w-10 mb-3 text-primary-start" /><p>{t('pdfViewer.loading', { defaultValue: 'Duke ngarkuar...' })}</p></div>;
 
     if (actualViewerMode === 'DOWNLOAD') {
         return (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <div className="bg-white/5 p-6 rounded-full mb-6"><Download size={64} className="text-gray-400" /></div>
-            <h3 className="text-xl font-bold text-white mb-2">{t('pdfViewer.previewNotAvailable')}</h3>
-            <p className="text-gray-400 mb-8 max-w-md">{t('pdfViewer.downloadToViewMessage')}</p>
+            <h3 className="text-xl font-bold text-white mb-2">{t('pdfViewer.previewNotAvailable', { defaultValue: 'Pamja paraprake nuk është në dispozicion' })}</h3>
+            <p className="text-gray-400 mb-8 max-w-md">{t('pdfViewer.downloadToViewMessage', { defaultValue: 'Shkarkoni dokumentin për ta parë.' })}</p>
             <button onClick={handleDownloadOriginal} disabled={isDownloading} className="px-6 py-3 bg-primary-start hover:bg-primary-end text-white font-semibold rounded-xl shadow-lg transition-all flex items-center gap-2">
-                {isDownloading ? <Loader size={20} className="animate-spin" /> : <Download size={20} />} {t('pdfViewer.downloadOriginal')}
+                {isDownloading ? <Loader size={20} className="animate-spin" /> : <Download size={20} />} {t('pdfViewer.downloadOriginal', { defaultValue: 'Shkarko Origjinalin' })}
             </button>
           </div>
         );
@@ -181,7 +179,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
             <p className="text-red-300 mb-6">{error}</p>
-            <button onClick={fetchDocument} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2"><RefreshCw size={16} /> {t('caseView.tryAgain')}</button>
+            <button onClick={fetchDocument} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2"><RefreshCw size={16} /> {t('caseView.tryAgain', { defaultValue: 'Provo Përsëri' })}</button>
         </div>
     );
 
@@ -191,8 +189,8 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           <div className="flex flex-col items-center justify-center w-full h-full bg-[#0f0f0f] relative">
              <div className="md:hidden flex flex-col items-center text-center text-gray-400 p-6">
                   <FileText size={64} className="text-primary-start mb-4" />
-                  <h4 className="text-xl font-bold mb-2 text-white">{t('pdfViewer.mobileViewTitle')}</h4>
-                  <p className="mb-6 text-sm max-w-xs">{t('pdfViewer.mobileViewDesc')}</p>
+                  <h4 className="text-xl font-bold mb-2 text-white">{t('pdfViewer.mobileViewTitle', { defaultValue: 'Shiko Dokumentin' })}</h4>
+                  <p className="mb-6 text-sm max-w-xs">{t('pdfViewer.mobileViewDesc', { defaultValue: 'Dokumenti duhet të hapet në një dritare të re.' })}</p>
                   <a 
                       href={fileUrl!} 
                       target="_blank" 
@@ -200,7 +198,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                       className="px-8 py-4 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-xl flex items-center gap-2 transition-transform active:scale-95"
                   >
                       <ExternalLink size={20} />
-                      {t('pdfViewer.openNow')}
+                      {t('pdfViewer.openNow', { defaultValue: 'Hape Tani' })}
                   </a>
              </div>
 
@@ -280,9 +278,9 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               {fileUrl && (
-                  <a href={fileUrl} target="_blank" rel="noreferrer" className="p-2 text-gray-200 bg-white/10 hover:bg-white/20 rounded-lg transition-colors md:hidden" title={t('pdfViewer.openNow')}><ExternalLink size={20} /></a>
+                  <a href={fileUrl} target="_blank" rel="noreferrer" className="p-2 text-gray-200 bg-white/10 hover:bg-white/20 rounded-lg transition-colors md:hidden" title={t('pdfViewer.openNow', { defaultValue: 'Hape Tani' })}><ExternalLink size={20} /></a>
               )}
-              <button onClick={handleDownloadOriginal} className="p-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg transition-colors border border-primary-start/30 hidden md:block" title={t('pdfViewer.downloadOriginal')}><Download size={20} /></button>
+              <button onClick={handleDownloadOriginal} className="p-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg transition-colors border border-primary-start/30 hidden md:block" title={t('pdfViewer.downloadOriginal', { defaultValue: 'Shkarko Origjinalin' })}><Download size={20} /></button>
               <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
             </div>
           </header>
