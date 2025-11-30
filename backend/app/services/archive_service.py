@@ -2,6 +2,7 @@
 # PHOENIX PROTOCOL - ARCHIVE LOGIC (RELATIVE IMPORTS)
 # 1. FIX: Changed absolute imports to relative to prevent ModuleNotFoundError.
 # 2. FIX: Kept type ignores for ObjectId strictness.
+# 3. FIX: Removed redundant _id argument to prevent TypeError during model instantiation.
 
 import os
 from typing import List, Optional, Tuple, Any, cast, Dict
@@ -62,8 +63,11 @@ class ArchiveService:
         }
         if case_id: doc_data["case_id"] = self._to_oid(case_id)
         
-        result = self.db.archives.insert_one(doc_data)
-        return ArchiveItemInDB(**doc_data, _id=result.inserted_id)
+        # insert_one modifies doc_data in-place, adding '_id'
+        self.db.archives.insert_one(doc_data)
+        
+        # FIX: doc_data now contains '_id', so we don't pass it explicitly
+        return ArchiveItemInDB(**doc_data)
 
     async def save_generated_file(
         self,
@@ -101,8 +105,11 @@ class ArchiveService:
         }
         if case_id: doc_data["case_id"] = self._to_oid(case_id)
         
-        result = self.db.archives.insert_one(doc_data)
-        return ArchiveItemInDB(**doc_data, _id=result.inserted_id)
+        # insert_one modifies doc_data in-place, adding '_id'
+        self.db.archives.insert_one(doc_data)
+        
+        # FIX: doc_data now contains '_id', so we don't pass it explicitly
+        return ArchiveItemInDB(**doc_data)
 
     def get_archive_items(
         self, 
@@ -115,7 +122,10 @@ class ArchiveService:
         if case_id: query["case_id"] = self._to_oid(case_id)
             
         cursor = self.db.archives.find(query).sort("created_at", -1)
-        return [ArchiveItemInDB(**doc, _id=doc["_id"]) for doc in cursor]
+        
+        # FIX: doc already contains '_id', so unpacking **doc covers it.
+        # Passing _id=doc["_id"] would cause a duplicate keyword argument error.
+        return [ArchiveItemInDB(**doc) for doc in cursor]
 
     def delete_archive_item(self, user_id: str, item_id: str):
         query: Dict[str, Any] = {"_id": self._to_oid(item_id), "user_id": self._to_oid(user_id)}
