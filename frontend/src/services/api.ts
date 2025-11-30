@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER FILE
-// 1. ADDED: 'archiveInvoice' method to bridge Finance -> Archive.
-// 2. STATUS: Fully supports all UI features.
+// PHOENIX PROTOCOL - API MASTER FILE (PREVIEW FIX)
+// 1. FIX: 'getArchiveFileBlob' now passes 'preview=true' param.
+// 2. STATUS: Fully supports inline PDF/Image viewing.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -100,7 +100,6 @@ class ApiService {
         link.click(); 
         link.parentNode?.removeChild(link); 
     }
-    // PHOENIX NEW: Archive Invoice
     public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> {
         const params = caseId ? { case_id: caseId } : {};
         const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/invoices/${invoiceId}/archive`, null, { params });
@@ -131,6 +130,7 @@ class ApiService {
         await this.axiosInstance.delete(`/archive/items/${itemId}`); 
     }
     public async downloadArchiveItem(itemId: string, title: string): Promise<void> {
+        // Standard download (Content-Disposition: attachment)
         const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' });
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
@@ -141,7 +141,11 @@ class ApiService {
         link.parentNode?.removeChild(link);
     }
     public async getArchiveFileBlob(itemId: string): Promise<Blob> {
-        const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' });
+        // PHOENIX FIX: Add preview=true param to force inline disposition
+        const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { 
+            params: { preview: true },
+            responseType: 'blob' 
+        });
         return response.data;
     }
 
