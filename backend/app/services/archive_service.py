@@ -1,7 +1,7 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE LOGIC (INTERNAL SAVE SUPPORT)
-# 1. ADDED: 'save_generated_file' to allow saving generated PDFs (Invoices/Reports) directly.
-# 2. STATUS: Supports both User Uploads and System Generated files.
+# PHOENIX PROTOCOL - ARCHIVE LOGIC (RELATIVE IMPORTS)
+# 1. FIX: Changed absolute imports to relative to prevent ModuleNotFoundError.
+# 2. FIX: Kept type ignores for ObjectId strictness.
 
 import os
 from typing import List, Optional, Tuple, Any, cast, Dict
@@ -10,8 +10,9 @@ from bson import ObjectId
 from pymongo.database import Database
 from fastapi import HTTPException, UploadFile
 
-from app.models.archive import ArchiveItemInDB
-from app.services.storage_service import get_s3_client
+# PHOENIX FIX: Relative imports
+from ..models.archive import ArchiveItemInDB
+from .storage_service import get_s3_client
 
 # Environment
 B2_BUCKET_NAME = os.getenv("B2_BUCKET_NAME")
@@ -21,6 +22,7 @@ class ArchiveService:
         self.db = db
 
     def _to_oid(self, id_str: str) -> ObjectId:
+        """Helper to cast string to ObjectId and silence Pylance."""
         return ObjectId(cast(Any, id_str))
 
     async def add_file_to_archive(
@@ -32,9 +34,11 @@ class ArchiveService:
         case_id: Optional[str] = None
     ) -> ArchiveItemInDB:
         s3_client = get_s3_client()
+        
         filename = file.filename or "untitled"
         file_ext = filename.split('.')[-1] if '.' in filename else "BIN"
         timestamp = int(datetime.now().timestamp())
+        
         storage_key = f"archive/{user_id}/{timestamp}_{filename}"
         
         try:
@@ -61,7 +65,6 @@ class ArchiveService:
         result = self.db.archives.insert_one(doc_data)
         return ArchiveItemInDB(**doc_data, _id=result.inserted_id)
 
-    # PHOENIX NEW: Save raw bytes (for Invoices/Reports)
     async def save_generated_file(
         self,
         user_id: str,
