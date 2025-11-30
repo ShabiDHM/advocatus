@@ -1,11 +1,11 @@
 // FILE: src/pages/SupportPage.tsx
-// PHOENIX PROTOCOL - BUILD FIX
-// 1. INTEGRITY FIX: Removed the unused 'FileText' icon import from 'lucide-react' to resolve the TS6133 compilation error.
-// 2. VERIFIED: All other functionality related to functionality consolidation remains intact.
+// PHOENIX PROTOCOL - CONTACT INFO UPDATE
+// 1. CONTENT: Removed email field. Updated Phone (+383 44 987 898) and Address (Xhavit Haziri 10).
+// 2. CLEANUP: Removed unused 'Mail' icon import.
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Mail, Phone, MapPin, Send, Loader2, Lock } from 'lucide-react';
+import { Phone, MapPin, Send, Loader2, Lock } from 'lucide-react';
 import { apiService } from '../services/api';
 import PrivacyModal from '../components/PrivacyModal';
 
@@ -41,9 +41,9 @@ const SupportPage: React.FC = () => {
             <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge">
               <h3 className="text-xl font-semibold mb-4 text-white">{t('support.contactInfo', 'Informacion Kontakti')}</h3>
               <div className="space-y-4 text-text-secondary">
-                <div className="flex items-center gap-3"><Mail className="text-secondary-start" /> support@juristi.tech</div>
-                <div className="flex items-center gap-3"><Phone className="text-secondary-start" /> +383 44 123 456</div>
-                <div className="flex items-center gap-3"><MapPin className="text-secondary-start" /> Prishtinë, Kosovë</div>
+                {/* Email removed as requested */}
+                <div className="flex items-center gap-3"><Phone className="text-secondary-start" /> +383 44 987 898</div>
+                <div className="flex items-center gap-3"><MapPin className="text-secondary-start" /> Xhavit Haziri 10, 10000 Prishtinë</div>
               </div>
             </div>
 
