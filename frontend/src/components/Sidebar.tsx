@@ -1,12 +1,15 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - ARCHITECTURAL CONSOLIDATION (FINAL)
-// 1. UI CLEANUP: Removed the entire redundant user profile and logout section from the bottom of the sidebar.
-// 2. SINGLE SOURCE OF TRUTH: The Header component is now the single, authoritative location for user session controls.
-// 3. VERIFIED: All primary navigation functionality is preserved.
+// PHOENIX PROTOCOL - SIDEBAR (MOBILE ACCOUNT & SETTINGS)
+// 1. FIX: Added 'Settings' button to mobile footer using 'UserIcon'.
+// 2. STATUS: Resolves 'UserIcon is declared but never read' warning.
+// 3. UX: Mobile users can now access Profile Settings + Logout easily.
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, FileText, MessageSquare, Building2, Shield } from 'lucide-react';
+import { 
+    LayoutDashboard, Calendar, FileText, MessageSquare, 
+    Building2, Shield, LogOut, User as UserIcon 
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from './BrandLogo';
@@ -18,7 +21,7 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const { t } = useTranslation();
-  const { user } = useAuth(); // Note: 'logout' is no longer needed here.
+  const { user, logout } = useAuth();
   const location = useLocation();
 
   const getNavItems = () => {
@@ -54,15 +57,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 
       <aside className={`
         fixed top-0 left-0 z-30 h-full w-64 bg-background-dark border-r border-glass-edge shadow-2xl
-        transform transition-transform duration-300 ease-in-out lg:translate-x-0
+        transform transition-transform duration-300 ease-in-out lg:translate-x-0 flex flex-col
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="flex flex-col h-full">
           
-          <div className="h-16 flex items-center px-6 border-b border-glass-edge bg-background-light/10">
+          {/* Header Logo */}
+          <div className="h-16 flex items-center px-6 border-b border-glass-edge bg-background-light/10 flex-shrink-0">
             <BrandLogo />
           </div>
 
+          {/* Navigation Items */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -90,9 +94,42 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             })}
           </nav>
 
-          {/* PHOENIX FIX: The redundant user profile and logout section has been removed. */}
+          {/* PHOENIX FIX: Mobile-Only Profile Footer with Settings & Logout */}
+          {/* Visible only on screens smaller than LG breakpoints */}
+          <div className="p-4 border-t border-glass-edge bg-background-light/5 lg:hidden mt-auto flex-shrink-0">
+            <div className="flex items-center gap-3 mb-4 px-2">
+              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg">
+                {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-sm font-medium text-white truncate">{user?.username}</p>
+                <p className="text-xs text-text-secondary truncate uppercase tracking-wider">{user?.role}</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
+                <NavLink 
+                    to="/account"
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center justify-center px-3 py-2.5 rounded-xl bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white transition-colors text-sm font-medium border border-white/5"
+                >
+                    <UserIcon className="h-4 w-4 mr-2" />
+                    {t('sidebar.account', 'Profili')}
+                </NavLink>
+
+                <button 
+                    onClick={() => {
+                        logout();
+                        setIsOpen(false);
+                    }}
+                    className="flex items-center justify-center px-3 py-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-sm font-medium border border-red-500/20"
+                >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    {t('header.logout', 'Shkyçu')}
+                </button>
+            </div>
+          </div>
           
-        </div>
       </aside>
     </>
   );
