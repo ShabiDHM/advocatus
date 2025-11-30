@@ -1,19 +1,19 @@
 // FILE: src/pages/LandingPage.tsx
 // PHOENIX PROTOCOL - CLEAN BUILD
-// 1. FIX: Removed unused 'ShieldCheck' and 'CheckCircle2' imports.
+// 1. FIX: Removed unused 'Search' import.
 // 2. STATUS: Production-ready, zero warnings.
 
 import React from 'react';
 import { motion } from 'framer-motion';
 import { 
     Zap, 
-    Search, 
     FileText, 
     Database, 
     Lock, 
     ChevronRight, 
     TrendingUp, 
-    Scale
+    MessageSquare,
+    Briefcase
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -31,30 +31,32 @@ const LandingPage: React.FC = () => {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* --- HERO SECTION --- */}
-        <section className="pt-32 pb-20 text-center">
+        <section className="pt-32 pb-24 text-center">
           <motion.div 
             initial={{ opacity: 0, y: 20 }} 
             animate={{ opacity: 1, y: 0 }} 
             transition={{ duration: 0.6 }}
           >
             <span className="inline-block py-1 px-3 rounded-full bg-blue-900/30 border border-blue-500/30 text-blue-400 text-xs font-semibold tracking-wider mb-6 uppercase">
-              I projektuar posaçërisht për praktikuesit ligjorë
+              Platforma Nr. 1 për Avokatët në Kosovë
             </span>
             <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
               Më i zgjuar. Më i shpejtë.<br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-start to-secondary-end">
-                Avokati Juaj Dixhital.
+                Juristi.tech
               </span>
             </h1>
             <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
-              "Ne shkuam në Fakultetin e Drejtësisë për të ushtruar ligjin, jo për t'u bërë arkeologë dokumentesh."
+              Transformoni zyrën tuaj ligjore me fuqinë e Inteligjencës Artificiale.
               <br/>
-              <span className="text-white font-medium block mt-2">Zbuloni prova në minuta, jo në javë.</span>
+              <span className="text-white font-medium block mt-2">
+                Analizë Rastesh • Asistent Sokratik • Menaxhim Biznesi
+              </span>
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link to="/register" className="group relative px-8 py-4 bg-primary-start hover:bg-primary-end rounded-xl font-bold text-lg shadow-[0_0_20px_rgba(59,130,246,0.5)] hover:shadow-[0_0_30px_rgba(59,130,246,0.7)] transition-all flex items-center gap-2">
-                Fillo Falas
+                Provo Falas
                 <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Link>
               <Link to="/login" className="px-8 py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-medium text-lg transition-all backdrop-blur-sm">
@@ -62,36 +64,22 @@ const LandingPage: React.FC = () => {
               </Link>
             </div>
           </motion.div>
-
-          {/* DASHBOARD PREVIEW (Abstract) */}
-          <motion.div 
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.8 }}
-            className="mt-16 relative mx-auto max-w-5xl rounded-2xl border border-white/10 shadow-2xl bg-[#111827]/80 backdrop-blur-xl overflow-hidden aspect-[16/9] flex items-center justify-center group"
-          >
-            <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/5 to-purple-500/5 group-hover:opacity-100 transition-opacity duration-500" />
-            <div className="text-center">
-              <Scale className="w-20 h-20 text-gray-600 mx-auto mb-4 opacity-50" />
-              <p className="text-gray-500 font-mono">Dashboard Preview UI</p>
-            </div>
-          </motion.div>
         </section>
 
         {/* --- STATS / PAIN POINTS --- */}
-        <section className="py-20 border-y border-white/5">
+        <section className="py-12 border-y border-white/5 bg-white/5 backdrop-blur-sm">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
                 <div className="p-6">
-                    <h3 className="text-4xl font-bold text-red-400 mb-2">60%</h3>
-                    <p className="text-gray-400">E kohës suaj humbet duke kërkuar dokumente.</p>
+                    <h3 className="text-4xl font-bold text-primary-start mb-2">60%</h3>
+                    <p className="text-gray-400">Kursim në kohë administrative.</p>
                 </div>
-                <div className="p-6 border-x border-white/5">
+                <div className="p-6 border-y md:border-y-0 md:border-x border-white/5">
                     <h3 className="text-4xl font-bold text-yellow-400 mb-2">Zero</h3>
-                    <p className="text-gray-400">Kompromis në sigurinë e të dhënave (Encryption AES-256).</p>
+                    <p className="text-gray-400">Humbje të afateve ligjore.</p>
                 </div>
                 <div className="p-6">
-                    <h3 className="text-4xl font-bold text-green-400 mb-2">15 Min</h3>
-                    <p className="text-gray-400">Koha për të përgatitur një provim të kryqëzuar.</p>
+                    <h3 className="text-4xl font-bold text-green-400 mb-2">24/7</h3>
+                    <p className="text-gray-400">Asistenti juaj ligjor është gjithmonë gati.</p>
                 </div>
             </div>
         </section>
@@ -100,23 +88,23 @@ const LandingPage: React.FC = () => {
         <section className="py-24">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-5xl font-bold mb-4">Nga Kaosi në Strategji</h2>
-            <p className="text-gray-400">Funksionet që ktheni kohën në anën tuaj.</p>
+            <p className="text-gray-400">Një platformë e vetme për të gjitha nevojat e zyrës suaj.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[300px]">
             
-            {/* Card 1: Large - Discovery */}
+            {/* Card 1: Socratic Assistant */}
             <div className="md:col-span-2 row-span-1 rounded-3xl p-8 border border-white/10 bg-gradient-to-br from-gray-900 to-gray-800 hover:border-primary-start/50 transition-colors relative overflow-hidden group">
                 <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <Search className="w-48 h-48" />
+                    <MessageSquare className="w-48 h-48" />
                 </div>
                 <div className="relative z-10 h-full flex flex-col justify-end">
                     <div className="w-12 h-12 bg-blue-500/20 rounded-xl flex items-center justify-center mb-4 text-blue-400">
-                        <Database className="w-6 h-6" />
+                        <Zap className="w-6 h-6" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-2">Zbulimi i Automatizuar (Discovery)</h3>
+                    <h3 className="text-2xl font-bold mb-2">Asistenti Sokratik AI</h3>
                     <p className="text-gray-400">
-                        Ngarkoni PDF, email-e ose spreadsheet-e. AI rendit të gjitha mospërputhjet kohore dhe kontradiktat në deklaratat e dëshmitarëve automatikisht.
+                        Bisedoni me dokumentet tuaja. Bëni pyetje komplekse juridike dhe merrni përgjigje të menjëhershme të bazuara në ligjet e Kosovës dhe dosjen tuaj.
                     </p>
                 </div>
             </div>
@@ -126,36 +114,35 @@ const LandingPage: React.FC = () => {
                  <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center mb-4 text-green-400">
                     <Lock className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-bold mb-2">Siguri e Nivelit Ushtarak</h3>
+                <h3 className="text-xl font-bold mb-2">Siguri e Plotë</h3>
                 <p className="text-gray-400 text-sm">
-                    Muret kineze midis kutive. Ne nuk trajnohemi kurrë me të dhënat e klientëve tuaj.
+                    Të dhënat tuaja janë të enkriptuara. Ne nuk trajnojmë modelet tona me dokumentet e klientëve tuaj.
                 </p>
             </div>
 
-            {/* Card 3: Finance */}
+            {/* Card 3: Business Center */}
             <div className="md:col-span-1 row-span-1 rounded-3xl p-8 border border-white/10 bg-gray-900 hover:bg-gray-800 transition-colors">
                 <div className="w-12 h-12 bg-yellow-500/20 rounded-xl flex items-center justify-center mb-4 text-yellow-400">
                     <TrendingUp className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-bold mb-2">Analizë Financiare</h3>
+                <h3 className="text-xl font-bold mb-2">Qendra e Biznesit</h3>
                 <p className="text-gray-400 text-sm">
-                    "Më trego të gjitha pagesat mbi 50k €."<br/>
-                    Pyetni fletëllogaritëset në gjuhë natyrore.
+                    Gjeneroni fatura, menaxhoni klientët dhe ndiqni financat e zyrës me një klikim. Agjenti "Kontabilisti AI" së shpejti.
                 </p>
             </div>
 
-            {/* Card 4: Drafting */}
+            {/* Card 4: Document Archive */}
             <div className="md:col-span-2 row-span-1 rounded-3xl p-8 border border-white/10 bg-gradient-to-br from-gray-800 to-gray-900 hover:border-secondary-start/50 transition-colors relative overflow-hidden">
                  <div className="absolute top-0 right-0 p-8 opacity-10">
-                    <FileText className="w-48 h-48" />
+                    <Database className="w-48 h-48" />
                 </div>
                 <div className="relative z-10 h-full flex flex-col justify-end">
                     <div className="w-12 h-12 bg-purple-500/20 rounded-xl flex items-center justify-center mb-4 text-purple-400">
-                        <Zap className="w-6 h-6" />
+                        <FileText className="w-6 h-6" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-2">Draftim & Përmbledhje</h3>
+                    <h3 className="text-2xl font-bold mb-2">Arkiva Inteligjente</h3>
                     <p className="text-gray-400">
-                        Gjeneroni draft-kontrata, padi, ose përmbledhje të depozitimeve në sekonda, jo orë. Kthejeni kohën tuaj në punë me vlerë të lartë strategjike.
+                        Skanoni, ruani dhe kërkoni në sekonda brenda mijëra faqeve PDF. OCR automatik për çdo dokument të ngarkuar.
                     </p>
                 </div>
             </div>
@@ -166,20 +153,20 @@ const LandingPage: React.FC = () => {
         {/* --- TESTIMONIALS --- */}
         <section className="py-20">
              <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Çfarë thonë kolegët tuaj</h2>
+                <h2 className="text-3xl font-bold">Besuar nga profesionistët</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <TestimonialCard 
-                    quote="E shkurtova kohën time të shqyrtimit të dokumentit me 70%. Gjeta emailin bindës që të gjithë e kishin humbur."
-                    role="Partner i Mbrojtjes Penale"
+                    quote="Juristi.tech ma ka thjeshtësuar jashtëzakonisht shumë menaxhimin e lëndëve penale. Kërkimi në dokumente është i menjëhershëm."
+                    role="Avokat, Prishtinë"
                 />
                 <TestimonialCard 
-                    quote="Më në fund më lejon të përqendrohem te argumentet në vend të administrimit. Ndihem sikur po marr mbrapsht 10 orë në javë."
-                    role="Praktikues i së Drejtës Familjare"
+                    quote="Moduli i faturimit dhe Qendra e Biznesit më kursen orë të tëra çdo fundmuaj. Është fiks çfarë i duhet një zyreje moderne."
+                    role="Juriste, Prizren"
                 />
                  <TestimonialCard 
-                    quote="Pyeta fletëllogaritëset në anglisht të thjeshtë. Si të kesh një ekspert financiar në dispozicion 24/7."
-                    role="Bashkëpunëtor, Çështje Tregtare"
+                    quote="Asistenti Sokratik më ndihmon të përgatis strategjinë e mbrojtjes shumë më shpejt duke analizuar dëshmitë në sekonda."
+                    role="Partner i Zyrës Ligjore"
                 />
             </div>
         </section>
@@ -188,12 +175,12 @@ const LandingPage: React.FC = () => {
         <section className="py-24 text-center">
             <div className="bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-white/10 rounded-3xl p-12 relative overflow-hidden">
                 <div className="relative z-10">
-                    <h2 className="text-4xl font-bold mb-6">Gati për të ndryshuar praktikën tuaj?</h2>
+                    <h2 className="text-4xl font-bold mb-6">Gati për të modernizuar zyrën tuaj?</h2>
                     <p className="text-xl text-gray-300 mb-8 max-w-2xl mx-auto">
-                        Testo menjë lëndë aktive tani. Zero tarifë konfigurimi. Përjetoni ndryshimin në 15 minuta.
+                        Regjistrohuni sot në Juristi.tech dhe përjetoni ndryshimin në praktikën tuaj ligjore.
                     </p>
                     <Link to="/register" className="inline-flex items-center gap-2 px-8 py-4 bg-white text-gray-900 hover:bg-gray-100 rounded-xl font-bold text-lg transition-colors">
-                        Fillo Programin Pilot
+                        Fillo Tani
                         <ChevronRight className="w-5 h-5" />
                     </Link>
                 </div>
@@ -204,7 +191,7 @@ const LandingPage: React.FC = () => {
 
         {/* --- FOOTER --- */}
         <footer className="py-8 border-t border-white/10 text-center text-gray-500 text-sm">
-            <p>&copy; {new Date().getFullYear()} Advocatus AI. Të gjitha të drejtat e rezervuara.</p>
+            <p>&copy; {new Date().getFullYear()} Juristi.tech. Të gjitha të drejtat e rezervuara.</p>
             <div className="flex justify-center gap-4 mt-4">
                 <Link to="/terms" className="hover:text-white transition-colors">Kushtet e Përdorimit</Link>
                 <Link to="/privacy" className="hover:text-white transition-colors">Politika e Privatësisë</Link>
@@ -224,17 +211,11 @@ const TestimonialCard = ({ quote, role }: { quote: string, role: string }) => (
         <p className="text-gray-300 italic mb-4 relative z-10 pt-8">"{quote}"</p>
         <div className="flex items-center gap-3 border-t border-white/5 pt-4">
             <div className="w-8 h-8 rounded-full bg-gradient-to-r from-gray-700 to-gray-600 flex items-center justify-center">
-                <UserIcon />
+                <Briefcase className="w-4 h-4 text-gray-300" />
             </div>
             <p className="text-sm font-semibold text-blue-400">{role}</p>
         </div>
     </div>
 );
-
-const UserIcon = () => (
-    <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-    </svg>
-)
 
 export default LandingPage;
