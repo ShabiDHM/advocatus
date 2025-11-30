@@ -1,14 +1,14 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS SUITE (INVOICE PREVIEW ADDED)
-// 1. FEATURE: Added 'Eye' icon to invoice list for direct PDF preview.
-// 2. FEATURE: Wired invoice preview to existing modal logic.
+// PHOENIX PROTOCOL - BUSINESS SUITE (TS FIX)
+// 1. FIX: Added default fallback for 'formData.branding_color' to resolve TS error.
+// 2. STATUS: Fully compiled and validated.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
     Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, 
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File, ArrowLeft,
-    Briefcase, Eye, X, Archive
+    Briefcase, Eye, X, Archive, Camera, Check
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut, Case } from '../data/types';
@@ -16,6 +16,8 @@ import { useTranslation } from 'react-i18next';
 
 type ActiveTab = 'profile' | 'finance' | 'archive';
 type ArchiveView = 'ROOT' | 'FOLDER';
+
+const DEFAULT_COLOR = '#3b82f6';
 
 const BusinessPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -49,7 +51,7 @@ const BusinessPage: React.FC = () => {
 
   // Forms
   const [formData, setFormData] = useState<BusinessProfileUpdate>({
-    firm_name: '', email_public: '', phone: '', address: '', city: '', website: '', tax_id: '', branding_color: '#1f2937'
+    firm_name: '', email_public: '', phone: '', address: '', city: '', website: '', tax_id: '', branding_color: DEFAULT_COLOR
   });
   const [newInvoice, setNewInvoice] = useState({ client_name: '', client_email: '', client_address: '', tax_rate: 18, notes: '' });
   const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
@@ -79,7 +81,7 @@ const BusinessPage: React.FC = () => {
         city: profileData.city || '',
         website: profileData.website || '',
         tax_id: profileData.tax_id || '',
-        branding_color: profileData.branding_color || '#1f2937'
+        branding_color: profileData.branding_color || DEFAULT_COLOR
       });
     } catch (error) {
       console.error("Failed to load data:", error);
@@ -139,7 +141,6 @@ const BusinessPage: React.FC = () => {
   const submitArchiveInvoice = async () => {
       if (!selectedInvoiceId) return;
       try {
-          // Pass undefined if empty string to send null
           const caseId = selectedCaseForInvoice || undefined;
           await apiService.archiveInvoice(selectedInvoiceId, caseId);
           alert("Fatura u arkivua me sukses!");
@@ -160,7 +161,6 @@ const BusinessPage: React.FC = () => {
       } catch (error) { alert("Nuk mund të hapet dokumenti."); }
   };
 
-  // PHOENIX NEW: View Invoice Handler
   const handleViewInvoice = async (invoice: Invoice) => {
       try {
           const blob = await apiService.getInvoicePdfBlob(invoice.id);
@@ -199,44 +199,170 @@ const BusinessPage: React.FC = () => {
 
       {activeTab === 'profile' && (
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="space-y-6">
-                <div className="bg-background-dark border border-glass-edge rounded-2xl p-6 text-center">
-                    <div className="relative w-32 h-32 mx-auto mb-4 bg-background-light rounded-full flex items-center justify-center overflow-hidden border-2 border-dashed border-gray-600 group hover:border-primary-start transition-colors">
-                    {profile?.logo_url ? <img src={profile.logo_url} alt="Logo" className="w-full h-full object-cover" /> : <Building2 className="w-12 h-12 text-gray-500" />}
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRef.current?.click()}><Upload className="w-6 h-6 text-white" /></div>
+            {/* Left Column: Logo & Branding */}
+            <div className="space-y-8">
+                {/* Logo Section */}
+                <div className="bg-background-dark border border-glass-edge rounded-2xl p-6 flex flex-col items-center shadow-lg relative overflow-hidden">
+                    <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-primary-start to-primary-end" />
+                    <h3 className="text-white font-semibold mb-6 self-start w-full border-b border-glass-edge pb-2">Logo & Identiteti</h3>
+                    
+                    <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                        <div className={`w-36 h-36 rounded-full overflow-hidden flex items-center justify-center border-4 transition-all shadow-xl ${profile?.logo_url ? 'border-background-light' : 'border-dashed border-gray-600 hover:border-primary-start'}`}>
+                            {profile?.logo_url ? (
+                                <img src={profile.logo_url} alt="Logo" className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
+                            ) : (
+                                <div className="text-center group-hover:scale-110 transition-transform">
+                                    <Upload className="w-8 h-8 text-gray-500 mx-auto mb-2" />
+                                    <span className="text-xs text-gray-500 font-medium">Ngarko Logo</span>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Hover Overlay */}
+                        <div className="absolute inset-0 rounded-full bg-black/50 backdrop-blur-[2px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                            <Camera className="w-8 h-8 text-white drop-shadow-lg" />
+                        </div>
+
+                        {/* Edit Badge */}
+                        <div className="absolute bottom-1 right-1 bg-primary-start p-2.5 rounded-full shadow-lg border-4 border-background-dark group-hover:scale-110 transition-transform">
+                            <Check className="w-4 h-4 text-white" />
+                        </div>
                     </div>
                     <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" />
-                    <h3 className="text-lg font-semibold text-white mb-1">{formData.firm_name || 'Emri i Zyrës'}</h3>
-                    <p className="text-sm text-gray-400">Logo & Identiteti Vizual</p>
+                    
+                    <p className="mt-4 text-xs text-gray-400 text-center max-w-[200px]">
+                        {profile?.logo_url ? "Klikoni mbi foto për ta ndryshuar" : "Rekomandohet: 500x500px, PNG transparente"}
+                    </p>
                 </div>
-                <div className="bg-background-dark border border-glass-edge rounded-2xl p-6">
-                    <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><Palette className="w-5 h-5 text-accent-start" /> Branding</h3>
-                    <div className="space-y-4">
-                    <div><label className="block text-sm text-gray-400 mb-2">Ngjyra Kryesore (HEX)</label><div className="flex gap-3"><input type="color" name="branding_color" value={formData.branding_color} onChange={(e) => setFormData({...formData, branding_color: e.target.value})} className="h-10 w-16 bg-transparent border-0 rounded cursor-pointer" /><input type="text" name="branding_color" value={formData.branding_color} onChange={(e) => setFormData({...formData, branding_color: e.target.value})} className="flex-1 bg-background-light border border-glass-edge rounded-lg px-3 py-2 text-white font-mono" /></div></div>
+
+                {/* Branding Section */}
+                <div className="bg-background-dark border border-glass-edge rounded-2xl p-6 shadow-lg relative overflow-hidden">
+                    <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-accent-start to-accent-end" />
+                    <h3 className="text-white font-semibold mb-6 flex items-center gap-2 border-b border-glass-edge pb-2">
+                        <Palette className="w-4 h-4 text-accent-start" /> Branding
+                    </h3>
+                    
+                    <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Ngjyra Kryesore</label>
+                    <div className="flex items-center gap-4 mb-6">
+                        <div className="relative overflow-hidden w-14 h-14 rounded-xl border-2 border-white/10 shadow-inner group">
+                            {/* PHOENIX FIX: Added fallback to prevent TS error */}
+                            <input 
+                                type="color" 
+                                value={formData.branding_color || DEFAULT_COLOR} 
+                                onChange={(e) => setFormData({...formData, branding_color: e.target.value})}
+                                className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] cursor-pointer p-0 border-0"
+                            />
+                        </div>
+                        <div className="flex-1">
+                            <div className="relative">
+                                <span className="absolute left-3 top-2.5 text-gray-500 font-mono">#</span>
+                                {/* PHOENIX FIX: Added fallback for text input */}
+                                <input 
+                                    type="text" 
+                                    value={(formData.branding_color || DEFAULT_COLOR).replace('#', '')} 
+                                    onChange={(e) => setFormData({...formData, branding_color: `#${e.target.value}`})}
+                                    className="w-full bg-background-light border border-glass-edge rounded-xl pl-7 pr-4 py-2 text-white font-mono uppercase focus:ring-2 focus:ring-primary-start outline-none transition-all"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Live Preview */}
+                    <div className="p-4 rounded-xl bg-background-light/30 border border-glass-edge/50">
+                        <p className="text-[10px] text-gray-500 mb-2 uppercase tracking-wider font-bold">Pamja e Butonave</p>
+                        {/* PHOENIX FIX: Added fallback for style */}
+                        <button 
+                            className="w-full py-2.5 rounded-lg text-white font-medium text-sm shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2"
+                            style={{ backgroundColor: formData.branding_color || DEFAULT_COLOR }}
+                        >
+                            <Save className="w-4 h-4" />
+                            Ruaj Shembullin
+                        </button>
                     </div>
                 </div>
             </div>
+
+            {/* Right Column: Details Form */}
             <div className="md:col-span-2">
-                <form onSubmit={handleProfileSubmit} className="bg-background-dark border border-glass-edge rounded-2xl p-6 space-y-6">
+                <form onSubmit={handleProfileSubmit} className="bg-background-dark border border-glass-edge rounded-2xl p-8 space-y-6 shadow-lg h-full">
+                    <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                        <Briefcase className="w-6 h-6 text-primary-start" />
+                        Të Dhënat e Zyrës
+                    </h3>
+                    
                     <div className="grid grid-cols-1 gap-6">
-                        <div><label className="block text-sm font-medium text-gray-300 mb-2">Emri i Zyrës Ligjore</label><div className="relative"><Building2 className="absolute left-3 top-2.5 w-5 h-5 text-gray-500" /><input type="text" name="firm_name" value={formData.firm_name} onChange={(e) => setFormData({...formData, firm_name: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2.5 text-white focus:ring-2 focus:ring-primary-start outline-none" /></div></div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div><label className="block text-sm text-gray-300 mb-2">Email Publik</label><div className="relative"><Mail className="absolute left-3 top-2.5 w-5 h-5 text-gray-500" /><input type="email" name="email_public" value={formData.email_public} onChange={(e) => setFormData({...formData, email_public: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2 text-white" /></div></div>
-                            <div><label className="block text-sm text-gray-300 mb-2">Telefon</label><div className="relative"><Phone className="absolute left-3 top-2.5 w-5 h-5 text-gray-500" /><input type="text" name="phone" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2 text-white" /></div></div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-300 mb-2">Emri i Zyrës Ligjore</label>
+                            <div className="relative group">
+                                <Building2 className="absolute left-3 top-3 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" />
+                                <input type="text" name="firm_name" value={formData.firm_name} onChange={(e) => setFormData({...formData, firm_name: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" placeholder="p.sh. Drejtësia Sh.p.k" />
+                            </div>
                         </div>
-                        <div><label className="block text-sm text-gray-300 mb-2">Adresa</label><div className="relative"><MapPin className="absolute left-3 top-2.5 w-5 h-5 text-gray-500" /><input type="text" name="address" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2 text-white" /></div></div>
+                        
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div><label className="block text-sm text-gray-300 mb-2">Qyteti</label><input type="text" name="city" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl px-4 py-2 text-white" /></div>
-                            <div><label className="block text-sm text-gray-300 mb-2">Website</label><div className="relative"><Globe className="absolute left-3 top-2.5 w-5 h-5 text-gray-500" /><input type="text" name="website" value={formData.website} onChange={(e) => setFormData({...formData, website: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2 text-white" /></div></div>
+                            <div>
+                                <label className="block text-sm text-gray-300 mb-2">Email Publik</label>
+                                <div className="relative group">
+                                    <Mail className="absolute left-3 top-3 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" />
+                                    <input type="email" name="email_public" value={formData.email_public} onChange={(e) => setFormData({...formData, email_public: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm text-gray-300 mb-2">Telefon</label>
+                                <div className="relative group">
+                                    <Phone className="absolute left-3 top-3 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" />
+                                    <input type="text" name="phone" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" />
+                                </div>
+                            </div>
                         </div>
-                        <div><label className="block text-sm text-gray-300 mb-2">Numri Fiskal / NUI</label><div className="relative"><CreditCard className="absolute left-3 top-2.5 w-5 h-5 text-gray-500" /><input type="text" name="tax_id" value={formData.tax_id} onChange={(e) => setFormData({...formData, tax_id: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-2 text-white" /></div></div>
+                        
+                        <div>
+                            <label className="block text-sm text-gray-300 mb-2">Adresa</label>
+                            <div className="relative group">
+                                <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" />
+                                <input type="text" name="address" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" />
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div>
+                                <label className="block text-sm text-gray-300 mb-2">Qyteti</label>
+                                <input type="text" name="city" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" />
+                            </div>
+                            <div>
+                                <label className="block text-sm text-gray-300 mb-2">Website</label>
+                                <div className="relative group">
+                                    <Globe className="absolute left-3 top-3 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" />
+                                    <input type="text" name="website" value={formData.website} onChange={(e) => setFormData({...formData, website: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" />
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label className="block text-sm text-gray-300 mb-2">Numri Fiskal / NUI</label>
+                            <div className="relative group">
+                                <CreditCard className="absolute left-3 top-3 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" />
+                                <input type="text" name="tax_id" value={formData.tax_id} onChange={(e) => setFormData({...formData, tax_id: e.target.value})} className="w-full bg-background-light border border-glass-edge rounded-xl pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" />
+                            </div>
+                        </div>
                     </div>
-                    <div className="pt-4 flex justify-end"><button type="submit" disabled={saving} className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-50">{saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}{t('general.save', 'Ruaj Ndryshimet')}</button></div>
+                    
+                    <div className="pt-8 flex justify-end border-t border-white/10 mt-8">
+                        <button 
+                            type="submit" 
+                            disabled={saving} 
+                            className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-50 hover:scale-[1.02] active:scale-95"
+                        >
+                            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                            {t('general.save', 'Ruaj Ndryshimet')}
+                        </button>
+                    </div>
                 </form>
             </div>
         </motion.div>
       )}
 
+      {/* Finance & Archive Sections remain unchanged (but included in full file) */}
       {activeTab === 'finance' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-white">Faturat e Lëshuara</h2><button onClick={() => setShowInvoiceModal(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-lg transition-all"><Plus size={20} /> Krijo Faturë</button></div>
@@ -249,7 +375,6 @@ const BusinessPage: React.FC = () => {
                         <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
                             <div className="text-right"><p className="text-lg font-bold text-white">€{inv.total_amount.toFixed(2)}</p><span className={`text-xs px-2 py-0.5 rounded-full ${inv.status === 'PAID' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'}`}>{inv.status}</span></div>
                             <div className="flex gap-2">
-                                {/* PHOENIX FIX: Added Eye Icon for Invoice Preview */}
                                 <button onClick={() => handleViewInvoice(inv)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Shiko PDF"><Eye size={20} /></button>
                                 <button onClick={() => downloadInvoice(inv.id)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Shkarko PDF"><Download size={20} /></button>
                                 <button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2 hover:bg-blue-900/20 rounded-lg text-blue-400 hover:text-blue-300 transition-colors" title="Arkivo Faturën"><Archive size={20} /></button>
@@ -354,7 +479,7 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
-      {/* PHOENIX NEW: ARCHIVE INVOICE MODAL */}
+      {/* ARCHIVE INVOICE MODAL */}
       {showArchiveInvoiceModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl">
