@@ -1,7 +1,7 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE LOGIC (FILENAME FIX)
-# 1. FIX: get_file_stream now appends file extension to 'title'.
-# 2. RESULT: Enables correct MIME type detection for browser preview.
+# PHOENIX PROTOCOL - ARCHIVE SERVICE (COPY ENABLED)
+# 1. ADDED: 'archive_existing_document' to bridge Case Docs -> Archive.
+# 2. LOGIC: copies file content from source key to archive destination.
 
 import os
 import logging
@@ -27,11 +27,57 @@ class ArchiveService:
         self.db = db
 
     def _to_oid(self, id_str: str) -> ObjectId:
-        """Helper to cast string to ObjectId safely."""
         try:
             return ObjectId(id_str)
         except (InvalidId, TypeError):
             raise HTTPException(status_code=400, detail=f"Invalid ObjectId format: {id_str}")
+
+    async def archive_existing_document(
+        self,
+        user_id: str,
+        case_id: str,
+        source_key: str,
+        filename: str,
+        category: str = "CASE_FILE"
+    ) -> ArchiveItemInDB:
+        """
+        Copies a document from the main storage into the Archive system.
+        """
+        s3_client = get_s3_client()
+        timestamp = int(datetime.now().timestamp())
+        
+        # New destination key in Archive structure
+        dest_key = f"archive/{user_id}/{timestamp}_{filename}"
+        
+        try:
+            # Efficient S3-to-S3 copy
+            copy_source = {'Bucket': B2_BUCKET_NAME, 'Key': source_key}
+            s3_client.copy(copy_source, B2_BUCKET_NAME, dest_key)
+            
+            # Get size for metadata
+            meta = s3_client.head_object(Bucket=B2_BUCKET_NAME, Key=dest_key)
+            file_size = meta.get('ContentLength', 0)
+            
+        except Exception as e:
+            logger.error(f"Archive Copy Failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to archive document: {str(e)}")
+
+        file_ext = filename.split('.')[-1].upper() if '.' in filename else "FILE"
+
+        doc_data = {
+            "user_id": self._to_oid(user_id),
+            "case_id": self._to_oid(case_id),
+            "title": filename,
+            "file_type": file_ext,
+            "category": category,
+            "storage_key": dest_key,
+            "file_size": file_size,
+            "created_at": datetime.now(timezone.utc),
+            "description": f"Archived from Case"
+        }
+        
+        self.db.archives.insert_one(doc_data)
+        return ArchiveItemInDB(**doc_data)
 
     async def add_file_to_archive(
         self, 
@@ -82,7 +128,6 @@ class ArchiveService:
             doc_data["case_id"] = self._to_oid(case_id)
         
         self.db.archives.insert_one(doc_data)
-        
         return ArchiveItemInDB(**doc_data)
 
     async def save_generated_file(
@@ -125,7 +170,6 @@ class ArchiveService:
             doc_data["case_id"] = self._to_oid(case_id)
         
         self.db.archives.insert_one(doc_data)
-        
         return ArchiveItemInDB(**doc_data)
 
     def get_archive_items(
@@ -163,11 +207,9 @@ class ArchiveService:
             s3_client = get_s3_client()
             response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=item["storage_key"])
             
-            # PHOENIX FIX: Construct filename with extension so browser detects MIME type
             title = item["title"]
             file_type = item.get("file_type", "").lower()
             
-            # If title already has extension, use it. Otherwise append.
             if not title.lower().endswith(f".{file_type}") and file_type:
                 filename = f"{title}.{file_type}"
             else:

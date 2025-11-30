@@ -1,15 +1,14 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - UI UX UPGRADE
-// 1. PROGRESS BARS: Displays granular progress for pending docs.
-// 2. DEEP SCAN: Added "Scan" button (ScanEye icon) to trigger Vision AI.
-// 3. FEEDBACK: Shows loading state during scan request.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL (ARCHIVE ADDED)
+// 1. FEATURE: Added 'Archive' button to move docs to Business Archive.
+// 2. STATUS: Fully integrated with backend copy logic.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Trash, Plus, Loader2, RefreshCw, ScanEye } from 'lucide-react'; // Added ScanEye
+import { FolderOpen, Eye, Trash, Plus, Loader2, RefreshCw, ScanEye, Archive } from 'lucide-react'; // Added Archive
 import { motion } from 'framer-motion';
 
 interface DocumentsPanelProps {
@@ -37,7 +36,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [scanningId, setScanningId] = useState<string | null>(null); // Track which doc is being scanned
+  const [scanningId, setScanningId] = useState<string | null>(null); 
+  const [archivingId, setArchivingId] = useState<string | null>(null); // Track archiving
 
   const performUpload = async (file: File) => {
     setIsUploading(true);
@@ -80,7 +80,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     }
   };
 
-  // PHOENIX FEATURE: Deep Scan Trigger
   const handleDeepScan = async (docId: string) => {
       setScanningId(docId);
       try {
@@ -91,6 +90,20 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           alert(t('error.generic'));
       } finally {
           setScanningId(null);
+      }
+  };
+
+  // PHOENIX NEW: Archive Logic
+  const handleArchiveDocument = async (docId: string) => {
+      setArchivingId(docId);
+      try {
+          await apiService.archiveCaseDocument(caseId, docId);
+          alert("Dokumenti u arkivua me sukses në Qendrën e Biznesit!");
+      } catch (error) {
+          console.error("Archive Failed:", error);
+          alert("Arkivimi dështoi.");
+      } finally {
+          setArchivingId(null);
       }
   };
 
@@ -129,7 +142,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
   return (
     <div className="documents-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col h-[500px] sm:h-[600px]">
-      {/* Header */}
       <div className="flex flex-row justify-between items-center border-b border-background-light/50 pb-3 mb-4 flex-shrink-0 gap-2">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 overflow-hidden">
             <h2 className="text-lg sm:text-xl font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
@@ -229,6 +241,17 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
                     <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-primary-start hover:text-primary-end p-1" whileHover={{ scale: 1.2 }}>
                       <Eye size={16} />
+                    </motion.button>
+
+                    {/* PHOENIX NEW: Archive Button */}
+                    <motion.button 
+                        onClick={() => handleArchiveDocument(doc.id)} 
+                        title="Arkivo Dokumentin" 
+                        className="text-blue-400 hover:text-blue-300 p-1" 
+                        whileHover={{ scale: 1.2 }}
+                        disabled={archivingId === doc.id}
+                    >
+                        {archivingId === doc.id ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
                     </motion.button>
                   </div>
                 )}

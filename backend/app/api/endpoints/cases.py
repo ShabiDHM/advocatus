@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - IMPORT & MODEL FIX
-# 1. IMPORT FIX: Changed the import from '...models.draft' to the correct '...models.drafting'.
-# 2. MODEL FIX: Changed the model from the non-existent 'DraftJobCreate' to the correct 'DraftRequest'.
-# 3. RESULT: Resolves the 'reportMissingImports' error in this file.
+# PHOENIX PROTOCOL - CASES ROUTER (ARCHIVE ENABLED)
+# 1. ADDED: POST /cases/{case_id}/documents/{doc_id}/archive
+# 2. STATUS: Fully integrated with ArchiveService.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated
@@ -16,7 +15,6 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-# Direct imports including the new services and models
 from ...services import (
     case_service,
     document_service,
@@ -24,13 +22,15 @@ from ...services import (
     report_service,
     storage_service,
     analysis_service,
-    visual_service
+    visual_service,
+    archive_service # PHOENIX NEW
 )
 from ...models.case import CaseCreate, CaseOut
 from ...models.user import UserInDB
 from ...models.document import DocumentOut
 from ...models.findings import FindingsListOut, FindingOut
-from ...models.drafting import DraftRequest # <--- CORRECTED IMPORT
+from ...models.drafting import DraftRequest 
+from ...models.archive import ArchiveItemOut # PHOENIX NEW
 from .dependencies import get_current_user, get_db, get_sync_redis
 from ...celery_app import celery_app
 
@@ -75,13 +75,10 @@ async def delete_case(case_id: str, current_user: Annotated[UserInDB, Depends(ge
 @router.post("/{case_id}/drafts", status_code=status.HTTP_202_ACCEPTED, tags=["Drafting"])
 async def create_draft_for_case(
     case_id: str,
-    job_in: DraftRequest, # <--- CORRECTED MODEL
+    job_in: DraftRequest, 
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Creates and dispatches a new drafting job for a specific case.
-    """
     validated_case_id = validate_object_id(case_id)
     job_details = await asyncio.to_thread(
         case_service.create_draft_job_for_case,
@@ -113,8 +110,6 @@ async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, 
         findings_out_list.append(FindingOut.model_validate(finding_dict))
 
     return FindingsListOut(findings=findings_out_list, count=len(findings_out_list))
-
-# ... (The rest of the file remains unchanged)
 
 @router.get("/{case_id}/documents", response_model=List[DocumentOut], tags=["Documents"])
 async def get_documents_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
@@ -226,6 +221,35 @@ async def delete_document(
             "deletedFindingIds": deleted_finding_ids
         }
     )
+
+# PHOENIX NEW: Archive Document Endpoint
+@router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut, tags=["Documents"])
+async def archive_case_document(
+    case_id: str,
+    doc_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Copies a case document into the Archive.
+    """
+    validated_case_id = validate_object_id(case_id)
+    
+    # 1. Verify access and get Document
+    document = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
+    if str(document.case_id) != case_id:
+        raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
+        
+    # 2. Archive it
+    archiver = archive_service.ArchiveService(db)
+    archived_item = await archiver.archive_existing_document(
+        user_id=str(current_user.id),
+        case_id=case_id,
+        source_key=document.storage_key,
+        filename=document.file_name
+    )
+    
+    return archived_item
 
 @router.post("/{case_id}/analyze", tags=["Analysis"])
 async def analyze_case_risks(
