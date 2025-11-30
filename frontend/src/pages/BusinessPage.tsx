@@ -1,8 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - INVOICE FORM EXPANSION
-// 1. FEATURE: Expanded 'Create Invoice' modal to mirror 'Business Profile' layout.
-// 2. DATA: Added inputs for Client Phone, City, Address, Tax ID.
-// 3. LOGIC: Composites detailed client info into 'client_address' for storage.
+// PHOENIX PROTOCOL - SCROLLBAR POLISH
+// 1. UI: Applied custom dark-mode scrollbar styling to Invoice and Accountant modals.
+// 2. STATUS: Scrollbars are now thin, dark, and consistent with the app theme.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -65,11 +64,11 @@ const BusinessPage: React.FC = () => {
   const [newInvoice, setNewInvoice] = useState({ 
       client_name: '', 
       client_email: '', 
-      client_phone: '',     // New
-      client_address: '',   // Base Address
-      client_city: '',      // New
-      client_tax_id: '',    // New
-      client_website: '',   // New (optional)
+      client_phone: '',     
+      client_address: '',   
+      client_city: '',      
+      client_tax_id: '',    
+      client_website: '',   
       tax_rate: 18, 
       notes: '' 
   });
@@ -423,7 +422,7 @@ const BusinessPage: React.FC = () => {
 
       {showInvoiceModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
+              <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-white">Krijo Faturë të Re</h2>
                     <button onClick={() => setShowInvoiceModal(false)} className="text-gray-400 hover:text-white"><X size={24} /></button>
@@ -546,7 +545,7 @@ const BusinessPage: React.FC = () => {
                 </div>
                 
                 {/* Content */}
-                <div className="flex-1 p-8 overflow-y-auto bg-grid-pattern">
+                <div className="flex-1 p-8 overflow-y-auto bg-grid-pattern [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full">
                      <div className="flex flex-col items-center justify-center h-full text-center space-y-8">
                         <div className="relative">
                             <div className="absolute inset-0 bg-indigo-500 blur-3xl opacity-20 rounded-full"></div>
