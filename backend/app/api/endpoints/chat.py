@@ -1,5 +1,10 @@
+# FILE: backend/app/routers/chat.py
+# PHOENIX PROTOCOL - CHAT SCOPE SUPPORT
+# 1. API: Updated 'ChatMessageRequest' to accept optional 'document_id'.
+# 2. LOGIC: Passes 'document_id' to service layer to enable single-document chat.
+
 from fastapi import APIRouter, Depends, HTTPException, status, Response
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 from pydantic import BaseModel
 import json
 import logging
@@ -14,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 class ChatMessageRequest(BaseModel):
     message: str
+    document_id: Optional[str] = None # PHOENIX FIX: Added to support specific document context
+
 class ChatResponse(BaseModel):
     response: str
 
@@ -26,25 +33,34 @@ async def handle_chat_message(
 ):
     """
     Sends a message to the AI Case Chat.
+    Supports both full-case chat and single-document chat via 'document_id'.
     """
     if not chat_request.message: 
         raise HTTPException(status_code=400, detail="Empty message")
         
-    # Debug Log to confirm user identity
-    logger.info(f"📨 API Recv: Chat from User {current_user.id} for Case {case_id}")
+    # Debug Log to confirm context
+    scope_log = f"Document {chat_request.document_id}" if chat_request.document_id else "Full Case"
+    logger.info(f"📨 API Recv: Chat from User {current_user.id} for Case {case_id} [Scope: {scope_log}]")
 
     try:
+        # PHOENIX FIX: Passing document_id to service
         response_text = await chat_service.get_http_chat_response(
             db=db, 
             case_id=case_id, 
             user_query=chat_request.message, 
-            user_id=str(current_user.id)
+            user_id=str(current_user.id),
+            document_id=chat_request.document_id
         )
         
         # SSE Notification (Fire and Forget)
         try:
             channel = f"user:{current_user.id}:updates"
-            payload = {"type": "CHAT_MESSAGE", "case_id": case_id, "content": response_text}
+            payload = {
+                "type": "CHAT_MESSAGE", 
+                "case_id": case_id, 
+                "content": response_text,
+                "document_id": chat_request.document_id # useful for frontend filtering
+            }
             redis_sync_client.publish(channel, json.dumps(payload))
         except Exception as e:
             logger.warning(f"SSE Publish failed: {e}")
@@ -53,6 +69,10 @@ async def handle_chat_message(
         
     except HTTPException as he:
         raise he
+    except TypeError as te:
+        # Catch mismatch if service layer isn't updated yet
+        logger.error(f"Service Layer Signature Mismatch: {te}")
+        raise HTTPException(status_code=500, detail="Server update pending: Chat Service signature mismatch.")
     except Exception as e:
         logger.error(f"Unhandled Chat API Error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

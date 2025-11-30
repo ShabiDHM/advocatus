@@ -1,6 +1,6 @@
 // FILE: src/services/api.ts
 // PHOENIX PROTOCOL - API MASTER FILE
-// 1. ADDED: archiveCaseDocument method.
+// 1. ADDED: sendChatMessage method with optional documentId support.
 // 2. STATUS: Canonical.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
@@ -84,6 +84,17 @@ class ApiService {
         const response = await this.axiosInstance.get(url, { responseType: 'blob' });
         return response.data;
     }
+
+    // --- CHAT (AI) ---
+    // PHOENIX NEW: Explicit method for Chat to handle document scoping
+    public async sendChatMessage(caseId: string, message: string, documentId?: string): Promise<string> {
+        const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { 
+            message,
+            document_id: documentId || null 
+        });
+        return response.data.response;
+    }
+    public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
 
     // --- Business Profile ---
     public async getBusinessProfile(): Promise<BusinessProfile> { const response = await this.axiosInstance.get<BusinessProfile>('/business/profile'); return response.data; }
@@ -175,8 +186,6 @@ class ApiService {
     }
     
     public async downloadDocumentReport(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/report`, { responseType: 'blob' }); return response.data; }
-    
-    // PHOENIX NEW: Archive Case Document
     public async archiveCaseDocument(caseId: string, documentId: string): Promise<ArchiveItemOut> {
         const response = await this.axiosInstance.post<ArchiveItemOut>(`/cases/${caseId}/documents/${documentId}/archive`);
         return response.data;
@@ -205,7 +214,6 @@ class ApiService {
     public async changePassword(data: ChangePasswordRequest): Promise<void> { await this.axiosInstance.post('/auth/change-password', data); }
     public async deleteAccount(): Promise<void> { await this.axiosInstance.delete('/users/me'); }
     public async getWebSocketUrl(_caseId: string): Promise<string> { return ""; }
-    public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     public async getAllUsers(): Promise<User[]> { const response = await this.axiosInstance.get<User[]>('/admin/users'); return response.data; }
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> { const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data); return response.data; }
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }

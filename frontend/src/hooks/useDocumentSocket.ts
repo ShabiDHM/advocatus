@@ -1,7 +1,8 @@
 // FILE: src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - PROGRESS TRACKING SUPPORT
-// 1. HANDLER: Added listener for 'DOCUMENT_PROGRESS' events.
-// 2. STATE: Updates document state with real-time progress percent/message.
+// PHOENIX PROTOCOL - CHAT SCOPE & PROGRESS
+// 1. SCOPE: sendChatMessage now accepts optional 'documentId' for focused RAG.
+// 2. REFACTOR: Uses strict 'apiService.sendChatMessage' instead of raw post.
+// 3. EVENTS: Retains progress tracking for document processing.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
@@ -14,7 +15,8 @@ interface UseDocumentSocketReturn {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
-  sendChatMessage: (content: string) => void;
+  // PHOENIX UPDATE: Added documentId parameter
+  sendChatMessage: (content: string, documentId?: string) => void;
   isSendingMessage: boolean;
 }
 
@@ -29,7 +31,6 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
   useEffect(() => {
     return () => {
       if (eventSourceRef.current) {
-        console.log("SSE: Closing connection on unmount");
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
@@ -48,66 +49,48 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
         try {
             const token = apiService.getToken();
             if (!token) {
-                console.error("SSE: No authentication token found.");
                 setConnectionStatus('DISCONNECTED');
                 return;
             }
 
             const sseUrl = `${API_V1_URL}/stream/updates?token=${token}`;
-            console.log(`SSE: Connecting to ${sseUrl}`);
-
             const es = new EventSource(sseUrl);
             eventSourceRef.current = es;
 
-            es.onopen = () => {
-                console.log("%cSSE: Connected to Stream", "color: green; font-weight: bold;");
-                setConnectionStatus('CONNECTED');
-            };
+            es.onopen = () => setConnectionStatus('CONNECTED');
 
             es.addEventListener('update', (event: MessageEvent) => {
                 try {
                     const payload = JSON.parse(event.data);
 
-                    // --- SCENARIO A: Document Progress Update (New) ---
+                    // A. Progress Updates
                     if (payload.type === 'DOCUMENT_PROGRESS') {
-                        setDocuments(prevDocs => {
-                            const targetId = String(payload.document_id);
-                            return prevDocs.map(doc => {
-                                if (String(doc.id) === targetId) {
-                                    // We inject dynamic properties for the UI
-                                    return {
-                                        ...doc,
-                                        progress_message: payload.message,
-                                        progress_percent: payload.percent
-                                    } as Document;
-                                }
-                                return doc;
-                            });
-                        });
+                        setDocuments(prevDocs => prevDocs.map(doc => {
+                            if (String(doc.id) === String(payload.document_id)) {
+                                return { ...doc, progress_message: payload.message, progress_percent: payload.percent } as Document;
+                            }
+                            return doc;
+                        }));
                     }
 
-                    // --- SCENARIO B: Document Status Update ---
+                    // B. Status Updates
                     if (payload.type === 'DOCUMENT_STATUS') {
-                        setDocuments(prevDocs => {
-                            const targetId = String(payload.document_id);
-                            return prevDocs.map(doc => {
-                                if (String(doc.id) === targetId) {
-                                    const newStatus = payload.status.toUpperCase();
-                                    return {
-                                        ...doc,
-                                        status: (newStatus === 'READY' || newStatus === 'COMPLETED') ? 'COMPLETED' : 
-                                                (newStatus === 'FAILED') ? 'FAILED' : doc.status,
-                                        error_message: newStatus === 'FAILED' ? payload.error : doc.error_message,
-                                        // Clear progress on completion
-                                        progress_percent: newStatus === 'FAILED' ? 0 : 100
-                                    } as Document;
-                                }
-                                return doc;
-                            });
-                        });
+                        setDocuments(prevDocs => prevDocs.map(doc => {
+                            if (String(doc.id) === String(payload.document_id)) {
+                                const newStatus = payload.status.toUpperCase();
+                                return {
+                                    ...doc,
+                                    status: (newStatus === 'READY' || newStatus === 'COMPLETED') ? 'COMPLETED' : 
+                                            (newStatus === 'FAILED') ? 'FAILED' : doc.status,
+                                    error_message: newStatus === 'FAILED' ? payload.error : doc.error_message,
+                                    progress_percent: newStatus === 'FAILED' ? 0 : 100
+                                } as Document;
+                            }
+                            return doc;
+                        }));
                     }
 
-                    // --- SCENARIO C: Chat Message ---
+                    // C. Chat Messages (Real-time echo)
                     if (payload.type === 'CHAT_MESSAGE' && payload.case_id === caseId) {
                          setMessages(prev => [...prev, {
                              sender: 'ai',
@@ -117,21 +100,16 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                     }
 
                 } catch (e) {
-                    console.error("SSE: Failed to parse message", e);
+                    console.error("SSE Parse Error", e);
                 }
             });
 
-            es.onerror = (err) => {
-                console.error("SSE: Connection Error", err);
-                if (es.readyState === EventSource.CLOSED) {
-                    setConnectionStatus('DISCONNECTED');
-                } else {
-                    setConnectionStatus('CONNECTING');
-                }
+            es.onerror = () => {
+                if (es.readyState === EventSource.CLOSED) setConnectionStatus('DISCONNECTED');
+                else setConnectionStatus('CONNECTING');
             };
 
         } catch (error) {
-            console.error("SSE: Setup failed", error);
             setConnectionStatus('DISCONNECTED');
         }
     };
@@ -145,14 +123,19 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
     setReconnectCounter(prev => prev + 1); 
   }, []);
   
-  const sendChatMessage = useCallback(async (content: string) => {
-    if (!content.trim()) return;
+  // PHOENIX UPDATE: Handle specialized chat
+  const sendChatMessage = useCallback(async (content: string, documentId?: string) => {
+    if (!content.trim() || !caseId) return;
+    
     setIsSendingMessage(true);
+    // Optimistic UI update
     setMessages(prev => [...prev, { sender: 'user', content, timestamp: new Date().toISOString() }]);
+    
     try {
-        await apiService.post(`/chat/case/${caseId}`, { message: content });
+        // Use the centralized API method
+        await apiService.sendChatMessage(caseId, content, documentId);
     } catch (error) {
-        console.error("Failed to send message", error);
+        console.error("Message send failed:", error);
     } finally {
         setIsSendingMessage(false);
     }

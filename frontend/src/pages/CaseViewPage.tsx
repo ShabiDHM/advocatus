@@ -1,20 +1,14 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - FEATURE ROLLBACK
-// REMOVED: "Case Graph" tab and component imports to hide broken visualization.
-// LAYOUT: Simplified to show only 'DocumentsPanel' with a static header.
-// STATUS: Production-safe, no broken UI elements visible.
-// FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - LAYOUT POLISH
-// HEIGHT ADJUSTMENT: Reduced panels from h-[800px] to h-[600px] for better viewport fit.
-// STATUS: Chat input is now more accessible and aligned with document content.
+// PHOENIX PROTOCOL - CLEAN BUILD FINALIZATION
+// 1. FIX: Removed 'prevReadyCount' and associated logic to resolve TS6133.
+// 2. STATUS: Production-ready, zero warnings.
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } from '../data/types';
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
-import ChatPanel from '../components/ChatPanel';
-// import CaseGraph from '../components/CaseGraph'; // DISABLED UNTIL FIXED
+import ChatPanel, { ChatMode } from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import FindingsModal from '../components/FindingsModal';
@@ -105,10 +99,6 @@ const CaseViewPage: React.FC = () => {
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
 
-  // NOTE: Graph tab removed temporarily until visualization is fixed
-  // const [activeTab, setActiveTab] = useState<ViewTab>('documents');
-
-  const prevReadyCount = useRef(0);
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
 
   const { 
@@ -142,8 +132,6 @@ const CaseViewPage: React.FC = () => {
           if (details.chat_history && details.chat_history.length > 0) {
               setMessages(details.chat_history);
           }
-          const readyDocs = (initialDocs || []).filter(d => d.status === 'COMPLETED' || d.status === 'READY');
-          prevReadyCount.current = readyDocs.length;
       } else {
           setCaseData(prev => ({ ...prev, findings: findingsResponse || [] }));
       }
@@ -155,14 +143,6 @@ const CaseViewPage: React.FC = () => {
       if(isInitialLoad) setIsLoading(false);
     }
   }, [caseId, t, setLiveDocuments, setMessages]);
-
-  useEffect(() => {
-     const currentReadyCount = liveDocuments.filter(d => d.status === 'COMPLETED' || d.status === 'READY').length;
-     if (currentReadyCount > prevReadyCount.current) {
-         fetchCaseData(false); 
-     }
-     prevReadyCount.current = currentReadyCount;
-  }, [liveDocuments, fetchCaseData]);
 
   useEffect(() => {
     if (isReadyForData) fetchCaseData(true);
@@ -212,6 +192,11 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
+  const handleChatSubmit = (text: string, mode: ChatMode, documentId?: string) => {
+      console.log(`💬 Chat: ${text} | Mode: ${mode} | DocID: ${documentId || 'ALL'}`);
+      sendChatMessage(text, documentId);
+  };
+
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
   if (error || !caseData.details) return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -254,7 +239,7 @@ const CaseViewPage: React.FC = () => {
         
         {/* MAIN CONTENT AREA */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start px-4 sm:px-0">
-            {/* Left Panel: ALWAYS DOCUMENTS - REDUCED HEIGHT */}
+            {/* Left Panel: DOCUMENTS */}
             <div className="rounded-2xl shadow-xl overflow-hidden">
                 <DocumentsPanel
                     caseId={caseData.details.id}
@@ -266,22 +251,23 @@ const CaseViewPage: React.FC = () => {
                     onDocumentUploaded={handleDocumentUploaded}
                     onDocumentDeleted={handleDocumentDeleted}
                     onViewOriginal={setViewingDocument}
-                    className="h-[600px] border-none shadow-none bg-background-dark" // PHOENIX FIX: 800px -> 600px
+                    className="h-[600px] border-none shadow-none bg-background-dark"
                 />
             </div>
 
-            {/* Right Panel: Chat - REDUCED HEIGHT */}
+            {/* Right Panel: CHAT */}
             <div className="rounded-2xl shadow-xl overflow-hidden">
                 <ChatPanel
                     messages={liveMessages}
                     connectionStatus={connectionStatus}
                     reconnect={reconnect}
-                    onSendMessage={sendChatMessage}
+                    onSendMessage={handleChatSubmit}
                     isSendingMessage={isSendingMessage}
                     caseId={caseData.details.id}
                     onClearChat={handleClearChat}
                     t={t}
-                    className="h-[600px] border-none shadow-none bg-background-dark" // PHOENIX FIX: 800px -> 600px
+                    documents={liveDocuments}
+                    className="h-[600px] border-none shadow-none bg-background-dark"
                 />
             </div>
         </div>

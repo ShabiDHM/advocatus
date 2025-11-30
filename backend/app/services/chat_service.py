@@ -1,8 +1,7 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE FIX
-# 1. MODEL ALIGNMENT: Updates 'ChatMessage' instantiation to use 'role' instead of 'sender_id'.
-# 2. TIMEZONES: Uses 'datetime.now(timezone.utc)' for robust timestamping.
-# 3. ROBUSTNESS: Enhanced error logging to catch AI/DB failures.
+# PHOENIX PROTOCOL - CONTEXT AWARE SERVICE
+# 1. SCOPE: Accepts 'document_id' to limit AI analysis to a single source.
+# 2. RAG INTEGRATION: Passes the specific document ID to the RAG engine.
 
 from __future__ import annotations
 import os
@@ -15,14 +14,12 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from groq import AsyncGroq
 
-# Ensure this model matches your backend/app/models/case.py
 from app.models.case import ChatMessage
 import app.services.vector_store_service as vector_store_service
 
 logger = logging.getLogger(__name__)
 
 # --- DYNAMIC IMPORTS ---
-# We load these lazily to prevent circular import crashes if dependencies aren't ready
 AlbanianRAGService = None
 AlbanianLanguageDetector = None
 
@@ -64,12 +61,13 @@ async def get_http_chat_response(
     db: Any, 
     case_id: str, 
     user_query: str, 
-    user_id: str
+    user_id: str,
+    document_id: Optional[str] = None # PHOENIX FIX: Added param
 ) -> str:
     """
     Orchestrates the chat flow: Validates -> Saves User Msg -> calls RAG -> Saves AI Msg.
     """
-    logger.info(f"💬 Chat Request: Case[{case_id}] User[{user_id}] Query[{len(user_query)} chars]")
+    logger.info(f"💬 Chat Request: Case[{case_id}] User[{user_id}] Doc[{document_id or 'ALL'}]")
 
     # 1. Validation
     try:
@@ -84,12 +82,12 @@ async def get_http_chat_response(
         raise HTTPException(status_code=404, detail="Case not found.")
     
     # 3. Save User Message
-    # PHOENIX FIX: Use 'role' instead of 'sender_id' to match Pydantic Model
     try:
         user_message = ChatMessage(
             role="user",
             content=user_query,
             timestamp=datetime.now(timezone.utc)
+            # Note: We could save document_id here in the future if the model supports it
         )
         
         await db.cases.update_one(
@@ -98,7 +96,6 @@ async def get_http_chat_response(
         )
     except Exception as e:
         logger.error(f"❌ Database Write Error (User Message): {e}")
-        # We proceed even if save fails, to try and answer the user
     
     # 4. AI Processing
     response_text = ""
@@ -106,8 +103,14 @@ async def get_http_chat_response(
         rag_service = _get_rag_service_instance()
         
         if rag_service:
-            # Generate Answer
-            response_text = await rag_service.chat(query=user_query, case_id=case_id)
+            # PHOENIX FIX: Pass specific document list if filtering is requested
+            target_docs = [document_id] if document_id else None
+            
+            response_text = await rag_service.chat(
+                query=user_query, 
+                case_id=case_id, 
+                document_ids=target_docs 
+            )
         else:
             response_text = "Shërbimi AI aktualisht nuk është i qasshëm (Missing Configuration)."
 
@@ -116,7 +119,6 @@ async def get_http_chat_response(
         response_text = "Ndodhi një gabim teknik gjatë përpunimit. Ju lutemi provoni përsëri."
 
     # 5. Save AI Response
-    # PHOENIX FIX: Use 'role' instead of 'sender_id'
     try:
         ai_message = ChatMessage(
             role="ai", 
