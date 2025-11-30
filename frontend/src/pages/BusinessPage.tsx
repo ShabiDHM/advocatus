@@ -1,16 +1,16 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS SUITE (LOGO DISPLAY FIX)
-// 1. FIX: Added robust fallback to Absolute URL if Blob fetch fails.
-// 2. FIX: Imports API_V1_URL to construct correct image paths.
+// PHOENIX PROTOCOL - BUSINESS SUITE (MOBILE PREVIEW FIX)
+// 1. FIX: Added 'ExternalLink' button to Preview Modal for mobile support.
+// 2. FIX: Switched from iframe to <object> for better document embedding.
+// 3. UI: Added fallback content if embedded view fails.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
     Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, 
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File, ArrowLeft,
-    Briefcase, Eye, X, Archive, Camera, Check
+    Briefcase, Eye, X, Archive, Camera, Check, ExternalLink
 } from 'lucide-react';
-// PHOENIX FIX: Import API_V1_URL for fallback URL construction
 import { apiService, API_V1_URL } from '../services/api';
 import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut, Case } from '../data/types';
 import { useTranslation } from 'react-i18next';
@@ -65,18 +65,16 @@ const BusinessPage: React.FC = () => {
     fetchData();
   }, []);
 
-  // PHOENIX FIX: Securely fetch logo with robust fallback
+  // Securely fetch logo with robust fallback
   useEffect(() => {
     const url = profile?.logo_url;
     
     if (url) {
-        // 1. If it's already a local blob/data URL (immediate upload preview), use it.
         if (url.startsWith('blob:') || url.startsWith('data:')) {
             setLogoSrc(url);
             return;
         }
 
-        // 2. Try to fetch as Blob (Secure, sends Auth headers)
         setLogoLoading(true);
         apiService.fetchImageBlob(url)
             .then(blob => {
@@ -85,9 +83,6 @@ const BusinessPage: React.FC = () => {
             })
             .catch(err => {
                 console.warn("Secure logo fetch failed, falling back to absolute URL", err);
-                
-                // 3. Fallback: Construct Absolute URL for <img> tag
-                // If url is relative (e.g. "business/logo/..."), prepend API base
                 if (!url.startsWith('http')) {
                     const cleanBase = API_V1_URL.endsWith('/') ? API_V1_URL.slice(0, -1) : API_V1_URL;
                     const cleanPath = url.startsWith('/') ? url.slice(1) : url;
@@ -256,6 +251,7 @@ const BusinessPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Profile Section */}
       {activeTab === 'profile' && (
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-8">
@@ -415,9 +411,12 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
-      {/* Finance & Archive Sections remain unchanged (but included in full file) */}
+      {/* Finance & Archive Sections... */}
+      {/* (Skipping repetition, assume logic matches standard structure) */}
+      
       {activeTab === 'finance' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+            {/* Invoice List with View Button */}
             <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-white">Faturat e Lëshuara</h2><button onClick={() => setShowInvoiceModal(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-lg transition-all"><Plus size={20} /> Krijo Faturë</button></div>
             {invoices.length === 0 ? (
                 <div className="text-center py-12 bg-background-dark border border-glass-edge rounded-2xl"><FileText className="w-12 h-12 text-gray-600 mx-auto mb-3" /><p className="text-gray-400">Nuk keni asnjë faturë të krijuar.</p></div>
@@ -561,16 +560,39 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
-      {/* PREVIEW MODAL */}
+      {/* PREVIEW MODAL - UPDATED FOR MOBILE */}
       {previewUrl && (
           <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="relative w-full h-full max-w-5xl bg-background-dark border border-glass-edge rounded-2xl overflow-hidden flex flex-col">
                   <div className="flex justify-between items-center p-4 border-b border-glass-edge bg-background-dark/80">
-                      <h3 className="text-white font-semibold truncate">{previewTitle}</h3>
-                      <button onClick={closePreview} className="p-2 hover:bg-white/10 rounded-full text-white transition-colors"><X size={24} /></button>
+                      <h3 className="text-white font-semibold truncate flex-1 mr-4">{previewTitle}</h3>
+                      <div className="flex items-center gap-2">
+                          {/* PHOENIX NEW: External Link for Mobile Browsers */}
+                          <a 
+                              href={previewUrl} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="p-2 hover:bg-white/10 rounded-full text-white transition-colors"
+                              title="Hape në dritare të re"
+                          >
+                              <ExternalLink size={24} />
+                          </a>
+                          <button onClick={closePreview} className="p-2 hover:bg-white/10 rounded-full text-white transition-colors"><X size={24} /></button>
+                      </div>
                   </div>
-                  <div className="flex-1 bg-white">
-                      <iframe src={previewUrl} className="w-full h-full border-0" title="Document Preview" />
+                  <div className="flex-1 bg-white relative">
+                      {/* PHOENIX FIX: Switched from iframe to object for better embedding compatibility */}
+                      <object data={previewUrl} className="w-full h-full border-0 block">
+                          <div className="flex flex-col items-center justify-center h-full text-gray-500 p-6 text-center">
+                              <FileText size={48} className="mb-4 text-primary-start" />
+                              <p className="mb-2">Dokumenti nuk mund të shfaqet brenda kësaj dritareje.</p>
+                              <p className="text-sm text-gray-400 mb-6">Kjo ndodh shpesh në pajisje mobile.</p>
+                              <a href={previewUrl} target="_blank" rel="noreferrer" className="px-6 py-3 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-lg transition-transform active:scale-95 flex items-center gap-2">
+                                  <ExternalLink size={18} />
+                                  Hape Dokumentin
+                              </a>
+                          </div>
+                      </object>
                   </div>
               </div>
           </div>
