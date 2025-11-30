@@ -1,8 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - MY OFFICE SUITE (FINAL)
-// 1. FIX: Archive Folders now display 'c.title' (Case Title).
-// 2. FEATURE: Added 'Archive' button to Invoice List.
-// 3. UI: Select Case Modal for invoicing.
+// PHOENIX PROTOCOL - BUSINESS SUITE (INVOICE PREVIEW ADDED)
+// 1. FEATURE: Added 'Eye' icon to invoice list for direct PDF preview.
+// 2. FEATURE: Wired invoice preview to existing modal logic.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -160,6 +159,17 @@ const BusinessPage: React.FC = () => {
           setPreviewTitle(title);
       } catch (error) { alert("Nuk mund të hapet dokumenti."); }
   };
+
+  // PHOENIX NEW: View Invoice Handler
+  const handleViewInvoice = async (invoice: Invoice) => {
+      try {
+          const blob = await apiService.getInvoicePdfBlob(invoice.id);
+          const url = window.URL.createObjectURL(blob);
+          setPreviewUrl(url);
+          setPreviewTitle(`Invoice #${invoice.invoice_number}`);
+      } catch (error) { alert("Nuk mund të hapet fatura."); }
+  };
+
   const closePreview = () => { if (previewUrl) window.URL.revokeObjectURL(previewUrl); setPreviewUrl(null); setPreviewTitle(""); };
   const deleteArchiveItem = async (id: string) => { if(!window.confirm("A jeni i sigurt?")) return; try { await apiService.deleteArchiveItem(id); setArchiveItems(archiveItems.filter(item => item.id !== id)); } catch (error) { alert("Fshirja dështoi."); } };
   const downloadArchiveItem = async (id: string, title: string) => { try { await apiService.downloadArchiveItem(id, title); } catch (error) { alert("Shkarkimi dështoi."); } };
@@ -239,8 +249,9 @@ const BusinessPage: React.FC = () => {
                         <div className="flex items-center gap-6 w-full sm:w-auto justify-between sm:justify-end">
                             <div className="text-right"><p className="text-lg font-bold text-white">€{inv.total_amount.toFixed(2)}</p><span className={`text-xs px-2 py-0.5 rounded-full ${inv.status === 'PAID' ? 'bg-green-900 text-green-300' : 'bg-yellow-900 text-yellow-300'}`}>{inv.status}</span></div>
                             <div className="flex gap-2">
+                                {/* PHOENIX FIX: Added Eye Icon for Invoice Preview */}
+                                <button onClick={() => handleViewInvoice(inv)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Shiko PDF"><Eye size={20} /></button>
                                 <button onClick={() => downloadInvoice(inv.id)} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Shkarko PDF"><Download size={20} /></button>
-                                {/* PHOENIX FIX: Added Archive Button */}
                                 <button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2 hover:bg-blue-900/20 rounded-lg text-blue-400 hover:text-blue-300 transition-colors" title="Arkivo Faturën"><Archive size={20} /></button>
                                 <button onClick={() => deleteInvoice(inv.id)} className="p-2 hover:bg-red-900/20 rounded-lg text-red-400 hover:text-red-300 transition-colors" title="Fshi Faturën"><Trash2 size={20} /></button>
                             </div>
@@ -265,7 +276,6 @@ const BusinessPage: React.FC = () => {
                         {cases.map(c => (
                             <div key={c.id} onClick={() => openFolder(c.id, c.title)} className="bg-background-dark border border-glass-edge rounded-xl p-6 hover:bg-background-light/10 transition-colors cursor-pointer text-center group">
                                 <Briefcase className="w-12 h-12 text-primary-start mx-auto mb-3 group-hover:scale-110 transition-transform" />
-                                {/* PHOENIX FIX: Showing Case Title and Client Name */}
                                 <h3 className="text-sm font-medium text-white truncate px-2">{c.title}</h3>
                                 <p className="text-xs text-gray-500 mt-1">{c.client?.name || c.case_number}</p>
                             </div>

@@ -1,8 +1,7 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE LOGIC (ROBUST & LOGGED)
-# 1. FIX: Added logging to catch S3 upload failures causing 500 errors.
-# 2. FIX: Explicit HTTPException import to silence Pylance.
-# 3. FIX: Safe datetime import.
+# PHOENIX PROTOCOL - ARCHIVE LOGIC (FILENAME FIX)
+# 1. FIX: get_file_stream now appends file extension to 'title'.
+# 2. RESULT: Enables correct MIME type detection for browser preview.
 
 import os
 import logging
@@ -12,7 +11,6 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from pymongo.database import Database
 from fastapi import UploadFile
-# PHOENIX FIX: Explicit import
 from fastapi.exceptions import HTTPException
 
 # PHOENIX FIX: Relative imports
@@ -66,7 +64,6 @@ class ArchiveService:
                 Config=transfer_config
             )
         except Exception as e:
-            # FIX: Log the actual error for debugging
             logger.error(f"!!! UPLOAD FAILED in ArchiveService: {e}")
             raise HTTPException(status_code=500, detail=f"Storage Upload Failed: {str(e)}")
         
@@ -165,7 +162,18 @@ class ArchiveService:
         try:
             s3_client = get_s3_client()
             response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=item["storage_key"])
-            return response['Body'], item["title"]
+            
+            # PHOENIX FIX: Construct filename with extension so browser detects MIME type
+            title = item["title"]
+            file_type = item.get("file_type", "").lower()
+            
+            # If title already has extension, use it. Otherwise append.
+            if not title.lower().endswith(f".{file_type}") and file_type:
+                filename = f"{title}.{file_type}"
+            else:
+                filename = title
+                
+            return response['Body'], filename
         except Exception as e:
             logger.error(f"!!! STREAM FAILED: {e}")
             raise HTTPException(status_code=500, detail="Could not retrieve file stream")

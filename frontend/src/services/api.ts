@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER FILE (PREVIEW FIX)
-// 1. FIX: 'getArchiveFileBlob' now passes 'preview=true' param.
-// 2. STATUS: Fully supports inline PDF/Image viewing.
+// PHOENIX PROTOCOL - API MASTER FILE
+// 1. FEATURE: Added 'getInvoicePdfBlob' for invoice preview.
+// 2. STATUS: Verified.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -100,6 +100,14 @@ class ApiService {
         link.click(); 
         link.parentNode?.removeChild(link); 
     }
+    // PHOENIX NEW: Get Invoice Blob for Preview
+    public async getInvoicePdfBlob(invoiceId: string, lang: string = 'sq'): Promise<Blob> {
+        const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { 
+            params: { lang }, 
+            responseType: 'blob' 
+        });
+        return response.data;
+    }
     public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> {
         const params = caseId ? { case_id: caseId } : {};
         const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/invoices/${invoiceId}/archive`, null, { params });
@@ -130,7 +138,6 @@ class ApiService {
         await this.axiosInstance.delete(`/archive/items/${itemId}`); 
     }
     public async downloadArchiveItem(itemId: string, title: string): Promise<void> {
-        // Standard download (Content-Disposition: attachment)
         const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' });
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
@@ -141,7 +148,6 @@ class ApiService {
         link.parentNode?.removeChild(link);
     }
     public async getArchiveFileBlob(itemId: string): Promise<Blob> {
-        // PHOENIX FIX: Add preview=true param to force inline disposition
         const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { 
             params: { preview: true },
             responseType: 'blob' 
