@@ -1,9 +1,9 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CLEAN BUILD FINALIZATION
-// 1. FIX: Removed 'prevReadyCount' and associated logic to resolve TS6133.
-// 2. STATUS: Production-ready, zero warnings.
+// PHOENIX PROTOCOL - UI CLEANUP
+// 1. REMOVED: Redundant 'Dokumentet' section title.
+// 2. STATUS: Clean interface, single header per panel.
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } from '../data/types';
 import { apiService } from '../services/api';
@@ -16,7 +16,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb, FileText } from 'lucide-react';
+import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -99,6 +99,7 @@ const CaseViewPage: React.FC = () => {
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
 
+  const prevReadyCount = useRef(0);
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
 
   const { 
@@ -132,6 +133,8 @@ const CaseViewPage: React.FC = () => {
           if (details.chat_history && details.chat_history.length > 0) {
               setMessages(details.chat_history);
           }
+          const readyDocs = (initialDocs || []).filter(d => d.status === 'COMPLETED' || d.status === 'READY');
+          prevReadyCount.current = readyDocs.length;
       } else {
           setCaseData(prev => ({ ...prev, findings: findingsResponse || [] }));
       }
@@ -143,6 +146,14 @@ const CaseViewPage: React.FC = () => {
       if(isInitialLoad) setIsLoading(false);
     }
   }, [caseId, t, setLiveDocuments, setMessages]);
+
+  useEffect(() => {
+     const currentReadyCount = liveDocuments.filter(d => d.status === 'COMPLETED' || d.status === 'READY').length;
+     if (currentReadyCount > prevReadyCount.current) {
+         fetchCaseData(false); 
+     }
+     prevReadyCount.current = currentReadyCount;
+  }, [liveDocuments, fetchCaseData]);
 
   useEffect(() => {
     if (isReadyForData) fetchCaseData(true);
@@ -221,7 +232,7 @@ const CaseViewPage: React.FC = () => {
         </div>
         
         {/* Header */}
-        <div className="px-4 sm:px-0">
+        <div className="px-4 sm:px-0 mb-4">
             <CaseHeader 
                 caseDetails={caseData.details} 
                 t={t} 
@@ -229,12 +240,6 @@ const CaseViewPage: React.FC = () => {
                 onShowFindings={() => setIsFindingsModalOpen(true)} 
                 isAnalyzing={isAnalyzing} 
             />
-        </div>
-
-        {/* Section Title */}
-        <div className="px-4 sm:px-0 mb-4 flex items-center gap-2 text-white/90 font-medium">
-             <FileText className="w-5 h-5 text-primary-start" />
-             <span>Dokumentet</span>
         </div>
         
         {/* MAIN CONTENT AREA */}
