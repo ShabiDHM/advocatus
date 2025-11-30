@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW (LAYOUT REPAIR)
-// 1. HEADER FIX: Compacted layout. Title & Metadata grouped left, Buttons right. Removed wasted vertical space.
-// 2. PANEL FIX: Switched to pure Flexbox layout. Panels now auto-fill remaining height (flex-1) without shrinking.
-// 3. STATUS: Visuals restored to "Image 2" density with "Image 1" functionality.
+// PHOENIX PROTOCOL - CASE VIEW (TALLER PANELS)
+// 1. LAYOUT: Switched from viewport-constrained to min-height scrolling layout.
+// 2. HEIGHT: Increased panel height to fixed 'h-[800px]' to prevent shrinking and maximize visibility.
+// 3. STATUS: Panels are now tall and side-by-side (Grid), solving readability issues.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -37,11 +37,10 @@ const CaseHeader: React.FC<{
     isAnalyzing: boolean; 
 }> = ({ caseDetails, t, onAnalyze, onShowFindings, isAnalyzing }) => (
     <motion.div
-      className="mb-2 p-4 rounded-xl shadow-md bg-background-light/50 backdrop-blur-sm border border-glass-edge flex-shrink-0"
+      className="mb-4 p-4 rounded-xl shadow-md bg-background-light/50 backdrop-blur-sm border border-glass-edge"
       initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
     >
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          {/* LEFT: Title & Metadata */}
           <div className="flex-1 min-w-0">
               <h1 className="text-xl font-bold text-text-primary break-words mb-2 leading-tight">
                   {caseDetails.case_name}
@@ -62,7 +61,6 @@ const CaseHeader: React.FC<{
               </div>
           </div>
           
-          {/* RIGHT: Action Buttons */}
           <div className="flex items-center gap-2 self-start md:self-center flex-shrink-0">
               <motion.button
                 onClick={onShowFindings}
@@ -223,20 +221,20 @@ const CaseViewPage: React.FC = () => {
   );
 
   return (
-    // FIX: Using h-screen minus header offset to force full height without scrollbar issues
-    <motion.div className="w-full h-[calc(100vh-64px)] flex flex-col" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-0 sm:px-6 lg:py-4 flex-grow flex flex-col min-h-0">
+    // PHOENIX FIX: Switched to min-h-screen to allow scrolling for tall content
+    <motion.div className="w-full min-h-screen bg-background-dark pb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="max-w-7xl w-full mx-auto px-0 sm:px-6 lg:py-6">
         
-        {/* Navigation - Compact */}
-        <div className="mb-2 px-4 sm:px-0 flex-shrink-0">
+        {/* Navigation */}
+        <div className="mb-4 px-4 sm:px-0">
           <Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors">
             <ArrowLeft className="h-3 w-3 mr-1" />
             {t('caseView.backToDashboard')}
           </Link>
         </div>
         
-        {/* Header - Compact */}
-        <div className="px-4 sm:px-0 flex-shrink-0">
+        {/* Header */}
+        <div className="px-4 sm:px-0">
             <CaseHeader 
                 caseDetails={caseData.details} 
                 t={t} 
@@ -246,8 +244,8 @@ const CaseViewPage: React.FC = () => {
             />
         </div>
 
-        {/* Tabs - Compact */}
-        <div className="px-4 sm:px-0 flex gap-4 border-b border-glass-edge mb-3 flex-shrink-0">
+        {/* Tabs */}
+        <div className="px-4 sm:px-0 flex gap-4 border-b border-glass-edge mb-4">
             <button 
                 onClick={() => setActiveTab('documents')}
                 className={`pb-2 px-1 flex items-center gap-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'documents' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
@@ -264,11 +262,10 @@ const CaseViewPage: React.FC = () => {
             </button>
         </div>
         
-        {/* MAIN CONTENT AREA - FLEX GROW TO FILL REMAINING SPACE */}
-        {/* This creates the parallel side-by-side layout that fills the screen */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start px-4 sm:px-0 flex-1 min-h-0 overflow-hidden pb-2">
+        {/* MAIN CONTENT AREA - FIXED TALL HEIGHT */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start px-4 sm:px-0">
             {/* Left Panel */}
-            <div className="h-full overflow-hidden flex flex-col rounded-2xl shadow-xl">
+            <div className="rounded-2xl shadow-xl overflow-hidden">
                 {activeTab === 'documents' ? (
                     <DocumentsPanel
                         caseId={caseData.details.id}
@@ -280,15 +277,15 @@ const CaseViewPage: React.FC = () => {
                         onDocumentUploaded={handleDocumentUploaded}
                         onDocumentDeleted={handleDocumentDeleted}
                         onViewOriginal={setViewingDocument}
-                        className="h-full border-none shadow-none bg-background-dark" // Fill container
+                        className="h-[800px] border-none shadow-none bg-background-dark" // PHOENIX FIX: Tall height
                     />
                 ) : (
-                    <CaseGraph caseId={caseData.details.id} className="h-full bg-slate-900 border-none" />
+                    <CaseGraph caseId={caseData.details.id} className="h-[800px] bg-slate-900 border-none" />
                 )}
             </div>
 
             {/* Right Panel: Chat */}
-            <div className="h-full overflow-hidden flex flex-col rounded-2xl shadow-xl">
+            <div className="rounded-2xl shadow-xl overflow-hidden">
                 <ChatPanel
                     messages={liveMessages}
                     connectionStatus={connectionStatus}
@@ -298,7 +295,7 @@ const CaseViewPage: React.FC = () => {
                     caseId={caseData.details.id}
                     onClearChat={handleClearChat}
                     t={t}
-                    className="h-full border-none shadow-none bg-background-dark" // Fill container
+                    className="h-[800px] border-none shadow-none bg-background-dark" // PHOENIX FIX: Tall height
                 />
             </div>
         </div>
