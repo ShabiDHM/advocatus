@@ -1,9 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - UX UPGRADE
-// 1. DYNAMIC INPUT: Textarea now auto-expands as user types (up to 200px).
-// 2. RESET LOGIC: Input shrinks back to 1 row upon sending.
-// 3. SCROLLING: Maintained fixed panel height for consistent layout.
-// 4. UPDATED: Changed default thinking text to "Sokrati duke analizuar..."
+// PHOENIX PROTOCOL - CHAT PANEL (FLEXIBLE HEIGHT)
+// 1. FIX: Added 'className' prop to allow parent to control height (Parallel Scroll).
+// 2. UX: Auto-expanding textarea logic preserved.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, ConnectionStatus } from '../data/types';
@@ -21,6 +19,8 @@ interface ChatPanelProps {
   reconnect: () => void;
   onClearChat: () => void;
   t: TFunction;
+  // PHOENIX FIX: Allow external styling
+  className?: string;
 }
 
 const TypingIndicator: React.FC<{ t: TFunction }> = ({ t }) => (
@@ -43,26 +43,23 @@ const TypingIndicator: React.FC<{ t: TFunction }> = ({ t }) => (
             />
         </div>
         <span className="text-xs text-text-primary font-semibold animate-pulse">
-            {/* UPDATED: Default fallback is now Sokrati */}
             {t('chatPanel.thinking', 'Sokrati duke analizuar...')}
         </span>
     </div>
 );
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
-    messages, connectionStatus, onSendMessage, isSendingMessage, reconnect, onClearChat, t 
+    messages, connectionStatus, onSendMessage, isSendingMessage, reconnect, onClearChat, t, className 
 }) => {
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null); // Ref for auto-resize
+  const textareaRef = useRef<HTMLTextAreaElement>(null); 
   const [showThinking, setShowThinking] = useState(false);
 
-  // Auto-scroll to bottom
   useEffect(() => { 
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
   }, [messages, showThinking]);
 
-  // Handle thinking state
   useEffect(() => {
       if (isSendingMessage) {
           setShowThinking(true);
@@ -72,12 +69,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
   }, [isSendingMessage]);
 
-  // Auto-Resize Textarea
   useEffect(() => {
       const textarea = textareaRef.current;
       if (textarea) {
-          textarea.style.height = 'auto'; // Reset height to calculate scrollHeight
-          textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`; // Grow up to 200px
+          textarea.style.height = 'auto'; 
+          textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`; 
       }
   }, [inputText]);
 
@@ -86,7 +82,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       if (inputText.trim() && !isSendingMessage) { 
           onSendMessage(inputText.trim()); 
           setInputText(''); 
-          // Reset height manually
           if (textareaRef.current) {
               textareaRef.current.style.height = 'auto';
           }
@@ -117,8 +112,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
+  // PHOENIX FIX: Uses className if provided, else defaults to fixed height
   return (
-    <div className="chat-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col h-[500px] sm:h-[600px]">
+    <div className={`chat-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col ${className || 'h-[500px] sm:h-[600px]'}`}>
       
       {/* Header */}
       <div className="flex flex-row justify-between items-center border-b border-background-light/50 pb-3 mb-4 flex-shrink-0 gap-2">
@@ -146,7 +142,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </button>
       </div>
 
-      {/* Messages Area (Scrollable) */}
+      {/* Messages Area */}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-6 custom-scrollbar pr-2 mb-4">
         {messages.length === 0 && !showThinking && ( 
             <div className="flex flex-col items-center justify-center h-full text-center text-text-secondary opacity-60 space-y-4">
@@ -177,7 +173,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input - Auto-Expanding */}
+      {/* Input */}
       <div className="flex-none pt-3 border-t border-glass-edge/30">
         <form onSubmit={handleSubmit} className="flex items-end space-x-2">
           <textarea 
