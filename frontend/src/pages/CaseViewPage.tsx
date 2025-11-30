@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW (TALLER PANELS)
-// 1. LAYOUT: Switched from viewport-constrained to min-height scrolling layout.
-// 2. HEIGHT: Increased panel height to fixed 'h-[800px]' to prevent shrinking and maximize visibility.
-// 3. STATUS: Panels are now tall and side-by-side (Grid), solving readability issues.
+// PHOENIX PROTOCOL - FEATURE ROLLBACK
+// 1. REMOVED: "Case Graph" tab and component imports to hide broken visualization.
+// 2. LAYOUT: Simplified to show only 'DocumentsPanel' with a static header.
+// 3. STATUS: Production-safe, no broken UI elements visible.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } 
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
-import CaseGraph from '../components/CaseGraph';
+// import CaseGraph from '../components/CaseGraph'; // DISABLED UNTIL FIXED
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import FindingsModal from '../components/FindingsModal';
@@ -18,7 +18,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb, FileText, Network } from 'lucide-react';
+import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb, FileText } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -26,8 +26,6 @@ type CaseData = {
     details: Case | null;
     findings: Finding[];
 };
-
-type ViewTab = 'documents' | 'graph';
 
 const CaseHeader: React.FC<{ 
     caseDetails: Case; 
@@ -103,7 +101,8 @@ const CaseViewPage: React.FC = () => {
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<ViewTab>('documents');
+  // NOTE: Graph tab removed temporarily until visualization is fixed
+  // const [activeTab, setActiveTab] = useState<ViewTab>('documents');
 
   const prevReadyCount = useRef(0);
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -221,7 +220,6 @@ const CaseViewPage: React.FC = () => {
   );
 
   return (
-    // PHOENIX FIX: Switched to min-h-screen to allow scrolling for tall content
     <motion.div className="w-full min-h-screen bg-background-dark pb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-0 sm:px-6 lg:py-6">
         
@@ -244,44 +242,28 @@ const CaseViewPage: React.FC = () => {
             />
         </div>
 
-        {/* Tabs */}
-        <div className="px-4 sm:px-0 flex gap-4 border-b border-glass-edge mb-4">
-            <button 
-                onClick={() => setActiveTab('documents')}
-                className={`pb-2 px-1 flex items-center gap-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'documents' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
-            >
-                <FileText className="w-4 h-4" />
-                Dokumentet
-            </button>
-            <button 
-                onClick={() => setActiveTab('graph')}
-                className={`pb-2 px-1 flex items-center gap-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'graph' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
-            >
-                <Network className="w-4 h-4" />
-                Harta e Çështjes
-            </button>
+        {/* Section Title (Replaces Tabs) */}
+        <div className="px-4 sm:px-0 mb-4 flex items-center gap-2 text-white/90 font-medium">
+             <FileText className="w-5 h-5 text-primary-start" />
+             <span>Dokumentet</span>
         </div>
         
-        {/* MAIN CONTENT AREA - FIXED TALL HEIGHT */}
+        {/* MAIN CONTENT AREA */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start px-4 sm:px-0">
-            {/* Left Panel */}
+            {/* Left Panel: ALWAYS DOCUMENTS */}
             <div className="rounded-2xl shadow-xl overflow-hidden">
-                {activeTab === 'documents' ? (
-                    <DocumentsPanel
-                        caseId={caseData.details.id}
-                        documents={liveDocuments}
-                        findings={caseData.findings} 
-                        t={t}
-                        connectionStatus={connectionStatus}
-                        reconnect={reconnect}
-                        onDocumentUploaded={handleDocumentUploaded}
-                        onDocumentDeleted={handleDocumentDeleted}
-                        onViewOriginal={setViewingDocument}
-                        className="h-[800px] border-none shadow-none bg-background-dark" // PHOENIX FIX: Tall height
-                    />
-                ) : (
-                    <CaseGraph caseId={caseData.details.id} className="h-[800px] bg-slate-900 border-none" />
-                )}
+                <DocumentsPanel
+                    caseId={caseData.details.id}
+                    documents={liveDocuments}
+                    findings={caseData.findings} 
+                    t={t}
+                    connectionStatus={connectionStatus}
+                    reconnect={reconnect}
+                    onDocumentUploaded={handleDocumentUploaded}
+                    onDocumentDeleted={handleDocumentDeleted}
+                    onViewOriginal={setViewingDocument}
+                    className="h-[800px] border-none shadow-none bg-background-dark"
+                />
             </div>
 
             {/* Right Panel: Chat */}
@@ -295,7 +277,7 @@ const CaseViewPage: React.FC = () => {
                     caseId={caseData.details.id}
                     onClearChat={handleClearChat}
                     t={t}
-                    className="h-[800px] border-none shadow-none bg-background-dark" // PHOENIX FIX: Tall height
+                    className="h-[800px] border-none shadow-none bg-background-dark"
                 />
             </div>
         </div>
