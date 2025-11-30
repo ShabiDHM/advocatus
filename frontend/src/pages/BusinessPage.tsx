@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
 // PHOENIX PROTOCOL - BUSINESS SUITE (MOBILE PREVIEW FIX)
-// 1. FIX: Added 'ExternalLink' button to Preview Modal for mobile support.
-// 2. FIX: Switched from iframe to <object> for better document embedding.
-// 3. UI: Added fallback content if embedded view fails.
+// 1. FIX: Added specific Mobile View for document previews to prevent rendering errors.
+// 2. UI: Mobile users now see a clean "Open Document" screen instead of a broken embed.
+// 3. FIX: Keeps embedded <object> view for Desktop users.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -251,7 +251,6 @@ const BusinessPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Profile Section */}
       {activeTab === 'profile' && (
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-8">
@@ -411,12 +410,9 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
-      {/* Finance & Archive Sections... */}
-      {/* (Skipping repetition, assume logic matches standard structure) */}
-      
+      {/* Finance & Archive Sections remain unchanged */}
       {activeTab === 'finance' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-            {/* Invoice List with View Button */}
             <div className="flex justify-between items-center"><h2 className="text-xl font-bold text-white">Faturat e Lëshuara</h2><button onClick={() => setShowInvoiceModal(true)} className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-lg transition-all"><Plus size={20} /> Krijo Faturë</button></div>
             {invoices.length === 0 ? (
                 <div className="text-center py-12 bg-background-dark border border-glass-edge rounded-2xl"><FileText className="w-12 h-12 text-gray-600 mx-auto mb-3" /><p className="text-gray-400">Nuk keni asnjë faturë të krijuar.</p></div>
@@ -580,19 +576,33 @@ const BusinessPage: React.FC = () => {
                           <button onClick={closePreview} className="p-2 hover:bg-white/10 rounded-full text-white transition-colors"><X size={24} /></button>
                       </div>
                   </div>
-                  <div className="flex-1 bg-white relative">
-                      {/* PHOENIX FIX: Switched from iframe to object for better embedding compatibility */}
-                      <object data={previewUrl} className="w-full h-full border-0 block">
-                          <div className="flex flex-col items-center justify-center h-full text-gray-500 p-6 text-center">
-                              <FileText size={48} className="mb-4 text-primary-start" />
-                              <p className="mb-2">Dokumenti nuk mund të shfaqet brenda kësaj dritareje.</p>
-                              <p className="text-sm text-gray-400 mb-6">Kjo ndodh shpesh në pajisje mobile.</p>
-                              <a href={previewUrl} target="_blank" rel="noreferrer" className="px-6 py-3 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-lg transition-transform active:scale-95 flex items-center gap-2">
-                                  <ExternalLink size={18} />
-                                  Hape Dokumentin
-                              </a>
-                          </div>
-                      </object>
+                  <div className="flex-1 bg-white relative flex flex-col items-center justify-center p-4">
+                      {/* Mobile View: Explicit Button, No Object Tag to prevent ugly browser fallbacks */}
+                      <div className="md:hidden flex flex-col items-center text-center text-gray-800">
+                          <FileText size={64} className="text-primary-start mb-4" />
+                          <h4 className="text-xl font-bold mb-2">Shiko Dokumentin</h4>
+                          <p className="text-gray-500 mb-6 text-sm">Për shkak të kufizimeve të telefonave, dokumenti duhet të hapet në një dritare të re.</p>
+                          <a 
+                              href={previewUrl} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="px-8 py-4 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-xl flex items-center gap-2 transition-transform active:scale-95"
+                          >
+                              <ExternalLink size={20} />
+                              Hape Tani
+                          </a>
+                      </div>
+
+                      {/* Desktop View: Embed */}
+                      <div className="hidden md:block w-full h-full">
+                          <object data={previewUrl} className="w-full h-full border-0 block" type="application/pdf">
+                              {/* Fallback for desktop browsers that lack plugins */}
+                              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                                  <p>Shfletuesi juaj nuk mund ta shfaqë këtë dokument.</p>
+                                  <a href={previewUrl} target="_blank" rel="noreferrer" className="mt-4 text-primary-start underline">Shkarko/Hape këtu</a>
+                              </div>
+                          </object>
+                      </div>
                   </div>
               </div>
           </div>
