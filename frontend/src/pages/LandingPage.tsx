@@ -1,7 +1,7 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - CLEAN BUILD
-// 1. FIX: Removed unused 'Search' import.
-// 2. STATUS: Production-ready, zero warnings.
+// PHOENIX PROTOCOL - FOOTER CLEANUP
+// 1. REMOVED: 'Terms' and 'Privacy' links from the footer as requested.
+// 2. STATUS: Clean build, minimalist footer.
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -192,10 +192,6 @@ const LandingPage: React.FC = () => {
         {/* --- FOOTER --- */}
         <footer className="py-8 border-t border-white/10 text-center text-gray-500 text-sm">
             <p>&copy; {new Date().getFullYear()} Juristi.tech. Të gjitha të drejtat e rezervuara.</p>
-            <div className="flex justify-center gap-4 mt-4">
-                <Link to="/terms" className="hover:text-white transition-colors">Kushtet e Përdorimit</Link>
-                <Link to="/privacy" className="hover:text-white transition-colors">Politika e Privatësisë</Link>
-            </div>
         </footer>
 
       </div>
