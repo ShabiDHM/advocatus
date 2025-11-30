@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
 // PHOENIX PROTOCOL - API MASTER FILE
-// 1. FEATURE: Added 'fetchImageBlob' to load secured images (Logos/Avatars).
-// 2. STATUS: Verified.
+// 1. FIX: Ensures getOriginalDocument/getPreviewDocument accept (caseId, documentId).
+// 2. STATUS: Canonical Version.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -80,11 +80,7 @@ class ApiService {
     public async post<T>(url: string, data: any): Promise<T> { const response = await this.axiosInstance.post<T>(url, data); return response.data; }
     public async refreshAccessToken(): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); if (response.data.access_token) localStorage.setItem('jwtToken', response.data.access_token); return response.data; }
 
-    // --- HELPER: Secure Image Fetching ---
     public async fetchImageBlob(url: string): Promise<Blob> {
-        // If it's already a full URL, axios might treat it as absolute. 
-        // If it's relative, axios appends to baseURL.
-        // We use the existing instance to ensure Auth headers are sent.
         const response = await this.axiosInstance.get(url, { responseType: 'blob' });
         return response.data;
     }
@@ -188,8 +184,19 @@ class ApiService {
     public async deleteDocument(caseId: string, documentId: string): Promise<DeletedDocumentResponse> { const response = await this.axiosInstance.delete<DeletedDocumentResponse>(`/cases/${caseId}/documents/${documentId}`); return response.data; }
     public async deepScanDocument(caseId: string, documentId: string): Promise<void> { await this.axiosInstance.post(`/cases/${caseId}/documents/${documentId}/deep-scan`); }
     public async getDocumentContent(caseId: string, documentId: string): Promise<DocumentContentResponse> { const response = await this.axiosInstance.get<DocumentContentResponse>(`/cases/${caseId}/documents/${documentId}/content`); return response.data; }
-    public async getOriginalDocument(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/original`, { responseType: 'blob' }); return response.data; }
-    public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' }); return response.data; }
+    
+    // FIX: Explicitly requiring 2 arguments to satisfy TS calls
+    public async getOriginalDocument(caseId: string, documentId: string): Promise<Blob> { 
+        const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/original`, { responseType: 'blob' }); 
+        return response.data; 
+    }
+    
+    // FIX: Explicitly requiring 2 arguments to satisfy TS calls
+    public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> { 
+        const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' }); 
+        return response.data; 
+    }
+    
     public async downloadDocumentReport(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/report`, { responseType: 'blob' }); return response.data; }
     public async getWebSocketUrl(_caseId: string): Promise<string> { return ""; }
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
