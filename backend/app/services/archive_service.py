@@ -1,19 +1,25 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE LOGIC (RELATIVE IMPORTS)
-# 1. FIX: Changed absolute imports to relative to prevent ModuleNotFoundError.
-# 2. FIX: Kept type ignores for ObjectId strictness.
-# 3. FIX: Removed redundant _id argument to prevent TypeError during model instantiation.
+# PHOENIX PROTOCOL - ARCHIVE LOGIC (ROBUST & LOGGED)
+# 1. FIX: Added logging to catch S3 upload failures causing 500 errors.
+# 2. FIX: Explicit HTTPException import to silence Pylance.
+# 3. FIX: Safe datetime import.
 
 import os
+import logging
 from typing import List, Optional, Tuple, Any, cast, Dict
 from datetime import datetime, timezone
 from bson import ObjectId
+from bson.errors import InvalidId
 from pymongo.database import Database
-from fastapi import HTTPException, UploadFile
+from fastapi import UploadFile
+# PHOENIX FIX: Explicit import
+from fastapi.exceptions import HTTPException
 
 # PHOENIX FIX: Relative imports
 from ..models.archive import ArchiveItemInDB
-from .storage_service import get_s3_client
+from .storage_service import get_s3_client, transfer_config
+
+logger = logging.getLogger(__name__)
 
 # Environment
 B2_BUCKET_NAME = os.getenv("B2_BUCKET_NAME")
@@ -23,8 +29,11 @@ class ArchiveService:
         self.db = db
 
     def _to_oid(self, id_str: str) -> ObjectId:
-        """Helper to cast string to ObjectId and silence Pylance."""
-        return ObjectId(cast(Any, id_str))
+        """Helper to cast string to ObjectId safely."""
+        try:
+            return ObjectId(id_str)
+        except (InvalidId, TypeError):
+            raise HTTPException(status_code=400, detail=f"Invalid ObjectId format: {id_str}")
 
     async def add_file_to_archive(
         self, 
@@ -43,12 +52,22 @@ class ArchiveService:
         storage_key = f"archive/{user_id}/{timestamp}_{filename}"
         
         try:
-            file.file.seek(0)
-            s3_client.upload_fileobj(file.file, B2_BUCKET_NAME, storage_key)
             file.file.seek(0, 2)
             file_size = file.file.tell()
             file.file.seek(0)
+        except Exception:
+            file_size = 0
+            
+        try:
+            s3_client.upload_fileobj(
+                file.file, 
+                B2_BUCKET_NAME, 
+                storage_key,
+                Config=transfer_config
+            )
         except Exception as e:
+            # FIX: Log the actual error for debugging
+            logger.error(f"!!! UPLOAD FAILED in ArchiveService: {e}")
             raise HTTPException(status_code=500, detail=f"Storage Upload Failed: {str(e)}")
         
         doc_data = {
@@ -61,12 +80,12 @@ class ArchiveService:
             "created_at": datetime.now(timezone.utc),
             "description": ""
         }
-        if case_id: doc_data["case_id"] = self._to_oid(case_id)
         
-        # insert_one modifies doc_data in-place, adding '_id'
+        if case_id and case_id.strip() and case_id != "null": 
+            doc_data["case_id"] = self._to_oid(case_id)
+        
         self.db.archives.insert_one(doc_data)
         
-        # FIX: doc_data now contains '_id', so we don't pass it explicitly
         return ArchiveItemInDB(**doc_data)
 
     async def save_generated_file(
@@ -89,6 +108,7 @@ class ArchiveService:
                 Body=content
             )
         except Exception as e:
+            logger.error(f"!!! GENERATED SAVE FAILED: {e}")
             raise HTTPException(status_code=500, detail=f"Internal Storage Save Failed: {str(e)}")
             
         file_ext = filename.split('.')[-1].upper() if '.' in filename else "PDF"
@@ -103,12 +123,12 @@ class ArchiveService:
             "created_at": datetime.now(timezone.utc),
             "description": "Generated System Document"
         }
-        if case_id: doc_data["case_id"] = self._to_oid(case_id)
         
-        # insert_one modifies doc_data in-place, adding '_id'
+        if case_id and case_id.strip() and case_id != "null":
+            doc_data["case_id"] = self._to_oid(case_id)
+        
         self.db.archives.insert_one(doc_data)
         
-        # FIX: doc_data now contains '_id', so we don't pass it explicitly
         return ArchiveItemInDB(**doc_data)
 
     def get_archive_items(
@@ -119,12 +139,10 @@ class ArchiveService:
     ) -> List[ArchiveItemInDB]:
         query: Dict[str, Any] = {"user_id": self._to_oid(user_id)}
         if category and category != "ALL": query["category"] = category
-        if case_id: query["case_id"] = self._to_oid(case_id)
+        if case_id and case_id.strip() and case_id != "null": 
+            query["case_id"] = self._to_oid(case_id)
             
         cursor = self.db.archives.find(query).sort("created_at", -1)
-        
-        # FIX: doc already contains '_id', so unpacking **doc covers it.
-        # Passing _id=doc["_id"] would cause a duplicate keyword argument error.
         return [ArchiveItemInDB(**doc) for doc in cursor]
 
     def delete_archive_item(self, user_id: str, item_id: str):
@@ -149,4 +167,5 @@ class ArchiveService:
             response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=item["storage_key"])
             return response['Body'], item["title"]
         except Exception as e:
+            logger.error(f"!!! STREAM FAILED: {e}")
             raise HTTPException(status_code=500, detail="Could not retrieve file stream")

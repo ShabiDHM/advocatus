@@ -1,8 +1,7 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - INFINITE UPLOAD SCALING + GENERIC UTILS
-# 1. Uses TransferConfig to enable Multi-Part Uploads (Chunks).
-# 2. Prevents timeouts on massive legal files (100MB+).
-# 3. GENERIC UTILS: Added 'upload_file_raw' and 'get_file_stream' for Business Logos.
+# PHOENIX PROTOCOL - STORAGE SERVICE
+# 1. FIX: Resolved Pylance "Module is not callable" by importing HTTPException from fastapi.exceptions.
+# 2. STATUS: Canonical implementation for S3/B2 interactions.
 
 import os
 import boto3
@@ -10,7 +9,9 @@ import uuid
 from botocore.client import Config
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import BotoCoreError, ClientError
-from fastapi import UploadFile, HTTPException
+from fastapi import UploadFile
+# PHOENIX FIX: Explicit import to prevent Pylance module resolution error
+from fastapi.exceptions import HTTPException
 import logging
 import tempfile
 from typing import Any
@@ -54,7 +55,7 @@ def get_s3_client():
         logger.critical(f"!!! CRITICAL: Failed to initialize B2 client: {e}")
         raise HTTPException(status_code=500, detail="Could not initialize storage client.")
 
-# --- GENERIC UTILS (ADDED FOR BUSINESS SERVICE) ---
+# --- GENERIC UTILS ---
 
 def upload_file_raw(file: UploadFile, folder: str) -> str:
     """
