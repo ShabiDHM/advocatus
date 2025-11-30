@@ -1,10 +1,12 @@
 # FILE: backend/app/services/business_service.py
-# PHOENIX PROTOCOL - BUSINESS SERVICE (ALIGNMENT FIX)
-# 1. CONSISTENCY: Uses ObjectId(user_id) to match other modules.
-# 2. TYPE SAFETY: Returns Pydantic models instead of raw dicts.
-# 3. FIX: Resolves 500 Error on logo upload.
+# PHOENIX PROTOCOL - BUSINESS SERVICE (LOGO STREAMING)
+# 1. ADDED: get_logo_stream() to serve images.
+# 2. FIX: update_logo now stores relative URL for correct Axios baseURL composition.
+# 3. TYPE SAFETY: Pydantic models for all returns.
 
 import structlog
+import mimetypes
+from typing import Tuple, Any
 from datetime import datetime, timezone
 from bson import ObjectId
 from pymongo.database import Database
@@ -21,28 +23,24 @@ class BusinessService:
 
     def get_or_create_profile(self, user_id: str) -> BusinessProfileInDB:
         """Retrieves the user's firm profile or creates a default one."""
-        # PHOENIX FIX: Use ObjectId for query
         profile = self.db.business_profiles.find_one({"user_id": ObjectId(user_id)})
         
         if not profile:
             logger.info("business.profile_created", user_id=user_id)
             new_profile = {
-                "user_id": ObjectId(user_id), # Store as ObjectId
+                "user_id": ObjectId(user_id),
                 "firm_name": "Zyra Ligjore",
                 "branding_color": "#1f2937",
                 "created_at": datetime.now(timezone.utc),
                 "updated_at": datetime.now(timezone.utc)
             }
             self.db.business_profiles.insert_one(new_profile)
-            # new_profile now contains '_id', just unpack it
             return BusinessProfileInDB(**new_profile)
         
-        # PHOENIX FIX: Return Pydantic model directly
         return BusinessProfileInDB(**profile)
 
     def update_profile(self, user_id: str, data: BusinessProfileUpdate) -> BusinessProfileInDB:
         """Updates text fields of the profile."""
-        # Ensure profile exists first
         current_profile = self.get_or_create_profile(user_id)
         
         update_data = data.model_dump(exclude_unset=True)
@@ -73,9 +71,9 @@ class BusinessService:
                 folder=f"branding/{user_id}"
             )
             
-            # Construct public URL (adjust based on your serving logic)
-            # Adding timestamp to force frontend cache refresh
-            logo_url = f"/api/v1/business/logo/{user_id}?ts={int(datetime.now().timestamp())}"
+            # PHOENIX FIX: Store RELATIVE URL so frontend axios can append it to baseURL.
+            # e.g. "business/logo/65d4...?ts=123" -> http://api/v1/business/logo/...
+            logo_url = f"business/logo/{user_id}?ts={int(datetime.now().timestamp())}"
             
             result = self.db.business_profiles.find_one_and_update(
                 {"_id": ObjectId(current_profile.id)},
@@ -95,5 +93,20 @@ class BusinessService:
             logger.error("business.logo_upload_failed", error=str(e))
             raise HTTPException(500, "Ngarkimi i logos dështoi.")
 
-# Export a helper to be used by dependencies if needed, 
-# though usually, we instantiate this in the endpoint.
+    def get_logo_stream(self, user_id: str) -> Tuple[Any, str]:
+        """Retrieves the file stream for the user's logo."""
+        profile = self.db.business_profiles.find_one({"user_id": ObjectId(user_id)})
+        
+        if not profile or "logo_storage_key" not in profile:
+            raise HTTPException(status_code=404, detail="Logo not found")
+        
+        key = profile["logo_storage_key"]
+        
+        try:
+            stream = storage_service.get_file_stream(key)
+            # Guess MIME type based on key extension, default to PNG
+            mime_type, _ = mimetypes.guess_type(key)
+            return stream, mime_type or "image/png"
+        except Exception as e:
+            logger.error(f"Failed to stream logo for {user_id}: {e}")
+            raise HTTPException(status_code=404, detail="Logo file missing")
