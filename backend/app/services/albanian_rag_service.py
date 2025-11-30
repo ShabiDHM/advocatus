@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - PROFESSIONAL TONE UPGRADE
-# 1. PROMPT ENGINEERING: Upgraded System Prompt to "Senior Legal Analyst" persona.
-# 2. SYNTHESIS: Instructs AI to weave Graph data into a narrative, not a list.
-# 3. ROBUSTNESS: Keeps the return_exceptions=True fix.
+# PHOENIX PROTOCOL - LOGIC RELAXATION
+# 1. LOGIC: Removed strict early exit when no docs are found.
+# 2. FALLBACK: Added "General Knowledge" mode for the LLM when context is empty.
+# 3. UX: The AI will now always attempt an answer, clarifying if it's based on docs or general law.
 
 import os
 import asyncio
@@ -96,6 +96,7 @@ class AlbanianRAGService:
     async def chat_stream(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> AsyncGenerator[str, None]:
         relevant_chunks = []
         graph_knowledge = []
+        context_found = False
         
         try:
             from .embedding_service import generate_embedding
@@ -104,65 +105,67 @@ class AlbanianRAGService:
             try:
                 query_embedding = await asyncio.to_thread(generate_embedding, query, 'standard')
             except Exception:
-                yield "Gabim Teknik: Embedding failed."
-                return
+                # Even if embedding fails, we try to proceed with general knowledge? 
+                # No, embedding is critical for RAG. We will log but try to continue if possible.
+                logger.error("Embedding failed.")
+                query_embedding = None
 
-            if not query_embedding:
-                yield "Gabim Teknik: AI Core unresponsive."
-                return
+            if query_embedding:
+                # --- STEP 2: PARALLEL SEARCH ---
+                async def safe_user_search():
+                    try:
+                        return await asyncio.to_thread(
+                            self.vector_store.query_by_vector,
+                            embedding=query_embedding, case_id=case_id, n_results=8, document_ids=document_ids
+                        )
+                    except Exception: return []
 
-            # --- STEP 2: PARALLEL SEARCH ---
-            async def safe_user_search():
-                try:
-                    return await asyncio.to_thread(
-                        self.vector_store.query_by_vector,
-                        embedding=query_embedding, case_id=case_id, n_results=8, document_ids=document_ids
-                    )
-                except Exception: return []
+                async def safe_law_search():
+                    try:
+                        return await asyncio.to_thread(
+                            self.vector_store.query_legal_knowledge_base,
+                            embedding=query_embedding, n_results=4 
+                        )
+                    except Exception: return []
 
-            async def safe_law_search():
-                try:
-                    return await asyncio.to_thread(
-                        self.vector_store.query_legal_knowledge_base,
-                        embedding=query_embedding, n_results=4 
-                    )
-                except Exception: return []
+                async def safe_graph_search():
+                    try:
+                        words = [w for w in query.split() if len(w) > 3]
+                        connections = []
+                        for word in words:
+                            found = await asyncio.to_thread(graph_service.find_hidden_connections, word)
+                            connections.extend(found)
+                        return list(set(connections)) 
+                    except Exception as e:
+                        logger.warning(f"Graph Search Error: {e}")
+                        return []
 
-            async def safe_graph_search():
-                try:
-                    words = [w for w in query.split() if len(w) > 3]
-                    connections = []
-                    for word in words:
-                        found = await asyncio.to_thread(graph_service.find_hidden_connections, word)
-                        connections.extend(found)
-                    return list(set(connections)) 
-                except Exception as e:
-                    logger.warning(f"Graph Search Error: {e}")
-                    return []
+                results = await asyncio.gather(
+                    safe_user_search(), 
+                    safe_law_search(),
+                    safe_graph_search(),
+                    return_exceptions=True
+                )
+                
+                user_docs = results[0] if isinstance(results[0], list) else []
+                law_docs = results[1] if isinstance(results[1], list) else []
+                graph_results = results[2] if isinstance(results[2], list) else []
+                
+                graph_knowledge = graph_results
+                logger.info(f"🔍 RESULTS -> Vectors: {len(user_docs)}, Laws: {len(law_docs)}, Graph Nodes: {len(graph_results)}")
 
-            results = await asyncio.gather(
-                safe_user_search(), 
-                safe_law_search(),
-                safe_graph_search(),
-                return_exceptions=True
-            )
+                all_candidates = user_docs + law_docs
+                
+                # --- STEP 3: RERANK ---
+                if all_candidates:
+                    reranked = await self._rerank_chunks(query, all_candidates)
+                    relevant_chunks = reranked[:7] if reranked else all_candidates[:7]
+                    context_found = True
+                elif graph_results:
+                    context_found = True
             
-            user_docs = results[0] if isinstance(results[0], list) else []
-            law_docs = results[1] if isinstance(results[1], list) else []
-            graph_results = results[2] if isinstance(results[2], list) else []
-            
-            graph_knowledge = graph_results
-            logger.info(f"🔍 RESULTS -> Vectors: {len(user_docs)}, Laws: {len(law_docs)}, Graph Nodes: {len(graph_results)}")
-
-            all_candidates = user_docs + law_docs
-            
-            # --- STEP 3: RERANK ---
-            if all_candidates:
-                reranked = await self._rerank_chunks(query, all_candidates)
-                relevant_chunks = reranked[:7] if reranked else all_candidates[:7]
-            elif not graph_results:
-                yield "Nuk munda të gjej informacion relevant në dokumentet, ligjet ose analizën grafike për t'iu përgjigjur pyetjes suaj."
-                return
+            # PHOENIX FIX: Removed the "else: yield Error... return" block.
+            # We proceed to LLM regardless.
 
         except Exception as e:
             logger.error(f"RAG Error: {e}")
@@ -172,33 +175,39 @@ class AlbanianRAGService:
         # --- STEP 4: GENERATE (PROFESSIONAL PROMPT) ---
         context_string = self._build_prompt_context(relevant_chunks, graph_knowledge)
         
+        # PHOENIX FIX: Updated prompt to handle "No Context" gracefully
         system_prompt = """
         Ju jeni "Asistenti Sokratik", një konsulent ligjor i nivelit të lartë (Senior Legal Associate) i specializuar në ligjet e Kosovës dhe Shqipërisë.
         Qëllimi juaj është të ofroni analiza profesionale, të sakta dhe të strukturuara.
 
         UDHËZIME PËR PËRGJIGJEN:
-        1. MOS bëj thjesht listimin e të dhënave (mos thuaj "kam gjetur këto data...").
-        2. SINTETIZO: Përdor informacionin e gjetur për të ndërtuar një narrativë logjike.
-           - Shembull: Në vend të "Artan -> Nënshkroi -> Kontratën", thuaj "Kontrata është nënshkruar ligjërisht nga z. Artan Hoxha."
-        3. INTEGRIMI I GRAFIT: Të dhënat nga 'Analiza e Lidhjeve' janë fakte të konfirmuara (data, shuma, palë). Përdori ato për të saktësuar përgjigjen.
+        1. Nëse ka dokumente në kontekst:
+           - SINTETIZO: Përdor informacionin për të ndërtuar një narrativë logjike.
+           - CITO: Referoju burimeve (psh. "Sipas Kontratës së Punës...").
+        
+        2. Nëse NUK ka dokumente specifike (Konteksti bosh):
+           - Përgjigju duke u bazuar në parimet e përgjithshme juridike të ligjeve në fuqi.
+           - Fillo përgjigjen me: "Bazuar në njohuritë e përgjithshme ligjore (pasi nuk u gjetën dokumente specifike në dosje)..."
+           - Ofro udhëzime se çfarë dokumentesh mund të duhen.
+
+        3. INTEGRIMI I GRAFIT: Përdor të dhënat nga 'Analiza e Lidhjeve' si fakte të konfirmuara.
         4. STILI: Përdor gjuhë juridike formale, objektive dhe profesionale.
-        5. Nëse pyetja kërkon opinion, bazoje atë vetëm në dokumentet e ofruara.
 
         FORMATI:
         - Fillo me një përmbledhje ekzekutive.
         - Analizo detajet (Palët, Objektin, Afatet, Detyrimet).
-        - Përfundo me një konkluzion ose rekomandim nëse është e përshtatshme.
+        - Përfundo me një konkluzion ose rekomandim.
         """
         
         user_prompt = f"""
         PYETJA E PËRDORUESIT: {query}
 
         ---
-        MATERIALI I SHQYRTUAR (Nga Dokumentet dhe Analiza e Lidhjeve):
-        {context_string}
+        MATERIALI I SHQYRTUAR (Nga Dosja):
+        {context_string if context_found else "Nuk u gjetën dokumente specifike për këtë kërkim."}
         ---
         
-        Bazuar në materialin e mësipërm, ju lutem hartoni përgjigjen tuaj profesionale:
+        Bazuar në materialin e mësipërm (ose njohuritë tuaja të përgjithshme nëse mungon materiali), ju lutem hartoni përgjigjen tuaj profesionale:
         """
 
         # TIER 1: GROQ (CLOUD)
@@ -210,7 +219,7 @@ class AlbanianRAGService:
                     {"role": "user", "content": user_prompt}
                 ],
                 model=self.fine_tuned_model,
-                temperature=0.2, # Lower temperature for more factual/professional output
+                temperature=0.3, # Slightly higher temperature for general knowledge reasoning
                 stream=True,
             )
             async for chunk in stream:
@@ -227,6 +236,7 @@ class AlbanianRAGService:
                 logger.warning("⚠️ Cloud Limit Reached. Activating Tier 2.")
                 tier1_failed = True
             else:
+                logger.error(f"Tier 1 Failed: {e}")
                 tier1_failed = True
 
         # TIER 2: LOCAL LLM
@@ -238,18 +248,8 @@ class AlbanianRAGService:
                 yield "\n\n**Burimi:** Asistenti Sokratik"
                 return
         
-        # TIER 3: STATIC FALLBACK
-        yield "\n\n⚠️ **Kufiri Ditor i AI është arritur.**\n"
-        yield "Më poshtë gjeni të dhënat e papërpunuara të gjetura në dosje:\n\n"
-        if graph_knowledge:
-            yield "**🔗 Analiza e Lidhjeve:**\n"
-            for rel in graph_knowledge[:5]:
-                yield f"- {rel}\n"
-            yield "\n"
-        
-        for i, doc in enumerate(relevant_chunks):
-            name = doc.get('document_name', 'Dokument')
-            yield f"{i+1}. **{name}** (Fragment tekstual)\n"
+        # TIER 3: STATIC FALLBACK (Only if both LLMs fail)
+        yield "Kërkesa nuk mund të përpunohej për momentin për shkak të ngarkesës së lartë. Ju lutemi provoni përsëri më vonë."
 
     def _build_prompt_context(self, chunks: List[Dict], graph_data: List[str]) -> str:
         parts = []
@@ -258,10 +258,11 @@ class AlbanianRAGService:
             parts.extend(graph_data)
             parts.append("==================================================\n")
         
-        parts.append("=== PËRMBAJTJA E DOKUMENTEVE (TEKST) ===")
-        for chunk in chunks:
-            doc_type = chunk.get('type', 'DOKUMENT')
-            name = chunk.get('document_name', 'Burim i Panjohur')
-            text = chunk.get('text', '')
-            parts.append(f"Burimi: {name} ({doc_type})\nPërmbajtja: {text}\n---")
+        if chunks:
+            parts.append("=== PËRMBAJTJA E DOKUMENTEVE (TEKST) ===")
+            for chunk in chunks:
+                doc_type = chunk.get('type', 'DOKUMENT')
+                name = chunk.get('document_name', 'Burim i Panjohur')
+                text = chunk.get('text', '')
+                parts.append(f"Burimi: {name} ({doc_type})\nPërmbajtja: {text}\n---")
         return "\n".join(parts)
