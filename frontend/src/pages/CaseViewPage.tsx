@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - GRAPH RESTORED
-// 1. GRAPH: Removed "Construction" placeholder and restored <CaseGraph />.
-// 2. LAYOUT: Chat remains sticky.
-// 3. STATUS: Full features active.
+// PHOENIX PROTOCOL - CASE VIEW (LAYOUT FIX)
+// 1. LAYOUT FIX: Changed both panels to fixed height 'h-[calc(100vh-200px)]'.
+// 2. CONSISTENCY: Removed sticky positioning to prevent scroll glitching.
+// 3. RESULT: Side-by-side parallel scrolling for Docs and Chat.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } 
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel from '../components/ChatPanel';
-import CaseGraph from '../components/CaseGraph'; // <--- ACTIVE IMPORT
+import CaseGraph from '../components/CaseGraph';
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import FindingsModal from '../components/FindingsModal';
@@ -37,7 +37,7 @@ const CaseHeader: React.FC<{
     isAnalyzing: boolean; 
 }> = ({ caseDetails, t, onAnalyze, onShowFindings, isAnalyzing }) => (
     <motion.div
-      className="mb-6 p-4 sm:p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge"
+      className="mb-4 p-4 sm:p-6 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-glass-edge flex-shrink-0"
       initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
     >
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
@@ -209,76 +209,76 @@ const CaseViewPage: React.FC = () => {
   );
 
   return (
-    <motion.div className="w-full min-h-[90vh]" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:py-8">
-        <div className="mb-6 sm:mb-8 px-4 sm:px-0">
+    <motion.div className="w-full h-[calc(100vh-64px)] overflow-hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+      <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:py-6 h-full flex flex-col">
+        <div className="mb-4 px-4 sm:px-0 flex-shrink-0">
           <Link to="/dashboard" className="inline-flex items-center text-gray-400 hover:text-white transition-colors">
             <ArrowLeft className="h-4 w-4 mr-2" />
             {t('caseView.backToDashboard')}
           </Link>
         </div>
-        <div className="flex flex-col space-y-4 sm:space-y-6">
-            <div className="px-4 sm:px-0">
-                <CaseHeader 
-                    caseDetails={caseData.details} 
-                    t={t} 
-                    onAnalyze={handleAnalyzeCase} 
-                    onShowFindings={() => setIsFindingsModalOpen(true)} 
-                    isAnalyzing={isAnalyzing} 
-                />
-            </div>
+        
+        <div className="px-4 sm:px-0 flex-shrink-0">
+            <CaseHeader 
+                caseDetails={caseData.details} 
+                t={t} 
+                onAnalyze={handleAnalyzeCase} 
+                onShowFindings={() => setIsFindingsModalOpen(true)} 
+                isAnalyzing={isAnalyzing} 
+            />
+        </div>
 
-            <div className="px-4 sm:px-0 flex gap-4 border-b border-glass-edge mb-2">
-                <button 
-                    onClick={() => setActiveTab('documents')}
-                    className={`pb-2 px-1 flex items-center gap-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'documents' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
-                >
-                    <FileText className="w-4 h-4" />
-                    Dokumentet
-                </button>
-                <button 
-                    onClick={() => setActiveTab('graph')}
-                    className={`pb-2 px-1 flex items-center gap-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'graph' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
-                >
-                    <Network className="w-4 h-4" />
-                    Harta e Çështjes
-                </button>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start px-4 sm:px-0">
-                {/* Left Panel */}
-                <div className="flex flex-col h-full min-h-[500px]">
-                    {activeTab === 'documents' ? (
-                        <DocumentsPanel
-                            caseId={caseData.details.id}
-                            documents={liveDocuments}
-                            findings={caseData.findings} 
-                            t={t}
-                            connectionStatus={connectionStatus}
-                            reconnect={reconnect}
-                            onDocumentUploaded={handleDocumentUploaded}
-                            onDocumentDeleted={handleDocumentDeleted}
-                            onViewOriginal={setViewingDocument}
-                        />
-                    ) : (
-                        // PHOENIX FIX: Active Graph
-                        <CaseGraph caseId={caseData.details.id} />
-                    )}
-                </div>
-
-                {/* Right Panel: Chat */}
-                <div className="lg:sticky lg:top-24 h-[600px] lg:h-[calc(100vh-200px)] min-h-[500px]">
-                    <ChatPanel
-                        messages={liveMessages}
+        <div className="px-4 sm:px-0 flex gap-4 border-b border-glass-edge mb-4 flex-shrink-0">
+            <button 
+                onClick={() => setActiveTab('documents')}
+                className={`pb-2 px-1 flex items-center gap-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'documents' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+            >
+                <FileText className="w-4 h-4" />
+                Dokumentet
+            </button>
+            <button 
+                onClick={() => setActiveTab('graph')}
+                className={`pb-2 px-1 flex items-center gap-2 text-sm font-medium transition-colors border-b-2 ${activeTab === 'graph' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+            >
+                <Network className="w-4 h-4" />
+                Harta e Çështjes
+            </button>
+        </div>
+        
+        {/* PHOENIX FIX: Equal height side-by-side layout, no sticky quirks */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 items-start px-4 sm:px-0 flex-grow min-h-0">
+            {/* Left Panel */}
+            <div className="flex flex-col h-full overflow-hidden">
+                {activeTab === 'documents' ? (
+                    <DocumentsPanel
+                        caseId={caseData.details.id}
+                        documents={liveDocuments}
+                        findings={caseData.findings} 
+                        t={t}
                         connectionStatus={connectionStatus}
                         reconnect={reconnect}
-                        onSendMessage={sendChatMessage}
-                        isSendingMessage={isSendingMessage}
-                        caseId={caseData.details.id}
-                        onClearChat={handleClearChat}
-                        t={t}
+                        onDocumentUploaded={handleDocumentUploaded}
+                        onDocumentDeleted={handleDocumentDeleted}
+                        onViewOriginal={setViewingDocument}
+                        className="h-full" // Pass explicit height to override defaults
                     />
-                </div>
+                ) : (
+                    <CaseGraph caseId={caseData.details.id} />
+                )}
+            </div>
+
+            {/* Right Panel: Chat */}
+            <div className="flex flex-col h-full overflow-hidden">
+                <ChatPanel
+                    messages={liveMessages}
+                    connectionStatus={connectionStatus}
+                    reconnect={reconnect}
+                    onSendMessage={sendChatMessage}
+                    isSendingMessage={isSendingMessage}
+                    caseId={caseData.details.id}
+                    onClearChat={handleClearChat}
+                    t={t}
+                />
             </div>
         </div>
       </div>

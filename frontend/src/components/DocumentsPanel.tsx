@@ -1,14 +1,14 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL (ARCHIVE ADDED)
-// 1. FEATURE: Added 'Archive' button to move docs to Business Archive.
-// 2. STATUS: Fully integrated with backend copy logic.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL (ARCHIVE + FLEXIBLE HEIGHT)
+// 1. FEATURE: Added Archive Button.
+// 2. FIX: Accepts 'className' to allow parent to control height (Parallel Scroll fix).
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Trash, Plus, Loader2, RefreshCw, ScanEye, Archive } from 'lucide-react'; // Added Archive
+import { FolderOpen, Eye, Trash, Plus, Loader2, RefreshCw, ScanEye, Archive } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface DocumentsPanelProps {
@@ -21,6 +21,8 @@ interface DocumentsPanelProps {
   onViewOriginal: (document: Document) => void;
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
+  // PHOENIX FIX: Allow external styling
+  className?: string;
 }
 
 const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
@@ -31,13 +33,14 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   reconnect,
   onDocumentDeleted,
   onDocumentUploaded,
-  onViewOriginal
+  onViewOriginal,
+  className
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [scanningId, setScanningId] = useState<string | null>(null); 
-  const [archivingId, setArchivingId] = useState<string | null>(null); // Track archiving
+  const [archivingId, setArchivingId] = useState<string | null>(null); 
 
   const performUpload = async (file: File) => {
     setIsUploading(true);
@@ -93,7 +96,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       }
   };
 
-  // PHOENIX NEW: Archive Logic
   const handleArchiveDocument = async (docId: string) => {
       setArchivingId(docId);
       try {
@@ -141,7 +143,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   return (
-    <div className="documents-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col h-[500px] sm:h-[600px]">
+    <div className={`documents-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col ${className || 'h-[500px] sm:h-[600px]'}`}>
       <div className="flex flex-row justify-between items-center border-b border-background-light/50 pb-3 mb-4 flex-shrink-0 gap-2">
         <div className="flex items-center gap-2 sm:gap-4 min-w-0 overflow-hidden">
             <h2 className="text-lg sm:text-xl font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>

@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER (ARCHIVE ENABLED)
+# PHOENIX PROTOCOL - CASES ROUTER (ARCHIVE & SCALING)
 # 1. ADDED: POST /cases/{case_id}/documents/{doc_id}/archive
-# 2. STATUS: Fully integrated with ArchiveService.
+# 2. FIX: Uses 'archive_service' to handle document copying.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import List, Annotated
@@ -30,7 +30,7 @@ from ...models.user import UserInDB
 from ...models.document import DocumentOut
 from ...models.findings import FindingsListOut, FindingOut
 from ...models.drafting import DraftRequest 
-from ...models.archive import ArchiveItemOut # PHOENIX NEW
+from ...models.archive import ArchiveItemOut 
 from .dependencies import get_current_user, get_db, get_sync_redis
 from ...celery_app import celery_app
 
@@ -222,7 +222,7 @@ async def delete_document(
         }
     )
 
-# PHOENIX NEW: Archive Document Endpoint
+# PHOENIX NEW: Archive Endpoint
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut, tags=["Documents"])
 async def archive_case_document(
     case_id: str,
@@ -230,17 +230,12 @@ async def archive_case_document(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Copies a case document into the Archive.
-    """
     validated_case_id = validate_object_id(case_id)
     
-    # 1. Verify access and get Document
     document = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(document.case_id) != case_id:
         raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
         
-    # 2. Archive it
     archiver = archive_service.ArchiveService(db)
     archived_item = await archiver.archive_existing_document(
         user_id=str(current_user.id),

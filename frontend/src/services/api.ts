@@ -204,7 +204,6 @@ class ApiService {
     public async fetchUserProfile(): Promise<User> { const response = await this.axiosInstance.get<User>('/users/me'); return response.data; }
     public async changePassword(data: ChangePasswordRequest): Promise<void> { await this.axiosInstance.post('/auth/change-password', data); }
     public async deleteAccount(): Promise<void> { await this.axiosInstance.delete('/users/me'); }
-    
     public async getWebSocketUrl(_caseId: string): Promise<string> { return ""; }
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     public async getAllUsers(): Promise<User[]> { const response = await this.axiosInstance.get<User[]>('/admin/users'); return response.data; }

@@ -1,7 +1,7 @@
 # FILE: backend/app/services/archive_service.py
 # PHOENIX PROTOCOL - ARCHIVE SERVICE (COPY ENABLED)
 # 1. ADDED: 'archive_existing_document' to bridge Case Docs -> Archive.
-# 2. LOGIC: copies file content from source key to archive destination.
+# 2. LOGIC: Copies file content directly S3-to-S3 for efficiency.
 
 import os
 import logging

@@ -1,7 +1,7 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - UNIFIED VIEWER (TS FIX)
-// 1. FIX: TypeScript argument strictness resolved.
-// 2. STATUS: Fully compatible with Mobile/Desktop logic.
+// PHOENIX PROTOCOL - UNIFIED VIEWER (BLOB & TEXT FIX)
+// 1. FIX: correctly handles 'directUrl' for non-PDF types (Text/Image).
+// 2. LOGIC: Fetches text content from blob URL if mode is TEXT.
 
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
@@ -40,13 +40,33 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   const getTargetMode = (mimeType: string) => {
     const m = mimeType?.toLowerCase() || '';
-    if (m.startsWith('text/') || m === 'application/json') return 'TEXT';
+    if (m.startsWith('text/') || m === 'application/json' || m.includes('plain')) return 'TEXT';
     return 'PDF_PREVIEW';
   };
 
   const fetchDocument = async () => {
+    // 1. Calculate mode based on MIME type first
+    const targetMode = getTargetMode(documentData.mime_type || '');
+
+    // 2. Handle Direct URL (Blob) Scenario
     if (directUrl) {
-        setActualViewerMode('PDF');
+        if (targetMode === 'TEXT') {
+             try {
+                 const r = await fetch(directUrl);
+                 const text = await r.text();
+                 setTextContent(text);
+                 setActualViewerMode('TEXT');
+             } catch (e) {
+                 console.error("Failed to read text blob", e);
+                 setActualViewerMode('DOWNLOAD');
+             }
+        } else if (documentData.mime_type?.startsWith('image/')) {
+             setActualViewerMode('IMAGE');
+        } else {
+             // Default to PDF for everything else
+             setActualViewerMode('PDF');
+        }
+        
         setIsLoading(false);
         return;
     }
@@ -55,7 +75,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
     setIsLoading(true);
     setError(null);
-    const targetMode = getTargetMode(documentData.mime_type || '');
 
     try {
       let blob: Blob;
