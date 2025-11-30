@@ -1,8 +1,12 @@
 // FILE: src/pages/CaseViewPage.tsx
 // PHOENIX PROTOCOL - FEATURE ROLLBACK
-// 1. REMOVED: "Case Graph" tab and component imports to hide broken visualization.
-// 2. LAYOUT: Simplified to show only 'DocumentsPanel' with a static header.
-// 3. STATUS: Production-safe, no broken UI elements visible.
+// REMOVED: "Case Graph" tab and component imports to hide broken visualization.
+// LAYOUT: Simplified to show only 'DocumentsPanel' with a static header.
+// STATUS: Production-safe, no broken UI elements visible.
+// FILE: src/pages/CaseViewPage.tsx
+// PHOENIX PROTOCOL - LAYOUT POLISH
+// HEIGHT ADJUSTMENT: Reduced panels from h-[800px] to h-[600px] for better viewport fit.
+// STATUS: Chat input is now more accessible and aligned with document content.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -242,7 +246,7 @@ const CaseViewPage: React.FC = () => {
             />
         </div>
 
-        {/* Section Title (Replaces Tabs) */}
+        {/* Section Title */}
         <div className="px-4 sm:px-0 mb-4 flex items-center gap-2 text-white/90 font-medium">
              <FileText className="w-5 h-5 text-primary-start" />
              <span>Dokumentet</span>
@@ -250,7 +254,7 @@ const CaseViewPage: React.FC = () => {
         
         {/* MAIN CONTENT AREA */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start px-4 sm:px-0">
-            {/* Left Panel: ALWAYS DOCUMENTS */}
+            {/* Left Panel: ALWAYS DOCUMENTS - REDUCED HEIGHT */}
             <div className="rounded-2xl shadow-xl overflow-hidden">
                 <DocumentsPanel
                     caseId={caseData.details.id}
@@ -262,11 +266,11 @@ const CaseViewPage: React.FC = () => {
                     onDocumentUploaded={handleDocumentUploaded}
                     onDocumentDeleted={handleDocumentDeleted}
                     onViewOriginal={setViewingDocument}
-                    className="h-[800px] border-none shadow-none bg-background-dark"
+                    className="h-[600px] border-none shadow-none bg-background-dark" // PHOENIX FIX: 800px -> 600px
                 />
             </div>
 
-            {/* Right Panel: Chat */}
+            {/* Right Panel: Chat - REDUCED HEIGHT */}
             <div className="rounded-2xl shadow-xl overflow-hidden">
                 <ChatPanel
                     messages={liveMessages}
@@ -277,7 +281,7 @@ const CaseViewPage: React.FC = () => {
                     caseId={caseData.details.id}
                     onClearChat={handleClearChat}
                     t={t}
-                    className="h-[800px] border-none shadow-none bg-background-dark"
+                    className="h-[600px] border-none shadow-none bg-background-dark" // PHOENIX FIX: 800px -> 600px
                 />
             </div>
         </div>
