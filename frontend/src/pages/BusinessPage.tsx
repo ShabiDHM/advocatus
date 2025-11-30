@@ -1,7 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS SUITE (TS FIX)
-// 1. FIX: Added default fallback for 'formData.branding_color' to resolve TS error.
-// 2. STATUS: Fully compiled and validated.
+// PHOENIX PROTOCOL - BUSINESS SUITE (TS STRICT FIX)
+// 1. FIX: Captured 'profile.logo_url' in local variable to persist type narrowing in async closures.
+// 2. STATUS: Fully verified for strict null checks.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -27,6 +27,10 @@ const BusinessPage: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const archiveInputRef = useRef<HTMLInputElement>(null);
+
+  // Logo Blob State
+  const [logoSrc, setLogoSrc] = useState<string | null>(null);
+  const [logoLoading, setLogoLoading] = useState(false);
 
   // Data
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -59,6 +63,31 @@ const BusinessPage: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // PHOENIX FIX: Securely fetch logo when profile updates
+  useEffect(() => {
+    const url = profile?.logo_url; // Capture locally to ensure type safety in async/callbacks
+    
+    if (url) {
+        // Optimization: If it's already a blob/data URI (e.g. from immediate upload), don't refetch
+        if (url.startsWith('blob:') || url.startsWith('data:')) {
+            setLogoSrc(url);
+            return;
+        }
+
+        setLogoLoading(true);
+        apiService.fetchImageBlob(url)
+            .then(blob => {
+                const objectUrl = URL.createObjectURL(blob);
+                setLogoSrc(objectUrl);
+            })
+            .catch(err => {
+                console.warn("Secure logo fetch failed, falling back to URL", err);
+                setLogoSrc(url); // Now safe because 'url' is string
+            })
+            .finally(() => setLogoLoading(false));
+    }
+  }, [profile?.logo_url]);
 
   const fetchData = async () => {
     try {
@@ -132,7 +161,6 @@ const BusinessPage: React.FC = () => {
       }
   };
 
-  // Invoice Archiving
   const handleArchiveInvoiceClick = (invoiceId: string) => {
       setSelectedInvoiceId(invoiceId);
       setShowArchiveInvoiceModal(true);
@@ -151,7 +179,6 @@ const BusinessPage: React.FC = () => {
       }
   };
 
-  // Standard Actions
   const handleViewItem = async (id: string, title: string) => {
       try {
           const blob = await apiService.getArchiveFileBlob(id);
@@ -174,9 +201,29 @@ const BusinessPage: React.FC = () => {
   const deleteArchiveItem = async (id: string) => { if(!window.confirm("A jeni i sigurt?")) return; try { await apiService.deleteArchiveItem(id); setArchiveItems(archiveItems.filter(item => item.id !== id)); } catch (error) { alert("Fshirja dështoi."); } };
   const downloadArchiveItem = async (id: string, title: string) => { try { await apiService.downloadArchiveItem(id, title); } catch (error) { alert("Shkarkimi dështoi."); } };
 
-  // Profile & Invoice Forms
   const handleProfileSubmit = async (e: React.FormEvent) => { e.preventDefault(); setSaving(true); try { const cleanData: any = { ...formData }; Object.keys(cleanData).forEach(key => { if (cleanData[key] === '') cleanData[key] = null; }); if (!cleanData.firm_name) cleanData.firm_name = "Zyra Ligjore"; const updatedProfile = await apiService.updateBusinessProfile(cleanData); setProfile(updatedProfile); alert(t('settings.successMessage')); } catch (error) { alert(t('error.generic')); } finally { setSaving(false); } };
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; try { setSaving(true); const updatedProfile = await apiService.uploadBusinessLogo(file); setProfile(updatedProfile); } catch (error) { alert(t('error.uploadFailed')); } finally { setSaving(false); } };
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { 
+      const file = e.target.files?.[0]; 
+      if (!file) return; 
+      try { 
+          setSaving(true);
+          setLogoLoading(true); 
+          const updatedProfile = await apiService.uploadBusinessLogo(file); 
+          setProfile(updatedProfile); 
+          const reader = new FileReader();
+          reader.onload = (e) => {
+             if(e.target?.result) setLogoSrc(e.target.result as string);
+             setLogoLoading(false);
+          };
+          reader.readAsDataURL(file);
+      } catch (error) { 
+          alert(t('error.uploadFailed')); 
+          setLogoLoading(false);
+      } finally { 
+          setSaving(false); 
+      } 
+  };
+
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
   const removeLineItem = (index: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, i) => i !== index));
   const updateLineItem = (index: number, field: keyof InvoiceItem, value: any) => { const newItems = [...lineItems]; newItems[index] = { ...newItems[index], [field]: value }; newItems[index].total = newItems[index].quantity * newItems[index].unit_price; setLineItems(newItems); };
@@ -199,7 +246,6 @@ const BusinessPage: React.FC = () => {
 
       {activeTab === 'profile' && (
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Left Column: Logo & Branding */}
             <div className="space-y-8">
                 {/* Logo Section */}
                 <div className="bg-background-dark border border-glass-edge rounded-2xl p-6 flex flex-col items-center shadow-lg relative overflow-hidden">
@@ -207,9 +253,11 @@ const BusinessPage: React.FC = () => {
                     <h3 className="text-white font-semibold mb-6 self-start w-full border-b border-glass-edge pb-2">Logo & Identiteti</h3>
                     
                     <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                        <div className={`w-36 h-36 rounded-full overflow-hidden flex items-center justify-center border-4 transition-all shadow-xl ${profile?.logo_url ? 'border-background-light' : 'border-dashed border-gray-600 hover:border-primary-start'}`}>
-                            {profile?.logo_url ? (
-                                <img src={profile.logo_url} alt="Logo" className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
+                        <div className={`w-36 h-36 rounded-full overflow-hidden flex items-center justify-center border-4 transition-all shadow-xl ${logoSrc ? 'border-background-light' : 'border-dashed border-gray-600 hover:border-primary-start'}`}>
+                            {logoLoading ? (
+                                <Loader2 className="w-8 h-8 animate-spin text-primary-start" />
+                            ) : logoSrc ? (
+                                <img src={logoSrc} alt="Logo" className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" onError={() => setLogoSrc(null)} />
                             ) : (
                                 <div className="text-center group-hover:scale-110 transition-transform">
                                     <Upload className="w-8 h-8 text-gray-500 mx-auto mb-2" />
@@ -218,12 +266,10 @@ const BusinessPage: React.FC = () => {
                             )}
                         </div>
                         
-                        {/* Hover Overlay */}
                         <div className="absolute inset-0 rounded-full bg-black/50 backdrop-blur-[2px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                             <Camera className="w-8 h-8 text-white drop-shadow-lg" />
                         </div>
 
-                        {/* Edit Badge */}
                         <div className="absolute bottom-1 right-1 bg-primary-start p-2.5 rounded-full shadow-lg border-4 border-background-dark group-hover:scale-110 transition-transform">
                             <Check className="w-4 h-4 text-white" />
                         </div>
@@ -231,7 +277,7 @@ const BusinessPage: React.FC = () => {
                     <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" />
                     
                     <p className="mt-4 text-xs text-gray-400 text-center max-w-[200px]">
-                        {profile?.logo_url ? "Klikoni mbi foto për ta ndryshuar" : "Rekomandohet: 500x500px, PNG transparente"}
+                        {logoSrc ? "Klikoni mbi foto për ta ndryshuar" : "Rekomandohet: 500x500px, PNG transparente"}
                     </p>
                 </div>
 
@@ -245,7 +291,6 @@ const BusinessPage: React.FC = () => {
                     <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">Ngjyra Kryesore</label>
                     <div className="flex items-center gap-4 mb-6">
                         <div className="relative overflow-hidden w-14 h-14 rounded-xl border-2 border-white/10 shadow-inner group">
-                            {/* PHOENIX FIX: Added fallback to prevent TS error */}
                             <input 
                                 type="color" 
                                 value={formData.branding_color || DEFAULT_COLOR} 
@@ -255,22 +300,19 @@ const BusinessPage: React.FC = () => {
                         </div>
                         <div className="flex-1">
                             <div className="relative">
-                                <span className="absolute left-3 top-2.5 text-gray-500 font-mono">#</span>
-                                {/* PHOENIX FIX: Added fallback for text input */}
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-mono">#</span>
                                 <input 
                                     type="text" 
                                     value={(formData.branding_color || DEFAULT_COLOR).replace('#', '')} 
                                     onChange={(e) => setFormData({...formData, branding_color: `#${e.target.value}`})}
-                                    className="w-full bg-background-light border border-glass-edge rounded-xl pl-7 pr-4 py-2 text-white font-mono uppercase focus:ring-2 focus:ring-primary-start outline-none transition-all"
+                                    className="w-full bg-background-light border border-glass-edge rounded-xl pl-7 pr-4 py-3 text-white font-mono uppercase focus:ring-2 focus:ring-primary-start outline-none transition-all"
                                 />
                             </div>
                         </div>
                     </div>
 
-                    {/* Live Preview */}
                     <div className="p-4 rounded-xl bg-background-light/30 border border-glass-edge/50">
                         <p className="text-[10px] text-gray-500 mb-2 uppercase tracking-wider font-bold">Pamja e Butonave</p>
-                        {/* PHOENIX FIX: Added fallback for style */}
                         <button 
                             className="w-full py-2.5 rounded-lg text-white font-medium text-sm shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2"
                             style={{ backgroundColor: formData.branding_color || DEFAULT_COLOR }}
@@ -282,7 +324,6 @@ const BusinessPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Right Column: Details Form */}
             <div className="md:col-span-2">
                 <form onSubmit={handleProfileSubmit} className="bg-background-dark border border-glass-edge rounded-2xl p-8 space-y-6 shadow-lg h-full">
                     <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
@@ -387,6 +428,8 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
+      {/* Archive View... */}
+      {/* (Rest of the file remains same) */}
       {activeTab === 'archive' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             {archiveView === 'ROOT' && (

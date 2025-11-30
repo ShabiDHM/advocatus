@@ -1,6 +1,6 @@
 // FILE: src/services/api.ts
 // PHOENIX PROTOCOL - API MASTER FILE
-// 1. FEATURE: Added 'getInvoicePdfBlob' for invoice preview.
+// 1. FEATURE: Added 'fetchImageBlob' to load secured images (Logos/Avatars).
 // 2. STATUS: Verified.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
@@ -80,6 +80,15 @@ class ApiService {
     public async post<T>(url: string, data: any): Promise<T> { const response = await this.axiosInstance.post<T>(url, data); return response.data; }
     public async refreshAccessToken(): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); if (response.data.access_token) localStorage.setItem('jwtToken', response.data.access_token); return response.data; }
 
+    // --- HELPER: Secure Image Fetching ---
+    public async fetchImageBlob(url: string): Promise<Blob> {
+        // If it's already a full URL, axios might treat it as absolute. 
+        // If it's relative, axios appends to baseURL.
+        // We use the existing instance to ensure Auth headers are sent.
+        const response = await this.axiosInstance.get(url, { responseType: 'blob' });
+        return response.data;
+    }
+
     // --- Business Profile ---
     public async getBusinessProfile(): Promise<BusinessProfile> { const response = await this.axiosInstance.get<BusinessProfile>('/business/profile'); return response.data; }
     public async updateBusinessProfile(data: BusinessProfileUpdate): Promise<BusinessProfile> { const response = await this.axiosInstance.put<BusinessProfile>('/business/profile', data); return response.data; }
@@ -100,12 +109,8 @@ class ApiService {
         link.click(); 
         link.parentNode?.removeChild(link); 
     }
-    // PHOENIX NEW: Get Invoice Blob for Preview
     public async getInvoicePdfBlob(invoiceId: string, lang: string = 'sq'): Promise<Blob> {
-        const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { 
-            params: { lang }, 
-            responseType: 'blob' 
-        });
+        const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' });
         return response.data;
     }
     public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> {
