@@ -1,9 +1,4 @@
 // FILE: src/components/FindingsModal.tsx
-// PHOENIX PROTOCOL - DATE PARSING HARDENING
-// 1. REGEX: Enhanced to handle "Data: 15 Dhjetor", separators like "-", and extra whitespace.
-// 2. LOGIC: Added 'Smart Year' deduction if year is missing.
-// 3. UX: "Shto në Kalendar" button now appears more reliably.
-
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { Finding, CalendarEventCreateRequest } from '../data/types';
@@ -25,7 +20,7 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 `;
 
-// PHOENIX: Enhanced Date Parser
+// PHOENIX: Aggressive Date Parsing
 const extractDateFromText = (text: string): string | undefined => {
     if (!text) return undefined;
     const cleanText = text.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -42,15 +37,9 @@ const extractDateFromText = (text: string): string | undefined => {
         'korrik': '07', 'gusht': '08', 'shtator': '09', 'tetor': '10', 'nëntor': '11', 'nentor': '11', 'dhjetor': '12'
     };
 
-    // 3. Text Format with Year: "15 Dhjetor 2025", "15-Dhjetor-2025"
-    // Allows optional separators (space, dot, dash)
+    // 3. Text Format with Year: "15 Dhjetor 2025" or "15-Dhjetor-2025"
     for (const [monthName, monthNum] of Object.entries(albanianMonths)) {
-        // Regex explains:
-        // (\d{1,2})  -> Day (1 or 2 digits)
-        // [\s.-]+    -> Separator (space, dot, dash)
-        // ${monthName} -> Month Name
-        // [\s.-]+    -> Separator
-        // (\d{4})    -> Year (4 digits)
+        // More permissible regex: spaces, dots, dashes, or nothing between
         const regexWithYear = new RegExp(`(\\d{1,2})[\\s.-]+${monthName}[\\s.-]+(\\d{4})`);
         const match = cleanText.match(regexWithYear);
         if (match) {
@@ -58,18 +47,16 @@ const extractDateFromText = (text: string): string | undefined => {
         }
     }
 
-    // 4. Text Format WITHOUT Year: "15 Dhjetor" -> Assume Current or Next Year
-    // Useful for "jo më vonë se 25 Dhjetor"
+    // 4. Text Format WITHOUT Year: "25 Dhjetor" -> Smart Next Occurrence
     for (const [monthName, monthNum] of Object.entries(albanianMonths)) {
-        const regexNoYear = new RegExp(`(\\d{1,2})[\\s.-]+${monthName}(?!\\w)`); // Negative lookahead to ensure we don't cut off words
+        const regexNoYear = new RegExp(`(\\d{1,2})[\\s.-]+${monthName}(?!\\w)`);
         const match = cleanText.match(regexNoYear);
         if (match) {
             const day = match[1].padStart(2, '0');
             const currentYear = new Date().getFullYear();
             const currentMonth = new Date().getMonth() + 1;
             
-            // Logic: If the month has passed this year, assume next year.
-            // Example: If today is Dec 2025, and text is "Janar", assume "Janar 2026".
+            // If month has passed, assume next year (e.g., in Dec, "Janar" means next year)
             let year = currentYear;
             if (parseInt(monthNum) < currentMonth) {
                 year = currentYear + 1;
@@ -152,7 +139,7 @@ const FindingCard: React.FC<{ finding: Finding; t: any }> = ({ finding, t }) => 
                             </div>
                         )}
                         
-                        {/* Add to Calendar Button - Show if detection works OR manual override allowed */}
+                        {/* PHOENIX FIX: Always show "Add to Calendar" button to bridge the gap */}
                         {!isSaved && !showEventForm && (
                             <button 
                                 onClick={() => setShowEventForm(true)}
@@ -161,7 +148,7 @@ const FindingCard: React.FC<{ finding: Finding; t: any }> = ({ finding, t }) => 
                                     ? 'bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 border-indigo-500/30'
                                     : 'bg-gray-700/30 hover:bg-gray-700/50 text-gray-400 border-gray-600/30'
                                 }`}
-                                title={detectedDate ? `Data e gjetur: ${detectedDate}` : 'Data nuk u gjet automatikisht'}
+                                title={detectedDate ? t('calendar.dateDetected', 'Data u gjet automatikisht') : t('calendar.manualAdd', 'Shto manualisht')}
                             >
                                 <CalendarPlus className="h-3.5 w-3.5" />
                                 <span>{t('calendar.addToCalendar', 'Shto në Kalendar')}</span>
@@ -262,6 +249,7 @@ const FindingCard: React.FC<{ finding: Finding; t: any }> = ({ finding, t }) => 
 const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings }) => {
   const { t } = useTranslation();
 
+  // Handle Body Scroll Lock
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';

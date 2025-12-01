@@ -29,7 +29,6 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
     navigate('/calendar');
   };
 
-  // Deep link to Findings Modal
   const handleFindingsNav = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -68,7 +67,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
                 className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
                     caseData.status === 'open' ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-gray-500'
                 }`} 
-                title={caseData.status} 
+                title={t(`caseView.statusTypes.${caseData.status.toUpperCase()}`, { fallback: caseData.status })} 
             />
           </div>
           
@@ -121,31 +120,31 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
                 <span className="text-sm font-medium text-gray-400">{caseData.document_count || 0}</span>
               </div>
 
-              {/* Findings - CLICKABLE DEEP LINK */}
+              {/* Findings - PHOENIX FIX: Translated Tooltip */}
               <button
                 onClick={handleFindingsNav}
                 className="flex items-center gap-1.5 group/icon cursor-pointer hover:bg-white/5 rounded px-1.5 py-1 -ml-1.5 transition-all"
-                title={`${caseData.finding_count || 0} AI Findings (Review needed)`}
+                title={`${caseData.finding_count || 0} ${t('caseView.findingsTitle')}`}
               >
                 <Lightbulb className="h-4 w-4 text-yellow-500/80 group-hover/icon:text-yellow-400 transition-colors" />
                 <span className="text-sm font-medium text-gray-400 group-hover/icon:text-gray-200">{caseData.finding_count || 0}</span>
               </button>
 
-              {/* Alerts */}
+              {/* Alerts - PHOENIX FIX: Translated Tooltip */}
               <button 
                 onClick={handleCalendarNav}
                 className="flex items-center gap-1.5 group/icon" 
-                title={`${caseData.alert_count || 0} Active System Alerts`}
+                title={`${caseData.alert_count || 0} ${t('caseCard.alerts')}`}
               >
                 <AlertTriangle className="h-4 w-4 text-orange-400/80 group-hover/icon:text-orange-400 transition-colors" />
                 <span className="text-sm font-medium text-gray-400 group-hover/icon:text-gray-200">{caseData.alert_count || 0}</span>
               </button>
 
-              {/* Events */}
+              {/* Events - PHOENIX FIX: Translated Tooltip */}
               <button 
                 onClick={handleCalendarNav}
                 className="flex items-center gap-1.5 group/icon" 
-                title={`${caseData.event_count || 0} Confirmed Calendar Events`}
+                title={`${caseData.event_count || 0} ${t('caseCard.events')}`}
               >
                 <CalendarDays className="h-4 w-4 text-purple-400/80 group-hover/icon:text-purple-400 transition-colors" />
                 <span className="text-sm font-medium text-gray-400 group-hover/icon:text-gray-200">{caseData.event_count || 0}</span>

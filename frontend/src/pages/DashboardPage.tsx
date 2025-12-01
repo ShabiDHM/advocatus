@@ -1,8 +1,4 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD (CLEANED)
-// 1. UPDATE: Removed 'Stats Row' (Active/Pending/Completed) as requested.
-// 2. FOCUS: Minimalist view showing only Title, Create Button, and Case Cards.
-
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
@@ -39,6 +35,7 @@ const DashboardPage: React.FC = () => {
           document_count: c.document_count || 0,
           alert_count: c.alert_count || 0,
           event_count: c.event_count || 0,
+          finding_count: c.finding_count || 0,
       }));
       setCases(casesWithDefaults);
     } catch (error) {
@@ -90,17 +87,28 @@ const DashboardPage: React.FC = () => {
     setNewCaseData(prev => ({ ...prev, [name]: value }));
   };
 
+  // PHOENIX FIX: Robust Name Capitalization
+  const getFormattedName = () => {
+    if (!user || !user.username) return '';
+    // Trim, Split, Capitalize First Letter
+    const namePart = user.username.trim().split(' ')[0];
+    if (!namePart) return '';
+    return namePart.charAt(0).toUpperCase() + namePart.slice(1).toLowerCase();
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white">{t('dashboard.welcome', { name: user?.username?.split(' ')[0] })}</h1>
-          <p className="text-text-secondary mt-1">{t('dashboard.subtitle')}</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight">
+            {t('dashboard.welcome', { name: getFormattedName() })}
+          </h1>
+          <p className="text-gray-400 mt-1">{t('dashboard.subtitle')}</p>
         </div>
         <button 
           onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end rounded-xl text-white font-semibold shadow-lg glow-primary hover:scale-105 transition-transform"
+          className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white font-semibold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 hover:scale-[1.02] transition-all"
         >
           <Plus size={20} /> {t('dashboard.newCase')}
         </button>
@@ -108,7 +116,7 @@ const DashboardPage: React.FC = () => {
 
       {/* Case Grid */}
       {isLoading ? (
-        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>
+        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {cases.map((c) => (
@@ -124,27 +132,27 @@ const DashboardPage: React.FC = () => {
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-background-dark border border-glass-edge p-8 rounded-2xl w-full max-w-sm shadow-2xl">
+          <div className="bg-gray-900 border border-white/10 p-8 rounded-2xl w-full max-w-sm shadow-2xl">
             <h2 className="text-2xl font-bold text-white mb-6">{t('dashboard.createCaseTitle')}</h2>
             <form onSubmit={handleCreateCase} className="space-y-5">
               
               <div>
-                <label className="block text-sm text-text-secondary mb-1">{t('dashboard.caseTitle')}</label>
-                <input required name="title" type="text" value={newCaseData.title} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
+                <label className="block text-sm text-gray-400 mb-1">{t('dashboard.caseTitle')}</label>
+                <input required name="title" type="text" value={newCaseData.title} onChange={handleModalInputChange} className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:border-indigo-500 outline-none transition-colors" />
               </div>
               
-              <div className="pt-4 border-t border-glass-edge/50">
-                <label className="block text-sm text-text-secondary mb-2 font-medium text-primary-start">{t('caseCard.client')}</label>
+              <div className="pt-4 border-t border-white/10">
+                <label className="block text-sm text-gray-400 mb-2 font-medium text-indigo-400">{t('caseCard.client')}</label>
                 <div className="space-y-3">
-                    <input required name="clientName" placeholder={t('dashboard.clientName')} type="text" value={newCaseData.clientName} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
-                    <input name="clientEmail" placeholder={t('dashboard.clientEmail')} type="email" value={newCaseData.clientEmail} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
-                    <input name="clientPhone" placeholder={t('dashboard.clientPhone')} type="tel" value={newCaseData.clientPhone} onChange={handleModalInputChange} className="w-full bg-background-light/10 border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-primary-start outline-none" />
+                    <input required name="clientName" placeholder={t('dashboard.clientName')} type="text" value={newCaseData.clientName} onChange={handleModalInputChange} className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:border-indigo-500 outline-none transition-colors" />
+                    <input name="clientEmail" placeholder={t('dashboard.clientEmail')} type="email" value={newCaseData.clientEmail} onChange={handleModalInputChange} className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:border-indigo-500 outline-none transition-colors" />
+                    <input name="clientPhone" placeholder={t('dashboard.clientPhone')} type="tel" value={newCaseData.clientPhone} onChange={handleModalInputChange} className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:border-indigo-500 outline-none transition-colors" />
                 </div>
               </div>
 
               <div className="flex justify-end gap-3 mt-8">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 rounded-lg hover:bg-white/10 text-text-secondary transition-colors">{t('general.cancel')}</button>
-                <button type="submit" className="px-6 py-2 rounded-lg bg-primary-start hover:bg-primary-end text-white font-semibold shadow-lg transition-all">{t('general.create')}</button>
+                <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 rounded-lg hover:bg-white/5 text-gray-400 transition-colors">{t('general.cancel')}</button>
+                <button type="submit" className="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold shadow-lg transition-all">{t('general.create')}</button>
               </div>
             </form>
           </div>
