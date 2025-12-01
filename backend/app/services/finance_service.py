@@ -1,7 +1,7 @@
 # FILE: backend/app/services/finance_service.py
-# PHOENIX PROTOCOL - FINANCE LOGIC v1.2
-# 1. ADDED: delete_invoice capability.
-# 2. STATUS: CRUD (Create, Read, Update, Delete) now complete.
+# PHOENIX PROTOCOL - FINANCE LOGIC v1.3
+# 1. FORMAT: Changed Invoice Number schema to 'Faktura-YYYY-NNNN'.
+# 2. VALIDATION: Added ObjectId validation to prevent crashes on invalid IDs.
 
 import structlog
 from datetime import datetime, timezone
@@ -18,12 +18,18 @@ class FinanceService:
         self.db = db
 
     def _generate_invoice_number(self, user_id: str) -> str:
-        """Generates simple sequential numbers per user (INV-2023-0001)."""
+        """
+        Generates sequential numbers per user: Faktura-2025-0001.
+        Replaces the old 'INV-' prefix.
+        """
         count = self.db.invoices.count_documents({"user_id": ObjectId(user_id)})
-        return f"INV-{datetime.now().year}-{count + 1:04d}"
+        year = datetime.now().year
+        # Format: Faktura-YYYY-0001
+        return f"Faktura-{year}-{count + 1:04d}"
 
     def create_invoice(self, user_id: str, data: InvoiceCreate) -> InvoiceInDB:
         subtotal = sum(item.quantity * item.unit_price for item in data.items)
+        # Ensure item totals are consistent
         for item in data.items:
             item.total = item.quantity * item.unit_price
             
@@ -44,7 +50,11 @@ class FinanceService:
             "updated_at": datetime.now(timezone.utc)
         })
 
-        self.db.invoices.insert_one(invoice_doc)
+        result = self.db.invoices.insert_one(invoice_doc)
+        
+        # Populate the _id for the return object
+        invoice_doc["_id"] = result.inserted_id
+        
         return InvoiceInDB(**invoice_doc)
 
     def get_invoices(self, user_id: str) -> list[InvoiceInDB]:
@@ -52,14 +62,24 @@ class FinanceService:
         return [InvoiceInDB(**doc) for doc in cursor]
 
     def get_invoice(self, user_id: str, invoice_id: str) -> InvoiceInDB:
-        doc = self.db.invoices.find_one({"_id": ObjectId(invoice_id), "user_id": ObjectId(user_id)})
+        try:
+            oid = ObjectId(invoice_id)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid Invoice ID format")
+
+        doc = self.db.invoices.find_one({"_id": oid, "user_id": ObjectId(user_id)})
         if not doc:
             raise HTTPException(status_code=404, detail="Invoice not found")
         return InvoiceInDB(**doc)
 
     def update_invoice_status(self, user_id: str, invoice_id: str, status: str) -> InvoiceInDB:
+        try:
+            oid = ObjectId(invoice_id)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid Invoice ID format")
+
         result = self.db.invoices.find_one_and_update(
-            {"_id": ObjectId(invoice_id), "user_id": ObjectId(user_id)},
+            {"_id": oid, "user_id": ObjectId(user_id)},
             {"$set": {"status": status, "updated_at": datetime.now(timezone.utc)}},
             return_document=True
         )
@@ -69,8 +89,13 @@ class FinanceService:
 
     def delete_invoice(self, user_id: str, invoice_id: str) -> None:
         """Permanently removes an invoice."""
+        try:
+            oid = ObjectId(invoice_id)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid Invoice ID format")
+
         result = self.db.invoices.delete_one({
-            "_id": ObjectId(invoice_id),
+            "_id": oid,
             "user_id": ObjectId(user_id)
         })
         if result.deleted_count == 0:
