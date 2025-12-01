@@ -1,8 +1,8 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V4.1
-# 1. HYBRID OCR: Uses PyMuPDF for digital text and Tesseract for scans.
-# 2. ALBANIAN SUPPORT: Configured Tesseract with 'sqi+eng' language data.
-# 3. SAFETY: Null-byte sanitization to prevent Database/LLM injection errors.
+# PHOENIX PROTOCOL - OCR ENGINE V5.0 (TURBO PARALLEL - COMPLETE)
+# 1. PARALLELISM: Uses ThreadPoolExecutor to OCR multiple pages simultaneously.
+# 2. HYBRID: Checks for digital text first, falls back to Tesseract OCR if needed.
+# 3. SAFETY: Includes timeouts and null-byte sanitization.
 
 import fitz  # PyMuPDF
 import docx
@@ -10,81 +10,92 @@ import pytesseract
 from PIL import Image
 import pandas as pd
 import csv
-from typing import Dict, Callable
+from typing import Dict, Callable, List
 import logging
 import cv2
 import numpy as np
 import io
+import concurrent.futures
 
 logger = logging.getLogger(__name__)
 
+# Config: Max worker threads for OCR (Adjust based on CPU cores)
+MAX_WORKERS = 4 
+
 def _sanitize_text(text: str) -> str:
-    """Removes null bytes and non-printable characters that crash downstream services."""
+    """Removes null bytes and non-printable characters."""
     if not text: return ""
     return text.replace("\x00", "")
 
-def _perform_ocr_on_pdf_page(page: fitz.Page) -> str:
+def _process_single_page(args) -> str:
     """
-    Renders a PDF page as an image and runs Tesseract OCR.
-    Used when direct text extraction yields empty results (Scanned PDF).
+    Worker function to process a single page in a separate thread.
+    Args: (doc_path, page_num)
     """
+    doc_path, page_num = args
     try:
-        # Zoom = 2.0 is a good balance between speed and accuracy for legal docs
-        zoom = 2.0 
-        mat = fitz.Matrix(zoom, zoom)
-        
-        # Suppress static analysis errors for dynamic PyMuPDF attributes
-        pix = page.get_pixmap(matrix=mat) # type: ignore
-        
-        # Convert to PIL Image
-        img_data = pix.tobytes("png")
-        img = Image.open(io.BytesIO(img_data))
+        # Open document strictly for this thread to avoid PyMuPDF threading issues
+        with fitz.open(doc_path) as doc:
+            page = doc[page_num]
+            
+            # 1. Try Direct Text Extraction (Fastest)
+            text = page.get_text("text") # type: ignore
+            
+            # 2. Heuristic: If we found valid text (>50 chars), return it immediately
+            if len(text.strip()) > 50:
+                return _sanitize_text(text)
+            
+            # 3. Fallback: Optical Character Recognition (OCR) (Slow but necessary for scans)
+            # Render page to image
+            zoom = 2.0 # Optimal for Tesseract accuracy
+            mat = fitz.Matrix(zoom, zoom)
+            pix = page.get_pixmap(matrix=mat) # type: ignore
+            img_data = pix.tobytes("png")
+            
+            # Pre-processing with OpenCV
+            img = Image.open(io.BytesIO(img_data))
+            open_cv_image = np.array(img)
+            
+            # Convert to grayscale if needed
+            if len(open_cv_image.shape) == 3:
+                gray = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2GRAY)
+            else:
+                gray = open_cv_image
 
-        # Pre-processing with OpenCV
-        open_cv_image = np.array(img)
-        
-        # Convert to grayscale
-        if len(open_cv_image.shape) == 3:
-            gray = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2GRAY)
-        else:
-            gray = open_cv_image
+            # Thresholding to isolate text
+            _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            
+            # Denoising
+            denoised = cv2.medianBlur(binary, 3)
 
-        # Thresholding to isolate text
-        _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        
-        # Denoising
-        denoised = cv2.medianBlur(binary, 3)
+            # Run Tesseract
+            # --psm 1: Automatic page segmentation with OSD
+            # Timeout set to 60s per page to prevent hanging
+            ocr_text = pytesseract.image_to_string(denoised, lang='sqi+eng', config='--psm 1', timeout=60)
+            return _sanitize_text(ocr_text)
 
-        # Run Tesseract with Albanian + English support
-        # --psm 1: Automatic page segmentation with OSD (Orientation and Script Detection)
-        text = pytesseract.image_to_string(denoised, lang='sqi+eng', config='--psm 1', timeout=120)
-        return _sanitize_text(text)
-
-    except Exception as ocr_error:
-        logger.error(f"OCR failed for page: {ocr_error}")
+    except Exception as e:
+        logger.warning(f"Page {page_num} processing failed: {e}")
         return ""
 
 def _extract_text_from_pdf(file_path: str) -> str:
-    logger.info(f"📄 Processing PDF: {file_path}")
-    full_text = []
+    logger.info(f"🚀 Turbo PDF Processing Started: {file_path}")
     try:
+        # Open once just to count pages
         with fitz.open(file_path) as doc:
-            for i in range(len(doc)):
-                page = doc[i]
-                
-                # 1. Try fast direct extraction
-                text = page.get_text("text") # type: ignore
-                
-                # 2. Heuristic: If less than 50 chars, assume it's a scan/image
-                if len(text.strip()) < 50:
-                    logger.info(f"Page {i+1} appears scanned. Running OCR...")
-                    ocr_text = _perform_ocr_on_pdf_page(page)
-                    full_text.append(ocr_text)
-                else:
-                    full_text.append(_sanitize_text(text))
+            total_pages = len(doc)
         
-        final_text = "\n".join(full_text)
-        logger.info(f"✅ PDF Extraction Complete. Length: {len(final_text)} chars.")
+        # Prepare arguments for parallel execution
+        page_args = [(file_path, i) for i in range(total_pages)]
+        
+        results = []
+        # Use ThreadPool to parallelize the heavy lifting
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            # Map returns results in the correct order (Page 1, Page 2, etc.)
+            results = list(executor.map(_process_single_page, page_args))
+            
+        final_text = "\n".join(results)
+        logger.info(f"✅ Turbo Extraction Complete. Extracted {len(final_text)} chars from {total_pages} pages.")
         return final_text
 
     except Exception as e:
@@ -104,7 +115,8 @@ def _extract_text_from_image(file_path: str) -> str:
         open_cv_image = cv2.imread(file_path)
         gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        text = pytesseract.image_to_string(binary, lang='sqi+eng', timeout=120)
+        # 2-minute timeout for large standalone images
+        text = pytesseract.image_to_string(binary, lang='sqi+eng', timeout=120) 
         return _sanitize_text(text)
     except Exception as e:
         logger.error(f"Image OCR Error: {e}")
@@ -142,10 +154,7 @@ def _extract_text_from_excel(file_path: str) -> str:
             df = xls.parse(sheet_name)
             if df.empty: continue
             full_text.append(f"--- Sheet: {sheet_name} ---")
-            
-            # Convert full dataframe to string representation
             full_text.append(df.to_string(index=False, na_rep=""))
-            
         return _sanitize_text("\n".join(full_text))
     except Exception as e:
         logger.error(f"Excel Error: {e}")
@@ -165,16 +174,13 @@ EXTRACTION_MAP: Dict[str, Callable] = {
 }
 
 def extract_text(file_path: str, mime_type: str) -> str:
-    # Normalize MIME type (remove charset info)
     normalized_mime_type = mime_type.split(';')[0].strip().lower()
-    
     extractor = EXTRACTION_MAP.get(normalized_mime_type)
     
     if not extractor:
         # Fallback for generic text types
         if "text/" in normalized_mime_type:
             return _extract_text_from_txt(file_path)
-            
         logger.warning(f"No extractor for MIME type: {normalized_mime_type}")
         return ""
         
