@@ -1,20 +1,15 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER (TYPE FIX)
-// 1. FIX: Changed 't' prop to 'TFunction' to match i18next type signature.
-// 2. STATUS: Type-safe and compatible with parent components.
-
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
-import { apiService } from '../services/api';
+import { apiService, API_V1_URL } from '../services/api';
 import { Document } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
-    Download, RefreshCw, ZoomIn, ZoomOut, Maximize, ExternalLink, FileText 
+    Download, RefreshCw, ZoomIn, ZoomOut, Maximize, FileText 
 } from 'lucide-react';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
-// PHOENIX FIX: Import TFunction type
 import { TFunction } from 'i18next';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -23,16 +18,19 @@ interface PDFViewerModalProps {
   documentData: Document;
   caseId?: string; 
   onClose: () => void;
-  // PHOENIX FIX: Use standard TFunction type
   t: TFunction; 
   directUrl?: string | null; 
 }
 
 const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, onClose, t, directUrl }) => {
-  const [fileUrl, setFileUrl] = useState<string | null>(directUrl || null);
+  // We use 'any' for source because react-pdf accepts { url, httpHeaders } object
+  const [pdfSource, setPdfSource] = useState<any>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
+  const [imageSource, setImageSource] = useState<string | null>(null);
+  
   const [isLoading, setIsLoading] = useState(!directUrl);
   const [error, setError] = useState<string | null>(null);
+  const [retryOriginal, setRetryOriginal] = useState(false);
   
   // Viewer State
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -44,12 +42,14 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const getTargetMode = (mimeType: string) => {
     const m = mimeType?.toLowerCase() || '';
     if (m.startsWith('text/') || m === 'application/json' || m.includes('plain')) return 'TEXT';
-    return 'PDF_PREVIEW';
+    if (m.startsWith('image/')) return 'IMAGE';
+    return 'PDF';
   };
 
   const fetchDocument = async () => {
     const targetMode = getTargetMode(documentData.mime_type || '');
 
+    // 1. Direct URL (Newly Uploaded File)
     if (directUrl) {
         if (targetMode === 'TEXT') {
              try {
@@ -58,78 +58,94 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                  setTextContent(text);
                  setActualViewerMode('TEXT');
              } catch (e) {
-                 console.error("Failed to read text blob", e);
                  setActualViewerMode('DOWNLOAD');
              }
-        } else if (documentData.mime_type?.startsWith('image/')) {
+        } else if (targetMode === 'IMAGE') {
+             setImageSource(directUrl);
              setActualViewerMode('IMAGE');
         } else {
+             setPdfSource(directUrl);
              setActualViewerMode('PDF');
         }
         setIsLoading(false);
         return;
     }
 
-    if (!caseId) { return; }
+    if (!caseId) return;
 
+    // 2. Optimized Streaming for PDFs (Remote)
+    if (targetMode === 'PDF') {
+        const token = localStorage.getItem('jwtToken');
+        const baseUrl = retryOriginal 
+            ? `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/original`
+            : `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/preview`;
+            
+        // PHOENIX SPEED HACK: Pass URL + Auth Headers directly to PDF.js
+        // This allows streaming (render page 1 while downloading rest)
+        setPdfSource({
+            url: baseUrl,
+            httpHeaders: { 'Authorization': `Bearer ${token}` },
+            withCredentials: true
+        });
+        setActualViewerMode('PDF');
+        // We do NOT set isLoading(false) here; react-pdf handles the spinner via 'loading' prop
+        return;
+    }
+
+    // 3. Fallback Blob Fetch for Text/Images (Cannot stream easily into <img> tag with Auth headers)
     setIsLoading(true);
     setError(null);
 
     try {
       let blob: Blob;
+      // For images, try original (previews might not be generated yet or same size)
+      blob = await apiService.getOriginalDocument(caseId as string, documentData.id);
 
-      if (targetMode === 'PDF_PREVIEW') {
-         try {
-             blob = await apiService.getPreviewDocument(caseId as string, documentData.id);
-             setActualViewerMode('PDF');
-         } catch (e) {
-             console.warn("Preview fetch failed, checking fallback...", e);
-             if (documentData.mime_type?.startsWith('image/')) {
-                 blob = await apiService.getOriginalDocument(caseId as string, documentData.id);
-                 setActualViewerMode('IMAGE');
-             } else if (documentData.mime_type === 'application/pdf') {
-                 blob = await apiService.getOriginalDocument(caseId as string, documentData.id);
-                 setActualViewerMode('PDF');
-             } else {
-                 setActualViewerMode('DOWNLOAD');
-                 throw new Error("PREVIEW_UNAVAILABLE");
-             }
-         }
-      } else {
-         blob = await apiService.getOriginalDocument(caseId as string, documentData.id);
-         setActualViewerMode('TEXT');
-      }
-
-      if (actualViewerMode === 'TEXT' || (targetMode === 'TEXT')) {
+      if (targetMode === 'TEXT') {
           const text = await blob.text();
           setTextContent(text);
           setActualViewerMode('TEXT');
-      } else if (actualViewerMode !== 'DOWNLOAD') {
-          const url = URL.createObjectURL(blob);
-          setFileUrl(url);
-      }
-
-    } catch (err: any) {
-      if (err.message === "PREVIEW_UNAVAILABLE") {
-          // Handled
       } else {
-          console.error("Viewer Error:", err);
-          setError(t('pdfViewer.errorFetch', { defaultValue: 'Gabim gjatë ngarkimit të dokumentit' }));
+          const url = URL.createObjectURL(blob);
+          setImageSource(url);
+          setActualViewerMode('IMAGE');
       }
+    } catch (err: any) {
+        console.error("Viewer Error:", err);
+        setError(t('pdfViewer.errorFetch', { defaultValue: 'Gabim gjatë ngarkimit të dokumentit' }));
     } finally {
       setIsLoading(false);
     }
   };
   
+  // Effect to trigger load or retry
   useEffect(() => {
     fetchDocument();
-    document.body.style.overflow = 'hidden';
     
+    // Cleanup
     return () => { 
-        if (fileUrl && !directUrl) URL.revokeObjectURL(fileUrl);
-        document.body.style.overflow = 'unset';
+        if (imageSource && !directUrl) URL.revokeObjectURL(imageSource);
     };
-  }, [caseId, documentData.id, directUrl]);
+  }, [caseId, documentData.id, directUrl, retryOriginal]);
+
+  // Handle PDF Load Error (Fallback to Original if Preview fails)
+  const onPdfLoadError = (err: any) => {
+      if (!retryOriginal && !directUrl) {
+          console.warn("Preview failed (likely 404), switching to Original...", err);
+          setRetryOriginal(true); // Triggers useEffect -> fetchDocument with original URL
+      } else {
+          console.error("PDF Load Failed:", err);
+          setIsLoading(false);
+          // If PDF completely fails, fallback to download button
+          setActualViewerMode('DOWNLOAD');
+      }
+  };
+
+  const onPdfLoadSuccess = ({ numPages }: { numPages: number }) => {
+      setNumPages(numPages);
+      setPageNumber(1);
+      setIsLoading(false);
+  };
 
   const handleDownloadOriginal = async () => {
     setIsDownloading(true);
@@ -160,8 +176,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const zoomReset = () => setScale(1.0);
 
   const renderContent = () => {
-    if (isLoading) return <div className="flex flex-col items-center justify-center h-full text-text-secondary"><Loader className="animate-spin h-10 w-10 mb-3 text-primary-start" /><p>{t('pdfViewer.loading', { defaultValue: 'Duke ngarkuar...' })}</p></div>;
-
     if (actualViewerMode === 'DOWNLOAD') {
         return (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -179,7 +193,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
             <p className="text-red-300 mb-6">{error}</p>
-            <button onClick={fetchDocument} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2"><RefreshCw size={16} /> {t('caseView.tryAgain', { defaultValue: 'Provo Përsëri' })}</button>
+            <button onClick={() => { setRetryOriginal(false); fetchDocument(); }} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2"><RefreshCw size={16} /> {t('caseView.tryAgain', { defaultValue: 'Provo Përsëri' })}</button>
         </div>
     );
 
@@ -190,24 +204,24 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
              <div className="md:hidden flex flex-col items-center text-center text-gray-400 p-6">
                   <FileText size={64} className="text-primary-start mb-4" />
                   <h4 className="text-xl font-bold mb-2 text-white">{t('pdfViewer.mobileViewTitle', { defaultValue: 'Shiko Dokumentin' })}</h4>
-                  <p className="mb-6 text-sm max-w-xs">{t('pdfViewer.mobileViewDesc', { defaultValue: 'Dokumenti duhet të hapet në një dritare të re.' })}</p>
-                  <a 
-                      href={fileUrl!} 
-                      target="_blank" 
-                      rel="noreferrer" 
-                      className="px-8 py-4 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-xl flex items-center gap-2 transition-transform active:scale-95"
-                  >
-                      <ExternalLink size={20} />
-                      {t('pdfViewer.openNow', { defaultValue: 'Hape Tani' })}
+                  <a href={directUrl || '#'} onClick={handleDownloadOriginal} className="px-8 py-4 bg-primary-start text-white rounded-xl font-bold shadow-xl flex items-center gap-2 mt-4">
+                      <Download size={20} /> {t('pdfViewer.downloadOriginal')}
                   </a>
              </div>
 
              <div className="hidden md:flex justify-center p-4 min-h-full w-full overflow-auto">
+                 {/* PHOENIX OPTIMIZATION: React-PDF handles the fetch internally */}
                  <PdfDocument 
-                    file={fileUrl} 
-                    onLoadSuccess={({ numPages }) => { setNumPages(numPages); setPageNumber(1); }} 
-                    loading={<Loader className="animate-spin text-white" />}
-                    error={<div className="text-white text-center mt-10"><p>Failed to load PDF component.</p><a href={fileUrl!} target="_blank" className="underline text-primary-start">Open directly</a></div>}
+                    file={pdfSource} 
+                    onLoadSuccess={onPdfLoadSuccess}
+                    onLoadError={onPdfLoadError}
+                    loading={
+                        <div className="flex flex-col items-center text-gray-400 mt-20">
+                            <Loader className="animate-spin h-8 w-8 mb-2 text-primary-start" />
+                            <span className="text-sm">Duke hapur dokumentin...</span>
+                        </div>
+                    }
+                    error={<div className="text-red-400 mt-10">Gabim gjatë hapjes së PDF.</div>}
                  >
                      <Page 
                         pageNumber={pageNumber} 
@@ -234,10 +248,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           </div>
         );
       case 'IMAGE':
+        if (isLoading) return <div className="flex justify-center items-center h-full"><Loader className="animate-spin text-primary-start" /></div>;
         return (
             <div className="flex items-center justify-center h-full p-4 overflow-auto touch-pinch-zoom">
                 <img 
-                    src={fileUrl!} 
+                    src={imageSource!} 
                     alt="Doc" 
                     style={{ transform: `scale(${scale})`, transition: 'transform 0.1s' }}
                     className="max-w-full max-h-full object-contain rounded-lg shadow-lg origin-center" 
@@ -277,14 +292,15 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                 )}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {fileUrl && (
-                  <a href={fileUrl} target="_blank" rel="noreferrer" className="p-2 text-gray-200 bg-white/10 hover:bg-white/20 rounded-lg transition-colors md:hidden" title={t('pdfViewer.openNow', { defaultValue: 'Hape Tani' })}><ExternalLink size={20} /></a>
-              )}
               <button onClick={handleDownloadOriginal} className="p-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg transition-colors border border-primary-start/30 hidden md:block" title={t('pdfViewer.downloadOriginal', { defaultValue: 'Shkarko Origjinalin' })}><Download size={20} /></button>
               <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
             </div>
           </header>
-          <div className="flex-grow relative bg-[#0f0f0f] overflow-auto flex flex-col custom-scrollbar touch-pan-y">{renderContent()}</div>
+          
+          <div className="flex-grow relative bg-[#0f0f0f] overflow-auto flex flex-col custom-scrollbar touch-pan-y">
+              {renderContent()}
+          </div>
+          
           {actualViewerMode === 'PDF' && numPages && numPages > 1 && (
             <footer className="hidden md:flex items-center justify-center p-3 bg-background-light/95 border-t border-glass-edge backdrop-blur-xl z-20 shrink-0">
               <div className="flex items-center gap-4 bg-black/40 px-4 py-2 rounded-full border border-white/5">
