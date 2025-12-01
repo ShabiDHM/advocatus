@@ -1,8 +1,7 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT ENGINE v2.4 (VISUAL POLISH)
-# 1. DESIGN: Updated invoice layout to "Corporate Clean" style.
-# 2. DATE: Enforced DD/MM/YYYY formatting.
-# 3. TYPING: Fixed Optional[str] for logo fetching.
+# PHOENIX PROTOCOL - LOGO FIX v2.5
+# 1. FIX: Added buffer.seek(0) to ensure ImageReader reads from start.
+# 2. ROBUSTNESS: Enhanced logo fetching logic with explicit error logging.
 
 import io
 import structlog
@@ -69,7 +68,7 @@ def _get_branding(db: Database, search_term: str) -> dict:
                     "address": profile.get("address", ""),
                     "email": profile.get("email_public", user["email"]),
                     "phone": profile.get("phone", ""),
-                    "color": profile.get("branding_color", "#111827"), # Default to dark blue/black
+                    "color": profile.get("branding_color", "#111827"),
                     "logo_url": profile.get("logo_url"),
                     "logo_storage_key": profile.get("logo_storage_key"),
                     "website": profile.get("website", "")
@@ -79,17 +78,34 @@ def _get_branding(db: Database, search_term: str) -> dict:
     return {"header_text": "Juristi.tech", "color": "#111827", "address": "", "email": "", "phone": ""}
 
 def _fetch_logo_image(url: Optional[str], storage_key: Optional[str] = None) -> Optional[ImageReader]:
+    """
+    Robust logo fetcher. Handles S3 streams and HTTP URLs.
+    """
+    # 1. Try Storage (S3/MinIO/Local)
     if storage_key:
         try:
+            logger.info(f"Attempting to fetch logo from storage: {storage_key}")
+            # get_file_stream usually returns a file-like object (BytesIO or open file)
             stream = storage_service.get_file_stream(storage_key)
-            return ImageReader(io.BytesIO(stream.read()))
-        except Exception: pass
+            if hasattr(stream, 'read'):
+                data = stream.read()
+                if data:
+                    return ImageReader(io.BytesIO(data))
+                else:
+                    logger.warning("Logo stream was empty")
+        except Exception as e:
+            logger.warning(f"Failed to fetch logo from storage: {e}")
+
+    # 2. Try URL
     if url and not url.startswith("/"):
         try:
+            logger.info(f"Attempting to fetch logo from URL: {url}")
             response = requests.get(url, timeout=5)
             if response.status_code == 200:
                 return ImageReader(io.BytesIO(response.content))
-        except Exception: pass
+        except Exception as e:
+            logger.warning(f"Failed to download logo from URL: {e}")
+            
     return None
 
 # --- LAYOUT ENGINE ---
@@ -99,34 +115,51 @@ def _header_footer(canvas: canvas.Canvas, doc: BaseDocTemplate, header_right_tex
     # 1. Top Bar
     brand_color = HexColor(branding["color"])
     canvas.setFillColor(brand_color)
-    canvas.rect(0, 280 * mm, 210 * mm, 17 * mm, fill=1, stroke=0) # Top banner
+    canvas.rect(0, 280 * mm, 210 * mm, 17 * mm, fill=1, stroke=0) 
     
-    # 2. Logo (White on Dark) or Fallback Text
+    # 2. Logo Logic
     logo_drawn = False
     logo_key = branding.get("logo_storage_key")
     logo_url = branding.get("logo_url")
     
     if logo_key or logo_url:
-        logo_img = _fetch_logo_image(logo_url, logo_key)
-        if logo_img:
-            iw, ih = logo_img.getSize()
-            aspect = ih / float(iw)
-            width = 35 * mm
-            height = width * aspect
-            if height > 15 * mm: height = 15 * mm; width = height / aspect
-            # Draw logo over banner
-            canvas.drawImage(logo_img, 15 * mm, 281 * mm, width=width, height=height, mask='auto')
-            logo_drawn = True
+        try:
+            logo_img = _fetch_logo_image(logo_url, logo_key)
+            if logo_img:
+                iw, ih = logo_img.getSize()
+                aspect = ih / float(iw)
+                width = 35 * mm
+                height = width * aspect
+                
+                # Constrain height to fit banner
+                max_h = 13 * mm
+                if height > max_h:
+                    height = max_h
+                    width = height / aspect
+                
+                # Center vertically in banner (280mm + 17mm/2 = ~288.5mm center)
+                # But image draws from bottom-left.
+                # Banner starts at 280. Height 17.
+                # Image Y = 280 + (17 - height)/2
+                y_pos = 280 * mm + (17 * mm - height) / 2
+                
+                canvas.drawImage(logo_img, 15 * mm, y_pos, width=width, height=height, mask='auto')
+                logo_drawn = True
+                logger.info("Logo drawn successfully on PDF")
+        except Exception as e:
+            logger.error(f"Error drawing logo on PDF: {e}")
 
+    # Fallback Text if Logo fails
     if not logo_drawn:
         canvas.setFont('Helvetica-Bold', 16)
         canvas.setFillColor(white)
-        canvas.drawString(15 * mm, 285 * mm, branding["header_text"])
+        # Vertically center text: 280 + 5 = 285 baseline
+        canvas.drawString(15 * mm, 284 * mm, branding["header_text"])
 
-    # 3. Invoice Number (Top Right)
+    # 3. Invoice Number
     canvas.setFont('Helvetica-Bold', 14)
     canvas.setFillColor(white)
-    canvas.drawRightString(195 * mm, 285 * mm, header_right_text)
+    canvas.drawRightString(195 * mm, 284 * mm, header_right_text)
     
     # Footer
     canvas.setStrokeColor(HexColor("#E5E7EB"))
@@ -153,7 +186,6 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
     branding = _get_branding(db, username)
     buffer = io.BytesIO()
     
-    # Ensure Title reflects the invoice number format (e.g. "FATURA #Faktura-2025-0001")
     title_text = f"{invoice.invoice_number}"
     doc = _build_doc(buffer, title_text, branding, lang)
     
@@ -161,15 +193,13 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
     brand_color = HexColor(branding["color"])
     
     Story: List[Flowable] = []
-    Story.append(Spacer(1, 15*mm)) # Space for the header banner
+    Story.append(Spacer(1, 15*mm)) 
     
-    # Styles
     lbl_style = ParagraphStyle('L', parent=styles['Normal'], fontSize=8, textColor=HexColor("#6B7280"), spaceAfter=2)
     val_style = ParagraphStyle('V', parent=styles['Normal'], fontSize=10, textColor=black, leading=12)
     val_bold = ParagraphStyle('VB', parent=val_style, fontName='Helvetica-Bold')
     
     # --- METADATA BAR ---
-    # Issue Date | Due Date | Status
     meta_data = [
         [
             Paragraph(f"<b>{_get_text('date_issue', lang)}</b>", lbl_style),
@@ -192,10 +222,7 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
     Story.append(t_meta)
     Story.append(Spacer(1, 10*mm))
 
-    # --- ADDRESS BLOCK (2 Columns) ---
-    # Left: From (Firm) | Right: To (Client)
-    
-    # Format multiline address from DB
+    # --- ADDRESS BLOCK ---
     client_addr_lines = (invoice.client_address or "").split('\n')
     client_block = [Paragraph(f"<b>{invoice.client_name}</b>", val_bold)]
     for line in client_addr_lines:
@@ -230,10 +257,8 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
         _get_text('total', lang)
     ]
     
-    # Header Row
     t_data = [[Paragraph(h, ParagraphStyle('TH', fontSize=9, textColor=white, fontName='Helvetica-Bold')) for h in headers]]
     
-    # Rows
     for item in invoice.items:
         t_data.append([
             Paragraph(item.description, val_style),
@@ -244,19 +269,18 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
         
     t_items = Table(t_data, colWidths=[90*mm, 25*mm, 30*mm, 35*mm])
     t_items.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), brand_color), # Header BG
+        ('BACKGROUND', (0,0), (-1,0), brand_color),
         ('TEXTCOLOR', (0,0), (-1,0), white),
-        ('ALIGN', (1,0), (-1,-1), 'RIGHT'), # Numbers right aligned
+        ('ALIGN', (1,0), (-1,-1), 'RIGHT'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('TOPPADDING', (0,0), (-1,-1), 8),
         ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-        ('GRID', (0,0), (-1,-1), 0.5, HexColor("#E5E7EB")), # Subtle grid
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [white, HexColor("#F9FAFB")]), # Zebra striping
+        ('GRID', (0,0), (-1,-1), 0.5, HexColor("#E5E7EB")),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [white, HexColor("#F9FAFB")]),
     ]))
     Story.append(t_items)
     
-    # --- TOTALS SECTION ---
-    # Right aligned
+    # --- TOTALS ---
     def total_row(label, val, is_final=False):
         s_lbl = ParagraphStyle('TL', parent=val_style, alignment=TA_RIGHT, fontSize=10)
         s_val = ParagraphStyle('TV', parent=val_style, alignment=TA_RIGHT, fontSize=10, fontName='Helvetica-Bold' if is_final else 'Helvetica')
@@ -270,11 +294,10 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
     
     t_totals = Table(t_totals_data, colWidths=[40*mm, 35*mm])
     t_totals.setStyle(TableStyle([
-        ('LINEABOVE', (0,-1), (-1,-1), 1.5, brand_color), # Bold line above grand total
+        ('LINEABOVE', (0,-1), (-1,-1), 1.5, brand_color),
         ('TOPPADDING', (0,-1), (-1,-1), 8),
     ]))
     
-    # Place totals on the right
     layout_t = Table([["", t_totals]], colWidths=[105*mm, 75*mm])
     layout_t.setStyle(TableStyle([('ALIGN', (-1,0), (-1,-1), 'RIGHT')]))
     Story.append(layout_t)
