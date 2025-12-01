@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } from '../data/types';
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
@@ -95,6 +95,8 @@ const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
   const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const { caseId } = useParams<{ caseId: string }>();
+  // PHOENIX NEW: Search Params for deep linking
+  const [searchParams] = useSearchParams();
   
   const [caseData, setCaseData] = useState<CaseData>({ details: null, findings: [] });
   const [isLoading, setIsLoading] = useState(true);
@@ -165,6 +167,13 @@ const CaseViewPage: React.FC = () => {
   useEffect(() => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
+
+  // PHOENIX NEW: Auto-open Findings Modal if requested via URL
+  useEffect(() => {
+    if (!isLoading && caseData.details && searchParams.get('open') === 'findings') {
+        setIsFindingsModalOpen(true);
+    }
+  }, [isLoading, caseData.details, searchParams]);
   
   const handleDocumentUploaded = (newDoc: Document) => {
     setLiveDocuments(prev => [sanitizeDocument(newDoc), ...prev]);

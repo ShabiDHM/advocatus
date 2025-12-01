@@ -29,12 +29,17 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
     navigate('/calendar');
   };
 
+  // Deep link to Findings Modal
+  const handleFindingsNav = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(`/cases/${caseData.id}?open=findings`);
+  };
+
   const formattedDate = new Date(caseData.created_at).toLocaleDateString(undefined, {
     year: 'numeric', month: '2-digit', day: '2-digit'
   });
 
-  // PHOENIX FIX: Robust Title Handling
-  // If case_name is missing, fall back to Case Number, then "Untitled Case"
   const displayTitle = caseData.case_name && caseData.case_name.trim() !== '' 
       ? caseData.case_name 
       : (caseData.case_number ? `${t('caseCard.caseNumber')} #${caseData.case_number}` : t('caseCard.untitled'));
@@ -50,7 +55,6 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      {/* Hover Glow Effect */}
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
 
       <div>
@@ -60,7 +64,6 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
             <h2 className={`text-lg font-bold line-clamp-2 leading-tight tracking-tight ${!caseData.case_name ? 'text-gray-400 italic' : 'text-gray-100'}`}>
                 {displayTitle}
             </h2>
-            {/* Status Indicator Dot */}
             <div 
                 className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
                     caseData.status === 'open' ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-gray-500'
@@ -118,11 +121,15 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
                 <span className="text-sm font-medium text-gray-400">{caseData.document_count || 0}</span>
               </div>
 
-              {/* Findings (Confirmed 7) */}
-              <div className="flex items-center gap-1.5" title={`${caseData.finding_count || 0} AI Findings (Review needed)`}>
-                <Lightbulb className="h-4 w-4 text-yellow-500/80" />
-                <span className="text-sm font-medium text-gray-400">{caseData.finding_count || 0}</span>
-              </div>
+              {/* Findings - CLICKABLE DEEP LINK */}
+              <button
+                onClick={handleFindingsNav}
+                className="flex items-center gap-1.5 group/icon cursor-pointer hover:bg-white/5 rounded px-1.5 py-1 -ml-1.5 transition-all"
+                title={`${caseData.finding_count || 0} AI Findings (Review needed)`}
+              >
+                <Lightbulb className="h-4 w-4 text-yellow-500/80 group-hover/icon:text-yellow-400 transition-colors" />
+                <span className="text-sm font-medium text-gray-400 group-hover/icon:text-gray-200">{caseData.finding_count || 0}</span>
+              </button>
 
               {/* Alerts */}
               <button 
