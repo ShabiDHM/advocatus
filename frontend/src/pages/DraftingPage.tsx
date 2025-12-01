@@ -1,13 +1,13 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE
-// 1. REMOVED: 'Përdor Arkivën' toggle switch and state.
-// 2. STATUS: Cleaned up UI.
+// PHOENIX PROTOCOL - DRAFTING PAGE (REGENERATE FEATURE)
+// 1. ADDED: 'Regenerate' button in result panel to re-run jobs quickly.
+// 2. REFACTOR: Extracted submission logic for reusability.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { 
-  PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, FileText, Sparkles, Briefcase
+  PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, FileText, Sparkles, Briefcase, RotateCcw
 } from 'lucide-react';
 import { Case } from '../data/types';
 
@@ -26,7 +26,6 @@ const DraftingPage: React.FC = () => {
   const [cases, setCases] = useState<Case[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>('');
   const [context, setContext] = useState('');
-  // PHOENIX REMOVED: useLibrary state
   
   const [currentJob, setCurrentJob] = useState<DraftingJobState>({
     jobId: null, 
@@ -103,8 +102,8 @@ const DraftingPage: React.FC = () => {
     }, 2000);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // PHOENIX: Extracted logic to support both "Generate" and "Regenerate" buttons
+  const runDraftingJob = async () => {
     if (!context.trim()) return;
 
     setIsSubmitting(true);
@@ -115,7 +114,7 @@ const DraftingPage: React.FC = () => {
         user_prompt: context.trim(),
         context: context.trim(),
         case_id: selectedCaseId || undefined,
-        use_library: false // PHOENIX FIX: Hardcoded to false
+        use_library: false 
       });
 
       const jobId = jobResponse.job_id;
@@ -128,6 +127,11 @@ const DraftingPage: React.FC = () => {
       setCurrentJob(prev => ({ ...prev, error: errorMessage, status: 'FAILED' }));
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    runDraftingJob();
   };
 
   const handleCopyResult = async () => {
@@ -198,8 +202,6 @@ const DraftingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* PHOENIX REMOVED: Library Toggle */}
-
                 <div className="flex-1 flex flex-col">
                     <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.instructionsLabel')}</label>
                     <textarea
@@ -230,6 +232,15 @@ const DraftingPage: React.FC = () => {
                     <span className={statusDisplay.color}>{statusDisplay.text}</span>
                 </h3>
                 <div className="flex gap-2">
+                    {/* PHOENIX: Regenerate Button */}
+                    <button 
+                        onClick={runDraftingJob} 
+                        disabled={!currentJob.result || isSubmitting} 
+                        className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" 
+                        title={t('drafting.regenerate', 'Rigjenero')}
+                    >
+                        <RotateCcw size={18}/>
+                    </button>
                     <button onClick={handleCopyResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.copyTitle')}><Copy size={18}/></button>
                     <button onClick={handleDownloadResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.downloadTitle')}><Download size={18}/></button>
                 </div>

@@ -1,8 +1,7 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR PAGE (FILTER & LOCALE FIX)
-// 1. FILTER: 'upcomingAlerts' now strictly shows next 7 days only.
-// 2. LOCALE: Mapped 'sq' directly to date-fns Albanian locale.
-// 3. FORMATTING: Ensures Month names (November -> Nëntor) are translated.
+// PHOENIX PROTOCOL - CALENDAR PAGE
+// 1. UPDATE: Added subtitle "7 Ditët e Ardhshme" under Alerts sidebar header.
+// 2. STATUS: Feature complete.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -22,7 +21,7 @@ import {
   addDays,
   Locale 
 } from 'date-fns';
-import { sq, enUS } from 'date-fns/locale'; // Import enUS for fallback
+import { sq, enUS } from 'date-fns/locale'; 
 import {
   Calendar as CalendarIcon, Clock, MapPin, Users, AlertCircle, Plus, ChevronLeft, ChevronRight,
   Search, FileText, Gavel, Briefcase, AlertTriangle, XCircle, Bell, ChevronDown
@@ -34,11 +33,10 @@ import '../styles/DatePicker.css';
 
 const DatePicker = (ReactDatePicker as any).default;
 
-// Map 'sq' (from i18next) to 'sq' (from date-fns)
 const localeMap: { [key: string]: Locale } = { 
-  sq: sq, // Albanian
-  al: sq, // Fallback for legacy code
-  en: enUS  // English
+  sq: sq, 
+  al: sq, 
+  en: enUS
 };
 
 interface EventDetailModalProps { event: CalendarEvent; onClose: () => void; onUpdate: () => void; }
@@ -145,25 +143,22 @@ const CalendarPage: React.FC = () => {
            (filterPriority === 'ALL' || event.priority === filterPriority);
   });
 
-  // PHOENIX FIX: Strict Next-7-Days Filter
   const upcomingAlerts = events
     .filter(event => {
-        // Only show Deadlines/Hearings/Court Dates in alerts
         if (!['DEADLINE', 'HEARING', 'COURT_DATE'].includes(event.event_type)) return false;
         
         const eventDate = parseISO(event.start_date);
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Start of today
+        today.setHours(0, 0, 0, 0); 
         
         const sevenDaysFromNow = new Date(today);
         sevenDaysFromNow.setDate(today.getDate() + 7);
-        sevenDaysFromNow.setHours(23, 59, 59, 999); // End of 7th day
+        sevenDaysFromNow.setHours(23, 59, 59, 999); 
 
-        // Check range: Must be today or future, AND within 7 days
         return eventDate >= today && eventDate <= sevenDaysFromNow;
     })
     .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
-    .slice(0, 5); // Limit to top 5
+    .slice(0, 5);
 
   const renderListView = () => (
     <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl overflow-hidden">
@@ -322,10 +317,16 @@ const CalendarPage: React.FC = () => {
             {/* Sidebar - ALERTS ONLY */}
             <div className="lg:col-span-1 space-y-6">
                 <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge p-4 sm:p-6 rounded-2xl shadow-xl">
-                    <h3 className="text-lg font-semibold text-text-primary mb-4 flex items-center gap-2">
-                        <Bell className="h-5 w-5 text-yellow-400" />
-                        {t('caseCard.alerts')} & {t('calendar.types.DEADLINE')}
-                    </h3>
+                    {/* PHOENIX FIX: Added Subtitle */}
+                    <div className="mb-4">
+                        <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
+                            <Bell className="h-5 w-5 text-yellow-400" />
+                            {t('caseCard.alerts')} & {t('calendar.types.DEADLINE')}
+                        </h3>
+                        <p className="text-xs text-text-secondary mt-1">
+                            {t('calendar.next7Days', '7 Ditët e Ardhshme')}
+                        </p>
+                    </div>
                     
                     {upcomingAlerts.length === 0 ? <p className="text-text-secondary text-sm">{t('calendar.noUpcomingEvents')}</p> : (
                       <div className="space-y-3">
@@ -369,7 +370,7 @@ const CalendarPage: React.FC = () => {
 // Event Detail Modal Component (unchanged)
 const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onUpdate }) => {
     const { t, i18n } = useTranslation();
-    const currentLocale = localeMap[i18n.language] || enUS; // PHOENIX FIX
+    const currentLocale = localeMap[i18n.language] || enUS; 
     const [isDeleting, setIsDeleting] = useState(false);
 
     const isMidnight = (dateString: string) => {
@@ -445,14 +446,14 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
 // Create Event Modal Component (unchanged)
 const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onCreate }) => {
   const { t, i18n } = useTranslation();
-  const currentLocale = localeMap[i18n.language] || enUS; // PHOENIX FIX
+  const currentLocale = localeMap[i18n.language] || enUS; 
   const [isCreating, setIsCreating] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [eventDate, setEventDate] = useState<Date | null>(null);
 
   const [formData, setFormData] = useState<Omit<CalendarEventCreateRequest, 'attendees' | 'start_date' | 'end_date'> & { attendees: string }>({
     case_id: '', title: '', description: '', event_type: 'MEETING', location: '', attendees: '', 
-    is_all_day: true, // Default True
+    is_all_day: true, 
     priority: 'MEDIUM', notes: ''
   });
 
