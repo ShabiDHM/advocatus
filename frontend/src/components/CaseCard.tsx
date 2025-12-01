@@ -1,9 +1,10 @@
+// FILE: src/components/CaseCard.tsx
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Case } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Trash2, FileText, AlertTriangle, CalendarDays } from 'lucide-react';
+import { Trash2, FileText, AlertTriangle, CalendarDays, User, Mail, Phone, Lightbulb } from 'lucide-react';
 
 const MotionLink = motion(Link);
 
@@ -34,92 +35,119 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
 
   return (
     <MotionLink 
-      // PHOENIX FIX: Changed path from '/case/' to '/cases/' to match the router definition in App.tsx.
       to={`/cases/${caseData.id}`}
-      className="p-4 sm:p-6 rounded-2xl shadow-lg transition-all duration-300 cursor-pointer 
-                 bg-background-light/50 backdrop-blur-sm border border-glass-edge
-                 flex flex-col justify-between h-full"
-      whileHover={{ 
-        scale: 1.02, 
-        boxShadow: '0 0 15px rgba(59, 130, 246, 0.3)'
-      }}
-      whileTap={{ scale: 0.98 }}
+      className="group relative flex flex-col justify-between h-full p-6 rounded-2xl transition-all duration-300
+                 bg-gray-900/40 backdrop-blur-md border border-white/5 shadow-xl hover:shadow-2xl hover:bg-gray-800/60"
+      whileHover={{ scale: 1.01, y: -2 }}
+      whileTap={{ scale: 0.99 }}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.4 }}
     >
+      {/* Hover Glow Effect */}
+      <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
       <div>
         {/* Header Section */}
-        <div className="flex flex-col mb-3 sm:mb-4">
-          <h2 className="text-lg sm:text-xl font-bold text-text-primary compact-line-clamp-2 pr-2 break-words">
-            {caseData.case_name}
-          </h2>
-          <p className="text-xs text-text-secondary/70 mt-1">
-            {t('caseCard.createdOn')}: {formattedDate}
+        <div className="flex flex-col mb-4 relative z-10">
+          <div className="flex justify-between items-start gap-2">
+            <h2 className="text-lg font-bold text-gray-100 line-clamp-2 leading-tight tracking-tight">
+                {caseData.case_name}
+            </h2>
+            {/* Status Indicator Dot */}
+            <div 
+                className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                    caseData.status === 'open' ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-gray-500'
+                }`} 
+                title={caseData.status} 
+            />
+          </div>
+          <p className="text-xs text-gray-500 mt-2 font-medium">
+            {t('caseCard.createdOn')}: <span className="text-gray-400">{formattedDate}</span>
           </p>
         </div>
         
         {/* Client Details Section */}
-        <div className="flex flex-col space-y-1 mb-4">
-          <p className="text-sm sm:text-base font-bold text-text-primary border-b border-glass-edge/50 pb-2 mb-2">
-            {t('caseCard.client')}
-          </p>
-          <div className="flex flex-col space-y-1 pl-1">
-              <p className="text-sm text-text-secondary truncate">{caseData.client?.name || 'N/A'}</p>
+        <div className="flex flex-col mb-6 relative z-10">
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
+             <User className="w-3 h-3 text-indigo-400" />
+             <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">{t('caseCard.client')}</span>
+          </div>
+          
+          <div className="space-y-1.5 pl-1">
+              <p className="text-sm font-medium text-gray-200 truncate">
+                {caseData.client?.name || t('general.notAvailable')}
+              </p>
+              
               {caseData.client?.email && (
-                  <p className="text-xs text-text-secondary/80 truncate">E-mail: {caseData.client.email}</p>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <Mail className="w-3 h-3" />
+                      <span className="truncate">{caseData.client.email}</span>
+                  </div>
               )}
               {caseData.client?.phone && (
-                  <p className="text-xs text-text-secondary/80 truncate">Tel: {caseData.client.phone}</p>
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <Phone className="w-3 h-3" />
+                      <span className="truncate">{caseData.client.phone}</span>
+                  </div>
               )}
           </div>
         </div>
       </div>
       
-      <div>
+      <div className="relative z-10">
         {/* Statistics Section - Interactive Icons */}
-        <div className="pt-3 sm:pt-4 border-t border-glass-edge/50 flex items-center justify-start space-x-4 text-text-secondary">
-          {/* Documents - Static (Part of Case View) */}
-          <div className="flex items-center space-x-1" title={`${caseData.document_count} ${t('caseCard.documents')}`}>
-            <FileText className="h-4 w-4 text-primary-start" />
-            <span className="text-xs sm:text-sm font-medium">{caseData.document_count}</span>
+        <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-2">
+          
+          <div className="flex items-center gap-4">
+              {/* Documents */}
+              <div className="flex items-center gap-1.5" title={`${caseData.document_count || 0} ${t('caseCard.documents')}`}>
+                <FileText className="h-4 w-4 text-blue-400/80" />
+                <span className="text-sm font-medium text-gray-400">{caseData.document_count || 0}</span>
+              </div>
+
+              {/* Findings (New) */}
+              <div className="flex items-center gap-1.5" title={`${caseData.finding_count || 0} AI Findings`}>
+                <Lightbulb className="h-4 w-4 text-yellow-500/80" />
+                <span className="text-sm font-medium text-gray-400">{caseData.finding_count || 0}</span>
+              </div>
+
+              {/* Alerts */}
+              <button 
+                onClick={handleCalendarNav}
+                className="flex items-center gap-1.5 group/icon" 
+                title={`${caseData.alert_count || 0} Active System Alerts`}
+              >
+                <AlertTriangle className="h-4 w-4 text-orange-400/80 group-hover/icon:text-orange-400 transition-colors" />
+                <span className="text-sm font-medium text-gray-400 group-hover/icon:text-gray-200">{caseData.alert_count || 0}</span>
+              </button>
+
+              {/* Events */}
+              <button 
+                onClick={handleCalendarNav}
+                className="flex items-center gap-1.5 group/icon" 
+                title={`${caseData.event_count || 0} Confirmed Calendar Events`}
+              >
+                <CalendarDays className="h-4 w-4 text-purple-400/80 group-hover/icon:text-purple-400 transition-colors" />
+                <span className="text-sm font-medium text-gray-400 group-hover/icon:text-gray-200">{caseData.event_count || 0}</span>
+              </button>
           </div>
-
-          {/* Alerts - Clickable -> Calendar */}
-          <button 
-            onClick={handleCalendarNav}
-            className="flex items-center space-x-1 hover:text-accent-start transition-colors group" 
-            title={`${caseData.alert_count} ${t('caseCard.alerts')}`}
-          >
-            <AlertTriangle className="h-4 w-4 text-accent-start group-hover:scale-110 transition-transform" />
-            <span className="text-xs sm:text-sm font-medium">{caseData.alert_count}</span>
-          </button>
-
-          {/* Events - Clickable -> Calendar */}
-          <button 
-            onClick={handleCalendarNav}
-            className="flex items-center space-x-1 hover:text-purple-400 transition-colors group" 
-            title={`${caseData.event_count} ${t('caseCard.events')}`}
-          >
-            <CalendarDays className="h-4 w-4 text-purple-400 group-hover:scale-110 transition-transform" />
-            <span className="text-xs sm:text-sm font-medium">{caseData.event_count}</span>
-          </button>
         </div>
 
         {/* Footer: Actions */}
-        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-glass-edge/50 flex items-center justify-between text-xs text-text-secondary/70">
-          <div className="text-primary-start hover:text-primary-end transition-colors font-medium flex items-center">
-            {t('caseCard.viewDetails')} <span className="ml-1">→</span>
-          </div>
+        <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+          <span className="text-xs font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">
+            {t('caseCard.viewDetails')} 
+          </span>
           
           <motion.button
             onClick={handleDeleteClick}
-            className="p-2 -m-2 text-red-500 hover:text-red-400 transition-colors"
+            className="p-2 -mr-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-colors"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             title={t('caseCard.deleteCase')}
           >
-            <Trash2 className="h-5 w-5" />
+            <Trash2 className="h-4 w-4" />
           </motion.button>
         </div>
       </div>
