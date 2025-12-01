@@ -1,7 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - SYNC FIX
-// 1. EXPORT: Properly exports 'ChatMode' type.
-// 2. INTERFACE: Strict 'ChatPanelProps' definition.
+// PHOENIX PROTOCOL - LAYOUT REFACTOR
+// 1. UI: Moved Dropdown to the top header row, next to the Delete icon.
+// 2. RESPONSIVE: Adjusted widths to ensure the dropdown fits on smaller screens without hiding the title.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, ConnectionStatus, Document } from '../data/types';
@@ -84,42 +84,55 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <div className={`chat-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col ${className || 'h-[500px] sm:h-[600px]'}`}>
-      <div className="flex flex-col gap-3 border-b border-background-light/50 pb-3 mb-4 flex-shrink-0">
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-                <h2 className="text-lg font-bold text-text-primary">Asistenti Sokratik</h2>
-                <div className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 transition-all ${statusColor(connectionStatus)}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                    {connectionStatus !== 'CONNECTED' && <button onClick={reconnect} className="ml-1 hover:text-white"><RefreshCw size={10} /></button>}
-                </div>
+      
+      {/* Header Area - SINGLE ROW LAYOUT */}
+      <div className="flex items-center justify-between border-b border-background-light/50 pb-3 mb-4 flex-shrink-0 gap-2">
+          
+          {/* Left Side: Title & Status */}
+          <div className="flex items-center gap-3 min-w-0">
+            <h2 className="text-lg font-bold text-text-primary whitespace-nowrap hidden md:block">Asistenti Sokratik</h2>
+            <h2 className="text-lg font-bold text-text-primary md:hidden">Sokrati</h2>
+            
+            <div className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 transition-all ${statusColor(connectionStatus)}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                {connectionStatus !== 'CONNECTED' && <button onClick={reconnect} className="ml-1 hover:text-white"><RefreshCw size={10} /></button>}
             </div>
-            <button onClick={onClearChat} title={t('chatPanel.clearChat')} className="p-2 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-white/5"><Trash2 className="h-4 w-4" /></button>
           </div>
 
-          <div className="relative group w-full sm:w-auto">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                  {selectedContextId === 'case' ? <Briefcase size={14} className="text-amber-500" /> : <FileText size={14} className="text-primary-start" />}
+          {/* Right Side: Dropdown & Delete */}
+          <div className="flex items-center gap-2 flex-1 justify-end min-w-0">
+              
+              {/* CONTEXT SELECTOR DROPDOWN */}
+              <div className="relative group w-full max-w-[220px]">
+                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                      {selectedContextId === 'case' ? <Briefcase size={12} className="text-amber-500" /> : <FileText size={12} className="text-primary-start" />}
+                  </div>
+                  <select
+                    value={selectedContextId}
+                    onChange={(e) => setSelectedContextId(e.target.value)}
+                    className={`w-full appearance-none pl-8 pr-7 py-1.5 text-xs font-medium rounded-lg border focus:ring-1 focus:outline-none transition-all cursor-pointer truncate
+                        ${selectedContextId === 'case' 
+                            ? 'bg-amber-900/10 border-amber-500/30 text-amber-100 focus:border-amber-500 focus:ring-amber-500/20' 
+                            : 'bg-background-light/30 border-glass-edge text-white focus:border-primary-start focus:ring-primary-start/20'
+                        }`}
+                  >
+                      <option value="case" className="bg-slate-900 text-amber-400 font-bold">🗂️ E gjithë Dosja</option>
+                      {documents.length > 0 && (
+                          <optgroup label="Zgjidh Dokument Specifik" className="bg-slate-900 text-gray-400">
+                              {documents.map(doc => <option key={doc.id} value={doc.id} className="bg-slate-900 text-white">📄 {doc.file_name}</option>)}
+                          </optgroup>
+                      )}
+                  </select>
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500"><ChevronDown size={12} /></div>
               </div>
-              <select
-                value={selectedContextId}
-                onChange={(e) => setSelectedContextId(e.target.value)}
-                className={`w-full appearance-none pl-9 pr-8 py-2 text-sm rounded-lg border focus:ring-2 focus:outline-none transition-all cursor-pointer font-medium
-                    ${selectedContextId === 'case' 
-                        ? 'bg-amber-900/10 border-amber-500/30 text-amber-100 focus:border-amber-500 focus:ring-amber-500/20' 
-                        : 'bg-background-light/30 border-glass-edge text-white focus:border-primary-start focus:ring-primary-start/20'
-                    }`}
-              >
-                  <option value="case" className="bg-slate-900 text-amber-400 font-bold">🗂️ E gjithë Dosja</option>
-                  {documents.length > 0 && (
-                      <optgroup label="Zgjidh Dokument Specifik" className="bg-slate-900 text-gray-400">
-                          {documents.map(doc => <option key={doc.id} value={doc.id} className="bg-slate-900 text-white">📄 {doc.file_name}</option>)}
-                      </optgroup>
-                  )}
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500"><ChevronDown size={14} /></div>
+
+              <button onClick={onClearChat} title={t('chatPanel.clearChat')} className="p-2 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-white/5 flex-shrink-0">
+                  <Trash2 className="h-4 w-4" />
+              </button>
           </div>
       </div>
 
+      {/* Messages Area */}
       <div className="flex-1 min-h-0 overflow-y-auto space-y-6 custom-scrollbar pr-2 mb-4">
         {messages.length === 0 && !showThinking && ( 
             <div className="flex flex-col items-center justify-center h-full text-center text-text-secondary opacity-60 space-y-4">
@@ -153,6 +166,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Input */}
       <div className={`flex-none pt-3 border-t ${selectedContextId === 'case' ? 'border-amber-500/20' : 'border-glass-edge/30'}`}>
         <form onSubmit={handleSubmit} className="flex items-end space-x-2">
           <textarea 
