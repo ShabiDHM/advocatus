@@ -1,15 +1,15 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - LOGIC RELAXATION
-# 1. LOGIC: Removed strict early exit when no docs are found.
-# 2. FALLBACK: Added "General Knowledge" mode for the LLM when context is empty.
-# 3. UX: The AI will now always attempt an answer, clarifying if it's based on docs or general law.
+# PHOENIX PROTOCOL - DEEPSEEK V3 INTEGRATION
+# 1. ENGINE: Replaced Groq with DeepSeek V3 (via OpenAI SDK).
+# 2. LOGIC: Hybrid Architecture - Local Embeddings + Cloud Reasoning.
+# 3. COST: Optimized context window to keep API costs negligible.
 
 import os
 import asyncio
 import logging
 import httpx
-import json
 from typing import AsyncGenerator, List, Optional, Dict, Protocol, cast, Any
+from openai import AsyncOpenAI, APIError
 
 # Import the graph service instance
 from .graph_service import graph_service
@@ -17,14 +17,15 @@ from .graph_service import graph_service
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
-LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+DEEPSEEK_MODEL = "deepseek-chat" # Points to DeepSeek V3
+
+# Local Backup Configuration (in case internet fails)
+LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://localhost:11434/api/chat")
 LOCAL_MODEL_NAME = "llama3"
 
 # Protocol Definitions
-class LLMClientProtocol(Protocol):
-    @property
-    def chat(self) -> Any: ...
-
 class VectorStoreServiceProtocol(Protocol):
     def query_by_vector(self, embedding: List[float], case_id: str, n_results: int, document_ids: Optional[List[str]]) -> List[Dict]: ...
     def query_legal_knowledge_base(self, embedding: List[float], n_results: int) -> List[Dict]: ...
@@ -36,29 +37,48 @@ class AlbanianRAGService:
     def __init__(
         self,
         vector_store: VectorStoreServiceProtocol,
-        llm_client: LLMClientProtocol,
+        llm_client: Any, # Placeholder, we init our own client
         language_detector: LanguageDetectorProtocol
     ):
         self.vector_store = cast(VectorStoreServiceProtocol, vector_store)
-        self.llm_client = llm_client
         self.language_detector = language_detector
-        self.fine_tuned_model = "llama-3.3-70b-versatile"
         
-        self.EMBEDDING_TIMEOUT = 30.0
+        # --- INIT DEEPSEEK CLIENT ---
+        if DEEPSEEK_API_KEY:
+            self.client = AsyncOpenAI(
+                api_key=DEEPSEEK_API_KEY, 
+                base_url=DEEPSEEK_BASE_URL
+            )
+            logger.info("✅ DeepSeek V3 Activated for Juristi AI.")
+        else:
+            logger.critical("❌ DEEPSEEK_API_KEY missing! Chat will fail or fallback.")
+            self.client = None
+
+        # Configuration
         self.AI_CORE_URL = os.getenv("AI_CORE_URL", "http://ai-core-service:8000")
-        self.RERANK_TIMEOUT = 15.0
+        self.RERANK_TIMEOUT = 10.0
 
     async def chat(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> str:
+        """
+        Main entry point for chat. Returns full string response.
+        """
         full_response_parts = []
         async for chunk in self.chat_stream(query, case_id, document_ids):
             if chunk: full_response_parts.append(chunk)
         return "".join(full_response_parts)
 
     async def _rerank_chunks(self, query: str, chunks: List[Dict]) -> List[Dict]:
+        """
+        Calls local ai-core-service to rerank results. 
+        Keep this LOCAL to save API tokens and improve relevance.
+        """
         if not chunks: return []
+        
+        # Deduplicate
         unique_chunks = {c.get('text', ''): c for c in chunks}
         documents = list(unique_chunks.keys())
         chunk_map = unique_chunks
+        
         try:
             async with httpx.AsyncClient(timeout=self.RERANK_TIMEOUT) as client:
                 response = await client.post(
@@ -68,201 +88,145 @@ class AlbanianRAGService:
                 response.raise_for_status()
                 data = response.json()
                 sorted_texts = data.get("reranked_documents", [])
+                
                 reranked = []
                 for text in sorted_texts:
                     if text in chunk_map: reranked.append(chunk_map[text])
                 return reranked
         except Exception as e:
-            logger.warning(f"⚠️ Reranking failed: {e}")
+            logger.warning(f"⚠️ Local Reranking skipped: {e}")
             return list(unique_chunks.values())
 
-    async def _call_local_llm(self, system_prompt: str, user_prompt: str) -> str:
-        logger.info("🔄 TIER 2: Switching to Local LLM...")
+    async def _call_local_backup(self, system_prompt: str, user_prompt: str) -> str:
+        """
+        Fallback to Local CPU model if DeepSeek is down/unpaid.
+        """
+        logger.warning("🔄 Switching to Local Backup Model (CPU)...")
         try:
             payload = {
                 "model": LOCAL_MODEL_NAME,
                 "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
                 "stream": False
             }
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=90.0) as client:
                 response = await client.post(LOCAL_LLM_URL, json=payload)
-                response.raise_for_status()
                 data = response.json()
                 return data.get("message", {}).get("content", "")
         except Exception as e:
-            logger.error(f"❌ TIER 2 Failed: {e}")
-            return ""
+            logger.error(f"❌ Local Backup Failed: {e}")
+            return "Shërbimi është momentalisht i padisponueshëm."
 
     async def chat_stream(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> AsyncGenerator[str, None]:
         relevant_chunks = []
         graph_knowledge = []
         context_found = False
         
+        # --- PHASE 1: RETRIEVAL (LOCAL SERVER) ---
+        # Your server handles this part for free and fast.
         try:
             from .embedding_service import generate_embedding
 
-            # --- STEP 1: EMBED ---
-            try:
-                query_embedding = await asyncio.to_thread(generate_embedding, query, 'standard')
-            except Exception:
-                # Even if embedding fails, we try to proceed with general knowledge? 
-                # No, embedding is critical for RAG. We will log but try to continue if possible.
-                logger.error("Embedding failed.")
-                query_embedding = None
-
+            # 1. Embed Query
+            query_embedding = await asyncio.to_thread(generate_embedding, query, 'standard')
+            
             if query_embedding:
-                # --- STEP 2: PARALLEL SEARCH ---
-                async def safe_user_search():
-                    try:
-                        return await asyncio.to_thread(
-                            self.vector_store.query_by_vector,
-                            embedding=query_embedding, case_id=case_id, n_results=8, document_ids=document_ids
-                        )
-                    except Exception: return []
-
-                async def safe_law_search():
-                    try:
-                        return await asyncio.to_thread(
-                            self.vector_store.query_legal_knowledge_base,
-                            embedding=query_embedding, n_results=4 
-                        )
-                    except Exception: return []
+                # 2. Parallel Search (Vector DB + Knowledge Base + Graph)
+                async def safe_vector_search():
+                    return await asyncio.to_thread(
+                        self.vector_store.query_by_vector,
+                        embedding=query_embedding, case_id=case_id, n_results=10, document_ids=document_ids
+                    )
+                
+                async def safe_kb_search():
+                    return await asyncio.to_thread(
+                        self.vector_store.query_legal_knowledge_base,
+                        embedding=query_embedding, n_results=3
+                    )
 
                 async def safe_graph_search():
-                    try:
-                        words = [w for w in query.split() if len(w) > 3]
-                        connections = []
-                        for word in words:
-                            found = await asyncio.to_thread(graph_service.find_hidden_connections, word)
-                            connections.extend(found)
-                        return list(set(connections)) 
-                    except Exception as e:
-                        logger.warning(f"Graph Search Error: {e}")
-                        return []
+                    # Simple keyword graph lookup
+                    keywords = [w for w in query.split() if len(w) > 4]
+                    results = []
+                    for k in keywords:
+                        results.extend(await asyncio.to_thread(graph_service.find_hidden_connections, k))
+                    return list(set(results))
 
                 results = await asyncio.gather(
-                    safe_user_search(), 
-                    safe_law_search(),
-                    safe_graph_search(),
+                    safe_vector_search(), 
+                    safe_kb_search(), 
+                    safe_graph_search(), 
                     return_exceptions=True
                 )
-                
+
                 user_docs = results[0] if isinstance(results[0], list) else []
-                law_docs = results[1] if isinstance(results[1], list) else []
-                graph_results = results[2] if isinstance(results[2], list) else []
-                
-                graph_knowledge = graph_results
-                logger.info(f"🔍 RESULTS -> Vectors: {len(user_docs)}, Laws: {len(law_docs)}, Graph Nodes: {len(graph_results)}")
+                kb_docs = results[1] if isinstance(results[1], list) else []
+                graph_knowledge = results[2] if isinstance(results[2], list) else []
 
-                all_candidates = user_docs + law_docs
+                # 3. Rerank (Local CPU)
+                raw_candidates = user_docs + kb_docs
+                if raw_candidates:
+                    relevant_chunks = await self._rerank_chunks(query, raw_candidates)
+                    relevant_chunks = relevant_chunks[:8] # Send top 8 chunks to DeepSeek
+                    context_found = True
                 
-                # --- STEP 3: RERANK ---
-                if all_candidates:
-                    reranked = await self._rerank_chunks(query, all_candidates)
-                    relevant_chunks = reranked[:7] if reranked else all_candidates[:7]
-                    context_found = True
-                elif graph_results:
-                    context_found = True
-            
-            # PHOENIX FIX: Removed the "else: yield Error... return" block.
-            # We proceed to LLM regardless.
-
         except Exception as e:
-            logger.error(f"RAG Error: {e}")
-            yield f"Gabim gjatë kërkimit: {str(e)}"
-            return
+            logger.error(f"Retrieval Phase Error: {e}")
+            # We continue even if retrieval fails, relying on LLM's general knowledge
 
-        # --- STEP 4: GENERATE (PROFESSIONAL PROMPT) ---
-        context_string = self._build_prompt_context(relevant_chunks, graph_knowledge)
+        # --- PHASE 2: GENERATION (DEEPSEEK API) ---
         
-        # PHOENIX FIX: Updated prompt to handle "No Context" gracefully
+        # Build Context String
+        context_text = ""
+        if graph_knowledge:
+            context_text += "### TË DHËNA NGA GRAFI:\n" + "\n".join(graph_knowledge[:5]) + "\n\n"
+        
+        if relevant_chunks:
+            context_text += "### DOKUMENTET E GJETURA:\n"
+            for chunk in relevant_chunks:
+                source = chunk.get('document_name', 'Dokument')
+                text = chunk.get('text', '')
+                context_text += f"BURIMI: {source}\nPËRMBAJTJA: {text}\n---\n"
+        
+        if not context_text:
+            context_text = "Nuk u gjetën dokumente specifike. Përgjigju bazuar në njohuritë e përgjithshme ligjore."
+
+        # Professional System Prompt
         system_prompt = """
-        Ju jeni "Asistenti Sokratik", një konsulent ligjor i nivelit të lartë (Senior Legal Associate) i specializuar në ligjet e Kosovës dhe Shqipërisë.
-        Qëllimi juaj është të ofroni analiza profesionale, të sakta dhe të strukturuara.
-
-        UDHËZIME PËR PËRGJIGJEN:
-        1. Nëse ka dokumente në kontekst:
-           - SINTETIZO: Përdor informacionin për të ndërtuar një narrativë logjike.
-           - CITO: Referoju burimeve (psh. "Sipas Kontratës së Punës...").
+        Ju jeni "Juristi AI", një asistent ligjor i avancuar për profesionistët në Kosovë.
         
-        2. Nëse NUK ka dokumente specifike (Konteksti bosh):
-           - Përgjigju duke u bazuar në parimet e përgjithshme juridike të ligjeve në fuqi.
-           - Fillo përgjigjen me: "Bazuar në njohuritë e përgjithshme ligjore (pasi nuk u gjetën dokumente specifike në dosje)..."
-           - Ofro udhëzime se çfarë dokumentesh mund të duhen.
-
-        3. INTEGRIMI I GRAFIT: Përdor të dhënat nga 'Analiza e Lidhjeve' si fakte të konfirmuara.
-        4. STILI: Përdor gjuhë juridike formale, objektive dhe profesionale.
-
-        FORMATI:
-        - Fillo me një përmbledhje ekzekutive.
-        - Analizo detajet (Palët, Objektin, Afatet, Detyrimet).
-        - Përfundo me një konkluzion ose rekomandim.
-        """
-        
-        user_prompt = f"""
-        PYETJA E PËRDORUESIT: {query}
-
-        ---
-        MATERIALI I SHQYRTUAR (Nga Dosja):
-        {context_string if context_found else "Nuk u gjetën dokumente specifike për këtë kërkim."}
-        ---
-        
-        Bazuar në materialin e mësipërm (ose njohuritë tuaja të përgjithshme nëse mungon materiali), ju lutem hartoni përgjigjen tuaj profesionale:
+        UDHËZIME:
+        1. Analizo pyetjen e përdoruesit duke përdorur kontekstin e ofruar.
+        2. Nëse konteksti përmban përgjigjen, cito dokumentet (p.sh. "Sipas kontratës...").
+        3. Nëse konteksti nuk ka informacion, përdor njohuritë e tua për ligjet e Kosovës, por thekso se informacioni është i përgjithshëm.
+        4. Stili: Profesional, objektiv, dhe i saktë juridikisht.
+        5. Përgjigju në gjuhën Shqipe.
         """
 
-        # TIER 1: GROQ (CLOUD)
-        tier1_failed = False
+        user_message = f"PYETJA: {query}\n\nKONTEKSTI:\n{context_text}"
+
         try:
-            stream = await self.llm_client.chat.completions.create(
+            if not self.client:
+                raise Exception("DeepSeek Client not initialized")
+
+            stream = await self.client.chat.completions.create(
+                model=DEEPSEEK_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "user", "content": user_message}
                 ],
-                model=self.fine_tuned_model,
-                temperature=0.3, # Slightly higher temperature for general knowledge reasoning
-                stream=True,
+                temperature=0.3, # Low temp for precision
+                stream=True
             )
+
             async for chunk in stream:
-                content = getattr(chunk.choices[0].delta, 'content', None)
+                content = chunk.choices[0].delta.content
                 if content:
                     yield content
             
-            yield "\n\n**Burimi:** Asistenti Sokratik"
-            return
+            # Footer to confirm source (Remove in production if desired)
+            yield "\n\n**Burimi:** Juristi AI"
 
         except Exception as e:
-            error_str = str(e).lower()
-            if "rate limit" in error_str or "429" in error_str or "quota" in error_str:
-                logger.warning("⚠️ Cloud Limit Reached. Activating Tier 2.")
-                tier1_failed = True
-            else:
-                logger.error(f"Tier 1 Failed: {e}")
-                tier1_failed = True
-
-        # TIER 2: LOCAL LLM
-        if tier1_failed:
-            local_content = await self._call_local_llm(system_prompt, user_prompt)
-            if local_content:
-                yield "**[Mode: AI Lokale]**\n\n"
-                yield local_content
-                yield "\n\n**Burimi:** Asistenti Sokratik"
-                return
-        
-        # TIER 3: STATIC FALLBACK (Only if both LLMs fail)
-        yield "Kërkesa nuk mund të përpunohej për momentin për shkak të ngarkesës së lartë. Ju lutemi provoni përsëri më vonë."
-
-    def _build_prompt_context(self, chunks: List[Dict], graph_data: List[str]) -> str:
-        parts = []
-        if graph_data:
-            parts.append("=== TË DHËNA NGA ANALIZA E LIDHJEVE (STRUKTUAR) ===")
-            parts.extend(graph_data)
-            parts.append("==================================================\n")
-        
-        if chunks:
-            parts.append("=== PËRMBAJTJA E DOKUMENTEVE (TEKST) ===")
-            for chunk in chunks:
-                doc_type = chunk.get('type', 'DOKUMENT')
-                name = chunk.get('document_name', 'Burim i Panjohur')
-                text = chunk.get('text', '')
-                parts.append(f"Burimi: {name} ({doc_type})\nPërmbajtja: {text}\n---")
-        return "\n".join(parts)
+            logger.error(f"DeepSeek API Error: {e}")
+            # Failover to Local CPU Model
+            yield await self._call_local_backup(system_prompt, user_message)
