@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Case } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Trash2, FileText, AlertTriangle, CalendarDays, User, Mail, Phone, Lightbulb } from 'lucide-react';
+import { Trash2, FileText, AlertTriangle, CalendarDays, User, Mail, Phone, Lightbulb, Hash } from 'lucide-react';
 
 const MotionLink = motion(Link);
 
@@ -33,6 +33,12 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
     year: 'numeric', month: '2-digit', day: '2-digit'
   });
 
+  // PHOENIX FIX: Robust Title Handling
+  // If case_name is missing, fall back to Case Number, then "Untitled Case"
+  const displayTitle = caseData.case_name && caseData.case_name.trim() !== '' 
+      ? caseData.case_name 
+      : (caseData.case_number ? `${t('caseCard.caseNumber')} #${caseData.case_number}` : t('caseCard.untitled'));
+
   return (
     <MotionLink 
       to={`/cases/${caseData.id}`}
@@ -51,8 +57,8 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         {/* Header Section */}
         <div className="flex flex-col mb-4 relative z-10">
           <div className="flex justify-between items-start gap-2">
-            <h2 className="text-lg font-bold text-gray-100 line-clamp-2 leading-tight tracking-tight">
-                {caseData.case_name}
+            <h2 className={`text-lg font-bold line-clamp-2 leading-tight tracking-tight ${!caseData.case_name ? 'text-gray-400 italic' : 'text-gray-100'}`}>
+                {displayTitle}
             </h2>
             {/* Status Indicator Dot */}
             <div 
@@ -62,9 +68,15 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
                 title={caseData.status} 
             />
           </div>
-          <p className="text-xs text-gray-500 mt-2 font-medium">
-            {t('caseCard.createdOn')}: <span className="text-gray-400">{formattedDate}</span>
-          </p>
+          
+          <div className="flex items-center gap-2 mt-2">
+            {!caseData.case_name && caseData.case_number && (
+                 <Hash className="w-3 h-3 text-gray-600" />
+            )}
+            <p className="text-xs text-gray-500 font-medium">
+                {t('caseCard.createdOn')}: <span className="text-gray-400">{formattedDate}</span>
+            </p>
+          </div>
         </div>
         
         {/* Client Details Section */}
@@ -106,8 +118,8 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
                 <span className="text-sm font-medium text-gray-400">{caseData.document_count || 0}</span>
               </div>
 
-              {/* Findings (New) */}
-              <div className="flex items-center gap-1.5" title={`${caseData.finding_count || 0} AI Findings`}>
+              {/* Findings (Confirmed 7) */}
+              <div className="flex items-center gap-1.5" title={`${caseData.finding_count || 0} AI Findings (Review needed)`}>
                 <Lightbulb className="h-4 w-4 text-yellow-500/80" />
                 <span className="text-sm font-medium text-gray-400">{caseData.finding_count || 0}</span>
               </div>
