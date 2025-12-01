@@ -1,21 +1,21 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE (DEEP CLEAN ENABLED)
-# 1. UPDATE: 'delete_case_by_id' now wipes associated Archive files from S3/MinIO and DB.
-# 2. LOGIC: Uses 'storage_service' to ensure no orphaned files remain in cloud storage.
-# 3. STATUS: Fully implements the "Digital Shredder" for cases.
+# PHOENIX PROTOCOL - CASE SERVICE (AUTO-SYNC INCLUDED)
+# 1. ADDED: sync_case_calendar_from_findings method.
+# 2. LOGIC: Parses findings for dates and inserts Calendar Events.
+# 3. STATUS: Implements "Digital Shredder" + "Auto-Calendar".
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
 from bson import ObjectId
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List, cast
+import re
 
 from ..models.case import CaseCreate
 from ..models.user import UserInDB
 from ..models.drafting import DraftRequest
 from ..celery_app import celery_app
 from .graph_service import graph_service
-# PHOENIX NEW: Import Storage Service for file cleanup
 from . import storage_service
 
 # --- HELPER: DATA ADAPTER ---
@@ -71,6 +71,87 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         print(f"Error mapping case {case_doc.get('_id')}: {e}")
         return None
 
+# --- AUTO-SYNC LOGIC ---
+def _parse_finding_date(text: str) -> datetime | None:
+    if not text: return None
+    text = text.lower().strip()
+    
+    # 1. Numeric (DD/MM/YYYY)
+    match = re.search(r'(\d{1,2})[./-](\d{1,2})[./-](\d{4})', text)
+    if match:
+        return datetime(int(match.group(3)), int(match.group(2)), int(match.group(1)), tzinfo=timezone.utc)
+        
+    # 2. Albanian Months
+    months = {
+        'janar': 1, 'shkurt': 2, 'mars': 3, 'prill': 4, 'maj': 5, 'qershor': 6,
+        'korrik': 7, 'gusht': 8, 'shtator': 9, 'tetor': 10, 'nëntor': 11, 'nentor': 11, 'dhjetor': 12
+    }
+    
+    for m_name, m_num in months.items():
+        # With Year: "15 Dhjetor 2025"
+        if match := re.search(r'(\d{1,2})[\s.-]+' + m_name + r'[\s.-]+(\d{4})', text):
+            return datetime(int(match.group(2)), m_num, int(match.group(1)), tzinfo=timezone.utc)
+        # Without Year: "25 Dhjetor" -> Smart Year
+        if match := re.search(r'(\d{1,2})[\s.-]+' + m_name + r'(?!\w)', text):
+            day = int(match.group(1))
+            now = datetime.now(timezone.utc)
+            year = now.year
+            # If month passed, assume next year
+            if m_num < now.month: year += 1
+            return datetime(year, m_num, day, tzinfo=timezone.utc)
+            
+    return None
+
+def sync_case_calendar_from_findings(db: Database, case_id: str, user_id: ObjectId):
+    """
+    Scans all findings for a case, detects dates, and populates the calendar_events table.
+    Designed to be idempotent (avoids duplicates).
+    """
+    try:
+        # Get findings (handle both ObjectId and String case_id)
+        findings = list(db.findings.find({"case_id": {"$in": [case_id, ObjectId(case_id)]}}))
+        
+        events_to_create = []
+        for f in findings:
+            f_text = f.get('finding_text', '')
+            dt = _parse_finding_date(f_text)
+            
+            if dt:
+                # Check for duplicate event
+                title_fragment = f_text[:50] + "..." if len(f_text) > 50 else f_text
+                
+                # Check if an event with this Date and Title already exists for this case
+                exists = db.calendar_events.find_one({
+                    "case_id": {"$in": [case_id, ObjectId(case_id)]},
+                    "start_date": dt,
+                    "title": title_fragment
+                })
+                
+                if not exists:
+                    events_to_create.append({
+                        "title": title_fragment,
+                        "description": f"Burimi (Auto-Detected): {f_text}",
+                        "start_date": dt,
+                        "end_date": dt,
+                        "is_all_day": True,
+                        "event_type": "DEADLINE",
+                        "priority": "HIGH",
+                        "status": "PENDING",
+                        "case_id": case_id, # Store as string for consistency in new events
+                        "owner_id": user_id,
+                        "created_at": datetime.now(timezone.utc),
+                        "updated_at": datetime.now(timezone.utc)
+                    })
+        
+        if events_to_create:
+            db.calendar_events.insert_many(events_to_create)
+            # print(f"Synced {len(events_to_create)} events for case {case_id}")
+            
+    except Exception as e:
+        print(f"Error syncing calendar for case {case_id}: {e}")
+
+# --- CRUD OPERATIONS ---
+
 def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[Dict[str, Any]]:
     case_dict = case_in.model_dump(exclude={"clientName", "clientEmail", "clientPhone"})
     
@@ -115,6 +196,11 @@ def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional
         "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]
     })
     if not case: return None
+    
+    # PHOENIX NEW: Opportunistic Sync on Read
+    # If the user opens the case details, ensure calendar is up to date
+    sync_case_calendar_from_findings(db, str(case_id), owner.id)
+    
     return _map_case_document(case, db)
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
@@ -129,17 +215,14 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
 
     # --- 1. ARCHIVE CLEANUP (Deep Clean) ---
-    # Find all archive items linked to this case
     archive_items = db.archives.find(any_id_query)
     for item in archive_items:
         if "storage_key" in item:
             try:
-                # Delete physical file from Cloud Storage
                 storage_service.delete_file(item["storage_key"])
             except Exception as e:
                 print(f"Warning: Failed to delete archive file {item.get('title')}: {e}")
     
-    # Delete Archive records
     db.archives.delete_many(any_id_query)
 
     # --- 2. GRAPH CLEANUP ---
@@ -160,9 +243,6 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     db.alerts.delete_many(any_id_query)
 
 def create_draft_job_for_case(db: Database, case_id: ObjectId, job_in: DraftRequest, owner: UserInDB) -> Dict[str, Any]:
-    """
-    Validates case ownership and dispatches a drafting job linked to the case.
-    """
     case = db.cases.find_one({
         "_id": case_id, 
         "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]

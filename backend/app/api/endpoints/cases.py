@@ -1,11 +1,11 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER (AUTO-SYNC ENABLED)
-# 1. ADDED: _sync_findings_to_calendar function.
-# 2. LOGIC: Automatically promotes findings with dates to Calendar Events on fetch.
-# 3. FIX: Resolves "1 vs 5" discrepancy by populating the DB backend-side.
+# PHOENIX PROTOCOL - CASES ROUTER (SYNC CONNECTED)
+# 1. UPDATE: analyze_case_risks now triggers auto-sync.
+# 2. UPDATE: get_findings_for_case triggers auto-sync.
+# 3. FIX: Ensures Dashboard counts match Findings counts automatically.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from typing import List, Annotated, Dict, Any
+from typing import List, Annotated
 from fastapi.responses import Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from pymongo.database import Database
@@ -14,7 +14,6 @@ from bson import ObjectId
 from bson.errors import InvalidId
 import asyncio
 import logging
-import re 
 from datetime import datetime, timezone
 
 from ...services import (
@@ -50,77 +49,6 @@ def validate_object_id(id_str: str) -> ObjectId:
     try: return ObjectId(id_str)
     except InvalidId: raise HTTPException(status_code=400, detail="Invalid ID format.")
 
-# --- HELPER: AUTO-SYNC FINDINGS TO CALENDAR ---
-def _parse_finding_date(text: str) -> datetime | None:
-    if not text: return None
-    text = text.lower().strip()
-    
-    # 1. Numeric (DD/MM/YYYY)
-    match = re.search(r'(\d{1,2})[./-](\d{1,2})[./-](\d{4})', text)
-    if match:
-        return datetime(int(match.group(3)), int(match.group(2)), int(match.group(1)), tzinfo=timezone.utc)
-        
-    # 2. Albanian Months
-    months = {
-        'janar': 1, 'shkurt': 2, 'mars': 3, 'prill': 4, 'maj': 5, 'qershor': 6,
-        'korrik': 7, 'gusht': 8, 'shtator': 9, 'tetor': 10, 'nëntor': 11, 'nentor': 11, 'dhjetor': 12
-    }
-    
-    for m_name, m_num in months.items():
-        # With Year: "15 Dhjetor 2025"
-        if match := re.search(r'(\d{1,2})[\s.-]+' + m_name + r'[\s.-]+(\d{4})', text):
-            return datetime(int(match.group(2)), m_num, int(match.group(1)), tzinfo=timezone.utc)
-        # Without Year: "25 Dhjetor" -> Smart Year
-        if match := re.search(r'(\d{1,2})[\s.-]+' + m_name + r'(?!\w)', text):
-            day = int(match.group(1))
-            now = datetime.now(timezone.utc)
-            year = now.year
-            # If month passed, assume next year
-            if m_num < now.month: year += 1
-            return datetime(year, m_num, day, tzinfo=timezone.utc)
-            
-    return None
-
-def _sync_findings_to_calendar(db: Database, case_id: str, findings: List[Dict[str, Any]], user: UserInDB):
-    """
-    Scans findings for dates and auto-creates calendar events if they don't exist.
-    """
-    events_to_create = []
-    for f in findings:
-        f_text = f.get('finding_text', '')
-        dt = _parse_finding_date(f_text)
-        
-        if dt:
-            # Prevent Duplicates: Check if similar event exists
-            title_fragment = f_text[:50] + "..." if len(f_text) > 50 else f_text
-            exists = db.calendar_events.find_one({
-                "case_id": case_id,
-                "start_date": dt,
-                "title": title_fragment
-            })
-            
-            if not exists:
-                events_to_create.append({
-                    "title": title_fragment,
-                    "description": f"Burimi (Auto-Detected): {f_text}",
-                    "start_date": dt,
-                    "end_date": dt,
-                    "is_all_day": True,
-                    "event_type": "DEADLINE",
-                    "priority": "HIGH",
-                    "status": "PENDING",
-                    "case_id": case_id,
-                    "owner_id": user.id,
-                    "created_at": datetime.now(timezone.utc),
-                    "updated_at": datetime.now(timezone.utc)
-                })
-    
-    if events_to_create:
-        db.calendar_events.insert_many(events_to_create)
-        logger.info(f"Auto-synced {len(events_to_create)} events for case {case_id}")
-
-# --- ENDPOINTS ---
-
 @router.get("", response_model=List[CaseOut], include_in_schema=False)
 @router.get("/", response_model=List[CaseOut])
 async def get_user_cases(current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
@@ -134,6 +62,7 @@ async def create_new_case(case_in: CaseCreate, current_user: Annotated[UserInDB,
 @router.get("/{case_id}", response_model=CaseOut)
 async def get_single_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validated_case_id = validate_object_id(case_id)
+    # PHOENIX: get_case_by_id now handles "Opportunistic Sync" internally in case_service
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=validated_case_id, owner=current_user)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
@@ -166,11 +95,9 @@ async def create_draft_for_case(
 async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
     findings_data = await asyncio.to_thread(findings_service.get_findings_for_case, db=db, case_id=case_id)
-
-    # PHOENIX FIX: Just-In-Time Calendar Sync
-    # This ensures that as soon as findings are viewed (or checked via API), 
-    # the calendar is populated, fixing the "1 vs 5" dashboard discrepancy.
-    await asyncio.to_thread(_sync_findings_to_calendar, db=db, case_id=case_id, findings=findings_data, user=current_user)
+    
+    # PHOENIX FIX: Sync Logic
+    await asyncio.to_thread(case_service.sync_case_calendar_from_findings, db=db, case_id=case_id, user_id=current_user.id)
 
     findings_out_list = []
     for finding in findings_data:
@@ -336,6 +263,10 @@ async def analyze_case_risks(
         raise HTTPException(status_code=404, detail="Case not found.")
 
     analysis_result = await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id)
+    
+    # PHOENIX FIX: Trigger Auto-Sync immediately after analysis
+    await asyncio.to_thread(case_service.sync_case_calendar_from_findings, db=db, case_id=case_id, user_id=current_user.id)
+    
     return JSONResponse(content=analysis_result)
 
 @router.post("/{case_id}/documents/{doc_id}/deep-scan", tags=["Documents"])
