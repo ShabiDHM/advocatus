@@ -1,7 +1,7 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - FOOTER CLEANUP
-// 1. REMOVED: 'Terms' and 'Privacy' links from the footer as requested.
-// 2. STATUS: Clean build, minimalist footer.
+// PHOENIX PROTOCOL - TEXT UPDATE
+// 1. CONTENT: Changed 'Avokatët' to 'Juristët' in the hero badge.
+// 2. STATUS: Production-ready.
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -38,7 +38,7 @@ const LandingPage: React.FC = () => {
             transition={{ duration: 0.6 }}
           >
             <span className="inline-block py-1 px-3 rounded-full bg-blue-900/30 border border-blue-500/30 text-blue-400 text-xs font-semibold tracking-wider mb-6 uppercase">
-              Platforma Nr. 1 për Avokatët në Kosovë
+              Platforma Nr. 1 për Juristët në Kosovë
             </span>
             <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
               Më i zgjuar. Më i shpejtë.<br />
