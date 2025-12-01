@@ -1,77 +1,110 @@
-# app/services/text_sterilization_service.py
-# DEFINITIVE VERSION 4.1: FIXING PYCLANCE TYPE ERRORS AND RETURN PATHS
+# FILE: backend/app/services/text_sterilization_service.py
+# PHOENIX PROTOCOL - VERSION 5.0 (SECURITY HARDENED)
+# 1. SECURITY: Removed logging of raw PII entities (Data Leak Prevention).
+# 2. LOGIC: Added Regex Safety Net for Emails, Phones, and IDs (Defense in Depth).
+# 3. STABILITY: Retained reverse-index replacement logic.
 
 import logging
 import re
-from typing import List, cast # <<< FIX 1: Import 'cast' for explicit type hinting
+from typing import List, cast, Tuple
 
-# Import the new Albanian NER Service
+# Import the Albanian NER Service
 from .albanian_ner_service import ALBANIAN_NER_SERVICE 
 
 logger = logging.getLogger(__name__)
 
+# Regex Patterns for Structured Data (Kosovo/Albania Context)
+REGEX_PATTERNS = [
+    # Email Addresses
+    (r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '[EMAIL_ANONIMIZUAR]'),
+    
+    # Phone Numbers (Kosovo +383, Albania +355, and local formats like 044, 049, 069)
+    # Matches: +383 44 123 456, 044-123-456, 049/123456
+    (r'(?:\+383|\+355|00383|00355|0)(?:[\s\-\/]?)(\d{2})(?:[\s\-\/]?)(\d{3})(?:[\s\-\/]?)(\d{3})', '[TELEFON_ANONIMIZUAR]'),
+    
+    # Personal ID Numbers (10 digits, common in region)
+    (r'\b[0-9]{10}\b', '[ID_ANONIMIZUAR]')
+]
 
 def sterilize_text_for_llm(text: str) -> str:
     """
-    Performs PII redaction using the specialized Albanian NER service and 
-    then forces the text into a clean UTF-8 format.
+    Performs PII redaction using a multi-layered approach:
+    1. Regex Pattern Matching (Structured Data)
+    2. AI/NER Detection (Names, Orgs, Locs)
+    3. UTF-8 Sanitization
     """
     if not isinstance(text, str):
         logger.warning("--- [Sterilization] Input was not a string, returning empty. ---")
-        return "" # Returns str: OK
+        return ""
 
-    # Step 1: PII Redaction via NER Service
-    redacted_text = _redact_pii_with_ner(text)
+    # Step 1: Regex Redaction (Fast & Deterministic)
+    text = _redact_patterns(text)
+
+    # Step 2: AI/NER Redaction (Contextual)
+    text = _redact_pii_with_ner(text)
     
-    # Step 2: UTF-8 Sanitization (Original Logic)
+    # Step 3: UTF-8 Sanitization
     try:
-        # We explicitly return the result of the encoding/decoding process
-        clean_text = redacted_text.encode('utf-8', 'ignore').decode('utf-8')
-        logger.debug("--- [Sterilization] PII Redaction and UTF-8 cleaning successful. ---")
-        return clean_text # Returns str: OK
+        clean_text = text.encode('utf-8', 'ignore').decode('utf-8')
+        return clean_text
     except Exception as e:
         logger.error(f"--- [Sterilization] Unexpected error during UTF-8 sanitization: {e}")
-        return "" # Returns str: OK
+        return ""
 
+def _redact_patterns(text: str) -> str:
+    """
+    Sanitizes structured data using Regex before AI processing.
+    """
+    for pattern, placeholder in REGEX_PATTERNS:
+        text = re.sub(pattern, placeholder, text)
+    return text
 
 def _redact_pii_with_ner(text: str) -> str:
     """
     Internal function that uses the Albanian NER Service to find and replace PII.
     """
-    # 1. Get all entities from the local NER model
-    entities = ALBANIAN_NER_SERVICE.extract_entities(text)
-    
-    # 2. Sort entities by start index in reverse order
-    entities.sort(key=lambda x: x[2], reverse=True)
-    
-    # 3. Apply Redaction
-    mutable_text = text
-    for entity_text, entity_label, start_index_untyped in entities:
-        # <<< FIX 2: Explicitly cast start_index to an integer to resolve Pylance's str+int issue
-        start_index = cast(int, start_index_untyped) 
+    try:
+        # 1. Get all entities from the local NER model
+        entities = ALBANIAN_NER_SERVICE.extract_entities(text)
         
-        placeholder = ALBANIAN_NER_SERVICE.get_albanian_placeholder(entity_label)
-        end_index = start_index + len(entity_text) # This calculation is correct
-
-        # This string slicing/concatenation is the correct way to replace in Python
-        mutable_text = mutable_text[:start_index] + placeholder + mutable_text[end_index:]
-        logger.debug(f"--- [Sterilization] Redacted: '{entity_text}' with '{placeholder}'. ---")
+        # 2. Sort entities by start index in reverse order to prevent index drift
+        entities.sort(key=lambda x: x[2], reverse=True)
         
-    # Final cleanup 
-    mutable_text = mutable_text.replace("Avokati Phoenix", "[AVOKAT_ANONIMIZUAR]")
-    mutable_text = mutable_text.replace("Klienti Test", "[KLIENT_ANONIMIZUAR]")
-    
-    return mutable_text
+        # 3. Apply Redaction
+        mutable_text = text
+        count_redacted = 0
 
+        for entity_text, entity_label, start_index_untyped in entities:
+            start_index = cast(int, start_index_untyped)
+            
+            placeholder = ALBANIAN_NER_SERVICE.get_albanian_placeholder(entity_label)
+            end_index = start_index + len(entity_text)
 
-# The old function name is kept for backward compatibility if other services use it.
-# This function is now wrapped in a try/except to ensure a return on all paths.
+            # Security Check: Ensure indices are valid
+            if start_index < 0 or end_index > len(mutable_text):
+                continue
+
+            # Replace logic
+            mutable_text = mutable_text[:start_index] + placeholder + mutable_text[end_index:]
+            count_redacted += 1
+            
+            # PHOENIX SECURITY FIX: Do NOT log the actual entity text
+            # logger.debug(f"Redacted entity of type {entity_label}") 
+
+        if count_redacted > 0:
+            logger.info(f"--- [Sterilization] Redacted {count_redacted} entities via NER. ---")
+            
+        return mutable_text
+
+    except Exception as e:
+        logger.error(f"--- [Sterilization] NER Failure: {e}. Returning regex-cleaned text only.")
+        return text # Fail safe: return what we have (at least regex cleaned)
+
+# Backward compatibility wrapper
 def sterilize_text_to_utf8(text: str) -> str:
-    # <<< FIX 3: Add try/except block to ensure all code paths return a str.
     logger.warning("--- [Sterilization] Deprecated: Use 'sterilize_text_for_llm' for PII safety. ---")
     try:
-        # The result of encode/decode is a str
         return text.encode('utf-8', 'ignore').decode('utf-8')
     except Exception as e:
         logger.error(f"--- [Sterilization] Unexpected error in deprecated function: {e}")
-        return "" # Returns str on failure: Resolves Pylance return type error
+        return ""
