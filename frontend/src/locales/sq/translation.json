@@ -19,7 +19,8 @@
     "saveSuccess": "U ruajt me sukses!",
     "download": "Shkarko",
     "loading": "Duke ngarkuar...",
-    "copied": "U kopjua në kujtesë!"
+    "copied": "U kopjua në kujtesë!",
+    "error": "Gabim"
   },
    "auth": {
     "loginTitle": "Hyni në Juristi AI",
@@ -88,7 +89,8 @@
     "description": "Përshkrimi",
     "clientName": "Emri i Plotë i Klientit",
     "clientEmail": "Emaili i Klientit",
-    "clientPhone": "Telefoni i Klientit"
+    "clientPhone": "Telefoni i Klientit",
+    "confirmDelete": "A jeni i sigurt që doni ta fshini këtë rast?"
   },
   "caseView": {
     "backToDashboard": "Kthehu te Paneli",
@@ -96,6 +98,9 @@
     "findingsTitle": "Gjetjet",
     "errorLoadingTitle": "Gabim",
     "genericError": "Ndodhi një gabim gjatë ngarkimit.",
+    "noFindings": "Asnjë gjetje nuk është identifikuar ende.",
+    "findingSource": "Burimi",
+    "confidenceScore": "Besueshmëria",
     "statusTypes": {
       "OPEN": "Hapur",
       "CLOSED": "Mbyllur",
@@ -214,6 +219,15 @@
     "allTypes": "Të gjitha Llojet",
     "allPriorities": "Të gjitha Prioritetet",
     "noUpcomingEvents": "Nuk ka afate të ardhshme në 7 ditët e ardhshme.",
+    "addToCalendar": "Shto në Kalendar",
+    "eventSaved": "Ngjarja u ruajt me sukses!",
+    "date": "Data",
+    "type": "Lloji",
+    "title": "Titulli",
+    "deadline": "Afati",
+    "hearing": "Seancë",
+    "meeting": "Takim",
+    "filing": "Dorëzim",
     "eventTypes": "Llojet e Ngjarjeve",
     "types": {
       "DEADLINE": "Afati",
@@ -269,7 +283,9 @@
     "alerts": "Alarme",
     "events": "Ngjarje",
     "viewDetails": "Shiko Detajet",
-    "deleteCase": "Fshij Rastin"
+    "deleteCase": "Fshij Rastin",
+    "untitled": "Rast pa Titull",
+    "caseNumber": "Rasti"
   },
   "support": {
     "title": "Qendra e Ndihmës",
@@ -281,5 +297,9 @@
     "legalInfo": "Informacione Ligjore",
     "legalDesc": "Lexoni politikën tonë të privatësisë për të kuptuar se si i mbrojmë të dhënat tuaja.",
     "privacyTitle": "Politika e Privatësisë"
+  },
+  "error": {
+    "generic": "Ndodhi një gabim. Ju lutemi provoni përsëri.",
+    "failedToLoadCase": "Dështoi ngarkimi i të dhënave të rastit."
   }
 }

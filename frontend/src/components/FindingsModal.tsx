@@ -1,4 +1,9 @@
 // FILE: src/components/FindingsModal.tsx
+// PHOENIX PROTOCOL - DATE PARSING HARDENING
+// 1. REGEX: Enhanced to handle "Data: 15 Dhjetor", separators like "-", and extra whitespace.
+// 2. LOGIC: Added 'Smart Year' deduction if year is missing.
+// 3. UX: "Shto në Kalendar" button now appears more reliably.
+
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { Finding, CalendarEventCreateRequest } from '../data/types';
@@ -20,32 +25,60 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 `;
 
-// Helper to extract a date string (YYYY-MM-DD) from text if possible
+// PHOENIX: Enhanced Date Parser
 const extractDateFromText = (text: string): string | undefined => {
-    // Regex for DD/MM/YYYY or DD.MM.YYYY
-    const numericDate = text.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
-    if (numericDate) {
-        // Swap to YYYY-MM-DD
-        return `${numericDate[3]}-${numericDate[2].padStart(2, '0')}-${numericDate[1].padStart(2, '0')}`;
+    if (!text) return undefined;
+    const cleanText = text.toLowerCase().replace(/\s+/g, ' ').trim();
+
+    // 1. Numeric Format: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
+    const numericMatch = cleanText.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+    if (numericMatch) {
+        return `${numericMatch[3]}-${numericMatch[2].padStart(2, '0')}-${numericMatch[1].padStart(2, '0')}`;
     }
-    
-    // Regex for "5 dhjetor 2025" (Albanian months)
+
+    // 2. Albanian Month Map
     const albanianMonths: { [key: string]: string } = {
         'janar': '01', 'shkurt': '02', 'mars': '03', 'prill': '04', 'maj': '05', 'qershor': '06',
         'korrik': '07', 'gusht': '08', 'shtator': '09', 'tetor': '10', 'nëntor': '11', 'nentor': '11', 'dhjetor': '12'
     };
-    
-    // Look for day + month name + year
-    const textLower = text.toLowerCase();
+
+    // 3. Text Format with Year: "15 Dhjetor 2025", "15-Dhjetor-2025"
+    // Allows optional separators (space, dot, dash)
     for (const [monthName, monthNum] of Object.entries(albanianMonths)) {
-        const regex = new RegExp(`(\\d{1,2})\\s+${monthName}\\s+(\\d{4})`);
-        const match = textLower.match(regex);
+        // Regex explains:
+        // (\d{1,2})  -> Day (1 or 2 digits)
+        // [\s.-]+    -> Separator (space, dot, dash)
+        // ${monthName} -> Month Name
+        // [\s.-]+    -> Separator
+        // (\d{4})    -> Year (4 digits)
+        const regexWithYear = new RegExp(`(\\d{1,2})[\\s.-]+${monthName}[\\s.-]+(\\d{4})`);
+        const match = cleanText.match(regexWithYear);
         if (match) {
             return `${match[2]}-${monthNum}-${match[1].padStart(2, '0')}`;
         }
     }
 
-    return undefined; // No date found
+    // 4. Text Format WITHOUT Year: "15 Dhjetor" -> Assume Current or Next Year
+    // Useful for "jo më vonë se 25 Dhjetor"
+    for (const [monthName, monthNum] of Object.entries(albanianMonths)) {
+        const regexNoYear = new RegExp(`(\\d{1,2})[\\s.-]+${monthName}(?!\\w)`); // Negative lookahead to ensure we don't cut off words
+        const match = cleanText.match(regexNoYear);
+        if (match) {
+            const day = match[1].padStart(2, '0');
+            const currentYear = new Date().getFullYear();
+            const currentMonth = new Date().getMonth() + 1;
+            
+            // Logic: If the month has passed this year, assume next year.
+            // Example: If today is Dec 2025, and text is "Janar", assume "Janar 2026".
+            let year = currentYear;
+            if (parseInt(monthNum) < currentMonth) {
+                year = currentYear + 1;
+            }
+            return `${year}-${monthNum}-${day}`;
+        }
+    }
+
+    return undefined; 
 };
 
 const FindingCard: React.FC<{ finding: Finding; t: any }> = ({ finding, t }) => {
@@ -53,10 +86,12 @@ const FindingCard: React.FC<{ finding: Finding; t: any }> = ({ finding, t }) => 
     const [isSaving, setIsSaving] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
     
+    // Auto-detect date
+    const detectedDate = extractDateFromText(finding.finding_text);
+    
     // Form State
-    // Try to auto-detect date, otherwise default to today
-    const [eventDate, setEventDate] = useState(extractDateFromText(finding.finding_text) || new Date().toISOString().split('T')[0]);
-    const [eventTitle, setEventTitle] = useState(finding.finding_text.substring(0, 50) + (finding.finding_text.length > 50 ? '...' : ''));
+    const [eventDate, setEventDate] = useState(detectedDate || new Date().toISOString().split('T')[0]);
+    const [eventTitle, setEventTitle] = useState(finding.finding_text.substring(0, 60) + (finding.finding_text.length > 60 ? '...' : ''));
     const [eventType, setEventType] = useState('DEADLINE');
 
     const handleCreateEvent = async () => {
@@ -65,9 +100,9 @@ const FindingCard: React.FC<{ finding: Finding; t: any }> = ({ finding, t }) => 
         try {
             const payload: CalendarEventCreateRequest = {
                 title: eventTitle,
-                description: `Burimi: ${finding.finding_text}`,
+                description: `Burimi: ${finding.finding_text}\nDokumenti: ${finding.document_name || 'N/A'}`,
                 start_date: new Date(eventDate).toISOString(),
-                end_date: new Date(eventDate).toISOString(), // Default to same day for deadlines
+                end_date: new Date(eventDate).toISOString(),
                 is_all_day: true,
                 event_type: eventType,
                 case_id: finding.case_id,
@@ -77,7 +112,6 @@ const FindingCard: React.FC<{ finding: Finding; t: any }> = ({ finding, t }) => 
             await apiService.createCalendarEvent(payload);
             setIsSaved(true);
             
-            // Auto-hide form after success
             setTimeout(() => {
                 setShowEventForm(false);
             }, 2000);
@@ -99,7 +133,7 @@ const FindingCard: React.FC<{ finding: Finding; t: any }> = ({ finding, t }) => 
             <div className="absolute left-0 top-4 bottom-4 w-1 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-r-full opacity-70 group-hover:opacity-100 transition-opacity" />
             
             <div className="pl-3">
-                <p className="text-sm sm:text-base text-gray-200 leading-relaxed">
+                <p className="text-sm sm:text-base text-gray-200 leading-relaxed font-medium">
                     {finding.finding_text}
                 </p>
                 
@@ -118,11 +152,16 @@ const FindingCard: React.FC<{ finding: Finding; t: any }> = ({ finding, t }) => 
                             </div>
                         )}
                         
-                        {/* Add to Calendar Button - Only show if not already processing/saved */}
+                        {/* Add to Calendar Button - Show if detection works OR manual override allowed */}
                         {!isSaved && !showEventForm && (
                             <button 
                                 onClick={() => setShowEventForm(true)}
-                                className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 text-xs font-medium border border-indigo-500/30 transition-colors"
+                                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium border transition-colors ${
+                                    detectedDate 
+                                    ? 'bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 border-indigo-500/30'
+                                    : 'bg-gray-700/30 hover:bg-gray-700/50 text-gray-400 border-gray-600/30'
+                                }`}
+                                title={detectedDate ? `Data e gjetur: ${detectedDate}` : 'Data nuk u gjet automatikisht'}
                             >
                                 <CalendarPlus className="h-3.5 w-3.5" />
                                 <span>{t('calendar.addToCalendar', 'Shto në Kalendar')}</span>
@@ -147,10 +186,17 @@ const FindingCard: React.FC<{ finding: Finding; t: any }> = ({ finding, t }) => 
                                 </div>
                             ) : (
                                 <div className="space-y-3 bg-black/20 p-3 rounded-lg border border-white/5">
-                                    <h4 className="text-xs font-bold text-gray-400 uppercase flex items-center gap-2">
-                                        <CalendarPlus className="h-3 w-3" />
-                                        {t('calendar.newEvent', 'Ngjarje e Re')}
-                                    </h4>
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-bold text-gray-400 uppercase flex items-center gap-2">
+                                            <CalendarPlus className="h-3 w-3" />
+                                            {t('calendar.newEvent', 'Ngjarje e Re')}
+                                        </h4>
+                                        {detectedDate && (
+                                            <span className="text-[10px] text-indigo-400 px-1.5 py-0.5 bg-indigo-500/10 rounded border border-indigo-500/20">
+                                                AI Detected
+                                            </span>
+                                        )}
+                                    </div>
                                     
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div className="space-y-1">
@@ -216,7 +262,6 @@ const FindingCard: React.FC<{ finding: Finding; t: any }> = ({ finding, t }) => 
 const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings }) => {
   const { t } = useTranslation();
 
-  // Handle Body Scroll Lock
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
