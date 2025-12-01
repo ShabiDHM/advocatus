@@ -1,7 +1,8 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - LOCALIZATION FIX
-// 1. LOCALE: Mapped 'sq' directly to date-fns Albanian locale.
-// 2. FORMATTING: Ensures Month names (November -> Nëntor) are translated.
+// PHOENIX PROTOCOL - CALENDAR PAGE (FILTER & LOCALE FIX)
+// 1. FILTER: 'upcomingAlerts' now strictly shows next 7 days only.
+// 2. LOCALE: Mapped 'sq' directly to date-fns Albanian locale.
+// 3. FORMATTING: Ensures Month names (November -> Nëntor) are translated.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -33,7 +34,7 @@ import '../styles/DatePicker.css';
 
 const DatePicker = (ReactDatePicker as any).default;
 
-// PHOENIX FIX: Map 'sq' (from i18next) to 'sq' (from date-fns)
+// Map 'sq' (from i18next) to 'sq' (from date-fns)
 const localeMap: { [key: string]: Locale } = { 
   sq: sq, // Albanian
   al: sq, // Fallback for legacy code
@@ -97,7 +98,6 @@ const CalendarPage: React.FC = () => {
   const [filterType, setFilterType] = useState<string>('ALL');
   const [filterPriority, setFilterPriority] = useState<string>('ALL');
 
-  // PHOENIX FIX: Ensure locale defaults to English if not found
   const currentLocale = localeMap[i18n.language] || enUS;
 
   useEffect(() => { 
@@ -145,19 +145,25 @@ const CalendarPage: React.FC = () => {
            (filterPriority === 'ALL' || event.priority === filterPriority);
   });
 
+  // PHOENIX FIX: Strict Next-7-Days Filter
   const upcomingAlerts = events
     .filter(event => {
-        if (event.event_type !== 'DEADLINE') return false;
-        const eventDate = new Date(event.start_date);
+        // Only show Deadlines/Hearings/Court Dates in alerts
+        if (!['DEADLINE', 'HEARING', 'COURT_DATE'].includes(event.event_type)) return false;
+        
+        const eventDate = parseISO(event.start_date);
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0); // Start of today
+        
         const sevenDaysFromNow = new Date(today);
         sevenDaysFromNow.setDate(today.getDate() + 7);
-        sevenDaysFromNow.setHours(23, 59, 59, 999);
+        sevenDaysFromNow.setHours(23, 59, 59, 999); // End of 7th day
+
+        // Check range: Must be today or future, AND within 7 days
         return eventDate >= today && eventDate <= sevenDaysFromNow;
     })
     .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime())
-    .slice(0, 5);
+    .slice(0, 5); // Limit to top 5
 
   const renderListView = () => (
     <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge rounded-2xl shadow-xl overflow-hidden">
@@ -173,7 +179,6 @@ const CalendarPage: React.FC = () => {
                     <div key={getEventId(event)} onClick={() => setSelectedEvent(event)} className="p-4 hover:bg-background-dark/30 cursor-pointer transition-colors flex items-center justify-between">
                         <div className="flex items-start space-x-4">
                             <div className="flex-shrink-0 mt-1 text-center min-w-[50px]">
-                                {/* PHOENIX FIX: Month name localization */}
                                 <div className="text-xs text-text-secondary uppercase">{format(parseISO(event.start_date), 'MMM', { locale: currentLocale })}</div>
                                 <div className="text-xl font-bold text-text-primary">{format(parseISO(event.start_date), 'dd')}</div>
                             </div>
@@ -255,7 +260,6 @@ const CalendarPage: React.FC = () => {
     );
   };
 
-  // PHOENIX FIX: Translates 'November' to 'Nëntor'
   const monthName = format(currentDate, 'LLLL yyyy', { locale: currentLocale });
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
 
@@ -283,7 +287,6 @@ const CalendarPage: React.FC = () => {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
                         <div className="flex items-center justify-between sm:justify-start sm:space-x-4 w-full sm:w-auto">
                             <button onClick={() => navigateMonth('prev')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronLeft className="h-5 w-5" /></button>
-                            {/* PHOENIX FIX: Capitalize Month Name */}
                             <h2 className="text-lg sm:text-xl font-semibold text-text-primary capitalize">{monthName}</h2>
                             <button onClick={() => navigateMonth('next')} className="p-2 text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-lg transition-colors"><ChevronRight className="h-5 w-5" /></button>
                             <button onClick={() => setCurrentDate(new Date())} className="hidden sm:block px-3 py-1 text-sm text-text-secondary hover:text-white hover:bg-background-dark/50 rounded-md transition-colors border border-glass-edge">{t('calendar.today')}</button>
@@ -333,7 +336,6 @@ const CalendarPage: React.FC = () => {
                                 <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium text-white truncate">{event.title}</p>
                                     <p className="text-xs text-text-secondary mt-1">
-                                      {/* Used formatSmartDate to control time visibility */}
                                       {formatSmartDate(event.start_date, event.is_all_day)}
                                     </p>
                                 </div>

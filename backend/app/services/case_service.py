@@ -1,13 +1,13 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE (AUTO-SYNC INCLUDED)
-# 1. ADDED: sync_case_calendar_from_findings method.
-# 2. LOGIC: Parses findings for dates and inserts Calendar Events.
-# 3. STATUS: Implements "Digital Shredder" + "Auto-Calendar".
+# PHOENIX PROTOCOL - CASE SERVICE (SMART DEDUPLICATION)
+# 1. UPDATE: sync_case_calendar_from_findings
+# 2. LOGIC: If ANY event exists on a target date for this case, Auto-Sync skips it.
+# 3. RESULT: Prevents duplicates between Manual Entry and AI Auto-Detection.
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
 from bson import ObjectId
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List, cast
 import re
 
@@ -105,10 +105,9 @@ def _parse_finding_date(text: str) -> datetime | None:
 def sync_case_calendar_from_findings(db: Database, case_id: str, user_id: ObjectId):
     """
     Scans all findings for a case, detects dates, and populates the calendar_events table.
-    Designed to be idempotent (avoids duplicates).
+    Smart Deduplication: If ANY event exists on the target day for this case, skip auto-creation.
     """
     try:
-        # Get findings (handle both ObjectId and String case_id)
         findings = list(db.findings.find({"case_id": {"$in": [case_id, ObjectId(case_id)]}}))
         
         events_to_create = []
@@ -117,17 +116,25 @@ def sync_case_calendar_from_findings(db: Database, case_id: str, user_id: Object
             dt = _parse_finding_date(f_text)
             
             if dt:
-                # Check for duplicate event
-                title_fragment = f_text[:50] + "..." if len(f_text) > 50 else f_text
+                # PHOENIX FIX: Strict Day-Level Deduplication
+                # We define a "Day" range to check against
+                start_of_day = datetime(dt.year, dt.month, dt.day, 0, 0, 0)
+                end_of_day = datetime(dt.year, dt.month, dt.day, 23, 59, 59)
                 
-                # Check if an event with this Date and Title already exists for this case
+                # Check for ANY existing event on this day for this case
+                # This prevents "Double Booking" if the user added one manually
                 exists = db.calendar_events.find_one({
                     "case_id": {"$in": [case_id, ObjectId(case_id)]},
-                    "start_date": dt,
-                    "title": title_fragment
+                    "$or": [
+                        {"start_date": {"$gte": start_of_day, "$lte": end_of_day}},
+                        {"start_date": {"$gte": start_of_day.isoformat(), "$lte": end_of_day.isoformat()}} # Handle ISO strings
+                    ]
                 })
                 
                 if not exists:
+                    # No event exists on this day -> Safe to Auto-Sync
+                    title_fragment = f_text[:60] + "..." if len(f_text) > 60 else f_text
+                    
                     events_to_create.append({
                         "title": title_fragment,
                         "description": f"Burimi (Auto-Detected): {f_text}",
@@ -137,7 +144,7 @@ def sync_case_calendar_from_findings(db: Database, case_id: str, user_id: Object
                         "event_type": "DEADLINE",
                         "priority": "HIGH",
                         "status": "PENDING",
-                        "case_id": case_id, # Store as string for consistency in new events
+                        "case_id": case_id, 
                         "owner_id": user_id,
                         "created_at": datetime.now(timezone.utc),
                         "updated_at": datetime.now(timezone.utc)
@@ -145,7 +152,6 @@ def sync_case_calendar_from_findings(db: Database, case_id: str, user_id: Object
         
         if events_to_create:
             db.calendar_events.insert_many(events_to_create)
-            # print(f"Synced {len(events_to_create)} events for case {case_id}")
             
     except Exception as e:
         print(f"Error syncing calendar for case {case_id}: {e}")
@@ -197,8 +203,7 @@ def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional
     })
     if not case: return None
     
-    # PHOENIX NEW: Opportunistic Sync on Read
-    # If the user opens the case details, ensure calendar is up to date
+    # Opportunistic Sync on Read
     sync_case_calendar_from_findings(db, str(case_id), owner.id)
     
     return _map_case_document(case, db)
@@ -214,7 +219,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     case_id_str = str(case_id)
     any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
 
-    # --- 1. ARCHIVE CLEANUP (Deep Clean) ---
+    # --- 1. ARCHIVE CLEANUP ---
     archive_items = db.archives.find(any_id_query)
     for item in archive_items:
         if "storage_key" in item:
