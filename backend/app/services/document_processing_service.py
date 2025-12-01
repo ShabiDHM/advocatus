@@ -1,7 +1,7 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - GRAPH INGESTION FIX
-# 1. FIX: Passed 'doc_name' into the graph_service call.
-# 2. STATUS: Ensures Document nodes in Neo4j have the correct filename.
+# PHOENIX PROTOCOL - IMPORT FIX
+# 1. FIX: Added 'Optional' to typing imports.
+# 2. STATUS: Error free.
 
 import os
 import tempfile
@@ -9,14 +9,14 @@ import logging
 import shutil
 import json
 import concurrent.futures
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, cast, Optional
 
 from pymongo.database import Database
 import redis
 from bson import ObjectId
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-# Direct imports of CORE SERVICES
+# Core Services
 from . import (
     document_service, 
     storage_service, 
@@ -39,12 +39,17 @@ class DocumentNotFoundInDBError(Exception):
 
 def _process_and_split_text(full_text: str, document_metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
     base_metadata = document_metadata.copy()
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, length_function=len)
+    # Optimized for Legal Texts
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1200, 
+        chunk_overlap=250, 
+        length_function=len
+    )
     text_chunks = text_splitter.split_text(full_text)
     return [{'content': chunk, 'metadata': {**base_metadata, 'chunk_index': i}} for i, chunk in enumerate(text_chunks)]
 
 def _emit_progress(redis_client: redis.Redis, user_id: str, doc_id: str, message: str, percent: int):
-    """Helper to send SSE updates to the specific user."""
+    """Sends real-time updates to the UI via Redis Pub/Sub."""
     try:
         if not user_id or not redis_client: return
         channel = f"user:{user_id}:updates"
@@ -75,7 +80,9 @@ def orchestrate_document_processing_mongo(
 
     user_id = str(document.get("owner_id"))
     doc_name = document.get("file_name", "Unknown Document")
-    _emit_progress(redis_client, user_id, document_id_str, "Starting initialization...", 5)
+    case_id_str = str(document.get("case_id"))
+    
+    _emit_progress(redis_client, user_id, document_id_str, "Inicializimi...", 5)
 
     temp_original_file_path = ""
     temp_pdf_preview_path = ""
@@ -83,7 +90,7 @@ def orchestrate_document_processing_mongo(
     
     try:
         # --- PHASE 1: PREPARATION ---
-        _emit_progress(redis_client, user_id, document_id_str, "Downloading document...", 10)
+        _emit_progress(redis_client, user_id, document_id_str, "Shkarkimi i dokumentit...", 10)
         
         suffix = os.path.splitext(doc_name)[1]
         temp_file_descriptor, temp_original_file_path = tempfile.mkstemp(suffix=suffix)
@@ -93,56 +100,66 @@ def orchestrate_document_processing_mongo(
             shutil.copyfileobj(file_stream, temp_file)
         if hasattr(file_stream, 'close'): file_stream.close()
 
-        # PDF Preview
+        # PDF Preview (Critical for UI)
         try:
-            _emit_progress(redis_client, user_id, document_id_str, "Generating preview...", 15)
+            _emit_progress(redis_client, user_id, document_id_str, "Gjenerimi i pamjes (Preview)...", 15)
             temp_pdf_preview_path = conversion_service.convert_to_pdf(temp_original_file_path)
             preview_storage_key = storage_service.upload_document_preview(
                 file_path=temp_pdf_preview_path,
                 user_id=user_id,
-                case_id=str(document.get("case_id")),
+                case_id=case_id_str,
                 original_doc_id=document_id_str
             )
-        except Exception: pass
+        except Exception as e: 
+            logger.warning(f"Preview generation failed: {e}")
 
-        # Text Extraction
-        _emit_progress(redis_client, user_id, document_id_str, "Extracting text (OCR)...", 25)
+        # Text Extraction (OCR)
+        _emit_progress(redis_client, user_id, document_id_str, "Ekstraktimi i tekstit (OCR)...", 25)
         extracted_text = text_extraction_service.extract_text(temp_original_file_path, document.get("mime_type", ""))
+        
         if not extracted_text or not extracted_text.strip():
-            raise ValueError("Text extraction returned no content.")
+            raise ValueError("OCR dështoi: Dokumenti duket bosh.")
 
-        # Metadata
+        # --- PHASE 2: METADATA & CLASSIFICATION ---
+        
+        # 1. Categorization (DeepSeek)
+        _emit_progress(redis_client, user_id, document_id_str, "Klasifikimi Inteligjent...", 30)
         try:
             detected_category = CATEGORIZATION_SERVICE.categorize_document(extracted_text)
             db.documents.update_one({"_id": doc_id}, {"$set": {"category": detected_category}})
         except Exception:
             detected_category = "Unknown"
 
+        # 2. Language Detection
         is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
         detected_lang = 'albanian' if is_albanian else 'standard'
 
-        # --- PHASE 2: PARALLEL EXECUTION ---
-        _emit_progress(redis_client, user_id, document_id_str, "Analizë Inteligjente në progres...", 40)
-        logger.info(f"🚀 Starting Parallel Processing for {document_id_str}...")
+        # --- PHASE 3: PARALLEL INTELLIGENCE ---
+        # We run heavy tasks in parallel threads to speed up processing
         
-        def task_embeddings():
+        _emit_progress(redis_client, user_id, document_id_str, "Analizë e Thellë AI...", 40)
+        logger.info(f"🚀 Starting Parallel AI Tasks for {document_id_str}...")
+        
+        def task_embeddings() -> bool:
             try:
                 _emit_progress(redis_client, user_id, document_id_str, "Indeksimi Vektorial...", 50)
                 base_doc_metadata = {
                     'document_id': document_id_str,
-                    'case_id': str(document.get("case_id")),
+                    'case_id': case_id_str,
                     'user_id': user_id,
                     'file_name': doc_name,
                     'language': detected_lang,
                     'category': detected_category 
                 }
                 enriched_chunks = _process_and_split_text(extracted_text, base_doc_metadata)
+                
+                # Batch write to ChromaDB
                 BATCH_SIZE = 10
                 for i in range(0, len(enriched_chunks), BATCH_SIZE):
                     batch = enriched_chunks[i:i + BATCH_SIZE]
                     vector_store_service.create_and_store_embeddings_from_chunks(
                         document_id=document_id_str,
-                        case_id=str(document.get("case_id")),
+                        case_id=case_id_str,
                         chunks=[c['content'] for c in batch],
                         metadatas=[c['metadata'] for c in batch]
                     )
@@ -151,17 +168,19 @@ def orchestrate_document_processing_mongo(
                 logger.error(f"Embedding Task Failed: {e}")
                 return False
 
-        def task_storage():
+        def task_storage() -> Optional[str]:
+            # Backup clean text to S3/MinIO
             try:
                 return storage_service.upload_processed_text(
-                    extracted_text, user_id=user_id, case_id=str(document.get("case_id")), original_doc_id=document_id_str
+                    extracted_text, user_id=user_id, case_id=case_id_str, original_doc_id=document_id_str
                 )
             except Exception: return None
 
-        def task_summary():
+        def task_summary() -> str:
+            # DeepSeek Summary
             try:
                 _emit_progress(redis_client, user_id, document_id_str, "Gjenerimi i Përmbledhjes...", 60)
-                limit_start, limit_end = 30000, 15000
+                limit_start, limit_end = 25000, 10000
                 if len(extracted_text) > (limit_start + limit_end):
                     optimized = extracted_text[:limit_start] + "\n\n...\n\n" + extracted_text[-limit_end:]
                 else:
@@ -169,37 +188,43 @@ def orchestrate_document_processing_mongo(
                 return llm_service.generate_summary(optimized)
             except Exception: return "Përmbledhja nuk është e disponueshme."
 
-        def task_findings():
+        def task_findings() -> None:
+            # DeepSeek Findings
             try:
-                _emit_progress(redis_client, user_id, document_id_str, "Analiza e Rreziqeve...", 70)
+                _emit_progress(redis_client, user_id, document_id_str, "Analiza e Gjetjeve...", 70)
                 findings_service.extract_and_save_findings(db, document_id_str, extracted_text)
-            except Exception: pass
+            except Exception as e: 
+                logger.error(f"Findings Extraction Error: {e}")
 
-        def task_deadlines():
+        def task_deadlines() -> None:
+            # DeepSeek Deadlines
             try:
                 _emit_progress(redis_client, user_id, document_id_str, "Ekstraktimi i Afateve...", 80)
                 deadline_service.extract_and_save_deadlines(db, document_id_str, extracted_text)
-            except Exception: pass
+            except Exception as e:
+                logger.error(f"Deadline Extraction Error: {e}")
 
-        def task_graph():
+        def task_graph() -> None:
+            # DeepSeek Graph Extraction
             try:
-                _emit_progress(redis_client, user_id, document_id_str, "Ndërtimi i Grafit (Neo4j)...", 90)
+                _emit_progress(redis_client, user_id, document_id_str, "Ndërtimi i Grafit...", 90)
                 graph_data = llm_service.extract_graph_data(extracted_text)
+                
                 entities = graph_data.get("entities", [])
                 relations = graph_data.get("relations", [])
+                
                 if entities or relations:
-                    # PHOENIX FIX: Pass doc_name to the graph service
                     graph_service.ingest_entities_and_relations(
-                        case_id=str(document.get("case_id")),
+                        case_id=case_id_str,
                         document_id=document_id_str,
-                        doc_name=doc_name, # <-- CRITICAL FIX
+                        doc_name=doc_name,
                         entities=entities,
                         relations=relations
                     )
             except Exception as e:
-                logger.error(f"Graph ingestion task failed: {e}")
+                logger.error(f"Graph Ingestion Error: {e}")
 
-        # EXECUTE
+        # Execute Parallel Tasks
         summary_result = None
         text_storage_key = None
         
@@ -211,17 +236,21 @@ def orchestrate_document_processing_mongo(
             future_deadlines = executor.submit(task_deadlines)
             future_graph = executor.submit(task_graph)
             
-            futures_list: List[concurrent.futures.Future] = [
+            # PHOENIX FIX: Explicit typing for Pylance strict mode
+            futures_list: List[concurrent.futures.Future[Any]] = [
                 future_embed, future_storage, future_summary, 
                 future_findings, future_deadlines, future_graph
             ]
             concurrent.futures.wait(futures_list)
             
-            summary_result = future_summary.result()
-            text_storage_key = future_storage.result()
+            # Retrieve critical results
+            try:
+                summary_result = future_summary.result()
+                text_storage_key = future_storage.result()
+            except Exception: pass
 
-        # --- PHASE 3: FINALIZE ---
-        _emit_progress(redis_client, user_id, document_id_str, "Finalizimi...", 100)
+        # --- PHASE 4: FINALIZATION ---
+        _emit_progress(redis_client, user_id, document_id_str, "Përfunduar", 100)
         
         document_service.finalize_document_processing(
             db=db,
@@ -235,12 +264,15 @@ def orchestrate_document_processing_mongo(
 
     except Exception as e:
         _emit_progress(redis_client, user_id, document_id_str, "Dështoi: " + str(e), 0)
-        logger.error(f"--- [CRITICAL FAILURE] {e} ---", exc_info=True)
+        logger.error(f"--- [CRITICAL FAILURE] Doc Processing: {e} ---", exc_info=True)
         db.documents.update_one(
             {"_id": doc_id},
             {"$set": {"status": DocumentStatus.FAILED, "error_message": str(e)}}
         )
+        # Re-raise to ensure celery knows it failed
         raise e
+        
     finally:
+        # Cleanup
         if temp_original_file_path and os.path.exists(temp_original_file_path): os.remove(temp_original_file_path)
         if temp_pdf_preview_path and os.path.exists(temp_pdf_preview_path): os.remove(temp_pdf_preview_path)

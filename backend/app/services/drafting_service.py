@@ -1,7 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING ENGINE V2.4 (TYPE CASTING FIX)
-# 1. FIX: Added 'cast(Database, db)' to satisfy strict Pylance checks in asyncio.to_thread.
-# 2. STATUS: Type-safe and operational.
+# PHOENIX PROTOCOL - DRAFTING ENGINE V4.2 (STRICT TYPING FIX)
+# 1. FIX: Imported 'ChatCompletionMessageParam' to resolve Pylance argument error.
+# 2. TYPE: Explicitly typed the 'messages' list for OpenAI compatibility.
+# 3. CLEANUP: Removed unused Groq imports.
 
 import os
 import asyncio
@@ -9,8 +10,8 @@ import structlog
 import httpx
 import json
 from typing import AsyncGenerator, Optional, List, Any, cast, Dict
-from groq import AsyncGroq
-from groq.types.chat import ChatCompletionMessageParam
+from openai import AsyncOpenAI
+from openai.types.chat import ChatCompletionMessageParam # PHOENIX FIX: Added type import
 from pymongo.database import Database
 from bson import ObjectId
 
@@ -22,6 +23,12 @@ from .embedding_service import generate_embedding
 logger = structlog.get_logger(__name__)
 
 # --- CONFIGURATION ---
+# OpenRouter / DeepSeek Configuration
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY") 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_MODEL = "deepseek/deepseek-chat" 
+
+# Local Fallback
 LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
 LOCAL_MODEL_NAME = "llama3"
 
@@ -68,13 +75,10 @@ def _fetch_relevant_laws(prompt_text: str) -> str:
         return ""
 
 def _fetch_library_context(db: Database, user_id: str, prompt_text: str) -> str:
-    # Explicit check for safety, though caller should handle types
     if db is None: return ""
-    
     try:
         cursor = db.library.find({"user_id": ObjectId(user_id)})
         templates = list(cursor)
-        
         if not templates: return ""
 
         matches = []
@@ -106,8 +110,6 @@ def _fetch_library_context(db: Database, user_id: str, prompt_text: str) -> str:
             buffer.append(f"PËRMBAJTJA:\n{m.get('content')}\n")
         
         buffer.append("============================================================\n")
-        
-        logger.info(f"📚 Library Integration: Found {len(matches)} relevant templates for user prompt.")
         return "\n".join(buffer)
 
     except Exception as e:
@@ -115,9 +117,7 @@ def _fetch_library_context(db: Database, user_id: str, prompt_text: str) -> str:
         return ""
 
 def _format_business_identity(db: Database, user: UserInDB) -> str:
-    if db is None:
-        return _fallback_identity(user)
-
+    if db is None: return _fallback_identity(user)
     try:
         profile = db.business_profiles.find_one({"user_id": str(user.id)})
         if profile:
@@ -132,10 +132,8 @@ def _format_business_identity(db: Database, user: UserInDB) -> str:
             if profile.get('website'): info += f"Web: {profile.get('website')}\n"
             info += "==============================================\n"
             return info
-            
     except Exception as e:
         logger.warning(f"Failed to fetch business profile: {e}")
-
     return _fallback_identity(user)
 
 def _fallback_identity(user: UserInDB) -> str:
@@ -188,45 +186,40 @@ async def generate_draft_stream(
     
     log = logger.bind(case_id=case_id, user_id=str(user.id), draft_type=draft_type)
     if prompt_text is None: prompt_text = ""
-    log.info("drafting_service.stream_start", prompt_length=len(prompt_text), use_library=use_library)
+    log.info("drafting_service.stream_start", prompt_length=len(prompt_text))
 
     sanitized_context = sterilize_text_for_llm(context)
     sanitized_prompt_text = sterilize_text_for_llm(prompt_text)
 
-    # 1. Fetch Public Laws (Async)
+    # 1. Fetch Laws (Async)
     relevant_laws = await asyncio.to_thread(_fetch_relevant_laws, sanitized_prompt_text)
     
-    # 2. Fetch Personal Library Templates (Async) - CONDITIONAL
+    # 2. Fetch Library (Async)
     library_context = ""
-    
     if db is not None and use_library: 
-        # PHOENIX FIX: Strict cast to Database to satisfy Pylance
         library_context = await asyncio.to_thread(
-            _fetch_library_context, 
-            cast(Database, db), 
-            str(user.id), 
-            sanitized_prompt_text
+            _fetch_library_context, cast(Database, db), str(user.id), sanitized_prompt_text
         )
 
-    # 3. Fetch Business Identity
+    # 3. Business Identity
     business_identity = ""
     if db is not None:
-        # PHOENIX FIX: Strict cast to Database
         business_identity = await asyncio.to_thread(
-            _format_business_identity, 
-            cast(Database, db), 
-            user
+            _format_business_identity, cast(Database, db), user
         )
 
+    # PHOENIX PROTOCOL - KOSOVO DRAFTING PROMPT
     system_prompt = (
-        "Ti je 'Juristi AI', një ekspert për hartimin e dokumenteve ligjore në Kosovë dhe Shqipëri. "
-        "DETYRA: Harto një dokument profesional bazuar në kërkesën e përdoruesit. "
+        "Ti je 'Juristi AI', një Ekspert i Hartimit Ligjor për sistemin e drejtësisë në Kosovë. "
+        "DETYRA: Harto një dokument ligjor të plotë, profesional dhe të gatshëm për nënshkrim. "
         "\n\n"
-        "RREGULLAT KRITIKE:\n"
-        "1. Përdor 'HARTUESI I DOKUMENTIT' për të vendosur Zyrën Ligjore/Biznesin si palë ose në kokë të dokumentit.\n"
-        "2. Përdor 'BAZA LIGJORE' për të cituar nenet e duhura.\n"
-        "3. Përdor 'ARKIVA LIGJORE' nëse ka modele të përshtatshme nga përdoruesi.\n"
-        "4. Mos shto komente shtesë, vetëm tekstin e dokumentit."
+        "UDHËZIME STRIKTE TË FORMATIMIT:\n"
+        "1. KOKA E DOKUMENTIT: Fillo me një titull të qartë (p.sh., 'KONTRATË PUNE' ose 'PADI PËR SHPËRBLIM DËMI') dhe datë/vend.\n"
+        "2. IDENTITETI: Përdor informacionin nga 'HARTUESI I DOKUMENTIT' për palën përkatëse (avokatin ose zyrën).\n"
+        "3. LIGJI: Cito saktësisht nenet nga 'BAZA LIGJORE' nëse janë relevante. Përdor terminologjinë e Ligjeve të Kosovës.\n"
+        "4. STRUKTURA: Përdor numërim të qartë për nenet/klauzolat (Neni 1, Neni 2...).\n"
+        "5. GJUHA: Shqipe letrare juridike, pa gabime, ton formal.\n"
+        "6. PA KOMENTE: Mos shto shpjegime si 'Ja ku e keni dokumentin', vetëm tekstin e dokumentit.\n"
     )
 
     full_prompt = f"""
@@ -236,11 +229,11 @@ async def generate_draft_stream(
 
     {library_context}
     
-    KONTEKSTI SHTESË:
+    KONTEKSTI NGA DOSJA (OPSIONAL):
     {sanitized_context}
     
     ---
-    KËRKESA E PËRDORUESIT:
+    KËRKESA E PËRDORUESIT (SPECIFIKIMET):
     {sanitized_prompt_text}
     """
 
@@ -250,42 +243,52 @@ async def generate_draft_stream(
             system_prompt += f" Përdor strukturën specifike për: {draft_type} ({jurisdiction})."
             full_prompt = f"Template Instructions:\n{template_augment}\n\n---\n\n{full_prompt}"
 
-    messages: List[Dict[str, Any]] = [
+    # PHOENIX FIX: Strict type assignment for OpenAI
+    messages: List[ChatCompletionMessageParam] = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": full_prompt}
     ]
 
     tier1_failed = False
-    groq_api_key = os.environ.get("GROQ_API_KEY")
     
-    if groq_api_key:
+    # --- TIER 1: OPENROUTER / DEEPSEEK ---
+    if DEEPSEEK_API_KEY:
         try:
-            groq_model = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
-            GROQ_CLIENT = AsyncGroq(api_key=groq_api_key)
-            typed_messages = cast(List[ChatCompletionMessageParam], messages)
+            client = AsyncOpenAI(
+                api_key=DEEPSEEK_API_KEY, 
+                base_url=OPENROUTER_BASE_URL
+            )
             
-            stream = await GROQ_CLIENT.chat.completions.create(
-                messages=typed_messages,
-                model=groq_model,
+            stream = await client.chat.completions.create(
+                model=OPENROUTER_MODEL,
+                messages=messages,
                 temperature=0.3,
                 stream=True,
+                extra_headers={
+                    "HTTP-Referer": "https://juristi.tech", 
+                    "X-Title": "Juristi AI Drafting"
+                }
             )
+            
             async for chunk in stream:
-                if chunk.choices[0].delta.content is not None:
+                if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
             
-            log.info("drafting_service.stream_success_cloud")
+            log.info("drafting_service.stream_success_deepseek")
             return
 
         except Exception as e:
-            log.warning(f"⚠️ Groq Drafting Failed: {e}")
+            log.warning(f"⚠️ DeepSeek Drafting Failed: {e}")
             tier1_failed = True
     else:
         tier1_failed = True
 
+    # --- TIER 2: LOCAL FALLBACK ---
     if tier1_failed:
         yield "**[Draft i Gjeneruar nga AI Lokale]**\n\n"
-        async for chunk in _stream_local_llm(messages):
+        # We convert the typed messages back to dict for the local function if needed, 
+        # but the structure is compatible.
+        async for chunk in _stream_local_llm(cast(List[Dict[str, Any]], messages)):
             yield chunk
         log.info("drafting_service.stream_success_local")
 

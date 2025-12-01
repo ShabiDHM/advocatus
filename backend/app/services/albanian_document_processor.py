@@ -1,10 +1,14 @@
-# backend/app/services/albanian_document_processor.py
-# Albanian RAG Enhancement - Phase 1: Foundational Class
+# FILE: backend/app/services/albanian_document_processor.py
+# PHOENIX PROTOCOL - DOCUMENT PROCESSOR V4.1
+# 1. LOGIC: Replaced naïve slicing with LangChain's RecursiveCharacterTextSplitter.
+# 2. ALBANIAN: Added specific separators (Neni, Pika, Kreu) to keep legal clauses intact.
+# 3. METADATA: Enriches chunks with semantic context.
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-# Local Pydantic Model (Assuming a simple DocumentChunk model exists)
+# Pydantic Model for Type Safety
 class DocumentChunk(BaseModel):
     """Represents a single chunk of text from a document."""
     content: str = Field(..., description="The chunked text content.")
@@ -12,20 +16,28 @@ class DocumentChunk(BaseModel):
 
 class EnhancedDocumentProcessor:
     """
-    Modular processor to take raw document text and metadata, perform language-aware
-    splitting, and enrich chunks with specific Albanian metadata before vectorization.
-    This component enhances the existing Document Processing Pipeline.
+    Advanced processor for splitting Albanian legal text while preserving 
+    semantic boundaries (Articles, Paragraphs, Sentences).
     """
 
     @staticmethod
-    def _get_base_splitter_settings() -> Dict[str, Any]:
-        """Provides the baseline configuration for the RecursiveCharacterTextSplitter."""
-        # This mirrors a hypothetical configuration used by the core service.
-        return {
-            "chunk_size": 2000,
-            "chunk_overlap": 200,
-            "separators": ["\n\n", "\n", " ", ""],
-        }
+    def _get_legal_separators() -> List[str]:
+        """
+         separators ordered by priority. 
+         Keeps 'Neni X' or 'Kreu Y' at the start of chunks.
+        """
+        return [
+            "\n\n",             # Paragraphs
+            "\nKREU ",          # Chapter headers
+            "\nNENI ",          # Article headers (Uppercase)
+            "\nNeni ",          # Article headers (Titlecase)
+            "\nArtikulli ",     # Alternative
+            ". ",               # Sentences
+            "; ",               # List items
+            "\n",               # Line breaks
+            " ",                # Words
+            ""                  # Characters
+        ]
 
     @classmethod
     def process_document(
@@ -36,52 +48,46 @@ class EnhancedDocumentProcessor:
     ) -> List[DocumentChunk]:
         """
         Splits text content and enriches chunks based on language detection.
-
-        Args:
-            text_content: The full text of the document.
-            document_metadata: The base metadata (case_id, doc_id, etc.).
-            is_albanian: Boolean indicating if the AlbanianLanguageDetector found Albanian content.
-
-        Returns:
-            A list of enriched DocumentChunk objects.
         """
-        # For Phase 1, we use a simple placeholder for splitting.
-        # In Phase 2, this will integrate with the actual text splitter logic.
+        if not text_content:
+            return []
 
-        # Determine the effective splitter settings
-        splitter_settings = cls._get_base_splitter_settings()
+        # Configuration based on language
+        chunk_size = 1200 if is_albanian else 1000
+        chunk_overlap = 200
+        
+        # Select appropriate separators
+        separators = cls._get_legal_separators() if is_albanian else ["\n\n", "\n", ". ", " ", ""]
 
-        if is_albanian:
-            # Placeholder for advanced Albanian-aware splitting (e.g., using Albanian stop words, different separators)
-            # In a real implementation, a different splitter would be instantiated here.
-            splitter_settings["chunk_size"] = 1000  # Example change: smaller chunks for RAG precision
+        # Initialize Splitter
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            separators=separators,
+            length_function=len,
+            is_separator_regex=False
+        )
 
-        # --- Placeholder for Text Splitting Logic ---
-        # In a real environment, this would call a library like LangChain's
-        # RecursiveCharacterTextSplitter with the defined settings.
-        chunks = [
-            text_content[i:i + splitter_settings["chunk_size"]]
-            for i in range(0, len(text_content), splitter_settings["chunk_size"])
-        ]
-        # End Placeholder
+        # Perform Split
+        raw_chunks = text_splitter.split_text(text_content)
 
         enriched_chunks: List[DocumentChunk] = []
-        for i, chunk in enumerate(chunks):
+        for i, content in enumerate(raw_chunks):
             # Create a mutable copy of the base metadata
             chunk_metadata = document_metadata.copy()
 
-            # Add language-specific and chunk-specific enrichment
+            # Add context enrichment
             chunk_metadata.update({
                 "chunk_index": i,
+                "total_chunks": len(raw_chunks),
                 "is_albanian_content": is_albanian,
-                "processor_version": "V1.0-ALB_RAG_ENHANCEMENT",
-                # The 'albanian_chunk_type' is a key piece of enrichment
-                "albanian_chunk_type": "Legal_Generic" if is_albanian else "Standard_Generic",
+                "processor_version": "V4.1-DEEPSEEK_READY",
+                "char_count": len(content)
             })
 
             enriched_chunks.append(
                 DocumentChunk(
-                    content=chunk,
+                    content=content,
                     metadata=chunk_metadata
                 )
             )

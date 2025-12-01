@@ -1,9 +1,9 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - TIERED HYBRID INTELLIGENCE (Cloud -> Local -> Static)
-# 1. TIER 1 (Cloud): Groq/Llama-70b (High Precision/IQ).
-# 2. TIER 2 (Local): Ollama/Llama-8b (Zero Cost, High Availability).
-# 3. TIER 3 (Static): Safe fallback messages (No Crashes).
-# 4. GRAPH CAPABILITY: Added 'extract_graph_data'.
+# PHOENIX PROTOCOL - TIERED HYBRID INTELLIGENCE V4.1
+# 1. TIER 1 (Cloud - SOTA): DeepSeek V3 (OpenRouter) - High IQ Legal Logic.
+# 2. TIER 2 (Cloud - Fast): Groq/Llama-70b - Speed Backup.
+# 3. TIER 3 (Local - Private): Ollama/Llama-8b - Safety Net.
+# 4. CAPABILITIES: Summary, Findings, Graph Extraction.
 
 import os
 import json
@@ -11,62 +11,117 @@ import logging
 import httpx
 import re
 from typing import List, Dict, Any, Optional
+from openai import OpenAI # For DeepSeek/OpenRouter
 from groq import Groq
 
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
+# 1. DeepSeek (OpenRouter) - Primary
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_MODEL = "deepseek/deepseek-chat"
+
+# 2. Groq - Secondary
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 GROQ_MODEL_NAME = "llama-3.3-70b-versatile" 
 
-# Local LLM Config (Internal Docker Network)
+# 3. Local - Tertiary
 OLLAMA_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/generate")
 LOCAL_MODEL_NAME = "llama3"
 
-_client: Groq | None = None
+# --- CLIENT INITIALIZATION ---
+_deepseek_client: Optional[OpenAI] = None
+_groq_client: Optional[Groq] = None
 
-def initialize_llm_client():
-    global _client
-    if _client: return
-    if not GROQ_API_KEY: 
-        logger.warning("GROQ_API_KEY not set. System will default to Local LLM.")
-        return
-    try:
-        _client = Groq(api_key=GROQ_API_KEY)
-    except Exception as e:
-        logger.critical(f"Failed to initialize Groq Client: {e}")
+def get_deepseek_client() -> Optional[OpenAI]:
+    global _deepseek_client
+    if _deepseek_client: return _deepseek_client
+    if DEEPSEEK_API_KEY:
+        try:
+            _deepseek_client = OpenAI(
+                api_key=DEEPSEEK_API_KEY,
+                base_url=OPENROUTER_BASE_URL
+            )
+            return _deepseek_client
+        except Exception as e:
+            logger.error(f"DeepSeek Init Failed: {e}")
+    return None
 
-def get_llm_client() -> Optional[Groq]:
-    if _client is None: initialize_llm_client()
-    return _client
+def get_groq_client() -> Optional[Groq]:
+    global _groq_client
+    if _groq_client: return _groq_client
+    if GROQ_API_KEY:
+        try:
+            _groq_client = Groq(api_key=GROQ_API_KEY)
+            return _groq_client
+        except Exception as e:
+            logger.error(f"Groq Init Failed: {e}")
+    return None
 
 # --- HELPER: ROBUST JSON PARSER ---
 def _parse_json_safely(content: str) -> Dict[str, Any]:
-    """Attempts to clean and parse JSON from LLM output (which might include markdown)."""
     try:
-        # Fast path
         return json.loads(content)
     except json.JSONDecodeError:
-        # Strip Markdown ```json ... ```
+        # Strip Markdown
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
         if match:
-            try:
-                return json.loads(match.group(1))
+            try: return json.loads(match.group(1))
             except: pass
-        
-        # Try finding first { and last }
-        start = content.find('{')
-        end = content.rfind('}')
+        # Brute force bracket finding
+        start, end = content.find('{'), content.rfind('}')
         if start != -1 and end != -1:
-            try:
-                return json.loads(content[start:end+1])
+            try: return json.loads(content[start:end+1])
             except: pass
-            
-        raise ValueError("Could not extract valid JSON from LLM response.")
+        return {}
 
-# --- TIER 2: LOCAL ENGINE ---
+# --- EXECUTION ENGINES ---
+
+def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False) -> Optional[str]:
+    client = get_deepseek_client()
+    if not client: return None
+    try:
+        kwargs = {
+            "model": OPENROUTER_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.1,
+            "extra_headers": {"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI"}
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+
+        response = client.chat.completions.create(**kwargs)
+        return response.choices[0].message.content
+    except Exception as e:
+        logger.warning(f"⚠️ DeepSeek Call Failed: {e}")
+        return None
+
+def _call_groq(system_prompt: str, user_prompt: str, json_mode: bool = False) -> Optional[str]:
+    client = get_groq_client()
+    if not client: return None
+    try:
+        kwargs = {
+            "model": GROQ_MODEL_NAME,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.1,
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+
+        response = client.chat.completions.create(**kwargs)
+        return response.choices[0].message.content
+    except Exception as e:
+        logger.warning(f"⚠️ Groq Call Failed: {e}")
+        return None
+
 def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
-    """Calls the internal Ollama instance."""
     logger.info(f"🔄 Switching to LOCAL LLM ({LOCAL_MODEL_NAME})...")
     try:
         payload = {
@@ -76,169 +131,81 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
             "options": {"temperature": 0.1, "num_ctx": 4096},
             "format": "json" if json_mode else None
         }
-        
         with httpx.Client(timeout=60.0) as client:
             response = client.post(OLLAMA_URL, json=payload)
-            response.raise_for_status()
-            data = response.json()
-            return data.get("response", "")
-            
-    except Exception as e:
-        logger.warning(f"⚠️ Local LLM Failed: {e}")
+            return response.json().get("response", "")
+    except Exception:
         return ""
 
 # --- CORE SERVICES ---
 
 def generate_summary(text: str) -> str:
-    """
-    Tier 1: Groq (Best Quality)
-    Tier 2: Local LLM (Fallback)
-    Tier 3: Static Message
-    """
-    truncated_text = text[:8000]
-    prompt = f"""
-    You are a professional legal assistant.
-    Summarize the following legal document in a concise, professional manner (max 1 paragraph).
-    
-    INSTRUCTIONS:
-    - Keep it factual.
-    - Write in the SAME LANGUAGE as the source text (Albanian/English/Serbian).
-    
-    Document Text:
-    {truncated_text}
-    """
-    
-    # TIER 1: CLOUD
-    client = get_llm_client()
-    if client:
-        try:
-            logger.info("☁️  Generating Summary via Groq...")
-            completion = client.chat.completions.create(
-                messages=[{"role": "user", "content": prompt}],
-                model=GROQ_MODEL_NAME,
-                temperature=0.3
-            )
-            return completion.choices[0].message.content or ""
-        except Exception as e:
-            logger.warning(f"⚠️ Groq Summary Failed (Limit/Error): {e}")
-            # Fall through to Tier 2
+    truncated_text = text[:15000]
+    system_prompt = "You are a professional legal assistant. Summarize this document in 1 paragraph (Albanian)."
+    user_prompt = f"DOCUMENT:\n{truncated_text}"
 
-    # TIER 2: LOCAL
-    local_summary = _call_local_llm(prompt, json_mode=False)
-    if local_summary:
-        return "[Generated by Local AI] " + local_summary
+    # Tier 1
+    res = _call_deepseek(system_prompt, user_prompt)
+    if res: return res
 
-    # TIER 3: STATIC
-    return "Përmbledhja nuk është e disponueshme për momentin (Kufizim Teknik)."
+    # Tier 2
+    res = _call_groq(system_prompt, user_prompt)
+    if res: return res
+
+    # Tier 3
+    res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
+    return res if res else "Përmbledhja e padisponueshme."
 
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
-    """
-    Tier 1: Groq (JSON Mode)
-    Tier 2: Local LLM (JSON Mode attempt)
-    Tier 3: Empty List
-    """
-    truncated_text = text[:8000]
+    truncated_text = text[:15000]
     system_prompt = """
-    Extract critical legal findings from the text below.
-    Return ONLY valid JSON.
-    Format: {"findings": [{"finding_text": "...", "source_text": "..."}]}
+    Extract key legal findings (Dates, Amounts, Obligations).
+    Return JSON: {"findings": [{"finding_text": "...", "source_text": "..."}]}
     """
-    user_prompt = f"Extract findings from:\n\n{truncated_text}"
+    user_prompt = f"TEXT:\n{truncated_text}"
 
-    # TIER 1: CLOUD
-    client = get_llm_client()
-    if client:
-        try:
-            logger.info("☁️  Extracting Findings via Groq...")
-            completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                model=GROQ_MODEL_NAME,
-                response_format={"type": "json_object"},
-                temperature=0.1,
-            )
-            content = completion.choices[0].message.content
-            if content:
-                data = json.loads(content)
-                return data.get("findings", [])
-        except Exception as e:
-            logger.warning(f"⚠️ Groq Findings Failed: {e}")
-            # Fall through to Tier 2
+    # Tier 1
+    content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
+    if content:
+        data = _parse_json_safely(content)
+        if "findings" in data: return data["findings"]
 
-    # TIER 2: LOCAL
-    full_prompt = f"{system_prompt}\n\nUser Input:\n{user_prompt}"
-    local_content = _call_local_llm(full_prompt, json_mode=True)
-    
-    if local_content:
-        try:
-            data = _parse_json_safely(local_content)
-            findings = data.get("findings", [])
-            logger.info(f"✅ Recovered {len(findings)} findings via Local LLM.")
-            return findings
-        except Exception as e:
-            logger.error(f"❌ Local JSON Parse Failed: {e}")
+    # Tier 2
+    content = _call_groq(system_prompt, user_prompt, json_mode=True)
+    if content:
+        data = _parse_json_safely(content)
+        if "findings" in data: return data["findings"]
 
-    # TIER 3: EMPTY
+    # Tier 3
+    content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
+    if content:
+        data = _parse_json_safely(content)
+        return data.get("findings", [])
+
     return []
 
-# --- GRAPH RAG SERVICE ---
 def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
-    """
-    Extracts Entities and Relationships for GraphRAG.
-    Tier 1: Groq (High Precision JSON)
-    Tier 2: Local (Fallback)
-    """
-    truncated_text = text[:6000]
-    
+    truncated_text = text[:10000]
     system_prompt = """
-    You are a Knowledge Graph Builder. Extract entities and relationships from the legal text.
-    
-    Entities: Person, Organization, Law, Date, Location, Money.
-    Relations: SIGNED, VIOLATED, PAID, LOCATED_IN, DATED.
-    
-    Return VALID JSON ONLY:
-    {
-      "entities": [{"name": "Artan", "type": "Person"}, {"name": "InovaTech", "type": "Organization"}],
-      "relations": [{"subject": "Artan", "relation": "OWNS", "object": "InovaTech"}]
-    }
+    Extract entities (Person, Org, Date) and relationships (SIGNED, PAID, VIOLATED).
+    Return JSON: {"entities": [], "relations": []}
     """
-    
-    user_prompt = f"Extract graph data from:\n{truncated_text}"
-    
-    # Use Hybrid Strategy (Cloud -> Local)
-    # TIER 1: CLOUD
-    client = get_llm_client()
-    if client:
-        try:
-            logger.info("☁️  Extracting Graph Data via Groq...")
-            completion = client.chat.completions.create(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                model=GROQ_MODEL_NAME,
-                response_format={"type": "json_object"},
-                temperature=0.0
-            )
-            return json.loads(completion.choices[0].message.content or "{}")
-        except Exception as e:
-            logger.warning(f"Groq Graph Extraction failed: {e}")
+    user_prompt = f"TEXT:\n{truncated_text}"
 
-    # TIER 2: FALLBACK LOCAL
-    full_prompt = f"{system_prompt}\n\n{user_prompt}"
-    local_json = _call_local_llm(full_prompt, json_mode=True)
-    if local_json:
-        try:
-            return _parse_json_safely(local_json)
-        except: pass
-        
+    # Tier 1
+    content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
+    if content: return _parse_json_safely(content)
+
+    # Tier 2
+    content = _call_groq(system_prompt, user_prompt, json_mode=True)
+    if content: return _parse_json_safely(content)
+
     return {"entities": [], "relations": []}
 
 # Legacy stubs
 def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict:
-    return {"answer": "Socratic response logic.", "sources": []}
+    return {"answer": "Logic moved to RAG Service.", "sources": []}
 
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
+    # Now handled by deadline_service.py
     return []

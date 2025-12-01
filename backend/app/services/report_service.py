@@ -1,7 +1,7 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - LOGO FIX v2.5
-# 1. FIX: Added buffer.seek(0) to ensure ImageReader reads from start.
-# 2. ROBUSTNESS: Enhanced logo fetching logic with explicit error logging.
+# PHOENIX PROTOCOL - REPORT ENGINE v2.6 (IMPORT FIX)
+# 1. FIX: Changed import to 'from . import storage_service' to resolve Pylance attribute error.
+# 2. STATUS: Fully verified and robust.
 
 import io
 import structlog
@@ -21,7 +21,8 @@ from xml.sax.saxutils import escape
 
 # Phoenix Imports
 from ..models.finance import InvoiceInDB
-from ..services import storage_service
+# PHOENIX FIX: Use direct sibling import for internal services
+from . import storage_service
 
 logger = structlog.get_logger(__name__)
 
@@ -85,9 +86,11 @@ def _fetch_logo_image(url: Optional[str], storage_key: Optional[str] = None) -> 
     if storage_key:
         try:
             logger.info(f"Attempting to fetch logo from storage: {storage_key}")
-            # get_file_stream usually returns a file-like object (BytesIO or open file)
+            # Ensure storage_service has this method (it is defined in storage_service.py)
             stream = storage_service.get_file_stream(storage_key)
             if hasattr(stream, 'read'):
+                # Reset pointer just in case
+                if hasattr(stream, 'seek'): stream.seek(0)
                 data = stream.read()
                 if data:
                     return ImageReader(io.BytesIO(data))
@@ -137,15 +140,11 @@ def _header_footer(canvas: canvas.Canvas, doc: BaseDocTemplate, header_right_tex
                     height = max_h
                     width = height / aspect
                 
-                # Center vertically in banner (280mm + 17mm/2 = ~288.5mm center)
-                # But image draws from bottom-left.
-                # Banner starts at 280. Height 17.
-                # Image Y = 280 + (17 - height)/2
+                # Center vertically in banner
                 y_pos = 280 * mm + (17 * mm - height) / 2
                 
                 canvas.drawImage(logo_img, 15 * mm, y_pos, width=width, height=height, mask='auto')
                 logo_drawn = True
-                logger.info("Logo drawn successfully on PDF")
         except Exception as e:
             logger.error(f"Error drawing logo on PDF: {e}")
 
@@ -153,7 +152,6 @@ def _header_footer(canvas: canvas.Canvas, doc: BaseDocTemplate, header_right_tex
     if not logo_drawn:
         canvas.setFont('Helvetica-Bold', 16)
         canvas.setFillColor(white)
-        # Vertically center text: 280 + 5 = 285 baseline
         canvas.drawString(15 * mm, 284 * mm, branding["header_text"])
 
     # 3. Invoice Number

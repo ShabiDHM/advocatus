@@ -1,7 +1,8 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE
-# 1. FIX: Resolved Pylance "Module is not callable" by importing HTTPException from fastapi.exceptions.
-# 2. STATUS: Canonical implementation for S3/B2 interactions.
+# PHOENIX PROTOCOL - STORAGE SERVICE v4.2
+# 1. METADATA: Added 'ContentType' to uploads for correct browser handling.
+# 2. PERFORMANCE: Added 'generate_presigned_url' to offload bandwidth to S3/B2.
+# 3. SAFETY: Robust error handling for stream retrieval.
 
 import os
 import boto3
@@ -10,11 +11,10 @@ from botocore.client import Config
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import UploadFile
-# PHOENIX FIX: Explicit import to prevent Pylance module resolution error
 from fastapi.exceptions import HTTPException
 import logging
 import tempfile
-from typing import Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ B2_BUCKET_NAME = os.getenv("B2_BUCKET_NAME")
 
 _s3_client = None
 
+# Optimization for large files
 transfer_config = TransferConfig(
     multipart_threshold=1024 * 1024 * 15, 
     max_concurrency=4,
@@ -57,23 +58,43 @@ def get_s3_client():
 
 # --- GENERIC UTILS ---
 
+def generate_presigned_url(storage_key: str, expiration: int = 3600) -> Optional[str]:
+    """
+    Generates a temporary direct link to the file.
+    Greatly reduces server load for viewing PDFs/Images.
+    """
+    s3 = get_s3_client()
+    try:
+        url = s3.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': B2_BUCKET_NAME, 'Key': storage_key},
+            ExpiresIn=expiration
+        )
+        return url
+    except Exception as e:
+        logger.warning(f"Failed to generate presigned URL: {e}")
+        return None
+
 def upload_file_raw(file: UploadFile, folder: str) -> str:
     """
     Generic upload for non-document files (e.g. Business Logos).
-    Generates a UUID filename to prevent collisions.
     """
     s3_client = get_s3_client()
     file_extension = os.path.splitext(file.filename or "")[1]
     unique_filename = f"{uuid.uuid4()}{file_extension}"
     storage_key = f"{folder}/{unique_filename}"
     
+    # Auto-detect content type
+    content_type = file.content_type or 'application/octet-stream'
+    
     try:
-        file.file.seek(0) # Reset pointer
+        file.file.seek(0)
         s3_client.upload_fileobj(
             file.file, 
             B2_BUCKET_NAME, 
             storage_key,
-            Config=transfer_config
+            Config=transfer_config,
+            ExtraArgs={'ContentType': content_type} # PHOENIX FIX
         )
         return storage_key
     except Exception as e:
@@ -82,7 +103,7 @@ def upload_file_raw(file: UploadFile, folder: str) -> str:
 
 def get_file_stream(storage_key: str) -> Any:
     """
-    Generic stream retriever. Used for proxing logos/images.
+    Generic stream retriever.
     """
     s3_client = get_s3_client()
     try:
@@ -98,11 +119,18 @@ def upload_original_document(file: UploadFile, user_id: str, case_id: str) -> st
     s3_client = get_s3_client()
     file_name = file.filename or "unknown_file"
     storage_key = f"{user_id}/{case_id}/{file_name}"
+    content_type = file.content_type or 'application/pdf'
     
     try:
-        logger.info(f"--- [Storage Service] Streaming ORIGINAL document: {storage_key} ---")
+        logger.info(f"--- [Storage] Uploading ORIGINAL: {storage_key} ({content_type}) ---")
         file.file.seek(0)
-        s3_client.upload_fileobj(file.file, B2_BUCKET_NAME, storage_key, Config=transfer_config)
+        s3_client.upload_fileobj(
+            file.file, 
+            B2_BUCKET_NAME, 
+            storage_key, 
+            Config=transfer_config,
+            ExtraArgs={'ContentType': content_type}
+        )
         return storage_key
     except (BotoCoreError, ClientError) as e:
         logger.error(f"!!! ERROR: Upload failed: {storage_key}, Reason: {e}")
@@ -119,7 +147,12 @@ def upload_processed_text(text_content: str, user_id: str, case_id: str, origina
             temp_file.write(text_content)
             temp_file_path = temp_file.name
 
-        s3_client.upload_file(temp_file_path, B2_BUCKET_NAME, storage_key)
+        s3_client.upload_file(
+            temp_file_path, 
+            B2_BUCKET_NAME, 
+            storage_key,
+            ExtraArgs={'ContentType': 'text/plain; charset=utf-8'}
+        )
         return storage_key
     except Exception as e:
         logger.error(f"!!! ERROR: Processed text upload failed: {e}")
@@ -134,7 +167,12 @@ def upload_document_preview(file_path: str, user_id: str, case_id: str, original
     storage_key = f"{user_id}/{case_id}/previews/{file_name}"
     
     try:
-        s3_client.upload_file(file_path, B2_BUCKET_NAME, storage_key)
+        s3_client.upload_file(
+            file_path, 
+            B2_BUCKET_NAME, 
+            storage_key,
+            ExtraArgs={'ContentType': 'application/pdf'} # Critical for browser viewing
+        )
         return storage_key
     except Exception as e:
         logger.error(f"!!! ERROR: Preview upload failed: {e}")

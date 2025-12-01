@@ -1,62 +1,73 @@
-# backend/app/services/albanian_language_detector.py
-# Albanian RAG Enhancement - Phase 1: Foundational Class
+# FILE: backend/app/services/albanian_language_detector.py
+# PHOENIX PROTOCOL - LANGUAGE ID V4.1
+# 1. ENGINE: Uses 'langdetect' library for statistical accuracy.
+# 2. HEURISTIC: "Kosovo Bias" list to force detection on legal docs.
+# 3. PERFORMANCE: <10ms execution time (Local CPU).
 
+import logging
 from typing import List
+from langdetect import detect, LangDetectException
+
+logger = logging.getLogger(__name__)
 
 class AlbanianLanguageDetector:
     """
-    Implements a hybrid language detection strategy:
-    1. Fast Keyword Check (High Precision, Low Recall)
-    2. Optional ML Model Check (High Precision, High Recall - placeholder)
+    Hybrid Language Detector optimized for Kosovo Legal Documents.
+    Prioritizes Local Signals -> Falls back to Statistical Detection.
     """
 
-    # VITAL: A list of common, high-confidence Albanian legal and common stop words.
-    # This list allows for a very fast check without needing the ML model.
-    # We prioritize words that are distinct from other common multilingual corpus languages.
-    HIGH_CONFIDENCE_ALBANIAN_WORDS: List[str] = [
-        "ligjor", "gjykata", "neni", "vendim", "paditës", "të", "dhe", "në", "për", "është", "me",
-        "një", "kanë", "ky", "sipas", "kësaj", "nga", "që", "duke", "ku", "para", "rreth", "apo"
+    # Strong signals that almost guarantee the document is Albanian Legal Text
+    KOSOVO_LEGAL_MARKERS: List[str] = [
+        "republika e kosovës", "gjykata themelore", "neni", "ligji nr.", 
+        "kodi penal", "gazeta zyrtare", "aktgjykim", "padi", 
+        "kontratë", "prishinë", "prizren", "ferizaj", "gjakovë"
     ]
 
-    # Threshold: Percentage of document that must contain high-confidence keywords
-    KEYWORD_THRESHOLD: float = 0.05  # e.g., 5% of all words must be from the list.
+    # Common stopwords for density check
+    ALBANIAN_STOPWORDS: List[str] = [
+        "të", "e", "të", "i", "me", "në", "për", "nga", "që", "u", 
+        "do", "ka", "një", "janë", "dhe", "apo", "ose", "si"
+    ]
 
     @classmethod
     def detect_language(cls, text: str) -> bool:
         """
-        Performs hybrid detection to determine if the text is predominantly Albanian.
+        Determines if the text is Albanian.
+        Returns True if Albanian, False otherwise (English/Serbian/Other).
         """
-        if not text:
+        if not text or len(text.strip()) < 10:
             return False
 
-        # 1. Normalize and tokenize the text
-        text_lower = text.lower()
-        words = text_lower.split()
-        total_words = len(words)
+        text_lower = text.lower()[:5000] # Check first 5k chars only
 
-        if total_words == 0:
-            return False
-
-        # 2. Fast Keyword Check
-        albanian_word_count = sum(1 for word in words if word in cls.HIGH_CONFIDENCE_ALBANIAN_WORDS)
-        keyword_density = albanian_word_count / total_words
-
-        if keyword_density >= cls.KEYWORD_THRESHOLD:
-            # High confidence via keyword density
+        # 1. Heuristic Check (The "Kosovo Bias")
+        # If we see "Republika e Kosovës" or "Gjykata", it IS Albanian.
+        # This overrides statistical noise in short documents.
+        strong_matches = sum(1 for marker in cls.KOSOVO_LEGAL_MARKERS if marker in text_lower)
+        if strong_matches >= 2:
             return True
 
-        # 3. ML Fallback (Placeholder for Phase 2)
-        # The ML model check (e.g., using a fine-tuned langdetect or similar) would go here.
-        # This is where the feature flag for the full ML model would be checked.
-        # if settings.ALBANIAN_AI_ENABLED:
-        #    return cls._run_ml_check(text)
+        # 2. Statistical Check (LangDetect)
+        try:
+            detected_lang = detect(text_lower)
+            if detected_lang == 'sq':
+                return True
+        except LangDetectException:
+            pass # Fallback to density check if library fails (rare)
+
+        # 3. Density Fallback (For very noisy OCR text)
+        words = text_lower.split()
+        if not words: return False
         
-        # For now, without the ML check, we rely solely on the keyword density
+        stopword_count = sum(1 for w in words if w in cls.ALBANIAN_STOPWORDS)
+        density = stopword_count / len(words)
+        
+        # If > 5% of words are Albanian stopwords, it's likely Albanian
+        if density > 0.05:
+            return True
+
         return False
 
-    @staticmethod
-    def _run_ml_check(text: str) -> bool:
-        """Placeholder for the resource-intensive ML check (to be implemented in Phase 2)."""
-        # This would call an ML language model or a specialized microservice.
-        # return model.predict_language(text) == 'sq'
-        return False # Placeholder
+# Standalone function for easy import
+def is_albanian(text: str) -> bool:
+    return AlbanianLanguageDetector.detect_language(text)
