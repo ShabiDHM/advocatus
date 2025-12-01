@@ -1,8 +1,4 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - UI CLEANUP
-// 1. REMOVED: Redundant 'Dokumentet' section title.
-// 2. STATUS: Clean interface, single header per panel.
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } from '../data/types';
@@ -20,10 +16,13 @@ import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Li
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
+// --- Types ---
 type CaseData = {
     details: Case | null;
     findings: Finding[];
 };
+
+// --- Sub-components ---
 
 const CaseHeader: React.FC<{ 
     caseDetails: Case; 
@@ -33,56 +32,64 @@ const CaseHeader: React.FC<{
     isAnalyzing: boolean; 
 }> = ({ caseDetails, t, onAnalyze, onShowFindings, isAnalyzing }) => (
     <motion.div
-      className="mb-4 p-4 rounded-xl shadow-md bg-background-light/50 backdrop-blur-sm border border-glass-edge"
+      className="p-4 rounded-xl shadow-lg bg-gray-900/40 backdrop-blur-md border border-white/10"
       initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
     >
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex-1 min-w-0">
-              <h1 className="text-xl font-bold text-text-primary break-words mb-2 leading-tight">
+              <h1 className="text-xl font-bold text-white break-words mb-2 leading-tight tracking-tight">
                   {caseDetails.case_name}
               </h1>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-secondary">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-gray-400 font-medium">
                   <div className="flex items-center" title={t('caseCard.client')}>
-                      <User className="h-3 w-3 mr-1.5 text-primary-start" />
+                      <User className="h-3.5 w-3.5 mr-1.5 text-indigo-400" />
                       <span>{caseDetails.client?.name || t('general.notAvailable')}</span>
                   </div>
                   <div className="flex items-center" title={t('caseView.statusLabel')}>
-                      <Briefcase className="h-3 w-3 mr-1.5 text-primary-start" />
+                      <Briefcase className="h-3.5 w-3.5 mr-1.5 text-indigo-400" />
                       <span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`, { fallback: caseDetails.status })}</span>
                   </div>
                   <div className="flex items-center" title={t('caseCard.createdOn')}>
-                      <Info className="h-3 w-3 mr-1.5 text-primary-start" />
+                      <Info className="h-3.5 w-3.5 mr-1.5 text-indigo-400" />
                       <span>{new Date(caseDetails.created_at).toLocaleDateString()}</span>
                   </div>
               </div>
           </div>
           
-          <div className="flex items-center gap-2 self-start md:self-center flex-shrink-0">
+          <div className="flex items-center gap-3 self-start md:self-center flex-shrink-0">
               <motion.button
                 onClick={onShowFindings}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-dark/50 border border-glass-edge text-text-primary text-sm font-medium shadow hover:bg-background-dark/80 transition-all"
+                className="group flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800/80 border border-white/5 text-gray-200 text-sm font-medium hover:bg-gray-700 hover:border-white/20 transition-all"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                <Lightbulb className="h-4 w-4 text-yellow-400" />
+                <Lightbulb className="h-4 w-4 text-yellow-500 group-hover:text-yellow-400 transition-colors" />
                 <span className="hidden sm:inline">{t('caseView.findingsTitle')}</span>
               </motion.button>
 
               <motion.button
                 onClick={onAnalyze}
                 disabled={isAnalyzing}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-dark/50 border border-glass-edge text-text-primary text-sm font-medium shadow hover:bg-background-dark/80 transition-all disabled:opacity-50"
+                className="group flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600/90 border border-indigo-500/50 text-white text-sm font-medium shadow-lg shadow-indigo-500/20 hover:bg-indigo-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin text-secondary-start" /> : <ShieldCheck className="h-4 w-4 text-secondary-start" />}
-                <span className="hidden sm:inline">{isAnalyzing ? t('analysis.analyzing') : t('analysis.analyzeButton')}</span>
+                {isAnalyzing ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-white" />
+                ) : (
+                    <ShieldCheck className="h-4 w-4 text-white" />
+                )}
+                <span className="hidden sm:inline">
+                    {isAnalyzing ? t('analysis.analyzing') : t('analysis.analyzeButton')}
+                </span>
                 <span className="sm:hidden">{isAnalyzing ? '...' : 'Analizo'}</span>
               </motion.button>
           </div>
       </div>
     </motion.div>
 );
+
+// --- Main Page Component ---
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -203,36 +210,39 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
-  const handleChatSubmit = (text: string, mode: ChatMode, documentId?: string) => {
-      console.log(`💬 Chat: ${text} | Mode: ${mode} | DocID: ${documentId || 'ALL'}`);
+  const handleChatSubmit = (text: string, _mode: ChatMode, documentId?: string) => {
       sendChatMessage(text, documentId);
   };
 
-  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
+  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin h-10 w-10 text-indigo-500" /></div>;
   if (error || !caseData.details) return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-red-900/50 border border-red-600 rounded-md p-6 text-center">
+    <div className="flex items-center justify-center h-screen px-4">
+        <div className="bg-red-900/20 border border-red-500/50 rounded-xl p-8 text-center max-w-lg backdrop-blur-sm">
             <AlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
-            <h2 className="text-xl font-semibold text-red-300 mb-2">{t('caseView.errorLoadingTitle')}</h2>
-            <p className="text-red-300 mb-4">{error || t('caseView.genericError')}</p>
+            <h2 className="text-xl font-semibold text-red-200 mb-2">{t('caseView.errorLoadingTitle')}</h2>
+            <p className="text-red-300/80 mb-4">{error || t('caseView.genericError')}</p>
+            <Link to="/dashboard" className="text-sm text-indigo-400 hover:text-indigo-300 underline underline-offset-4">
+                {t('caseView.backToDashboard')}
+            </Link>
         </div>
     </div>
   );
 
   return (
-    <motion.div className="w-full min-h-screen bg-background-dark pb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-0 sm:px-6 lg:py-6">
+    <motion.div 
+        className="flex flex-col h-[calc(100vh-1rem)] md:h-[calc(100vh-2rem)] overflow-hidden" 
+        initial={{ opacity: 0 }} 
+        animate={{ opacity: 1 }}
+    >
+      <div className="w-full h-full flex flex-col max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-2">
         
-        {/* Navigation */}
-        <div className="mb-4 px-4 sm:px-0">
-          <Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors">
-            <ArrowLeft className="h-3 w-3 mr-1" />
-            {t('caseView.backToDashboard')}
-          </Link>
-        </div>
-        
-        {/* Header */}
-        <div className="px-4 sm:px-0 mb-4">
+        {/* Navigation & Header Section (Fixed Height) */}
+        <div className="flex-none mb-4 space-y-3">
+            <Link to="/dashboard" className="inline-flex items-center text-xs font-medium text-gray-500 hover:text-indigo-400 transition-colors">
+                <ArrowLeft className="h-3 w-3 mr-1" />
+                {t('caseView.backToDashboard')}
+            </Link>
+            
             <CaseHeader 
                 caseDetails={caseData.details} 
                 t={t} 
@@ -242,42 +252,47 @@ const CaseViewPage: React.FC = () => {
             />
         </div>
         
-        {/* MAIN CONTENT AREA */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start px-4 sm:px-0">
-            {/* Left Panel: DOCUMENTS */}
-            <div className="rounded-2xl shadow-xl overflow-hidden">
-                <DocumentsPanel
-                    caseId={caseData.details.id}
-                    documents={liveDocuments}
-                    findings={caseData.findings} 
-                    t={t}
-                    connectionStatus={connectionStatus}
-                    reconnect={reconnect}
-                    onDocumentUploaded={handleDocumentUploaded}
-                    onDocumentDeleted={handleDocumentDeleted}
-                    onViewOriginal={setViewingDocument}
-                    className="h-[600px] border-none shadow-none bg-background-dark"
-                />
-            </div>
+        {/* Main Content Area (Fills remaining height) */}
+        <div className="flex-1 min-h-0">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+                
+                {/* Left Panel: DOCUMENTS */}
+                <div className="h-full flex flex-col rounded-2xl shadow-2xl overflow-hidden border border-white/5 bg-gray-900/30 relative">
+                     {/* The Panels must handle 'h-full' to stretch their internal scroll areas */}
+                    <DocumentsPanel
+                        caseId={caseData.details.id}
+                        documents={liveDocuments}
+                        findings={caseData.findings} 
+                        t={t}
+                        connectionStatus={connectionStatus}
+                        reconnect={reconnect}
+                        onDocumentUploaded={handleDocumentUploaded}
+                        onDocumentDeleted={handleDocumentDeleted}
+                        onViewOriginal={setViewingDocument}
+                        className="h-full w-full border-none shadow-none bg-transparent"
+                    />
+                </div>
 
-            {/* Right Panel: CHAT */}
-            <div className="rounded-2xl shadow-xl overflow-hidden">
-                <ChatPanel
-                    messages={liveMessages}
-                    connectionStatus={connectionStatus}
-                    reconnect={reconnect}
-                    onSendMessage={handleChatSubmit}
-                    isSendingMessage={isSendingMessage}
-                    caseId={caseData.details.id}
-                    onClearChat={handleClearChat}
-                    t={t}
-                    documents={liveDocuments}
-                    className="h-[600px] border-none shadow-none bg-background-dark"
-                />
+                {/* Right Panel: CHAT */}
+                <div className="h-full flex flex-col rounded-2xl shadow-2xl overflow-hidden border border-white/5 bg-gray-900/30 relative">
+                    <ChatPanel
+                        messages={liveMessages}
+                        connectionStatus={connectionStatus}
+                        reconnect={reconnect}
+                        onSendMessage={handleChatSubmit}
+                        isSendingMessage={isSendingMessage}
+                        caseId={caseData.details.id}
+                        onClearChat={handleClearChat}
+                        t={t}
+                        documents={liveDocuments}
+                        className="h-full w-full border-none shadow-none bg-transparent"
+                    />
+                </div>
             </div>
         </div>
       </div>
       
+      {/* Modals */}
       {viewingDocument && (
         <PDFViewerModal 
           documentData={viewingDocument}
