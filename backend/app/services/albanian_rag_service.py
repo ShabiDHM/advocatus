@@ -1,27 +1,30 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - DEEPSEEK V3 INTEGRATION
-# 1. ENGINE: Replaced Groq with DeepSeek V3 (via OpenAI SDK).
-# 2. LOGIC: Hybrid Architecture - Local Embeddings + Cloud Reasoning.
-# 3. COST: Optimized context window to keep API costs negligible.
+# PHOENIX PROTOCOL - KOSOVO LEGAL EDITION (FINAL)
+# 1. ENGINE: DeepSeek V3 (via OpenRouter) for SOTA reasoning.
+# 2. PROMPT: Engineered specifically for "Republika e Kosovës" legal terminology.
+# 3. ARCHITECTURE: Hybrid (Local Storage/Search + Cloud Intelligence).
 
 import os
 import asyncio
 import logging
 import httpx
 from typing import AsyncGenerator, List, Optional, Dict, Protocol, cast, Any
-from openai import AsyncOpenAI, APIError
+from openai import AsyncOpenAI
 
 # Import the graph service instance
 from .graph_service import graph_service
 
 logger = logging.getLogger(__name__)
 
-# --- CONFIGURATION ---
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
-DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_MODEL = "deepseek-chat" # Points to DeepSeek V3
+# --- CONFIGURATION (OPENROUTER) ---
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY") 
 
-# Local Backup Configuration (in case internet fails)
+# OpenRouter Configuration
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+# The OpenRouter ID for DeepSeek V3
+OPENROUTER_MODEL = "deepseek/deepseek-chat" 
+
+# Local Backup Configuration (Fail-safe)
 LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://localhost:11434/api/chat")
 LOCAL_MODEL_NAME = "llama3"
 
@@ -37,31 +40,27 @@ class AlbanianRAGService:
     def __init__(
         self,
         vector_store: VectorStoreServiceProtocol,
-        llm_client: Any, # Placeholder, we init our own client
+        llm_client: Any,
         language_detector: LanguageDetectorProtocol
     ):
         self.vector_store = cast(VectorStoreServiceProtocol, vector_store)
         self.language_detector = language_detector
         
-        # --- INIT DEEPSEEK CLIENT ---
+        # --- INIT OPENROUTER CLIENT ---
         if DEEPSEEK_API_KEY:
             self.client = AsyncOpenAI(
                 api_key=DEEPSEEK_API_KEY, 
-                base_url=DEEPSEEK_BASE_URL
+                base_url=OPENROUTER_BASE_URL
             )
-            logger.info("✅ DeepSeek V3 Activated for Juristi AI.")
+            logger.info("✅ Juristi AI Engine: OpenRouter (DeepSeek V3) Activated.")
         else:
-            logger.critical("❌ DEEPSEEK_API_KEY missing! Chat will fail or fallback.")
+            logger.critical("❌ API Key missing! System will fallback to Local CPU (Slow).")
             self.client = None
 
-        # Configuration
         self.AI_CORE_URL = os.getenv("AI_CORE_URL", "http://ai-core-service:8000")
         self.RERANK_TIMEOUT = 10.0
 
     async def chat(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> str:
-        """
-        Main entry point for chat. Returns full string response.
-        """
         full_response_parts = []
         async for chunk in self.chat_stream(query, case_id, document_ids):
             if chunk: full_response_parts.append(chunk)
@@ -69,16 +68,12 @@ class AlbanianRAGService:
 
     async def _rerank_chunks(self, query: str, chunks: List[Dict]) -> List[Dict]:
         """
-        Calls local ai-core-service to rerank results. 
-        Keep this LOCAL to save API tokens and improve relevance.
+        Local AI Service to sort documents by relevance before sending to Cloud.
         """
         if not chunks: return []
-        
-        # Deduplicate
         unique_chunks = {c.get('text', ''): c for c in chunks}
         documents = list(unique_chunks.keys())
         chunk_map = unique_chunks
-        
         try:
             async with httpx.AsyncClient(timeout=self.RERANK_TIMEOUT) as client:
                 response = await client.post(
@@ -88,7 +83,6 @@ class AlbanianRAGService:
                 response.raise_for_status()
                 data = response.json()
                 sorted_texts = data.get("reranked_documents", [])
-                
                 reranked = []
                 for text in sorted_texts:
                     if text in chunk_map: reranked.append(chunk_map[text])
@@ -99,7 +93,7 @@ class AlbanianRAGService:
 
     async def _call_local_backup(self, system_prompt: str, user_prompt: str) -> str:
         """
-        Fallback to Local CPU model if DeepSeek is down/unpaid.
+        Fallback if OpenRouter is down or credit runs out.
         """
         logger.warning("🔄 Switching to Local Backup Model (CPU)...")
         try:
@@ -114,23 +108,18 @@ class AlbanianRAGService:
                 return data.get("message", {}).get("content", "")
         except Exception as e:
             logger.error(f"❌ Local Backup Failed: {e}")
-            return "Shërbimi është momentalisht i padisponueshëm."
+            return "Kërkesa nuk mund të përpunohej. Ju lutemi provoni përsëri më vonë."
 
     async def chat_stream(self, query: str, case_id: str, document_ids: Optional[List[str]] = None) -> AsyncGenerator[str, None]:
         relevant_chunks = []
         graph_knowledge = []
-        context_found = False
         
         # --- PHASE 1: RETRIEVAL (LOCAL SERVER) ---
-        # Your server handles this part for free and fast.
         try:
             from .embedding_service import generate_embedding
-
-            # 1. Embed Query
             query_embedding = await asyncio.to_thread(generate_embedding, query, 'standard')
             
             if query_embedding:
-                # 2. Parallel Search (Vector DB + Knowledge Base + Graph)
                 async def safe_vector_search():
                     return await asyncio.to_thread(
                         self.vector_store.query_by_vector,
@@ -138,42 +127,40 @@ class AlbanianRAGService:
                     )
                 
                 async def safe_kb_search():
-                    return await asyncio.to_thread(
-                        self.vector_store.query_legal_knowledge_base,
-                        embedding=query_embedding, n_results=3
-                    )
+                    # Only search general law if we are looking at the whole case
+                    if not document_ids:
+                        return await asyncio.to_thread(
+                            self.vector_store.query_legal_knowledge_base,
+                            embedding=query_embedding, n_results=3
+                        )
+                    return []
 
                 async def safe_graph_search():
-                    # Simple keyword graph lookup
-                    keywords = [w for w in query.split() if len(w) > 4]
-                    results = []
-                    for k in keywords:
-                        results.extend(await asyncio.to_thread(graph_service.find_hidden_connections, k))
-                    return list(set(results))
+                    if not document_ids:
+                        keywords = [w for w in query.split() if len(w) > 4]
+                        results = []
+                        for k in keywords:
+                            results.extend(await asyncio.to_thread(graph_service.find_hidden_connections, k))
+                        return list(set(results))
+                    return []
 
                 results = await asyncio.gather(
-                    safe_vector_search(), 
-                    safe_kb_search(), 
-                    safe_graph_search(), 
-                    return_exceptions=True
+                    safe_vector_search(), safe_kb_search(), safe_graph_search(), return_exceptions=True
                 )
 
                 user_docs = results[0] if isinstance(results[0], list) else []
                 kb_docs = results[1] if isinstance(results[1], list) else []
                 graph_knowledge = results[2] if isinstance(results[2], list) else []
 
-                # 3. Rerank (Local CPU)
                 raw_candidates = user_docs + kb_docs
                 if raw_candidates:
                     relevant_chunks = await self._rerank_chunks(query, raw_candidates)
-                    relevant_chunks = relevant_chunks[:8] # Send top 8 chunks to DeepSeek
-                    context_found = True
+                    relevant_chunks = relevant_chunks[:8] # Best 8 chunks
                 
         except Exception as e:
             logger.error(f"Retrieval Phase Error: {e}")
-            # We continue even if retrieval fails, relying on LLM's general knowledge
 
-        # --- PHASE 2: GENERATION (DEEPSEEK API) ---
+        # --- PHASE 2: GENERATION (CLOUD AI) ---
         
         # Build Context String
         context_text = ""
@@ -190,32 +177,52 @@ class AlbanianRAGService:
         if not context_text:
             context_text = "Nuk u gjetën dokumente specifike. Përgjigju bazuar në njohuritë e përgjithshme ligjore."
 
-        # Professional System Prompt
+        # PHOENIX PROTOCOL - KOSOVO LEGAL PROMPT v2
         system_prompt = """
-        Ju jeni "Juristi AI", një asistent ligjor i avancuar për profesionistët në Kosovë.
+        Ti je "Juristi AI", një Asistent Ligjor i Avancuar i specializuar për sistemin e drejtësisë në Republikën e Kosovës.
+
+        MISIONI:
+        Të analizosh dokumentet e dosjes dhe të ofrosh këshilla juridike të sakta, profesionale dhe të bazuara në ligjet në fuqi të Kosovës.
+
+        UDHËZIME STRIKTE:
+        1. GJUHA DHE TERMINOLOGJIA:
+           - Përdor gjuhën shqipe letrare dhe profesionale.
+           - Përdor terminologjinë e saktë ligjore të Kosovës (p.sh. "Kodi Penal i Republikës së Kosovës", "Ligji i Punës", "Gjykata Themelore").
         
-        UDHËZIME:
-        1. Analizo pyetjen e përdoruesit duke përdorur kontekstin e ofruar.
-        2. Nëse konteksti përmban përgjigjen, cito dokumentet (p.sh. "Sipas kontratës...").
-        3. Nëse konteksti nuk ka informacion, përdor njohuritë e tua për ligjet e Kosovës, por thekso se informacioni është i përgjithshëm.
-        4. Stili: Profesional, objektiv, dhe i saktë juridikisht.
-        5. Përgjigju në gjuhën Shqipe.
+        2. BURIMI I INFORMACIONIT:
+           - Përgjigju DUKE U BAZUAR KRYESISHT në tekstin e dhënë tek 'DOKUMENTET E GJETURA'.
+           - Cito dokumentet ku është e mundur (p.sh. "Sipas Nenit 3 të Kontratës...").
+        
+        3. MUNGESA E INFORMACIONIT:
+           - Nëse 'KONTEKSTI' nuk përmban përgjigjen e saktë, thuaj qartë: "Në dokumentet e ofruara nuk gjendet ky informacion specifik."
+           - Më pas, ofro një analizë të bazuar në parimet e përgjithshme të ligjeve të Kosovës që mund të aplikohen.
+
+        4. FORMATI I PËRGJIGJES:
+           - Hyrje: Konfirmim i kuptimit të pyetjes.
+           - Analizë: Shtjellim i fakteve nga dokumentet dhe baza ligjore.
+           - Konkluzion: Përmbledhje e shkurtër ose rekomandim.
+
+        Qëndro objektiv dhe profesional. Mos jep garanci absolute për rezultatin e një çështjeje gjyqësore.
         """
 
-        user_message = f"PYETJA: {query}\n\nKONTEKSTI:\n{context_text}"
+        user_message = f"PYETJA E PËRDORUESIT: {query}\n\nKONTEKSTI I DOSJES:\n{context_text}"
 
         try:
             if not self.client:
-                raise Exception("DeepSeek Client not initialized")
+                raise Exception("Client not initialized")
 
             stream = await self.client.chat.completions.create(
-                model=DEEPSEEK_MODEL,
+                model=OPENROUTER_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
                 ],
-                temperature=0.3, # Low temp for precision
-                stream=True
+                temperature=0.3, # Low temperature for factual consistency
+                stream=True,
+                extra_headers={
+                    "HTTP-Referer": "https://juristi.tech", 
+                    "X-Title": "Juristi AI"
+                }
             )
 
             async for chunk in stream:
@@ -223,10 +230,8 @@ class AlbanianRAGService:
                 if content:
                     yield content
             
-            # Footer to confirm source (Remove in production if desired)
-            yield "\n\n**Burimi:** Juristi AI"
+            yield "\n\n**Burimi:** Juristi AI (DeepSeek Engine)"
 
         except Exception as e:
-            logger.error(f"DeepSeek API Error: {e}")
-            # Failover to Local CPU Model
+            logger.error(f"OpenRouter API Error: {e}")
             yield await self._call_local_backup(system_prompt, user_message)
