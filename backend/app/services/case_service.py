@@ -1,13 +1,12 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE (SMART DEDUPLICATION)
-# 1. UPDATE: sync_case_calendar_from_findings
-# 2. LOGIC: If ANY event exists on a target date for this case, Auto-Sync skips it.
-# 3. RESULT: Prevents duplicates between Manual Entry and AI Auto-Detection.
+# PHOENIX PROTOCOL - CASE SERVICE (FULL SHREDDER V2)
+# 1. UPDATE: delete_case_by_id now iterates documents to delete PHYSICAL files and VECTORS.
+# 2. STATUS: Zero-waste deletion. No orphaned files or embeddings.
 
 from fastapi import HTTPException, status
 from pymongo.database import Database
 from bson import ObjectId
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List, cast
 import re
 
@@ -16,7 +15,8 @@ from ..models.user import UserInDB
 from ..models.drafting import DraftRequest
 from ..celery_app import celery_app
 from .graph_service import graph_service
-from . import storage_service
+# PHOENIX FIX: Added vector_store_service import
+from . import storage_service, vector_store_service
 
 # --- HELPER: DATA ADAPTER ---
 def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) -> Optional[Dict[str, Any]]:
@@ -117,24 +117,20 @@ def sync_case_calendar_from_findings(db: Database, case_id: str, user_id: Object
             
             if dt:
                 # PHOENIX FIX: Strict Day-Level Deduplication
-                # We define a "Day" range to check against
                 start_of_day = datetime(dt.year, dt.month, dt.day, 0, 0, 0)
                 end_of_day = datetime(dt.year, dt.month, dt.day, 23, 59, 59)
                 
                 # Check for ANY existing event on this day for this case
-                # This prevents "Double Booking" if the user added one manually
                 exists = db.calendar_events.find_one({
                     "case_id": {"$in": [case_id, ObjectId(case_id)]},
                     "$or": [
                         {"start_date": {"$gte": start_of_day, "$lte": end_of_day}},
-                        {"start_date": {"$gte": start_of_day.isoformat(), "$lte": end_of_day.isoformat()}} # Handle ISO strings
+                        {"start_date": {"$gte": start_of_day.isoformat(), "$lte": end_of_day.isoformat()}} 
                     ]
                 })
                 
                 if not exists:
-                    # No event exists on this day -> Safe to Auto-Sync
                     title_fragment = f_text[:60] + "..." if len(f_text) > 60 else f_text
-                    
                     events_to_create.append({
                         "title": title_fragment,
                         "description": f"Burimi (Auto-Detected): {f_text}",
@@ -203,12 +199,14 @@ def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional
     })
     if not case: return None
     
-    # Opportunistic Sync on Read
     sync_case_calendar_from_findings(db, str(case_id), owner.id)
     
     return _map_case_document(case, db)
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
+    """
+    Deletes a case and ALL associated data (Documents, Files, Embeddings, Events, etc.)
+    """
     case = db.cases.find_one({
         "_id": case_id, 
         "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]
@@ -217,9 +215,41 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
         raise HTTPException(status_code=404, detail="Case not found.")
 
     case_id_str = str(case_id)
+    # Flexible query to catch inconsistencies
     any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
 
-    # --- 1. ARCHIVE CLEANUP ---
+    # --- 1. DOCUMENTS DEEP CLEAN (Files + Vectors) ---
+    # Fetch all docs first so we have their storage keys
+    documents = list(db.documents.find(any_id_query))
+    for doc in documents:
+        doc_id_str = str(doc["_id"])
+        
+        # A. Delete Physical Files
+        keys_to_delete = [
+            doc.get("storage_key"),
+            doc.get("processed_text_storage_key"),
+            doc.get("preview_storage_key")
+        ]
+        for key in keys_to_delete:
+            if key:
+                try:
+                    storage_service.delete_file(key)
+                except Exception as e:
+                    print(f"Warning: Failed to delete file key {key}: {e}")
+
+        # B. Delete Vector Embeddings
+        try:
+            vector_store_service.delete_document_embeddings(document_id=doc_id_str)
+        except Exception as e:
+            print(f"Warning: Failed to delete embeddings for doc {doc_id_str}: {e}")
+
+        # C. Delete Graph Nodes
+        try:
+            graph_service.delete_document_nodes(doc_id_str)
+        except Exception:
+            pass
+
+    # --- 2. ARCHIVE CLEANUP ---
     archive_items = db.archives.find(any_id_query)
     for item in archive_items:
         if "storage_key" in item:
@@ -227,21 +257,12 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
                 storage_service.delete_file(item["storage_key"])
             except Exception as e:
                 print(f"Warning: Failed to delete archive file {item.get('title')}: {e}")
-    
     db.archives.delete_many(any_id_query)
-
-    # --- 2. GRAPH CLEANUP ---
-    docs = db.documents.find({"case_id": case_id})
-    for doc in docs:
-        try:
-            graph_service.delete_document_nodes(str(doc["_id"]))
-        except Exception:
-            pass
 
     # --- 3. DELETE CASE ENTITY ---
     db.cases.delete_one({"_id": case_id})
     
-    # --- 4. CLEANUP ASSOCIATED DATA ---
+    # --- 4. CLEANUP ASSOCIATED DB RECORDS ---
     db.documents.delete_many(any_id_query)
     db.calendar_events.delete_many(any_id_query)
     db.findings.delete_many(any_id_query)

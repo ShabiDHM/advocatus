@@ -1,7 +1,8 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - IMPORT FIX
-# 1. FIX: Imported 'graph_service' instance explicitly from its module.
-# 2. LOGIC: Ensures 'delete_document_nodes' is called on the object, not the module.
+# PHOENIX PROTOCOL - DOCUMENT SERVICE (DIGITAL SHREDDER ENABLED)
+# 1. FIX: Added explicit deletion of Calendar Events and Alerts linked to the document.
+# 2. LOGIC: Handles both String and ObjectId formats for robust cleanup.
+# 3. STATUS: Complete data wiping for deleted documents.
 
 import logging
 from bson import ObjectId
@@ -15,7 +16,6 @@ from fastapi import HTTPException
 from ..models.document import DocumentOut, DocumentStatus
 from ..models.user import UserInDB
 
-# PHOENIX FIX: Separated imports to ensure we get the INSTANCE of graph_service
 from . import vector_store_service, storage_service, findings_service, deadline_service
 from .graph_service import graph_service 
 
@@ -117,21 +117,34 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     processed_key = document_to_delete.get("processed_text_storage_key")
     preview_key = document_to_delete.get("preview_storage_key")
 
+    # 1. Delete Findings (via service to handle finding-specific logic)
     deleted_finding_ids = findings_service.delete_findings_by_document_id(db=db, document_id=doc_id)
-    deadline_service.delete_deadlines_by_document_id(db=db, document_id=doc_id_str)
     
-    # PHOENIX FIX: Clean graph
+    # 2. PHOENIX FIX: Robust Link Deletion (Calendar Events & Alerts)
+    # Check for both ObjectId and String versions of ID to catch all references
+    any_id_query = {"document_id": {"$in": [doc_id, doc_id_str]}}
+    
+    # Delete Calendar Events associated with this document
+    db.calendar_events.delete_many(any_id_query)
+    
+    # Delete Alerts associated with this document
+    db.alerts.delete_many(any_id_query)
+    
+    # 3. Clean Graph Nodes
     try:
         graph_service.delete_document_nodes(doc_id_str)
     except Exception as e:
         logger.warning(f"Failed to clean graph nodes for doc {doc_id_str}: {e}")
 
+    # 4. Clean Vector Embeddings
     vector_store_service.delete_document_embeddings(document_id=doc_id_str)
     
+    # 5. Clean Physical Files
     if storage_key: storage_service.delete_file(storage_key=storage_key)
     if processed_key: storage_service.delete_file(storage_key=processed_key)
     if preview_key: storage_service.delete_file(storage_key=preview_key)
     
+    # 6. Delete the Document Record
     delete_result = db.documents.delete_one({"_id": doc_id, "owner_id": owner.id})
     
     if delete_result.deleted_count != 1:
