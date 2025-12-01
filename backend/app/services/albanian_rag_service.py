@@ -1,8 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - KOSOVO LEGAL EDITION (FINAL)
-# 1. ENGINE: DeepSeek V3 (via OpenRouter) for SOTA reasoning.
-# 2. PROMPT: Engineered specifically for "Republika e Kosovës" legal terminology.
-# 3. ARCHITECTURE: Hybrid (Local Storage/Search + Cloud Intelligence).
+# PHOENIX PROTOCOL - GRAPH UNLOCKED
+# 1. LOGIC FIX: Enabled Graph Search for BOTH 'Document Mode' and 'Case Mode'.
+# 2. RESULT: Maximum context (Laws + Graph + Document) provided for every query.
 
 import os
 import asyncio
@@ -21,10 +20,9 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 
 # OpenRouter Configuration
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-# The OpenRouter ID for DeepSeek V3
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# Local Backup Configuration (Fail-safe)
+# Local Backup Configuration
 LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://localhost:11434/api/chat")
 LOCAL_MODEL_NAME = "llama3"
 
@@ -46,7 +44,6 @@ class AlbanianRAGService:
         self.vector_store = cast(VectorStoreServiceProtocol, vector_store)
         self.language_detector = language_detector
         
-        # --- INIT OPENROUTER CLIENT ---
         if DEEPSEEK_API_KEY:
             self.client = AsyncOpenAI(
                 api_key=DEEPSEEK_API_KEY, 
@@ -67,9 +64,6 @@ class AlbanianRAGService:
         return "".join(full_response_parts)
 
     async def _rerank_chunks(self, query: str, chunks: List[Dict]) -> List[Dict]:
-        """
-        Local AI Service to sort documents by relevance before sending to Cloud.
-        """
         if not chunks: return []
         unique_chunks = {c.get('text', ''): c for c in chunks}
         documents = list(unique_chunks.keys())
@@ -92,9 +86,6 @@ class AlbanianRAGService:
             return list(unique_chunks.values())
 
     async def _call_local_backup(self, system_prompt: str, user_prompt: str) -> str:
-        """
-        Fallback if OpenRouter is down or credit runs out.
-        """
         logger.warning("🔄 Switching to Local Backup Model (CPU)...")
         try:
             payload = {
@@ -114,35 +105,37 @@ class AlbanianRAGService:
         relevant_chunks = []
         graph_knowledge = []
         
-        # --- PHASE 1: RETRIEVAL (LOCAL SERVER) ---
+        # --- PHASE 1: RETRIEVAL ---
         try:
             from .embedding_service import generate_embedding
             query_embedding = await asyncio.to_thread(generate_embedding, query, 'standard')
             
             if query_embedding:
+                # 1. User Documents (Filtered by ID if provided)
                 async def safe_vector_search():
                     return await asyncio.to_thread(
                         self.vector_store.query_by_vector,
                         embedding=query_embedding, case_id=case_id, n_results=10, document_ids=document_ids
                     )
                 
+                # 2. Knowledge Base (ALWAYS ENABLED)
                 async def safe_kb_search():
-                    # Only search general law if we are looking at the whole case
-                    if not document_ids:
-                        return await asyncio.to_thread(
-                            self.vector_store.query_legal_knowledge_base,
-                            embedding=query_embedding, n_results=3
-                        )
-                    return []
+                    return await asyncio.to_thread(
+                        self.vector_store.query_legal_knowledge_base,
+                        embedding=query_embedding, n_results=3
+                    )
 
+                # 3. Graph (ALWAYS ENABLED)
+                # PHOENIX FIX: Graph search enabled for BOTH single-doc and full-case modes
                 async def safe_graph_search():
-                    if not document_ids:
+                    try:
                         keywords = [w for w in query.split() if len(w) > 4]
                         results = []
                         for k in keywords:
                             results.extend(await asyncio.to_thread(graph_service.find_hidden_connections, k))
                         return list(set(results))
-                    return []
+                    except Exception:
+                        return []
 
                 results = await asyncio.gather(
                     safe_vector_search(), safe_kb_search(), safe_graph_search(), return_exceptions=True
@@ -152,32 +145,33 @@ class AlbanianRAGService:
                 kb_docs = results[1] if isinstance(results[1], list) else []
                 graph_knowledge = results[2] if isinstance(results[2], list) else []
 
+                # Combine: User Docs + Laws
                 raw_candidates = user_docs + kb_docs
+                
+                # 3. Rerank Everything Together
                 if raw_candidates:
                     relevant_chunks = await self._rerank_chunks(query, raw_candidates)
-                    relevant_chunks = relevant_chunks[:8] # Best 8 chunks
+                    relevant_chunks = relevant_chunks[:8] 
                 
         except Exception as e:
             logger.error(f"Retrieval Phase Error: {e}")
 
-        # --- PHASE 2: GENERATION (CLOUD AI) ---
-        
-        # Build Context String
+        # --- PHASE 2: GENERATION ---
         context_text = ""
         if graph_knowledge:
-            context_text += "### TË DHËNA NGA GRAFI:\n" + "\n".join(graph_knowledge[:5]) + "\n\n"
+            context_text += "### TË DHËNA NGA GRAFI (KONTEKST SHTESË):\n" + "\n".join(graph_knowledge[:5]) + "\n\n"
         
         if relevant_chunks:
-            context_text += "### DOKUMENTET E GJETURA:\n"
+            context_text += "### DOKUMENTET DHE LIGJET E GJETURA:\n"
             for chunk in relevant_chunks:
-                source = chunk.get('document_name', 'Dokument')
+                doc_type = chunk.get('type', 'DOKUMENT')
+                source = chunk.get('document_name', 'Burim i Panjohur')
                 text = chunk.get('text', '')
-                context_text += f"BURIMI: {source}\nPËRMBAJTJA: {text}\n---\n"
+                context_text += f"LLOJI: {doc_type} | BURIMI: {source}\nPËRMBAJTJA: {text}\n---\n"
         
         if not context_text:
-            context_text = "Nuk u gjetën dokumente specifike. Përgjigju bazuar në njohuritë e përgjithshme ligjore."
+            context_text = "Nuk u gjetën dokumente specifike. Përgjigju bazuar në njohuritë e tua të përgjithshme ligjore."
 
-        # PHOENIX PROTOCOL - KOSOVO LEGAL PROMPT v2
         system_prompt = """
         Ti je "Juristi AI", një Asistent Ligjor i Avancuar i specializuar për sistemin e drejtësisë në Republikën e Kosovës.
 
@@ -185,27 +179,24 @@ class AlbanianRAGService:
         Të analizosh dokumentet e dosjes dhe të ofrosh këshilla juridike të sakta, profesionale dhe të bazuara në ligjet në fuqi të Kosovës.
 
         UDHËZIME STRIKTE:
-        1. GJUHA DHE TERMINOLOGJIA:
-           - Përdor gjuhën shqipe letrare dhe profesionale.
-           - Përdor terminologjinë e saktë ligjore të Kosovës (p.sh. "Kodi Penal i Republikës së Kosovës", "Ligji i Punës", "Gjykata Themelore").
-        
-        2. BURIMI I INFORMACIONIT:
-           - Përgjigju DUKE U BAZUAR KRYESISHT në tekstin e dhënë tek 'DOKUMENTET E GJETURA'.
-           - Cito dokumentet ku është e mundur (p.sh. "Sipas Nenit 3 të Kontratës...").
-        
-        3. MUNGESA E INFORMACIONIT:
-           - Nëse 'KONTEKSTI' nuk përmban përgjigjen e saktë, thuaj qartë: "Në dokumentet e ofruara nuk gjendet ky informacion specifik."
-           - Më pas, ofro një analizë të bazuar në parimet e përgjithshme të ligjeve të Kosovës që mund të aplikohen.
+        1. KOMBINIMI I BURIMEVE:
+           - Përdor 'DOKUMENTET E PËRDORUESIT' për faktet e rastit.
+           - Përdor 'LIGJET E GJETURA' për bazën ligjore.
+           - Përdor 'TË DHËNA NGA GRAFI' për kontekst rreth entiteteve.
+           - Nëse 'LIGJET' mungojnë në kontekst, përdor njohuritë e tua të brendshme për Kodin Penal/Civil të Kosovës.
 
-        4. FORMATI I PËRGJIGJES:
-           - Hyrje: Konfirmim i kuptimit të pyetjes.
-           - Analizë: Shtjellim i fakteve nga dokumentet dhe baza ligjore.
-           - Konkluzion: Përmbledhje e shkurtër ose rekomandim.
+        2. FORMATI I PËRGJIGJES:
+           - Hyrje: Konfirmim i pyetjes.
+           - Analizë Faktike: Çfarë thonë dokumentet?
+           - Analizë Ligjore: Çfarë thotë ligji për këto fakte?
+           - Konkluzion: Rekomandim profesional.
 
-        Qëndro objektiv dhe profesional. Mos jep garanci absolute për rezultatin e një çështjeje gjyqësore.
+        3. GJUHA: Shqipe letrare, profesionale (p.sh. "Sipas Nenit X...").
+
+        Qëndro objektiv dhe profesional.
         """
 
-        user_message = f"PYETJA E PËRDORUESIT: {query}\n\nKONTEKSTI I DOSJES:\n{context_text}"
+        user_message = f"PYETJA E PËRDORUESIT: {query}\n\nKONTEKSTI I KOMBINUAR:\n{context_text}"
 
         try:
             if not self.client:
@@ -217,7 +208,7 @@ class AlbanianRAGService:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
                 ],
-                temperature=0.3, # Low temperature for factual consistency
+                temperature=0.3, 
                 stream=True,
                 extra_headers={
                     "HTTP-Referer": "https://juristi.tech", 
@@ -230,7 +221,7 @@ class AlbanianRAGService:
                 if content:
                     yield content
             
-            yield "\n\n**Burimi:** Juristi AI (DeepSeek Engine)"
+            yield "\n\n**Burimi:** Asistenti sokratik"
 
         except Exception as e:
             logger.error(f"OpenRouter API Error: {e}")
