@@ -1,7 +1,7 @@
 // FILE: src/pages/CalendarPage.tsx
 // PHOENIX PROTOCOL - CALENDAR PAGE
-// 1. UPDATE: Added subtitle "7 Ditët e Ardhshme" under Alerts sidebar header.
-// 2. STATUS: Feature complete.
+// 1. FIX: Dropdown now correctly displays Case Title (fallback to case_name/number).
+// 2. STATUS: Verified dropdown data mapping.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -317,7 +317,6 @@ const CalendarPage: React.FC = () => {
             {/* Sidebar - ALERTS ONLY */}
             <div className="lg:col-span-1 space-y-6">
                 <div className="bg-background-light/50 backdrop-blur-md border border-glass-edge p-4 sm:p-6 rounded-2xl shadow-xl">
-                    {/* PHOENIX FIX: Added Subtitle */}
                     <div className="mb-4">
                         <h3 className="text-lg font-semibold text-text-primary flex items-center gap-2">
                             <Bell className="h-5 w-5 text-yellow-400" />
@@ -443,7 +442,7 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
     );
 };
 
-// Create Event Modal Component (unchanged)
+// PHOENIX FIX: Create Event Modal Component with Fallback Title
 const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onCreate }) => {
   const { t, i18n } = useTranslation();
   const currentLocale = localeMap[i18n.language] || enUS; 
@@ -484,7 +483,13 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, onClose, onC
         <form onSubmit={handleSubmit} className="flex flex-col flex-grow overflow-hidden">
           <div className="overflow-y-auto pr-2 space-y-4 flex-grow custom-scrollbar">
               {/* Content */}
-              <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.relatedCase')}</label><select required value={formData.case_id} onChange={(e) => setFormData(prev => ({ ...prev, case_id: e.target.value }))} className={formElementClasses}><option value="">{t('calendar.createModal.selectCase')}</option>{cases.map(c => <option key={c.id} value={c.id}>{c.case_name}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.relatedCase')}</label>
+              <select required value={formData.case_id} onChange={(e) => setFormData(prev => ({ ...prev, case_id: e.target.value }))} className={formElementClasses}>
+                <option value="">{t('calendar.createModal.selectCase')}</option>
+                {/* PHOENIX FIX: Added fallback to Title or Case Number to ensure display */}
+                {cases.map(c => <option key={c.id} value={c.id}>{c.title || c.case_name || c.case_number}</option>)}
+              </select>
+              </div>
               <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventTitle')}</label><input type="text" required value={formData.title} onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))} className={formElementClasses} /></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className="block text-sm font-medium text-text-secondary mb-1">{t('calendar.createModal.eventType')}</label><select value={formData.event_type} onChange={(e) => setFormData(prev => ({ ...prev, event_type: e.target.value as CalendarEvent['event_type'] }))} className={formElementClasses}>{Object.keys(t('calendar.types', { returnObjects: true })).map(key => <option key={key} value={key}>{t(`calendar.types.${key}`)}</option>)}</select></div>
