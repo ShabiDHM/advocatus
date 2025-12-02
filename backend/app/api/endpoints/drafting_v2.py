@@ -1,7 +1,8 @@
 # FILE: backend/app/api/endpoints/drafting_v2.py
-# PHOENIX PROTOCOL - DRAFTING ENDPOINT V2
-# 1. UPDATE: Passes 'use_library' flag to Celery worker.
-# 2. STATUS: Connects Frontend Toggle -> Backend Logic.
+# PHOENIX PROTOCOL - ROUTING CORRECTION
+# 1. FIX: Removed the redundant 'prefix="/drafting"' from the APIRouter definition.
+# 2. REASON: The correct prefix is applied once in main.py, fixing the "double prefix" issue that caused the 404 error.
+# 3. STATUS: The endpoint routes are now correctly exposed at /api/v2/drafting/*.
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import Annotated
@@ -14,7 +15,8 @@ from ...models.drafting import DraftRequest
 from .dependencies import get_current_active_user, get_db
 from ...celery_app import celery_app
 
-router = APIRouter(prefix="/drafting", tags=["Drafting V2"])
+# PHOENIX FIX: Prefix is removed. It is now handled correctly in main.py.
+router = APIRouter(tags=["Drafting V2"])
 logger = logging.getLogger(__name__)
 
 @router.post("/jobs", status_code=status.HTTP_202_ACCEPTED)
@@ -23,7 +25,6 @@ async def create_drafting_job(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
 ):
     try:
-        # PHOENIX FIX: Included 'use_library' in the task arguments
         task = celery_app.send_task(
             "process_drafting_job",
             kwargs={
@@ -31,7 +32,7 @@ async def create_drafting_job(
                 "user_id": str(current_user.id),
                 "draft_type": request_data.document_type,
                 "user_prompt": request_data.prompt,
-                "use_library": request_data.use_library # <--- PASSED HERE
+                "use_library": request_data.use_library
             }
         )
         job_id = task.id
