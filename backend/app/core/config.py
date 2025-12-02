@@ -1,8 +1,9 @@
 # FILE: backend/app/core/config.py
 # PHOENIX PROTOCOL - CONFIGURATION FINAL
-# 1. Handles comma-separated CORS strings (for Docker/Production).
-# 2. Handles JSON strings.
-# 3. Satisfies Pylance strict typing.
+# 1. ADDED: The 'ENVIRONMENT' variable to distinguish between development and production for cookie security.
+# 2. Handles comma-separated CORS strings (for Docker/Production).
+# 3. Handles JSON strings.
+# 4. Satisfies Pylance strict typing.
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Union
@@ -14,6 +15,8 @@ class Settings(BaseSettings):
 
     # --- API Setup ---
     API_V1_STR: str = "/api/v1"
+    # PHOENIX FIX: Added environment setting for secure cookie configuration.
+    ENVIRONMENT: str = "production" 
     
     # --- Auth ---
     SECRET_KEY: str = "changeme"
@@ -28,12 +31,9 @@ class Settings(BaseSettings):
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:
         if isinstance(v, str) and not v.startswith("["):
-            # Handle comma-separated string: "http://localhost,https://myapp.com"
             return [i.strip() for i in v.split(",")]
         elif isinstance(v, str):
-            # Handle JSON string: '["http://localhost"]'
             return json.loads(v)
-        # Handle actual list
         return v
 
     # --- Database & Broker ---

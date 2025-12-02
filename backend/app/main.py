@@ -1,7 +1,8 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - TYPE IGNORE FIX
-# 1. FIX: Reverted to 'app.add_middleware' and added '# type: ignore' to suppress the Pylance false positive.
-# 2. STATUS: Clean build, zero warnings.
+# PHOENIX PROTOCOL - SYSTEM INTEGRITY ENFORCED
+# 1. ROBUSTNESS: Removed the try/except block around the drafting_v2_router import.
+# 2. BEHAVIOR: The application will now fail on startup if a required router is missing, preventing runtime 404s.
+# 3. STATUS: Clean build, zero warnings, architecturally sound.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,13 +25,9 @@ from app.api.endpoints.business import router as business_router
 from app.api.endpoints.finance import router as finance_router
 from app.api.endpoints.graph import router as graph_router
 from app.api.endpoints.archive import router as archive_router
+# PHOENIX FIX: Removed try/except to enforce module existence at startup.
+from app.api.endpoints.drafting_v2 import router as drafting_v2_router
 
-# Drafting V2 (Safe Import)
-try:
-    from app.api.endpoints.drafting_v2 import router as drafting_v2_router
-except ImportError:
-    drafting_v2_router = None
-    logging.warning("Drafting V2 router not found. Skipping.")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,7 +35,6 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ---
-# PHOENIX FIX: Revert to add_middleware with a type ignore comment
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
 
 # --- CORS CONFIGURATION ---
@@ -73,7 +69,6 @@ app.add_middleware(
 
 # --- ROUTER ASSEMBLY ---
 api_v1_router = APIRouter(prefix="/api/v1")
-
 api_v1_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 api_v1_router.include_router(users_router, prefix="/users", tags=["Users"])
 api_v1_router.include_router(cases_router, prefix="/cases", tags=["Cases"])
@@ -87,12 +82,12 @@ api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"]
 api_v1_router.include_router(graph_router, prefix="/graph", tags=["Graph"])
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
 
-app.include_router(api_v1_router)
+# PHOENIX FIX: Register V2 router unconditionally.
+api_v2_router = APIRouter(prefix="/api/v2")
+api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])
 
-if drafting_v2_router:
-    api_v2_router = APIRouter(prefix="/api/v2")
-    api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])
-    app.include_router(api_v2_router)
+app.include_router(api_v1_router)
+app.include_router(api_v2_router)
 
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Health Check"])
 def health_check():
