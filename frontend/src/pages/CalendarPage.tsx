@@ -1,8 +1,9 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - DIAGNOSTIC STYLING
-// 1. DIAGNOSTIC: Applied aggressive "shock" styling to the tooltip (bright pink background, high z-index).
-// 2. PURPOSE: This change is designed to force the tooltip to be visible.
-// 3. OUTCOME: If the tooltip now appears pink, the issue is styling. If it remains invisible, the issue is a client-side build/cache problem.
+// PHOENIX PROTOCOL - CSS CLIPPING FIX
+// 1. DIAGNOSIS: The tooltip was being clipped by a parent container with an 'overflow-y-auto' style.
+// 2. FIX: Removed the 'relative' class from the direct wrapper of the event button.
+// 3. BEHAVIOR: This allows the 'absolute'ly positioned tooltip to anchor itself to the main calendar
+//    cell, escaping the clipping container and becoming fully visible.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -199,7 +200,8 @@ const CalendarPage: React.FC = () => {
               const eventId = getEventId(event);
               
               return (
-                <div key={eventId} className="relative">
+                // PHOENIX FIX: Removed 'relative' class to allow tooltip to escape parent's overflow clipping.
+                <div key={eventId}>
                     <button 
                         onClick={() => setSelectedEvent(event)}
                         onMouseEnter={() => setHoveredEventId(eventId)}
@@ -218,17 +220,16 @@ const CalendarPage: React.FC = () => {
                                 initial={{ opacity: 0, y: 5, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                // PHOENIX DIAGNOSTIC: Using aggressive styles to force visibility.
-                                className="absolute left-0 top-full mt-1 w-64 p-3 rounded-xl shadow-2xl pointer-events-none bg-pink-500 text-black border-4 border-lime-400 z-[9999]"
+                                className="absolute left-0 top-full mt-1 z-50 w-64 bg-slate-800 border border-slate-700 rounded-xl p-3 shadow-2xl pointer-events-none"
                             >
                                 <div className={`text-xs font-bold uppercase mb-1 ${style.text} flex items-center gap-1.5`}>
                                     {style.icon} {t(`calendar.types.${event.event_type}`)}
                                 </div>
-                                <div className="font-semibold text-sm mb-1">{event.title}</div>
-                                {event.description && <div className="text-xs mb-2 line-clamp-2">{event.description}</div>}
-                                <div className="pt-2 border-t border-black/20 text-[10px] flex justify-between">
+                                <div className="text-white font-semibold text-sm mb-1">{event.title}</div>
+                                {event.description && <div className="text-gray-400 text-xs mb-2 line-clamp-2">{event.description}</div>}
+                                <div className="pt-2 border-t border-white/10 text-gray-500 text-[10px] flex justify-between">
                                     <span>{format(parseISO(event.start_date), 'HH:mm')}</span>
-                                    <span className={`uppercase font-bold ${event.priority === 'CRITICAL' ? 'text-red-900' : ''}`}>{event.priority}</span>
+                                    <span className={`uppercase font-bold ${event.priority === 'CRITICAL' ? 'text-red-500' : 'text-gray-500'}`}>{event.priority}</span>
                                 </div>
                             </motion.div>
                         )}
