@@ -1,7 +1,7 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - TEXT UPDATE
-// 1. CONTENT: Changed 'Avokatët' to 'Juristët' in the hero badge.
-// 2. STATUS: Production-ready.
+// PHOENIX PROTOCOL - LANDING PAGE CLEANUP
+// 1. CONTENT: Removed Testimonials section as requested.
+// 2. LAYOUT: Maintained Hero, Features (Bento Grid), and CTA flow.
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -13,7 +13,7 @@ import {
     ChevronRight, 
     TrendingUp, 
     MessageSquare,
-    Briefcase
+    // Removed unused Briefcase import
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -150,27 +150,6 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        {/* --- TESTIMONIALS --- */}
-        <section className="py-20">
-             <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold">Besuar nga profesionistët</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <TestimonialCard 
-                    quote="Juristi.tech ma ka thjeshtësuar jashtëzakonisht shumë menaxhimin e lëndëve penale. Kërkimi në dokumente është i menjëhershëm."
-                    role="Avokat, Prishtinë"
-                />
-                <TestimonialCard 
-                    quote="Moduli i faturimit dhe Qendra e Biznesit më kursen orë të tëra çdo fundmuaj. Është fiks çfarë i duhet një zyreje moderne."
-                    role="Juriste, Prizren"
-                />
-                 <TestimonialCard 
-                    quote="Asistenti Sokratik më ndihmon të përgatis strategjinë e mbrojtjes shumë më shpejt duke analizuar dëshmitë në sekonda."
-                    role="Partner i Zyrës Ligjore"
-                />
-            </div>
-        </section>
-
         {/* --- CTA --- */}
         <section className="py-24 text-center">
             <div className="bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-white/10 rounded-3xl p-12 relative overflow-hidden">
@@ -198,20 +177,5 @@ const LandingPage: React.FC = () => {
     </div>
   );
 };
-
-const TestimonialCard = ({ quote, role }: { quote: string, role: string }) => (
-    <div className="p-6 bg-[#111827] border border-white/5 rounded-2xl relative">
-        <div className="absolute top-4 left-4 text-blue-500 opacity-50">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M14.017 21L14.017 18C14.017 16.054 15.391 14.508 17.067 13.911C16.326 13.911 15.659 13.565 15.115 12.984C14.542 12.373 14.254 11.536 14.254 10.518C14.254 8.243 15.86 6.353 18.232 6.353C20.669 6.353 22.25 8.243 22.25 10.662C22.25 15.205 19.38 21 14.017 21ZM5 21L5 18C5 16.054 6.374 14.508 8.05 13.911C7.309 13.911 6.642 13.565 6.098 12.984C5.525 12.373 5.237 11.536 5.237 10.518C5.237 8.243 6.843 6.353 9.215 6.353C11.652 6.353 13.233 8.243 13.233 10.662C13.233 15.205 10.363 21 5 21Z" /></svg>
-        </div>
-        <p className="text-gray-300 italic mb-4 relative z-10 pt-8">"{quote}"</p>
-        <div className="flex items-center gap-3 border-t border-white/5 pt-4">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-gray-700 to-gray-600 flex items-center justify-center">
-                <Briefcase className="w-4 h-4 text-gray-300" />
-            </div>
-            <p className="text-sm font-semibold text-blue-400">{role}</p>
-        </div>
-    </div>
-);
 
 export default LandingPage;
