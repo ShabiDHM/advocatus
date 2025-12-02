@@ -1,7 +1,7 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CONTEXT AWARE SERVICE
-# 1. SCOPE: Accepts 'document_id' to limit AI analysis to a single source.
-# 2. RAG INTEGRATION: Passes the specific document ID to the RAG engine.
+# PHOENIX PROTOCOL - JURISDICTION SUPPORT (SERVICE LAYER)
+# 1. SCOPE: 'get_http_chat_response' now accepts and passes 'jurisdiction'.
+# 2. RAG INTEGRATION: The RAG engine will now receive the jurisdictional context.
 
 from __future__ import annotations
 import os
@@ -12,7 +12,7 @@ from typing import Any, Optional
 from fastapi import HTTPException
 from bson import ObjectId
 from bson.errors import InvalidId
-from groq import AsyncGroq
+from openai import AsyncOpenAI
 
 from app.models.case import ChatMessage
 import app.services.vector_store_service as vector_store_service
@@ -39,18 +39,19 @@ def _get_rag_service_instance() -> Any:
         logger.error("❌ RAG Service or Language Detector Class is missing.")
         return None
 
-    api_key = os.environ.get("GROQ_API_KEY")
+    api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
-        logger.warning("⚠️ GROQ_API_KEY missing. AI features disabled.")
+        logger.warning("⚠️ DEEPSEEK_API_KEY missing. AI features disabled.")
         return None
 
     try:
         detector = AlbanianLanguageDetector()
-        client = AsyncGroq(api_key=api_key)
+        # Use a dummy client here, as RAG service will init its own OpenAI client
+        dummy_client = AsyncOpenAI(api_key="dummy") 
         
         return AlbanianRAGService(
             vector_store=vector_store_service,
-            llm_client=client,
+            llm_client=dummy_client,
             language_detector=detector
         )
     except Exception as e:
@@ -62,12 +63,13 @@ async def get_http_chat_response(
     case_id: str, 
     user_query: str, 
     user_id: str,
-    document_id: Optional[str] = None # PHOENIX FIX: Added param
+    document_id: Optional[str] = None,
+    jurisdiction: Optional[str] = 'ks' # PHOENIX FIX: Added param
 ) -> str:
     """
-    Orchestrates the chat flow: Validates -> Saves User Msg -> calls RAG -> Saves AI Msg.
+    Orchestrates the chat flow with scope and jurisdiction.
     """
-    logger.info(f"💬 Chat Request: Case[{case_id}] User[{user_id}] Doc[{document_id or 'ALL'}]")
+    logger.info(f"💬 Chat Request: Case[{case_id}] Doc[{document_id or 'ALL'}] Jur[{jurisdiction}]")
 
     # 1. Validation
     try:
@@ -87,9 +89,7 @@ async def get_http_chat_response(
             role="user",
             content=user_query,
             timestamp=datetime.now(timezone.utc)
-            # Note: We could save document_id here in the future if the model supports it
         )
-        
         await db.cases.update_one(
             {"_id": oid},
             {"$push": {"chat_history": user_message.model_dump()}}
@@ -103,13 +103,14 @@ async def get_http_chat_response(
         rag_service = _get_rag_service_instance()
         
         if rag_service:
-            # PHOENIX FIX: Pass specific document list if filtering is requested
             target_docs = [document_id] if document_id else None
             
+            # PHOENIX FIX: Pass jurisdiction to RAG
             response_text = await rag_service.chat(
                 query=user_query, 
                 case_id=case_id, 
-                document_ids=target_docs 
+                document_ids=target_docs,
+                jurisdiction=jurisdiction
             )
         else:
             response_text = "Shërbimi AI aktualisht nuk është i qasshëm (Missing Configuration)."
@@ -125,7 +126,6 @@ async def get_http_chat_response(
             content=response_text,
             timestamp=datetime.now(timezone.utc)
         )
-        
         await db.cases.update_one(
             {"_id": oid},
             {"$push": {"chat_history": ai_message.model_dump()}}

@@ -1,7 +1,7 @@
 # FILE: backend/app/routers/chat.py
-# PHOENIX PROTOCOL - CHAT SCOPE SUPPORT
-# 1. API: Updated 'ChatMessageRequest' to accept optional 'document_id'.
-# 2. LOGIC: Passes 'document_id' to service layer to enable single-document chat.
+# PHOENIX PROTOCOL - JURISDICTION SUPPORT (API LAYER)
+# 1. API: Updated 'ChatMessageRequest' to accept 'jurisdiction' (ks/al).
+# 2. LOGIC: Passes 'jurisdiction' down to the service layer for RAG filtering.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from typing import Annotated, Any, Optional
@@ -19,7 +19,9 @@ logger = logging.getLogger(__name__)
 
 class ChatMessageRequest(BaseModel):
     message: str
-    document_id: Optional[str] = None # PHOENIX FIX: Added to support specific document context
+    document_id: Optional[str] = None
+    # PHOENIX FIX: Added jurisdiction, defaults to Kosovo ('ks')
+    jurisdiction: Optional[str] = 'ks' 
 
 class ChatResponse(BaseModel):
     response: str
@@ -33,33 +35,36 @@ async def handle_chat_message(
 ):
     """
     Sends a message to the AI Case Chat.
-    Supports both full-case chat and single-document chat via 'document_id'.
+    Supports document scope and jurisdiction selection.
     """
     if not chat_request.message: 
         raise HTTPException(status_code=400, detail="Empty message")
         
-    # Debug Log to confirm context
+    # Debug Log for context
     scope_log = f"Document {chat_request.document_id}" if chat_request.document_id else "Full Case"
-    logger.info(f"📨 API Recv: Chat from User {current_user.id} for Case {case_id} [Scope: {scope_log}]")
+    jur_log = chat_request.jurisdiction.upper() if chat_request.jurisdiction else 'KS'
+    logger.info(f"📨 API Recv: Chat from User {current_user.id} [Scope: {scope_log}] [Jurisdiction: {jur_log}]")
 
     try:
-        # PHOENIX FIX: Passing document_id to service
+        # PHOENIX FIX: Passing all parameters to service
         response_text = await chat_service.get_http_chat_response(
             db=db, 
             case_id=case_id, 
             user_query=chat_request.message, 
             user_id=str(current_user.id),
-            document_id=chat_request.document_id
+            document_id=chat_request.document_id,
+            jurisdiction=chat_request.jurisdiction
         )
         
-        # SSE Notification (Fire and Forget)
+        # SSE Notification
         try:
             channel = f"user:{current_user.id}:updates"
             payload = {
                 "type": "CHAT_MESSAGE", 
                 "case_id": case_id, 
                 "content": response_text,
-                "document_id": chat_request.document_id # useful for frontend filtering
+                "document_id": chat_request.document_id,
+                "jurisdiction": chat_request.jurisdiction
             }
             redis_sync_client.publish(channel, json.dumps(payload))
         except Exception as e:
@@ -70,7 +75,6 @@ async def handle_chat_message(
     except HTTPException as he:
         raise he
     except TypeError as te:
-        # Catch mismatch if service layer isn't updated yet
         logger.error(f"Service Layer Signature Mismatch: {te}")
         raise HTTPException(status_code=500, detail="Server update pending: Chat Service signature mismatch.")
     except Exception as e:
@@ -84,7 +88,6 @@ async def clear_chat_history(case_id: str, current_user: Annotated[UserInDB, Dep
     """
     try:
         case_collection = db.cases
-        # Simple Owner Check
         result = await case_collection.update_one(
             {"_id": ObjectId(case_id), "owner_id": current_user.id},
             {"$set": {"chat_history": []}}

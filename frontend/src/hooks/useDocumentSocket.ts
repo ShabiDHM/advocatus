@@ -1,12 +1,13 @@
 // FILE: src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - CHAT SCOPE & PROGRESS
-// 1. SCOPE: sendChatMessage now accepts optional 'documentId' for focused RAG.
-// 2. REFACTOR: Uses strict 'apiService.sendChatMessage' instead of raw post.
-// 3. EVENTS: Retains progress tracking for document processing.
+// PHOENIX PROTOCOL - JURISDICTION INTEGRATION (HOOK LAYER)
+// 1. SCOPE: sendChatMessage now accepts and forwards 'jurisdiction'.
+// 2. API: Passes the jurisdiction to the 'apiService' call.
+// 3. STATUS: Frontend is now fully jurisdiction-aware.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
+import { Jurisdiction } from '../components/ChatPanel'; // Import type from UI
 
 interface UseDocumentSocketReturn {
   documents: Document[];
@@ -15,8 +16,8 @@ interface UseDocumentSocketReturn {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
-  // PHOENIX UPDATE: Added documentId parameter
-  sendChatMessage: (content: string, documentId?: string) => void;
+  // PHOENIX UPDATE: Added jurisdiction parameter
+  sendChatMessage: (content: string, documentId?: string, jurisdiction?: Jurisdiction) => void;
   isSendingMessage: boolean;
 }
 
@@ -63,7 +64,6 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                 try {
                     const payload = JSON.parse(event.data);
 
-                    // A. Progress Updates
                     if (payload.type === 'DOCUMENT_PROGRESS') {
                         setDocuments(prevDocs => prevDocs.map(doc => {
                             if (String(doc.id) === String(payload.document_id)) {
@@ -73,7 +73,6 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                         }));
                     }
 
-                    // B. Status Updates
                     if (payload.type === 'DOCUMENT_STATUS') {
                         setDocuments(prevDocs => prevDocs.map(doc => {
                             if (String(doc.id) === String(payload.document_id)) {
@@ -83,14 +82,13 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                                     status: (newStatus === 'READY' || newStatus === 'COMPLETED') ? 'COMPLETED' : 
                                             (newStatus === 'FAILED') ? 'FAILED' : doc.status,
                                     error_message: newStatus === 'FAILED' ? payload.error : doc.error_message,
-                                    progress_percent: newStatus === 'FAILED' ? 0 : 100
+                                    progress_percent: 100
                                 } as Document;
                             }
                             return doc;
                         }));
                     }
 
-                    // C. Chat Messages (Real-time echo)
                     if (payload.type === 'CHAT_MESSAGE' && payload.case_id === caseId) {
                          setMessages(prev => [...prev, {
                              sender: 'ai',
@@ -123,8 +121,8 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
     setReconnectCounter(prev => prev + 1); 
   }, []);
   
-  // PHOENIX UPDATE: Handle specialized chat
-  const sendChatMessage = useCallback(async (content: string, documentId?: string) => {
+  // PHOENIX UPDATE: Handle specialized chat with jurisdiction
+  const sendChatMessage = useCallback(async (content: string, documentId?: string, jurisdiction?: Jurisdiction) => {
     if (!content.trim() || !caseId) return;
     
     setIsSendingMessage(true);
@@ -132,10 +130,12 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
     setMessages(prev => [...prev, { sender: 'user', content, timestamp: new Date().toISOString() }]);
     
     try {
-        // Use the centralized API method
-        await apiService.sendChatMessage(caseId, content, documentId);
+        // Use the centralized API method with all parameters
+        await apiService.sendChatMessage(caseId, content, documentId, jurisdiction);
     } catch (error) {
         console.error("Message send failed:", error);
+        // Optionally add a failure message to the chat
+        setMessages(prev => [...prev, { sender: 'ai', content: "Dështoi dërgimi i mesazhit.", timestamp: new Date().toISOString() }]);
     } finally {
         setIsSendingMessage(false);
     }
