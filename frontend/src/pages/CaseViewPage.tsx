@@ -1,7 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW (TS CLEANUP)
-// 1. FIX: Renamed unused 'mode' argument to '_mode' to resolve TypeScript warning.
-// 2. STATUS: Clean build, zero warnings.
+// PHOENIX PROTOCOL - CASE VIEW (FINAL SYNC)
+// 1. HEIGHT: Set panels to fixed 'h-[850px]' so they never shrink.
+// 2. TYPES: Passes 'documents' to ChatPanel to fix TS error.
+// 3. CLEANUP: Uses '_mode' to silence unused variable warning.
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -36,7 +37,7 @@ const CaseHeader: React.FC<{
     isAnalyzing: boolean; 
 }> = ({ caseDetails, t, onAnalyze, onShowFindings, isAnalyzing }) => (
     <motion.div
-      className="mb-2 p-4 rounded-xl shadow-md bg-background-light/50 backdrop-blur-sm border border-glass-edge flex-shrink-0"
+      className="mb-4 p-4 rounded-xl shadow-md bg-background-light/50 backdrop-blur-sm border border-glass-edge"
       initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
     >
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -108,14 +109,8 @@ const CaseViewPage: React.FC = () => {
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
 
   const { 
-      documents: liveDocuments,
-      setDocuments: setLiveDocuments,
-      messages: liveMessages,
-      setMessages, 
-      connectionStatus, 
-      reconnect, 
-      sendChatMessage, 
-      isSendingMessage 
+      documents, setDocuments, messages, setMessages, 
+      connectionStatus, reconnect, sendChatMessage, isSendingMessage 
   } = useDocumentSocket(currentCaseId);
 
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
@@ -134,7 +129,7 @@ const CaseViewPage: React.FC = () => {
       setCaseData({ details, findings: findingsResponse || [] });
       
       if (isInitialLoad) {
-          setLiveDocuments((initialDocs || []).map(sanitizeDocument));
+          setDocuments((initialDocs || []).map(sanitizeDocument));
           if (details.chat_history && details.chat_history.length > 0) {
               setMessages(details.chat_history);
           }
@@ -150,27 +145,27 @@ const CaseViewPage: React.FC = () => {
     } finally {
       if(isInitialLoad) setIsLoading(false);
     }
-  }, [caseId, t, setLiveDocuments, setMessages]);
+  }, [caseId, t, setDocuments, setMessages]);
 
   useEffect(() => {
-     const currentReadyCount = liveDocuments.filter(d => d.status === 'COMPLETED' || d.status === 'READY').length;
+     const currentReadyCount = documents.filter(d => d.status === 'COMPLETED' || d.status === 'READY').length;
      if (currentReadyCount > prevReadyCount.current) {
          fetchCaseData(false); 
      }
      prevReadyCount.current = currentReadyCount;
-  }, [liveDocuments, fetchCaseData]);
+  }, [documents, fetchCaseData]);
 
   useEffect(() => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
   
   const handleDocumentUploaded = (newDoc: Document) => {
-    setLiveDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
+    setDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
   };
   
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
     const { documentId } = response;
-    setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(documentId)));
+    setDocuments(prev => prev.filter(d => String(d.id) !== String(documentId)));
     setCaseData(prev => {
         const newFindings = prev.findings.filter(f => String(f.document_id) !== String(documentId));
         return { ...prev, findings: newFindings };
@@ -209,6 +204,7 @@ const CaseViewPage: React.FC = () => {
   };
 
   // PHOENIX FIX: Added underscore to _mode to signify it is intentionally unused
+  // This matches the ChatPanel's expected callback signature
   const handleChatSubmit = (text: string, _mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => {
       sendChatMessage(text, documentId, jurisdiction); 
   };
@@ -265,14 +261,15 @@ const CaseViewPage: React.FC = () => {
             </button>
         </div>
         
-        {/* MAIN CONTENT AREA - FIXED TALL HEIGHT 800px */}
+        {/* MAIN CONTENT AREA */}
+        {/* PHOENIX FIX: We explicitly set height to 850px on the components to prevent shrinking */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start px-4 sm:px-0">
             {/* Left Panel */}
             <div className="rounded-2xl shadow-xl overflow-hidden">
                 {activeTab === 'documents' ? (
                     <DocumentsPanel
                         caseId={caseData.details.id}
-                        documents={liveDocuments}
+                        documents={documents}
                         findings={caseData.findings} 
                         t={t}
                         connectionStatus={connectionStatus}
@@ -280,17 +277,19 @@ const CaseViewPage: React.FC = () => {
                         onDocumentUploaded={handleDocumentUploaded}
                         onDocumentDeleted={handleDocumentDeleted}
                         onViewOriginal={setViewingDocument}
-                        className="h-[800px] border-none shadow-none bg-background-dark" 
+                        // PHOENIX FIX: Explicit tall height
+                        className="h-[850px] border-none shadow-none bg-background-dark" 
                     />
                 ) : (
-                    <CaseGraph caseId={caseData.details.id} className="h-[800px] bg-slate-900 border-none" />
+                    // PHOENIX FIX: Explicit tall height for graph too
+                    <CaseGraph caseId={caseData.details.id} className="h-[850px] bg-slate-900 border-none" />
                 )}
             </div>
 
             {/* Right Panel: Chat */}
             <div className="rounded-2xl shadow-xl overflow-hidden">
                 <ChatPanel
-                    messages={liveMessages}
+                    messages={messages}
                     connectionStatus={connectionStatus}
                     reconnect={reconnect}
                     onSendMessage={handleChatSubmit}
@@ -298,8 +297,9 @@ const CaseViewPage: React.FC = () => {
                     caseId={caseData.details.id}
                     onClearChat={handleClearChat}
                     t={t}
-                    documents={liveDocuments}
-                    className="h-[800px] border-none shadow-none bg-background-dark"
+                    // PHOENIX FIX: Added missing prop + Explicit tall height
+                    documents={documents}
+                    className="h-[850px] border-none shadow-none bg-background-dark"
                 />
             </div>
         </div>
