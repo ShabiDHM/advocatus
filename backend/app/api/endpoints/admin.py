@@ -1,14 +1,16 @@
 # FILE: backend/app/api/endpoints/admin.py
-# PHOENIX PROTOCOL - API ROUTING FIX
-# 1. ROUTING FIX: The general update endpoint 'PUT /{user_id}' now calls the new 'update_user_details' service function.
-# 2. SEMANTICS: The dedicated '/{user_id}/subscription' endpoint remains, correctly calling the subscription function.
-# 3. RESULT: The API layer is now architecturally correct and routes requests to the proper business logic.
+# PHOENIX PROTOCOL - ADMIN DELETE FIX
+# 1. FEATURE: Added missing DELETE /{user_id} endpoint.
+# 2. LOGIC: Wires the delete action to 'user_service.delete_user_and_all_data' for cascading cleanup.
+# 3. SAFETY: Validates ObjectId and checks existence before deletion.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated
 from pymongo.database import Database
+from bson import ObjectId
+from bson.errors import InvalidId
 
-from ...services import admin_service
+from ...services import admin_service, user_service
 from ...models.user import UserInDB
 from ...models.admin import SubscriptionUpdate, UserAdminView
 from .dependencies import get_current_admin_user, get_db
@@ -32,7 +34,6 @@ def update_user(
 ):
     """Updates a user's general details (role, status, email). (Admin only)"""
     try:
-        # --- CORRECTED FUNCTION CALL ---
         updated_user = admin_service.update_user_details(
             user_id=user_id, 
             update_data=update_data, 
@@ -67,3 +68,37 @@ def update_user_subscription(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+# PHOENIX ADDITION: The Missing Delete Endpoint
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: str,
+    current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Permanently deletes a user and ALL their associated data (Cases, Files, Findings).
+    (Admin only)
+    """
+    # 1. Validate ID format
+    try:
+        oid = ObjectId(user_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid User ID format")
+
+    # 2. Prevent Admin Suicide (Optional but recommended)
+    if str(current_admin.id) == user_id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own admin account from here.")
+
+    # 3. Find User
+    user_to_delete = user_service.get_user_by_id(db, oid)
+    if not user_to_delete:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 4. Perform Cascading Delete
+    try:
+        user_service.delete_user_and_all_data(db=db, user=user_to_delete)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+        
+    return None
