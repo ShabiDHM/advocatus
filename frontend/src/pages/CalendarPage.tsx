@@ -1,8 +1,9 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CLEANUP & RESTORATION
-// 1. FIX: Removed unused imports (Briefcase, Filter) to resolve TS6133.
-// 2. FIX: Restored the 'Priority' dropdown in the toolbar to utilize 'setFilterPriority'.
-// 3. STATUS: Clean build with full filtering capabilities.
+// PHOENIX PROTOCOL - UI STYLING FIX
+// 1. FIX: Changed the background and border color of the calendar event tooltip.
+// 2. REASON: The original 'bg-gray-900' was too dark and blended in with the page background. The new
+//    'bg-slate-800' and 'border-slate-700' provide better contrast, making the tooltip visible on hover.
+// 3. STATUS: Clean build with corrected tooltip visibility.
 
 import React, { useState, useEffect } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -218,7 +219,8 @@ const CalendarPage: React.FC = () => {
                                 initial={{ opacity: 0, y: 5, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.95 }}
-                                className="absolute left-0 top-full mt-1 z-50 w-64 bg-gray-900 border border-white/20 rounded-xl p-3 shadow-2xl pointer-events-none"
+                                // PHOENIX FIX: Changed tooltip background for better contrast
+                                className="absolute left-0 top-full mt-1 z-50 w-64 bg-slate-800 border border-slate-700 rounded-xl p-3 shadow-2xl pointer-events-none"
                             >
                                 <div className={`text-xs font-bold uppercase mb-1 ${style.text} flex items-center gap-1.5`}>
                                     {style.icon} {t(`calendar.types.${event.event_type}`)}
