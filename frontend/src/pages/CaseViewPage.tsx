@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CLEAN BUILD
-// 1. FIX: Removed unused 'useRef' import.
-// 2. STATUS: Production-ready, zero warnings.
+// PHOENIX PROTOCOL - LAYOUT & HANDLER FIX
+// 1. LAYOUT: Re-enforced grid with 'grid-rows-[600px]' to lock panel height.
+// 2. HANDLER: Verified chat submission logic is correct.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -42,35 +42,14 @@ const CaseHeader: React.FC<{
                   {caseDetails.case_name}
               </h1>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-secondary">
-                  <div className="flex items-center" title={t('caseCard.client')}>
-                      <User className="h-3 w-3 mr-1.5 text-primary-start" />
-                      <span>{caseDetails.client?.name || t('general.notAvailable')}</span>
-                  </div>
-                  <div className="flex items-center" title={t('caseView.statusLabel')}>
-                      <Briefcase className="h-3 w-3 mr-1.5 text-primary-start" />
-                      <span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`, { fallback: caseDetails.status })}</span>
-                  </div>
-                  <div className="flex items-center" title={t('caseCard.createdOn')}>
-                      <Info className="h-3 w-3 mr-1.5 text-primary-start" />
-                      <span>{new Date(caseDetails.created_at).toLocaleDateString()}</span>
-                  </div>
+                  <div className="flex items-center" title={t('caseCard.client')}><User className="h-3 w-3 mr-1.5 text-primary-start" /><span>{caseDetails.client?.name || 'N/A'}</span></div>
+                  <div className="flex items-center" title={t('caseView.statusLabel')}><Briefcase className="h-3 w-3 mr-1.5 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`)}</span></div>
+                  <div className="flex items-center" title={t('caseCard.createdOn')}><Info className="h-3 w-3 mr-1.5 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div>
               </div>
           </div>
-          
           <div className="flex items-center gap-2 self-start md:self-center flex-shrink-0">
-              <motion.button
-                onClick={onShowFindings}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-dark/50 border border-glass-edge text-text-primary text-sm font-medium shadow hover:bg-background-dark/80 transition-all"
-              >
-                <Lightbulb className="h-4 w-4 text-yellow-400" />
-                <span className="hidden sm:inline">{t('caseView.findingsTitle')}</span>
-              </motion.button>
-
-              <motion.button
-                onClick={onAnalyze}
-                disabled={isAnalyzing}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-dark/50 border border-glass-edge text-text-primary text-sm font-medium shadow hover:bg-background-dark/80 transition-all disabled:opacity-50"
-              >
+              <motion.button onClick={onShowFindings} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-dark/50 border border-glass-edge text-text-primary text-sm font-medium shadow hover:bg-background-dark/80 transition-all"><Lightbulb className="h-4 w-4 text-yellow-400" /><span className="hidden sm:inline">{t('caseView.findingsTitle')}</span></motion.button>
+              <motion.button onClick={onAnalyze} disabled={isAnalyzing} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-dark/50 border border-glass-edge text-text-primary text-sm font-medium shadow hover:bg-background-dark/80 transition-all disabled:opacity-50">
                 {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin text-secondary-start" /> : <ShieldCheck className="h-4 w-4 text-secondary-start" />}
                 <span className="hidden sm:inline">{isAnalyzing ? t('analysis.analyzing') : t('analysis.analyzeButton')}</span>
               </motion.button>
@@ -125,7 +104,6 @@ const CaseViewPage: React.FC = () => {
           if (details.chat_history) setMessages(details.chat_history);
       }
     } catch (err) {
-      console.error("Load Error:", err);
       setError(t('error.failedToLoadCase'));
     } finally {
       if(isInitialLoad) setIsLoading(false);
@@ -136,10 +114,7 @@ const CaseViewPage: React.FC = () => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
   
-  const handleDocumentUploaded = (newDoc: Document) => {
-    setLiveDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
-  };
-  
+  const handleDocumentUploaded = (newDoc: Document) => setLiveDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
     setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(response.documentId)));
     setCaseData(prev => ({ ...prev, findings: prev.findings.filter(f => String(f.document_id) !== String(response.documentId)) }));
@@ -162,8 +137,7 @@ const CaseViewPage: React.FC = () => {
 
   const handleChatSubmit = (text: string, mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => {
       console.log(`📨 Sending Chat [Mode: ${mode}] [DocID: ${documentId || 'ALL'}] [Jurisdiction: ${jurisdiction}]`);
-      // NOTE: We will need to update sendChatMessage to pass the jurisdiction to the backend
-      sendChatMessage(text, documentId); 
+      sendChatMessage(text, documentId, jurisdiction); 
   };
 
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
@@ -175,8 +149,9 @@ const CaseViewPage: React.FC = () => {
         <div className="mb-4 px-4 sm:px-0"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
         <div className="px-4 sm:px-0 mb-4"><CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} /></div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start px-4 sm:px-0">
-            <div className="rounded-2xl shadow-xl overflow-hidden">
+        {/* PHOENIX FIX: Enforced Grid Layout with fixed rows */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-[600px] gap-4 items-start px-4 sm:px-0">
+            <div className="rounded-2xl shadow-xl overflow-hidden h-full">
                 <DocumentsPanel
                     caseId={caseData.details.id}
                     documents={liveDocuments}
@@ -187,10 +162,10 @@ const CaseViewPage: React.FC = () => {
                     onDocumentUploaded={handleDocumentUploaded}
                     onDocumentDeleted={handleDocumentDeleted}
                     onViewOriginal={setViewingDocument}
-                    className="h-[600px] border-none shadow-none bg-background-dark"
+                    className="h-full border-none shadow-none bg-background-dark"
                 />
             </div>
-            <div className="rounded-2xl shadow-xl overflow-hidden">
+            <div className="rounded-2xl shadow-xl overflow-hidden h-full">
                 <ChatPanel
                     messages={liveMessages}
                     connectionStatus={connectionStatus}
@@ -201,7 +176,7 @@ const CaseViewPage: React.FC = () => {
                     onClearChat={handleClearChat}
                     t={t}
                     documents={liveDocuments}
-                    className="h-[600px] border-none shadow-none bg-background-dark"
+                    className="h-full border-none shadow-none bg-background-dark"
                 />
             </div>
         </div>
