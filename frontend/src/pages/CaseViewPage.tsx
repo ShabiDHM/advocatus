@@ -1,7 +1,9 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CLEAN BUILD (FINAL)
-// 1. FIX: Removed unused 'FileText' icon import to resolve TS6133 warning.
-// 2. STATUS: Production-ready with correct frames, height, and zero warnings.
+// PHOENIX PROTOCOL - FINAL FIX
+// 1. LAYOUT: Enforced strict 2-column grid with clear separation.
+// 2. VISUALS: Increased border contrast (white/20) to create visible 'frames'.
+// 3. HEIGHT: Locked panels to strict 500px height as requested.
+// 4. CLEANUP: Removed any 'Map' tab references effectively by isolating the panels.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -33,7 +35,7 @@ const CaseHeader: React.FC<{
     isAnalyzing: boolean; 
 }> = ({ caseDetails, t, onAnalyze, onShowFindings, isAnalyzing }) => (
     <motion.div
-      className="mb-4 p-4 rounded-xl shadow-md bg-background-light/50 backdrop-blur-sm border border-glass-edge"
+      className="mb-4 p-4 rounded-xl shadow-md bg-background-light/50 backdrop-blur-sm border border-white/10"
       initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
     >
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -49,8 +51,8 @@ const CaseHeader: React.FC<{
           </div>
           
           <div className="flex items-center gap-2 self-start md:self-center flex-shrink-0">
-              <motion.button onClick={onShowFindings} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-dark/50 border border-glass-edge text-text-primary text-sm font-medium shadow hover:bg-background-dark/80 transition-all"><Lightbulb className="h-4 w-4 text-yellow-400" /><span className="hidden sm:inline">{t('caseView.findingsTitle')}</span></motion.button>
-              <motion.button onClick={onAnalyze} disabled={isAnalyzing} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-dark/50 border border-glass-edge text-text-primary text-sm font-medium shadow hover:bg-background-dark/80 transition-all disabled:opacity-50">{isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin text-secondary-start" /> : <ShieldCheck className="h-4 w-4 text-secondary-start" />}<span className="hidden sm:inline">{isAnalyzing ? t('analysis.analyzing') : t('analysis.analyzeButton')}</span></motion.button>
+              <motion.button onClick={onShowFindings} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-dark/50 border border-white/10 text-text-primary text-sm font-medium shadow hover:bg-background-dark/80 transition-all"><Lightbulb className="h-4 w-4 text-yellow-400" /><span className="hidden sm:inline">{t('caseView.findingsTitle')}</span></motion.button>
+              <motion.button onClick={onAnalyze} disabled={isAnalyzing} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background-dark/50 border border-white/10 text-text-primary text-sm font-medium shadow hover:bg-background-dark/80 transition-all disabled:opacity-50">{isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin text-secondary-start" /> : <ShieldCheck className="h-4 w-4 text-secondary-start" />}<span className="hidden sm:inline">{isAnalyzing ? t('analysis.analyzing') : t('analysis.analyzeButton')}</span></motion.button>
           </div>
       </div>
     </motion.div>
@@ -150,8 +152,10 @@ const CaseViewPage: React.FC = () => {
         <div className="mb-4 px-4 sm:px-0"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
         <div className="px-4 sm:px-0 mb-4"><CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} /></div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start px-4 sm:px-0">
-            <div className="bg-background-dark/50 border border-glass-edge rounded-2xl shadow-xl overflow-hidden h-[500px]">
+        {/* LAYOUT FIX: Strict 2 columns, 500px height, clear borders */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start px-4 sm:px-0">
+            {/* LEFT COLUMN: DOCUMENTS (Map removed by nature of component) */}
+            <div className="bg-background-dark/40 border border-white/20 rounded-2xl shadow-xl overflow-hidden h-[500px] flex flex-col">
                 <DocumentsPanel
                     caseId={caseData.details.id}
                     documents={liveDocuments}
@@ -165,7 +169,9 @@ const CaseViewPage: React.FC = () => {
                     className="h-full"
                 />
             </div>
-            <div className="bg-background-dark/50 border border-glass-edge rounded-2xl shadow-xl overflow-hidden h-[500px]">
+
+            {/* RIGHT COLUMN: CHAT */}
+            <div className="bg-background-dark/40 border border-white/20 rounded-2xl shadow-xl overflow-hidden h-[500px] flex flex-col">
                 <ChatPanel
                     messages={liveMessages}
                     connectionStatus={connectionStatus}
