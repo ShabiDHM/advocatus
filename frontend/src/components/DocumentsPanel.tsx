@@ -1,8 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - CLEANUP V3
-// 1. FIX: Removed unused 'statusInfo' and 'getStatusInfo' (TS6133).
-// 2. REGRESSION CHECK: Preserved Mobile Header and 'Green Dot' visual.
-// 3. LAYOUT: Maintained 500px height constraint and overflow handling.
+// PHOENIX PROTOCOL - ALIGNMENT FIX
+// 1. STYLE: Vertically aligned the 'Green Dot' with the title.
+// 2. MOBILE: Ensured header buttons don't wrap awkwardly.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -115,13 +114,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
   return (
     <div className={`documents-panel bg-background-dark/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl flex flex-col ${className || 'h-[500px]'}`}>
-      {/* Header - Optimized for Mobile */}
       <div className="flex flex-row justify-between items-center border-b border-white/10 pb-3 mb-4 flex-shrink-0 gap-2">
         <div className="flex items-center gap-3 min-w-0">
             <h2 className="text-lg font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
             
-            {/* Visual Dot Only - No Text */}
-            <div className="flex items-center justify-center" title={connectionStatus}>
+            {/* Visual Dot Only - Center Aligned */}
+            <div className="flex items-center justify-center h-full pt-1" title={connectionStatus}>
                 <span className={`w-2.5 h-2.5 rounded-full ${statusDotColor(connectionStatus)} transition-colors duration-500`}></span>
             </div>
             
@@ -158,7 +156,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         )}
         
         {documents.map((doc) => {
-          // REMOVED: unused getStatusInfo call
           const isReady = doc.status.toUpperCase() === 'READY' || doc.status.toUpperCase() === 'COMPLETED';
           const isPending = doc.status.toUpperCase() === 'PENDING';
           const progressPercent = (doc as any).progress_percent;

@@ -1,10 +1,10 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - DROPDOWN FIX
-// 1. CSS: Switched to 'overflow-visible' on root to allow Dropdown popup.
-// 2. LAYOUT: Strict rounded corners on Header/Footer to maintain shape.
-// 3. Z-INDEX: Header z-50 to float above messages.
+// PHOENIX PROTOCOL - MOBILE & I18N UPDATE
+// 1. I18N: Added translation keys for Dropdown options (General, Kosovo, Albania).
+// 2. MOBILE: Increased max-width for context dropdown to prevent "Gene..." truncation.
+// 3. MOBILE: Added visible text (KS/AL) to Jurisdiction dropdown on small screens.
 
-import React, { useState, useRef, useEffect, ReactNode } from 'react';
+import React, { useState, useRef, useEffect, ReactNode, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Send, Brain, RefreshCw, Trash2, MapPin, ChevronDown, FileText, Briefcase 
@@ -15,7 +15,7 @@ import { TFunction } from 'i18next';
 export type ChatMode = 'general' | 'document';
 export type Jurisdiction = 'ks' | 'al';
 
-interface DropdownItem { id: string; label: string; icon?: ReactNode; }
+interface DropdownItem { id: string; label: string; icon?: ReactNode; shortLabel?: string; }
 interface DropdownProps { trigger: ReactNode; items: DropdownItem[]; onSelect: (id: string) => void; }
 
 const Dropdown: React.FC<DropdownProps> = ({ trigger, items, onSelect }) => {
@@ -87,14 +87,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setInput('');
   };
 
-  const contextItems: DropdownItem[] = [
-      { id: 'general', label: 'General (Case)', icon: <Briefcase size={14} className="text-amber-400" /> },
+  // PHOENIX: Memoize items to react to language changes
+  const contextItems: DropdownItem[] = useMemo(() => [
+      { id: 'general', label: t('chatPanel.contextGeneral', 'E gjithë Dosja'), icon: <Briefcase size={14} className="text-amber-400" /> },
       ...(documents || []).map(doc => ({ id: doc.id, label: doc.file_name, icon: <FileText size={14} className="text-blue-400" /> }))
-  ];
-  const jurisdictionItems: DropdownItem[] = [
-      { id: 'ks', label: 'Kosovë', icon: <MapPin size={14} /> },
-      { id: 'al', label: 'Shqipëri', icon: <MapPin size={14} /> }
-  ];
+  ], [documents, t]);
+
+  const jurisdictionItems: DropdownItem[] = useMemo(() => [
+      { id: 'ks', label: t('jurisdiction.kosovo', 'Kosovë'), shortLabel: 'KS', icon: <MapPin size={14} /> },
+      { id: 'al', label: t('jurisdiction.albania', 'Shqipëri'), shortLabel: 'AL', icon: <MapPin size={14} /> }
+  ], [t]);
   
   const selectedContextItem = contextItems.find(item => item.id === selectedContextId) || contextItems[0];
   const selectedJurisdictionItem = jurisdictionItems.find(item => item.id === jurisdiction) || jurisdictionItems[0];
@@ -108,10 +110,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    // FIX: overflow-visible allows the dropdown to fly out
     <div className={`flex flex-col relative bg-background-dark/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl overflow-visible ${className}`}>
       
-      {/* HEADER: Rounded Top only, z-index 50 for dropdowns */}
+      {/* HEADER */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-white/10 bg-white/5 rounded-t-2xl z-50">
         <div className="flex items-center gap-2 sm:gap-3">
             <div className={`w-2.5 h-2.5 rounded-full transition-colors duration-500 ${statusDotColor(connectionStatus)}`} />
@@ -119,12 +120,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
         
         <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Context Dropdown */}
+            {/* Context Dropdown - WIDENED for Mobile */}
             <Dropdown 
                 items={contextItems} 
                 onSelect={setSelectedContextId} 
                 trigger={
-                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 hover:border-white/20 text-xs font-medium text-gray-300 transition-all max-w-[120px] sm:max-w-[160px]">
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 hover:border-white/20 text-xs font-medium text-gray-300 transition-all max-w-[140px] sm:max-w-[200px]">
                         {selectedContextItem.icon}
                         <span className="truncate">{selectedContextItem.label}</span>
                         <ChevronDown className="h-3 w-3 opacity-50 flex-shrink-0" />
@@ -132,13 +133,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 } 
             />
             
-            {/* Jurisdiction Dropdown */}
+            {/* Jurisdiction Dropdown - ADDED 'shortLabel' for Mobile */}
             <Dropdown 
                 items={jurisdictionItems} 
                 onSelect={(id) => setJurisdiction(id as Jurisdiction)} 
                 trigger={
                     <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 hover:border-white/20 text-xs font-medium text-gray-300 transition-all">
                         {selectedJurisdictionItem.icon}
+                        {/* Mobile: KS/AL | Desktop: Full Name */}
+                        <span className="inline md:hidden">{selectedJurisdictionItem.shortLabel}</span>
                         <span className="hidden md:inline">{selectedJurisdictionItem.label}</span>
                         <ChevronDown className="h-3 w-3 opacity-50" />
                     </div>
@@ -151,7 +154,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
-      {/* MESSAGES: Scrollable, z-0 */}
+      {/* MESSAGES */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar z-0 relative">
         {messages.length === 0 && !isSendingMessage ? (
             <div className="flex flex-col items-center justify-center h-full text-center opacity-40">
@@ -179,7 +182,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* INPUT: Rounded Bottom only, z-10 */}
+      {/* INPUT */}
       <div className="p-4 border-t border-white/10 bg-white/5 rounded-b-2xl z-10">
         <form onSubmit={handleSubmit} className="relative">
             <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={t('chatPanel.inputPlaceholder')} className="w-full bg-black/40 border border-white/10 text-white rounded-xl pl-4 pr-12 py-3 focus:outline-none focus:border-primary-start/50 focus:ring-1 focus:ring-primary-start/50 transition-all placeholder:text-gray-600 text-sm"/>
