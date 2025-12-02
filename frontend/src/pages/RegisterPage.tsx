@@ -1,13 +1,13 @@
 // FILE: src/pages/RegisterPage.tsx
-// PHOENIX PROTOCOL - I18N ALIGNMENT (COMPLETE)
-// 1. I18N FIX: Replaced all hardcoded English text (labels, placeholders, buttons, links) with t() function calls.
-// 2. VERIFIED: All existing logic and validation are maintained.
+// PHOENIX PROTOCOL - CLEAN BUILD (FINAL)
+// 1. FIX: Removed unused 'CheckCircle' import.
+// 2. UI: Shows 'Pending Approval' state correctly.
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { User, Mail, Lock, Loader2, ArrowRight, CheckCircle, ShieldAlert } from 'lucide-react';
+import { User, Mail, Lock, Loader2, ArrowRight, ShieldAlert, Clock } from 'lucide-react';
 import { RegisterRequest } from '../data/types';
 
 const RegisterPage: React.FC = () => {
@@ -65,12 +65,21 @@ const RegisterPage: React.FC = () => {
   if (isSuccess) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background-dark px-4">
-            <div className="max-w-md w-full p-8 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge text-center">
-                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                <h2 className="text-3xl font-bold text-white mb-2">{t('auth.successTitle')}</h2>
-                <p className="text-gray-300 mb-6">{t('auth.successMessage')}</p>
-                <Link to="/login" className="inline-flex items-center text-primary-400 hover:text-primary-300 font-semibold">
-                    {t('auth.loginNow')} <ArrowRight className="ml-2 w-4 h-4" />
+            <div className="max-w-md w-full p-8 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge text-center shadow-2xl">
+                <div className="w-20 h-20 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Clock className="w-10 h-10 text-yellow-500" />
+                </div>
+                
+                <h2 className="text-2xl font-bold text-white mb-3">
+                    {t('auth.registrationPending', 'Regjistrimi në pritje')}
+                </h2>
+                
+                <p className="text-gray-300 mb-8 leading-relaxed">
+                    {t('auth.approvalMessage', 'Llogaria juaj është krijuar me sukses. Ju lutemi prisni miratimin nga Administratori për t\'u kyçur në sistem.')}
+                </p>
+                
+                <Link to="/login" className="inline-flex items-center px-6 py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-primary-500/25">
+                    {t('auth.backToLogin', 'Kthehu te Kyçja')} <ArrowRight className="ml-2 w-4 h-4" />
                 </Link>
             </div>
         </div>
