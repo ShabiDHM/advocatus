@@ -1,13 +1,17 @@
 // FILE: src/components/ChatPanel.tsx
+// PHOENIX PROTOCOL - CHAT PANEL V6.0
+// 1. LAYOUT: Moved Context Selector (Case vs Document) to Header.
+// 2. LAYOUT: Kept Jurisdiction Selector (Kosovo vs Albania) in Header.
+// 3. UX: Cleaned up footer input area.
+
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    Send, Bot, RefreshCw, Trash2, MapPin, ChevronDown 
+    Send, Bot, RefreshCw, Trash2, MapPin, ChevronDown, FileText, Briefcase 
 } from 'lucide-react';
 import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
 
-// PHOENIX: Define Jurisdiction Types
 export type ChatMode = 'general' | 'document';
 export type Jurisdiction = 'ks' | 'al';
 
@@ -27,7 +31,7 @@ interface ChatPanelProps {
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
     messages, 
     connectionStatus, 
-    reconnect: _reconnect, // PHOENIX FIX: Prefixed with _ to silence "unused" warning safely
+    reconnect: _reconnect,
     onSendMessage, 
     isSendingMessage, 
     onClearChat, 
@@ -38,7 +42,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [input, setInput] = useState('');
   const [mode, setMode] = useState<ChatMode>('general');
   const [selectedDocId, setSelectedDocId] = useState<string>('');
-  const [jurisdiction, setJurisdiction] = useState<Jurisdiction>('ks'); // Default: Kosovo
+  const [jurisdiction, setJurisdiction] = useState<Jurisdiction>('ks');
   const [showJurisdictionMenu, setShowJurisdictionMenu] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -54,8 +58,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isSendingMessage) return;
-    
-    // PHOENIX: Pass jurisdiction to parent
     onSendMessage(input, mode, mode === 'document' ? selectedDocId : undefined, jurisdiction);
     setInput('');
   };
@@ -63,59 +65,89 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className={`flex flex-col bg-background-dark border-l border-glass-edge h-full ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-glass-edge bg-background-light/50 backdrop-blur-md">
-        <div className="flex items-center gap-2">
-            <div className={`p-1.5 rounded-lg ${connectionStatus === 'CONNECTED' ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                <div className={`w-2 h-2 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-            </div>
-            <div>
+      <div className="flex flex-col gap-3 px-4 py-3 border-b border-glass-edge bg-background-light/50 backdrop-blur-md">
+        
+        {/* Row 1: Title & Jurisdiction */}
+        <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+                <div className={`p-1.5 rounded-lg ${connectionStatus === 'CONNECTED' ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                    <div className={`w-2 h-2 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                </div>
                 <h3 className="text-sm font-bold text-gray-100">{t('chatPanel.title')}</h3>
-                <p className="text-[10px] text-gray-400">
-                    {connectionStatus === 'CONNECTED' ? t('chatPanel.statusConnected') : 'Connecting...'}
-                </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+                {/* Jurisdiction Dropdown */}
+                <div className="relative">
+                    <button 
+                        onClick={() => setShowJurisdictionMenu(!showJurisdictionMenu)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/20 border border-white/5 hover:border-white/10 text-xs font-medium text-gray-300 transition-all"
+                    >
+                        <MapPin className={`h-3 w-3 ${jurisdiction === 'ks' ? 'text-blue-400' : 'text-red-500'}`} />
+                        <span>{jurisdiction === 'ks' ? 'Kosovë' : 'Shqipëri'}</span>
+                        <ChevronDown className="h-3 w-3 opacity-50" />
+                    </button>
+
+                    <AnimatePresence>
+                        {showJurisdictionMenu && (
+                            <motion.div 
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 10 }}
+                                className="absolute right-0 top-full mt-2 w-32 bg-[#1a1a1a] border border-glass-edge rounded-xl shadow-xl z-50 overflow-hidden"
+                            >
+                                <button 
+                                    onClick={() => { setJurisdiction('ks'); setShowJurisdictionMenu(false); }}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'ks' ? 'text-blue-400 bg-blue-500/10' : 'text-gray-400'}`}
+                                >
+                                    <span>🇽🇰</span> Kosovë
+                                </button>
+                                <button 
+                                    onClick={() => { setJurisdiction('al'); setShowJurisdictionMenu(false); }}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'al' ? 'text-red-400 bg-red-500/10' : 'text-gray-400'}`}
+                                >
+                                    <span>🇦🇱</span> Shqipëri
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
+                <button onClick={onClearChat} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors" title={t('chatPanel.confirmClear')}>
+                    <Trash2 size={16} />
+                </button>
             </div>
         </div>
 
-        {/* PHOENIX NEW: Jurisdiction Selector */}
-        <div className="flex items-center gap-2">
-            <div className="relative">
-                <button 
-                    onClick={() => setShowJurisdictionMenu(!showJurisdictionMenu)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/20 border border-white/5 hover:border-white/10 text-xs font-medium text-gray-300 transition-all"
-                >
-                    <MapPin className={`h-3 w-3 ${jurisdiction === 'ks' ? 'text-blue-400' : 'text-red-500'}`} />
-                    <span>{jurisdiction === 'ks' ? 'Kosovë' : 'Shqipëri'}</span>
-                    <ChevronDown className="h-3 w-3 opacity-50" />
-                </button>
-
-                <AnimatePresence>
-                    {showJurisdictionMenu && (
-                        <motion.div 
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 10 }}
-                            className="absolute right-0 top-full mt-2 w-32 bg-[#1a1a1a] border border-glass-edge rounded-xl shadow-xl z-50 overflow-hidden"
-                        >
-                            <button 
-                                onClick={() => { setJurisdiction('ks'); setShowJurisdictionMenu(false); }}
-                                className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'ks' ? 'text-blue-400 bg-blue-500/10' : 'text-gray-400'}`}
-                            >
-                                <span>🇽🇰</span> Kosovë
-                            </button>
-                            <button 
-                                onClick={() => { setJurisdiction('al'); setShowJurisdictionMenu(false); }}
-                                className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'al' ? 'text-red-400 bg-red-500/10' : 'text-gray-400'}`}
-                            >
-                                <span>🇦🇱</span> Shqipëri
-                            </button>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-
-            <button onClick={onClearChat} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors" title={t('chatPanel.confirmClear')}>
-                <Trash2 size={16} />
+        {/* Row 2: Context Scope Selector (Case vs Docs) */}
+        <div className="flex items-center gap-2 bg-black/20 p-1 rounded-lg border border-white/5">
+            <button 
+                onClick={() => { setMode('general'); setSelectedDocId(''); }}
+                className={`flex-1 flex items-center justify-center gap-2 py-1.5 rounded-md text-[10px] uppercase tracking-wide font-bold transition-all ${mode === 'general' ? 'bg-primary-start/20 text-primary-start border border-primary-start/30' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+                <Briefcase size={12} />
+                General (Case)
             </button>
+            <div className="relative flex-1">
+                <select 
+                    value={selectedDocId}
+                    onChange={(e) => { 
+                        const val = e.target.value;
+                        setSelectedDocId(val); 
+                        setMode(val ? 'document' : 'general'); 
+                    }}
+                    className={`w-full appearance-none bg-transparent py-1.5 pl-8 pr-4 rounded-md text-[10px] font-bold uppercase tracking-wide outline-none cursor-pointer transition-colors ${mode === 'document' ? 'text-yellow-400 bg-yellow-400/10 border border-yellow-400/30' : 'text-gray-500 hover:text-gray-300'}`}
+                >
+                    <option value="" className="bg-gray-900 text-gray-400">Select Document</option>
+                    {documents.map(d => (
+                        <option key={d.id} value={d.id} className="bg-gray-900 text-white truncate">
+                            {d.file_name.substring(0, 20)}...
+                        </option>
+                    ))}
+                </select>
+                <FileText size={12} className={`absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none ${mode === 'document' ? 'text-yellow-400' : 'text-gray-500'}`} />
+                <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-50" />
+            </div>
         </div>
       </div>
 
@@ -161,25 +193,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       {/* Input Area */}
       <div className="p-4 border-t border-glass-edge bg-background-light/30">
-        {/* Context Selector */}
-        <div className="flex items-center gap-2 mb-2">
-            <button 
-                onClick={() => setMode('general')}
-                className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded transition-colors ${mode === 'general' ? 'text-primary-start bg-primary-start/10' : 'text-gray-500 hover:text-gray-300'}`}
-            >
-                Context: General
-            </button>
-            <div className="h-3 w-px bg-gray-700"></div>
-            <select 
-                value={selectedDocId}
-                onChange={(e) => { setSelectedDocId(e.target.value); setMode(e.target.value ? 'document' : 'general'); }}
-                className="bg-transparent text-[10px] text-gray-400 focus:text-white outline-none border-none max-w-[150px] truncate"
-            >
-                <option value="">-- All Documents --</option>
-                {documents.map(d => <option key={d.id} value={d.id}>{d.file_name}</option>)}
-            </select>
-        </div>
-
         <form onSubmit={handleSubmit} className="relative">
             <input
                 type="text"
