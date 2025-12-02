@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - LAYOUT & HANDLER FIX
-// 1. LAYOUT: Re-enforced grid with 'grid-rows-[600px]' to lock panel height.
-// 2. HANDLER: Verified chat submission logic is correct.
+// PHOENIX PROTOCOL - CLEAN BUILD FINAL
+// 1. FIX: Corrected typo 'messages' -> 'setMessages'.
+// 2. FIX: Removed unused 'liveMessages' and 'mode' variables.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -76,9 +76,9 @@ const CaseViewPage: React.FC = () => {
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
 
   const { 
-      documents: liveDocuments,
-      setDocuments: setLiveDocuments,
-      messages: liveMessages,
+      documents, // Renamed for clarity
+      setDocuments,
+      messages, 
       setMessages, 
       connectionStatus, 
       reconnect, 
@@ -100,23 +100,19 @@ const CaseViewPage: React.FC = () => {
       ]);
       setCaseData({ details, findings: findingsResponse || [] });
       if (isInitialLoad) {
-          setLiveDocuments((initialDocs || []).map(sanitizeDocument));
+          setDocuments((initialDocs || []).map(sanitizeDocument));
           if (details.chat_history) setMessages(details.chat_history);
       }
-    } catch (err) {
-      setError(t('error.failedToLoadCase'));
-    } finally {
-      if(isInitialLoad) setIsLoading(false);
-    }
-  }, [caseId, t, setLiveDocuments, setMessages]);
+    } catch (err) { setError(t('error.failedToLoadCase')); } finally { if(isInitialLoad) setIsLoading(false); }
+  }, [caseId, t, setDocuments, setMessages]); // Updated dependencies
 
   useEffect(() => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
   
-  const handleDocumentUploaded = (newDoc: Document) => setLiveDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
+  const handleDocumentUploaded = (newDoc: Document) => setDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
-    setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(response.documentId)));
+    setDocuments(prev => prev.filter(d => String(d.id) !== String(response.documentId)));
     setCaseData(prev => ({ ...prev, findings: prev.findings.filter(f => String(f.document_id) !== String(response.documentId)) }));
   };
 
@@ -135,8 +131,8 @@ const CaseViewPage: React.FC = () => {
     } catch (err) { alert(t('error.generic')); } finally { setIsAnalyzing(false); }
   };
 
-  const handleChatSubmit = (text: string, mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => {
-      console.log(`📨 Sending Chat [Mode: ${mode}] [DocID: ${documentId || 'ALL'}] [Jurisdiction: ${jurisdiction}]`);
+  // PHOENIX FIX: 'mode' is not needed here, only the results
+  const handleChatSubmit = (text: string, _mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => {
       sendChatMessage(text, documentId, jurisdiction); 
   };
 
@@ -145,39 +141,16 @@ const CaseViewPage: React.FC = () => {
 
   return (
     <motion.div className="w-full min-h-screen bg-background-dark pb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-0 sm:px-6 lg:py-6">
-        <div className="mb-4 px-4 sm:px-0"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
-        <div className="px-4 sm:px-0 mb-4"><CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} /></div>
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
+        <div className="mb-4"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
+        <div className="mb-4"><CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} /></div>
         
-        {/* PHOENIX FIX: Enforced Grid Layout with fixed rows */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-[600px] gap-4 items-start px-4 sm:px-0">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start h-[600px] lg:h-[700px]">
             <div className="rounded-2xl shadow-xl overflow-hidden h-full">
-                <DocumentsPanel
-                    caseId={caseData.details.id}
-                    documents={liveDocuments}
-                    findings={caseData.findings} 
-                    t={t}
-                    connectionStatus={connectionStatus}
-                    reconnect={reconnect}
-                    onDocumentUploaded={handleDocumentUploaded}
-                    onDocumentDeleted={handleDocumentDeleted}
-                    onViewOriginal={setViewingDocument}
-                    className="h-full border-none shadow-none bg-background-dark"
-                />
+                <DocumentsPanel caseId={caseData.details.id} documents={documents} findings={caseData.findings} t={t} connectionStatus={connectionStatus} reconnect={reconnect} onDocumentUploaded={handleDocumentUploaded} onDocumentDeleted={handleDocumentDeleted} onViewOriginal={setViewingDocument} className="h-full border-none shadow-none bg-transparent" />
             </div>
             <div className="rounded-2xl shadow-xl overflow-hidden h-full">
-                <ChatPanel
-                    messages={liveMessages}
-                    connectionStatus={connectionStatus}
-                    reconnect={reconnect}
-                    onSendMessage={handleChatSubmit}
-                    isSendingMessage={isSendingMessage}
-                    caseId={caseData.details.id}
-                    onClearChat={handleClearChat}
-                    t={t}
-                    documents={liveDocuments}
-                    className="h-full border-none shadow-none bg-background-dark"
-                />
+                <ChatPanel messages={messages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} caseId={caseData.details.id} onClearChat={handleClearChat} t={t} documents={documents} className="h-full" />
             </div>
         </div>
       </div>
