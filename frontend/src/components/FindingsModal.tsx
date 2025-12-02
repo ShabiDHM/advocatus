@@ -1,10 +1,14 @@
 // FILE: src/components/FindingsModal.tsx
-import React, { useEffect, useState } from 'react';
+// PHOENIX PROTOCOL - RESTORE FULL AUTOMATION
+// 1. REMOVED: All manual "Add to Calendar" and "Add All" buttons.
+// 2. LOGIC: Modal is now Read-Only, displaying findings already auto-synced by the backend.
+// 3. STATUS: Aligned with the original "fully automatic" requirement.
+
+import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { Finding, CalendarEventCreateRequest } from '../data/types';
-import { apiService } from '../services/api';
+import { Finding } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Lightbulb, FileText, Search, CalendarPlus, Check, Loader2, CalendarCheck } from 'lucide-react';
+import { X, Lightbulb, FileText, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface FindingsModalProps {
@@ -20,259 +24,20 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 `;
 
-// Helper: Aggressive Date Parsing
-const extractDateFromText = (text: string): string | undefined => {
-    if (!text) return undefined;
-    const cleanText = text.toLowerCase().replace(/\s+/g, ' ').trim();
-
-    // 1. Numeric Format: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY
-    const numericMatch = cleanText.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
-    if (numericMatch) {
-        return `${numericMatch[3]}-${numericMatch[2].padStart(2, '0')}-${numericMatch[1].padStart(2, '0')}`;
-    }
-
-    // 2. Albanian Month Map
-    const albanianMonths: { [key: string]: string } = {
-        'janar': '01', 'shkurt': '02', 'mars': '03', 'prill': '04', 'maj': '05', 'qershor': '06',
-        'korrik': '07', 'gusht': '08', 'shtator': '09', 'tetor': '10', 'nëntor': '11', 'nentor': '11', 'dhjetor': '12'
-    };
-
-    // 3. Text Format with Year: "15 Dhjetor 2025"
-    for (const [monthName, monthNum] of Object.entries(albanianMonths)) {
-        const regexWithYear = new RegExp(`(\\d{1,2})[\\s.-]+${monthName}[\\s.-]+(\\d{4})`);
-        const match = cleanText.match(regexWithYear);
-        if (match) {
-            return `${match[2]}-${monthNum}-${match[1].padStart(2, '0')}`;
-        }
-    }
-
-    // 4. Text Format WITHOUT Year: "25 Dhjetor"
-    for (const [monthName, monthNum] of Object.entries(albanianMonths)) {
-        const regexNoYear = new RegExp(`(\\d{1,2})[\\s.-]+${monthName}(?!\\w)`);
-        const match = cleanText.match(regexNoYear);
-        if (match) {
-            const day = match[1].padStart(2, '0');
-            const currentYear = new Date().getFullYear();
-            const currentMonth = new Date().getMonth() + 1;
-            
-            let year = currentYear;
-            if (parseInt(monthNum) < currentMonth) {
-                year = currentYear + 1;
-            }
-            return `${year}-${monthNum}-${day}`;
-        }
-    }
-    return undefined; 
-};
-
-const FindingCard: React.FC<{ finding: Finding; t: any; forceSaveTrigger?: boolean }> = ({ finding, t, forceSaveTrigger }) => {
-    const [showEventForm, setShowEventForm] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const [isSaved, setIsSaved] = useState(false);
-    
-    const detectedDate = extractDateFromText(finding.finding_text);
-    
-    // Form State
-    const [eventDate, setEventDate] = useState(detectedDate || new Date().toISOString().split('T')[0]);
-    const [eventTitle, setEventTitle] = useState(finding.finding_text.substring(0, 60) + (finding.finding_text.length > 60 ? '...' : ''));
-    const [eventType, setEventType] = useState('DEADLINE');
-
-    const handleCreateEvent = async () => {
-        if (!eventDate || !eventTitle || isSaved) return;
-        setIsSaving(true);
-        try {
-            const payload: CalendarEventCreateRequest = {
-                title: eventTitle,
-                description: `Burimi: ${finding.finding_text}\nDokumenti: ${finding.document_name || 'N/A'}`,
-                start_date: new Date(eventDate).toISOString(),
-                end_date: new Date(eventDate).toISOString(),
-                is_all_day: true,
-                event_type: eventType,
-                case_id: finding.case_id,
-                priority: 'HIGH'
-            };
-            
-            await apiService.createCalendarEvent(payload);
-            setIsSaved(true);
-            
-            setTimeout(() => {
-                setShowEventForm(false);
-            }, 2000);
-
-        } catch (error) {
-            console.error("Failed to create event:", error);
-            // Don't alert on batch process to avoid spam
-            if (!forceSaveTrigger) alert(t('error.generic') || "Failed to create event");
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    // React to batch save
-    useEffect(() => {
-        if (forceSaveTrigger && detectedDate && !isSaved && !isSaving) {
-            handleCreateEvent();
-        }
-    }, [forceSaveTrigger]);
-
-    return (
-        <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="group relative p-4 sm:p-5 bg-background-dark rounded-xl border border-glass-edge/30 hover:border-primary-start/50 transition-all duration-300 shadow-sm overflow-hidden"
-        >
-            <div className="absolute left-0 top-4 bottom-4 w-1 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-r-full opacity-70 group-hover:opacity-100 transition-opacity" />
-            
-            <div className="pl-3">
-                <p className="text-sm sm:text-base text-gray-200 leading-relaxed font-medium">
-                    {finding.finding_text}
-                </p>
-                
-                <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-black/20 border border-white/5 text-xs text-gray-400 w-full sm:w-auto">
-                        <FileText className="h-3 w-3 text-yellow-500 flex-shrink-0" />
-                        <span className="font-medium text-gray-300 whitespace-nowrap">{t('caseView.findingSource')}:</span>
-                        <span className="truncate max-w-full">{finding.document_name || finding.document_id}</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                        {finding.confidence_score !== undefined && finding.confidence_score > 0 && (
-                            <div className="flex items-center gap-1.5" title={t('caseView.confidenceScore')}>
-                                <Search className="h-3 w-3 text-accent-start" />
-                                <span className="text-xs font-mono text-accent-start">{Math.round(finding.confidence_score * 100)}%</span>
-                            </div>
-                        )}
-                        
-                        {!isSaved && !showEventForm && (
-                            <button 
-                                onClick={() => setShowEventForm(true)}
-                                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium border transition-colors ${
-                                    detectedDate 
-                                    ? 'bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 border-indigo-500/30'
-                                    : 'bg-gray-700/30 hover:bg-gray-700/50 text-gray-400 border-gray-600/30'
-                                }`}
-                                title={detectedDate ? t('calendar.dateDetected', 'Data u gjet automatikisht') : t('calendar.manualAdd', 'Shto manualisht')}
-                            >
-                                <CalendarPlus className="h-3.5 w-3.5" />
-                                <span>{t('calendar.addToCalendar', 'Shto në Kalendar')}</span>
-                            </button>
-                        )}
-                        
-                        {isSaved && (
-                             <span className="flex items-center gap-1 text-xs text-green-400 font-medium px-2 py-1 bg-green-500/10 rounded-md border border-green-500/20">
-                                <Check className="h-3 w-3" />
-                                {t('calendar.eventSaved', 'Ruajtur')}
-                             </span>
-                        )}
-                    </div>
-                </div>
-
-                <AnimatePresence>
-                    {showEventForm && (
-                        <motion.div 
-                            initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                            animate={{ height: 'auto', opacity: 1, marginTop: 16 }}
-                            exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                            className="overflow-hidden border-t border-white/10 pt-4"
-                        >
-                            <div className="space-y-3 bg-black/20 p-3 rounded-lg border border-white/5">
-                                <div className="flex items-center justify-between">
-                                    <h4 className="text-xs font-bold text-gray-400 uppercase flex items-center gap-2">
-                                        <CalendarPlus className="h-3 w-3" />
-                                        {t('calendar.newEvent', 'Ngjarje e Re')}
-                                    </h4>
-                                    {detectedDate && (
-                                        <span className="text-[10px] text-indigo-400 px-1.5 py-0.5 bg-indigo-500/10 rounded border border-indigo-500/20">
-                                            AI Detected
-                                        </span>
-                                    )}
-                                </div>
-                                
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div className="space-y-1">
-                                        <label className="text-xs text-gray-500">{t('calendar.date', 'Data')}</label>
-                                        <input 
-                                            type="date" 
-                                            value={eventDate}
-                                            onChange={(e) => setEventDate(e.target.value)}
-                                            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-white focus:border-indigo-500 outline-none transition-colors"
-                                        />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-xs text-gray-500">{t('calendar.type', 'Lloji')}</label>
-                                        <select 
-                                            value={eventType}
-                                            onChange={(e) => setEventType(e.target.value)}
-                                            className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-white focus:border-indigo-500 outline-none transition-colors"
-                                        >
-                                            <option value="DEADLINE">{t('calendar.deadline', 'Afat Ligjor')}</option>
-                                            <option value="HEARING">{t('calendar.hearing', 'Seancë')}</option>
-                                            <option value="MEETING">{t('calendar.meeting', 'Takim')}</option>
-                                            <option value="FILING">{t('calendar.filing', 'Depozitim')}</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                
-                                <div className="space-y-1">
-                                    <label className="text-xs text-gray-500">{t('calendar.title', 'Titulli')}</label>
-                                    <input 
-                                        type="text" 
-                                        value={eventTitle}
-                                        onChange={(e) => setEventTitle(e.target.value)}
-                                        className="w-full bg-gray-900 border border-gray-700 rounded px-2 py-1.5 text-sm text-white focus:border-indigo-500 outline-none transition-colors"
-                                    />
-                                </div>
-
-                                <div className="flex justify-end gap-2 pt-2">
-                                    <button 
-                                        onClick={() => setShowEventForm(false)}
-                                        className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors"
-                                    >
-                                        {t('general.cancel', 'Anulo')}
-                                    </button>
-                                    <button 
-                                        onClick={handleCreateEvent}
-                                        disabled={isSaving}
-                                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded flex items-center gap-2 disabled:opacity-50 transition-colors shadow-lg shadow-indigo-500/20"
-                                    >
-                                        {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                                        {t('general.save', 'Ruaj')}
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-        </motion.div>
-    );
-};
-
 const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings }) => {
   const { t } = useTranslation();
-  const [batchSaveTrigger, setBatchSaveTrigger] = useState(false);
-  const [datesFoundCount, setDatesFoundCount] = useState(0);
 
+  // Handle Body Scroll Lock
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      // Count dates
-      const count = findings.filter(f => extractDateFromText(f.finding_text)).length;
-      setDatesFoundCount(count);
     } else {
       document.body.style.overflow = 'unset';
-      setBatchSaveTrigger(false);
     }
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen, findings]);
-
-  const handleBatchSave = () => {
-      if (window.confirm(t('calendar.confirmBatchSave', 'A jeni i sigurt që doni të shtoni automatikisht të gjitha datat e gjetura në kalendar?'))) {
-          setBatchSaveTrigger(true);
-      }
-  };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -294,30 +59,15 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
             >
                 {/* Header */}
                 <div className="p-4 sm:p-6 border-b border-glass-edge flex justify-between items-center bg-background-light/90 backdrop-blur-md flex-shrink-0 gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <h2 className="text-lg sm:text-2xl font-bold text-text-primary flex items-center gap-2">
-                            <div className="p-1.5 bg-yellow-400/10 rounded-lg flex-shrink-0">
-                                <Lightbulb className="text-yellow-400 h-5 w-5 sm:h-6 sm:w-6" />
-                            </div>
-                            <span className="truncate">{t('caseView.findingsTitle')}</span>
-                            <span className="text-xs font-medium px-2 py-1 rounded-full bg-background-dark border border-glass-edge text-text-secondary flex-shrink-0">
-                                {findings.length}
-                            </span>
-                        </h2>
-                        
-                        {/* PHOENIX NEW: Batch Save Button */}
-                        {datesFoundCount > 0 && (
-                            <button 
-                                onClick={handleBatchSave}
-                                disabled={batchSaveTrigger}
-                                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 text-xs font-medium border border-indigo-500/30 transition-all ml-2"
-                                title="Add all detected dates to calendar"
-                            >
-                                <CalendarCheck className="h-3.5 w-3.5" />
-                                <span>{t('calendar.addAll', 'Shto të Gjitha')} ({datesFoundCount})</span>
-                            </button>
-                        )}
-                    </div>
+                    <h2 className="text-lg sm:text-2xl font-bold text-text-primary flex items-center gap-2 min-w-0">
+                        <div className="p-1.5 bg-yellow-400/10 rounded-lg flex-shrink-0">
+                             <Lightbulb className="text-yellow-400 h-5 w-5 sm:h-6 sm:w-6" />
+                        </div>
+                        <span className="truncate">{t('caseView.findingsTitle')}</span>
+                        <span className="text-xs font-medium px-2 py-1 rounded-full bg-background-dark border border-glass-edge text-text-secondary flex-shrink-0">
+                            {findings.length}
+                        </span>
+                    </h2>
                     
                     <button 
                         onClick={onClose} 
@@ -338,25 +88,37 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
                         </div>
                     ) : (
                         <div className="space-y-4 pb-4">
-                            {/* Mobile Batch Save Button */}
-                             {datesFoundCount > 0 && (
-                                <button 
-                                    onClick={handleBatchSave}
-                                    disabled={batchSaveTrigger}
-                                    className="sm:hidden w-full flex justify-center items-center gap-2 px-4 py-2 mb-2 rounded-lg bg-indigo-600 text-white text-sm font-medium shadow-lg"
-                                >
-                                    <CalendarCheck className="h-4 w-4" />
-                                    <span>{t('calendar.addAll', 'Shto të Gjitha Datat')} ({datesFoundCount})</span>
-                                </button>
-                            )}
-
                             {findings.map((finding, index) => (
-                                <FindingCard 
+                                <motion.div 
                                     key={finding.id || index} 
-                                    finding={finding} 
-                                    t={t} 
-                                    forceSaveTrigger={batchSaveTrigger}
-                                />
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: index * 0.05 }}
+                                    className="group relative p-4 sm:p-5 bg-background-dark rounded-xl border border-glass-edge/30 hover:border-primary-start/50 transition-all duration-300 shadow-sm"
+                                >
+                                    <div className="absolute left-0 top-4 bottom-4 w-1 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-r-full opacity-70 group-hover:opacity-100 transition-opacity" />
+                                    
+                                    <div className="pl-3">
+                                        <p className="text-sm sm:text-base text-gray-200 leading-relaxed">
+                                            {finding.finding_text}
+                                        </p>
+                                        
+                                        <div className="mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-black/20 border border-white/5 text-xs text-gray-400 w-full sm:w-auto">
+                                                <FileText className="h-3 w-3 text-yellow-500 flex-shrink-0" />
+                                                <span className="font-medium text-gray-300 whitespace-nowrap">{t('caseView.findingSource')}:</span>
+                                                <span className="truncate max-w-full">{finding.document_name || finding.document_id}</span>
+                                            </div>
+                                            
+                                            {finding.confidence_score !== undefined && finding.confidence_score > 0 && (
+                                                <div className="flex items-center gap-1.5 self-end sm:self-auto" title={t('caseView.confidenceScore')}>
+                                                    <Search className="h-3 w-3 text-accent-start" />
+                                                    <span className="text-xs font-mono text-accent-start">{Math.round(finding.confidence_score * 100)}%</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </motion.div>
                             ))}
                         </div>
                     )}

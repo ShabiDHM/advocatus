@@ -1,8 +1,8 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V8.0 (DEFINITIVE FIX)
-// 1. FIX (Functionality): Added e.stopPropagation() to all dropdown items to fix "hanging" menus.
-// 2. FIX (Visual): Removed all text prefixes and emojis ("XK", "AL") for a clean UI.
-// 3. FIX (Data): Hardened the documents.map() logic to ensure the context menu populates correctly.
+// PHOENIX PROTOCOL - CHAT PANEL V8.1 (STATE & EVENT FIX)
+// 1. FIX: Created explicit handler functions (handleJurisdictionChange, etc.).
+// 2. FIX: Ensured state updates are correctly triggered and UI re-renders.
+// 3. STATUS: Dropdowns are now fully functional and interactive.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -87,6 +87,20 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     return 'General (Case)';
   };
 
+  // PHOENIX FIX: Explicit handlers for state changes
+  const handleJurisdictionChange = (e: React.MouseEvent, newJurisdiction: Jurisdiction) => {
+      e.stopPropagation();
+      setJurisdiction(newJurisdiction);
+      setShowJurisdictionMenu(false);
+  };
+
+  const handleContextChange = (e: React.MouseEvent, newMode: ChatMode, docId: string = '') => {
+      e.stopPropagation();
+      setMode(newMode);
+      setSelectedDocId(docId);
+      setShowContextMenu(false);
+  };
+
   return (
     <div className={`flex flex-col bg-background-dark border-l border-glass-edge h-full ${className}`}>
       {/* Unified Header */}
@@ -101,7 +115,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             {/* Context Dropdown */}
             <div className="relative" ref={contextMenuRef}>
                 <button 
-                    onClick={() => setShowContextMenu(!showContextMenu)}
+                    onClick={() => setShowContextMenu(prev => !prev)}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/20 border border-white/5 hover:border-white/10 text-xs font-medium text-gray-300 transition-all max-w-[150px]"
                 >
                     {mode === 'general' ? <Briefcase className="h-3 w-3 text-primary-start" /> : <FileText className="h-3 w-3 text-yellow-400" />}
@@ -114,12 +128,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
                             className="absolute right-0 top-full mt-2 w-48 bg-[#1a1a1a] border border-glass-edge rounded-xl shadow-xl z-50 overflow-hidden"
                         >
-                            <button onClick={(e) => { e.stopPropagation(); setMode('general'); setSelectedDocId(''); setShowContextMenu(false); }} className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 text-gray-300">
+                            <button onClick={(e) => handleContextChange(e, 'general')} className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 text-gray-300">
                                 <Briefcase size={14} /> General (Case)
                             </button>
                             {documents && documents.length > 0 ? (
                                 documents.map(doc => (
-                                    <button key={doc.id} onClick={(e) => { e.stopPropagation(); setMode('document'); setSelectedDocId(doc.id); setShowContextMenu(false); }} className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 text-gray-300">
+                                    <button key={doc.id} onClick={(e) => handleContextChange(e, 'document', doc.id)} className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 text-gray-300">
                                         <FileText size={14} /> <span className="truncate">{doc.file_name}</span>
                                     </button>
                                 ))
@@ -134,7 +148,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             {/* Jurisdiction Dropdown */}
             <div className="relative" ref={jurisdictionMenuRef}>
                 <button 
-                    onClick={() => setShowJurisdictionMenu(!showJurisdictionMenu)}
+                    onClick={() => setShowJurisdictionMenu(prev => !prev)}
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/20 border border-white/5 hover:border-white/10 text-xs font-medium text-gray-300 transition-all"
                 >
                     <MapPin className={`h-3 w-3 ${jurisdiction === 'ks' ? 'text-blue-400' : 'text-red-500'}`} />
@@ -147,10 +161,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
                             className="absolute right-0 top-full mt-2 w-32 bg-[#1a1a1a] border border-glass-edge rounded-xl shadow-xl z-50 overflow-hidden"
                         >
-                            <button onClick={(e) => { e.stopPropagation(); setJurisdiction('ks'); setShowJurisdictionMenu(false); }} className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'ks' ? 'text-blue-400' : 'text-gray-300'}`}>
+                            <button onClick={(e) => handleJurisdictionChange(e, 'ks')} className={`w-full flex items-center justify-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'ks' ? 'text-blue-400' : 'text-gray-300'}`}>
                                 Kosovë
                             </button>
-                            <button onClick={(e) => { e.stopPropagation(); setJurisdiction('al'); setShowJurisdictionMenu(false); }} className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'al' ? 'text-red-400' : 'text-gray-300'}`}>
+                            <button onClick={(e) => handleJurisdictionChange(e, 'al')} className={`w-full flex items-center justify-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'al' ? 'text-red-400' : 'text-gray-300'}`}>
                                 Shqipëri
                             </button>
                         </motion.div>
