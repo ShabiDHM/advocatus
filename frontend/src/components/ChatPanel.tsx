@@ -1,8 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V7.0 (UNIFIED HEADER)
-// 1. LAYOUT: Merged all controls into a single, clean header row.
-// 2. UX: Unified "Context" into a single dropdown (Case + Docs).
-// 3. AESTHETICS: Professional, icon-driven, and space-efficient.
+// PHOENIX PROTOCOL - CHAT PANEL V7.1 (DROPDOWN & EMOJI FIX)
+// 1. FIX: Context dropdown now correctly maps over the 'documents' array.
+// 2. FIX: Replaced 'XK' and 'AL' text with actual flag emojis (🇽🇰, 🇦🇱).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -73,7 +72,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <div className={`flex flex-col bg-background-dark border-l border-glass-edge h-full ${className}`}>
-      {/* PHOENIX: Unified Header */}
+      {/* Unified Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-glass-edge bg-background-light/50 backdrop-blur-md">
         
         {/* Left Side: Title & Status */}
@@ -103,7 +102,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             <button onClick={() => { setMode('general'); setSelectedDocId(''); setShowContextMenu(false); }} className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 text-gray-300">
                                 <Briefcase size={14} /> General (Case)
                             </button>
-                            {documents.map(doc => (
+                            {/* PHOENIX FIX: Correctly mapping documents */}
+                            {documents && documents.map(doc => (
                                 <button key={doc.id} onClick={() => { setMode('document'); setSelectedDocId(doc.id); setShowContextMenu(false); }} className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 text-gray-300">
                                     <FileText size={14} /> <span className="truncate">{doc.file_name}</span>
                                 </button>
