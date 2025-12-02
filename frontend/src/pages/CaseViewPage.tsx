@@ -1,7 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CLEAN BUILD FINAL
-// 1. FIX: Corrected typo 'messages' -> 'setMessages'.
-// 2. FIX: Removed unused 'liveMessages' and 'mode' variables.
+// PHOENIX PROTOCOL - CLEAN BUILD V3
+// 1. FIX: Removed unused 'mode' variable from handler.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -76,14 +75,8 @@ const CaseViewPage: React.FC = () => {
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
 
   const { 
-      documents, // Renamed for clarity
-      setDocuments,
-      messages, 
-      setMessages, 
-      connectionStatus, 
-      reconnect, 
-      sendChatMessage, 
-      isSendingMessage 
+      documents, setDocuments, messages, setMessages, 
+      connectionStatus, reconnect, sendChatMessage, isSendingMessage 
   } = useDocumentSocket(currentCaseId);
 
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
@@ -104,11 +97,9 @@ const CaseViewPage: React.FC = () => {
           if (details.chat_history) setMessages(details.chat_history);
       }
     } catch (err) { setError(t('error.failedToLoadCase')); } finally { if(isInitialLoad) setIsLoading(false); }
-  }, [caseId, t, setDocuments, setMessages]); // Updated dependencies
+  }, [caseId, t, setDocuments, setMessages]);
 
-  useEffect(() => {
-    if (isReadyForData) fetchCaseData(true);
-  }, [isReadyForData, fetchCaseData]);
+  useEffect(() => { if (isReadyForData) fetchCaseData(true); }, [isReadyForData, fetchCaseData]);
   
   const handleDocumentUploaded = (newDoc: Document) => setDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
@@ -131,7 +122,6 @@ const CaseViewPage: React.FC = () => {
     } catch (err) { alert(t('error.generic')); } finally { setIsAnalyzing(false); }
   };
 
-  // PHOENIX FIX: 'mode' is not needed here, only the results
   const handleChatSubmit = (text: string, _mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => {
       sendChatMessage(text, documentId, jurisdiction); 
   };
@@ -145,13 +135,9 @@ const CaseViewPage: React.FC = () => {
         <div className="mb-4"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
         <div className="mb-4"><CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} /></div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start h-[600px] lg:h-[700px]">
-            <div className="rounded-2xl shadow-xl overflow-hidden h-full">
-                <DocumentsPanel caseId={caseData.details.id} documents={documents} findings={caseData.findings} t={t} connectionStatus={connectionStatus} reconnect={reconnect} onDocumentUploaded={handleDocumentUploaded} onDocumentDeleted={handleDocumentDeleted} onViewOriginal={setViewingDocument} className="h-full border-none shadow-none bg-transparent" />
-            </div>
-            <div className="rounded-2xl shadow-xl overflow-hidden h-full">
-                <ChatPanel messages={messages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} caseId={caseData.details.id} onClearChat={handleClearChat} t={t} documents={documents} className="h-full" />
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start h-[700px]">
+            <DocumentsPanel caseId={caseData.details.id} documents={documents} findings={caseData.findings} t={t} connectionStatus={connectionStatus} reconnect={reconnect} onDocumentUploaded={handleDocumentUploaded} onDocumentDeleted={handleDocumentDeleted} onViewOriginal={setViewingDocument} className="h-full" />
+            <ChatPanel messages={messages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} caseId={caseData.details.id} onClearChat={handleClearChat} t={t} documents={documents} className="h-full" />
         </div>
       </div>
       
