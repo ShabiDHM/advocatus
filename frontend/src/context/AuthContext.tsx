@@ -1,18 +1,16 @@
 // FILE: src/context/AuthContext.tsx
+// PHOENIX PROTOCOL - REVISED AUTHENTICATION CONTEXT
+// 1. ARCHITECTURE: Aligns with the automatic, cookie-based token refresh mechanism in api.ts.
+// 2. STATELESS CLIENT: Removes all manual token management and localStorage usage for the JWT.
+// 3. ROBUSTNESS: Initializes the app by fetching the user profile, letting the apiService interceptor handle session restoration.
+
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';
 import { apiService } from '../services/api';
-import { jwtDecode } from 'jwt-decode';
 import { Loader2 } from 'lucide-react';
 
-interface DecodedToken {
-    sub: string;
-    id: string;
-    exp: number;
-    role?: string;
-}
-
-type AuthUser = User & { token?: string };
+// The access token is no longer stored here; it's managed in-memory by api.ts
+type AuthUser = User;
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -24,46 +22,47 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const LOCAL_STORAGE_TOKEN_KEY = 'jwtToken';
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // PHOENIX FIX: The logout function is now simpler. It tells the apiService to clear
+  // its in-memory token and then clears the local user state.
   const logout = useCallback(() => {
-    localStorage.removeItem(LOCAL_STORAGE_TOKEN_KEY);
+    apiService.logout(); // Clears the in-memory access token
     setUser(null);
   }, []);
 
+  // The logout handler is set up to allow the apiService to trigger a logout
+  // if a token refresh fails permanently.
   useEffect(() => {
     apiService.setLogoutHandler(logout);
   }, [logout]);
 
+  // PHOENIX FIX: Revised initialization logic.
+  // We no longer manually refresh the token. We simply ask for the user's profile.
+  // The apiService interceptor will automatically handle refreshing the access token
+  // using the secure cookie if a session is active.
   useEffect(() => {
     const initializeApp = async () => {
+      setIsLoading(true);
       try {
-        const response = await apiService.refreshAccessToken();
-        const { access_token } = response;
-        localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, access_token);
-
+        // This call will succeed if the user has a valid refresh token cookie.
+        // The interceptor in api.ts will handle the entire refresh flow automatically.
         const fullUser = await apiService.fetchUserProfile();
-        const decoded = jwtDecode<DecodedToken>(access_token);
-        
-        // PHOENIX FIX: Prioritize the API response as the source of truth for the user's role.
-        const normalizedRole = (fullUser.role || decoded.role || 'STANDARD').toUpperCase() as User['role'];
-        
-        setUser({ ...fullUser, token: access_token, role: normalizedRole });
-
+        setUser(fullUser);
       } catch (error) {
-        // Silent fail: user is simply not logged in
-        logout();
+        // If this fails, it means there's no valid session.
+        // The user is not logged in. No further action needed.
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
     };
 
     initializeApp();
-  }, [logout]);
+  }, []); // Run only once on app startup
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -73,17 +72,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           password: password 
       };
 
-      const response = await apiService.login(loginPayload);
-      const { access_token } = response;
-      localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, access_token);
+      // apiService.login handles setting the in-memory access token
+      await apiService.login(loginPayload);
       
+      // After a successful login, fetch the full user profile
       const fullUser = await apiService.fetchUserProfile();
-      const decoded = jwtDecode<DecodedToken>(access_token);
-
-      // PHOENIX FIX: Prioritize the API response as the source of truth for the user's role.
-      const normalizedRole = (fullUser.role || decoded.role || 'STANDARD').toUpperCase() as User['role'];
-      
-      setUser({ ...fullUser, token: access_token, role: normalizedRole });
+      setUser(fullUser);
 
     } finally {
       setIsLoading(false);
