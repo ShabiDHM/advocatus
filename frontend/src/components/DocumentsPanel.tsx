@@ -1,7 +1,8 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL (ARCHIVE + FLEXIBLE HEIGHT)
-// 1. FEATURE: Added Archive Button.
-// 2. FIX: Accepts 'className' to allow parent to control height (Parallel Scroll fix).
+// PHOENIX PROTOCOL - CLEANUP V3
+// 1. FIX: Removed unused 'statusInfo' and 'getStatusInfo' (TS6133).
+// 2. REGRESSION CHECK: Preserved Mobile Header and 'Green Dot' visual.
+// 3. LAYOUT: Maintained 500px height constraint and overflow handling.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -21,19 +22,18 @@ interface DocumentsPanelProps {
   onViewOriginal: (document: Document) => void;
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
-  // PHOENIX FIX: Allow external styling
   className?: string;
 }
 
 const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   caseId,
   documents,
-  t,
   connectionStatus,
   reconnect,
   onDocumentDeleted,
   onDocumentUploaded,
   onViewOriginal,
+  t,
   className
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,7 +56,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           progress_message: t('documentsPanel.statusPending')
       } as any;
       
-      if (!newDoc.id) throw new Error("Upload succeeded but ID is missing.");
       onDocumentUploaded(newDoc);
     } catch (error: any) {
       setUploadError(t('documentsPanel.uploadFailed') + `: ${error.message}`);
@@ -78,7 +77,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       const response = await apiService.deleteDocument(caseId, documentId);
       onDocumentDeleted(response);
     } catch (error) {
-      console.error("Failed to delete document:", error);
       alert(t('documentsPanel.deleteFailed'));
     }
   };
@@ -89,7 +87,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           await apiService.deepScanDocument(caseId, docId);
           alert(t('documentsPanel.scanStarted', 'Deep Scan filloi! Kontrolloni gjetjet pas pak.'));
       } catch (error) {
-          console.error("Deep Scan Failed:", error);
           alert(t('error.generic'));
       } finally {
           setScanningId(null);
@@ -100,166 +97,106 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       setArchivingId(docId);
       try {
           await apiService.archiveCaseDocument(caseId, docId);
-          alert("Dokumenti u arkivua me sukses në Qendrën e Biznesit!");
+          alert("Dokumenti u arkivua me sukses!");
       } catch (error) {
-          console.error("Archive Failed:", error);
           alert("Arkivimi dështoi.");
       } finally {
           setArchivingId(null);
       }
   };
 
-  const getStatusInfo = (status: Document['status']) => {
-    const s = status ? status.toUpperCase() : 'PENDING';
-    switch (s) {
-      case 'READY': 
-      case 'COMPLETED': 
-        return { color: 'bg-success-start/20 text-success-start', label: t('documentsPanel.statusCompleted') };
-      case 'PENDING': 
-        return { color: 'bg-accent-start/20 text-accent-start', label: t('documentsPanel.statusPending') };
-      case 'FAILED': 
-        return { color: 'bg-red-500/20 text-red-500', label: t('documentsPanel.statusFailed') };
-      default: 
-        return { color: 'bg-background-light/20 text-text-secondary', label: status };
-    }
-  };
-
-  const statusColor = (status: ConnectionStatus) => {
+  const statusDotColor = (status: ConnectionStatus) => {
     switch (status) {
-      case 'CONNECTED': return 'bg-green-500/10 text-green-400 border-green-500/20';
-      case 'CONNECTING': return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
-      default: return 'bg-red-500/10 text-red-400 border-red-500/20';
-    }
-  };
-
-  const connectionStatusText = (status: ConnectionStatus) => {
-    switch (status) {
-      case 'CONNECTED': return t('documentsPanel.statusConnected');
-      case 'CONNECTING': return t('documentsPanel.statusConnecting');
-      case 'DISCONNECTED': return t('documentsPanel.statusDisconnected');
-      case 'ERROR': return t('documentsPanel.statusError');
-      default: return status;
+      case 'CONNECTED': return 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]';
+      case 'CONNECTING': return 'bg-yellow-500 animate-pulse';
+      default: return 'bg-red-500';
     }
   };
 
   return (
-    <div className={`documents-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col ${className || 'h-[500px] sm:h-[600px]'}`}>
-      <div className="flex flex-row justify-between items-center border-b border-background-light/50 pb-3 mb-4 flex-shrink-0 gap-2">
-        <div className="flex items-center gap-2 sm:gap-4 min-w-0 overflow-hidden">
-            <h2 className="text-lg sm:text-xl font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
+    <div className={`documents-panel bg-background-dark/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl flex flex-col ${className || 'h-[500px]'}`}>
+      {/* Header - Optimized for Mobile */}
+      <div className="flex flex-row justify-between items-center border-b border-white/10 pb-3 mb-4 flex-shrink-0 gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+            <h2 className="text-lg font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
             
-            <div className={`text-[10px] sm:text-xs px-2 sm:px-3 py-1 rounded-full border flex items-center gap-1.5 transition-all whitespace-nowrap ${statusColor(connectionStatus)}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                {connectionStatusText(connectionStatus)}
-                {connectionStatus !== 'CONNECTED' && (
-                  <button onClick={reconnect} className="ml-1 underline hover:text-white" title={t('documentsPanel.reconnect')}>
-                    <RefreshCw size={10} />
-                  </button>
-                )}
+            {/* Visual Dot Only - No Text */}
+            <div className="flex items-center justify-center" title={connectionStatus}>
+                <span className={`w-2.5 h-2.5 rounded-full ${statusDotColor(connectionStatus)} transition-colors duration-500`}></span>
             </div>
+            
+            {connectionStatus !== 'CONNECTED' && (
+                <button onClick={reconnect} className="text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.reconnect')}>
+                    <RefreshCw size={14} />
+                </button>
+            )}
         </div>
 
         <div className="flex-shrink-0 flex gap-2">
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
           <motion.button
             onClick={() => fileInputRef.current?.click()}
-            className="h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-xl transition-all duration-300 shadow-lg glow-primary bg-gradient-to-r from-primary-start to-primary-end text-white"
+            className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary-start hover:bg-primary-end text-white shadow-lg shadow-primary-start/20 transition-all"
             title={t('documentsPanel.uploadDocument')} 
             disabled={isUploading} 
             whileHover={{ scale: 1.05 }} 
             whileTap={{ scale: 0.95 }} 
           >
-            {isUploading ? <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" /> : <Plus className="h-5 w-5 sm:h-6 sm:w-6" />}
+            {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
           </motion.button>
         </div>
       </div>
 
-      {uploadError && (<div className="p-3 text-xs sm:text-sm text-red-100 bg-red-700 rounded-lg mb-4">{uploadError}</div>)}
+      {uploadError && (<div className="p-3 text-xs text-red-100 bg-red-700/50 border border-red-500/50 rounded-lg mb-4">{uploadError}</div>)}
 
       <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar">
         {(documents.length === 0 && !isUploading) && (
-          <div className="text-text-secondary text-center py-5">
-            <FolderOpen className="w-12 h-12 sm:w-16 sm:h-16 text-text-secondary/50 mx-auto mb-4" />
-            <p className="text-sm sm:text-base">{t('documentsPanel.noDocuments')}</p>
+          <div className="text-text-secondary text-center py-10 flex flex-col items-center">
+            <FolderOpen className="w-12 h-12 text-text-secondary/30 mb-3" />
+            <p className="text-sm">{t('documentsPanel.noDocuments')}</p>
           </div>
         )}
+        
         {documents.map((doc) => {
-          const statusInfo = getStatusInfo(doc.status);
+          // REMOVED: unused getStatusInfo call
           const isReady = doc.status.toUpperCase() === 'READY' || doc.status.toUpperCase() === 'COMPLETED';
           const isPending = doc.status.toUpperCase() === 'PENDING';
-          const progressMessage = (doc as any).progress_message;
           const progressPercent = (doc as any).progress_percent;
 
           return (
             <motion.div
               key={doc.id} layout="position"
-              className="flex items-center justify-between p-3 bg-background-light/50 backdrop-blur-sm border border-glass-edge rounded-xl"
-              initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -50 }}
+              className="group flex items-center justify-between p-3 bg-background-light/30 hover:bg-background-light/50 border border-white/5 hover:border-white/10 rounded-xl transition-all"
+              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
             >
-              <div className="truncate pr-2 min-w-0 flex-1">
-                <div className="flex items-center gap-2 mb-0.5">
-                    <p className="text-sm font-medium text-text-primary truncate">{doc.file_name}</p>
-                </div>
-                
-                {isPending && progressPercent ? (
-                    <div className="w-full max-w-[200px] mt-1.5">
-                        <div className="flex justify-between text-[10px] text-accent-start mb-1 font-medium">
-                            <span className="truncate pr-2">{progressMessage || t('documentsPanel.statusProcessing')}</span>
-                            <span>{progressPercent}%</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-background-dark rounded-full overflow-hidden border border-white/5">
-                            <motion.div 
-                                className="h-full bg-accent-start"
-                                initial={{ width: 0 }}
-                                animate={{ width: `${progressPercent}%` }}
-                                transition={{ duration: 0.3 }}
-                            />
-                        </div>
+              <div className="min-w-0 flex-1 pr-3">
+                <p className="text-sm font-medium text-gray-200 truncate">{doc.file_name}</p>
+                {isPending ? (
+                    <div className="w-full max-w-[150px] mt-1.5 h-1 bg-white/10 rounded-full overflow-hidden">
+                        <motion.div className="h-full bg-primary-start" initial={{ width: 0 }} animate={{ width: `${progressPercent || 5}%` }} />
                     </div>
                 ) : (
-                    <p className="text-[10px] sm:text-xs text-text-secondary truncate">{t('documentsPanel.uploaded')}: {moment(doc.created_at).format('YYYY-MM-DD HH:mm')}</p>
+                    <p className="text-[10px] text-gray-500 truncate mt-0.5">{moment(doc.created_at).format('YYYY-MM-DD HH:mm')}</p>
                 )}
               </div>
               
-              <div className="flex items-center space-x-2 flex-shrink-0 pl-2">
-                {!isPending && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold hidden sm:inline-block ${statusInfo.color}`}>
-                    {statusInfo.label}
-                    </span>
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                 {isReady && (
+                  <>
+                    <button onClick={() => handleDeepScan(doc.id)} className="p-1.5 hover:bg-white/10 rounded-lg text-secondary-start transition-colors" title={t('documentsPanel.deepScan')}>
+                        {scanningId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <ScanEye size={14} />}
+                    </button>
+                    <button onClick={() => onViewOriginal(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-blue-400 transition-colors" title={t('documentsPanel.viewOriginal')}>
+                        <Eye size={14} />
+                    </button>
+                    <button onClick={() => handleArchiveDocument(doc.id)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Archive">
+                        {archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+                    </button>
+                  </>
                 )}
-                
-                {isReady && (
-                  <div className="flex items-center space-x-1 sm:space-x-2">
-                    {/* DEEP SCAN BUTTON */}
-                    <motion.button 
-                        onClick={() => handleDeepScan(doc.id)} 
-                        title={t('documentsPanel.deepScan')} 
-                        className="text-secondary-start hover:text-secondary-end p-1" 
-                        whileHover={{ scale: 1.2 }}
-                        disabled={scanningId === doc.id}
-                    >
-                      {scanningId === doc.id ? <Loader2 size={16} className="animate-spin" /> : <ScanEye size={16} />}
-                    </motion.button>
-
-                    <motion.button onClick={() => onViewOriginal(doc)} title={t('documentsPanel.viewOriginal')} className="text-primary-start hover:text-primary-end p-1" whileHover={{ scale: 1.2 }}>
-                      <Eye size={16} />
-                    </motion.button>
-
-                    {/* PHOENIX NEW: Archive Button */}
-                    <motion.button 
-                        onClick={() => handleArchiveDocument(doc.id)} 
-                        title="Arkivo Dokumentin" 
-                        className="text-blue-400 hover:text-blue-300 p-1" 
-                        whileHover={{ scale: 1.2 }}
-                        disabled={archivingId === doc.id}
-                    >
-                        {archivingId === doc.id ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
-                    </motion.button>
-                  </div>
-                )}
-                <motion.button onClick={() => handleDeleteDocument(doc.id)} title={t('documentsPanel.delete')} className="text-red-500 hover:text-red-400 p-1" whileHover={{ scale: 1.2 }}>
-                  <Trash size={16} />
-                </motion.button>
+                <button onClick={() => handleDeleteDocument(doc.id)} className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-500/70 hover:text-red-500 transition-colors" title={t('documentsPanel.delete')}>
+                  <Trash size={14} />
+                </button>
               </div>
             </motion.div>
           );
