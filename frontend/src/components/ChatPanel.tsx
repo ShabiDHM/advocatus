@@ -1,12 +1,13 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - DROPDOWN & DISPLAY FIX V9.1
-// 1. DISPLAY FIX: Corrected logic to ensure selected dropdown item is always displayed.
-// 2. STABILITY: Simplified state management to prevent race conditions.
+// PHOENIX PROTOCOL - ICON RESTORATION
+// 1. FIX: Restored the 'Brain' icon to the welcome screen.
+// 2. FIX: Re-added the 'Brain' icon next to all AI-generated messages.
+// 3. STATUS: Visuals and functionality are now synchronized.
 
 import React, { useState, useRef, useEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    Send, Bot, RefreshCw, Trash2, MapPin, ChevronDown, FileText, Briefcase 
+    Send, Brain, RefreshCw, Trash2, MapPin, ChevronDown, FileText, Briefcase 
 } from 'lucide-react';
 import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
@@ -95,7 +96,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, t, documents, className 
 }) => {
   const [input, setInput] = useState('');
-  // PHOENIX STATE: 'general' is the ID for Case, otherwise it's a doc ID
   const [selectedContextId, setSelectedContextId] = useState<string>('general');
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>('ks');
   
@@ -169,16 +169,45 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
         {messages.length === 0 && !isSendingMessage ? (
-            <div className="flex flex-col items-center justify-center h-full text-center opacity-50"><Bot size={48} className="mb-4 text-primary-start" /><p className="text-sm text-gray-400">{t('chatPanel.welcomeMessage')}</p></div>
+            <div className="flex flex-col items-center justify-center h-full text-center opacity-50">
+                {/* PHOENIX FIX: Restored Brain icon */}
+                <Brain size={48} className="mb-4 text-primary-start" />
+                <p className="text-sm text-gray-400">{t('chatPanel.welcomeMessage')}</p>
+            </div>
         ) : (
             messages.map((msg, idx) => (
-                <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${msg.sender === 'user' ? 'bg-primary-start text-white rounded-br-none' : 'bg-white/10 text-gray-200 rounded-bl-none border border-white/5'}`}>{msg.content}</div>
+                <motion.div 
+                    key={idx} 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    // PHOENIX FIX: Restored Brain icon next to AI messages
+                    className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                    {msg.sender === 'ai' && (
+                        <div className="w-8 h-8 rounded-full bg-background-light border border-glass-edge flex items-center justify-center flex-shrink-0">
+                            <Brain className="w-4 h-4 text-primary-start" />
+                        </div>
+                    )}
+                    <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                        msg.sender === 'user' 
+                        ? 'bg-primary-start text-white rounded-br-none' 
+                        : 'bg-white/10 text-gray-200 rounded-bl-none border border-white/5'
+                    }`}>
+                        {msg.content}
+                    </div>
                 </motion.div>
             ))
         )}
         {isSendingMessage && (
-            <div className="flex justify-start"><div className="bg-white/5 text-gray-400 rounded-2xl rounded-bl-none px-4 py-3 text-sm flex items-center gap-2"><RefreshCw className="h-3 w-3 animate-spin" />{t('chatPanel.thinking')}</div></div>
+            <div className="flex items-start gap-2">
+                 <div className="w-8 h-8 rounded-full bg-background-light border border-glass-edge flex items-center justify-center flex-shrink-0">
+                    <Brain className="w-4 h-4 text-primary-start animate-pulse" />
+                </div>
+                <div className="bg-white/5 text-gray-400 rounded-2xl rounded-bl-none px-4 py-3 text-sm flex items-center gap-2">
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                    {t('chatPanel.thinking')}
+                </div>
+            </div>
         )}
         <div ref={messagesEndRef} />
       </div>
