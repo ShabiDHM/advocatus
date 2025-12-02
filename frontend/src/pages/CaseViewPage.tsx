@@ -4,7 +4,7 @@ import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } from '../data/types';
 import { apiService } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
-import ChatPanel, { ChatMode } from '../components/ChatPanel';
+import ChatPanel, { ChatMode, Jurisdiction } from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import FindingsModal from '../components/FindingsModal';
@@ -17,10 +17,10 @@ import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
 // --- Types ---
-type CaseData = {
+interface CaseData {
     details: Case | null;
     findings: Finding[];
-};
+}
 
 // --- Sub-components ---
 
@@ -95,7 +95,6 @@ const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
   const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const { caseId } = useParams<{ caseId: string }>();
-  // PHOENIX NEW: Search Params for deep linking
   const [searchParams] = useSearchParams();
   
   const [caseData, setCaseData] = useState<CaseData>({ details: null, findings: [] });
@@ -118,7 +117,7 @@ const CaseViewPage: React.FC = () => {
       setMessages, 
       connectionStatus, 
       reconnect, 
-      sendChatMessage, 
+      // We don't use the hook's sendChatMessage if it doesn't support jurisdiction yet
       isSendingMessage 
   } = useDocumentSocket(currentCaseId);
 
@@ -145,7 +144,7 @@ const CaseViewPage: React.FC = () => {
           const readyDocs = (initialDocs || []).filter(d => d.status === 'COMPLETED' || d.status === 'READY');
           prevReadyCount.current = readyDocs.length;
       } else {
-          setCaseData(prev => ({ ...prev, findings: findingsResponse || [] }));
+          setCaseData((prev: CaseData) => ({ ...prev, findings: findingsResponse || [] }));
       }
 
     } catch (err) {
@@ -168,7 +167,6 @@ const CaseViewPage: React.FC = () => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
 
-  // PHOENIX NEW: Auto-open Findings Modal if requested via URL
   useEffect(() => {
     if (!isLoading && caseData.details && searchParams.get('open') === 'findings') {
         setIsFindingsModalOpen(true);
@@ -176,14 +174,14 @@ const CaseViewPage: React.FC = () => {
   }, [isLoading, caseData.details, searchParams]);
   
   const handleDocumentUploaded = (newDoc: Document) => {
-    setLiveDocuments(prev => [sanitizeDocument(newDoc), ...prev]);
+    setLiveDocuments((prev: Document[]) => [sanitizeDocument(newDoc), ...prev]);
   };
   
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => {
     const { documentId } = response;
-    setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(documentId)));
-    setCaseData(prev => {
-        const newFindings = prev.findings.filter(f => String(f.document_id) !== String(documentId));
+    setLiveDocuments((prev: Document[]) => prev.filter(d => String(d.id) !== String(documentId)));
+    setCaseData((prev: CaseData) => {
+        const newFindings = prev.findings.filter((f: Finding) => String(f.document_id) !== String(documentId));
         return { ...prev, findings: newFindings };
     });
   };
@@ -219,8 +217,27 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
-  const handleChatSubmit = (text: string, _mode: ChatMode, documentId?: string) => {
-      sendChatMessage(text, documentId);
+  const handleChatSubmit = async (text: string, _mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => {
+      if (!caseId) return;
+      
+      // Optimistic update for UI responsiveness
+      const tempMsg = { sender: 'user', content: text, timestamp: new Date().toISOString() };
+      // setMessages is from useDocumentSocket, might not expose a direct way to append without sending via socket
+      // But typically we rely on the socket response or API response to update the list.
+      // Here we will use apiService directly to support the jurisdiction param
+      
+      try {
+          // Add user message locally first
+          setMessages((prev: any) => [...prev, tempMsg]); 
+          
+          const responseText = await apiService.sendChatMessage(caseId, text, documentId, jurisdiction);
+          
+          // Add bot response
+          setMessages((prev: any) => [...prev, { sender: 'ai', content: responseText, timestamp: new Date().toISOString() }]);
+      } catch (err) {
+          console.error("Chat Error:", err);
+          alert("Failed to send message.");
+      }
   };
 
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin h-10 w-10 text-indigo-500" /></div>;
@@ -245,7 +262,6 @@ const CaseViewPage: React.FC = () => {
     >
       <div className="w-full h-full flex flex-col max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-2">
         
-        {/* Navigation & Header Section (Fixed Height) */}
         <div className="flex-none mb-4 space-y-3">
             <Link to="/dashboard" className="inline-flex items-center text-xs font-medium text-gray-500 hover:text-indigo-400 transition-colors">
                 <ArrowLeft className="h-3 w-3 mr-1" />
@@ -261,13 +277,10 @@ const CaseViewPage: React.FC = () => {
             />
         </div>
         
-        {/* Main Content Area (Fills remaining height) */}
         <div className="flex-1 min-h-0">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
                 
-                {/* Left Panel: DOCUMENTS */}
                 <div className="h-full flex flex-col rounded-2xl shadow-2xl overflow-hidden border border-white/5 bg-gray-900/30 relative">
-                     {/* The Panels must handle 'h-full' to stretch their internal scroll areas */}
                     <DocumentsPanel
                         caseId={caseData.details.id}
                         documents={liveDocuments}
@@ -282,7 +295,6 @@ const CaseViewPage: React.FC = () => {
                     />
                 </div>
 
-                {/* Right Panel: CHAT */}
                 <div className="h-full flex flex-col rounded-2xl shadow-2xl overflow-hidden border border-white/5 bg-gray-900/30 relative">
                     <ChatPanel
                         messages={liveMessages}
@@ -301,7 +313,6 @@ const CaseViewPage: React.FC = () => {
         </div>
       </div>
       
-      {/* Modals */}
       {viewingDocument && (
         <PDFViewerModal 
           documentData={viewingDocument}

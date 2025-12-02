@@ -1,6 +1,6 @@
 // FILE: src/services/api.ts
 // PHOENIX PROTOCOL - API MASTER FILE
-// 1. ADDED: sendChatMessage method with optional documentId support.
+// 1. UPDATE: sendChatMessage now accepts 'jurisdiction' ('ks' | 'al').
 // 2. STATUS: Canonical.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
@@ -86,11 +86,12 @@ class ApiService {
     }
 
     // --- CHAT (AI) ---
-    // PHOENIX NEW: Explicit method for Chat to handle document scoping
-    public async sendChatMessage(caseId: string, message: string, documentId?: string): Promise<string> {
+    // PHOENIX UPDATE: Added jurisdiction parameter
+    public async sendChatMessage(caseId: string, message: string, documentId?: string, jurisdiction?: string): Promise<string> {
         const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { 
             message,
-            document_id: documentId || null 
+            document_id: documentId || null,
+            jurisdiction: jurisdiction || 'ks' // Default to Kosovo if not specified
         });
         return response.data.response;
     }

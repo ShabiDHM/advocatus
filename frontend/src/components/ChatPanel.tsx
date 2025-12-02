@@ -1,188 +1,200 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - LAYOUT REFACTOR
-// 1. UI: Moved Dropdown to the top header row, next to the Delete icon.
-// 2. RESPONSIVE: Adjusted widths to ensure the dropdown fits on smaller screens without hiding the title.
-
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage, ConnectionStatus, Document } from '../data/types';
-import { TFunction } from 'i18next';
-import moment from 'moment';
-import { Brain, Send, Trash2, User as UserIcon, Sparkles, StopCircle, RefreshCw, ChevronDown, FileText, Briefcase } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { 
+    Send, Bot, RefreshCw, Trash2, MapPin, ChevronDown 
+} from 'lucide-react';
+import { ChatMessage, Document } from '../data/types';
+import { TFunction } from 'i18next';
 
-export type ChatMode = 'document' | 'case';
+// PHOENIX: Define Jurisdiction Types
+export type ChatMode = 'general' | 'document';
+export type Jurisdiction = 'ks' | 'al';
 
-export interface ChatPanelProps {
-  caseId: string;
+interface ChatPanelProps {
   messages: ChatMessage[];
-  connectionStatus: ConnectionStatus;
-  documents?: Document[]; 
-  onSendMessage: (text: string, mode: ChatMode, documentId?: string) => void; 
-  isSendingMessage: boolean;
+  connectionStatus: string;
   reconnect: () => void;
+  onSendMessage: (text: string, mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => void;
+  isSendingMessage: boolean;
+  caseId: string;
   onClearChat: () => void;
   t: TFunction;
+  documents: Document[];
   className?: string;
 }
 
-const TypingIndicator: React.FC<{ t: TFunction }> = ({ t }) => (
-    <div className="flex items-center space-x-3 px-3 py-2 bg-background-light/50 rounded-2xl rounded-bl-none border border-glass-edge backdrop-blur-md w-fit shadow-lg">
-        <div className="flex space-x-1.5">
-            <motion.div className="w-2.5 h-2.5 bg-primary-start rounded-full" animate={{ y: [0, -8, 0] }} transition={{ duration: 0.8, repeat: Infinity, delay: 0 }} />
-            <motion.div className="w-2.5 h-2.5 bg-primary-start rounded-full" animate={{ y: [0, -8, 0] }} transition={{ duration: 0.8, repeat: Infinity, delay: 0.2 }} />
-            <motion.div className="w-2.5 h-2.5 bg-primary-start rounded-full" animate={{ y: [0, -8, 0] }} transition={{ duration: 0.8, repeat: Infinity, delay: 0.4 }} />
-        </div>
-        <span className="text-xs text-text-primary font-semibold animate-pulse">{t('chatPanel.thinking', 'Sokrati duke analizuar...')}</span>
-    </div>
-);
-
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
-    messages, connectionStatus, onSendMessage, isSendingMessage, reconnect, onClearChat, t, className, documents = []
+    messages, 
+    connectionStatus, 
+    reconnect: _reconnect, // PHOENIX FIX: Prefixed with _ to silence "unused" warning safely
+    onSendMessage, 
+    isSendingMessage, 
+    onClearChat, 
+    t, 
+    documents, 
+    className 
 }) => {
-  const [inputText, setInputText] = useState('');
-  const [selectedContextId, setSelectedContextId] = useState<string>('case');
+  const [input, setInput] = useState('');
+  const [mode, setMode] = useState<ChatMode>('general');
+  const [selectedDocId, setSelectedDocId] = useState<string>('');
+  const [jurisdiction, setJurisdiction] = useState<Jurisdiction>('ks'); // Default: Kosovo
+  const [showJurisdictionMenu, setShowJurisdictionMenu] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null); 
-  const [showThinking, setShowThinking] = useState(false);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, showThinking]);
-
-  useEffect(() => {
-      if (isSendingMessage) { setShowThinking(true); } 
-      else { const timer = setTimeout(() => setShowThinking(false), 1500); return () => clearTimeout(timer); }
-  }, [isSendingMessage]);
-
-  useEffect(() => {
-      if (textareaRef.current) {
-          textareaRef.current.style.height = 'auto'; 
-          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`; 
-      }
-  }, [inputText]);
-
-  const handleSubmit = (e: React.FormEvent) => { 
-      e.preventDefault(); 
-      if (inputText.trim() && !isSendingMessage) { 
-          const mode: ChatMode = selectedContextId === 'case' ? 'case' : 'document';
-          const docId = selectedContextId === 'case' ? undefined : selectedContextId;
-          onSendMessage(inputText.trim(), mode, docId); 
-          setInputText(''); 
-          if (textareaRef.current) textareaRef.current.style.height = 'auto';
-      } 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { 
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e as unknown as React.FormEvent); } 
-  };
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
-  const statusColor = (status: ConnectionStatus) => {
-    switch (status) {
-      case 'CONNECTED': return 'bg-green-500/10 text-green-400 border-green-500/20';
-      case 'CONNECTING': return 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20';
-      default: return 'bg-red-500/10 text-red-400 border-red-500/20';
-    }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isSendingMessage) return;
+    
+    // PHOENIX: Pass jurisdiction to parent
+    onSendMessage(input, mode, mode === 'document' ? selectedDocId : undefined, jurisdiction);
+    setInput('');
   };
 
   return (
-    <div className={`chat-panel bg-background-dark p-4 sm:p-6 rounded-2xl shadow-xl flex flex-col ${className || 'h-[500px] sm:h-[600px]'}`}>
-      
-      {/* Header Area - SINGLE ROW LAYOUT */}
-      <div className="flex items-center justify-between border-b border-background-light/50 pb-3 mb-4 flex-shrink-0 gap-2">
-          
-          {/* Left Side: Title & Status */}
-          <div className="flex items-center gap-3 min-w-0">
-            <h2 className="text-lg font-bold text-text-primary whitespace-nowrap hidden md:block">Asistenti Sokratik</h2>
-            <h2 className="text-lg font-bold text-text-primary md:hidden">Sokrati</h2>
-            
-            <div className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 transition-all ${statusColor(connectionStatus)}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                {connectionStatus !== 'CONNECTED' && <button onClick={reconnect} className="ml-1 hover:text-white"><RefreshCw size={10} /></button>}
+    <div className={`flex flex-col bg-background-dark border-l border-glass-edge h-full ${className}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-glass-edge bg-background-light/50 backdrop-blur-md">
+        <div className="flex items-center gap-2">
+            <div className={`p-1.5 rounded-lg ${connectionStatus === 'CONNECTED' ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+                <div className={`w-2 h-2 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
             </div>
-          </div>
+            <div>
+                <h3 className="text-sm font-bold text-gray-100">{t('chatPanel.title')}</h3>
+                <p className="text-[10px] text-gray-400">
+                    {connectionStatus === 'CONNECTED' ? t('chatPanel.statusConnected') : 'Connecting...'}
+                </p>
+            </div>
+        </div>
 
-          {/* Right Side: Dropdown & Delete */}
-          <div className="flex items-center gap-2 flex-1 justify-end min-w-0">
-              
-              {/* CONTEXT SELECTOR DROPDOWN */}
-              <div className="relative group w-full max-w-[220px]">
-                  <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                      {selectedContextId === 'case' ? <Briefcase size={12} className="text-amber-500" /> : <FileText size={12} className="text-primary-start" />}
-                  </div>
-                  <select
-                    value={selectedContextId}
-                    onChange={(e) => setSelectedContextId(e.target.value)}
-                    className={`w-full appearance-none pl-8 pr-7 py-1.5 text-xs font-medium rounded-lg border focus:ring-1 focus:outline-none transition-all cursor-pointer truncate
-                        ${selectedContextId === 'case' 
-                            ? 'bg-amber-900/10 border-amber-500/30 text-amber-100 focus:border-amber-500 focus:ring-amber-500/20' 
-                            : 'bg-background-light/30 border-glass-edge text-white focus:border-primary-start focus:ring-primary-start/20'
-                        }`}
-                  >
-                      <option value="case" className="bg-slate-900 text-amber-400 font-bold">🗂️ E gjithë Dosja</option>
-                      {documents.length > 0 && (
-                          <optgroup label="Zgjidh Dokument Specifik" className="bg-slate-900 text-gray-400">
-                              {documents.map(doc => <option key={doc.id} value={doc.id} className="bg-slate-900 text-white">📄 {doc.file_name}</option>)}
-                          </optgroup>
-                      )}
-                  </select>
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500"><ChevronDown size={12} /></div>
-              </div>
+        {/* PHOENIX NEW: Jurisdiction Selector */}
+        <div className="flex items-center gap-2">
+            <div className="relative">
+                <button 
+                    onClick={() => setShowJurisdictionMenu(!showJurisdictionMenu)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/20 border border-white/5 hover:border-white/10 text-xs font-medium text-gray-300 transition-all"
+                >
+                    <MapPin className={`h-3 w-3 ${jurisdiction === 'ks' ? 'text-blue-400' : 'text-red-500'}`} />
+                    <span>{jurisdiction === 'ks' ? 'Kosovë' : 'Shqipëri'}</span>
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                </button>
 
-              <button onClick={onClearChat} title={t('chatPanel.clearChat')} className="p-2 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-white/5 flex-shrink-0">
-                  <Trash2 className="h-4 w-4" />
-              </button>
-          </div>
+                <AnimatePresence>
+                    {showJurisdictionMenu && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 10 }}
+                            className="absolute right-0 top-full mt-2 w-32 bg-[#1a1a1a] border border-glass-edge rounded-xl shadow-xl z-50 overflow-hidden"
+                        >
+                            <button 
+                                onClick={() => { setJurisdiction('ks'); setShowJurisdictionMenu(false); }}
+                                className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'ks' ? 'text-blue-400 bg-blue-500/10' : 'text-gray-400'}`}
+                            >
+                                <span>🇽🇰</span> Kosovë
+                            </button>
+                            <button 
+                                onClick={() => { setJurisdiction('al'); setShowJurisdictionMenu(false); }}
+                                className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'al' ? 'text-red-400 bg-red-500/10' : 'text-gray-400'}`}
+                            >
+                                <span>🇦🇱</span> Shqipëri
+                            </button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+
+            <button onClick={onClearChat} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors" title={t('chatPanel.confirmClear')}>
+                <Trash2 size={16} />
+            </button>
+        </div>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-6 custom-scrollbar pr-2 mb-4">
-        {messages.length === 0 && !showThinking && ( 
-            <div className="flex flex-col items-center justify-center h-full text-center text-text-secondary opacity-60 space-y-4">
-                <Sparkles className={`w-12 h-12 ${selectedContextId === 'case' ? 'text-amber-500/40' : 'text-primary-start/30'}`} />
-                <p className="text-sm">{t('chatPanel.welcomeMessage')}</p>
-                <span className={`text-xs px-3 py-1 rounded-full border ${selectedContextId === 'case' ? 'text-amber-500/80 bg-amber-500/10 border-amber-500/20' : 'text-primary-start/80 bg-primary-start/10 border-primary-start/20'}`}>
-                    {selectedContextId === 'case' ? 'Modi: Kërkim në Çështje' : 'Modi: Kërkim në Dokument'}
-                </span>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+        {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center opacity-50">
+                <Bot size={48} className="mb-4 text-primary-start" />
+                <p className="text-sm text-gray-400">{t('chatPanel.welcomeMessage')}</p>
+                <div className="mt-4 flex gap-2 text-xs text-gray-600">
+                    <span className={`px-2 py-1 rounded border border-white/5 ${jurisdiction === 'ks' ? 'bg-blue-500/10 text-blue-300' : 'bg-white/5'}`}>Ligjet e Kosovës</span>
+                    <span className={`px-2 py-1 rounded border border-white/5 ${jurisdiction === 'al' ? 'bg-red-500/10 text-red-300' : 'bg-white/5'}`}>Ligjet e Shqipërisë</span>
+                </div>
+            </div>
+        ) : (
+            messages.map((msg, idx) => (
+                <motion.div 
+                    key={idx} 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                    <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                        msg.sender === 'user' 
+                        ? 'bg-primary-start text-white rounded-br-none' 
+                        : 'bg-white/10 text-gray-200 rounded-bl-none border border-white/5'
+                    }`}>
+                        {msg.content}
+                    </div>
+                </motion.div>
+            ))
+        )}
+        {isSendingMessage && (
+            <div className="flex justify-start">
+                <div className="bg-white/5 text-gray-400 rounded-2xl rounded-bl-none px-4 py-3 text-sm flex items-center gap-2">
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                    {t('chatPanel.thinking')}
+                </div>
             </div>
         )}
-        
-        {messages.map((msg, index) => (
-          <motion.div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} items-end gap-3`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-            {msg.sender === 'ai' && <div className="w-8 h-8 rounded-full bg-background-light border border-glass-edge flex items-center justify-center flex-shrink-0"><Brain className="w-4 h-4 text-primary-start" /></div>}
-            <div className={`max-w-[85%] p-3 rounded-2xl shadow-sm text-sm leading-relaxed ${msg.sender === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' : 'bg-background-light/20 border border-glass-edge/30 text-text-primary rounded-bl-none'}`}>
-              <p className="whitespace-pre-wrap">{msg.content}</p>
-              <span className="text-[10px] block mt-1 opacity-60 text-right">{moment(msg.timestamp).format('HH:mm')}</span>
-            </div>
-            {msg.sender === 'user' && <div className="w-8 h-8 rounded-full bg-secondary-start flex items-center justify-center flex-shrink-0"><UserIcon className="w-4 h-4 text-white" /></div>}
-          </motion.div>
-        ))}
-        
-        <AnimatePresence>
-            {showThinking && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex justify-start items-end gap-3">
-                    <div className="w-8 h-8 rounded-full bg-background-light border border-glass-edge flex items-center justify-center flex-shrink-0"><Brain className="w-4 h-4 text-primary-start animate-pulse" /></div>
-                    <TypingIndicator t={t} />
-                </motion.div>
-            )}
-        </AnimatePresence>
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className={`flex-none pt-3 border-t ${selectedContextId === 'case' ? 'border-amber-500/20' : 'border-glass-edge/30'}`}>
-        <form onSubmit={handleSubmit} className="flex items-end space-x-2">
-          <textarea 
-            ref={textareaRef}
-            value={inputText} 
-            onChange={(e) => setInputText(e.target.value)} 
-            onKeyDown={handleKeyDown} 
-            rows={1} 
-            placeholder={selectedContextId === 'case' ? "Pyetni për të gjithë çështjen..." : "Pyetni për këtë dokument..."} 
-            className={`flex-1 resize-none py-3 px-4 border rounded-xl bg-background-light/10 text-text-primary focus:ring-1 min-h-[48px] max-h-[200px] custom-scrollbar text-sm transition-all duration-200 
-                ${selectedContextId === 'case' ? 'border-amber-500/30 focus:border-amber-500 focus:ring-amber-500 placeholder-amber-500/30' : 'border-glass-edge/50 focus:border-primary-start focus:ring-primary-start'}`}
-            disabled={connectionStatus !== 'CONNECTED' || isSendingMessage} 
-          />
-          <motion.button type="submit" className={`h-[48px] w-[48px] flex-shrink-0 flex items-center justify-center rounded-xl shadow-lg transition-all ${isSendingMessage || !inputText.trim() ? 'bg-gray-800 text-gray-600 cursor-not-allowed' : selectedContextId === 'case' ? 'bg-gradient-to-r from-amber-600 to-orange-600 text-white hover:scale-105 shadow-amber-900/20' : 'bg-gradient-to-r from-primary-start to-primary-end text-white glow-primary hover:scale-105'}`} disabled={connectionStatus !== 'CONNECTED' || isSendingMessage || !inputText.trim()}>
-            {isSendingMessage ? <StopCircle size={20} className="animate-pulse" /> : <Send size={20} />}
-          </motion.button>
+      {/* Input Area */}
+      <div className="p-4 border-t border-glass-edge bg-background-light/30">
+        {/* Context Selector */}
+        <div className="flex items-center gap-2 mb-2">
+            <button 
+                onClick={() => setMode('general')}
+                className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded transition-colors ${mode === 'general' ? 'text-primary-start bg-primary-start/10' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+                Context: General
+            </button>
+            <div className="h-3 w-px bg-gray-700"></div>
+            <select 
+                value={selectedDocId}
+                onChange={(e) => { setSelectedDocId(e.target.value); setMode(e.target.value ? 'document' : 'general'); }}
+                className="bg-transparent text-[10px] text-gray-400 focus:text-white outline-none border-none max-w-[150px] truncate"
+            >
+                <option value="">-- All Documents --</option>
+                {documents.map(d => <option key={d.id} value={d.id}>{d.file_name}</option>)}
+            </select>
+        </div>
+
+        <form onSubmit={handleSubmit} className="relative">
+            <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={t('chatPanel.inputPlaceholder')}
+                className="w-full bg-black/40 border border-glass-edge text-white rounded-xl pl-4 pr-12 py-3 focus:outline-none focus:border-primary-start/50 focus:ring-1 focus:ring-primary-start/50 transition-all placeholder:text-gray-600"
+            />
+            <button 
+                type="submit" 
+                disabled={!input.trim() || isSendingMessage}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary-start hover:bg-primary-end text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                <Send size={16} />
+            </button>
         </form>
       </div>
     </div>
