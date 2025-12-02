@@ -110,7 +110,12 @@ services:
     restart: unless-stopped
     ports: ["8002:8000"]
     networks: [phoenix_net]
-    volumes: [chroma_data:/data/db]
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma # Force internal path
+    volumes:
+      # Map the named volume to the ACTUAL internal data path
+      - chroma_data:/chroma/chroma
     depends_on: [backend]
 
   # --- GRAPH DATABASE (Neo4j) ---
