@@ -1,7 +1,8 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - ACTIVE ALERTS
-// 1. LIVE DATA: Polls /calendar/alerts to check for upcoming deadlines (7 days).
-// 2. VISUAL: Shows Red Dot only if count > 0.
+// PHOENIX PROTOCOL - UI MODIFICATION
+// 1. MODIFICATION: The LanguageSwitcher component has been wrapped in a div with the 'hidden' class.
+// 2. BEHAVIOR: This temporarily hides the language selection dropdown from the header to default to Albanian.
+// 3. STATUS: The change is non-destructive and can be easily reverted by removing the 'hidden' class.
 
 import React, { useState, useEffect } from 'react';
 import { Bell, Search, Menu, LogOut, User as UserIcon } from 'lucide-react';
@@ -63,7 +64,10 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
 
       {/* Right: Actions & Profile */}
       <div className="flex items-center gap-2 sm:gap-3">
-        <LanguageSwitcher />
+        {/* PHOENIX FIX: Hide the language switcher temporarily */}
+        <div className="hidden">
+          <LanguageSwitcher />
+        </div>
 
         <Link to="/calendar" className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors relative" title="Njoftimet">
           <Bell size={20} />
