@@ -1,8 +1,8 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - RESPONSIVE SIDEBAR FOOTER
-// 1. ADDED: A new responsive footer for desktop views (lg:block) to complement the existing mobile-only footer.
-// 2. LAYOUT: The new footer replicates the user avatar, name, account, and logout buttons from the screenshot.
-// 3. RESPONSIVE: Both footers are now correctly toggled based on the screen size, providing a consistent UX.
+// PHOENIX PROTOCOL - ARCHITECTURAL CORRECTION
+// 1. REMOVED: The incorrect desktop-only footer that caused the UI duplication has been removed.
+// 2. RESTORED: The component now correctly only displays the user profile section on mobile viewports.
+// 3. STATUS: The UI is now clean, correct, and architecturally sound.
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -97,35 +97,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             })}
           </nav>
 
-          {/* PHOENIX FIX: Desktop-Only Profile Footer */}
-          <div className="hidden lg:block p-4 border-t border-glass-edge bg-background-light/5 mt-auto flex-shrink-0">
-            <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg flex-shrink-0">
-                    {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
-                </div>
-                <div className="overflow-hidden">
-                    <p className="font-semibold text-white truncate">{user?.username}</p>
-                    <p className="text-xs text-text-secondary uppercase tracking-wider">{user?.role}</p>
-                </div>
-            </div>
-            <div className="flex flex-col space-y-2">
-                <NavLink 
-                    to="/account"
-                    className="flex items-center justify-center px-3 py-2.5 rounded-xl bg-white/5 text-text-secondary hover:bg-white/10 hover:text-white transition-colors text-sm font-medium border border-white/5"
-                >
-                    <UserIcon className="h-4 w-4 mr-2" />
-                    {t('sidebar.account', 'Llogaria Ime')}
-                </NavLink>
-                <button
-                    onClick={handleLogout}
-                    className="flex items-center justify-center px-3 py-2.5 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors text-sm font-medium border border-red-500/20"
-                >
-                    <LogOut className="h-4 w-4 mr-2" />
-                    {t('header.logout', 'Dilni')}
-                </button>
-            </div>
-          </div>
-          
           {/* Mobile-Only Profile Footer */}
           <div className="p-4 border-t border-glass-edge bg-background-light/5 lg:hidden mt-auto flex-shrink-0">
             <div className="flex items-center gap-3 mb-4 px-2">
