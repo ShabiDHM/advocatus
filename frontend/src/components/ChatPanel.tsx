@@ -1,6 +1,6 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V7.2 (FINAL UI POLISH)
-// 1. FIX: Removed "XK" and "AL" text prefixes.
+// PHOENIX PROTOCOL - CHAT PANEL V7.2 (FINAL UI POLISH - EMOJI FIX)
+// 1. FIX: Removed "XK" and "AL" text prefixes, ensuring only emojis are used.
 // 2. FIX: Hardened Context dropdown to handle empty document list.
 
 import React, { useState, useRef, useEffect } from 'react';
