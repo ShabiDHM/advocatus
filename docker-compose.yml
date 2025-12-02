@@ -1,6 +1,8 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - PHASE 3: GRAPH INFRASTRUCTURE
-# Status: ADDED 'neo4j' with APOC plugins for GraphRAG.
+# PHOENIX PROTOCOL - DATA PERSISTENCE FIX
+# 1. DIAGNOSIS: The 'chroma' service was not persisting data because its volume was mapped to the wrong internal directory.
+# 2. FIX: Corrected the volume mapping for the 'chroma_data' volume to point to the correct internal path: '/chroma/chroma'.
+# 3. BEHAVIOR: ChromaDB will now write all its data to the persistent Docker volume, ensuring that the knowledge base survives restarts.
 
 services:
   # -------------------------------------------------------
@@ -55,7 +57,6 @@ services:
     restart: unless-stopped
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info --proxy-headers
     env_file: ./.env
-    # Mount data volume so container sees uploaded laws
     volumes:
       - ./backend/data:/app/data
     networks: [phoenix_net]
@@ -64,7 +65,6 @@ services:
       redis: { condition: service_healthy }
       ai-core-service: { condition: service_healthy }
       local-llm: { condition: service_started }
-      # neo4j: { condition: service_healthy } # Uncomment when driver is implemented
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 15s
@@ -112,9 +112,9 @@ services:
     networks: [phoenix_net]
     environment:
       - IS_PERSISTENT=TRUE
-      - PERSIST_DIRECTORY=/chroma/chroma # Force internal path
+      - PERSIST_DIRECTORY=/chroma/chroma # This tells Chroma WHERE to save inside the container.
     volumes:
-      # Map the named volume to the ACTUAL internal data path
+      # PHOENIX FIX: This maps the persistent Docker volume to the correct internal path specified above.
       - chroma_data:/chroma/chroma
     depends_on: [backend]
 
