@@ -1,7 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V7.1 (DROPDOWN & EMOJI FIX)
-// 1. FIX: Context dropdown now correctly maps over the 'documents' array.
-// 2. FIX: Replaced 'XK' and 'AL' text with actual flag emojis (🇽🇰, 🇦🇱).
+// PHOENIX PROTOCOL - CHAT PANEL V7.2 (FINAL UI POLISH)
+// 1. FIX: Removed "XK" and "AL" text prefixes.
+// 2. FIX: Hardened Context dropdown to handle empty document list.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -75,13 +75,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       {/* Unified Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-glass-edge bg-background-light/50 backdrop-blur-md">
         
-        {/* Left Side: Title & Status */}
         <div className="flex items-center gap-2">
             <div className={`w-2.5 h-2.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-green-500' : 'bg-red-500'}`} />
             <h3 className="text-sm font-bold text-gray-100">{t('chatPanel.title')}</h3>
         </div>
 
-        {/* Right Side: Controls */}
         <div className="flex items-center gap-1.5">
             {/* Context Dropdown */}
             <div className="relative">
@@ -102,12 +100,15 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             <button onClick={() => { setMode('general'); setSelectedDocId(''); setShowContextMenu(false); }} className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 text-gray-300">
                                 <Briefcase size={14} /> General (Case)
                             </button>
-                            {/* PHOENIX FIX: Correctly mapping documents */}
-                            {documents && documents.map(doc => (
-                                <button key={doc.id} onClick={() => { setMode('document'); setSelectedDocId(doc.id); setShowContextMenu(false); }} className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 text-gray-300">
-                                    <FileText size={14} /> <span className="truncate">{doc.file_name}</span>
-                                </button>
-                            ))}
+                            {documents && documents.length > 0 ? (
+                                documents.map(doc => (
+                                    <button key={doc.id} onClick={() => { setMode('document'); setSelectedDocId(doc.id); setShowContextMenu(false); }} className="w-full text-left flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 text-gray-300">
+                                        <FileText size={14} /> <span className="truncate">{doc.file_name}</span>
+                                    </button>
+                                ))
+                            ) : (
+                                <span className="px-3 py-2 text-xs text-gray-500 text-center block">No Documents</span>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -130,10 +131,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             className="absolute right-0 top-full mt-2 w-32 bg-[#1a1a1a] border border-glass-edge rounded-xl shadow-xl z-50 overflow-hidden"
                         >
                             <button onClick={() => { setJurisdiction('ks'); setShowJurisdictionMenu(false); }} className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'ks' ? 'text-blue-400' : 'text-gray-300'}`}>
-                                <span>🇽🇰</span> Kosovë
+                                🇽🇰 Kosovë
                             </button>
                             <button onClick={() => { setJurisdiction('al'); setShowJurisdictionMenu(false); }} className={`w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 ${jurisdiction === 'al' ? 'text-red-400' : 'text-gray-300'}`}>
-                                <span>🇦🇱</span> Shqipëri
+                                🇦🇱 Shqipëri
                             </button>
                         </motion.div>
                     )}
