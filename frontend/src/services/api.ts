@@ -1,8 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API CLIENT V2.1 (HARDENED AUTH)
-// 1. UPDATE: Robust Axios Interceptor for 401 handling with modern AxiosHeaders support.
-// 2. SAFETY: Improved token manager and queue processing.
-// 3. MAINTAIN: All existing business methods preserved intact.
+// PHOENIX PROTOCOL - API CLIENT V2.2 (PROACTIVE AUTH)
+// 1. UPDATE: Public 'refreshToken' method allows proactive session restoration.
+// 2. FIX: Interceptor now explicitly ignores 401s from the refresh endpoint itself.
+// 3. MAINTAIN: All existing functionality preserved.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -27,17 +27,11 @@ export const API_BASE_URL = normalizedUrl;
 export const API_V1_URL = `${API_BASE_URL}/api/v1`;
 export const API_V2_URL = `${API_BASE_URL}/api/v2`;
 
-// --- PHOENIX FIX: Singleton token manager for in-memory access token ---
+// --- Singleton Token Manager ---
 class TokenManager {
     private accessToken: string | null = null;
-    
-    get(): string | null {
-        return this.accessToken;
-    }
-
-    set(token: string | null): void {
-        this.accessToken = token;
-    }
+    get(): string | null { return this.accessToken; }
+    set(token: string | null): void { this.accessToken = token; }
 }
 const tokenManager = new TokenManager();
 
@@ -51,7 +45,7 @@ class ApiService {
     constructor() {
         this.axiosInstance = axios.create({ 
             baseURL: API_V1_URL, 
-            withCredentials: true, // Crucial for sending cookies
+            withCredentials: true,
             headers: { 'Content-Type': 'application/json' } 
         });
         this.setupInterceptors();
@@ -78,7 +72,6 @@ class ApiService {
                     if (!config.headers) {
                         config.headers = new AxiosHeaders();
                     }
-                    // Handle both AxiosHeaders object and plain object
                     if (config.headers instanceof AxiosHeaders) {
                         config.headers.set('Authorization', `Bearer ${token}`);
                     } else {
@@ -96,7 +89,8 @@ class ApiService {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
                 // Handle 401 Unauthorized
-                if (error.response?.status === 401 && !originalRequest._retry) {
+                // Crucial: Ignore 401s if the URL is /auth/refresh to prevent loops
+                if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/refresh') {
                     if (this.isRefreshing) {
                         return new Promise((resolve, reject) => {
                             this.failedQueue.push({ resolve, reject });
@@ -114,11 +108,10 @@ class ApiService {
                     this.isRefreshing = true;
 
                     try {
-                        // Attempt to refresh the token using the HttpOnly cookie
+                        // Use the new public method, but call internal implementation to avoid circular dep
                         const { data } = await this.axiosInstance.post<LoginResponse>('/auth/refresh');
                         tokenManager.set(data.access_token);
                         
-                        // Retry the original request with the new token
                         if (originalRequest.headers instanceof AxiosHeaders) {
                             originalRequest.headers.set('Authorization', `Bearer ${data.access_token}`);
                         } else {
@@ -128,7 +121,6 @@ class ApiService {
                         this.processQueue(null);
                         return this.axiosInstance(originalRequest);
                     } catch (refreshError) {
-                        // Refresh failed (cookie invalid/expired)
                         tokenManager.set(null);
                         this.processQueue(refreshError as Error);
                         if (this.onUnauthorized) {
@@ -145,6 +137,25 @@ class ApiService {
     }
     
     public getToken(): string | null { return tokenManager.get(); }
+
+    // --- PHOENIX: Proactive Refresh Method ---
+    // Returns true if refresh succeeded, false otherwise.
+    public async refreshToken(): Promise<boolean> {
+        try {
+            const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh');
+            if (response.data.access_token) {
+                tokenManager.set(response.data.access_token);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            // If refresh fails (e.g. no cookie), we just return false.
+            // We do NOT want to trigger global logout handlers here necessarily,
+            // as this is used for optimistic checking.
+            return false;
+        }
+    }
+
     public async login(data: LoginRequest): Promise<LoginResponse> {
         const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data);
         if (response.data.access_token) {
@@ -153,9 +164,10 @@ class ApiService {
         return response.data;
     }
     
-    // Call this from your AuthContext/logout function
     public logout() {
         tokenManager.set(null);
+        // Optionally call server logout endpoint to clear cookie if exists
+        // this.axiosInstance.post('/auth/logout').catch(() => {});
     }
 
     public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
@@ -178,27 +190,23 @@ class ApiService {
     public async getInvoicePdfBlob(invoiceId: string, lang: string = 'sq'): Promise<Blob> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); return response.data; }
     public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> { const params = caseId ? { case_id: caseId } : {}; const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/invoices/${invoiceId}/archive`, null, { params }); return response.data; }
 
-    // --- ARCHIVE (File Storage) ---
+    // --- ARCHIVE ---
     public async getArchiveItems(category?: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut[]> { 
         const params: any = {}; 
         if (category) params.category = category; 
         if (caseId) params.case_id = caseId;
         if (parentId) params.parent_id = parentId;
-        
         const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); 
         return response.data; 
     }
-
     public async createArchiveFolder(title: string, parentId?: string, caseId?: string): Promise<ArchiveItemOut> {
         const formData = new FormData();
         formData.append('title', title);
         if (parentId) formData.append('parent_id', parentId);
         if (caseId) formData.append('case_id', caseId);
-        
         const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', formData);
         return response.data;
     }
-
     public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { 
         const formData = new FormData(); 
         formData.append('file', file); 
@@ -206,16 +214,14 @@ class ApiService {
         formData.append('category', category); 
         if (caseId) formData.append('case_id', caseId); 
         if (parentId) formData.append('parent_id', parentId);
-        
         const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } }); 
         return response.data; 
     }
-    
     public async deleteArchiveItem(itemId: string): Promise<void> { await this.axiosInstance.delete(`/archive/items/${itemId}`); }
     public async downloadArchiveItem(itemId: string, title: string): Promise<void> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', title); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
     public async getArchiveFileBlob(itemId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { params: { preview: true }, responseType: 'blob' }); return response.data; }
 
-    // --- DOCUMENTS (Case Files) ---
+    // --- DOCUMENTS ---
     public async getDocuments(caseId: string): Promise<Document[]> { const response = await this.axiosInstance.get<Document[]>(`/cases/${caseId}/documents`); return response.data; }
     public async uploadDocument(caseId: string, file: File): Promise<Document> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<Document>(`/cases/${caseId}/documents/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }); return response.data; }
     public async getDocument(caseId: string, documentId: string): Promise<Document> { const response = await this.axiosInstance.get<Document>(`/cases/${caseId}/documents/${documentId}`); return response.data; }

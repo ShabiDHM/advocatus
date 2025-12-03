@@ -1,15 +1,13 @@
 // FILE: src/context/AuthContext.tsx
 // PHOENIX PROTOCOL - REVISED AUTHENTICATION CONTEXT
-// 1. ARCHITECTURE: Aligns with the automatic, cookie-based token refresh mechanism in api.ts.
-// 2. STATELESS CLIENT: Removes all manual token management and localStorage usage for the JWT.
-// 3. ROBUSTNESS: Initializes the app by fetching the user profile, letting the apiService interceptor handle session restoration.
+// 1. UPDATE: Implements 'Proactive Refresh' to prevent 401 console errors on reload.
+// 2. LOGIC: Tries to restore session via refresh token before fetching user profile.
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';
 import { apiService } from '../services/api';
 import { Loader2 } from 'lucide-react';
 
-// The access token is no longer stored here; it's managed in-memory by api.ts
 type AuthUser = User;
 
 interface AuthContextType {
@@ -27,42 +25,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // PHOENIX FIX: The logout function is now simpler. It tells the apiService to clear
-  // its in-memory token and then clears the local user state.
   const logout = useCallback(() => {
-    apiService.logout(); // Clears the in-memory access token
+    apiService.logout(); 
     setUser(null);
   }, []);
 
-  // The logout handler is set up to allow the apiService to trigger a logout
-  // if a token refresh fails permanently.
   useEffect(() => {
     apiService.setLogoutHandler(logout);
   }, [logout]);
 
-  // PHOENIX FIX: Revised initialization logic.
-  // We no longer manually refresh the token. We simply ask for the user's profile.
-  // The apiService interceptor will automatically handle refreshing the access token
-  // using the secure cookie if a session is active.
+  // PHOENIX FIX: Proactive Initialization
+  // Instead of failing on /users/me then refreshing, we refresh first.
   useEffect(() => {
+    let isMounted = true;
+
     const initializeApp = async () => {
-      setIsLoading(true);
       try {
-        // This call will succeed if the user has a valid refresh token cookie.
-        // The interceptor in api.ts will handle the entire refresh flow automatically.
-        const fullUser = await apiService.fetchUserProfile();
-        setUser(fullUser);
+        // Step 1: Proactively try to refresh the token using the HttpOnly cookie.
+        // This suppresses the 401 error that would otherwise occur on the first request.
+        const refreshed = await apiService.refreshToken();
+        
+        if (refreshed) {
+            // Step 2: If refresh succeeded, we have a valid token. Fetch user.
+            const fullUser = await apiService.fetchUserProfile();
+            if (isMounted) setUser(fullUser);
+        } else {
+            // Step 3: If refresh failed (no cookie or expired), we are logged out.
+            if (isMounted) setUser(null);
+        }
       } catch (error) {
-        // If this fails, it means there's no valid session.
-        // The user is not logged in. No further action needed.
-        setUser(null);
+        // Fallback for any unexpected network errors
+        console.error("Session initialization failed:", error);
+        if (isMounted) setUser(null);
       } finally {
-        setIsLoading(false);
+        if (isMounted) setIsLoading(false);
       }
     };
 
     initializeApp();
-  }, []); // Run only once on app startup
+    
+    return () => { isMounted = false; };
+  }, []); 
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
@@ -72,10 +75,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           password: password 
       };
 
-      // apiService.login handles setting the in-memory access token
       await apiService.login(loginPayload);
-      
-      // After a successful login, fetch the full user profile
       const fullUser = await apiService.fetchUserProfile();
       setUser(fullUser);
 
@@ -90,11 +90,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   if (isLoading) {
     return (
-        <div className="min-h-screen bg-background-dark flex items-center justify-center">
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center">
             <div className="text-center">
-                <Loader2 className="h-12 w-12 text-primary-start animate-spin mx-auto mb-4" />
-                <h2 className="text-xl font-bold text-text-primary">Juristi AI</h2>
-                <p className="text-sm text-text-secondary mt-2">Duke u ngarkuar...</p>
+                <Loader2 className="h-12 w-12 text-blue-500 animate-spin mx-auto mb-4" />
+                <h2 className="text-xl font-bold text-white">Juristi AI</h2>
+                <p className="text-sm text-gray-400 mt-2">Duke u ngarkuar...</p>
             </div>
         </div>
     );
