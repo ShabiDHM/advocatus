@@ -1,15 +1,15 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE (REGENERATE FEATURE)
-// 1. ADDED: 'Regenerate' button in result panel to re-run jobs quickly.
-// 2. REFACTOR: Extracted submission logic for reusability.
+// PHOENIX PROTOCOL - DRAFTING PAGE V2 (SIMPLIFIED)
+// 1. REMOVE: Case selection dropdown completely removed.
+// 2. LOGIC: All jobs now default to 'General Draft' (case_id: null).
+// 3. FEATURE: Preserved 'Regenerate' button and all other functionality.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { 
-  PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, FileText, Sparkles, Briefcase, RotateCcw
+  PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, FileText, Sparkles, RotateCcw
 } from 'lucide-react';
-import { Case } from '../data/types';
 
 type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'SUCCESS' | 'FAILED' | 'FAILURE';
 
@@ -23,8 +23,6 @@ interface DraftingJobState {
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
   
-  const [cases, setCases] = useState<Case[]>([]);
-  const [selectedCaseId, setSelectedCaseId] = useState<string>('');
   const [context, setContext] = useState('');
   
   const [currentJob, setCurrentJob] = useState<DraftingJobState>({
@@ -37,18 +35,6 @@ const DraftingPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pollingIntervalRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const loadCases = async () => {
-        try {
-            const data = await apiService.getCases();
-            setCases(data);
-        } catch (err) {
-            console.error("Failed to load cases", err);
-        }
-    };
-    loadCases();
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -102,7 +88,6 @@ const DraftingPage: React.FC = () => {
     }, 2000);
   };
 
-  // PHOENIX: Extracted logic to support both "Generate" and "Regenerate" buttons
   const runDraftingJob = async () => {
     if (!context.trim()) return;
 
@@ -113,7 +98,7 @@ const DraftingPage: React.FC = () => {
       const jobResponse = await apiService.initiateDraftingJob({
         user_prompt: context.trim(),
         context: context.trim(),
-        case_id: selectedCaseId || undefined,
+        case_id: undefined, // PHOENIX FIX: Always undefined (General Draft)
         use_library: false 
       });
 
@@ -187,20 +172,7 @@ const DraftingPage: React.FC = () => {
             </h3>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4">
                 
-                <div>
-                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.selectCaseLabel')}</label>
-                    <div className="relative">
-                        <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                        <select 
-                            value={selectedCaseId}
-                            onChange={(e) => setSelectedCaseId(e.target.value)}
-                            className="w-full pl-9 pr-4 py-2.5 bg-black/50 border border-white/10 rounded-xl text-white appearance-none focus:ring-1 focus:ring-primary-500 outline-none text-sm"
-                        >
-                            <option value="">-- {t('drafting.generalDraft')} --</option>
-                            {cases.map(c => <option key={c.id} value={c.id}>{c.case_number} - {c.title}</option>)}
-                        </select>
-                    </div>
-                </div>
+                {/* PHOENIX: Case Selection Removed - Now purely prompt-based */}
 
                 <div className="flex-1 flex flex-col">
                     <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.instructionsLabel')}</label>
@@ -232,7 +204,6 @@ const DraftingPage: React.FC = () => {
                     <span className={statusDisplay.color}>{statusDisplay.text}</span>
                 </h3>
                 <div className="flex gap-2">
-                    {/* PHOENIX: Regenerate Button */}
                     <button 
                         onClick={runDraftingJob} 
                         disabled={!currentJob.result || isSubmitting} 

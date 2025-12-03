@@ -250,7 +250,7 @@
     "userUpdated": "Përdoruesi u përditësua.",
     "confirmDelete": "A jeni të sigurt që doni të fshini këtë përdorues?"
   },
-  "calendar": {
+ "calendar": {
     "loadFailure": "Dështoi ngarkimi i të dhënave të kalendarit.",
     "noEventsFound": "Nuk u gjetën ngjarje.",
     "today": "Sot",
@@ -263,6 +263,8 @@
     "allTypes": "Të gjitha Llojet",
     "allPriorities": "Të gjitha Prioritetet",
     "noUpcomingEvents": "Nuk ka afate të ardhshme në 7 ditët e ardhshme.",
+    "upcomingAlerts": "Afatet e Ardhshme",
+    "moreEvents": "Të tjera",
     "addToCalendar": "Shto në Kalendar",
     "eventSaved": "Ngjarje u ruajt me sukses!",
     "date": "Data",
