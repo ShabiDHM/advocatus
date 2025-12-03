@@ -1,7 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - CLEAN BUILD
-// 1. FIX: Removed unused 'Check' import to resolve TS6133.
-// 2. STATUS: Fully integrated, premium UI with clean build.
+// PHOENIX PROTOCOL - CLEANUP
+// 1. FIX: Removed unused 'GripVertical' import.
+// 2. STATUS: Clean build.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,7 +9,7 @@ import {
     Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, 
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File,
     Briefcase, Eye, Archive, Camera, Bot, X, User, FolderPlus, Home, ChevronRight,
-    FileImage, FileCode, GripVertical
+    FileImage, FileCode, Hash, Info, Calendar
 } from 'lucide-react';
 import { apiService, API_V1_URL } from '../services/api';
 import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut, Case, Document } from '../data/types';
@@ -187,7 +187,7 @@ const BusinessPage: React.FC = () => {
       finally { setIsUploading(false); if (archiveInputRef.current) archiveInputRef.current.value = ''; }
   };
 
-  // --- DRAG AND DROP HANDLERS (ENHANCED) ---
+  // --- DRAG AND DROP HANDLERS ---
   const onDragStart = (e: React.DragEvent, id: string) => {
       e.dataTransfer.effectAllowed = 'move';
       setDraggedItemId(id);
@@ -207,21 +207,16 @@ const BusinessPage: React.FC = () => {
 
       const draggedIndex = archiveItems.findIndex(i => i.id === draggedItemId);
       const targetIndex = archiveItems.findIndex(i => i.id === targetId);
-
       if (draggedIndex === -1 || targetIndex === -1) return;
 
-      // Reorder local array
       const newItems = [...archiveItems];
       const [movedItem] = newItems.splice(draggedIndex, 1);
       newItems.splice(targetIndex, 0, movedItem);
-
       setArchiveItems(newItems);
       setDraggedItemId(null);
   };
 
-  const onDragEnd = () => {
-      setDraggedItemId(null);
-  };
+  const onDragEnd = () => { setDraggedItemId(null); };
 
   // --- VIEWER & ACTIONS ---
   const getMimeType = (fileType: string, fileName: string) => {
@@ -234,10 +229,10 @@ const BusinessPage: React.FC = () => {
 
   const getFileIcon = (fileType: string) => {
       const ft = fileType.toUpperCase();
-      if (ft === 'PDF') return <FileText className="w-10 h-10 text-red-500 drop-shadow-md" />;
-      if (['PNG', 'JPG', 'JPEG'].includes(ft)) return <FileImage className="w-10 h-10 text-purple-500 drop-shadow-md" />;
-      if (['JSON', 'JS', 'TS'].includes(ft)) return <FileCode className="w-10 h-10 text-yellow-500 drop-shadow-md" />;
-      return <File className="w-10 h-10 text-blue-400 drop-shadow-md" />;
+      if (ft === 'PDF') return <FileText className="w-5 h-5 text-red-400" />;
+      if (['PNG', 'JPG', 'JPEG'].includes(ft)) return <FileImage className="w-5 h-5 text-purple-400" />;
+      if (['JSON', 'JS', 'TS'].includes(ft)) return <FileCode className="w-5 h-5 text-yellow-400" />;
+      return <File className="w-5 h-5 text-blue-400" />;
   };
 
   const handleViewItem = async (item: ArchiveItemOut) => {
@@ -268,7 +263,6 @@ const BusinessPage: React.FC = () => {
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if(!f) return; setSaving(true); try { const p = await apiService.uploadBusinessLogo(f); setProfile(p); } catch { alert(t('error.uploadFailed')); } finally { setSaving(false); } };
   const handleArchiveInvoiceClick = (invoiceId: string) => { setSelectedInvoiceId(invoiceId); setShowArchiveInvoiceModal(true); };
   const submitArchiveInvoice = async () => { if (!selectedInvoiceId) return; try { await apiService.archiveInvoice(selectedInvoiceId, selectedCaseForInvoice || undefined); alert("Fatura u arkivua me sukses!"); setShowArchiveInvoiceModal(false); setSelectedCaseForInvoice(""); } catch (error) { alert("Arkivimi dështoi."); } };
-  
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
   const removeLineItem = (i: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, idx) => idx !== i));
   const updateLineItem = (i: number, f: keyof InvoiceItem, v: any) => { const n = [...lineItems]; n[i] = { ...n[i], [f]: v }; n[i].total = n[i].quantity * n[i].unit_price; setLineItems(n); };
@@ -279,6 +273,90 @@ const BusinessPage: React.FC = () => {
   if (loading && activeTab !== 'archive') return <div className="flex justify-center items-center h-96"><Loader2 className="w-8 h-8 animate-spin text-primary-start" /></div>;
 
   const currentView = breadcrumbs[breadcrumbs.length - 1];
+
+  // --- HELPER COMPONENT: RICH ARCHIVE CARD (Matches CaseCard Design) ---
+  const ArchiveCard = ({ 
+      title, subtitle, type, date, icon, statusColor, onClick, onDownload, onDelete, isFolder, isDragging 
+  }: { 
+      title: string, subtitle: string, type: string, date: string, icon: React.ReactNode, statusColor: string, 
+      onClick: () => void, onDownload?: () => void, onDelete?: () => void, isFolder: boolean, isDragging?: boolean 
+  }) => (
+    <div 
+        onClick={onClick}
+        className={`
+            group relative flex flex-col justify-between h-full p-6 rounded-2xl transition-all duration-300 cursor-pointer
+            bg-gray-900/40 backdrop-blur-md border border-white/5 shadow-xl hover:shadow-2xl hover:bg-gray-800/60
+            ${isDragging ? 'opacity-30 scale-95 border-dashed border-white/50' : ''}
+            hover:-translate-y-1 hover:scale-[1.01]
+        `}
+    >
+        {/* Inner Gradient Overlay */}
+        <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
+        <div>
+            {/* Header Section */}
+            <div className="flex flex-col mb-4 relative z-10">
+                <div className="flex justify-between items-start gap-2">
+                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 group-hover:scale-110 transition-transform duration-300">
+                        {icon}
+                    </div>
+                    <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${statusColor} shadow-[0_0_8px_currentColor]`} />
+                </div>
+                
+                <div className="mt-4">
+                    <h2 className="text-lg font-bold text-gray-100 line-clamp-2 leading-tight tracking-tight group-hover:text-primary-start transition-colors" title={title}>
+                        {title}
+                    </h2>
+                    <div className="flex items-center gap-2 mt-2">
+                         <Calendar className="w-3 h-3 text-gray-600" />
+                         <p className="text-xs text-gray-500 font-medium">
+                            {isFolder ? 'Krijuar:' : 'Ngarkuar:'} <span className="text-gray-400">{date}</span>
+                         </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Details Section (Replaces Client Info) */}
+            <div className="flex flex-col mb-6 relative z-10">
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
+                    <Info className="w-3 h-3 text-indigo-400" />
+                    <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">{isFolder ? 'Përmbajtja' : 'Detajet'}</span>
+                </div>
+                
+                <div className="space-y-1.5 pl-1">
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-200">
+                        {isFolder ? <FolderOpen className="w-3.5 h-3.5 text-amber-500" /> : <FileText className="w-3.5 h-3.5 text-blue-500" />}
+                        <span className="truncate">{type}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <Hash className="w-3 h-3" />
+                        <span className="truncate">{subtitle}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="relative z-10 pt-4 border-t border-white/5 flex items-center justify-between">
+            <span className="text-xs font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">
+                {isFolder ? 'Hap Dosjen' : 'Shiko'}
+            </span>
+            
+            <div className="flex gap-1">
+                {!isFolder && onDownload && (
+                    <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="p-2 rounded-lg text-gray-600 hover:text-green-400 hover:bg-green-400/10 transition-colors" title="Shkarko">
+                        <Download className="h-4 w-4" />
+                    </button>
+                )}
+                {onDelete && (
+                    <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 -mr-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-colors" title="Fshi">
+                        <Trash2 className="h-4 w-4" />
+                    </button>
+                )}
+            </div>
+        </div>
+    </div>
+  );
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
@@ -376,7 +454,7 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
-      {/* --- ARCHIVE TAB (V2 - GLASSMORPHIC UI & ANIMATED LAYOUT) --- */}
+      {/* --- ARCHIVE TAB (NEW CASE CARD STYLE) --- */}
       {activeTab === 'archive' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
             
@@ -411,34 +489,35 @@ const BusinessPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* CONTENT GRID */}
+            {/* CONTENT GRID - RICH CARDS */}
             <div className="space-y-10">
                 
-                {/* 1. VIRTUAL CASE FOLDERS */}
+                {/* 1. VIRTUAL CASE FOLDERS (Rich Card Style) */}
                 {currentView.type === 'ROOT' && cases.length > 0 && (
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70">
                             <Briefcase size={14} /> {t('archive.caseFolders', 'Dosjet e Çështjeve')}
                         </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {cases.map(c => (
-                                <div key={c.id} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} 
-                                     className="group relative bg-gradient-to-br from-[#1e293b] to-[#0f172a] border border-white/5 rounded-2xl p-5 hover:border-primary-start/40 transition-all cursor-pointer shadow-lg hover:shadow-2xl hover:shadow-primary-start/10 hover:-translate-y-1">
-                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-start to-primary-end rounded-t-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                    <div className="p-3 w-12 h-12 rounded-xl bg-primary-start/10 border border-primary-start/20 flex items-center justify-center mb-4 text-primary-start group-hover:scale-110 transition-transform duration-300">
-                                        <Briefcase size={20} />
-                                    </div>
-                                    <h4 className="text-sm font-bold text-white truncate w-full mb-1 group-hover:text-primary-start transition-colors">{c.title}</h4>
-                                    <div className="flex items-center justify-between mt-2">
-                                        <p className="text-[10px] text-gray-400 font-mono bg-black/40 px-2 py-0.5 rounded-md border border-white/5">{c.case_number}</p>
-                                    </div>
+                                <div key={c.id} className="h-64">
+                                    <ArchiveCard 
+                                        title={c.title || `Rasti #${c.case_number}`}
+                                        subtitle={c.case_number || 'Pa numër'}
+                                        type="Dosje Çështjeje"
+                                        date={new Date(c.created_at).toLocaleDateString()}
+                                        icon={<Briefcase className="w-5 h-5 text-indigo-400" />}
+                                        statusColor="bg-indigo-400"
+                                        isFolder={true}
+                                        onClick={() => handleEnterFolder(c.id, c.title, 'CASE')}
+                                    />
                                 </div>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {/* 2. ARCHIVE CONTENTS (LAYOUT ANIMATION ENABLED) */}
+                {/* 2. ARCHIVE CONTENTS (Rich Card Style) */}
                 <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
                     {(currentView.type !== 'ROOT' || archiveItems.length > 0) && (
                         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70">
@@ -455,7 +534,7 @@ const BusinessPage: React.FC = () => {
                             <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">Filloni duke ngarkuar dokumente ose krijoni nën-dosje për të organizuar punën tuaj.</p>
                         </div>
                     ) : (
-                        <motion.div layout className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                        <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             <AnimatePresence>
                             {archiveItems.map(item => {
                                 const isFolder = (item as any).item_type === 'FOLDER';
@@ -475,54 +554,21 @@ const BusinessPage: React.FC = () => {
                                          onDragOver={onDragOver}
                                          onDrop={(e) => onDrop(e as any, item.id)}
                                          onDragEnd={onDragEnd}
-                                         onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : null}
-                                         className={`
-                                            group relative rounded-2xl p-4 transition-all duration-200 border cursor-pointer
-                                            ${isFolder ? 'bg-gradient-to-b from-amber-500/10 to-amber-900/10 border-amber-500/20 hover:border-amber-400/50 hover:bg-amber-500/20' : 'bg-[#1e293b] border-white/5 hover:border-blue-400/30 hover:bg-[#253045]'}
-                                            ${isDragging ? 'opacity-30 scale-95 border-dashed border-white/50' : ''}
-                                            flex flex-col h-44 shadow-lg hover:shadow-2xl hover:-translate-y-1 overflow-hidden
-                                         `}>
-                                        
-                                        {/* Drag Handle */}
-                                        <div className="absolute top-2 left-2 text-gray-600 opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity">
-                                            <GripVertical size={14} />
-                                        </div>
-
-                                        {/* Icon Container */}
-                                        <div className="flex-1 flex items-center justify-center mb-2">
-                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl border border-white/10 transition-transform group-hover:scale-110 duration-300
-                                                ${isFolder ? 'bg-gradient-to-br from-amber-400 to-amber-600 text-white' : 'bg-white text-gray-700'}
-                                            `}>
-                                                {isFolder ? <FolderOpen size={28} /> : getFileIcon(fileExt)}
-                                            </div>
-                                        </div>
-
-                                        {/* Info & Footer */}
-                                        <div className="w-full mt-auto text-center">
-                                            <h4 className="text-sm font-semibold text-gray-200 truncate w-full px-1 mb-1.5 group-hover:text-white transition-colors" title={item.title}>{item.title}</h4>
-                                            
-                                            {isFolder ? (
-                                                <div className="h-6 flex items-center justify-center">
-                                                    <span className="text-[10px] text-amber-400/80 font-bold uppercase tracking-widest bg-amber-900/30 px-2 py-0.5 rounded-full border border-amber-500/20">Dosje</span>
-                                                </div>
-                                            ) : (
-                                                <div className="flex justify-between items-center bg-black/20 rounded-lg p-1 border border-white/5 group-hover:bg-black/40 transition-colors">
-                                                    <span className="text-[10px] text-gray-500 font-mono ml-1">{fileExt}</span>
-                                                    <div className="flex gap-1">
-                                                        <button onClick={(e) => {e.stopPropagation(); handleViewItem(item)}} className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-blue-400 transition-colors" title="Shiko"><Eye size={12} /></button>
-                                                        <button onClick={(e) => {e.stopPropagation(); downloadArchiveItem(item.id, item.title)}} className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-green-400 transition-colors" title="Shkarko"><Download size={12} /></button>
-                                                        <button onClick={(e) => {e.stopPropagation(); deleteArchiveItem(item.id)}} className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-red-400 transition-colors" title="Fshi"><Trash2 size={12} /></button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                        
-                                        {/* Folder Delete Action (Top Right) */}
-                                        {isFolder && (
-                                            <button onClick={(e) => {e.stopPropagation(); deleteArchiveItem(item.id)}} className="absolute top-2 right-2 p-1.5 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-lg hover:bg-black/40">
-                                                <Trash2 size={14} />
-                                            </button>
-                                        )}
+                                         className="h-64"
+                                    >
+                                        <ArchiveCard 
+                                            title={item.title}
+                                            subtitle={isFolder ? 'Dosje Arkive' : `${fileExt} Dokument`}
+                                            type={isFolder ? 'Folder' : fileExt}
+                                            date={new Date().toLocaleDateString()} // Fallback as item usually doesn't have created_at in frontend type yet, or use generic
+                                            icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)}
+                                            statusColor={isFolder ? 'bg-amber-400' : 'bg-blue-400'}
+                                            isFolder={isFolder}
+                                            isDragging={isDragging}
+                                            onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)}
+                                            onDownload={() => downloadArchiveItem(item.id, item.title)}
+                                            onDelete={() => deleteArchiveItem(item.id)}
+                                        />
                                     </motion.div>
                                 );
                             })}
@@ -563,7 +609,7 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
-      {/* --- INVOICE & ACCOUNTANT MODALS (Preserved) --- */}
+      {/* --- INVOICE & ACCOUNTANT MODALS --- */}
       {showInvoiceModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full">
