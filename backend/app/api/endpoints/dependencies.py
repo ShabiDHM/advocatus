@@ -1,20 +1,21 @@
 # FILE: backend/app/api/endpoints/dependencies.py
-# PHOENIX PROTOCOL - CRITICAL TYPO FIX
-# 1. DIAGNOSIS: The previous version contained a critical typo ('pantic' instead of 'pydantic'), breaking a core import.
-# 2. FIX: Corrected the import statement from 'pantic' to 'pydantic'.
-# 3. STATUS: This version is syntactically correct and restores the functionality of all authentication dependencies.
+# PHOENIX PROTOCOL - REGRESSION FIX
+# 1. FIX: Restored the missing import 'get_async_db'. This resolves the ImportError crashing the backend.
+# 2. VERIFICATION: 'pydantic' typo is fixed, and ObjectId validation logic is preserved.
+# 3. STATUS: The backend should now start successfully.
 
 from fastapi import Depends, HTTPException, status, WebSocket, Cookie
 from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated, Optional, Generator
 from pymongo.database import Database
 from jose import JWTError, jwt
-from pydantic import BaseModel, ValidationError # PHOENIX FIX: Corrected the typo from 'pantic' to 'pydantic'
+from pydantic import BaseModel, ValidationError
 from bson import ObjectId
 from bson.errors import InvalidId
 import redis
 
-from ...core.db import get_db, get_redis_client
+# PHOENIX FIX: Added 'get_async_db' back to the imports
+from ...core.db import get_db, get_redis_client, get_async_db
 from ...core.config import settings
 from ...services import user_service
 from ...models.user import UserInDB
