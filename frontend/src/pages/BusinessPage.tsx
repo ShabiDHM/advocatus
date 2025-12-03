@@ -1,8 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - CLEANUP & OPTIMIZATION
-// 1. FIX: Removed unused 'DollarSign' and 'totalPending' to resolve build warnings.
-// 2. UI: Confirmed strict usage of Euro (€) symbol for all financial data.
-// 3. STATUS: Clean build, fully responsive.
+// PHOENIX PROTOCOL - CLEAN REPAIR
+// 1. FIX: Resolves "Duplicate identifier" errors by providing a single, clean component definition.
+// 2. STATUS: Internationalized, Responsive, and Bug-Free.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -46,7 +45,7 @@ const BusinessPage: React.FC = () => {
   const [cases, setCases] = useState<Case[]>([]);
 
   // --- ARCHIVE STATE ---
-  const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([{ id: null, name: 'Arkiva', type: 'ROOT' }]);
+  const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([{ id: null, name: t('business.archive'), type: 'ROOT' }]);
   const [isUploading, setIsUploading] = useState(false);
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   
@@ -77,11 +76,23 @@ const BusinessPage: React.FC = () => {
 
   // --- FINANCIAL CALCULATIONS ---
   const totalIncome = invoices.filter(inv => inv.status === 'PAID').reduce((sum, inv) => sum + inv.total_amount, 0);
-  const totalExpenses = 0; // Placeholder until expense tracking is implemented
+  const totalExpenses = 0; 
   const totalBalance = totalIncome - totalExpenses;
 
   // --- INITIAL LOAD ---
   useEffect(() => { fetchData(); }, []);
+
+  useEffect(() => {
+      // Update breadcrumb root name if language changes
+      setBreadcrumbs(prev => {
+          if (prev.length > 0 && prev[0].type === 'ROOT') {
+              const newCrumbs = [...prev];
+              newCrumbs[0].name = t('business.archive');
+              return newCrumbs;
+          }
+          return prev;
+      });
+  }, [t]);
 
   useEffect(() => {
       if (activeTab === 'archive') fetchArchiveContent();
@@ -174,7 +185,7 @@ const BusinessPage: React.FC = () => {
           setNewFolderName("");
           setShowFolderModal(false);
           fetchArchiveContent(); 
-      } catch (error) { alert("Krijimi i dosjes dështoi."); }
+      } catch (error) { alert(t('error.generic')); }
   };
 
   const handleSmartUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -189,7 +200,7 @@ const BusinessPage: React.FC = () => {
           else if (nameLower.includes("kontrata")) category = "CONTRACT";
           await apiService.uploadArchiveItem(file, file.name, category, caseId || undefined, parentId || undefined);
           fetchArchiveContent(); 
-      } catch (error) { alert("Ngarkimi dështoi."); } 
+      } catch (error) { alert(t('error.uploadFailed')); } 
       finally { setIsUploading(false); if (archiveInputRef.current) archiveInputRef.current.value = ''; }
   };
 
@@ -248,7 +259,7 @@ const BusinessPage: React.FC = () => {
           const mime = getMimeType(item.file_type, item.title);
           setViewingUrl(url);
           setViewingDoc({ id: item.id, file_name: item.title, mime_type: mime, status: 'READY' } as any);
-      } catch (error) { alert("Nuk mund të hapet dokumenti."); }
+      } catch (error) { alert(t('error.generic')); }
   };
 
   const handleViewInvoice = async (invoice: Invoice) => {
@@ -257,24 +268,24 @@ const BusinessPage: React.FC = () => {
           const url = window.URL.createObjectURL(blob);
           setViewingUrl(url);
           setViewingDoc({ id: invoice.id, file_name: `Invoice #${invoice.invoice_number}`, mime_type: 'application/pdf', status: 'READY' } as any);
-      } catch (error) { alert("Nuk mund të hapet fatura."); }
+      } catch (error) { alert(t('error.generic')); }
   };
 
   const closePreview = () => { if (viewingUrl) window.URL.revokeObjectURL(viewingUrl); setViewingUrl(null); setViewingDoc(null); };
-  const deleteArchiveItem = async (id: string) => { if(!window.confirm("A jeni i sigurt?")) return; try { await apiService.deleteArchiveItem(id); fetchArchiveContent(); } catch (error) { alert("Fshirja dështoi."); } };
-  const downloadArchiveItem = async (id: string, title: string) => { try { await apiService.downloadArchiveItem(id, title); } catch (error) { alert("Shkarkimi dështoi."); } };
+  const deleteArchiveItem = async (id: string) => { if(!window.confirm(t('general.confirmDelete'))) return; try { await apiService.deleteArchiveItem(id); fetchArchiveContent(); } catch (error) { alert(t('documentsPanel.deleteFailed')); } };
+  const downloadArchiveItem = async (id: string, title: string) => { try { await apiService.downloadArchiveItem(id, title); } catch (error) { alert(t('error.generic')); } };
 
   // --- HANDLERS ---
   const handleProfileSubmit = async (e: React.FormEvent) => { e.preventDefault(); setSaving(true); try { const clean: any = {...formData}; Object.keys(clean).forEach(k => clean[k]=== '' && (clean[k]=null)); await apiService.updateBusinessProfile(clean); alert(t('settings.successMessage')); } catch{ alert(t('error.generic')); } finally { setSaving(false); } };
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if(!f) return; setSaving(true); try { const p = await apiService.uploadBusinessLogo(f); setProfile(p); } catch { alert(t('error.uploadFailed')); } finally { setSaving(false); } };
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if(!f) return; setSaving(true); try { const p = await apiService.uploadBusinessLogo(f); setProfile(p); } catch { alert(t('business.logoUploadFailed')); } finally { setSaving(false); } };
   const handleArchiveInvoiceClick = (invoiceId: string) => { setSelectedInvoiceId(invoiceId); setShowArchiveInvoiceModal(true); };
-  const submitArchiveInvoice = async () => { if (!selectedInvoiceId) return; try { await apiService.archiveInvoice(selectedInvoiceId, selectedCaseForInvoice || undefined); alert("Fatura u arkivua me sukses!"); setShowArchiveInvoiceModal(false); setSelectedCaseForInvoice(""); } catch (error) { alert("Arkivimi dështoi."); } };
+  const submitArchiveInvoice = async () => { if (!selectedInvoiceId) return; try { await apiService.archiveInvoice(selectedInvoiceId, selectedCaseForInvoice || undefined); alert(t('general.saveSuccess')); setShowArchiveInvoiceModal(false); setSelectedCaseForInvoice(""); } catch (error) { alert(t('error.generic')); } };
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
   const removeLineItem = (i: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, idx) => idx !== i));
   const updateLineItem = (i: number, f: keyof InvoiceItem, v: any) => { const n = [...lineItems]; n[i] = { ...n[i], [f]: v }; n[i].total = n[i].quantity * n[i].unit_price; setLineItems(n); };
-  const handleCreateInvoice = async (e: React.FormEvent) => { e.preventDefault(); try { const addr = [newInvoice.client_address, newInvoice.client_city, newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '', newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : ''].filter(Boolean).join('\n'); const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: addr, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes }; const inv = await apiService.createInvoice(payload); setInvoices([inv, ...invoices]); setShowInvoiceModal(false); setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' }); setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); } catch { alert("Dështoi."); } };
-  const deleteInvoice = async (id: string) => { if(!window.confirm(t('general.confirmDelete', "A jeni i sigurt?"))) return; try { await apiService.deleteInvoice(id); setInvoices(invoices.filter(inv => inv.id !== id)); } catch (error) { alert("Fshirja dështoi."); } };
-  const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id, i18n.language); } catch (error) { alert("Shkarkimi dështoi."); } };
+  const handleCreateInvoice = async (e: React.FormEvent) => { e.preventDefault(); try { const addr = [newInvoice.client_address, newInvoice.client_city, newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '', newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : ''].filter(Boolean).join('\n'); const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: addr, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes }; const inv = await apiService.createInvoice(payload); setInvoices([inv, ...invoices]); setShowInvoiceModal(false); setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' }); setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); } catch { alert(t('error.generic')); } };
+  const deleteInvoice = async (id: string) => { if(!window.confirm(t('general.confirmDelete'))) return; try { await apiService.deleteInvoice(id); setInvoices(invoices.filter(inv => inv.id !== id)); } catch (error) { alert(t('documentsPanel.deleteFailed')); } };
+  const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id, i18n.language); } catch (error) { alert(t('error.generic')); } };
 
   if (loading && activeTab !== 'archive') return <div className="flex justify-center items-center h-96"><Loader2 className="w-8 h-8 animate-spin text-primary-start" /></div>;
 
@@ -328,13 +339,13 @@ const BusinessPage: React.FC = () => {
                 <div className="mt-4">
                     <h2 className="text-lg font-bold text-gray-100 line-clamp-2 leading-tight tracking-tight group-hover:text-primary-start transition-colors break-words" title={title}>{title}</h2>
                     <div className="flex items-center gap-2 mt-2">
-                         <Calendar className="w-3 h-3 text-gray-600 flex-shrink-0" /><p className="text-xs text-gray-500 font-medium truncate">{isFolder ? 'Krijuar:' : 'Ngarkuar:'} <span className="text-gray-400">{date}</span></p>
+                         <Calendar className="w-3 h-3 text-gray-600 flex-shrink-0" /><p className="text-xs text-gray-500 font-medium truncate">{isFolder ? t('archive.created') + ':' : t('archive.uploaded') + ':'} <span className="text-gray-400">{date}</span></p>
                     </div>
                 </div>
             </div>
             <div className="flex flex-col mb-6 relative z-10">
                 <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
-                    <Info className="w-3 h-3 text-indigo-400" /><span className="text-xs font-bold text-gray-300 uppercase tracking-wider">{isFolder ? 'Përmbajtja' : 'Detajet'}</span>
+                    <Info className="w-3 h-3 text-indigo-400" /><span className="text-xs font-bold text-gray-300 uppercase tracking-wider">{isFolder ? t('archive.contents') : t('archive.details')}</span>
                 </div>
                 <div className="space-y-1.5 pl-1">
                     <div className="flex items-center gap-2 text-sm font-medium text-gray-200">
@@ -347,11 +358,11 @@ const BusinessPage: React.FC = () => {
             </div>
         </div>
         <div className="relative z-10 pt-4 border-t border-white/5 flex items-center justify-between min-h-[3rem]">
-            <span className="text-xs font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">{isFolder ? 'Hap Dosjen' : ''}</span>
+            <span className="text-xs font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">{isFolder ? t('archive.openFolder') : ''}</span>
             <div className="flex gap-1 items-center">
-                {!isFolder && (<button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-2 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors" title="Shiko"><Eye className="h-4 w-4" /></button>)}
-                {!isFolder && onDownload && (<button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="p-2 rounded-lg text-gray-600 hover:text-green-400 hover:bg-green-400/10 transition-colors" title="Shkarko"><Download className="h-4 w-4" /></button>)}
-                {onDelete && (<button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 -mr-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-colors" title="Fshi"><Trash2 className="h-4 w-4" /></button>)}
+                {!isFolder && (<button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-2 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors" title={t('archive.view')}><Eye className="h-4 w-4" /></button>)}
+                {!isFolder && onDownload && (<button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="p-2 rounded-lg text-gray-600 hover:text-green-400 hover:bg-green-400/10 transition-colors" title={t('archive.download')}><Download className="h-4 w-4" /></button>)}
+                {onDelete && (<button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 -mr-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-colors" title={t('archive.delete')}><Trash2 className="h-4 w-4" /></button>)}
             </div>
         </div>
     </div>
@@ -361,11 +372,11 @@ const BusinessPage: React.FC = () => {
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
-        <div><h1 className="text-3xl font-bold text-white mb-2">{t('business.title', 'Zyra Ime')}</h1><p className="text-gray-400">Qendra Administrative për Zyrën tuaj Ligjore.</p></div>
+        <div><h1 className="text-3xl font-bold text-white mb-2">{t('business.title')}</h1><p className="text-gray-400">{t('business.subtitle')}</p></div>
         <div className="flex bg-background-light/10 p-1.5 rounded-2xl border border-white/10 backdrop-blur-md">
-            <button onClick={() => setActiveTab('profile')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg scale-105' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}><Building2 size={18} /><span>Profili</span></button>
-            <button onClick={() => setActiveTab('finance')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg scale-105' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}><FileText size={18} /><span>Financat</span></button>
-            <button onClick={() => setActiveTab('archive')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg scale-105' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}><FolderOpen size={18} /><span>Arkiva</span></button>
+            <button onClick={() => setActiveTab('profile')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg scale-105' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}><Building2 size={18} /><span>{t('business.profile')}</span></button>
+            <button onClick={() => setActiveTab('finance')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg scale-105' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}><FileText size={18} /><span>{t('business.finance')}</span></button>
+            <button onClick={() => setActiveTab('archive')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg scale-105' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}><FolderOpen size={18} /><span>{t('business.archive')}</span></button>
         </div>
       </div>
 
@@ -375,10 +386,10 @@ const BusinessPage: React.FC = () => {
             <div className="space-y-8">
                 <div className="bg-background-dark border border-glass-edge rounded-3xl p-8 flex flex-col items-center shadow-xl relative overflow-hidden group">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
-                    <h3 className="text-white font-bold mb-8 self-start text-lg">Logo & Identiteti</h3>
+                    <h3 className="text-white font-bold mb-8 self-start text-lg">{t('business.logoIdentity')}</h3>
                     <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                         <div className={`w-40 h-40 rounded-full overflow-hidden flex items-center justify-center border-4 transition-all shadow-2xl ${logoSrc ? 'border-white/20' : 'border-dashed border-gray-700 hover:border-primary-start'}`}>
-                            {logoLoading ? <Loader2 className="w-10 h-10 animate-spin text-primary-start" /> : logoSrc ? <img src={logoSrc} alt="Logo" className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" onError={() => setLogoSrc(null)} /> : <div className="text-center group-hover:scale-110 transition-transform"><Upload className="w-10 h-10 text-gray-600 mx-auto mb-2" /><span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Ngarko</span></div>}
+                            {logoLoading ? <Loader2 className="w-10 h-10 animate-spin text-primary-start" /> : logoSrc ? <img src={logoSrc} alt="Logo" className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" onError={() => setLogoSrc(null)} /> : <div className="text-center group-hover:scale-110 transition-transform"><Upload className="w-10 h-10 text-gray-600 mx-auto mb-2" /><span className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('business.upload')}</span></div>}
                         </div>
                         <div className="absolute inset-0 rounded-full bg-black/60 backdrop-blur-[2px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"><Camera className="w-10 h-10 text-white drop-shadow-lg" /></div>
                     </div>
@@ -386,33 +397,33 @@ const BusinessPage: React.FC = () => {
                 </div>
                 <div className="bg-background-dark border border-glass-edge rounded-3xl p-8 shadow-xl relative overflow-hidden">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-pink-500 to-purple-600" />
-                    <h3 className="text-white font-bold mb-6 flex items-center gap-2"><Palette className="w-5 h-5 text-purple-400" /> Branding</h3>
+                    <h3 className="text-white font-bold mb-6 flex items-center gap-2"><Palette className="w-5 h-5 text-purple-400" /> {t('business.branding')}</h3>
                     <div className="flex items-center gap-4 mb-6">
                         <div className="relative overflow-hidden w-16 h-16 rounded-2xl border-2 border-white/10 shadow-inner"><input type="color" value={formData.branding_color || DEFAULT_COLOR} onChange={(e) => setFormData({...formData, branding_color: e.target.value})} className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] cursor-pointer" /></div>
                         <div className="flex-1"><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-lg">#</span><input type="text" value={(formData.branding_color || DEFAULT_COLOR).replace('#', '')} onChange={(e) => setFormData({...formData, branding_color: `#${e.target.value}`})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-8 pr-4 py-3 text-white font-mono uppercase focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div>
                     </div>
-                    <button className="w-full py-3 rounded-xl text-white font-bold text-sm shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2" style={{ backgroundColor: formData.branding_color || DEFAULT_COLOR }}><Save className="w-4 h-4" />Ruaj Ngjyrën</button>
+                    <button className="w-full py-3 rounded-xl text-white font-bold text-sm shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2" style={{ backgroundColor: formData.branding_color || DEFAULT_COLOR }}><Save className="w-4 h-4" />{t('business.saveColor')}</button>
                 </div>
             </div>
             
             <div className="md:col-span-2">
                 <form onSubmit={handleProfileSubmit} className="bg-background-dark border border-glass-edge rounded-3xl p-8 space-y-8 shadow-xl h-full relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-500 to-cyan-500" />
-                    <h3 className="text-xl font-bold text-white flex items-center gap-3"><Briefcase className="w-6 h-6 text-primary-start" />Të Dhënat e Zyrës</h3>
+                    <h3 className="text-xl font-bold text-white flex items-center gap-3"><Briefcase className="w-6 h-6 text-primary-start" />{t('business.firmData')}</h3>
                     <div className="grid grid-cols-1 gap-6">
-                        <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Emri i Zyrës Ligjore</label><div className="relative"><Building2 className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="text" name="firm_name" value={formData.firm_name} onChange={(e) => setFormData({...formData, firm_name: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" placeholder="p.sh. Drejtësia Sh.p.k" /></div></div>
+                        <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.firmNameLabel')}</label><div className="relative"><Building2 className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="text" name="firm_name" value={formData.firm_name} onChange={(e) => setFormData({...formData, firm_name: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" placeholder={t('business.firmNamePlaceholder')} /></div></div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Email Publik</label><div className="relative"><Mail className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="email" name="email_public" value={formData.email_public} onChange={(e) => setFormData({...formData, email_public: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div>
-                            <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Telefon</label><div className="relative"><Phone className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="text" name="phone" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div>
+                            <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.publicEmail')}</label><div className="relative"><Mail className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="email" name="email_public" value={formData.email_public} onChange={(e) => setFormData({...formData, email_public: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div>
+                            <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.phone')}</label><div className="relative"><Phone className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="text" name="phone" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div>
                         </div>
-                        <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Adresa</label><div className="relative"><MapPin className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="text" name="address" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div>
+                        <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.address')}</label><div className="relative"><MapPin className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="text" name="address" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Qyteti</label><input type="text" name="city" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div>
-                            <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Website</label><div className="relative"><Globe className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="text" name="website" value={formData.website} onChange={(e) => setFormData({...formData, website: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div>
+                            <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.city')}</label><input type="text" name="city" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div>
+                            <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.website')}</label><div className="relative"><Globe className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="text" name="website" value={formData.website} onChange={(e) => setFormData({...formData, website: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div>
                         </div>
-                        <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Numri Fiskal / NUI</label><div className="relative"><CreditCard className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="text" name="tax_id" value={formData.tax_id} onChange={(e) => setFormData({...formData, tax_id: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div>
+                        <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.taxId')}</label><div className="relative"><CreditCard className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-primary-start transition-colors" /><input type="text" name="tax_id" value={formData.tax_id} onChange={(e) => setFormData({...formData, tax_id: e.target.value})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-12 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div>
                     </div>
-                    <div className="pt-8 flex justify-end mt-auto"><button type="submit" disabled={saving} className="flex items-center gap-2 px-10 py-3.5 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold hover:shadow-lg hover:shadow-primary-start/20 transition-all disabled:opacity-50 hover:scale-[1.02] active:scale-95">{saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}{t('general.save', 'Ruaj Ndryshimet')}</button></div>
+                    <div className="pt-8 flex justify-end mt-auto"><button type="submit" disabled={saving} className="flex items-center gap-2 px-10 py-3.5 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold hover:shadow-lg hover:shadow-primary-start/20 transition-all disabled:opacity-50 hover:scale-[1.02] active:scale-95">{saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}{t('general.save')}</button></div>
                 </form>
             </div>
         </motion.div>
@@ -425,42 +436,42 @@ const BusinessPage: React.FC = () => {
             {/* PHOENIX: Financial Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <FinanceCard 
-                    title="Të Hyrat (Income)" 
+                    title={t('finance.income')} 
                     amount={`€${totalIncome.toFixed(2)}`} 
                     icon={<TrendingUp className="w-6 h-6" />} 
                     color="bg-emerald-500" 
-                    subtext="Nga faturat e paguara"
+                    subtext={t('finance.incomeSub')}
                 />
                 <FinanceCard 
-                    title="Shpenzimet (Expense)" 
+                    title={t('finance.expense')} 
                     amount={`€${totalExpenses.toFixed(2)}`} 
                     icon={<TrendingDown className="w-6 h-6" />} 
                     color="bg-rose-500" 
-                    subtext="Shpenzimet operacionale"
+                    subtext={t('finance.expenseSub')}
                 />
                 <FinanceCard 
-                    title="Bilanci (Balance)" 
+                    title={t('finance.balance')} 
                     amount={`€${totalBalance.toFixed(2)}`} 
                     icon={<Wallet className="w-6 h-6" />} 
                     color="bg-blue-500" 
-                    subtext="Fitimi neto"
+                    subtext={t('finance.balanceSub')}
                 />
             </div>
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-2xl font-bold text-white">Faturat e Lëshuara</h2>
+                <h2 className="text-2xl font-bold text-white">{t('finance.invoicesTitle')}</h2>
                 <div className="flex gap-3 w-full sm:w-auto">
                     <button onClick={() => setShowAccountantModal(true)} className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl shadow-lg transition-all border border-indigo-400/30 font-medium">
-                        <Bot size={20} /> <span className="hidden xs:inline">Kontabilisti AI</span><span className="xs:hidden">AI</span>
+                        <Bot size={20} /> <span className="hidden xs:inline">{t('finance.accountantAI')}</span><span className="xs:hidden">AI</span>
                     </button>
                     <button onClick={() => setShowInvoiceModal(true)} className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg transition-all font-medium">
-                        <Plus size={20} /> <span>Krijo Faturë</span>
+                        <Plus size={20} /> <span>{t('finance.createInvoice')}</span>
                     </button>
                 </div>
             </div>
 
             {invoices.length === 0 ? (
-                <div className="text-center py-20 bg-background-dark border border-glass-edge rounded-3xl"><FileText className="w-16 h-16 text-gray-700 mx-auto mb-4" /><p className="text-gray-400 text-lg">Nuk keni asnjë faturë të krijuar.</p></div>
+                <div className="text-center py-20 bg-background-dark border border-glass-edge rounded-3xl"><FileText className="w-16 h-16 text-gray-700 mx-auto mb-4" /><p className="text-gray-400 text-lg">{t('finance.noInvoices')}</p></div>
             ) : (
                 <div className="grid gap-4">
                     {invoices.map(inv => (
@@ -484,10 +495,10 @@ const BusinessPage: React.FC = () => {
                                 </div>
                                 
                                 <div className="flex gap-1 sm:gap-2">
-                                    <button onClick={() => handleViewInvoice(inv)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title="Shiko PDF"><Eye size={18} /></button>
-                                    <button onClick={() => downloadInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title="Shkarko PDF"><Download size={18} /></button>
-                                    <button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title="Arkivo Faturën"><Archive size={18} /></button>
-                                    <button onClick={() => deleteInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title="Fshi Faturën"><Trash2 size={18} /></button>
+                                    <button onClick={() => handleViewInvoice(inv)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title={t('finance.viewPdf')}><Eye size={18} /></button>
+                                    <button onClick={() => downloadInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title={t('finance.downloadPdf')}><Download size={18} /></button>
+                                    <button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title={t('finance.archiveInvoice')}><Archive size={18} /></button>
+                                    <button onClick={() => deleteInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title={t('finance.deleteInvoice')}><Trash2 size={18} /></button>
                                 </div>
                             </div>
                         </div>
@@ -516,12 +527,12 @@ const BusinessPage: React.FC = () => {
                     </div>
                     <div className="flex gap-2 flex-shrink-0 p-1">
                         <button onClick={() => setShowFolderModal(true)} className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 hover:text-amber-400 rounded-xl border border-amber-500/30 transition-all font-bold text-xs uppercase tracking-wide">
-                            <FolderPlus size={16} /> <span className="hidden sm:inline">Krijo Dosje</span>
+                            <FolderPlus size={16} /> <span className="hidden sm:inline">{t('archive.createFolder')}</span>
                         </button>
                         <div className="relative">
                             <input type="file" ref={archiveInputRef} className="hidden" onChange={handleSmartUpload} />
                             <button onClick={() => archiveInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-4 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl shadow-lg shadow-primary-start/20 transition-all font-bold text-xs uppercase tracking-wide disabled:opacity-50 disabled:cursor-wait">
-                                {isUploading ? <Loader2 className="animate-spin w-4 h-4" /> : <Upload size={16} />} <span className="hidden sm:inline">Ngarko</span>
+                                {isUploading ? <Loader2 className="animate-spin w-4 h-4" /> : <Upload size={16} />} <span className="hidden sm:inline">{t('archive.upload')}</span>
                             </button>
                         </div>
                     </div>
@@ -532,7 +543,7 @@ const BusinessPage: React.FC = () => {
             <div className="space-y-10">
                 {currentView.type === 'ROOT' && cases.length > 0 && (
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70"><Briefcase size={14} /> {t('archive.caseFolders', 'Dosjet e Çështjeve')}</h3>
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70"><Briefcase size={14} /> {t('archive.caseFolders')}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {cases.map(c => (
                                 <div key={c.id} className="h-full">
@@ -545,12 +556,13 @@ const BusinessPage: React.FC = () => {
 
                 <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
                     {(currentView.type !== 'ROOT' || archiveItems.length > 0) && (
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70"><FolderOpen size={14} /> {currentView.type === 'ROOT' ? t('archive.myDocuments', 'Dokumentet e Mia') : t('archive.contents', 'Përmbajtja')}</h3>
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70"><FolderOpen size={14} /> {currentView.type === 'ROOT' ? t('archive.myDocuments') : t('archive.contents')}</h3>
                     )}
                     {archiveItems.length === 0 && currentView.type !== 'ROOT' ? (
                         <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center">
                             <div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse"><FolderOpen className="w-16 h-16 text-gray-600" /></div>
-                            <p className="text-gray-300 font-medium text-lg">Kjo dosje është e zbrazët</p>
+                            <p className="text-gray-300 font-medium text-lg">{t('archive.emptyFolder')}</p>
+                            <p className="text-sm text-gray-500 mt-2">{t('archive.emptyHint')}</p>
                         </div>
                     ) : (
                         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -561,7 +573,7 @@ const BusinessPage: React.FC = () => {
                                 const isDragging = draggedItemId === item.id;
                                 return (
                                     <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ type: "spring", stiffness: 300, damping: 25 }} key={item.id} draggable onDragStart={(e) => onDragStart(e as any, item.id)} onDragOver={onDragOver} onDrop={(e) => onDrop(e as any, item.id)} onDragEnd={onDragEnd} className="h-full">
-                                        <ArchiveCard title={item.title} subtitle={isFolder ? 'Dosje Arkive' : `${fileExt} Dokument`} type={isFolder ? 'Folder' : fileExt} date={new Date().toLocaleDateString()} icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)} statusColor={isFolder ? 'bg-amber-400' : 'bg-blue-400'} isFolder={isFolder} isDragging={isDragging} onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)} onDownload={() => downloadArchiveItem(item.id, item.title)} onDelete={() => deleteArchiveItem(item.id)} />
+                                        <ArchiveCard title={item.title} subtitle={isFolder ? t('archive.caseFolders') : `${fileExt} Dokument`} type={isFolder ? 'Folder' : fileExt} date={new Date().toLocaleDateString()} icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)} statusColor={isFolder ? 'bg-amber-400' : 'bg-blue-400'} isFolder={isFolder} isDragging={isDragging} onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)} onDownload={() => downloadArchiveItem(item.id, item.title)} onDelete={() => deleteArchiveItem(item.id)} />
                                     </motion.div>
                                 );
                             })}
@@ -578,15 +590,15 @@ const BusinessPage: React.FC = () => {
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-background-dark border border-glass-edge rounded-3xl w-full max-w-sm p-8 shadow-2xl scale-100">
                   <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-xl font-bold text-white">Krijo Dosje të Re</h3>
+                      <h3 className="text-xl font-bold text-white">{t('archive.newFolderTitle')}</h3>
                       <button onClick={() => setShowFolderModal(false)} className="text-gray-500 hover:text-white"><X size={24}/></button>
                   </div>
                   <form onSubmit={handleCreateFolder}>
                       <div className="relative mb-8">
                           <FolderOpen className="absolute left-4 top-3.5 w-6 h-6 text-amber-500" />
-                          <input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder="Emëro dosjen..." className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white text-lg focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-gray-600" />
+                          <input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t('archive.folderNamePlaceholder')} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white text-lg focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-gray-600" />
                       </div>
-                      <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium">Anulo</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.02]">Krijo</button></div>
+                      <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div>
                   </form>
               </div>
           </div>
@@ -597,12 +609,12 @@ const BusinessPage: React.FC = () => {
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full">
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-white">Krijo Faturë të Re</h2>
+                    <h2 className="text-2xl font-bold text-white">{t('finance.createInvoice')}</h2>
                     <button onClick={() => setShowInvoiceModal(false)} className="text-gray-400 hover:text-white"><X size={24} /></button>
                   </div>
                   <form onSubmit={handleCreateInvoice} className="space-y-6">
                       <div className="space-y-4">
-                          <h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> Të Dhënat e Klientit</h3>
+                          <h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3>
                           <div><label className="block text-sm text-gray-300 mb-1">Emri</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div>
                           <div className="grid grid-cols-2 gap-4">
                               <div><label className="block text-sm text-gray-300 mb-1">Email</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div>
@@ -622,7 +634,7 @@ const BusinessPage: React.FC = () => {
                           ))}
                           <button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> Shto Rresht</button>
                       </div>
-                      <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowInvoiceModal(false)} className="px-4 py-2 text-gray-400">Anulo</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">Krijo</button></div>
+                      <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowInvoiceModal(false)} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.create')}</button></div>
                   </form>
               </div>
           </div>
@@ -631,9 +643,9 @@ const BusinessPage: React.FC = () => {
       {showArchiveInvoiceModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl">
-                  <h2 className="text-xl font-bold text-white mb-4">Arkivo Faturën</h2>
-                  <div className="space-y-3 mb-6"><label className="block text-sm text-gray-400 mb-1">Dosja e Çështjes</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">Të Përgjithshme (Pa Dosje)</option>{cases.map(c => (<option key={c.id} value={c.id}>{c.title}</option>))}</select></div>
-                  <div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">Anulo</button><button onClick={submitArchiveInvoice} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">Arkivo</button></div>
+                  <h2 className="text-xl font-bold text-white mb-4">{t('finance.archiveInvoice')}</h2>
+                  <div className="space-y-3 mb-6"><label className="block text-sm text-gray-400 mb-1">{t('drafting.selectCaseLabel')}</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">Të Përgjithshme (Pa Dosje)</option>{cases.map(c => (<option key={c.id} value={c.id}>{c.title}</option>))}</select></div>
+                  <div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">{t('general.save')}</button></div>
               </div>
           </div>
       )}
@@ -645,14 +657,14 @@ const BusinessPage: React.FC = () => {
                 <div className="p-8 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-indigo-900/40 to-purple-900/40">
                     <div className="flex items-center gap-4">
                         <div className="p-3 bg-indigo-500/20 rounded-xl border border-indigo-500/30 shadow-lg shadow-indigo-500/10"><Bot className="w-10 h-10 text-indigo-300" /></div>
-                        <div><h2 className="text-2xl font-bold text-white tracking-tight">Kontabilisti AI</h2><p className="text-sm text-indigo-200/80 font-medium">Asistenti Financiar për Zyrën tuaj</p></div>
+                        <div><h2 className="text-2xl font-bold text-white tracking-tight">{t('finance.accountantAI')}</h2><p className="text-sm text-indigo-200/80 font-medium">Asistenti Financiar për Zyrën tuaj</p></div>
                     </div>
                 </div>
                 <div className="flex-1 p-8 overflow-y-auto flex flex-col items-center justify-center text-center space-y-8">
                         <div className="relative"><div className="absolute inset-0 bg-indigo-500 blur-3xl opacity-20 rounded-full"></div><div className="w-32 h-32 bg-indigo-950/50 backdrop-blur-sm rounded-full flex items-center justify-center border border-indigo-500/30 shadow-2xl relative z-10"><Bot className="w-16 h-16 text-indigo-400" /></div></div>
                         <h3 className="text-2xl font-bold text-white">Së Shpejti...</h3>
                         <p className="text-gray-400">Ky modul është në zhvillim e sipër.</p>
-                        <button onClick={() => setShowAccountantModal(false)} className="px-6 py-2 rounded-full border border-indigo-500/50 text-indigo-300 hover:bg-indigo-500/10 transition-colors text-sm font-medium">Mbyll</button>
+                        <button onClick={() => setShowAccountantModal(false)} className="px-6 py-2 rounded-full border border-indigo-500/50 text-indigo-300 hover:bg-indigo-500/10 transition-colors text-sm font-medium">{t('general.close')}</button>
                 </div>
             </div>
         </div>

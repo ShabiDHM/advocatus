@@ -20,9 +20,10 @@
     "download": "Shkarko",
     "loading": "Duke ngarkuar...",
     "copied": "U kopjua në kujtesë!",
-    "error": "Gabim"
+    "error": "Gabim",
+    "confirmDelete": "A jeni i sigurt?"
   },
-   "auth": {
+  "auth": {
     "loginTitle": "Hyni në Juristi AI",
     "loginSubtitle": "Menaxhoni çështjet ligjore me inteligjencë.",
     "usernameOrEmail": "Përdoruesi ose Email",
@@ -171,19 +172,62 @@
     "title": "Qendra e Biznesit",
     "subtitle": "Menaxhoni identitetin e zyrës suaj ligjore.",
     "dashboard": "Pasqyra",
-    "profile": "Profili i Zyrës",
+    "profile": "Profili",
+    "finance": "Financat",
+    "archive": "Arkiva",
     "totalCases": "Raste Totale",
     "documentsProcessed": "Dokumente të Procesuara",
     "efficiency": "Efiçenca",
-    "changeLogo": "Ndrysho Logon",
-    "firmName": "Emri i Zyrës",
-    "taxId": "Numri Fiskal",
+    "logoIdentity": "Logo & Identiteti",
+    "upload": "Ngarko",
+    "branding": "Branding",
+    "saveColor": "Ruaj Ngjyrën",
+    "firmData": "Të Dhënat e Zyrës",
+    "firmNameLabel": "Emri i Zyrës Ligjore",
+    "firmNamePlaceholder": "p.sh. Drejtësia Sh.p.k",
+    "publicEmail": "Email Publik",
+    "phone": "Telefon",
     "address": "Adresa",
     "city": "Qyteti",
     "website": "Webfaqja",
+    "taxId": "Numri Fiskal / NUI",
     "logoUploadFailed": "Ngarkimi i logos dështoi."
   },
- "account": {
+  "finance": {
+    "income": "Të Hyrat",
+    "incomeSub": "Nga faturat e paguara",
+    "expense": "Shpenzimet",
+    "expenseSub": "Shpenzimet operacionale",
+    "balance": "Bilanci",
+    "balanceSub": "Fitimi neto",
+    "invoicesTitle": "Faturat e Lëshuara",
+    "accountantAI": "Kontabilisti AI",
+    "createInvoice": "Krijo Faturë",
+    "noInvoices": "Nuk keni asnjë faturë të krijuar.",
+    "viewPdf": "Shiko PDF",
+    "downloadPdf": "Shkarko PDF",
+    "archiveInvoice": "Arkivo Faturën",
+    "deleteInvoice": "Fshi Faturën"
+  },
+  "archive": {
+    "caseFolders": "Dosjet e Çështjeve",
+    "myDocuments": "Dokumentet e Mia",
+    "contents": "Përmbajtja",
+    "emptyFolder": "Kjo dosje është e zbrazët",
+    "emptyHint": "Filloni duke ngarkuar dokumente ose krijoni nën-dosje për të organizuar punën tuaj.",
+    "createFolder": "Krijo Dosje",
+    "upload": "Ngarko",
+    "created": "Krijuar",
+    "uploaded": "Ngarkuar",
+    "details": "Detajet",
+    "openFolder": "Hap Dosjen",
+    "view": "Shiko",
+    "download": "Shkarko",
+    "delete": "Fshi",
+    "newFolderTitle": "Krijo Dosje të Re",
+    "folderNamePlaceholder": "Emëro dosjen..."
+  },
+  "account": {
     "title": "Llogaria Ime",
     "profileInfo": "Informacione Personale",
     "username": "Emri i përdoruesit",
@@ -220,7 +264,7 @@
     "allPriorities": "Të gjitha Prioritetet",
     "noUpcomingEvents": "Nuk ka afate të ardhshme në 7 ditët e ardhshme.",
     "addToCalendar": "Shto në Kalendar",
-    "eventSaved": "Ngjarja u ruajt me sukses!",
+    "eventSaved": "Ngjarje u ruajt me sukses!",
     "date": "Data",
     "type": "Lloji",
     "title": "Titulli",
@@ -276,7 +320,7 @@
       "create": "Krijo Ngjarje"
     }
   },
-   "caseCard": {
+  "caseCard": {
     "createdOn": "Krijuar më",
     "client": "Informacioni i Klientit",
     "documents": "Dokumente",
@@ -300,6 +344,10 @@
   },
   "error": {
     "generic": "Ndodhi një gabim. Ju lutemi provoni përsëri.",
-    "failedToLoadCase": "Dështoi ngarkimi i të dhënave të rastit."
+    "failedToLoadCase": "Dështoi ngarkimi i të dhënave të rastit.",
+    "uploadFailed": "Ngarkimi dështoi"
+  },
+  "settings": {
+    "successMessage": "Cilësimet u ruajtën me sukses!"
   }
 }
