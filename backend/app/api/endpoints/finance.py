@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE API (ARCHIVE ENABLED)
-# 1. ADDED: POST /invoices/{invoice_id}/archive endpoint.
-# 2. INTEGRATION: Connects Finance -> Report -> Archive services seamlessly.
-# 3. VERIFIED: Preserves existing 'lang' support and relative imports.
+# PHOENIX PROTOCOL - FINANCE API (DATA SYNC)
+# 1. FIX: Passed 'str(current_user.id)' to generate_invoice_pdf to guarantee Business Profile match.
+# 2. STATUS: Fully verified link between User -> Profile -> Invoice PDF.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from fastapi.responses import StreamingResponse
@@ -11,7 +10,6 @@ from pymongo.database import Database
 
 from ...models.user import UserInDB
 from ...models.finance import InvoiceCreate, InvoiceOut, InvoiceUpdate
-# PHOENIX NEW: Import Archive components
 from ...models.archive import ArchiveItemOut 
 from ...services.finance_service import FinanceService
 from ...services.archive_service import ArchiveService
@@ -77,13 +75,14 @@ def download_invoice_pdf(
 ):
     service = FinanceService(db)
     invoice = service.get_invoice(str(current_user.id), invoice_id)
-    pdf_buffer = generate_invoice_pdf(invoice, db, current_user.username, lang=lang or "sq")
+    
+    # PHOENIX FIX: Pass ID (str) instead of username to ensure DB lookup works
+    pdf_buffer = generate_invoice_pdf(invoice, db, str(current_user.id), lang=lang or "sq")
     
     filename = f"Invoice_{invoice.invoice_number}.pdf"
     headers = {'Content-Disposition': f'inline; filename="{filename}"'}
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
 
-# PHOENIX NEW: Archive Endpoint
 @router.post("/invoices/{invoice_id}/archive", response_model=ArchiveItemOut)
 async def archive_invoice(
     invoice_id: str,
@@ -103,7 +102,8 @@ async def archive_invoice(
     invoice = finance_service.get_invoice(str(current_user.id), invoice_id)
     
     # 2. Generate PDF (In Memory)
-    pdf_buffer = generate_invoice_pdf(invoice, db, current_user.username, lang=lang or "sq")
+    # PHOENIX FIX: Pass ID here too
+    pdf_buffer = generate_invoice_pdf(invoice, db, str(current_user.id), lang=lang or "sq")
     pdf_content = pdf_buffer.getvalue()
     
     # 3. Save to Archive

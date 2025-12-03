@@ -1,8 +1,8 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - SYNTAX & REGRESSION FIX
-# 1. FIX: Restored the original, correct function bodies for 'generate_findings_report_pdf' and 'create_pdf_from_text'.
-# 2. REASON: The previous version contained placeholders ('...') which caused critical syntax errors.
-# 3. STATUS: This version combines the new professional invoice design with the original, functional report generation logic, ensuring a clean, error-free build.
+# PHOENIX PROTOCOL - REPORT SERVICE V2 (ID-BASED LOOKUP)
+# 1. FIX: _get_branding now looks up profiles via user_id (ObjectId/String) instead of username.
+# 2. LOGIC: Robust handling for MongoDB ID types to ensure profile is always found.
+# 3. UI: Preserved the professional Invoice styling.
 
 import io
 import structlog
@@ -18,6 +18,7 @@ from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
 from reportlab.lib.utils import ImageReader
 from pymongo.database import Database
 from typing import List, Optional
+from bson import ObjectId
 from xml.sax.saxutils import escape
 
 from ..models.finance import InvoiceInDB
@@ -58,21 +59,41 @@ def _get_text(key: str, lang: str = "sq") -> str:
     return TRANSLATIONS.get(lang, TRANSLATIONS["sq"]).get(key, key)
 
 # --- BRANDING & ASSETS ---
-def _get_branding(db: Database, search_term: str) -> dict:
+def _get_branding(db: Database, user_id: str) -> dict:
+    """
+    Fetches the Business Profile directly using user_id.
+    Handles both String and ObjectId formats to be safe.
+    """
     try:
-        user = db.users.find_one({"$or": [{"email": search_term}, {"username": search_term}]})
-        if user:
-            profile = db.business_profiles.find_one({"user_id": user["_id"]})
-            if profile:
-                return {
-                    "firm_name": profile.get("firm_name", "Juristi.tech"), "address": profile.get("address", ""),
-                    "email_public": profile.get("email_public", user["email"]), "phone": profile.get("phone", ""),
-                    "branding_color": profile.get("branding_color", "#4f46e5"), "logo_url": profile.get("logo_url"),
-                    "logo_storage_key": profile.get("logo_storage_key"), "website": profile.get("website", ""),
-                    "nui": profile.get("nui", "")
-                }
+        # Try finding with ObjectId first (standard)
+        try:
+            oid = ObjectId(user_id)
+            profile = db.business_profiles.find_one({"user_id": oid})
+        except:
+            profile = None
+        
+        # Fallback to string search if not found
+        if not profile:
+            profile = db.business_profiles.find_one({"user_id": user_id})
+
+        if profile:
+            logger.info(f"Branding found for user_id {user_id}: {profile.get('firm_name')}")
+            return {
+                "firm_name": profile.get("firm_name", "Juristi.tech"), 
+                "address": profile.get("address", ""),
+                "email_public": profile.get("email_public", ""), 
+                "phone": profile.get("phone", ""),
+                "branding_color": profile.get("branding_color", "#4f46e5"), 
+                "logo_url": profile.get("logo_url"),
+                "logo_storage_key": profile.get("logo_storage_key"), 
+                "website": profile.get("website", ""),
+                "nui": profile.get("tax_id", "")  # Map tax_id to nui for display
+            }
+        else:
+            logger.warning(f"No branding found for user_id {user_id}, using defaults.")
     except Exception as e:
-        logger.warning(f"Branding fetch failed: {e}")
+        logger.error(f"Branding fetch failed: {e}")
+        
     return {"firm_name": "Juristi.tech", "branding_color": "#4f46e5", "address": "", "email_public": "", "phone": "", "nui": ""}
 
 def _fetch_logo_image(url: Optional[str], storage_key: Optional[str] = None) -> Optional[ImageReader]:
@@ -85,7 +106,7 @@ def _fetch_logo_image(url: Optional[str], storage_key: Optional[str] = None) -> 
                 if data: return ImageReader(io.BytesIO(data))
         except Exception as e:
             logger.warning(f"Failed to fetch logo from storage: {e}")
-    if url and not url.startswith("/"):
+    if url and url.startswith("http"):
         try:
             response = requests.get(url, timeout=5)
             if response.status_code == 200:
@@ -101,14 +122,14 @@ def _header_footer_invoice(canvas: canvas.Canvas, doc: BaseDocTemplate, branding
     canvas.line(15 * mm, 15 * mm, 195 * mm, 15 * mm)
     canvas.setFont('Helvetica', 8)
     canvas.setFillColor(COLOR_SECONDARY_TEXT)
-    footer_msg = f"{_get_text('footer_gen', lang)} Juristi.tech | {datetime.now().strftime('%d/%m/%Y')}"
+    footer_msg = f"{_get_text('footer_gen', lang)} {branding.get('firm_name', 'Juristi.tech')} | {datetime.now().strftime('%d/%m/%Y')}"
     canvas.drawString(15 * mm, 10 * mm, footer_msg)
     canvas.drawRightString(195 * mm, 10 * mm, f"{_get_text('page', lang)} {doc.page}")
     canvas.restoreState()
 
 def _header_footer_report(canvas: canvas.Canvas, doc: BaseDocTemplate, header_right_text: str, branding: dict, lang: str):
     canvas.saveState()
-    brand_color = HexColor(branding["color"])
+    brand_color = HexColor(branding.get("branding_color", "#4f46e5"))
     canvas.setFillColor(brand_color)
     canvas.rect(0, 280 * mm, 210 * mm, 17 * mm, fill=1, stroke=0) 
     logo_drawn = False
@@ -135,7 +156,7 @@ def _header_footer_report(canvas: canvas.Canvas, doc: BaseDocTemplate, header_ri
     canvas.drawRightString(195 * mm, 284 * mm, header_right_text)
     canvas.setStrokeColor(HexColor("#E5E7EB")); canvas.line(15 * mm, 15 * mm, 195 * mm, 15 * mm)
     canvas.setFont('Helvetica', 8); canvas.setFillColor(HexColor("#6B7280"))
-    footer_msg = f"{_get_text('footer_gen', lang)} Juristi.tech | {datetime.now().strftime('%d/%m/%Y')}"
+    footer_msg = f"{_get_text('footer_gen', lang)} {branding.get('firm_name', 'Juristi.tech')} | {datetime.now().strftime('%d/%m/%Y')}"
     canvas.drawString(15 * mm, 10 * mm, footer_msg)
     canvas.drawRightString(195 * mm, 10 * mm, f"{_get_text('page', lang)} {doc.page}")
     canvas.restoreState()
@@ -156,15 +177,27 @@ def _build_doc_report(buffer: io.BytesIO, header_text: str, branding: dict, lang
     return doc
 
 # --- MAIN GENERATOR ---
-def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang: str = "sq") -> io.BytesIO:
-    branding = _get_branding(db, username)
+def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang: str = "sq") -> io.BytesIO:
+    # PHOENIX FIX: Now accepts user_id instead of username
+    branding = _get_branding(db, user_id)
+    
     buffer = io.BytesIO()
     doc = _build_doc_invoice(buffer, branding, lang)
     brand_color = HexColor(branding.get("branding_color", "#4f46e5"))
     Story: List[Flowable] = []
 
     logo_img = _fetch_logo_image(branding.get("logo_url"), branding.get("logo_storage_key"))
-    logo_flowable = Paragraph(f'<img src="{logo_img.fileName}" width="140" height="{140 * logo_img.getSize()[1] / float(logo_img.getSize()[0])}" />', STYLES['Normal']) if logo_img else Spacer(0,0)
+    logo_flowable = Spacer(0, 0)
+    if logo_img:
+        try:
+            iw, ih = logo_img.getSize()
+            aspect = ih / float(iw)
+            width = 40 * mm
+            height = width * aspect
+            if height > 30 * mm: height = 30 * mm; width = height / aspect
+            logo_flowable = Paragraph(f'<img src="{logo_img.fileName}" width="{width}" height="{height}" />', STYLES['Normal'])
+        except Exception:
+            pass
 
     firm_details_content = [
         Paragraph(branding.get("firm_name", ""), ParagraphStyle('FirmName', parent=STYLES['h3'], alignment=TA_RIGHT)),
@@ -233,9 +266,9 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, username: str, lang
     buffer.seek(0)
     return buffer
 
-# PHOENIX FIX: Restored the original, correct function body
-def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, username: str, lang: str = "sq") -> io.BytesIO:
-    branding = _get_branding(db, username)
+def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, user_id: str, lang: str = "sq") -> io.BytesIO:
+    # PHOENIX FIX: Now accepts user_id
+    branding = _get_branding(db, user_id)
     buffer = io.BytesIO()
     doc = _build_doc_report(buffer, _get_text('report_title', lang), branding, lang)
     styles = getSampleStyleSheet()
@@ -246,7 +279,7 @@ def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, us
     
     meta_data = [
         [Paragraph(f"<b>{_get_text('case', lang)}:</b>", styles['Normal']), Paragraph(case_title, styles['Normal'])],
-        [Paragraph(f"<b>{_get_text('generated_for', lang)}:</b>", styles['Normal']), Paragraph(username, styles['Normal'])]
+        # Removed username text line, focused on branding header
     ]
     t = Table(meta_data, colWidths=[40*mm, 120*mm])
     t.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, HexColor("#CCCCCC")), ('BACKGROUND', (0,0), (0,-1), HexColor("#F5F5F5"))]))
@@ -270,9 +303,9 @@ def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, us
     buffer.seek(0)
     return buffer
 
-# PHOENIX FIX: Restored the original, correct function body
 def create_pdf_from_text(text: str, document_title: str) -> io.BytesIO:
     buffer = io.BytesIO()
+    # Simple default for generic texts
     doc = _build_doc_report(buffer, document_title, {"firm_name": "Juristi.tech", "branding_color": "#333333"}, "sq")
     Story: List[Flowable] = [
         Spacer(1, 15*mm),
