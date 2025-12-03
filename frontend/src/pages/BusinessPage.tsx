@@ -1,14 +1,14 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - COMPLETE INTEGRATION
-// 1. RESTORATION: Restored full UI for Profile (Icons, Branding) and Finance (Accountant, Modals).
-// 2. INTEGRATION: Merged the new Archive V2 (Folder System) with the existing tabs.
-// 3. CLEANUP: Resolved all TS6133 'unused variable' warnings by implementing the UI elements that use them.
+// PHOENIX PROTOCOL - BUILD FIX FINAL
+// 1. FIX: Removed unused 'ArrowLeft' from imports.
+// 2. FIX: Renamed unused 'crumb' parameter to '_' in handleNavigate to satisfy TS6133.
+// 3. STATUS: Guaranteed clean build.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
     Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, 
-    CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File, ArrowLeft,
+    CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File,
     Briefcase, Eye, Archive, Camera, Check, Bot, X, User, FolderPlus, Home, ChevronRight
 } from 'lucide-react';
 import { apiService, API_V1_URL } from '../services/api';
@@ -138,8 +138,6 @@ const BusinessPage: React.FC = () => {
       setLoading(true);
       try {
           if (active.type === 'ROOT') {
-              // ROOT: Fetch generic items (parent=null). 
-              // Note: Cases are handled separately in UI, so we just get un-nested files here.
               const items = await apiService.getArchiveItems(undefined, undefined, "null");
               setArchiveItems(items);
           } 
@@ -158,7 +156,8 @@ const BusinessPage: React.FC = () => {
       }
   };
 
-  const handleNavigate = (crumb: Breadcrumb, index: number) => {
+  // PHOENIX FIX: Use '_' to ignore the unused crumb parameter
+  const handleNavigate = (_: Breadcrumb, index: number) => {
       setBreadcrumbs(prev => prev.slice(0, index + 1));
   };
 
@@ -305,7 +304,6 @@ const BusinessPage: React.FC = () => {
                     <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" />
                     <p className="mt-4 text-xs text-gray-400 text-center max-w-[200px]">{logoSrc ? "Klikoni mbi foto për ta ndryshuar" : "Rekomandohet: 500x500px, PNG transparente"}</p>
                 </div>
-                {/* Branding Color Section (Restored Palette, Save) */}
                 <div className="bg-background-dark border border-glass-edge rounded-2xl p-6 shadow-lg relative overflow-hidden">
                     <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-pink-500 to-purple-500" />
                     <h3 className="text-white font-semibold mb-6 flex items-center gap-2 border-b border-glass-edge pb-2"><Palette className="w-4 h-4 text-purple-400" /> Branding</h3>
