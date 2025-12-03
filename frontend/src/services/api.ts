@@ -1,10 +1,10 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API CLIENT V2 (FOLDERS)
-// 1. UPDATE: 'getArchiveItems' now accepts 'parentId' for navigation.
-// 2. UPDATE: 'uploadArchiveItem' now accepts 'parentId' for uploading to folders.
-// 3. FEATURE: Added 'createArchiveFolder' method.
+// PHOENIX PROTOCOL - API CLIENT V2.1 (HARDENED AUTH)
+// 1. UPDATE: Robust Axios Interceptor for 401 handling with modern AxiosHeaders support.
+// 2. SAFETY: Improved token manager and queue processing.
+// 3. MAINTAIN: All existing business methods preserved intact.
 
-import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
+import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
     LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, User, UpdateUserRequest,
     DeletedDocumentResponse, CalendarEvent, CalendarEventCreateRequest, CreateDraftingJobRequest,
@@ -75,7 +75,15 @@ class ApiService {
             (config) => {
                 const token = tokenManager.get();
                 if (token) {
-                    config.headers.Authorization = `Bearer ${token}`;
+                    if (!config.headers) {
+                        config.headers = new AxiosHeaders();
+                    }
+                    // Handle both AxiosHeaders object and plain object
+                    if (config.headers instanceof AxiosHeaders) {
+                        config.headers.set('Authorization', `Bearer ${token}`);
+                    } else {
+                        (config.headers as any).Authorization = `Bearer ${token}`;
+                    }
                 }
                 return config;
             },
@@ -87,12 +95,17 @@ class ApiService {
             async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+                // Handle 401 Unauthorized
                 if (error.response?.status === 401 && !originalRequest._retry) {
                     if (this.isRefreshing) {
                         return new Promise((resolve, reject) => {
                             this.failedQueue.push({ resolve, reject });
-                        }).then(() => {
-                            originalRequest.headers.Authorization = `Bearer ${tokenManager.get()}`;
+                        }).then((token) => {
+                            if (originalRequest.headers instanceof AxiosHeaders) {
+                                originalRequest.headers.set('Authorization', `Bearer ${token}`);
+                            } else {
+                                (originalRequest.headers as any).Authorization = `Bearer ${token}`;
+                            }
                             return this.axiosInstance(originalRequest);
                         });
                     }
@@ -101,14 +114,21 @@ class ApiService {
                     this.isRefreshing = true;
 
                     try {
+                        // Attempt to refresh the token using the HttpOnly cookie
                         const { data } = await this.axiosInstance.post<LoginResponse>('/auth/refresh');
                         tokenManager.set(data.access_token);
                         
-                        originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
-                        this.processQueue(null);
+                        // Retry the original request with the new token
+                        if (originalRequest.headers instanceof AxiosHeaders) {
+                            originalRequest.headers.set('Authorization', `Bearer ${data.access_token}`);
+                        } else {
+                            (originalRequest.headers as any).Authorization = `Bearer ${data.access_token}`;
+                        }
                         
+                        this.processQueue(null);
                         return this.axiosInstance(originalRequest);
                     } catch (refreshError) {
+                        // Refresh failed (cookie invalid/expired)
                         tokenManager.set(null);
                         this.processQueue(refreshError as Error);
                         if (this.onUnauthorized) {
@@ -159,12 +179,11 @@ class ApiService {
     public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> { const params = caseId ? { case_id: caseId } : {}; const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/invoices/${invoiceId}/archive`, null, { params }); return response.data; }
 
     // --- ARCHIVE (File Storage) ---
-    // PHOENIX: Updated to support parentId for folders
     public async getArchiveItems(category?: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut[]> { 
         const params: any = {}; 
         if (category) params.category = category; 
         if (caseId) params.case_id = caseId;
-        if (parentId) params.parent_id = parentId; // Pass folder ID
+        if (parentId) params.parent_id = parentId;
         
         const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); 
         return response.data; 
@@ -186,7 +205,7 @@ class ApiService {
         formData.append('title', title); 
         formData.append('category', category); 
         if (caseId) formData.append('case_id', caseId); 
-        if (parentId) formData.append('parent_id', parentId); // Pass folder ID
+        if (parentId) formData.append('parent_id', parentId);
         
         const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } }); 
         return response.data; 
