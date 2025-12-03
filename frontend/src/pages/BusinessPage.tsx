@@ -1,7 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - CLEANUP
-// 1. FIX: Removed unused 'GripVertical' import.
-// 2. STATUS: Clean build.
+// PHOENIX PROTOCOL - UI REFINEMENT
+// 1. MOBILE FIX: Removed fixed 'h-64' constraints. Cards now grow dynamically with content (h-full).
+// 2. UI UPDATE: Replaced 'Shiko' text with 'Eye' icon in the action group for documents.
+// 3. LAYOUT: Ensured grid items stretch uniformly.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -274,7 +275,7 @@ const BusinessPage: React.FC = () => {
 
   const currentView = breadcrumbs[breadcrumbs.length - 1];
 
-  // --- HELPER COMPONENT: RICH ARCHIVE CARD (Matches CaseCard Design) ---
+  // --- HELPER COMPONENT: RICH ARCHIVE CARD ---
   const ArchiveCard = ({ 
       title, subtitle, type, date, icon, statusColor, onClick, onDownload, onDelete, isFolder, isDragging 
   }: { 
@@ -284,7 +285,7 @@ const BusinessPage: React.FC = () => {
     <div 
         onClick={onClick}
         className={`
-            group relative flex flex-col justify-between h-full p-6 rounded-2xl transition-all duration-300 cursor-pointer
+            group relative flex flex-col justify-between h-full min-h-[14rem] p-6 rounded-2xl transition-all duration-300 cursor-pointer
             bg-gray-900/40 backdrop-blur-md border border-white/5 shadow-xl hover:shadow-2xl hover:bg-gray-800/60
             ${isDragging ? 'opacity-30 scale-95 border-dashed border-white/50' : ''}
             hover:-translate-y-1 hover:scale-[1.01]
@@ -304,19 +305,19 @@ const BusinessPage: React.FC = () => {
                 </div>
                 
                 <div className="mt-4">
-                    <h2 className="text-lg font-bold text-gray-100 line-clamp-2 leading-tight tracking-tight group-hover:text-primary-start transition-colors" title={title}>
+                    <h2 className="text-lg font-bold text-gray-100 line-clamp-2 leading-tight tracking-tight group-hover:text-primary-start transition-colors break-words" title={title}>
                         {title}
                     </h2>
                     <div className="flex items-center gap-2 mt-2">
-                         <Calendar className="w-3 h-3 text-gray-600" />
-                         <p className="text-xs text-gray-500 font-medium">
+                         <Calendar className="w-3 h-3 text-gray-600 flex-shrink-0" />
+                         <p className="text-xs text-gray-500 font-medium truncate">
                             {isFolder ? 'Krijuar:' : 'Ngarkuar:'} <span className="text-gray-400">{date}</span>
                          </p>
                     </div>
                 </div>
             </div>
 
-            {/* Details Section (Replaces Client Info) */}
+            {/* Details Section */}
             <div className="flex flex-col mb-6 relative z-10">
                 <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
                     <Info className="w-3 h-3 text-indigo-400" />
@@ -325,11 +326,11 @@ const BusinessPage: React.FC = () => {
                 
                 <div className="space-y-1.5 pl-1">
                     <div className="flex items-center gap-2 text-sm font-medium text-gray-200">
-                        {isFolder ? <FolderOpen className="w-3.5 h-3.5 text-amber-500" /> : <FileText className="w-3.5 h-3.5 text-blue-500" />}
+                        {isFolder ? <FolderOpen className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
                         <span className="truncate">{type}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <Hash className="w-3 h-3" />
+                        <Hash className="w-3 h-3 flex-shrink-0" />
                         <span className="truncate">{subtitle}</span>
                     </div>
                 </div>
@@ -337,12 +338,21 @@ const BusinessPage: React.FC = () => {
         </div>
 
         {/* Footer Actions */}
-        <div className="relative z-10 pt-4 border-t border-white/5 flex items-center justify-between">
+        <div className="relative z-10 pt-4 border-t border-white/5 flex items-center justify-between min-h-[3rem]">
+            {/* Left Side: Text only for Folders */}
             <span className="text-xs font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">
-                {isFolder ? 'Hap Dosjen' : 'Shiko'}
+                {isFolder ? 'Hap Dosjen' : ''}
             </span>
             
-            <div className="flex gap-1">
+            {/* Right Side: Icon Group */}
+            <div className="flex gap-1 items-center">
+                {/* View Icon (New: Replaces 'Shiko' text for documents) */}
+                {!isFolder && (
+                     <button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-2 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors" title="Shiko">
+                        <Eye className="h-4 w-4" />
+                    </button>
+                )}
+
                 {!isFolder && onDownload && (
                     <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="p-2 rounded-lg text-gray-600 hover:text-green-400 hover:bg-green-400/10 transition-colors" title="Shkarko">
                         <Download className="h-4 w-4" />
@@ -500,7 +510,7 @@ const BusinessPage: React.FC = () => {
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {cases.map(c => (
-                                <div key={c.id} className="h-64">
+                                <div key={c.id} className="h-full">
                                     <ArchiveCard 
                                         title={c.title || `Rasti #${c.case_number}`}
                                         subtitle={c.case_number || 'Pa numër'}
@@ -554,13 +564,13 @@ const BusinessPage: React.FC = () => {
                                          onDragOver={onDragOver}
                                          onDrop={(e) => onDrop(e as any, item.id)}
                                          onDragEnd={onDragEnd}
-                                         className="h-64"
+                                         className="h-full"
                                     >
                                         <ArchiveCard 
                                             title={item.title}
                                             subtitle={isFolder ? 'Dosje Arkive' : `${fileExt} Dokument`}
                                             type={isFolder ? 'Folder' : fileExt}
-                                            date={new Date().toLocaleDateString()} // Fallback as item usually doesn't have created_at in frontend type yet, or use generic
+                                            date={new Date().toLocaleDateString()} 
                                             icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)}
                                             statusColor={isFolder ? 'bg-amber-400' : 'bg-blue-400'}
                                             isFolder={isFolder}
