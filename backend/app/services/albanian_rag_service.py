@@ -2,7 +2,7 @@
 # PHOENIX PROTOCOL - JURISDICTION-AWARE RAG
 # 1. LOGIC: Accepts 'jurisdiction' and dynamically switches the AI's "persona" (Kosovo vs. Albania).
 # 2. KB FILTER: Passes jurisdiction to the vector store to search the correct laws.
-# 3. ROBUSTNESS: Defaults to 'ks' if jurisdiction is not provided.
+
 
 import os
 import asyncio
