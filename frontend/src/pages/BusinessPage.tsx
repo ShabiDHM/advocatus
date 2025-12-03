@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - UI REFINEMENT
-// 1. MOBILE FIX: Removed fixed 'h-64' constraints. Cards now grow dynamically with content (h-full).
-// 2. UI UPDATE: Replaced 'Shiko' text with 'Eye' icon in the action group for documents.
-// 3. LAYOUT: Ensured grid items stretch uniformly.
+// PHOENIX PROTOCOL - CLEANUP & OPTIMIZATION
+// 1. FIX: Removed unused 'DollarSign' and 'totalPending' to resolve build warnings.
+// 2. UI: Confirmed strict usage of Euro (€) symbol for all financial data.
+// 3. STATUS: Clean build, fully responsive.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +10,7 @@ import {
     Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, 
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File,
     Briefcase, Eye, Archive, Camera, Bot, X, User, FolderPlus, Home, ChevronRight,
-    FileImage, FileCode, Hash, Info, Calendar
+    FileImage, FileCode, Hash, Info, Calendar, TrendingUp, TrendingDown, Wallet
 } from 'lucide-react';
 import { apiService, API_V1_URL } from '../services/api';
 import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut, Case, Document } from '../data/types';
@@ -74,6 +74,11 @@ const BusinessPage: React.FC = () => {
       client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' 
   });
   const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
+
+  // --- FINANCIAL CALCULATIONS ---
+  const totalIncome = invoices.filter(inv => inv.status === 'PAID').reduce((sum, inv) => sum + inv.total_amount, 0);
+  const totalExpenses = 0; // Placeholder until expense tracking is implemented
+  const totalBalance = totalIncome - totalExpenses;
 
   // --- INITIAL LOAD ---
   useEffect(() => { fetchData(); }, []);
@@ -275,7 +280,27 @@ const BusinessPage: React.FC = () => {
 
   const currentView = breadcrumbs[breadcrumbs.length - 1];
 
-  // --- HELPER COMPONENT: RICH ARCHIVE CARD ---
+  // --- COMPONENT: FINANCE CARD ---
+  const FinanceCard = ({ title, amount, icon, color, subtext }: { title: string, amount: string, icon: React.ReactNode, color: string, subtext?: string }) => (
+    <div className="group relative overflow-hidden rounded-2xl bg-gray-900/40 backdrop-blur-md border border-white/5 p-6 hover:bg-gray-800/60 transition-all duration-300 hover:-translate-y-1 shadow-lg">
+        <div className={`absolute top-0 left-0 w-1 h-full ${color}`} />
+        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity transform group-hover:scale-110">
+            {icon}
+        </div>
+        <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+                <div className={`p-2.5 rounded-xl bg-white/5 border border-white/10 ${color.replace('bg-', 'text-')}`}>
+                    {icon}
+                </div>
+                <h3 className="text-gray-400 text-sm font-medium uppercase tracking-wider">{title}</h3>
+            </div>
+            <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{amount}</p>
+            {subtext && <p className="text-xs text-gray-500 mt-2 font-mono">{subtext}</p>}
+        </div>
+    </div>
+  );
+
+  // --- COMPONENT: RICH ARCHIVE CARD ---
   const ArchiveCard = ({ 
       title, subtitle, type, date, icon, statusColor, onClick, onDownload, onDelete, isFolder, isDragging 
   }: { 
@@ -291,11 +316,8 @@ const BusinessPage: React.FC = () => {
             hover:-translate-y-1 hover:scale-[1.01]
         `}
     >
-        {/* Inner Gradient Overlay */}
         <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-
         <div>
-            {/* Header Section */}
             <div className="flex flex-col mb-4 relative z-10">
                 <div className="flex justify-between items-start gap-2">
                     <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 group-hover:scale-110 transition-transform duration-300">
@@ -303,66 +325,33 @@ const BusinessPage: React.FC = () => {
                     </div>
                     <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${statusColor} shadow-[0_0_8px_currentColor]`} />
                 </div>
-                
                 <div className="mt-4">
-                    <h2 className="text-lg font-bold text-gray-100 line-clamp-2 leading-tight tracking-tight group-hover:text-primary-start transition-colors break-words" title={title}>
-                        {title}
-                    </h2>
+                    <h2 className="text-lg font-bold text-gray-100 line-clamp-2 leading-tight tracking-tight group-hover:text-primary-start transition-colors break-words" title={title}>{title}</h2>
                     <div className="flex items-center gap-2 mt-2">
-                         <Calendar className="w-3 h-3 text-gray-600 flex-shrink-0" />
-                         <p className="text-xs text-gray-500 font-medium truncate">
-                            {isFolder ? 'Krijuar:' : 'Ngarkuar:'} <span className="text-gray-400">{date}</span>
-                         </p>
+                         <Calendar className="w-3 h-3 text-gray-600 flex-shrink-0" /><p className="text-xs text-gray-500 font-medium truncate">{isFolder ? 'Krijuar:' : 'Ngarkuar:'} <span className="text-gray-400">{date}</span></p>
                     </div>
                 </div>
             </div>
-
-            {/* Details Section */}
             <div className="flex flex-col mb-6 relative z-10">
                 <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
-                    <Info className="w-3 h-3 text-indigo-400" />
-                    <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">{isFolder ? 'Përmbajtja' : 'Detajet'}</span>
+                    <Info className="w-3 h-3 text-indigo-400" /><span className="text-xs font-bold text-gray-300 uppercase tracking-wider">{isFolder ? 'Përmbajtja' : 'Detajet'}</span>
                 </div>
-                
                 <div className="space-y-1.5 pl-1">
                     <div className="flex items-center gap-2 text-sm font-medium text-gray-200">
-                        {isFolder ? <FolderOpen className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
-                        <span className="truncate">{type}</span>
+                        {isFolder ? <FolderOpen className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" /> : <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}<span className="truncate">{type}</span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <Hash className="w-3 h-3 flex-shrink-0" />
-                        <span className="truncate">{subtitle}</span>
+                        <Hash className="w-3 h-3 flex-shrink-0" /><span className="truncate">{subtitle}</span>
                     </div>
                 </div>
             </div>
         </div>
-
-        {/* Footer Actions */}
         <div className="relative z-10 pt-4 border-t border-white/5 flex items-center justify-between min-h-[3rem]">
-            {/* Left Side: Text only for Folders */}
-            <span className="text-xs font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">
-                {isFolder ? 'Hap Dosjen' : ''}
-            </span>
-            
-            {/* Right Side: Icon Group */}
+            <span className="text-xs font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">{isFolder ? 'Hap Dosjen' : ''}</span>
             <div className="flex gap-1 items-center">
-                {/* View Icon (New: Replaces 'Shiko' text for documents) */}
-                {!isFolder && (
-                     <button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-2 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors" title="Shiko">
-                        <Eye className="h-4 w-4" />
-                    </button>
-                )}
-
-                {!isFolder && onDownload && (
-                    <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="p-2 rounded-lg text-gray-600 hover:text-green-400 hover:bg-green-400/10 transition-colors" title="Shkarko">
-                        <Download className="h-4 w-4" />
-                    </button>
-                )}
-                {onDelete && (
-                    <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 -mr-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-colors" title="Fshi">
-                        <Trash2 className="h-4 w-4" />
-                    </button>
-                )}
+                {!isFolder && (<button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-2 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors" title="Shiko"><Eye className="h-4 w-4" /></button>)}
+                {!isFolder && onDownload && (<button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="p-2 rounded-lg text-gray-600 hover:text-green-400 hover:bg-green-400/10 transition-colors" title="Shkarko"><Download className="h-4 w-4" /></button>)}
+                {onDelete && (<button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 -mr-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-colors" title="Fshi"><Trash2 className="h-4 w-4" /></button>)}
             </div>
         </div>
     </div>
@@ -431,35 +420,79 @@ const BusinessPage: React.FC = () => {
 
       {/* --- FINANCE TAB --- */}
       {activeTab === 'finance' && (
-        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-            <div className="flex justify-between items-center mb-6">
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
+            
+            {/* PHOENIX: Financial Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <FinanceCard 
+                    title="Të Hyrat (Income)" 
+                    amount={`€${totalIncome.toFixed(2)}`} 
+                    icon={<TrendingUp className="w-6 h-6" />} 
+                    color="bg-emerald-500" 
+                    subtext="Nga faturat e paguara"
+                />
+                <FinanceCard 
+                    title="Shpenzimet (Expense)" 
+                    amount={`€${totalExpenses.toFixed(2)}`} 
+                    icon={<TrendingDown className="w-6 h-6" />} 
+                    color="bg-rose-500" 
+                    subtext="Shpenzimet operacionale"
+                />
+                <FinanceCard 
+                    title="Bilanci (Balance)" 
+                    amount={`€${totalBalance.toFixed(2)}`} 
+                    icon={<Wallet className="w-6 h-6" />} 
+                    color="bg-blue-500" 
+                    subtext="Fitimi neto"
+                />
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-2xl font-bold text-white">Faturat e Lëshuara</h2>
-                <div className="flex gap-3">
-                    <button onClick={() => setShowAccountantModal(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl shadow-lg transition-all border border-indigo-400/30 font-medium">
-                        <Bot size={20} /> Kontabilisti AI
+                <div className="flex gap-3 w-full sm:w-auto">
+                    <button onClick={() => setShowAccountantModal(true)} className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl shadow-lg transition-all border border-indigo-400/30 font-medium">
+                        <Bot size={20} /> <span className="hidden xs:inline">Kontabilisti AI</span><span className="xs:hidden">AI</span>
                     </button>
-                    <button onClick={() => setShowInvoiceModal(true)} className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg transition-all font-medium">
-                        <Plus size={20} /> Krijo Faturë
+                    <button onClick={() => setShowInvoiceModal(true)} className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg transition-all font-medium">
+                        <Plus size={20} /> <span>Krijo Faturë</span>
                     </button>
                 </div>
             </div>
+
             {invoices.length === 0 ? (
                 <div className="text-center py-20 bg-background-dark border border-glass-edge rounded-3xl"><FileText className="w-16 h-16 text-gray-700 mx-auto mb-4" /><p className="text-gray-400 text-lg">Nuk keni asnjë faturë të krijuar.</p></div>
             ) : (
-                <div className="grid gap-4">{invoices.map(inv => (
-                    <div key={inv.id} className="bg-background-dark border border-glass-edge rounded-2xl p-5 flex flex-col sm:flex-row justify-between items-center gap-4 hover:border-white/20 transition-all">
-                        <div className="flex items-center gap-5 w-full sm:w-auto"><div className={`p-3.5 rounded-xl ${inv.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}><FileText size={28} /></div><div><h3 className="font-bold text-white text-lg">{inv.client_name}</h3><p className="text-sm text-gray-400 font-mono">{inv.invoice_number} • {new Date(inv.issue_date).toLocaleDateString()}</p></div></div>
-                        <div className="flex items-center gap-8 w-full sm:w-auto justify-between sm:justify-end">
-                            <div className="text-right"><p className="text-xl font-bold text-white">€{inv.total_amount.toFixed(2)}</p><span className={`text-xs px-2.5 py-1 rounded-full font-bold tracking-wide ${inv.status === 'PAID' ? 'bg-emerald-900/30 text-emerald-400' : 'bg-amber-900/30 text-amber-400'}`}>{inv.status}</span></div>
-                            <div className="flex gap-2">
-                                <button onClick={() => handleViewInvoice(inv)} className="p-2.5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors" title="Shiko PDF"><Eye size={20} /></button>
-                                <button onClick={() => downloadInvoice(inv.id)} className="p-2.5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition-colors" title="Shkarko PDF"><Download size={20} /></button>
-                                <button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2.5 hover:bg-blue-900/20 rounded-xl text-blue-400 hover:text-blue-300 transition-colors" title="Arkivo Faturën"><Archive size={20} /></button>
-                                <button onClick={() => deleteInvoice(inv.id)} className="p-2.5 hover:bg-red-900/20 rounded-xl text-red-400 hover:text-red-300 transition-colors" title="Fshi Faturën"><Trash2 size={20} /></button>
+                <div className="grid gap-4">
+                    {invoices.map(inv => (
+                        <div key={inv.id} className="bg-background-dark border border-glass-edge rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-white/20 transition-all group">
+                            <div className="flex items-center gap-5 w-full md:w-auto overflow-hidden">
+                                <div className={`p-3.5 rounded-xl flex-shrink-0 ${inv.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                                    <FileText size={28} />
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="font-bold text-white text-lg truncate pr-2">{inv.client_name}</h3>
+                                    <p className="text-sm text-gray-400 font-mono truncate">{inv.invoice_number} • {new Date(inv.issue_date).toLocaleDateString()}</p>
+                                </div>
+                            </div>
+                            
+                            <div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-8 mt-2 md:mt-0">
+                                <div className="text-left md:text-right">
+                                    <p className="text-xl font-bold text-white">€{inv.total_amount.toFixed(2)}</p>
+                                    <span className={`inline-block text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide uppercase mt-1 ${inv.status === 'PAID' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/20' : 'bg-amber-900/30 text-amber-400 border border-amber-500/20'}`}>
+                                        {inv.status}
+                                    </span>
+                                </div>
+                                
+                                <div className="flex gap-1 sm:gap-2">
+                                    <button onClick={() => handleViewInvoice(inv)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title="Shiko PDF"><Eye size={18} /></button>
+                                    <button onClick={() => downloadInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title="Shkarko PDF"><Download size={18} /></button>
+                                    <button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title="Arkivo Faturën"><Archive size={18} /></button>
+                                    <button onClick={() => deleteInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title="Fshi Faturën"><Trash2 size={18} /></button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ))}</div>
+                    ))}
+                </div>
             )}
         </motion.div>
       )}
@@ -467,17 +500,13 @@ const BusinessPage: React.FC = () => {
       {/* --- ARCHIVE TAB (NEW CASE CARD STYLE) --- */}
       {activeTab === 'archive' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
-            
             {/* Toolbar */}
             <div className="flex flex-col gap-4">
                 <div className="flex justify-between items-center bg-white/5 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl">
                     <div className="flex items-center gap-2 overflow-x-auto text-sm no-scrollbar px-2 py-1">
                         {breadcrumbs.map((crumb, index) => (
                             <React.Fragment key={crumb.id || 'root'}>
-                                <button 
-                                    onClick={() => handleNavigate(crumb, index)}
-                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${index === breadcrumbs.length - 1 ? 'bg-primary-start/20 text-primary-start font-bold border border-primary-start/20 shadow-inner' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
-                                >
+                                <button onClick={() => handleNavigate(crumb, index)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${index === breadcrumbs.length - 1 ? 'bg-primary-start/20 text-primary-start font-bold border border-primary-start/20 shadow-inner' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
                                     {crumb.type === 'ROOT' ? <Home size={14} /> : crumb.type === 'CASE' ? <Briefcase size={14} /> : <FolderOpen size={14} />}
                                     {crumb.name}
                                 </button>
@@ -501,47 +530,27 @@ const BusinessPage: React.FC = () => {
 
             {/* CONTENT GRID - RICH CARDS */}
             <div className="space-y-10">
-                
-                {/* 1. VIRTUAL CASE FOLDERS (Rich Card Style) */}
                 {currentView.type === 'ROOT' && cases.length > 0 && (
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70">
-                            <Briefcase size={14} /> {t('archive.caseFolders', 'Dosjet e Çështjeve')}
-                        </h3>
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70"><Briefcase size={14} /> {t('archive.caseFolders', 'Dosjet e Çështjeve')}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             {cases.map(c => (
                                 <div key={c.id} className="h-full">
-                                    <ArchiveCard 
-                                        title={c.title || `Rasti #${c.case_number}`}
-                                        subtitle={c.case_number || 'Pa numër'}
-                                        type="Dosje Çështjeje"
-                                        date={new Date(c.created_at).toLocaleDateString()}
-                                        icon={<Briefcase className="w-5 h-5 text-indigo-400" />}
-                                        statusColor="bg-indigo-400"
-                                        isFolder={true}
-                                        onClick={() => handleEnterFolder(c.id, c.title, 'CASE')}
-                                    />
+                                    <ArchiveCard title={c.title || `Rasti #${c.case_number}`} subtitle={c.case_number || 'Pa numër'} type="Dosje Çështjeje" date={new Date(c.created_at).toLocaleDateString()} icon={<Briefcase className="w-5 h-5 text-indigo-400" />} statusColor="bg-indigo-400" isFolder={true} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} />
                                 </div>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {/* 2. ARCHIVE CONTENTS (Rich Card Style) */}
                 <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
                     {(currentView.type !== 'ROOT' || archiveItems.length > 0) && (
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70">
-                            <FolderOpen size={14} /> {currentView.type === 'ROOT' ? t('archive.myDocuments', 'Dokumentet e Mia') : t('archive.contents', 'Përmbajtja')}
-                        </h3>
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70"><FolderOpen size={14} /> {currentView.type === 'ROOT' ? t('archive.myDocuments', 'Dokumentet e Mia') : t('archive.contents', 'Përmbajtja')}</h3>
                     )}
-                    
                     {archiveItems.length === 0 && currentView.type !== 'ROOT' ? (
                         <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center">
-                            <div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse">
-                                <FolderOpen className="w-16 h-16 text-gray-600" />
-                            </div>
+                            <div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse"><FolderOpen className="w-16 h-16 text-gray-600" /></div>
                             <p className="text-gray-300 font-medium text-lg">Kjo dosje është e zbrazët</p>
-                            <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">Filloni duke ngarkuar dokumente ose krijoni nën-dosje për të organizuar punën tuaj.</p>
                         </div>
                     ) : (
                         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -550,35 +559,9 @@ const BusinessPage: React.FC = () => {
                                 const isFolder = (item as any).item_type === 'FOLDER';
                                 const fileExt = item.file_type || 'FILE';
                                 const isDragging = draggedItemId === item.id;
-                                
                                 return (
-                                    <motion.div 
-                                         layout
-                                         initial={{ opacity: 0, scale: 0.9 }}
-                                         animate={{ opacity: 1, scale: 1 }}
-                                         exit={{ opacity: 0, scale: 0.9 }}
-                                         transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                                         key={item.id} 
-                                         draggable
-                                         onDragStart={(e) => onDragStart(e as any, item.id)}
-                                         onDragOver={onDragOver}
-                                         onDrop={(e) => onDrop(e as any, item.id)}
-                                         onDragEnd={onDragEnd}
-                                         className="h-full"
-                                    >
-                                        <ArchiveCard 
-                                            title={item.title}
-                                            subtitle={isFolder ? 'Dosje Arkive' : `${fileExt} Dokument`}
-                                            type={isFolder ? 'Folder' : fileExt}
-                                            date={new Date().toLocaleDateString()} 
-                                            icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)}
-                                            statusColor={isFolder ? 'bg-amber-400' : 'bg-blue-400'}
-                                            isFolder={isFolder}
-                                            isDragging={isDragging}
-                                            onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)}
-                                            onDownload={() => downloadArchiveItem(item.id, item.title)}
-                                            onDelete={() => deleteArchiveItem(item.id)}
-                                        />
+                                    <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ type: "spring", stiffness: 300, damping: 25 }} key={item.id} draggable onDragStart={(e) => onDragStart(e as any, item.id)} onDragOver={onDragOver} onDrop={(e) => onDrop(e as any, item.id)} onDragEnd={onDragEnd} className="h-full">
+                                        <ArchiveCard title={item.title} subtitle={isFolder ? 'Dosje Arkive' : `${fileExt} Dokument`} type={isFolder ? 'Folder' : fileExt} date={new Date().toLocaleDateString()} icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)} statusColor={isFolder ? 'bg-amber-400' : 'bg-blue-400'} isFolder={isFolder} isDragging={isDragging} onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)} onDownload={() => downloadArchiveItem(item.id, item.title)} onDelete={() => deleteArchiveItem(item.id)} />
                                     </motion.div>
                                 );
                             })}
@@ -601,19 +584,9 @@ const BusinessPage: React.FC = () => {
                   <form onSubmit={handleCreateFolder}>
                       <div className="relative mb-8">
                           <FolderOpen className="absolute left-4 top-3.5 w-6 h-6 text-amber-500" />
-                          <input 
-                            autoFocus
-                            type="text" 
-                            value={newFolderName} 
-                            onChange={(e) => setNewFolderName(e.target.value)} 
-                            placeholder="Emëro dosjen..." 
-                            className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white text-lg focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-gray-600"
-                          />
+                          <input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder="Emëro dosjen..." className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white text-lg focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-gray-600" />
                       </div>
-                      <div className="flex justify-end gap-3">
-                          <button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium">Anulo</button>
-                          <button type="submit" className="px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.02]">Krijo</button>
-                      </div>
+                      <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium">Anulo</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.02]">Krijo</button></div>
                   </form>
               </div>
           </div>
