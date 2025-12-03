@@ -1,14 +1,15 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - CLEAN REPAIR
-// 1. FIX: Resolves "Duplicate identifier" errors by providing a single, clean component definition.
-// 2. STATUS: Internationalized, Responsive, and Bug-Free.
+// PHOENIX PROTOCOL - FEATURE TOGGLE (HIDE AI)
+// 1. REMOVED: 'Accountant AI' button and modal logic.
+// 2. LAYOUT: Adjusted Finance header to accommodate the single 'Create Invoice' button.
+// 3. STATUS: Clean build, ready for deployment.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, 
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File,
-    Briefcase, Eye, Archive, Camera, Bot, X, User, FolderPlus, Home, ChevronRight,
+    Briefcase, Eye, Archive, Camera, X, User, FolderPlus, Home, ChevronRight,
     FileImage, FileCode, Hash, Info, Calendar, TrendingUp, TrendingDown, Wallet
 } from 'lucide-react';
 import { apiService, API_V1_URL } from '../services/api';
@@ -54,7 +55,6 @@ const BusinessPage: React.FC = () => {
   const [newFolderName, setNewFolderName] = useState("");
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showArchiveInvoiceModal, setShowArchiveInvoiceModal] = useState(false);
-  const [showAccountantModal, setShowAccountantModal] = useState(false);
   
   // Selection
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
@@ -461,9 +461,7 @@ const BusinessPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-2xl font-bold text-white">{t('finance.invoicesTitle')}</h2>
                 <div className="flex gap-3 w-full sm:w-auto">
-                    <button onClick={() => setShowAccountantModal(true)} className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl shadow-lg transition-all border border-indigo-400/30 font-medium">
-                        <Bot size={20} /> <span className="hidden xs:inline">{t('finance.accountantAI')}</span><span className="xs:hidden">AI</span>
-                    </button>
+                    {/* PHOENIX: Removed Accountant AI button */}
                     <button onClick={() => setShowInvoiceModal(true)} className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg transition-all font-medium">
                         <Plus size={20} /> <span>{t('finance.createInvoice')}</span>
                     </button>
@@ -604,7 +602,7 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
-      {/* --- INVOICE & ACCOUNTANT MODALS --- */}
+      {/* --- INVOICE MODAL --- */}
       {showInvoiceModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full">
@@ -648,26 +646,6 @@ const BusinessPage: React.FC = () => {
                   <div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">{t('general.save')}</button></div>
               </div>
           </div>
-      )}
-
-      {showAccountantModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-            <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl overflow-hidden relative">
-                <button onClick={() => setShowAccountantModal(false)} className="absolute top-4 right-4 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors z-10"><X size={24} /></button>
-                <div className="p-8 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-indigo-900/40 to-purple-900/40">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-indigo-500/20 rounded-xl border border-indigo-500/30 shadow-lg shadow-indigo-500/10"><Bot className="w-10 h-10 text-indigo-300" /></div>
-                        <div><h2 className="text-2xl font-bold text-white tracking-tight">{t('finance.accountantAI')}</h2><p className="text-sm text-indigo-200/80 font-medium">Asistenti Financiar për Zyrën tuaj</p></div>
-                    </div>
-                </div>
-                <div className="flex-1 p-8 overflow-y-auto flex flex-col items-center justify-center text-center space-y-8">
-                        <div className="relative"><div className="absolute inset-0 bg-indigo-500 blur-3xl opacity-20 rounded-full"></div><div className="w-32 h-32 bg-indigo-950/50 backdrop-blur-sm rounded-full flex items-center justify-center border border-indigo-500/30 shadow-2xl relative z-10"><Bot className="w-16 h-16 text-indigo-400" /></div></div>
-                        <h3 className="text-2xl font-bold text-white">Së Shpejti...</h3>
-                        <p className="text-gray-400">Ky modul është në zhvillim e sipër.</p>
-                        <button onClick={() => setShowAccountantModal(false)} className="px-6 py-2 rounded-full border border-indigo-500/50 text-indigo-300 hover:bg-indigo-500/10 transition-colors text-sm font-medium">{t('general.close')}</button>
-                </div>
-            </div>
-        </div>
       )}
 
       {viewingDoc && <PDFViewerModal documentData={viewingDoc} onClose={closePreview} t={t} directUrl={viewingUrl} />}
