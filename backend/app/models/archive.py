@@ -1,7 +1,8 @@
 # FILE: backend/app/models/archive.py
-# PHOENIX PROTOCOL - ARCHIVE MODELS (CASE LINKED)
-# 1. UPDATE: Added 'case_id' to ArchiveItemBase to link files to cases.
-# 2. STATUS: Ready for structural organization.
+# PHOENIX PROTOCOL - ARCHIVE V2 (FOLDERS)
+# 1. SCHEMA: Added 'item_type' (FILE/FOLDER) and 'parent_id' for hierarchical structure.
+# 2. LOGIC: Made 'storage_key' optional, as folders do not have physical files.
+# 3. COMPATIBILITY: Preserves existing fields for backward compatibility.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
@@ -10,12 +11,18 @@ from .common import PyObjectId
 
 class ArchiveItemBase(BaseModel):
     title: str
-    file_type: str = "PDF" # PDF, DOCX, IMG
-    category: str = "GENERAL" # INVOICE, CONTRACT, REPORT, UPLOAD
-    storage_key: str
+    # PHOENIX: Hierarchical Structure
+    item_type: str = "FILE" # 'FILE' or 'FOLDER'
+    parent_id: Optional[PyObjectId] = None # Pointer to parent folder (null = root)
+    
+    # File Metadata (Optional for Folders)
+    file_type: str = "PDF" # PDF, DOCX, IMG, FOLDER
+    category: str = "GENERAL" 
+    storage_key: Optional[str] = None # Folders don't have this
     file_size: int = 0
     description: str = ""
-    # PHOENIX FIX: Link to specific case (Optional)
+    
+    # Context
     case_id: Optional[PyObjectId] = None 
 
 class ArchiveItemCreate(ArchiveItemBase):
@@ -33,5 +40,5 @@ class ArchiveItemInDB(ArchiveItemBase):
 
 class ArchiveItemOut(ArchiveItemInDB):
     id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
-    # Ensure case_id is serialized correctly if present
     case_id: Optional[PyObjectId] = Field(default=None)
+    parent_id: Optional[PyObjectId] = Field(default=None)

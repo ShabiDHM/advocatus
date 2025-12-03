@@ -1,10 +1,10 @@
 # FILE: backend/app/api/endpoints/archive.py
-# PHOENIX PROTOCOL - ARCHIVE API (PREVIEW SUPPORT)
-# 1. FIX: Added 'preview' query param to 'download_archive_item'.
-# 2. FIX: Sets Content-Disposition to 'inline' for previews.
-# 3. FIX: Detects MIME types for PDF/Images to allow browser rendering.
+# PHOENIX PROTOCOL - ARCHIVE API V2 (FOLDERS)
+# 1. UPDATE: Added 'parent_id' support for navigation and uploads.
+# 2. FEATURE: Added 'create_archive_folder' endpoint.
+# 3. LOGIC: Connected to updated ArchiveService methods.
 
-from fastapi import APIRouter, Depends, status, UploadFile, Form, Query
+from fastapi import APIRouter, Depends, status, UploadFile, Form, Query, HTTPException
 from fastapi.responses import StreamingResponse
 from typing import List, Annotated, Optional
 from pymongo.database import Database
@@ -24,10 +24,24 @@ def get_archive_items(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db),
     category: Optional[str] = None,
-    case_id: Optional[str] = None
+    case_id: Optional[str] = None,
+    parent_id: Optional[str] = None # PHOENIX: Added parent_id for navigation
 ):
     service = ArchiveService(db)
-    return service.get_archive_items(str(current_user.id), category, case_id)
+    # Pass parent_id to service
+    return service.get_archive_items(str(current_user.id), category, case_id, parent_id)
+
+@router.post("/folder", response_model=ArchiveItemOut)
+def create_archive_folder(
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    title: str = Form(...),
+    parent_id: Optional[str] = Form(None),
+    case_id: Optional[str] = Form(None),
+    db: Database = Depends(get_db)
+):
+    """Creates a new logical folder."""
+    service = ArchiveService(db)
+    return service.create_folder(str(current_user.id), title, parent_id, case_id)
 
 @router.post("/upload", response_model=ArchiveItemOut)
 async def upload_archive_item(
@@ -36,10 +50,11 @@ async def upload_archive_item(
     title: str = Form(...),
     category: str = Form("UPLOAD"),
     case_id: Optional[str] = Form(None),
+    parent_id: Optional[str] = Form(None), # PHOENIX: Support uploading to folders
     db: Database = Depends(get_db)
 ):
     service = ArchiveService(db)
-    return await service.add_file_to_archive(str(current_user.id), file, category, title, case_id)
+    return await service.add_file_to_archive(str(current_user.id), file, category, title, case_id, parent_id)
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_archive_item(

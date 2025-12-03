@@ -1,8 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - REVISED API CLIENT
-// 1. ARCHITECTURE: Aligned with the secure HttpOnly cookie-based refresh token flow.
-// 2. STATELESS: Removed manual refresh token management from the client.
-// 3. ROBUSTNESS: Simplified interceptors to correctly handle automatic token renewal via the /refresh endpoint.
+// PHOENIX PROTOCOL - API CLIENT V2 (FOLDERS)
+// 1. UPDATE: 'getArchiveItems' now accepts 'parentId' for navigation.
+// 2. UPDATE: 'uploadArchiveItem' now accepts 'parentId' for uploading to folders.
+// 3. FEATURE: Added 'createArchiveFolder' method.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError } from 'axios';
 import type {
@@ -136,8 +136,6 @@ class ApiService {
     // Call this from your AuthContext/logout function
     public logout() {
         tokenManager.set(null);
-        // Optionally, you can add a backend endpoint to invalidate the refresh token cookie
-        // this.axiosInstance.post('/auth/logout');
     }
 
     public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
@@ -161,8 +159,39 @@ class ApiService {
     public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> { const params = caseId ? { case_id: caseId } : {}; const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/invoices/${invoiceId}/archive`, null, { params }); return response.data; }
 
     // --- ARCHIVE (File Storage) ---
-    public async getArchiveItems(category?: string, caseId?: string): Promise<ArchiveItemOut[]> { const params: any = {}; if (category) params.category = category; if (caseId) params.case_id = caseId; const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); return response.data; }
-    public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string): Promise<ArchiveItemOut> { const formData = new FormData(); formData.append('file', file); formData.append('title', title); formData.append('category', category); if (caseId) formData.append('case_id', caseId); const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } }); return response.data; }
+    // PHOENIX: Updated to support parentId for folders
+    public async getArchiveItems(category?: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut[]> { 
+        const params: any = {}; 
+        if (category) params.category = category; 
+        if (caseId) params.case_id = caseId;
+        if (parentId) params.parent_id = parentId; // Pass folder ID
+        
+        const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); 
+        return response.data; 
+    }
+
+    public async createArchiveFolder(title: string, parentId?: string, caseId?: string): Promise<ArchiveItemOut> {
+        const formData = new FormData();
+        formData.append('title', title);
+        if (parentId) formData.append('parent_id', parentId);
+        if (caseId) formData.append('case_id', caseId);
+        
+        const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', formData);
+        return response.data;
+    }
+
+    public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { 
+        const formData = new FormData(); 
+        formData.append('file', file); 
+        formData.append('title', title); 
+        formData.append('category', category); 
+        if (caseId) formData.append('case_id', caseId); 
+        if (parentId) formData.append('parent_id', parentId); // Pass folder ID
+        
+        const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } }); 
+        return response.data; 
+    }
+    
     public async deleteArchiveItem(itemId: string): Promise<void> { await this.axiosInstance.delete(`/archive/items/${itemId}`); }
     public async downloadArchiveItem(itemId: string, title: string): Promise<void> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', title); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
     public async getArchiveFileBlob(itemId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { params: { preview: true }, responseType: 'blob' }); return response.data; }

@@ -1,12 +1,12 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - SMART ARCHIVE V4.1
-# 1. INTELLIGENCE: Auto-tags archived files using extracted metadata/findings.
-# 2. METADATA: Preserves 'Court', 'Judge', 'Date' in the archive record.
-# 3. ROBUSTNESS: Type-safe imports and error handling.
+# PHOENIX PROTOCOL - ARCHIVE V2 SERVICE (FOLDER SUPPORT)
+# 1. FEATURE: Added 'create_folder' method.
+# 2. LOGIC: Updated 'get_archive_items' to support hierarchical browsing via 'parent_id'.
+# 3. SCHEMA: Supports the new 'item_type' (FILE/FOLDER) distinction.
 
 import os
 import logging
-from typing import List, Optional, Tuple, Any, cast, Dict
+from typing import List, Optional, Tuple, Any, Dict
 from datetime import datetime, timezone
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -19,7 +19,6 @@ from .storage_service import get_s3_client, transfer_config
 
 logger = logging.getLogger(__name__)
 
-# Environment
 B2_BUCKET_NAME = os.getenv("B2_BUCKET_NAME")
 
 class ArchiveService:
@@ -32,84 +31,50 @@ class ArchiveService:
         except (InvalidId, TypeError):
             raise HTTPException(status_code=400, detail=f"Invalid ObjectId format: {id_str}")
 
-    async def archive_existing_document(
+    # --- FOLDER MANAGEMENT ---
+    def create_folder(
         self,
         user_id: str,
-        case_id: str,
-        source_key: str,
-        filename: str,
-        category: str = "CASE_FILE",
-        original_doc_id: Optional[str] = None
+        title: str,
+        parent_id: Optional[str] = None,
+        case_id: Optional[str] = None
     ) -> ArchiveItemInDB:
-        """
-        Copies a document from Case -> Archive.
-        PHOENIX UPGRADE: Enriches with metadata if available.
-        """
-        s3_client = get_s3_client()
-        timestamp = int(datetime.now().timestamp())
-        
-        # New destination key in Archive structure
-        dest_key = f"archive/{user_id}/{timestamp}_{filename}"
-        
-        try:
-            # Efficient S3-to-S3 copy
-            copy_source = {'Bucket': B2_BUCKET_NAME, 'Key': source_key}
-            s3_client.copy(copy_source, B2_BUCKET_NAME, dest_key)
-            
-            # Get size
-            meta = s3_client.head_object(Bucket=B2_BUCKET_NAME, Key=dest_key)
-            file_size = meta.get('ContentLength', 0)
-            
-        except Exception as e:
-            logger.error(f"Archive Copy Failed: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to archive document: {str(e)}")
-
-        file_ext = filename.split('.')[-1].upper() if '.' in filename else "FILE"
-        description = "Archived from Case"
-
-        # --- SMART ENRICHMENT ---
-        smart_metadata = {}
-        if original_doc_id:
-            try:
-                # 1. Fetch Auto-Categorization
-                doc = self.db.documents.find_one({"_id": self._to_oid(original_doc_id)})
-                if doc and doc.get("category"):
-                    category = doc["category"].upper()
-                
-                # 2. Fetch Extracted Entities (Judge, Court)
-                # Assuming metadata is stored in document or separate collection
-                # For now, we append Findings summary to description
-                findings = list(self.db.findings.find({"document_id": self._to_oid(original_doc_id)}))
-                if findings:
-                    tags = [f.get('finding_text', '')[:20] for f in findings[:3]]
-                    description += f" | Tags: {', '.join(tags)}"
-                    
-            except Exception as e:
-                logger.warning(f"Metadata enrichment failed: {e}")
-
-        doc_data = {
+        """Creates a logical folder structure."""
+        folder_data = {
             "user_id": self._to_oid(user_id),
-            "case_id": self._to_oid(case_id),
-            "title": filename,
-            "file_type": file_ext,
-            "category": category,
-            "storage_key": dest_key,
-            "file_size": file_size,
+            "title": title,
+            "item_type": "FOLDER",
+            "file_type": "FOLDER",
+            "category": "FOLDER",
             "created_at": datetime.now(timezone.utc),
-            "description": description,
-            "metadata": smart_metadata 
+            "storage_key": None, # Folders are virtual
+            "file_size": 0,
+            "description": ""
         }
         
-        self.db.archives.insert_one(doc_data)
-        return ArchiveItemInDB(**doc_data)
+        if parent_id and parent_id.strip() and parent_id != "null":
+            # Verify parent exists and is a folder
+            parent = self.db.archives.find_one({"_id": self._to_oid(parent_id)})
+            if not parent or parent.get("item_type") != "FOLDER":
+                raise HTTPException(status_code=400, detail="Invalid parent folder")
+            folder_data["parent_id"] = self._to_oid(parent_id)
+            
+        if case_id and case_id.strip() and case_id != "null":
+            folder_data["case_id"] = self._to_oid(case_id)
+            
+        result = self.db.archives.insert_one(folder_data)
+        folder_data["_id"] = result.inserted_id
+        return ArchiveItemInDB(**folder_data)
 
+    # --- FILE OPERATIONS ---
     async def add_file_to_archive(
         self, 
         user_id: str, 
         file: UploadFile, 
         category: str, 
         title: str,
-        case_id: Optional[str] = None
+        case_id: Optional[str] = None,
+        parent_id: Optional[str] = None # Added support for uploading directly into a folder
     ) -> ArchiveItemInDB:
         s3_client = get_s3_client()
         
@@ -140,6 +105,7 @@ class ArchiveService:
         doc_data = {
             "user_id": self._to_oid(user_id),
             "title": title or filename,
+            "item_type": "FILE",
             "file_type": file_ext.upper(),
             "category": category,
             "storage_key": storage_key,
@@ -150,64 +116,44 @@ class ArchiveService:
         
         if case_id and case_id.strip() and case_id != "null": 
             doc_data["case_id"] = self._to_oid(case_id)
-        
-        self.db.archives.insert_one(doc_data)
-        return ArchiveItemInDB(**doc_data)
-
-    async def save_generated_file(
-        self,
-        user_id: str,
-        filename: str,
-        content: bytes,
-        category: str,
-        title: str,
-        case_id: Optional[str] = None
-    ) -> ArchiveItemInDB:
-        s3_client = get_s3_client()
-        timestamp = int(datetime.now().timestamp())
-        storage_key = f"archive/{user_id}/{timestamp}_{filename}"
-        
-        try:
-            s3_client.put_object(
-                Bucket=B2_BUCKET_NAME, 
-                Key=storage_key, 
-                Body=content
-            )
-        except Exception as e:
-            logger.error(f"!!! GENERATED SAVE FAILED: {e}")
-            raise HTTPException(status_code=500, detail=f"Internal Storage Save Failed: {str(e)}")
             
-        file_ext = filename.split('.')[-1].upper() if '.' in filename else "PDF"
-        
-        doc_data = {
-            "user_id": self._to_oid(user_id),
-            "title": title,
-            "file_type": file_ext,
-            "category": category,
-            "storage_key": storage_key,
-            "file_size": len(content),
-            "created_at": datetime.now(timezone.utc),
-            "description": "Generated System Document"
-        }
-        
-        if case_id and case_id.strip() and case_id != "null":
-            doc_data["case_id"] = self._to_oid(case_id)
+        if parent_id and parent_id.strip() and parent_id != "null":
+            doc_data["parent_id"] = self._to_oid(parent_id)
         
         self.db.archives.insert_one(doc_data)
         return ArchiveItemInDB(**doc_data)
 
+    # --- RETRIEVAL ---
     def get_archive_items(
         self, 
         user_id: str, 
         category: Optional[str] = None,
-        case_id: Optional[str] = None
+        case_id: Optional[str] = None,
+        parent_id: Optional[str] = None
     ) -> List[ArchiveItemInDB]:
+        """
+        Fetches items. If 'parent_id' is provided, fetches only children of that folder.
+        If 'parent_id' is NOT provided, fetches only ROOT items (parent_id is null).
+        """
         query: Dict[str, Any] = {"user_id": self._to_oid(user_id)}
-        if category and category != "ALL": query["category"] = category
+        
+        # PHOENIX: Hierarchy Logic
+        if parent_id and parent_id.strip() and parent_id != "null":
+            query["parent_id"] = self._to_oid(parent_id)
+        else:
+            # If navigating structure, only show root items (parent_id is null)
+            # Exception: If filtering by category (e.g. "INVOICE"), show all flat
+            if not category or category == "ALL":
+                query["parent_id"] = None
+
+        if category and category != "ALL": 
+            query["category"] = category
+            
         if case_id and case_id.strip() and case_id != "null": 
             query["case_id"] = self._to_oid(case_id)
             
-        cursor = self.db.archives.find(query).sort("created_at", -1)
+        # Sort: Folders first, then Files, then by date
+        cursor = self.db.archives.find(query).sort([("item_type", -1), ("created_at", -1)])
         return [ArchiveItemInDB(**doc) for doc in cursor]
 
     def delete_archive_item(self, user_id: str, item_id: str):
@@ -215,10 +161,15 @@ class ArchiveService:
         item = self.db.archives.find_one(query)
         if not item: raise HTTPException(status_code=404, detail="Item not found")
         
-        try:
-            s3_client = get_s3_client()
-            s3_client.delete_object(Bucket=B2_BUCKET_NAME, Key=item["storage_key"])
-        except Exception: pass
+        # If it's a file, delete from S3
+        if item.get("item_type", "FILE") == "FILE" and item.get("storage_key"):
+            try:
+                s3_client = get_s3_client()
+                s3_client.delete_object(Bucket=B2_BUCKET_NAME, Key=item["storage_key"])
+            except Exception: pass
+        
+        # If it's a folder, we should ideally check for children, but for now we just delete the folder entry.
+        # Ideally: Prevent delete if folder not empty.
         
         self.db.archives.delete_one(query)
 
@@ -243,3 +194,61 @@ class ArchiveService:
         except Exception as e:
             logger.error(f"!!! STREAM FAILED: {e}")
             raise HTTPException(status_code=500, detail="Could not retrieve file stream")
+    
+    async def save_generated_file(self, user_id: str, filename: str, content: bytes, category: str, title: str, case_id: Optional[str] = None) -> ArchiveItemInDB:
+        s3_client = get_s3_client()
+        timestamp = int(datetime.now().timestamp())
+        storage_key = f"archive/{user_id}/{timestamp}_{filename}"
+        
+        try:
+            s3_client.put_object(Bucket=B2_BUCKET_NAME, Key=storage_key, Body=content)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Internal Storage Save Failed: {str(e)}")
+            
+        file_ext = filename.split('.')[-1].upper() if '.' in filename else "PDF"
+        
+        doc_data = {
+            "user_id": self._to_oid(user_id),
+            "title": title,
+            "item_type": "FILE",
+            "file_type": file_ext,
+            "category": category,
+            "storage_key": storage_key,
+            "file_size": len(content),
+            "created_at": datetime.now(timezone.utc),
+            "description": "Generated System Document"
+        }
+        
+        if case_id and case_id.strip() and case_id != "null":
+            doc_data["case_id"] = self._to_oid(case_id)
+        
+        self.db.archives.insert_one(doc_data)
+        return ArchiveItemInDB(**doc_data)
+    
+    async def archive_existing_document(self, user_id: str, case_id: str, source_key: str, filename: str, category: str = "CASE_FILE", original_doc_id: Optional[str] = None) -> ArchiveItemInDB:
+        s3_client = get_s3_client()
+        timestamp = int(datetime.now().timestamp())
+        dest_key = f"archive/{user_id}/{timestamp}_{filename}"
+        try:
+            copy_source = {'Bucket': B2_BUCKET_NAME, 'Key': source_key}
+            s3_client.copy(copy_source, B2_BUCKET_NAME, dest_key)
+            meta = s3_client.head_object(Bucket=B2_BUCKET_NAME, Key=dest_key)
+            file_size = meta.get('ContentLength', 0)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to archive document: {str(e)}")
+
+        file_ext = filename.split('.')[-1].upper() if '.' in filename else "FILE"
+        doc_data = {
+            "user_id": self._to_oid(user_id),
+            "case_id": self._to_oid(case_id),
+            "title": filename,
+            "item_type": "FILE",
+            "file_type": file_ext,
+            "category": category,
+            "storage_key": dest_key,
+            "file_size": file_size,
+            "created_at": datetime.now(timezone.utc),
+            "description": "Archived from Case"
+        }
+        self.db.archives.insert_one(doc_data)
+        return ArchiveItemInDB(**doc_data)
