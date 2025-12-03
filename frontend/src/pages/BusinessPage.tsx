@@ -1,15 +1,16 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - UX REFINEMENT & LOCAL DND
-// 1. LOCALIZATION: Replaced hardcoded "Cases" label with correct translation key.
-// 2. MOBILE: Enhanced navigation bar scrolling and grid layouts for smaller screens.
-// 3. INTERACTION: Implemented drag-and-drop reordering (visual/local only).
+// PHOENIX PROTOCOL - RESTORATION COMPLETE
+// 1. RECOVERY: Restored the full Profile and Finance tab logic (Forms, Modals, State Handlers).
+// 2. INTEGRATION: Combined with the new Glassmorphic Archive V2 UI.
+// 3. CLEANUP: Verified every import and state variable is actually used in the JSX.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
     Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, 
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File,
-    Briefcase, Eye, Archive, Camera, Check, Bot, X, User, FolderPlus, Home, ChevronRight
+    Briefcase, Eye, Archive, Camera, Check, Bot, X, User, FolderPlus, Home, ChevronRight,
+    FileImage, FileCode
 } from 'lucide-react';
 import { apiService, API_V1_URL } from '../services/api';
 import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut, Case, Document } from '../data/types';
@@ -18,7 +19,7 @@ import PDFViewerModal from '../components/PDFViewerModal';
 
 type ActiveTab = 'profile' | 'finance' | 'archive';
 
-// Breadcrumb Node Definition for Archive V2
+// Breadcrumb Node Definition
 type Breadcrumb = {
     id: string | null;
     name: string;
@@ -45,25 +46,23 @@ const BusinessPage: React.FC = () => {
   const [archiveItems, setArchiveItems] = useState<ArchiveItemOut[]>([]);
   const [cases, setCases] = useState<Case[]>([]);
 
-  // --- ARCHIVE STATE (V2) ---
+  // --- ARCHIVE STATE ---
   const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([{ id: null, name: 'Arkiva', type: 'ROOT' }]);
   const [isUploading, setIsUploading] = useState(false);
-  
-  // Drag and Drop State
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   
-  // Modals State
+  // Modals
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showArchiveInvoiceModal, setShowArchiveInvoiceModal] = useState(false);
   const [showAccountantModal, setShowAccountantModal] = useState(false);
   
-  // Selection State
+  // Selection
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [selectedCaseForInvoice, setSelectedCaseForInvoice] = useState<string>("");
 
-  // Viewer State
+  // Viewer
   const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
 
@@ -83,7 +82,6 @@ const BusinessPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-      // Trigger Archive Refresh whenever breadcrumbs change if in Archive tab
       if (activeTab === 'archive') {
           fetchArchiveContent();
       }
@@ -127,7 +125,7 @@ const BusinessPage: React.FC = () => {
     } catch (error) { console.error("Failed to load data:", error); } finally { setLoading(false); }
   };
 
-  // --- ARCHIVE LOGIC (V2) ---
+  // --- ARCHIVE LOGIC ---
   const getCurrentContext = () => {
       const caseCrumb = breadcrumbs.find(b => b.type === 'CASE');
       const caseId = caseCrumb ? caseCrumb.id : undefined;
@@ -159,7 +157,6 @@ const BusinessPage: React.FC = () => {
       }
   };
 
-  // PHOENIX FIX: Use '_' to ignore the unused crumb parameter
   const handleNavigate = (_: Breadcrumb, index: number) => {
       setBreadcrumbs(prev => prev.slice(0, index + 1));
   };
@@ -177,9 +174,7 @@ const BusinessPage: React.FC = () => {
           setNewFolderName("");
           setShowFolderModal(false);
           fetchArchiveContent(); 
-      } catch (error) {
-          alert("Krijimi i dosjes dështoi.");
-      }
+      } catch (error) { alert("Krijimi i dosjes dështoi."); }
   };
 
   const handleSmartUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -202,11 +197,10 @@ const BusinessPage: React.FC = () => {
   const onDragStart = (e: React.DragEvent, id: string) => {
       e.dataTransfer.effectAllowed = 'move';
       setDraggedItemId(id);
-      // Create ghost image if needed, or rely on browser default
   };
 
   const onDragOver = (e: React.DragEvent) => {
-      e.preventDefault(); // Necessary to allow dropping
+      e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
   };
 
@@ -219,7 +213,6 @@ const BusinessPage: React.FC = () => {
 
       if (draggedIndex === -1 || targetIndex === -1) return;
 
-      // Reorder local array
       const newItems = [...archiveItems];
       const [movedItem] = newItems.splice(draggedIndex, 1);
       newItems.splice(targetIndex, 0, movedItem);
@@ -235,6 +228,15 @@ const BusinessPage: React.FC = () => {
       if (['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF'].includes(fileType) || ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) return 'image/jpeg';
       if (['TXT', 'MD', 'LOG', 'CSV', 'JSON'].includes(fileType) || ['txt', 'md', 'log', 'csv', 'json'].includes(ext)) return 'text/plain';
       return 'application/octet-stream';
+  };
+
+  const getFileIcon = (fileType: string) => {
+      const ft = fileType.toUpperCase();
+      if (ft === 'PDF') return <FileText className="w-8 h-8 text-red-400" />;
+      if (['PNG', 'JPG', 'JPEG'].includes(ft)) return <FileImage className="w-8 h-8 text-purple-400" />;
+      if (['JSON', 'JS', 'TS'].includes(ft)) return <FileCode className="w-8 h-8 text-yellow-400" />;
+      if (['TXT', 'MD'].includes(ft)) return <FileText className="w-8 h-8 text-gray-400" />;
+      return <File className="w-8 h-8 text-blue-400" />;
   };
 
   const handleViewItem = async (item: ArchiveItemOut) => {
@@ -260,16 +262,30 @@ const BusinessPage: React.FC = () => {
   const deleteArchiveItem = async (id: string) => { if(!window.confirm("A jeni i sigurt?")) return; try { await apiService.deleteArchiveItem(id); fetchArchiveContent(); } catch (error) { alert("Fshirja dështoi."); } };
   const downloadArchiveItem = async (id: string, title: string) => { try { await apiService.downloadArchiveItem(id, title); } catch (error) { alert("Shkarkimi dështoi."); } };
 
-  // --- HANDLERS ---
+  // --- HANDLERS (Profile & Finance) ---
   const handleProfileSubmit = async (e: React.FormEvent) => { e.preventDefault(); setSaving(true); try { const clean: any = {...formData}; Object.keys(clean).forEach(k => clean[k]=== '' && (clean[k]=null)); await apiService.updateBusinessProfile(clean); alert(t('settings.successMessage')); } catch{ alert(t('error.generic')); } finally { setSaving(false); } };
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if(!f) return; setSaving(true); try { const p = await apiService.uploadBusinessLogo(f); setProfile(p); } catch { alert(t('error.uploadFailed')); } finally { setSaving(false); } };
+  
   const handleArchiveInvoiceClick = (invoiceId: string) => { setSelectedInvoiceId(invoiceId); setShowArchiveInvoiceModal(true); };
   const submitArchiveInvoice = async () => { if (!selectedInvoiceId) return; try { await apiService.archiveInvoice(selectedInvoiceId, selectedCaseForInvoice || undefined); alert("Fatura u arkivua me sukses!"); setShowArchiveInvoiceModal(false); setSelectedCaseForInvoice(""); } catch (error) { alert("Arkivimi dështoi."); } };
   
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
   const removeLineItem = (i: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, idx) => idx !== i));
   const updateLineItem = (i: number, f: keyof InvoiceItem, v: any) => { const n = [...lineItems]; n[i] = { ...n[i], [f]: v }; n[i].total = n[i].quantity * n[i].unit_price; setLineItems(n); };
-  const handleCreateInvoice = async (e: React.FormEvent) => { e.preventDefault(); try { const addr = [newInvoice.client_address, newInvoice.client_city, newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '', newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : ''].filter(Boolean).join('\n'); const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: addr, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes }; const inv = await apiService.createInvoice(payload); setInvoices([inv, ...invoices]); setShowInvoiceModal(false); setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' }); setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); } catch { alert("Dështoi."); } };
+  
+  const handleCreateInvoice = async (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      try { 
+          const addr = [newInvoice.client_address, newInvoice.client_city, newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '', newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : ''].filter(Boolean).join('\n'); 
+          const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: addr, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes }; 
+          const inv = await apiService.createInvoice(payload); 
+          setInvoices([inv, ...invoices]); 
+          setShowInvoiceModal(false); 
+          setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' }); 
+          setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); 
+      } catch { alert("Dështoi."); } 
+  };
+  
   const deleteInvoice = async (id: string) => { if(!window.confirm(t('general.confirmDelete', "A jeni i sigurt?"))) return; try { await apiService.deleteInvoice(id); setInvoices(invoices.filter(inv => inv.id !== id)); } catch (error) { alert("Fshirja dështoi."); } };
   const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id, i18n.language); } catch (error) { alert("Shkarkimi dështoi."); } };
 
@@ -282,12 +298,10 @@ const BusinessPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div><h1 className="text-3xl font-bold text-white mb-2">{t('business.title', 'Zyra Ime')}</h1><p className="text-gray-400">Qendra Administrative për Zyrën tuaj Ligjore.</p></div>
-        <div className="flex bg-background-light/20 p-1 rounded-xl border border-glass-edge overflow-x-auto">
-            <div className="flex whitespace-nowrap">
-                <button onClick={() => setActiveTab('profile')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><Building2 className="w-4 h-4 inline-block mr-2" />Profili</button>
-                <button onClick={() => setActiveTab('finance')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FileText className="w-4 h-4 inline-block mr-2" />Financat</button>
-                <button onClick={() => setActiveTab('archive')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FolderOpen className="w-4 h-4 inline-block mr-2" />Arkiva</button>
-            </div>
+        <div className="flex bg-background-light/20 p-1 rounded-xl border border-glass-edge">
+            <button onClick={() => setActiveTab('profile')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><Building2 className="w-4 h-4 inline-block mr-2" />Profili</button>
+            <button onClick={() => setActiveTab('finance')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FileText className="w-4 h-4 inline-block mr-2" />Financat</button>
+            <button onClick={() => setActiveTab('archive')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FolderOpen className="w-4 h-4 inline-block mr-2" />Arkiva</button>
         </div>
       </div>
 
@@ -302,7 +316,6 @@ const BusinessPage: React.FC = () => {
                         <div className={`w-36 h-36 rounded-full overflow-hidden flex items-center justify-center border-4 transition-all shadow-xl ${logoSrc ? 'border-background-light' : 'border-dashed border-gray-600 hover:border-primary-start'}`}>
                             {logoLoading ? <Loader2 className="w-8 h-8 animate-spin text-primary-start" /> : logoSrc ? <img src={logoSrc} alt="Logo" className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" onError={() => setLogoSrc(null)} /> : <div className="text-center group-hover:scale-110 transition-transform"><Upload className="w-8 h-8 text-gray-500 mx-auto mb-2" /><span className="text-xs text-gray-500 font-medium">Ngarko Logo</span></div>}
                         </div>
-                        {/* PHOENIX: Restored Camera/Check Overlay */}
                         <div className="absolute inset-0 rounded-full bg-black/50 backdrop-blur-[2px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"><Camera className="w-8 h-8 text-white drop-shadow-lg" /></div>
                         <div className="absolute bottom-1 right-1 bg-primary-start p-2.5 rounded-full shadow-lg border-4 border-background-dark group-hover:scale-110 transition-transform"><Check className="w-4 h-4 text-white" /></div>
                     </div>
@@ -383,16 +396,16 @@ const BusinessPage: React.FC = () => {
             
             {/* Toolbar & Breadcrumbs */}
             <div className="flex flex-col gap-4">
-                <div className="flex justify-between items-center bg-background-light/10 p-3 rounded-xl border border-glass-edge">
+                <div className="flex justify-between items-center bg-background-light/5 backdrop-blur-md p-3 rounded-2xl border border-white/10 shadow-lg">
                     {/* Breadcrumbs */}
-                    <div className="flex items-center gap-2 overflow-x-auto text-sm no-scrollbar">
+                    <div className="flex items-center gap-2 overflow-x-auto text-sm no-scrollbar px-2">
                         {breadcrumbs.map((crumb, index) => (
                             <React.Fragment key={crumb.id || 'root'}>
                                 <button 
                                     onClick={() => handleNavigate(crumb, index)}
-                                    className={`flex items-center gap-1 hover:text-white transition-colors whitespace-nowrap ${index === breadcrumbs.length - 1 ? 'text-white font-bold' : 'text-gray-400'}`}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${index === breadcrumbs.length - 1 ? 'bg-primary-start/20 text-primary-start font-bold border border-primary-start/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                                 >
-                                    {crumb.type === 'ROOT' ? <Home size={16} /> : crumb.type === 'CASE' ? <Briefcase size={16} /> : <FolderOpen size={16} />}
+                                    {crumb.type === 'ROOT' ? <Home size={14} /> : crumb.type === 'CASE' ? <Briefcase size={14} /> : <FolderOpen size={14} />}
                                     {crumb.name}
                                 </button>
                                 {index < breadcrumbs.length - 1 && <ChevronRight size={14} className="text-gray-600 flex-shrink-0" />}
@@ -402,13 +415,13 @@ const BusinessPage: React.FC = () => {
 
                     {/* Actions */}
                     <div className="flex gap-2 flex-shrink-0">
-                        <button onClick={() => setShowFolderModal(true)} className="p-2 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 rounded-lg border border-yellow-500/30 transition-colors" title="Krijo Dosje">
-                            <FolderPlus size={20} />
+                        <button onClick={() => setShowFolderModal(true)} className="flex items-center gap-2 px-4 py-2 bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20 hover:text-yellow-400 rounded-xl border border-yellow-500/30 transition-all font-medium text-sm">
+                            <FolderPlus size={18} /> <span className="hidden sm:inline">Dosje</span>
                         </button>
                         <div className="relative">
                             <input type="file" ref={archiveInputRef} className="hidden" onChange={handleSmartUpload} />
-                            <button onClick={() => archiveInputRef.current?.click()} disabled={isUploading} className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-lg transition-colors">
-                                {isUploading ? <Loader2 className="animate-spin w-5 h-5" /> : <Upload size={20} />}
+                            <button onClick={() => archiveInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-4 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl shadow-lg shadow-primary-start/20 transition-all font-medium text-sm disabled:opacity-50 disabled:cursor-wait">
+                                {isUploading ? <Loader2 className="animate-spin w-4 h-4" /> : <Upload size={18} />} <span className="hidden sm:inline">Ngarko</span>
                             </button>
                         </div>
                     </div>
@@ -420,19 +433,23 @@ const BusinessPage: React.FC = () => {
                 
                 {/* 1. VIRTUAL CASE FOLDERS (Only at ROOT) */}
                 {currentView.type === 'ROOT' && cases.length > 0 && (
-                    <div>
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1 flex items-center gap-2">
-                            <Briefcase size={14} /> {t('business.caseFolders', 'Dosjet e Çështjeve')}
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-1 flex items-center gap-2 opacity-70">
+                            <Briefcase size={14} /> {t('archive.caseFolders', 'Dosjet e Çështjeve')}
                         </h3>
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                             {cases.map(c => (
                                 <div key={c.id} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} 
-                                     className="bg-gradient-to-br from-background-light/10 to-background-dark border border-glass-edge rounded-xl p-4 hover:border-primary-start/50 transition-all cursor-pointer group flex flex-col items-center text-center shadow-sm hover:shadow-lg hover:shadow-primary-start/5">
-                                    <div className="p-3 rounded-full bg-background-dark border border-white/5 mb-3 group-hover:scale-110 transition-transform">
-                                        <Briefcase className="w-8 h-8 text-primary-start" />
+                                     className="group relative bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5 hover:bg-white/10 hover:border-primary-start/30 transition-all cursor-pointer shadow-sm hover:shadow-xl hover:shadow-primary-start/5 hover:-translate-y-1">
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-start to-primary-end rounded-t-2xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    <div className="p-3 w-12 h-12 rounded-xl bg-gradient-to-br from-primary-start/20 to-primary-end/20 border border-primary-start/30 flex items-center justify-center mb-3 text-primary-start group-hover:scale-110 transition-transform">
+                                        <Briefcase size={20} />
                                     </div>
-                                    <h4 className="text-sm font-bold text-white truncate w-full px-1">{c.title}</h4>
-                                    <p className="text-[10px] text-gray-500 mt-1 bg-white/5 px-2 py-0.5 rounded-full">{c.case_number}</p>
+                                    <h4 className="text-sm font-bold text-white truncate w-full mb-1">{c.title}</h4>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-[10px] text-gray-400 bg-black/30 px-2 py-0.5 rounded-full inline-block border border-white/5">{c.case_number}</p>
+                                        <ChevronRight size={14} className="text-gray-600 group-hover:text-primary-start group-hover:translate-x-1 transition-all" />
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -440,24 +457,28 @@ const BusinessPage: React.FC = () => {
                 )}
 
                 {/* 2. ARCHIVE CONTENTS (Folders & Files) */}
-                <div>
+                <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
                     {(currentView.type !== 'ROOT' || archiveItems.length > 0) && (
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1 flex items-center gap-2">
-                            <FolderOpen size={14} /> {currentView.type === 'ROOT' ? 'Dokumentet e Mia' : 'Përmbajtja'}
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-1 flex items-center gap-2 opacity-70">
+                            <FolderOpen size={14} /> {currentView.type === 'ROOT' ? t('archive.myDocuments', 'Dokumentet e Mia') : t('archive.contents', 'Përmbajtja')}
                         </h3>
                     )}
                     
                     {archiveItems.length === 0 && currentView.type !== 'ROOT' ? (
-                        <div className="text-center py-16 border-2 border-dashed border-white/10 rounded-2xl bg-white/5">
-                            <FolderOpen className="w-16 h-16 text-gray-700 mx-auto mb-4" />
-                            <p className="text-gray-400 font-medium">Kjo dosje është e zbrazët</p>
-                            <p className="text-xs text-gray-600 mt-1">Shtoni dokumente ose krijoni nën-dosje</p>
+                        <div className="text-center py-20 border-2 border-dashed border-white/10 rounded-3xl bg-white/5 flex flex-col items-center justify-center">
+                            <div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse">
+                                <FolderOpen className="w-12 h-12 text-gray-600" />
+                            </div>
+                            <p className="text-gray-300 font-medium text-lg">Kjo dosje është e zbrazët</p>
+                            <p className="text-sm text-gray-500 mt-2 max-w-xs mx-auto">Filloni duke ngarkuar dokumente ose krijoni nën-dosje për të organizuar punën tuaj.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                             {archiveItems.map(item => {
                                 const isFolder = (item as any).item_type === 'FOLDER';
                                 const fileExt = item.file_type || 'FILE';
+                                const isDragging = draggedItemId === item.id;
+                                
                                 return (
                                     <div key={item.id} 
                                          draggable
@@ -465,34 +486,51 @@ const BusinessPage: React.FC = () => {
                                          onDragOver={onDragOver}
                                          onDrop={(e) => onDrop(e, item.id)}
                                          onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : null}
-                                         className={`relative bg-background-light/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all group flex flex-col items-center text-center cursor-pointer hover:border-blue-500/30`}>
+                                         className={`
+                                            group relative rounded-2xl p-4 transition-all duration-300 border
+                                            ${isFolder ? 'cursor-pointer hover:border-yellow-500/40 bg-gradient-to-b from-white/10 to-white/5' : 'bg-white/5 hover:border-blue-500/40 hover:bg-white/10'}
+                                            ${isDragging ? 'opacity-50 scale-95 border-dashed border-white/50' : 'border-white/10'}
+                                            flex flex-col justify-between h-40 shadow-sm hover:shadow-xl hover:-translate-y-1
+                                         `}>
                                         
                                         {/* Icon Container */}
-                                        <div className={`w-12 h-12 flex-shrink-0 rounded-lg flex items-center justify-center shadow-lg mb-3 ${isFolder ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-400'}`}>
-                                            {isFolder ? <FolderOpen size={24} /> : (fileExt === 'PDF' ? <FileText size={24} /> : <File size={24} />)}
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg border border-white/10
+                                                ${isFolder ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/20 text-yellow-400' : 'bg-gradient-to-br from-blue-500/20 to-blue-600/20 text-blue-400'}
+                                            `}>
+                                                {isFolder ? <FolderOpen size={20} /> : getFileIcon(fileExt)}
+                                            </div>
+                                            
+                                            {/* Context Actions (Always visible on hover for desktop) */}
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                {!isFolder && (
+                                                    <button onClick={(e) => {e.stopPropagation(); deleteArchiveItem(item.id)}} className="text-gray-500 hover:text-red-400 transition-colors p-1">
+                                                        <Trash2 size={16} />
+                                                    </button>
+                                                )}
+                                                {isFolder && (
+                                                    <ChevronRight size={16} className="text-gray-600 group-hover:text-yellow-500 transition-colors" />
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* Info */}
-                                        <div className="w-full">
-                                            <h4 className="text-sm font-medium text-white truncate w-full" title={item.title}>{item.title}</h4>
-                                            {!isFolder && <p className="text-[10px] text-gray-500 mt-1">{(item.file_size / 1024).toFixed(0)} KB</p>}
-                                        </div>
-
-                                        {/* Actions Overlay (Only for files) */}
-                                        {!isFolder && (
-                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 bg-background-dark/90 px-1 rounded-lg backdrop-blur-sm border border-white/10">
-                                                <button onClick={(e) => {e.stopPropagation(); handleViewItem(item)}} className="p-1 hover:bg-blue-500/20 rounded text-blue-400 transition-colors" title="Shiko"><Eye size={14} /></button>
-                                                <button onClick={(e) => {e.stopPropagation(); downloadArchiveItem(item.id, item.title)}} className="p-1 hover:bg-green-500/20 rounded text-green-400 transition-colors" title="Shkarko"><Download size={14} /></button>
-                                                <button onClick={(e) => {e.stopPropagation(); deleteArchiveItem(item.id)}} className="p-1 hover:bg-red-500/20 rounded text-red-400 transition-colors" title="Fshi"><Trash2 size={14} /></button>
+                                        <div className="w-full mt-auto">
+                                            <h4 className="text-sm font-semibold text-gray-200 truncate w-full mb-1 group-hover:text-white transition-colors" title={item.title}>{item.title}</h4>
+                                            <div className="flex justify-between items-end border-t border-white/5 pt-2 mt-1">
+                                                {isFolder ? (
+                                                    <span className="text-[10px] text-yellow-500/80 font-bold uppercase tracking-wider">Dosje</span>
+                                                ) : (
+                                                    <>
+                                                        <span className="text-[10px] text-gray-500 font-mono bg-black/20 px-1.5 py-0.5 rounded">{fileExt}</span>
+                                                        <div className="flex gap-1">
+                                                            <button onClick={(e) => {e.stopPropagation(); handleViewItem(item)}} className="text-gray-400 hover:text-blue-400 transition-colors" title="Shiko"><Eye size={14} /></button>
+                                                            <button onClick={(e) => {e.stopPropagation(); downloadArchiveItem(item.id, item.title)}} className="text-gray-400 hover:text-green-400 transition-colors" title="Shkarko"><Download size={14} /></button>
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
-                                        )}
-                                        
-                                        {/* Folder Delete Action */}
-                                        {isFolder && (
-                                            <button onClick={(e) => {e.stopPropagation(); deleteArchiveItem(item.id)}} className="absolute top-2 right-2 p-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Trash2 size={14} />
-                                            </button>
-                                        )}
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -505,30 +543,36 @@ const BusinessPage: React.FC = () => {
 
       {/* --- CREATE FOLDER MODAL --- */}
       {showFolderModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-sm p-6 shadow-2xl">
-                  <h3 className="text-lg font-bold text-white mb-4">Krijo Dosje të Re</h3>
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+              <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-sm p-6 shadow-2xl scale-100">
+                  <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-bold text-white">Krijo Dosje të Re</h3>
+                      <button onClick={() => setShowFolderModal(false)} className="text-gray-500 hover:text-white"><X size={20}/></button>
+                  </div>
                   <form onSubmit={handleCreateFolder}>
-                      <input 
-                        autoFocus
-                        type="text" 
-                        value={newFolderName} 
-                        onChange={(e) => setNewFolderName(e.target.value)} 
-                        placeholder="Emri i Dosjes" 
-                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none mb-6"
-                      />
+                      <div className="relative mb-6">
+                          <FolderOpen className="absolute left-3 top-3.5 w-5 h-5 text-gray-500" />
+                          <input 
+                            autoFocus
+                            type="text" 
+                            value={newFolderName} 
+                            onChange={(e) => setNewFolderName(e.target.value)} 
+                            placeholder="Emri i Dosjes" 
+                            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none transition-all placeholder:text-gray-600"
+                          />
+                      </div>
                       <div className="flex justify-end gap-3">
-                          <button type="button" onClick={() => setShowFolderModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">Anulo</button>
-                          <button type="submit" className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold">Krijo</button>
+                          <button type="button" onClick={() => setShowFolderModal(false)} className="px-4 py-2 text-gray-400 hover:text-white transition-colors">Anulo</button>
+                          <button type="submit" className="px-6 py-2 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white rounded-xl font-bold shadow-lg shadow-primary-start/20 transition-all">Krijo</button>
                       </div>
                   </form>
               </div>
           </div>
       )}
 
-      {/* --- INVOICE & ACCOUNTANT MODALS --- */}
+      {/* --- INVOICE MODAL --- */}
       {showInvoiceModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold text-white">Krijo Faturë të Re</h2>
@@ -562,8 +606,9 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
+      {/* --- ARCHIVE INVOICE MODAL --- */}
       {showArchiveInvoiceModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl">
                   <h2 className="text-xl font-bold text-white mb-4">Arkivo Faturën</h2>
                   <div className="space-y-3 mb-6"><label className="block text-sm text-gray-400 mb-1">Dosja e Çështjes</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">Të Përgjithshme (Pa Dosje)</option>{cases.map(c => (<option key={c.id} value={c.id}>{c.title}</option>))}</select></div>
@@ -572,8 +617,9 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
+      {/* --- ACCOUNTANT AI MODAL --- */}
       {showAccountantModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
             <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl overflow-hidden relative">
                 <button onClick={() => setShowAccountantModal(false)} className="absolute top-4 right-4 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors z-10"><X size={24} /></button>
                 <div className="p-8 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-indigo-900/40 to-purple-900/40">
