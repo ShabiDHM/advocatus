@@ -1,8 +1,8 @@
 # FILE: backend/app/services/admin_service.py
-# PHOENIX PROTOCOL - GATEKEEPER LOGIC FIX
-# 1. FIX: The 'update_user_details' function no longer filters out 'subscription_status'.
-# 2. BEHAVIOR: The function now correctly processes all fields from the new UserUpdateRequest model.
-# 3. RESULT: Administrators can now successfully change a user's status from 'INACTIVE' to 'ACTIVE'.
+# PHOENIX PROTOCOL - DEFINITIVE AGGREGATION FIX
+# 1. DIAGNOSIS: The aggregation pipeline was returning documents with '_id: ObjectId' which caused a response validation error.
+# 2. FIX: The pipeline now uses '$addFields' to create a string 'id' from the '_id' and '$project' to remove the original '_id'.
+# 3. RESULT: The data shape produced by this service now perfectly matches the API response model, resolving the "0 users" bug.
 
 from bson import ObjectId
 from datetime import datetime
@@ -10,8 +10,7 @@ from typing import List, Optional, Dict, Any
 from pymongo.database import Database
 from pymongo import ReturnDocument
 
-# PHOENIX FIX: Import the new unified model
-from ..models.admin import AdminUserOut, UserUpdateRequest
+from ..models.admin import UserUpdateRequest, AdminUserOut
 from ..models.user import UserInDB
 
 USER_COLLECTION = "users"
@@ -22,28 +21,34 @@ def get_all_users(db: Database) -> List[Dict[str, Any]]:
     pipeline = [
         {"$lookup": {"from": CASE_COLLECTION, "localField": "_id", "foreignField": "owner_id", "as": "owned_cases"}},
         {"$lookup": {"from": DOCUMENT_COLLECTION, "localField": "_id", "foreignField": "owner_id", "as": "owned_documents"}},
-        {"$addFields": {"case_count": {"$size": "$owned_cases"}, "document_count": {"$size": "$owned_documents"}}},
-        {"$project": {"owned_cases": 0, "owned_documents": 0, "hashed_password": 0}}
+        # PHOENIX FIX: Create the 'id' field as a string and ensure counts exist.
+        {"$addFields": {
+            "id": {"$toString": "$_id"},
+            "case_count": {"$size": "$owned_cases"},
+            "document_count": {"$size": "$owned_documents"}
+        }},
+        # PHOENIX FIX: Project the final, clean shape. Remove the original '_id' and temporary fields.
+        {"$project": {
+            "_id": 0, 
+            "owned_cases": 0, 
+            "owned_documents": 0, 
+            "hashed_password": 0
+        }}
     ]
     users_data = list(db[USER_COLLECTION].aggregate(pipeline))
     return users_data
 
 def find_user_in_aggregate(user_id: str, db: Database) -> Optional[AdminUserOut]:
+    # This function now works because get_all_users returns the correct shape
     user_list = get_all_users(db)
     for user_data in user_list:
-        if str(user_data.get('_id')) == user_id:
+        if user_data.get('id') == user_id:
             return AdminUserOut.model_validate(user_data)
     return None
 
-# PHOENIX FIX: This function now handles all updates, including the critical subscription_status.
 def update_user_details(user_id: str, update_data: UserUpdateRequest, db: Database) -> Optional[AdminUserOut]:
-    """Updates all user details sent from the admin panel."""
-    
-    # PHOENIX FIX: The faulty filtering is removed. We now process all provided fields.
     payload = update_data.model_dump(exclude_unset=True)
-
     if not payload:
-        # If the payload is empty, do nothing and return the current user state.
         return find_user_in_aggregate(user_id, db)
 
     updated_user_doc = db.users.find_one_and_update(
@@ -55,13 +60,7 @@ def update_user_details(user_id: str, update_data: UserUpdateRequest, db: Databa
     if not updated_user_doc:
         raise FileNotFoundError("User not found")
         
-    # Return the updated user data using the consistent aggregation pipeline
     return find_user_in_aggregate(user_id, db)
-
-# PHOENIX FIX: This function is no longer needed and can be considered deprecated.
-def update_user_subscription(user_id: str, sub_data: UserUpdateRequest, db: Database) -> Optional[AdminUserOut]:
-    """DEPRECATED: This logic is now handled by update_user_details."""
-    return update_user_details(user_id, sub_data, db)
 
 def expire_subscriptions(db: Database) -> int:
     now = datetime.utcnow()
