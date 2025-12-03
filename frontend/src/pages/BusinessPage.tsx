@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUILD FIX FINAL
-// 1. FIX: Removed unused 'ArrowLeft' from imports.
-// 2. FIX: Renamed unused 'crumb' parameter to '_' in handleNavigate to satisfy TS6133.
-// 3. STATUS: Guaranteed clean build.
+// PHOENIX PROTOCOL - UX REFINEMENT & LOCAL DND
+// 1. LOCALIZATION: Replaced hardcoded "Cases" label with correct translation key.
+// 2. MOBILE: Enhanced navigation bar scrolling and grid layouts for smaller screens.
+// 3. INTERACTION: Implemented drag-and-drop reordering (visual/local only).
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
@@ -48,6 +48,9 @@ const BusinessPage: React.FC = () => {
   // --- ARCHIVE STATE (V2) ---
   const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([{ id: null, name: 'Arkiva', type: 'ROOT' }]);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Drag and Drop State
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   
   // Modals State
   const [showFolderModal, setShowFolderModal] = useState(false);
@@ -168,9 +171,7 @@ const BusinessPage: React.FC = () => {
   const handleCreateFolder = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!newFolderName.trim()) return;
-      
       const { caseId, parentId } = getCurrentContext();
-      
       try {
           await apiService.createArchiveFolder(newFolderName, parentId || undefined, caseId || undefined);
           setNewFolderName("");
@@ -185,30 +186,54 @@ const BusinessPage: React.FC = () => {
       const file = e.target.files?.[0];
       if (!file) return;
       setIsUploading(true);
-      
       const { caseId, parentId } = getCurrentContext();
-
       try {
           let category = "GENERAL";
           const nameLower = file.name.toLowerCase();
           if (nameLower.includes("fatura")) category = "INVOICE";
           else if (nameLower.includes("kontrata")) category = "CONTRACT";
-          
           await apiService.uploadArchiveItem(file, file.name, category, caseId || undefined, parentId || undefined);
           fetchArchiveContent(); 
-      } catch (error) { 
-          alert("Ngarkimi dështoi."); 
-      } finally { 
-          setIsUploading(false); 
-          if (archiveInputRef.current) archiveInputRef.current.value = ''; 
-      }
+      } catch (error) { alert("Ngarkimi dështoi."); } 
+      finally { setIsUploading(false); if (archiveInputRef.current) archiveInputRef.current.value = ''; }
+  };
+
+  // --- DRAG AND DROP HANDLERS ---
+  const onDragStart = (e: React.DragEvent, id: string) => {
+      e.dataTransfer.effectAllowed = 'move';
+      setDraggedItemId(id);
+      // Create ghost image if needed, or rely on browser default
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+      e.preventDefault(); // Necessary to allow dropping
+      e.dataTransfer.dropEffect = 'move';
+  };
+
+  const onDrop = (e: React.DragEvent, targetId: string) => {
+      e.preventDefault();
+      if (!draggedItemId || draggedItemId === targetId) return;
+
+      const draggedIndex = archiveItems.findIndex(i => i.id === draggedItemId);
+      const targetIndex = archiveItems.findIndex(i => i.id === targetId);
+
+      if (draggedIndex === -1 || targetIndex === -1) return;
+
+      // Reorder local array
+      const newItems = [...archiveItems];
+      const [movedItem] = newItems.splice(draggedIndex, 1);
+      newItems.splice(targetIndex, 0, movedItem);
+
+      setArchiveItems(newItems);
+      setDraggedItemId(null);
   };
 
   // --- VIEWER & ACTIONS ---
   const getMimeType = (fileType: string, fileName: string) => {
-      const ext = fileName.split('.').pop()?.toLowerCase();
+      const ext = fileName.split('.').pop()?.toLowerCase() || '';
       if (fileType === 'PDF' || ext === 'pdf') return 'application/pdf';
-      if (['PNG', 'JPG', 'JPEG'].includes(fileType) || ['png', 'jpg', 'jpeg'].includes(ext || '')) return 'image/jpeg';
+      if (['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF'].includes(fileType) || ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) return 'image/jpeg';
+      if (['TXT', 'MD', 'LOG', 'CSV', 'JSON'].includes(fileType) || ['txt', 'md', 'log', 'csv', 'json'].includes(ext)) return 'text/plain';
       return 'application/octet-stream';
   };
 
@@ -235,41 +260,18 @@ const BusinessPage: React.FC = () => {
   const deleteArchiveItem = async (id: string) => { if(!window.confirm("A jeni i sigurt?")) return; try { await apiService.deleteArchiveItem(id); fetchArchiveContent(); } catch (error) { alert("Fshirja dështoi."); } };
   const downloadArchiveItem = async (id: string, title: string) => { try { await apiService.downloadArchiveItem(id, title); } catch (error) { alert("Shkarkimi dështoi."); } };
 
-  // --- INVOICE ACTIONS ---
-  const handleArchiveInvoiceClick = (invoiceId: string) => { setSelectedInvoiceId(invoiceId); setShowArchiveInvoiceModal(true); };
-  const submitArchiveInvoice = async () => {
-      if (!selectedInvoiceId) return;
-      try {
-          await apiService.archiveInvoice(selectedInvoiceId, selectedCaseForInvoice || undefined);
-          alert("Fatura u arkivua me sukses!");
-          setShowArchiveInvoiceModal(false);
-          setSelectedCaseForInvoice("");
-      } catch (error) { alert("Arkivimi dështoi."); }
-  };
-  const deleteInvoice = async (id: string) => { if(!window.confirm(t('general.confirmDelete', "A jeni i sigurt?"))) return; try { await apiService.deleteInvoice(id); setInvoices(invoices.filter(inv => inv.id !== id)); } catch (error) { alert("Fshirja dështoi."); } };
-  const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id, i18n.language); } catch (error) { alert("Shkarkimi dështoi."); } };
-
-  // --- FORM HANDLERS ---
+  // --- HANDLERS ---
   const handleProfileSubmit = async (e: React.FormEvent) => { e.preventDefault(); setSaving(true); try { const clean: any = {...formData}; Object.keys(clean).forEach(k => clean[k]=== '' && (clean[k]=null)); await apiService.updateBusinessProfile(clean); alert(t('settings.successMessage')); } catch{ alert(t('error.generic')); } finally { setSaving(false); } };
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if(!f) return; setSaving(true); try { const p = await apiService.uploadBusinessLogo(f); setProfile(p); } catch { alert(t('error.uploadFailed')); } finally { setSaving(false); } };
+  const handleArchiveInvoiceClick = (invoiceId: string) => { setSelectedInvoiceId(invoiceId); setShowArchiveInvoiceModal(true); };
+  const submitArchiveInvoice = async () => { if (!selectedInvoiceId) return; try { await apiService.archiveInvoice(selectedInvoiceId, selectedCaseForInvoice || undefined); alert("Fatura u arkivua me sukses!"); setShowArchiveInvoiceModal(false); setSelectedCaseForInvoice(""); } catch (error) { alert("Arkivimi dështoi."); } };
   
-  // Invoice Form Logic
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
   const removeLineItem = (i: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, idx) => idx !== i));
   const updateLineItem = (i: number, f: keyof InvoiceItem, v: any) => { const n = [...lineItems]; n[i] = { ...n[i], [f]: v }; n[i].total = n[i].quantity * n[i].unit_price; setLineItems(n); };
-  const handleCreateInvoice = async (e: React.FormEvent) => { 
-      e.preventDefault(); 
-      try { 
-          const addr = [newInvoice.client_address, newInvoice.client_city, newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '', newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : ''].filter(Boolean).join('\n'); 
-          const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: addr, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes }; 
-          const inv = await apiService.createInvoice(payload); 
-          setInvoices([inv, ...invoices]); 
-          setShowInvoiceModal(false); 
-          // Reset
-          setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' });
-          setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
-      } catch { alert("Dështoi."); } 
-  };
+  const handleCreateInvoice = async (e: React.FormEvent) => { e.preventDefault(); try { const addr = [newInvoice.client_address, newInvoice.client_city, newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '', newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : ''].filter(Boolean).join('\n'); const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: addr, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes }; const inv = await apiService.createInvoice(payload); setInvoices([inv, ...invoices]); setShowInvoiceModal(false); setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' }); setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); } catch { alert("Dështoi."); } };
+  const deleteInvoice = async (id: string) => { if(!window.confirm(t('general.confirmDelete', "A jeni i sigurt?"))) return; try { await apiService.deleteInvoice(id); setInvoices(invoices.filter(inv => inv.id !== id)); } catch (error) { alert("Fshirja dështoi."); } };
+  const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id, i18n.language); } catch (error) { alert("Shkarkimi dështoi."); } };
 
   if (loading && activeTab !== 'archive') return <div className="flex justify-center items-center h-96"><Loader2 className="w-8 h-8 animate-spin text-primary-start" /></div>;
 
@@ -280,10 +282,12 @@ const BusinessPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div><h1 className="text-3xl font-bold text-white mb-2">{t('business.title', 'Zyra Ime')}</h1><p className="text-gray-400">Qendra Administrative për Zyrën tuaj Ligjore.</p></div>
-        <div className="flex bg-background-light/20 p-1 rounded-xl border border-glass-edge">
-            <button onClick={() => setActiveTab('profile')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><Building2 className="w-4 h-4 inline-block mr-2" />Profili</button>
-            <button onClick={() => setActiveTab('finance')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FileText className="w-4 h-4 inline-block mr-2" />Financat</button>
-            <button onClick={() => setActiveTab('archive')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FolderOpen className="w-4 h-4 inline-block mr-2" />Arkiva</button>
+        <div className="flex bg-background-light/20 p-1 rounded-xl border border-glass-edge overflow-x-auto">
+            <div className="flex whitespace-nowrap">
+                <button onClick={() => setActiveTab('profile')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><Building2 className="w-4 h-4 inline-block mr-2" />Profili</button>
+                <button onClick={() => setActiveTab('finance')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FileText className="w-4 h-4 inline-block mr-2" />Financat</button>
+                <button onClick={() => setActiveTab('archive')} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg' : 'text-text-secondary hover:text-white'}`}><FolderOpen className="w-4 h-4 inline-block mr-2" />Arkiva</button>
+            </div>
         </div>
       </div>
 
@@ -298,6 +302,7 @@ const BusinessPage: React.FC = () => {
                         <div className={`w-36 h-36 rounded-full overflow-hidden flex items-center justify-center border-4 transition-all shadow-xl ${logoSrc ? 'border-background-light' : 'border-dashed border-gray-600 hover:border-primary-start'}`}>
                             {logoLoading ? <Loader2 className="w-8 h-8 animate-spin text-primary-start" /> : logoSrc ? <img src={logoSrc} alt="Logo" className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" onError={() => setLogoSrc(null)} /> : <div className="text-center group-hover:scale-110 transition-transform"><Upload className="w-8 h-8 text-gray-500 mx-auto mb-2" /><span className="text-xs text-gray-500 font-medium">Ngarko Logo</span></div>}
                         </div>
+                        {/* PHOENIX: Restored Camera/Check Overlay */}
                         <div className="absolute inset-0 rounded-full bg-black/50 backdrop-blur-[2px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"><Camera className="w-8 h-8 text-white drop-shadow-lg" /></div>
                         <div className="absolute bottom-1 right-1 bg-primary-start p-2.5 rounded-full shadow-lg border-4 border-background-dark group-hover:scale-110 transition-transform"><Check className="w-4 h-4 text-white" /></div>
                     </div>
@@ -372,7 +377,7 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
-      {/* --- ARCHIVE TAB (V2 - FOLDER SYSTEM) --- */}
+      {/* --- ARCHIVE TAB (V2 - REDESIGNED CARDS & STREAMING FIX) --- */}
       {activeTab === 'archive' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             
@@ -416,14 +421,18 @@ const BusinessPage: React.FC = () => {
                 {/* 1. VIRTUAL CASE FOLDERS (Only at ROOT) */}
                 {currentView.type === 'ROOT' && cases.length > 0 && (
                     <div>
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">Dosjet e Çështjeve (Cases)</h3>
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1 flex items-center gap-2">
+                            <Briefcase size={14} /> {t('business.caseFolders', 'Dosjet e Çështjeve')}
+                        </h3>
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
                             {cases.map(c => (
                                 <div key={c.id} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} 
-                                     className="bg-background-dark border border-glass-edge rounded-xl p-4 hover:bg-white/5 transition-all cursor-pointer group text-center">
-                                    <Briefcase className="w-10 h-10 text-primary-start mx-auto mb-2 group-hover:scale-110 transition-transform" />
-                                    <h4 className="text-sm font-medium text-white truncate px-1">{c.title}</h4>
-                                    <p className="text-[10px] text-gray-500">{c.case_number}</p>
+                                     className="bg-gradient-to-br from-background-light/10 to-background-dark border border-glass-edge rounded-xl p-4 hover:border-primary-start/50 transition-all cursor-pointer group flex flex-col items-center text-center shadow-sm hover:shadow-lg hover:shadow-primary-start/5">
+                                    <div className="p-3 rounded-full bg-background-dark border border-white/5 mb-3 group-hover:scale-110 transition-transform">
+                                        <Briefcase className="w-8 h-8 text-primary-start" />
+                                    </div>
+                                    <h4 className="text-sm font-bold text-white truncate w-full px-1">{c.title}</h4>
+                                    <p className="text-[10px] text-gray-500 mt-1 bg-white/5 px-2 py-0.5 rounded-full">{c.case_number}</p>
                                 </div>
                             ))}
                         </div>
@@ -433,52 +442,57 @@ const BusinessPage: React.FC = () => {
                 {/* 2. ARCHIVE CONTENTS (Folders & Files) */}
                 <div>
                     {(currentView.type !== 'ROOT' || archiveItems.length > 0) && (
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1">
-                            {currentView.type === 'ROOT' ? 'Dokumentet e Mia' : 'Përmbajtja'}
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 ml-1 flex items-center gap-2">
+                            <FolderOpen size={14} /> {currentView.type === 'ROOT' ? 'Dokumentet e Mia' : 'Përmbajtja'}
                         </h3>
                     )}
                     
                     {archiveItems.length === 0 && currentView.type !== 'ROOT' ? (
-                        <div className="text-center py-12 border-2 border-dashed border-white/10 rounded-2xl">
-                            <FolderOpen className="w-12 h-12 text-gray-700 mx-auto mb-2" />
-                            <p className="text-gray-500">Dosja është e zbrazët</p>
-                            {currentView.type !== 'CASE' && <div className="mt-4"><button onClick={() => setShowFolderModal(true)} className="text-sm text-yellow-500 hover:underline">Krijo një dosje të re</button></div>}
+                        <div className="text-center py-16 border-2 border-dashed border-white/10 rounded-2xl bg-white/5">
+                            <FolderOpen className="w-16 h-16 text-gray-700 mx-auto mb-4" />
+                            <p className="text-gray-400 font-medium">Kjo dosje është e zbrazët</p>
+                            <p className="text-xs text-gray-600 mt-1">Shtoni dokumente ose krijoni nën-dosje</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                             {archiveItems.map(item => {
                                 const isFolder = (item as any).item_type === 'FOLDER';
+                                const fileExt = item.file_type || 'FILE';
                                 return (
                                     <div key={item.id} 
+                                         draggable
+                                         onDragStart={(e) => onDragStart(e, item.id)}
+                                         onDragOver={onDragOver}
+                                         onDrop={(e) => onDrop(e, item.id)}
                                          onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : null}
-                                         className={`relative bg-background-dark border border-glass-edge rounded-xl p-4 hover:bg-white/5 transition-all group flex flex-col justify-between h-32 ${isFolder ? 'cursor-pointer' : ''}`}>
+                                         className={`relative bg-background-light/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all group flex flex-col items-center text-center cursor-pointer hover:border-blue-500/30`}>
                                         
-                                        <div className="flex justify-between items-start">
-                                            {isFolder ? (
-                                                <FolderOpen className="w-8 h-8 text-yellow-500 group-hover:text-yellow-400 transition-colors" />
-                                            ) : (
-                                                <File className="w-8 h-8 text-blue-400 group-hover:text-blue-300 transition-colors" />
-                                            )}
-                                            {!isFolder && (
-                                                <button onClick={(e) => {e.stopPropagation(); deleteArchiveItem(item.id)}} className="text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            )}
+                                        {/* Icon Container */}
+                                        <div className={`w-12 h-12 flex-shrink-0 rounded-lg flex items-center justify-center shadow-lg mb-3 ${isFolder ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-400'}`}>
+                                            {isFolder ? <FolderOpen size={24} /> : (fileExt === 'PDF' ? <FileText size={24} /> : <File size={24} />)}
                                         </div>
 
-                                        <div>
+                                        {/* Info */}
+                                        <div className="w-full">
                                             <h4 className="text-sm font-medium text-white truncate w-full" title={item.title}>{item.title}</h4>
-                                            {!isFolder && (
-                                                <div className="flex justify-between items-center mt-1">
-                                                    <span className="text-[10px] text-gray-500 uppercase">{item.file_type}</span>
-                                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={(e) => {e.stopPropagation(); handleViewItem(item)}} className="p-1 hover:bg-white/10 rounded"><Eye size={12} className="text-gray-400" /></button>
-                                                        <button onClick={(e) => {e.stopPropagation(); downloadArchiveItem(item.id, item.title)}} className="p-1 hover:bg-white/10 rounded"><Download size={12} className="text-gray-400" /></button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {isFolder && <p className="text-[10px] text-gray-500">Dosje</p>}
+                                            {!isFolder && <p className="text-[10px] text-gray-500 mt-1">{(item.file_size / 1024).toFixed(0)} KB</p>}
                                         </div>
+
+                                        {/* Actions Overlay (Only for files) */}
+                                        {!isFolder && (
+                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 bg-background-dark/90 px-1 rounded-lg backdrop-blur-sm border border-white/10">
+                                                <button onClick={(e) => {e.stopPropagation(); handleViewItem(item)}} className="p-1 hover:bg-blue-500/20 rounded text-blue-400 transition-colors" title="Shiko"><Eye size={14} /></button>
+                                                <button onClick={(e) => {e.stopPropagation(); downloadArchiveItem(item.id, item.title)}} className="p-1 hover:bg-green-500/20 rounded text-green-400 transition-colors" title="Shkarko"><Download size={14} /></button>
+                                                <button onClick={(e) => {e.stopPropagation(); deleteArchiveItem(item.id)}} className="p-1 hover:bg-red-500/20 rounded text-red-400 transition-colors" title="Fshi"><Trash2 size={14} /></button>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Folder Delete Action */}
+                                        {isFolder && (
+                                            <button onClick={(e) => {e.stopPropagation(); deleteArchiveItem(item.id)}} className="absolute top-2 right-2 p-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Trash2 size={14} />
+                                            </button>
+                                        )}
                                     </div>
                                 );
                             })}
@@ -512,7 +526,7 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
-      {/* --- INVOICE & ACCOUNTANT MODALS (Restored) --- */}
+      {/* --- INVOICE & ACCOUNTANT MODALS --- */}
       {showInvoiceModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full">
