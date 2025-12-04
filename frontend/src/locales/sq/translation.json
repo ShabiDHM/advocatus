@@ -357,5 +357,9 @@
   },
   "settings": {
     "successMessage": "Cilësimet u ruajtën me sukses!"
-  }
+  },
+  "pdfViewer": {
+  "downloadOriginal": "Shkarko Dokumentin Origjinal",
+  "close": "Mbyll"
+}
 }
