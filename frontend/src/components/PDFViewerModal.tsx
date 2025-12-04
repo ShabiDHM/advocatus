@@ -1,8 +1,7 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - AUTH FIX
-// 1. FIX: Replaced localStorage.getItem('jwtToken') with apiService.getToken() to support in-memory auth.
-// 2. LOGIC: Ensures PDF streaming works for Case Documents by passing the correct Bearer token.
-// 3. FALLBACK: Maintains robust error handling.
+// PHOENIX PROTOCOL - TYPE FIX
+// 1. FIX: Explicitly typed headers as Record<string, string> to satisfy TypeScript 'HeadersInit'.
+// 2. STATUS: Clean build.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -25,9 +24,10 @@ interface PDFViewerModalProps {
   onClose: () => void;
   t: TFunction; 
   directUrl?: string | null; 
+  isAuth?: boolean;
 }
 
-const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, onClose, t, directUrl }) => {
+const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, onClose, t, directUrl, isAuth = false }) => {
   const [pdfSource, setPdfSource] = useState<any>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [imageSource, setImageSource] = useState<string | null>(null);
@@ -45,11 +45,10 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const [actualViewerMode, setActualViewerMode] = useState<'PDF' | 'TEXT' | 'IMAGE' | 'DOWNLOAD'>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Resize observer to fit PDF to screen width on mobile
   useEffect(() => {
       const updateWidth = () => {
           if (containerRef.current) {
-              setContainerWidth(containerRef.current.clientWidth - 32); // 32px padding
+              setContainerWidth(containerRef.current.clientWidth - 32); 
           }
       };
       
@@ -69,36 +68,57 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   const fetchDocument = async () => {
     const targetMode = getTargetMode(documentData.mime_type || '');
+    const token = apiService.getToken();
 
-    // 1. Direct URL (Archive or New Uploads)
     if (directUrl) {
-        if (targetMode === 'TEXT') {
+        if (targetMode === 'PDF') {
+             if (isAuth && token) {
+                 setPdfSource({
+                    url: directUrl,
+                    httpHeaders: { 'Authorization': `Bearer ${token}` },
+                    withCredentials: true
+                 });
+             } else {
+                 setPdfSource(directUrl);
+             }
+             setActualViewerMode('PDF');
+        } else {
              try {
-                 const r = await fetch(directUrl);
-                 const text = await r.text();
-                 setTextContent(text);
-                 setActualViewerMode('TEXT');
+                 let blob: Blob;
+                 if (isAuth && token) {
+                     // PHOENIX FIX: Explicit typing prevents TS overload error
+                     const headers: Record<string, string> = {};
+                     headers['Authorization'] = `Bearer ${token}`;
+                     
+                     const response = await fetch(directUrl, { headers });
+                     if (!response.ok) throw new Error('Fetch failed');
+                     blob = await response.blob();
+                 } else {
+                     const response = await fetch(directUrl);
+                     blob = await response.blob();
+                 }
+
+                 if (targetMode === 'TEXT') {
+                     const text = await blob.text();
+                     setTextContent(text);
+                     setActualViewerMode('TEXT');
+                 } else {
+                     const url = URL.createObjectURL(blob);
+                     setImageSource(url);
+                     setActualViewerMode('IMAGE');
+                 }
              } catch (e) {
+                 console.error(e);
                  setActualViewerMode('DOWNLOAD');
              }
-        } else if (targetMode === 'IMAGE') {
-             setImageSource(directUrl);
-             setActualViewerMode('IMAGE');
-        } else {
-             setPdfSource(directUrl);
-             setActualViewerMode('PDF');
+             setIsLoading(false);
         }
-        setIsLoading(false);
         return;
     }
 
     if (!caseId) return;
 
-    // 2. Case Documents (Remote)
     if (targetMode === 'PDF') {
-        // PHOENIX FIX: Get token from memory, not localStorage
-        const token = apiService.getToken(); 
-        
         const baseUrl = retryOriginal 
             ? `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/original`
             : `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/preview`;
@@ -112,7 +132,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         return;
     }
 
-    // 3. Fallback for Images/Text (Blob Fetch)
     setIsLoading(true);
     setError(null);
 
@@ -139,12 +158,13 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   
   useEffect(() => {
     fetchDocument();
-    return () => { if (imageSource && !directUrl) URL.revokeObjectURL(imageSource); };
+    return () => { 
+        if (imageSource && !directUrl) URL.revokeObjectURL(imageSource);
+    };
   }, [caseId, documentData.id, directUrl, retryOriginal]);
 
   const onPdfLoadError = (err: any) => {
       if (!retryOriginal && !directUrl) {
-          console.warn("PDF Preview failed, retrying with Original...");
           setRetryOriginal(true);
       } else {
           console.error("PDF Load Failed:", err);
@@ -163,8 +183,15 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     setIsDownloading(true);
     try {
       let blob;
+      const token = apiService.getToken();
+      
       if (directUrl) {
-          const r = await fetch(directUrl);
+          // PHOENIX FIX: Explicit typing
+          const headers: Record<string, string> = {};
+          if (isAuth && token) {
+              headers['Authorization'] = `Bearer ${token}`;
+          }
+          const r = await fetch(directUrl, { headers });
           blob = await r.blob();
       } else if (caseId) {
           blob = await apiService.getOriginalDocument(caseId, documentData.id);
