@@ -166,7 +166,8 @@
     "errorFetchResult": "Dështoi marrja e rezultatit",
     "errorJobFailed": "Puna e hartimit dështoi",
     "errorConnectionLost": "Lidhja me serverin u humb",
-    "errorStartJob": "Dështoi fillimi i punës së hartimit"
+    "errorStartJob": "Dështoi fillimi i punës së hartimit",
+    "regenerate": "Rigjenero"
   },
   "business": {
     "title": "Qendra e Biznesit",
@@ -207,7 +208,12 @@
     "viewPdf": "Shiko PDF",
     "downloadPdf": "Shkarko PDF",
     "archiveInvoice": "Arkivo Faturën",
-    "deleteInvoice": "Fshi Faturën"
+    "deleteInvoice": "Fshi Faturën",
+    "addExpense": "Shto Shpenzim",
+    "expenseCategory": "Kategoria (psh. Qira, Rrogat)",
+    "amount": "Shuma (€)",
+    "date": "Data",
+    "description": "Përshkrimi"
   },
   "archive": {
     "caseFolders": "Dosjet e Çështjeve",
@@ -250,7 +256,7 @@
     "userUpdated": "Përdoruesi u përditësua.",
     "confirmDelete": "A jeni të sigurt që doni të fshini këtë përdorues?"
   },
- "calendar": {
+  "calendar": {
     "loadFailure": "Dështoi ngarkimi i të dhënave të kalendarit.",
     "noEventsFound": "Nuk u gjetën ngjarje.",
     "today": "Sot",
