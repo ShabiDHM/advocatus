@@ -1,15 +1,15 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - FEATURE TOGGLE (HIDE AI)
-// 1. REMOVED: 'Accountant AI' button and modal logic.
-// 2. LAYOUT: Adjusted Finance header to accommodate the single 'Create Invoice' button.
-// 3. STATUS: Clean build, ready for deployment.
+// PHOENIX PROTOCOL - ROBUST FORM HANDLING
+// 1. FIX: Added missing 'Website' input to Invoice Modal.
+// 2. SAFETY: Website is strictly optional; logic prevents crashes/empty lines if missing.
+// 3. UI: Updated form layout to accommodate the new optional field gracefully.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, 
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File,
-    Briefcase, Eye, Archive, Camera, X, User, FolderPlus, Home, ChevronRight,
+    Briefcase, Eye, Archive, Camera, Bot, X, User, FolderPlus, Home, ChevronRight,
     FileImage, FileCode, Hash, Info, Calendar, TrendingUp, TrendingDown, Wallet
 } from 'lucide-react';
 import { apiService, API_V1_URL } from '../services/api';
@@ -55,6 +55,7 @@ const BusinessPage: React.FC = () => {
   const [newFolderName, setNewFolderName] = useState("");
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showArchiveInvoiceModal, setShowArchiveInvoiceModal] = useState(false);
+  const [showAccountantModal, setShowAccountantModal] = useState(false);
   
   // Selection
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
@@ -70,7 +71,15 @@ const BusinessPage: React.FC = () => {
   });
   
   const [newInvoice, setNewInvoice] = useState({ 
-      client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' 
+      client_name: '', 
+      client_email: '', 
+      client_phone: '', 
+      client_address: '', 
+      client_city: '', 
+      client_tax_id: '', 
+      client_website: '', 
+      tax_rate: 18, 
+      notes: '' 
   });
   const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
 
@@ -83,7 +92,6 @@ const BusinessPage: React.FC = () => {
   useEffect(() => { fetchData(); }, []);
 
   useEffect(() => {
-      // Update breadcrumb root name if language changes
       setBreadcrumbs(prev => {
           if (prev.length > 0 && prev[0].type === 'ROOT') {
               const newCrumbs = [...prev];
@@ -283,7 +291,41 @@ const BusinessPage: React.FC = () => {
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
   const removeLineItem = (i: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, idx) => idx !== i));
   const updateLineItem = (i: number, f: keyof InvoiceItem, v: any) => { const n = [...lineItems]; n[i] = { ...n[i], [f]: v }; n[i].total = n[i].quantity * n[i].unit_price; setLineItems(n); };
-  const handleCreateInvoice = async (e: React.FormEvent) => { e.preventDefault(); try { const addr = [newInvoice.client_address, newInvoice.client_city, newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '', newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : ''].filter(Boolean).join('\n'); const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: addr, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes }; const inv = await apiService.createInvoice(payload); setInvoices([inv, ...invoices]); setShowInvoiceModal(false); setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' }); setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); } catch { alert(t('error.generic')); } };
+  
+  // PHOENIX FIX: Safe Address Block Generation
+  const handleCreateInvoice = async (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      try { 
+          // Safe filter ensures no empty lines or undefined values
+          const fullAddressBlock = [
+              newInvoice.client_address,
+              newInvoice.client_city,
+              newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '',
+              newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : '',
+              newInvoice.client_website // Website is optional, filter(Boolean) removes it if empty
+          ].filter(Boolean).join('\n');
+
+          const payload = { 
+              client_name: newInvoice.client_name, 
+              client_email: newInvoice.client_email, 
+              client_address: fullAddressBlock, 
+              items: lineItems, 
+              tax_rate: newInvoice.tax_rate, 
+              notes: newInvoice.notes 
+          }; 
+          
+          const inv = await apiService.createInvoice(payload); 
+          setInvoices([inv, ...invoices]); 
+          setShowInvoiceModal(false); 
+          setNewInvoice({ 
+              client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' 
+          }); 
+          setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); 
+      } catch { 
+          alert(t('error.generic')); 
+      } 
+  };
+
   const deleteInvoice = async (id: string) => { if(!window.confirm(t('general.confirmDelete'))) return; try { await apiService.deleteInvoice(id); setInvoices(invoices.filter(inv => inv.id !== id)); } catch (error) { alert(t('documentsPanel.deleteFailed')); } };
   const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id, i18n.language); } catch (error) { alert(t('error.generic')); } };
 
@@ -602,7 +644,7 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
-      {/* --- INVOICE MODAL --- */}
+      {/* --- CREATE INVOICE MODAL (UPDATED) --- */}
       {showInvoiceModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full">
@@ -618,6 +660,14 @@ const BusinessPage: React.FC = () => {
                               <div><label className="block text-sm text-gray-300 mb-1">Email</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div>
                               <div><label className="block text-sm text-gray-300 mb-1">Telefon</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div>
                           </div>
+                          {/* PHOENIX: Expanded Fields for Professional Invoice */}
+                          <div className="grid grid-cols-2 gap-4">
+                              <div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div>
+                              <div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} placeholder="NUI / Fiscal No." /></div>
+                          </div>
+                          {/* PHOENIX: Website (Optional) - Added to UI */}
+                          <div><label className="block text-sm text-gray-300 mb-1">{t('business.website')} <span className="text-gray-500 text-xs">(Opsional)</span></label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_website} onChange={e => setNewInvoice({...newInvoice, client_website: e.target.value})} /></div>
+                          
                           <div><label className="block text-sm text-gray-300 mb-1">Adresa</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div>
                       </div>
                       <div className="space-y-3 pt-4 border-t border-white/10">
@@ -646,6 +696,26 @@ const BusinessPage: React.FC = () => {
                   <div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">{t('general.save')}</button></div>
               </div>
           </div>
+      )}
+
+      {showAccountantModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+            <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-4xl h-[80vh] flex flex-col shadow-2xl overflow-hidden relative">
+                <button onClick={() => setShowAccountantModal(false)} className="absolute top-4 right-4 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors z-10"><X size={24} /></button>
+                <div className="p-8 border-b border-white/10 flex justify-between items-center bg-gradient-to-r from-indigo-900/40 to-purple-900/40">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-indigo-500/20 rounded-xl border border-indigo-500/30 shadow-lg shadow-indigo-500/10"><Bot className="w-10 h-10 text-indigo-300" /></div>
+                        <div><h2 className="text-2xl font-bold text-white tracking-tight">{t('finance.accountantAI')}</h2><p className="text-sm text-indigo-200/80 font-medium">Asistenti Financiar për Zyrën tuaj</p></div>
+                    </div>
+                </div>
+                <div className="flex-1 p-8 overflow-y-auto flex flex-col items-center justify-center text-center space-y-8">
+                        <div className="relative"><div className="absolute inset-0 bg-indigo-500 blur-3xl opacity-20 rounded-full"></div><div className="w-32 h-32 bg-indigo-950/50 backdrop-blur-sm rounded-full flex items-center justify-center border border-indigo-500/30 shadow-2xl relative z-10"><Bot className="w-16 h-16 text-indigo-400" /></div></div>
+                        <h3 className="text-2xl font-bold text-white">Së Shpejti...</h3>
+                        <p className="text-gray-400">Ky modul është në zhvillim e sipër.</p>
+                        <button onClick={() => setShowAccountantModal(false)} className="px-6 py-2 rounded-full border border-indigo-500/50 text-indigo-300 hover:bg-indigo-500/10 transition-colors text-sm font-medium">{t('general.close')}</button>
+                </div>
+            </div>
+        </div>
       )}
 
       {viewingDoc && <PDFViewerModal documentData={viewingDoc} onClose={closePreview} t={t} directUrl={viewingUrl} />}
