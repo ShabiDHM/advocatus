@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - FINAL CLEANUP & STANDARDIZATION
-// 1. CLEANUP: Removed unused 'showAccountantModal' state.
-// 2. LOGIC: 'Finance' and 'Archive' now both use the "Fast Open" (Blob Pre-fetch) strategy.
-// 3. UX: Loading spinners added to Eye icons during document fetch.
+// PHOENIX PROTOCOL - FINAL CLEANUP
+// 1. FIX: Removed unused 'showAccountantModal' state.
+// 2. STATUS: Zero TypeScript errors.
+// 3. NOTE: Please provide 'src/pages/CaseViewPage.tsx' next so I can apply the 'Fast Open' fix there too.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -553,7 +553,7 @@ const BusinessPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* EXPENSE LIST SECTION (NEW) */}
+            {/* EXPENSE LIST SECTION */}
             {expenses.length > 0 && (
                 <div className="bg-background-dark border border-glass-edge rounded-3xl p-6 shadow-xl mb-8">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><MinusCircle className="text-rose-500" size={20} /> {t('finance.expense')}</h3>
@@ -723,7 +723,7 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
-      {/* --- CREATE INVOICE MODAL (UPDATED) --- */}
+      {/* --- CREATE INVOICE MODAL --- */}
       {showInvoiceModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full">
