@@ -1,4 +1,9 @@
 // FILE: src/components/CaseCard.tsx
+// PHOENIX PROTOCOL - DATA REPAIR & UI POLISH
+// 1. FIX: Changed 'case_name' to 'title' to match API response.
+// 2. UI: Added persistent Case Number display (even when Title exists).
+// 3. UX: Ensured 'Titulli i Rastit' (Case Title) is the primary header.
+
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Case } from '../data/types';
@@ -39,9 +44,9 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
     year: 'numeric', month: '2-digit', day: '2-digit'
   });
 
-  const displayTitle = caseData.case_name && caseData.case_name.trim() !== '' 
-      ? caseData.case_name 
-      : (caseData.case_number ? `${t('caseCard.caseNumber')} #${caseData.case_number}` : t('caseCard.untitled'));
+  // PHOENIX FIX: Use 'title' instead of 'case_name'
+  const hasTitle = caseData.title && caseData.title.trim() !== '';
+  const displayTitle = hasTitle ? caseData.title : t('caseCard.untitled');
 
   return (
     <MotionLink 
@@ -60,21 +65,29 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         {/* Header Section */}
         <div className="flex flex-col mb-4 relative z-10">
           <div className="flex justify-between items-start gap-2">
-            <h2 className={`text-lg font-bold line-clamp-2 leading-tight tracking-tight ${!caseData.case_name ? 'text-gray-400 italic' : 'text-gray-100'}`}>
-                {displayTitle}
-            </h2>
+            <div className="flex flex-col">
+                {/* PHOENIX: Always show Case Number (Subtitle) */}
+                <span className="text-[10px] font-mono text-indigo-400 font-bold tracking-wider mb-1 uppercase flex items-center gap-1">
+                    <Hash className="w-3 h-3" />
+                    {caseData.case_number || 'N/A'}
+                </span>
+                
+                {/* PHOENIX: Main Title (Corrected Field) */}
+                <h2 className={`text-lg font-bold line-clamp-2 leading-tight tracking-tight ${!hasTitle ? 'text-gray-500 italic' : 'text-gray-100'}`}>
+                    {displayTitle}
+                </h2>
+            </div>
+
+            {/* Status Indicator */}
             <div 
-                className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
-                    caseData.status === 'open' ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-gray-500'
+                className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${
+                    caseData.status === 'open' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-gray-500'
                 }`} 
                 title={t(`caseView.statusTypes.${caseData.status.toUpperCase()}`, { fallback: caseData.status })} 
             />
           </div>
           
-          <div className="flex items-center gap-2 mt-2">
-            {!caseData.case_name && caseData.case_number && (
-                 <Hash className="w-3 h-3 text-gray-600" />
-            )}
+          <div className="flex items-center gap-2 mt-3">
             <p className="text-xs text-gray-500 font-medium">
                 {t('caseCard.createdOn')}: <span className="text-gray-400">{formattedDate}</span>
             </p>
@@ -120,7 +133,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
                 <span className="text-sm font-medium text-gray-400">{caseData.document_count || 0}</span>
               </div>
 
-              {/* Findings - PHOENIX FIX: Translated Tooltip */}
+              {/* Findings */}
               <button
                 onClick={handleFindingsNav}
                 className="flex items-center gap-1.5 group/icon cursor-pointer hover:bg-white/5 rounded px-1.5 py-1 -ml-1.5 transition-all"
@@ -130,7 +143,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
                 <span className="text-sm font-medium text-gray-400 group-hover/icon:text-gray-200">{caseData.finding_count || 0}</span>
               </button>
 
-              {/* Alerts - PHOENIX FIX: Translated Tooltip */}
+              {/* Alerts */}
               <button 
                 onClick={handleCalendarNav}
                 className="flex items-center gap-1.5 group/icon" 
@@ -140,7 +153,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
                 <span className="text-sm font-medium text-gray-400 group-hover/icon:text-gray-200">{caseData.alert_count || 0}</span>
               </button>
 
-              {/* Events - PHOENIX FIX: Translated Tooltip */}
+              {/* Events */}
               <button 
                 onClick={handleCalendarNav}
                 className="flex items-center gap-1.5 group/icon" 

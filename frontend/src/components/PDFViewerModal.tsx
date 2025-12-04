@@ -1,7 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - CLEANUP
-// 1. FIX: Removed unused 'FileText' import.
-// 2. STATUS: Clean build, fully functional mobile PDF rendering.
+// PHOENIX PROTOCOL - AUTH FIX
+// 1. FIX: Replaced localStorage.getItem('jwtToken') with apiService.getToken() to support in-memory auth.
+// 2. LOGIC: Ensures PDF streaming works for Case Documents by passing the correct Bearer token.
+// 3. FALLBACK: Maintains robust error handling.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -69,6 +70,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const fetchDocument = async () => {
     const targetMode = getTargetMode(documentData.mime_type || '');
 
+    // 1. Direct URL (Archive or New Uploads)
     if (directUrl) {
         if (targetMode === 'TEXT') {
              try {
@@ -92,8 +94,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
     if (!caseId) return;
 
+    // 2. Case Documents (Remote)
     if (targetMode === 'PDF') {
-        const token = localStorage.getItem('jwtToken');
+        // PHOENIX FIX: Get token from memory, not localStorage
+        const token = apiService.getToken(); 
+        
         const baseUrl = retryOriginal 
             ? `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/original`
             : `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/preview`;
@@ -107,6 +112,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         return;
     }
 
+    // 3. Fallback for Images/Text (Blob Fetch)
     setIsLoading(true);
     setError(null);
 
@@ -138,6 +144,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   const onPdfLoadError = (err: any) => {
       if (!retryOriginal && !directUrl) {
+          console.warn("PDF Preview failed, retrying with Original...");
           setRetryOriginal(true);
       } else {
           console.error("PDF Load Failed:", err);
