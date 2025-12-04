@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - FINAL CLEANUP
-// 1. FIX: Removed unused 'showAccountantModal' state.
-// 2. STATUS: Zero TypeScript errors.
-// 3. NOTE: Please provide 'src/pages/CaseViewPage.tsx' next so I can apply the 'Fast Open' fix there too.
+// PHOENIX PROTOCOL - ORGANIZATION REPAIR
+// 1. FIX: Restored 'displayedItems' filter. Documents linked to a Case are now HIDDEN from the Root view.
+// 2. UX: 'Fast Open' logic applied to all document interactions.
+// 3. STATUS: Organized Archive (Case Docs in Case Folders Only).
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -450,6 +450,15 @@ const BusinessPage: React.FC = () => {
 
   const currentView = breadcrumbs[breadcrumbs.length - 1];
 
+  // PHOENIX FIX: Filtering Logic
+  // Items associated with a case are HIDDEN from the root list to prevent duplication.
+  const displayedItems = archiveItems.filter(item => {
+      if (currentView.type === 'ROOT') {
+          return !item.case_id; // Hide case-linked files
+      }
+      return true;
+  });
+
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
       {/* Header */}
@@ -660,20 +669,15 @@ const BusinessPage: React.FC = () => {
                     </div>
                 )}
 
-                <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
-                    {(currentView.type !== 'ROOT' || archiveItems.length > 0) && (
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70"><FolderOpen size={14} /> {currentView.type === 'ROOT' ? t('archive.myDocuments') : t('archive.contents')}</h3>
-                    )}
-                    {archiveItems.length === 0 && currentView.type !== 'ROOT' ? (
-                        <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center">
-                            <div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse"><FolderOpen className="w-16 h-16 text-gray-600" /></div>
-                            <p className="text-gray-300 font-medium text-lg">{t('archive.emptyFolder')}</p>
-                            <p className="text-sm text-gray-500 mt-2">{t('archive.emptyHint')}</p>
-                        </div>
-                    ) : (
+                {/* PHOENIX: 'My Documents' section ONLY appears if there are actual loose files to show */}
+                {displayedItems.length > 0 && (
+                    <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70">
+                            <FolderOpen size={14} /> {currentView.type === 'ROOT' ? t('archive.myDocuments') : t('archive.contents')}
+                        </h3>
                         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                             <AnimatePresence>
-                            {archiveItems.map(item => {
+                            {displayedItems.map(item => {
                                 const isFolder = (item as any).item_type === 'FOLDER';
                                 const fileExt = item.file_type || 'FILE';
                                 const isDragging = draggedItemId === item.id;
@@ -698,8 +702,26 @@ const BusinessPage: React.FC = () => {
                             })}
                             </AnimatePresence>
                         </motion.div>
-                    )}
-                </div>
+                    </div>
+                )}
+
+                {/* Empty State: Only if NO cases and NO files */}
+                {displayedItems.length === 0 && cases.length === 0 && currentView.type === 'ROOT' && (
+                    <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center">
+                        <div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse"><FolderOpen className="w-16 h-16 text-gray-600" /></div>
+                        <p className="text-gray-300 font-medium text-lg">{t('archive.emptyFolder')}</p>
+                        <p className="text-sm text-gray-500 mt-2">{t('archive.emptyHint')}</p>
+                    </div>
+                )}
+                
+                {/* Empty State: Inside a subfolder */}
+                {archiveItems.length === 0 && currentView.type !== 'ROOT' && (
+                    <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center">
+                        <div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse"><FolderOpen className="w-16 h-16 text-gray-600" /></div>
+                        <p className="text-gray-300 font-medium text-lg">{t('archive.emptyFolder')}</p>
+                        <p className="text-sm text-gray-500 mt-2">{t('archive.emptyHint')}</p>
+                    </div>
+                )}
             </div>
         </motion.div>
       )}
