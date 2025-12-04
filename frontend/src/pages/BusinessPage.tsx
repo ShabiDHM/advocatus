@@ -1,7 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - CLEANUP FINALIZATION
-// 1. FIX: Removed unused 'Bot' icon and 'showAccountantModal' state.
-// 2. STATUS: Zero build warnings. Clean and production-ready.
+// PHOENIX PROTOCOL - FINAL CLEANUP & STANDARDIZATION
+// 1. CLEANUP: Removed unused 'showAccountantModal' state.
+// 2. LOGIC: 'Finance' and 'Archive' now both use the "Fast Open" (Blob Pre-fetch) strategy.
+// 3. UX: Loading spinners added to Eye icons during document fetch.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,7 +27,7 @@ type Breadcrumb = {
 
 const DEFAULT_COLOR = '#3b82f6';
 
-// --- SUB-COMPONENTS (DEFINED OUTSIDE) ---
+// --- SUB-COMPONENTS ---
 
 const FinanceCard = ({ title, amount, icon, color, subtext }: { title: string, amount: string, icon: React.ReactNode, color: string, subtext?: string }) => (
     <div className="group relative overflow-hidden rounded-2xl bg-gray-900/40 backdrop-blur-md border border-white/5 p-6 hover:bg-gray-800/60 transition-all duration-300 hover:-translate-y-1 shadow-lg">
@@ -48,10 +49,10 @@ const FinanceCard = ({ title, amount, icon, color, subtext }: { title: string, a
 );
 
 const ArchiveCard = ({ 
-    title, subtitle, type, date, icon, statusColor, onClick, onDownload, onDelete, isFolder, isDragging 
+    title, subtitle, type, date, icon, statusColor, onClick, onDownload, onDelete, isFolder, isDragging, isLoading 
 }: { 
     title: string, subtitle: string, type: string, date: string, icon: React.ReactNode, statusColor: string, 
-    onClick: () => void, onDownload?: () => void, onDelete?: () => void, isFolder: boolean, isDragging?: boolean 
+    onClick: () => void, onDownload?: () => void, onDelete?: () => void, isFolder: boolean, isDragging?: boolean, isLoading?: boolean 
 }) => {
     const { t } = useTranslation(); 
     return (
@@ -97,7 +98,11 @@ const ArchiveCard = ({
             <div className="relative z-10 pt-4 border-t border-white/5 flex items-center justify-between min-h-[3rem]">
                 <span className="text-xs font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">{isFolder ? t('archive.openFolder') : ''}</span>
                 <div className="flex gap-1 items-center">
-                    {!isFolder && (<button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-2 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors" title={t('archive.view')}><Eye className="h-4 w-4" /></button>)}
+                    {!isFolder && (
+                        <button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-2 rounded-lg text-gray-600 hover:text-blue-400 hover:bg-blue-400/10 transition-colors" title={t('archive.view')}>
+                           {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-blue-400" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                    )}
                     {!isFolder && onDownload && (<button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="p-2 rounded-lg text-gray-600 hover:text-green-400 hover:bg-green-400/10 transition-colors" title={t('archive.download')}><Download className="h-4 w-4" /></button>)}
                     {onDelete && (<button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 -mr-2 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-400/10 transition-colors" title={t('archive.delete')}><Trash2 className="h-4 w-4" /></button>)}
                 </div>
@@ -126,6 +131,9 @@ const BusinessPage: React.FC = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]); 
   const [archiveItems, setArchiveItems] = useState<ArchiveItemOut[]>([]);
   const [cases, setCases] = useState<Case[]>([]);
+
+  // UI State
+  const [openingDocId, setOpeningDocId] = useState<string | null>(null);
 
   // --- ARCHIVE STATE ---
   const [breadcrumbs, setBreadcrumbs] = useState<Breadcrumb[]>([{ id: null, name: t('business.archive'), type: 'ROOT' }]);
@@ -336,17 +344,35 @@ const BusinessPage: React.FC = () => {
       return <File className="w-5 h-5 text-blue-400" />;
   };
 
-  const handleViewItem = (item: ArchiveItemOut) => {
-      const mime = getMimeType(item.file_type, item.title);
-      const url = `${API_V1_URL}/archive/items/${item.id}/download?preview=true`;
-      setViewingUrl(url);
-      setViewingDoc({ id: item.id, file_name: item.title, mime_type: mime, status: 'READY' } as any);
+  // PHOENIX FIX: INSTANT VIEWING (Archive)
+  const handleViewItem = async (item: ArchiveItemOut) => {
+      setOpeningDocId(item.id);
+      try {
+        const blob = await apiService.getArchiveFileBlob(item.id);
+        const url = window.URL.createObjectURL(blob);
+        const mime = getMimeType(item.file_type, item.title);
+        setViewingUrl(url);
+        setViewingDoc({ id: item.id, file_name: item.title, mime_type: mime, status: 'READY' } as any);
+      } catch (error) {
+        alert(t('error.generic'));
+      } finally {
+        setOpeningDocId(null);
+      }
   };
 
-  const handleViewInvoice = (invoice: Invoice) => {
-      const url = `${API_V1_URL}/finance/invoices/${invoice.id}/pdf`;
-      setViewingUrl(url);
-      setViewingDoc({ id: invoice.id, file_name: `Invoice #${invoice.invoice_number}`, mime_type: 'application/pdf', status: 'READY' } as any);
+  // PHOENIX FIX: INSTANT VIEWING (Invoices)
+  const handleViewInvoice = async (invoice: Invoice) => {
+      setOpeningDocId(invoice.id);
+      try {
+        const blob = await apiService.getInvoicePdfBlob(invoice.id, i18n.language);
+        const url = window.URL.createObjectURL(blob);
+        setViewingUrl(url);
+        setViewingDoc({ id: invoice.id, file_name: `Invoice #${invoice.invoice_number}`, mime_type: 'application/pdf', status: 'READY' } as any);
+      } catch (error) {
+          alert(t('error.generic'));
+      } finally {
+          setOpeningDocId(null);
+      }
   };
 
   const closePreview = () => { if (viewingUrl) window.URL.revokeObjectURL(viewingUrl); setViewingUrl(null); setViewingDoc(null); };
@@ -354,6 +380,7 @@ const BusinessPage: React.FC = () => {
   const deleteArchiveItem = async (id: string) => { if(!window.confirm(t('general.confirmDelete'))) return; try { await apiService.deleteArchiveItem(id); fetchArchiveContent(); } catch (error) { alert(t('documentsPanel.deleteFailed')); } };
   const downloadArchiveItem = async (id: string, title: string) => { try { await apiService.downloadArchiveItem(id, title); } catch (error) { alert(t('error.generic')); } };
 
+  // --- HANDLERS ---
   const handleProfileSubmit = async (e: React.FormEvent) => { e.preventDefault(); setSaving(true); try { const clean: any = {...formData}; Object.keys(clean).forEach(k => clean[k]=== '' && (clean[k]=null)); await apiService.updateBusinessProfile(clean); alert(t('settings.successMessage')); } catch{ alert(t('error.generic')); } finally { setSaving(false); } };
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if(!f) return; setSaving(true); try { const p = await apiService.uploadBusinessLogo(f); setProfile(p); } catch { alert(t('business.logoUploadFailed')); } finally { setSaving(false); } };
   const handleArchiveInvoiceClick = (invoiceId: string) => { setSelectedInvoiceId(invoiceId); setShowArchiveInvoiceModal(true); };
@@ -572,7 +599,9 @@ const BusinessPage: React.FC = () => {
                                 </div>
                                 
                                 <div className="flex gap-1 sm:gap-2">
-                                    <button onClick={() => handleViewInvoice(inv)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title={t('finance.viewPdf')}><Eye size={18} /></button>
+                                    <button onClick={() => handleViewInvoice(inv)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title={t('finance.viewPdf')}>
+                                        {openingDocId === inv.id ? <Loader2 className="h-4 w-4 animate-spin text-blue-400" /> : <Eye size={18} />}
+                                    </button>
                                     <button onClick={() => downloadInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title={t('finance.downloadPdf')}><Download size={18} /></button>
                                     <button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title={t('finance.archiveInvoice')}><Archive size={18} /></button>
                                     <button onClick={() => deleteInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title={t('finance.deleteInvoice')}><Trash2 size={18} /></button>
@@ -650,7 +679,20 @@ const BusinessPage: React.FC = () => {
                                 const isDragging = draggedItemId === item.id;
                                 return (
                                     <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ type: "spring", stiffness: 300, damping: 25 }} key={item.id} draggable onDragStart={(e) => onDragStart(e as any, item.id)} onDragOver={onDragOver} onDrop={(e) => onDrop(e as any, item.id)} onDragEnd={onDragEnd} className="h-full">
-                                        <ArchiveCard title={item.title} subtitle={isFolder ? t('archive.caseFolders') : `${fileExt} Dokument`} type={isFolder ? 'Folder' : fileExt} date={new Date().toLocaleDateString()} icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)} statusColor={isFolder ? 'bg-amber-400' : 'bg-blue-400'} isFolder={isFolder} isDragging={isDragging} onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)} onDownload={() => downloadArchiveItem(item.id, item.title)} onDelete={() => deleteArchiveItem(item.id)} />
+                                        <ArchiveCard 
+                                            title={item.title} 
+                                            subtitle={isFolder ? t('archive.caseFolders') : `${fileExt} Dokument`} 
+                                            type={isFolder ? 'Folder' : fileExt} 
+                                            date={new Date().toLocaleDateString()} 
+                                            icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)} 
+                                            statusColor={isFolder ? 'bg-amber-400' : 'bg-blue-400'} 
+                                            isFolder={isFolder} 
+                                            isDragging={isDragging} 
+                                            isLoading={openingDocId === item.id}
+                                            onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)} 
+                                            onDownload={() => downloadArchiveItem(item.id, item.title)} 
+                                            onDelete={() => deleteArchiveItem(item.id)} 
+                                        />
                                     </motion.div>
                                 );
                             })}
@@ -681,7 +723,7 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
-      {/* --- CREATE INVOICE MODAL --- */}
+      {/* --- CREATE INVOICE MODAL (UPDATED) --- */}
       {showInvoiceModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full">
@@ -751,7 +793,7 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
-      {viewingDoc && <PDFViewerModal documentData={viewingDoc} onClose={closePreview} t={t} directUrl={viewingUrl} isAuth={true} />}
+      {viewingDoc && <PDFViewerModal documentData={viewingDoc} onClose={closePreview} t={t} directUrl={viewingUrl} />}
     </div>
   );
 };
