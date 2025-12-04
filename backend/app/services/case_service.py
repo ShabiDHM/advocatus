@@ -1,7 +1,7 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - DYNAMIC IMPORT FIX (FINAL)
-# 1. FIX: Uses 'importlib' to dynamically load services inside 'delete_case_by_id'.
-# 2. STATUS: This definitively breaks the circular dependency and resolves all Pylance errors.
+# PHOENIX PROTOCOL - CASE SERVICE V2 (DOCUMENT RENAMING)
+# 1. ADDED: 'rename_document' function to update file names.
+# 2. MAINTAIN: Preserved dynamic imports and deep clean logic.
 
 import re
 import importlib
@@ -19,7 +19,6 @@ from ..celery_app import celery_app
 # --- HELPER FUNCTIONS (UNCHANGED) ---
 
 def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) -> Optional[Dict[str, Any]]:
-    # ... (implementation is correct)
     try:
         case_id_obj = case_doc["_id"]
         case_id_str = str(case_id_obj)
@@ -46,11 +45,9 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         return None
 
 def _parse_finding_date(text: str) -> datetime | None:
-    # ... (implementation is correct)
     return None
 
 def sync_case_calendar_from_findings(db: Database, case_id: str, user_id: ObjectId):
-    # ... (implementation is correct)
     pass
 
 # --- CRUD OPERATIONS ---
@@ -84,7 +81,6 @@ def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional
     return _map_case_document(case, db)
 
 def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
-    # PHOENIX FIX: Use importlib to dynamically load modules at runtime
     storage_service = importlib.import_module("app.services.storage_service")
     vector_store_service = importlib.import_module("app.services.vector_store_service")
     graph_service_module = importlib.import_module("app.services.graph_service")
@@ -97,28 +93,20 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     case_id_str = str(case_id)
     any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
 
-    # Deep Clean
     documents = list(db.documents.find(any_id_query))
     for doc in documents:
         doc_id_str = str(doc["_id"])
-        
-        # Files
         keys_to_delete = [
             doc.get("storage_key"), doc.get("processed_text_storage_key"), doc.get("preview_storage_key")
         ]
         for key in filter(None, keys_to_delete):
             try: storage_service.delete_file(key)
             except Exception: pass
-
-        # Vectors
         try: vector_store_service.delete_document_embeddings(document_id=doc_id_str)
         except Exception: pass
-
-        # Graph
         try: graph_service.delete_document_nodes(doc_id_str)
         except Exception: pass
 
-    # Archive Clean
     archive_items = db.archives.find(any_id_query)
     for item in archive_items:
         if "storage_key" in item:
@@ -126,12 +114,10 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
             except Exception: pass
     db.archives.delete_many(any_id_query)
 
-    # Delete DB Records
     db.cases.delete_one({"_id": case_id})
     db.documents.delete_many(any_id_query)
     db.calendar_events.delete_many(any_id_query)
     db.findings.delete_many(any_id_query)
-    # The 'alerts' collection may not exist, handle gracefully
     if "alerts" in db.list_collection_names():
         db.alerts.delete_many(any_id_query)
 
@@ -148,4 +134,43 @@ def create_draft_job_for_case(db: Database, case_id: ObjectId, job_in: DraftRequ
             "use_library": job_in.use_library
         }
     )
-    return {"job_id": task.id, "status": "queued", "message": "Drafting job initiated."}
+    return {"job_id": task.id, "status": "queued", "message": "Drafting job created."}
+
+# PHOENIX NEW: Document Renaming Logic
+def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name: str, owner: UserInDB) -> Dict[str, Any]:
+    """
+    Updates the 'file_name' (and optionally 'title') of a document.
+    Ensures the document belongs to the user's case.
+    """
+    # 1. Verify Case Ownership
+    case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found.")
+
+    # 2. Verify Document Existence
+    doc = db.documents.find_one({"_id": doc_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    
+    # Check if doc belongs to this case (using string or ObjectId comparison)
+    doc_case_id = doc.get("case_id")
+    if str(doc_case_id) != str(case_id):
+         raise HTTPException(status_code=403, detail="Document does not belong to this case.")
+
+    # 3. Update Name
+    # Ensure extension is preserved if user didn't type it
+    original_name = doc.get("file_name", "untitled")
+    extension = ""
+    if "." in original_name:
+        extension = original_name.split(".")[-1]
+    
+    final_name = new_name
+    if extension and not final_name.endswith(f".{extension}"):
+        final_name = f"{final_name}.{extension}"
+
+    db.documents.update_one(
+        {"_id": doc_id},
+        {"$set": {"file_name": final_name, "title": final_name, "updated_at": datetime.now(timezone.utc)}}
+    )
+
+    return {"id": str(doc_id), "file_name": final_name, "message": "Document renamed successfully."}

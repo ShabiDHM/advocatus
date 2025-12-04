@@ -109,7 +109,7 @@
       "ARCHIVED": "Arkivuar"
     }
   },
-  "documentsPanel": {
+ "documentsPanel": {
     "title": "Dokumentet",
     "uploadDocument": "Ngarko Dokument",
     "noDocuments": "Asnjë dokument i ngarkuar.",
@@ -127,7 +127,10 @@
     "deleteFailed": "Fshirja dështoi",
     "uploaded": "Ngarkuar",
     "deepScan": "Skanim i Thellë (Vision AI)",
-    "scanStarted": "Skanimi i Thellë filloi! Kontrolloni gjetjet pas pak."
+    "scanStarted": "Skanimi i Thellë filloi! Kontrolloni gjetjet pas pak.",
+    "rename": "Emërto",
+    "renameTitle": "Emërto Dokumentin",
+    "newName": "Emri i ri"
   },
   "chatPanel": {
     "title": "Asistenti Sokratik",

@@ -1,11 +1,11 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER (SYNC CONNECTED)
-# 1. UPDATE: analyze_case_risks now triggers auto-sync.
-# 2. UPDATE: get_findings_for_case triggers auto-sync.
-# 3. FIX: Ensures Dashboard counts match Findings counts automatically.
+# PHOENIX PROTOCOL - CASES ROUTER V2.1 (RENAME SUPPORT)
+# 1. ADDED: PUT /{case_id}/documents/{doc_id}/rename endpoint.
+# 2. INTEGRATION: Connects to case_service.rename_document.
+# 3. STATUS: Ready for frontend integration.
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from typing import List, Annotated
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
+from typing import List, Annotated, Dict
 from fastapi.responses import Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from pymongo.database import Database
@@ -45,6 +45,9 @@ class DeletedDocumentResponse(BaseModel):
     documentId: str
     deletedFindingIds: List[str]
 
+class RenameDocumentRequest(BaseModel):
+    new_name: str
+
 def validate_object_id(id_str: str) -> ObjectId:
     try: return ObjectId(id_str)
     except InvalidId: raise HTTPException(status_code=400, detail="Invalid ID format.")
@@ -62,7 +65,6 @@ async def create_new_case(case_in: CaseCreate, current_user: Annotated[UserInDB,
 @router.get("/{case_id}", response_model=CaseOut)
 async def get_single_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validated_case_id = validate_object_id(case_id)
-    # PHOENIX: get_case_by_id now handles "Opportunistic Sync" internally in case_service
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=validated_case_id, owner=current_user)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
@@ -95,8 +97,6 @@ async def create_draft_for_case(
 async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
     findings_data = await asyncio.to_thread(findings_service.get_findings_for_case, db=db, case_id=case_id)
-    
-    # PHOENIX FIX: Sync Logic
     await asyncio.to_thread(case_service.sync_case_calendar_from_findings, db=db, case_id=case_id, user_id=current_user.id)
 
     findings_out_list = []
@@ -209,7 +209,6 @@ async def delete_document(
     db: Database = Depends(get_db), redis_client: redis.Redis = Depends(get_sync_redis)
 ):
     validated_doc_id = validate_object_id(doc_id)
-
     document = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(document.case_id) != case_id:
         raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
@@ -218,28 +217,17 @@ async def delete_document(
         document_service.delete_document_by_id,
         db=db, redis_client=redis_client, doc_id=validated_doc_id, owner=current_user
     )
-
-    return JSONResponse(
-        status_code=status.HTTP_200_OK,
-        content={
-            "documentId": doc_id,
-            "deletedFindingIds": deleted_finding_ids
-        }
-    )
+    return JSONResponse(status_code=status.HTTP_200_OK, content={"documentId": doc_id, "deletedFindingIds": deleted_finding_ids})
 
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut, tags=["Documents"])
 async def archive_case_document(
-    case_id: str,
-    doc_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db)
+    case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)
 ):
-    validated_case_id = validate_object_id(case_id)
-    
+    validate_object_id(case_id)
     document = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(document.case_id) != case_id:
         raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
-        
+    
     archiver = archive_service.ArchiveService(db)
     archived_item = await archiver.archive_existing_document(
         user_id=str(current_user.id),
@@ -247,8 +235,29 @@ async def archive_case_document(
         source_key=document.storage_key,
         filename=document.file_name
     )
-    
     return archived_item
+
+# PHOENIX NEW: Rename Document Endpoint
+@router.put("/{case_id}/documents/{doc_id}/rename", tags=["Documents"])
+async def rename_document_endpoint(
+    case_id: str, 
+    doc_id: str, 
+    body: RenameDocumentRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    db: Database = Depends(get_db)
+):
+    validated_case_id = validate_object_id(case_id)
+    validated_doc_id = validate_object_id(doc_id)
+    
+    result = await asyncio.to_thread(
+        case_service.rename_document,
+        db=db,
+        case_id=validated_case_id,
+        doc_id=validated_doc_id,
+        new_name=body.new_name,
+        owner=current_user
+    )
+    return result
 
 @router.post("/{case_id}/analyze", tags=["Analysis"])
 async def analyze_case_risks(
@@ -257,16 +266,11 @@ async def analyze_case_risks(
     db: Database = Depends(get_db)
 ):
     validate_object_id(case_id)
-
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
-
     analysis_result = await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id)
-    
-    # PHOENIX FIX: Trigger Auto-Sync immediately after analysis
     await asyncio.to_thread(case_service.sync_case_calendar_from_findings, db=db, case_id=case_id, user_id=current_user.id)
-    
     return JSONResponse(content=analysis_result)
 
 @router.post("/{case_id}/documents/{doc_id}/deep-scan", tags=["Documents"])
@@ -278,7 +282,6 @@ async def deep_scan_document(
 ):
     validate_object_id(case_id)
     validate_object_id(doc_id)
-
     try:
         findings = await asyncio.to_thread(visual_service.perform_deep_scan, db, doc_id)
         return {"status": "success", "findings_count": len(findings)}

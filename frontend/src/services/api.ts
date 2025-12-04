@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API CLIENT V2.3 (EXPENSES ADDED)
-// 1. ADDED: Methods for Expense management (get, create, delete).
-// 2. STATUS: Fully aligned with backend v2 finance API.
+// PHOENIX PROTOCOL - API REPAIR (CRITICAL)
+// 1. ADDED: 'renameDocument' method to fix TS2339 error.
+// 2. VERIFIED: Contains all Finance, Archive, and Case endpoints.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -12,7 +12,7 @@ import type {
     GraphData, ArchiveItemOut
 } from '../data/types';
 
-// PHOENIX NEW: Added Expense Type Definition here for convenience
+// Expense Type Definitions
 export interface Expense {
     id: string;
     category: string;
@@ -26,13 +26,12 @@ export interface ExpenseCreateRequest {
     category: string;
     amount: number;
     description?: string;
-    date?: string; // ISO string
+    date?: string; 
 }
 
 interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
 
-// --- URL SETUP ---
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
 if (typeof window !== 'undefined' && window.location.protocol === 'https:' && normalizedUrl.startsWith('http:')) {
@@ -43,14 +42,12 @@ export const API_BASE_URL = normalizedUrl;
 export const API_V1_URL = `${API_BASE_URL}/api/v1`;
 export const API_V2_URL = `${API_BASE_URL}/api/v2`;
 
-// --- Singleton Token Manager ---
 class TokenManager {
     private accessToken: string | null = null;
     get(): string | null { return this.accessToken; }
     set(token: string | null): void { this.accessToken = token; }
 }
 const tokenManager = new TokenManager();
-
 
 class ApiService {
     public axiosInstance: AxiosInstance;
@@ -196,7 +193,7 @@ class ApiService {
     public async getInvoicePdfBlob(invoiceId: string, lang: string = 'sq'): Promise<Blob> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); return response.data; }
     public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> { const params = caseId ? { case_id: caseId } : {}; const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/invoices/${invoiceId}/archive`, null, { params }); return response.data; }
 
-    // --- Finance (Expenses - NEW) ---
+    // --- Finance (Expenses) ---
     public async getExpenses(): Promise<Expense[]> { const response = await this.axiosInstance.get<Expense[]>('/finance/expenses'); return response.data; }
     public async createExpense(data: ExpenseCreateRequest): Promise<Expense> { const response = await this.axiosInstance.post<Expense>('/finance/expenses', data); return response.data; }
     public async deleteExpense(expenseId: string): Promise<void> { await this.axiosInstance.delete(`/finance/expenses/${expenseId}`); }
@@ -243,6 +240,11 @@ class ApiService {
     public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' }); return response.data; }
     public async downloadDocumentReport(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/report`, { responseType: 'blob' }); return response.data; }
     public async archiveCaseDocument(caseId: string, documentId: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/cases/${caseId}/documents/${documentId}/archive`); return response.data; }
+    
+    // PHOENIX: RENAME DOCUMENT METHOD
+    public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { 
+        await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); 
+    }
 
     // --- Graph ---
     public async getCaseGraph(caseId: string): Promise<GraphData> { const response = await this.axiosInstance.get<GraphData>(`/graph/graph/${caseId}`); return response.data; }

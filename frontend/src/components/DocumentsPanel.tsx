@@ -1,14 +1,13 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - ALIGNMENT FIX
-// 1. STYLE: Vertically aligned the 'Green Dot' with the title.
-// 2. MOBILE: Ensured header buttons don't wrap awkwardly.
+// PHOENIX PROTOCOL - I18N POLISH
+// 1. FIX: Replaced hardcoded "Emërto" tooltip with translation key.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Trash, Plus, Loader2, RefreshCw, ScanEye, Archive } from 'lucide-react';
+import { FolderOpen, Eye, Trash, Plus, Loader2, RefreshCw, ScanEye, Archive, Pencil } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface DocumentsPanelProps {
@@ -19,6 +18,7 @@ interface DocumentsPanelProps {
   onDocumentDeleted: (response: DeletedDocumentResponse) => void;
   onDocumentUploaded: (newDocument: Document) => void;
   onViewOriginal: (document: Document) => void;
+  onRename?: (document: Document) => void; 
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
   className?: string;
@@ -32,6 +32,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   onDocumentDeleted,
   onDocumentUploaded,
   onViewOriginal,
+  onRename,
   t,
   className
 }) => {
@@ -117,12 +118,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       <div className="flex flex-row justify-between items-center border-b border-white/10 pb-3 mb-4 flex-shrink-0 gap-2">
         <div className="flex items-center gap-3 min-w-0">
             <h2 className="text-lg font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
-            
-            {/* Visual Dot Only - Center Aligned */}
             <div className="flex items-center justify-center h-full pt-1" title={connectionStatus}>
                 <span className={`w-2.5 h-2.5 rounded-full ${statusDotColor(connectionStatus)} transition-colors duration-500`}></span>
             </div>
-            
             {connectionStatus !== 'CONNECTED' && (
                 <button onClick={reconnect} className="text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.reconnect')}>
                     <RefreshCw size={14} />
@@ -180,6 +178,13 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
                  {isReady && (
                   <>
+                    {/* PHOENIX FIX: Using translation key for tooltip */}
+                    {onRename && (
+                        <button onClick={() => onRename(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}>
+                            <Pencil size={14} />
+                        </button>
+                    )}
+                    
                     <button onClick={() => handleDeepScan(doc.id)} className="p-1.5 hover:bg-white/10 rounded-lg text-secondary-start transition-colors" title={t('documentsPanel.deepScan')}>
                         {scanningId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <ScanEye size={14} />}
                     </button>

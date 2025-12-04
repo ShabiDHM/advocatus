@@ -1,12 +1,12 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - MOBILE HEADER FIX
-// 1. MOBILE: Improved CaseHeader flex-wrapping to prevent overlap.
-// 2. LAYOUT: Ensured back button doesn't stick awkwardly.
+// PHOENIX PROTOCOL - I18N COMPLETION
+// 1. FIX: Replaced hardcoded text in RenameModal with translation keys.
+// 2. STATUS: Fully localized.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } from '../data/types';
-import { apiService } from '../services/api';
+import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel, { ChatMode, Jurisdiction } from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
@@ -16,13 +16,69 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb } from 'lucide-react';
+import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb, X, Save } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
 type CaseData = {
     details: Case | null;
     findings: Finding[];
+};
+
+// --- RENAME MODAL COMPONENT ---
+const RenameDocumentModal: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void; 
+    onRename: (newName: string) => Promise<void>; 
+    currentName: string; 
+    t: TFunction;
+}> = ({ isOpen, onClose, onRename, currentName, t }) => {
+    const [name, setName] = useState(currentName);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => { setName(currentName); }, [currentName]);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!name.trim()) return;
+        setIsSaving(true);
+        try { await onRename(name); onClose(); } 
+        finally { setIsSaving(false); }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+            <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl">
+                <div className="flex justify-between items-center mb-6">
+                    {/* PHOENIX FIX: Using translation key */}
+                    <h3 className="text-xl font-bold text-white">{t('documentsPanel.renameTitle')}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
+                </div>
+                <form onSubmit={handleSubmit}>
+                    <div className="mb-6">
+                        {/* PHOENIX FIX: Using translation key */}
+                        <label className="block text-sm text-gray-400 mb-2">{t('documentsPanel.newName')}</label>
+                        <input 
+                            autoFocus
+                            type="text" 
+                            value={name} 
+                            onChange={(e) => setName(e.target.value)} 
+                            className="w-full bg-background-light border border-glass-edge rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none"
+                        />
+                    </div>
+                    <div className="flex justify-end gap-3">
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-gray-400 hover:text-white font-medium">{t('general.cancel')}</button>
+                        <button type="submit" disabled={isSaving} className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold flex items-center gap-2">
+                            {isSaving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save size={16} />}
+                            {t('general.save')}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
 };
 
 const CaseHeader: React.FC<{ 
@@ -41,7 +97,6 @@ const CaseHeader: React.FC<{
               <h1 className="text-xl sm:text-2xl font-bold text-text-primary break-words mb-3 leading-tight">
                   {caseDetails.case_name}
               </h1>
-              {/* Mobile: Wrap flex-row to stack nicely if too tight */}
               <div className="flex flex-row flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm text-text-secondary">
                   <div className="flex items-center"><User className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{caseDetails.client?.name || 'N/A'}</span></div>
                   <div className="flex items-center"><Briefcase className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`)}</span></div>
@@ -66,11 +121,15 @@ const CaseViewPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
+  const [viewingUrl, setViewingUrl] = useState<string | null>(null);
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
+
+  // Rename State
+  const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
 
@@ -142,6 +201,24 @@ const CaseViewPage: React.FC = () => {
       sendChatMessage(text, documentId, jurisdiction); 
   };
 
+  const handleViewOriginal = (doc: Document) => {
+      const url = `${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`;
+      setViewingUrl(url);
+      setViewingDocument(doc);
+  };
+
+  const handleRename = async (newName: string) => {
+      if (!caseId || !documentToRename) return;
+      try {
+          await apiService.renameDocument(caseId, documentToRename.id, newName);
+          setLiveDocuments(prev => prev.map(d => 
+              d.id === documentToRename.id ? { ...d, file_name: newName } : d
+          ));
+      } catch (error) {
+          alert(t('error.generic'));
+      }
+  };
+
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
   if (error || !caseData.details) return <div className="p-8 text-center text-red-400 border border-red-600 rounded-md bg-red-900/50"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p>{error}</p></div>;
 
@@ -162,7 +239,8 @@ const CaseViewPage: React.FC = () => {
                     reconnect={reconnect}
                     onDocumentUploaded={handleDocumentUploaded}
                     onDocumentDeleted={handleDocumentDeleted}
-                    onViewOriginal={setViewingDocument}
+                    onViewOriginal={handleViewOriginal}
+                    onRename={(doc) => setDocumentToRename(doc)} 
                     className="h-full"
                 />
             </div>
@@ -184,9 +262,27 @@ const CaseViewPage: React.FC = () => {
         </div>
       </div>
       
-      {viewingDocument && <PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={() => setViewingDocument(null)} t={t} />}
+      {viewingDocument && (
+          <PDFViewerModal 
+            documentData={viewingDocument} 
+            caseId={caseData.details.id} 
+            onClose={() => { setViewingDocument(null); setViewingUrl(null); }} 
+            t={t} 
+            directUrl={viewingUrl}
+            isAuth={true} 
+          />
+      )}
+
       {analysisResult && <AnalysisModal isOpen={isAnalysisModalOpen} onClose={() => setIsAnalysisModalOpen(false)} result={analysisResult} />}
       <FindingsModal isOpen={isFindingsModalOpen} onClose={() => setIsFindingsModalOpen(false)} findings={caseData.findings} />
+      
+      <RenameDocumentModal 
+        isOpen={!!documentToRename} 
+        onClose={() => setDocumentToRename(null)} 
+        onRename={handleRename} 
+        currentName={documentToRename?.file_name || ''} 
+        t={t}
+      />
     </motion.div>
   );
 };
