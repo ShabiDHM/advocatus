@@ -1,7 +1,7 @@
 # FILE: backend/app/services/finance_service.py
-# PHOENIX PROTOCOL - FINANCE LOGIC v1.3
-# 1. FORMAT: Changed Invoice Number schema to 'Faktura-YYYY-NNNN'.
-# 2. VALIDATION: Added ObjectId validation to prevent crashes on invalid IDs.
+# PHOENIX PROTOCOL - FINANCE LOGIC V2 (EXPENSES ADDED)
+# 1. ADDED: Full CRUD logic for Expenses (create, get, delete).
+# 2. STATUS: Ready to power the Finance Dashboard.
 
 import structlog
 from datetime import datetime, timezone
@@ -9,7 +9,8 @@ from bson import ObjectId
 from pymongo.database import Database
 from fastapi import HTTPException
 
-from ..models.finance import InvoiceCreate, InvoiceInDB, InvoiceUpdate, InvoiceItem
+# PHOENIX: Imported Expense models alongside Invoice models
+from ..models.finance import InvoiceCreate, InvoiceInDB, InvoiceUpdate, InvoiceItem, ExpenseCreate, ExpenseInDB
 
 logger = structlog.get_logger(__name__)
 
@@ -17,19 +18,14 @@ class FinanceService:
     def __init__(self, db: Database):
         self.db = db
 
+    # --- INVOICE LOGIC ---
     def _generate_invoice_number(self, user_id: str) -> str:
-        """
-        Generates sequential numbers per user: Faktura-2025-0001.
-        Replaces the old 'INV-' prefix.
-        """
         count = self.db.invoices.count_documents({"user_id": ObjectId(user_id)})
         year = datetime.now().year
-        # Format: Faktura-YYYY-0001
         return f"Faktura-{year}-{count + 1:04d}"
 
     def create_invoice(self, user_id: str, data: InvoiceCreate) -> InvoiceInDB:
         subtotal = sum(item.quantity * item.unit_price for item in data.items)
-        # Ensure item totals are consistent
         for item in data.items:
             item.total = item.quantity * item.unit_price
             
@@ -51,10 +47,7 @@ class FinanceService:
         })
 
         result = self.db.invoices.insert_one(invoice_doc)
-        
-        # Populate the _id for the return object
         invoice_doc["_id"] = result.inserted_id
-        
         return InvoiceInDB(**invoice_doc)
 
     def get_invoices(self, user_id: str) -> list[InvoiceInDB]:
@@ -88,7 +81,6 @@ class FinanceService:
         return InvoiceInDB(**result)
 
     def delete_invoice(self, user_id: str, invoice_id: str) -> None:
-        """Permanently removes an invoice."""
         try:
             oid = ObjectId(invoice_id)
         except:
@@ -99,4 +91,34 @@ class FinanceService:
             "user_id": ObjectId(user_id)
         })
         if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Invoice not found or could not be deleted.")
+            raise HTTPException(status_code=404, detail="Invoice not found")
+
+    # --- EXPENSE LOGIC (NEW) ---
+    def create_expense(self, user_id: str, data: ExpenseCreate) -> ExpenseInDB:
+        expense_doc = data.model_dump()
+        expense_doc.update({
+            "user_id": ObjectId(user_id),
+            "created_at": datetime.now(timezone.utc)
+        })
+        
+        result = self.db.expenses.insert_one(expense_doc)
+        expense_doc["_id"] = result.inserted_id
+        return ExpenseInDB(**expense_doc)
+
+    def get_expenses(self, user_id: str) -> list[ExpenseInDB]:
+        # Sort by date descending
+        cursor = self.db.expenses.find({"user_id": ObjectId(user_id)}).sort("date", -1)
+        return [ExpenseInDB(**doc) for doc in cursor]
+
+    def delete_expense(self, user_id: str, expense_id: str) -> None:
+        try:
+            oid = ObjectId(expense_id)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid Expense ID format")
+            
+        result = self.db.expenses.delete_one({
+            "_id": oid,
+            "user_id": ObjectId(user_id)
+        })
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Expense not found")

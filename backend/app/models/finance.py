@@ -1,13 +1,14 @@
 # FILE: backend/app/models/finance.py
-# PHOENIX PROTOCOL - FINANCIAL MODELS (TYPE FIX)
-# 1. FIX: Added default=None to 'id' fields to satisfy Pylance inheritance rules.
-# 2. STRUCTURE: Supports line items, tax calculations, and status tracking.
+# PHOENIX PROTOCOL - FINANCE MODELS V2 (EXPENSES ADDED)
+# 1. ADDED: ExpenseBase, ExpenseCreate, ExpenseInDB, ExpenseOut.
+# 2. STATUS: Ready for database integration.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 from .common import PyObjectId
 
+# --- INVOICE MODELS ---
 class InvoiceItem(BaseModel):
     description: str
     quantity: float = 1.0
@@ -59,5 +60,28 @@ class InvoiceInDB(InvoiceBase):
     )
 
 class InvoiceOut(InvoiceInDB):
-    # PHOENIX FIX: Added default=None to match base class signature
+    id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
+
+# --- EXPENSE MODELS (NEW) ---
+class ExpenseBase(BaseModel):
+    category: str  # e.g., "Office", "Software", "Travel", "Utilities"
+    amount: float
+    description: Optional[str] = None
+    date: datetime = Field(default_factory=datetime.utcnow)
+    currency: str = "EUR"
+
+class ExpenseCreate(ExpenseBase):
+    pass
+
+class ExpenseInDB(ExpenseBase):
+    id: PyObjectId = Field(alias="_id", default=None)
+    user_id: PyObjectId
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
+
+class ExpenseOut(ExpenseInDB):
     id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)

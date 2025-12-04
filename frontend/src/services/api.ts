@@ -1,8 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API CLIENT V2.2 (PROACTIVE AUTH)
-// 1. UPDATE: Public 'refreshToken' method allows proactive session restoration.
-// 2. FIX: Interceptor now explicitly ignores 401s from the refresh endpoint itself.
-// 3. MAINTAIN: All existing functionality preserved.
+// PHOENIX PROTOCOL - API CLIENT V2.3 (EXPENSES ADDED)
+// 1. ADDED: Methods for Expense management (get, create, delete).
+// 2. STATUS: Fully aligned with backend v2 finance API.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -12,6 +11,23 @@ import type {
     BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest,
     GraphData, ArchiveItemOut
 } from '../data/types';
+
+// PHOENIX NEW: Added Expense Type Definition here for convenience
+export interface Expense {
+    id: string;
+    category: string;
+    amount: number;
+    description?: string;
+    date: string;
+    currency: string;
+}
+
+export interface ExpenseCreateRequest {
+    category: string;
+    amount: number;
+    description?: string;
+    date?: string; // ISO string
+}
 
 interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
@@ -88,8 +104,6 @@ class ApiService {
             async (error: AxiosError) => {
                 const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-                // Handle 401 Unauthorized
-                // Crucial: Ignore 401s if the URL is /auth/refresh to prevent loops
                 if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/refresh') {
                     if (this.isRefreshing) {
                         return new Promise((resolve, reject) => {
@@ -108,7 +122,6 @@ class ApiService {
                     this.isRefreshing = true;
 
                     try {
-                        // Use the new public method, but call internal implementation to avoid circular dep
                         const { data } = await this.axiosInstance.post<LoginResponse>('/auth/refresh');
                         tokenManager.set(data.access_token);
                         
@@ -138,8 +151,6 @@ class ApiService {
     
     public getToken(): string | null { return tokenManager.get(); }
 
-    // --- PHOENIX: Proactive Refresh Method ---
-    // Returns true if refresh succeeded, false otherwise.
     public async refreshToken(): Promise<boolean> {
         try {
             const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh');
@@ -149,9 +160,6 @@ class ApiService {
             }
             return false;
         } catch (error) {
-            // If refresh fails (e.g. no cookie), we just return false.
-            // We do NOT want to trigger global logout handlers here necessarily,
-            // as this is used for optimistic checking.
             return false;
         }
     }
@@ -166,8 +174,6 @@ class ApiService {
     
     public logout() {
         tokenManager.set(null);
-        // Optionally call server logout endpoint to clear cookie if exists
-        // this.axiosInstance.post('/auth/logout').catch(() => {});
     }
 
     public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
@@ -181,7 +187,7 @@ class ApiService {
     public async updateBusinessProfile(data: BusinessProfileUpdate): Promise<BusinessProfile> { const response = await this.axiosInstance.put<BusinessProfile>('/business/profile', data); return response.data; }
     public async uploadBusinessLogo(file: File): Promise<BusinessProfile> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.put<BusinessProfile>('/business/logo', formData, { headers: { 'Content-Type': 'multipart/form-data' } }); return response.data; }
 
-    // --- Finance ---
+    // --- Finance (Invoices) ---
     public async getInvoices(): Promise<Invoice[]> { const response = await this.axiosInstance.get<Invoice[]>('/finance/invoices'); return response.data; }
     public async createInvoice(data: InvoiceCreateRequest): Promise<Invoice> { const response = await this.axiosInstance.post<Invoice>('/finance/invoices', data); return response.data; }
     public async updateInvoiceStatus(invoiceId: string, status: string): Promise<Invoice> { const response = await this.axiosInstance.put<Invoice>(`/finance/invoices/${invoiceId}/status`, { status }); return response.data; }
@@ -189,6 +195,11 @@ class ApiService {
     public async downloadInvoicePdf(invoiceId: string, lang: string = 'sq'): Promise<void> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Invoice_${invoiceId}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
     public async getInvoicePdfBlob(invoiceId: string, lang: string = 'sq'): Promise<Blob> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); return response.data; }
     public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> { const params = caseId ? { case_id: caseId } : {}; const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/invoices/${invoiceId}/archive`, null, { params }); return response.data; }
+
+    // --- Finance (Expenses - NEW) ---
+    public async getExpenses(): Promise<Expense[]> { const response = await this.axiosInstance.get<Expense[]>('/finance/expenses'); return response.data; }
+    public async createExpense(data: ExpenseCreateRequest): Promise<Expense> { const response = await this.axiosInstance.post<Expense>('/finance/expenses', data); return response.data; }
+    public async deleteExpense(expenseId: string): Promise<void> { await this.axiosInstance.delete(`/finance/expenses/${expenseId}`); }
 
     // --- ARCHIVE ---
     public async getArchiveItems(category?: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut[]> { 
