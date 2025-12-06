@@ -1,8 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V2 (SIMPLIFIED)
-// 1. REMOVE: Case selection dropdown completely removed.
-// 2. LOGIC: All jobs now default to 'General Draft' (case_id: null).
-// 3. FEATURE: Preserved 'Regenerate' button and all other functionality.
+// PHOENIX PROTOCOL - DRAFTING RENDERER UPGRADE
+// 1. FEATURE: Integrated 'react-markdown' for structured legal document rendering.
+// 2. STYLE: Applied typography styles (Gold/Bold, Spacing) for readability.
+// 3. UI: Preserved exact layout structure while removing the raw <pre> tag.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import { 
   PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, FileText, Sparkles, RotateCcw
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'SUCCESS' | 'FAILED' | 'FAILURE';
 
@@ -98,7 +100,7 @@ const DraftingPage: React.FC = () => {
       const jobResponse = await apiService.initiateDraftingJob({
         user_prompt: context.trim(),
         context: context.trim(),
-        case_id: undefined, // PHOENIX FIX: Always undefined (General Draft)
+        case_id: undefined, 
         use_library: false 
       });
 
@@ -172,8 +174,6 @@ const DraftingPage: React.FC = () => {
             </h3>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4">
                 
-                {/* PHOENIX: Case Selection Removed - Now purely prompt-based */}
-
                 <div className="flex-1 flex flex-col">
                     <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.instructionsLabel')}</label>
                     <textarea
@@ -221,7 +221,30 @@ const DraftingPage: React.FC = () => {
             )}
             <div className="flex-1 bg-black/50 rounded-xl border border-white/5 p-4 overflow-auto custom-scrollbar relative">
                 {currentJob.result ? (
-                    <pre className="whitespace-pre-wrap text-gray-300 font-mono text-sm leading-relaxed">{currentJob.result}</pre>
+                    // --- PHOENIX: Replaced <pre> with ReactMarkdown ---
+                    <div className="markdown-content text-gray-300 text-sm leading-relaxed">
+                        <ReactMarkdown 
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                                p: ({node, ...props}) => <p className="mb-4 last:mb-0 text-justify" {...props} />,
+                                strong: ({node, ...props}) => <span className="font-bold text-amber-100" {...props} />,
+                                em: ({node, ...props}) => <span className="italic text-gray-400" {...props} />,
+                                ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-2 my-3 marker:text-primary-500" {...props} />,
+                                ol: ({node, ...props}) => <ol className="list-decimal pl-5 space-y-2 my-3 marker:text-primary-500" {...props} />,
+                                li: ({node, ...props}) => <li className="pl-1" {...props} />,
+                                h1: ({node, ...props}) => <h1 className="text-xl font-bold text-white mt-6 mb-4 border-b border-white/10 pb-2 uppercase tracking-wide text-center" {...props} />,
+                                h2: ({node, ...props}) => <h2 className="text-lg font-bold text-white mt-5 mb-3" {...props} />,
+                                h3: ({node, ...props}) => <h3 className="text-base font-bold text-gray-200 mt-4 mb-2" {...props} />,
+                                blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary-500 pl-4 py-2 my-4 bg-white/5 italic text-gray-400" {...props} />,
+                                code: ({node, ...props}) => <code className="bg-black/40 px-1.5 py-0.5 rounded text-xs font-mono text-pink-300" {...props} />,
+                                table: ({node, ...props}) => <div className="overflow-x-auto my-4"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>,
+                                th: ({node, ...props}) => <th className="border border-white/10 px-3 py-2 bg-white/5 font-bold text-left" {...props} />,
+                                td: ({node, ...props}) => <td className="border border-white/10 px-3 py-2" {...props} />,
+                            }}
+                        >
+                            {currentJob.result}
+                        </ReactMarkdown>
+                    </div>
                 ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 opacity-50">
                         {isSubmitting || (currentJob.status === 'PENDING' || currentJob.status === 'PROCESSING') ? (

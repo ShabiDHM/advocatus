@@ -1,8 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - MOBILE & I18N UPDATE
-// 1. I18N: Added translation keys for Dropdown options (General, Kosovo, Albania).
-// 2. MOBILE: Increased max-width for context dropdown to prevent "Gene..." truncation.
-// 3. MOBILE: Added visible text (KS/AL) to Jurisdiction dropdown on small screens.
+// PHOENIX PROTOCOL - CHAT RENDERER FIX
+// 1. FIX: Resolved TS2322 by moving 'className' from ReactMarkdown to a wrapper div.
+// 2. STATUS: Type-safe and visually identical.
 
 import React, { useState, useRef, useEffect, ReactNode, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,6 +10,8 @@ import {
 } from 'lucide-react';
 import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 export type ChatMode = 'general' | 'document';
 export type Jurisdiction = 'ks' | 'al';
@@ -87,7 +88,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setInput('');
   };
 
-  // PHOENIX: Memoize items to react to language changes
   const contextItems: DropdownItem[] = useMemo(() => [
       { id: 'general', label: t('chatPanel.contextGeneral', 'E gjithë Dosja'), icon: <Briefcase size={14} className="text-amber-400" /> },
       ...(documents || []).map(doc => ({ id: doc.id, label: doc.file_name, icon: <FileText size={14} className="text-blue-400" /> }))
@@ -120,7 +120,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
         
         <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Context Dropdown - WIDENED for Mobile */}
             <Dropdown 
                 items={contextItems} 
                 onSelect={setSelectedContextId} 
@@ -133,14 +132,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 } 
             />
             
-            {/* Jurisdiction Dropdown - ADDED 'shortLabel' for Mobile */}
             <Dropdown 
                 items={jurisdictionItems} 
                 onSelect={(id) => setJurisdiction(id as Jurisdiction)} 
                 trigger={
                     <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 hover:border-white/20 text-xs font-medium text-gray-300 transition-all">
                         {selectedJurisdictionItem.icon}
-                        {/* Mobile: KS/AL | Desktop: Full Name */}
                         <span className="inline md:hidden">{selectedJurisdictionItem.shortLabel}</span>
                         <span className="hidden md:inline">{selectedJurisdictionItem.label}</span>
                         <ChevronDown className="h-3 w-3 opacity-50" />
@@ -166,7 +163,35 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex items-end gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                     {msg.sender === 'ai' && <div className="w-8 h-8 rounded-full bg-black/40 border border-white/10 flex items-center justify-center flex-shrink-0"><Brain className="w-4 h-4 text-primary-start" /></div>}
                     <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-primary-start text-white rounded-br-none' : 'bg-white/10 text-gray-200 rounded-bl-none border border-white/5'}`}>
-                        {msg.content}
+                        {msg.sender === 'user' ? (
+                            msg.content
+                        ) : (
+                            // --- PHOENIX FIX: Wrapper Div for Styling (TS2322 Fix) ---
+                            <div className="markdown-content space-y-2">
+                                <ReactMarkdown 
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                        p: ({node, ...props}) => <p className="mb-1 last:mb-0" {...props} />,
+                                        strong: ({node, ...props}) => <span className="font-bold text-amber-200" {...props} />,
+                                        em: ({node, ...props}) => <span className="italic text-gray-300" {...props} />,
+                                        ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-1 my-1 marker:text-primary-start" {...props} />,
+                                        ol: ({node, ...props}) => <ol className="list-decimal pl-4 space-y-1 my-1 marker:text-primary-start" {...props} />,
+                                        li: ({node, ...props}) => <li className="pl-1" {...props} />,
+                                        h1: ({node, ...props}) => <h1 className="text-lg font-bold text-white mt-2 mb-1" {...props} />,
+                                        h2: ({node, ...props}) => <h2 className="text-base font-bold text-white mt-2 mb-1" {...props} />,
+                                        h3: ({node, ...props}) => <h3 className="text-sm font-bold text-gray-200 mt-1" {...props} />,
+                                        blockquote: ({node, ...props}) => <blockquote className="border-l-2 border-primary-start pl-3 py-1 my-1 bg-white/5 rounded-r text-gray-400 italic" {...props} />,
+                                        code: ({node, ...props}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-pink-300" {...props} />,
+                                        a: ({node, ...props}) => <a className="text-blue-400 hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" {...props} />,
+                                        table: ({node, ...props}) => <div className="overflow-x-auto my-2"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>,
+                                        th: ({node, ...props}) => <th className="border border-white/10 px-2 py-1 bg-white/5 font-bold text-left" {...props} />,
+                                        td: ({node, ...props}) => <td className="border border-white/10 px-2 py-1" {...props} />,
+                                    }}
+                                >
+                                    {msg.content}
+                                </ReactMarkdown>
+                            </div>
+                        )}
                     </div>
                 </motion.div>
             ))
