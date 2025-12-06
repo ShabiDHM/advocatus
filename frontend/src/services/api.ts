@@ -1,8 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API FIX (422 RESOLUTION)
-// 1. FIX: 'createArchiveFolder' now accepts 'category' (Likely the missing required field).
-// 2. LOGIC: Dynamically builds JSON payload to avoid sending 'null' to string-only fields.
-// 3. STATUS: API Schema Compliant.
+// PHOENIX PROTOCOL - API SCHEMA HARDENING
+// 1. FIX: 'createArchiveFolder' now sends explicit 'null' for optional fields (Fixes 422).
+// 2. LOGIC: Defaults 'category' to "GENERAL" if missing to satisfy required enums.
+// 3. STATUS: Strict JSON Compliance.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -212,19 +212,15 @@ class ApiService {
         return Array.isArray(response.data) ? response.data : ((response.data as any).items || []); 
     }
     
-    // PHOENIX FIX: 422 Resolution
-    // 1. Added 'category' parameter (Required by schema).
-    // 2. Builds clean JSON payload without undefined/null for optional fields.
+    // PHOENIX FIX: Strict JSON Payload with Explicit Nulls
     public async createArchiveFolder(title: string, parentId?: string, caseId?: string, category?: string): Promise<ArchiveItemOut> {
-        const payload: Record<string, any> = { title };
-        
-        // Only attach fields if they exist to prevent validation errors on 'null'
-        if (parentId) payload.parent_id = parentId;
-        if (caseId) payload.case_id = caseId;
-        if (category) payload.category = category;
-        
-        // If category is mandatory but missing, fallbacks like 'general' might be needed depending on backend
-        // For now, we send what we have.
+        // Send explicit nulls for optional fields to satisfy Pydantic Schema
+        const payload = {
+            title,
+            parent_id: parentId || null,
+            case_id: caseId || null,
+            category: category || "GENERAL" // Default to GENERAL if missing
+        };
         
         const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', payload);
         return response.data;
