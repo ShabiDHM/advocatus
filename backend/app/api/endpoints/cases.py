@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V2.1 (RENAME SUPPORT)
-# 1. ADDED: PUT /{case_id}/documents/{doc_id}/rename endpoint.
-# 2. INTEGRATION: Connects to case_service.rename_document.
-# 3. STATUS: Ready for frontend integration.
+# PHOENIX PROTOCOL - CASES ROUTER V3.0 (UNIVERSAL PDF)
+# 1. FEATURE: Automatically converts all uploads (Images, Text) to PDF via pdf_service.
+# 2. SAFETY: Ensures all stored documents are standardized for safe viewing.
+# 3. STATUS: Integrated with Rename and Archive features.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Dict
@@ -14,6 +14,7 @@ from bson import ObjectId
 from bson.errors import InvalidId
 import asyncio
 import logging
+import io
 from datetime import datetime, timezone
 
 from ...services import (
@@ -24,7 +25,8 @@ from ...services import (
     storage_service,
     analysis_service,
     visual_service,
-    archive_service
+    archive_service,
+    pdf_service # PHOENIX: Imported PDF Service
 )
 from ...models.case import CaseCreate, CaseOut
 from ...models.user import UserInDB
@@ -120,22 +122,44 @@ async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, 
 async def get_documents_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     return await asyncio.to_thread(document_service.get_documents_by_case_id, db, case_id, current_user)
 
+# PHOENIX FIX: Upload handler with Auto-PDF Conversion
 @router.post("/{case_id}/documents/upload", status_code=status.HTTP_202_ACCEPTED, tags=["Documents"])
-async def upload_document_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], file: UploadFile = File(...), db: Database = Depends(get_db)):
-    file_name = file.filename or "untitled_upload"
-    mime_type = file.content_type or "application/octet-stream"
+async def upload_document_for_case(
+    case_id: str, 
+    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    file: UploadFile = File(...), 
+    db: Database = Depends(get_db)
+):
     try:
+        # 1. Convert to PDF immediately (Memory-to-Memory)
+        pdf_bytes, final_filename = await pdf_service.pdf_service.convert_to_pdf(file)
+        
+        # 2. Wrap bytes back into a file-like object for the storage service
+        pdf_file_obj = io.BytesIO(pdf_bytes)
+        pdf_file_obj.name = final_filename # Critical for storage extension detection
+        
+        # 3. Enforce PDF mime-type
+        final_mime_type = "application/pdf"
+
+        # 4. Upload the PDF
         storage_key = await asyncio.to_thread(
-            storage_service.upload_original_document,
-            file=file,
+            storage_service.upload_bytes_as_file, # Ensure this method exists or use upload_original_document with wrapped obj
+            file_obj=pdf_file_obj,
+            filename=final_filename,
             user_id=str(current_user.id),
-            case_id=case_id
+            case_id=case_id,
+            content_type=final_mime_type
         )
+        
+        # 5. Create Database Record
         new_document = document_service.create_document_record(
             db=db, owner=current_user, case_id=case_id,
-            file_name=file_name, storage_key=storage_key, mime_type=mime_type
+            file_name=final_filename, storage_key=storage_key, mime_type=final_mime_type
         )
+        
+        # 6. Trigger background processing
         celery_app.send_task("process_document_task", args=[str(new_document.id)])
+        
         return DocumentOut.model_validate(new_document)
     except Exception as e:
         logger.error(f"CRITICAL UPLOAD FAILURE for case {case_id}: {e}", exc_info=True)
@@ -152,17 +176,21 @@ async def get_document_preview(
     case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)
 ):
     try:
+        # Since all documents are now PDFs, we try to fetch the 'original' if 'preview' isn't explicitly separate,
+        # or we rely on the processing logic to generate a specific preview.
+        # For now, we follow standard flow: check for explicit preview key first.
         file_stream, document = await asyncio.to_thread(
             document_service.get_preview_document_stream, db, doc_id, current_user
         )
         if str(document.case_id) != case_id:
             raise HTTPException(status_code=403, detail="Document does not belong to the specified case.")
 
-        preview_filename = f"{document.file_name}.pdf"
+        preview_filename = f"{document.file_name}"
         headers = {'Content-Disposition': f'inline; filename="{preview_filename}"'}
         return StreamingResponse(file_stream, media_type="application/pdf", headers=headers)
     except FileNotFoundError:
-         raise HTTPException(status_code=404, detail="Document preview is not yet available or failed to generate.")
+         # Fallback: If no processed preview exists yet, but the original IS a PDF (due to auto-convert), serve original.
+         return await get_original_document(case_id, doc_id, current_user, db)
     except Exception as e:
         logger.error(f"Failed to stream preview for document {doc_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Could not retrieve the document preview.")
@@ -237,7 +265,6 @@ async def archive_case_document(
     )
     return archived_item
 
-# PHOENIX NEW: Rename Document Endpoint
 @router.put("/{case_id}/documents/{doc_id}/rename", tags=["Documents"])
 async def rename_document_endpoint(
     case_id: str, 

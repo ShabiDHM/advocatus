@@ -1,8 +1,8 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE v4.2
-# 1. METADATA: Added 'ContentType' to uploads for correct browser handling.
-# 2. PERFORMANCE: Added 'generate_presigned_url' to offload bandwidth to S3/B2.
-# 3. SAFETY: Robust error handling for stream retrieval.
+# PHOENIX PROTOCOL - STORAGE SERVICE v5.0 (BYTES SUPPORT)
+# 1. ADDED: 'upload_bytes_as_file' to support in-memory PDF uploads.
+# 2. METADATA: Enforces 'ContentType' for consistent browser rendering.
+# 3. STATUS: Fully compatible with Universal PDF Converter.
 
 import os
 import boto3
@@ -14,7 +14,7 @@ from fastapi import UploadFile
 from fastapi.exceptions import HTTPException
 import logging
 import tempfile
-from typing import Any, Optional
+from typing import Any, Optional, IO
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ def upload_file_raw(file: UploadFile, folder: str) -> str:
             B2_BUCKET_NAME, 
             storage_key,
             Config=transfer_config,
-            ExtraArgs={'ContentType': content_type} # PHOENIX FIX
+            ExtraArgs={'ContentType': content_type}
         )
         return storage_key
     except Exception as e:
@@ -114,6 +114,26 @@ def get_file_stream(storage_key: str) -> Any:
         raise e
 
 # --- DOCUMENT SPECIFIC FUNCTIONS ---
+
+# PHOENIX NEW: Uploads BytesIO objects directly (Used by PDF Converter)
+def upload_bytes_as_file(file_obj: IO, filename: str, user_id: str, case_id: str, content_type: str = "application/pdf") -> str:
+    s3_client = get_s3_client()
+    storage_key = f"{user_id}/{case_id}/{filename}"
+    
+    try:
+        logger.info(f"--- [Storage] Uploading BYTES: {storage_key} ({content_type}) ---")
+        file_obj.seek(0)
+        s3_client.upload_fileobj(
+            file_obj,
+            B2_BUCKET_NAME,
+            storage_key,
+            Config=transfer_config,
+            ExtraArgs={'ContentType': content_type}
+        )
+        return storage_key
+    except (BotoCoreError, ClientError) as e:
+        logger.error(f"!!! ERROR: Byte Upload failed: {storage_key}, Reason: {e}")
+        raise HTTPException(status_code=500, detail="Could not upload converted file.")
 
 def upload_original_document(file: UploadFile, user_id: str, case_id: str) -> str:
     s3_client = get_s3_client()
@@ -202,3 +222,4 @@ def delete_file(storage_key: str):
         s3_client.delete_object(Bucket=B2_BUCKET_NAME, Key=storage_key)
     except Exception as e:
         logger.error(f"!!! ERROR: Delete failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete file.")

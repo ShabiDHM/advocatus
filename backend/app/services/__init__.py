@@ -1,12 +1,12 @@
 # FILE: backend/app/services/__init__.py
 # PHOENIX PROTOCOL - SERVICE REGISTRY
-# 1. UPDATE: Registered 'business_service' to match file structure.
-# 2. STATUS: Archive, Finance, Graph, and Business services are active.
+# 1. UPDATE: Registered 'pdf_service' to resolve import errors.
+# 2. STATUS: All services linked.
 
 from . import (
     admin_service,
     analysis_service,
-    business_service,  # <--- ADDED
+    business_service,
     calendar_service,
     case_service,
     chat_service,
@@ -32,6 +32,7 @@ from . import (
     archive_service,
     finance_service,
     graph_service,
+    pdf_service, # <--- REGISTERED
     
     # Albanian Specific Services (Active Only)
     albanian_document_processor,
