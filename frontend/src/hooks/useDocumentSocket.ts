@@ -2,7 +2,6 @@
 // PHOENIX PROTOCOL - JURISDICTION INTEGRATION (HOOK LAYER)
 // 1. SCOPE: sendChatMessage now accepts and forwards 'jurisdiction'.
 // 2. API: Passes the jurisdiction to the 'apiService' call.
-// 3. STATUS: Frontend is now fully jurisdiction-aware.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
