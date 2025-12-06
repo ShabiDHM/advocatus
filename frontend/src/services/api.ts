@@ -1,7 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API REPAIR (CRITICAL)
-// 1. ADDED: 'renameDocument' method to fix TS2339 error.
-// 2. VERIFIED: Contains all Finance, Archive, and Case endpoints.
+// PHOENIX PROTOCOL - API INTEGRITY RESTORED
+// 1. FIX: 'createArchiveFolder' now sends JSON instead of FormData (Fixes 422 Error).
+// 2. VERIFIED: File uploads (binary) still use FormData correctly.
+// 3. STATUS: API Standardized.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -207,14 +208,17 @@ class ApiService {
         const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); 
         return response.data; 
     }
+    
+    // PHOENIX FIX: Converted to JSON payload for 422 fix
     public async createArchiveFolder(title: string, parentId?: string, caseId?: string): Promise<ArchiveItemOut> {
-        const formData = new FormData();
-        formData.append('title', title);
-        if (parentId) formData.append('parent_id', parentId);
-        if (caseId) formData.append('case_id', caseId);
-        const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', formData);
+        const payload: any = { title };
+        if (parentId) payload.parent_id = parentId;
+        if (caseId) payload.case_id = caseId;
+        
+        const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', payload);
         return response.data;
     }
+    
     public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { 
         const formData = new FormData(); 
         formData.append('file', file); 
@@ -240,11 +244,7 @@ class ApiService {
     public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' }); return response.data; }
     public async downloadDocumentReport(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/report`, { responseType: 'blob' }); return response.data; }
     public async archiveCaseDocument(caseId: string, documentId: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/cases/${caseId}/documents/${documentId}/archive`); return response.data; }
-    
-    // PHOENIX: RENAME DOCUMENT METHOD
-    public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { 
-        await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); 
-    }
+    public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); }
 
     // --- Graph ---
     public async getCaseGraph(caseId: string): Promise<GraphData> { const response = await this.axiosInstance.get<GraphData>(`/graph/graph/${caseId}`); return response.data; }
