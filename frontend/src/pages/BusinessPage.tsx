@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - INTEGRITY RESTORED
-// 1. FIX: Resolved all "Unused Variable" errors by ensuring the Archive UI block is correctly rendered.
-// 2. FIX: 'createArchiveFolder' passes the required 'category' to the backend (Fixes 422).
-// 3. STATUS: Production Ready.
+// PHOENIX PROTOCOL - MOBILE RESPONSIVENESS REPAIR
+// 1. FIX: Added horizontal scrolling to Navigation Tabs for mobile screens.
+// 2. UX: Optimized typography sizes for mobile viewports.
+// 3. UI: Hardened Flexbox containers to prevent layout overflows.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -143,7 +143,7 @@ const BusinessPage: React.FC = () => {
   // Modals
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
-  const [newFolderCategory, setNewFolderCategory] = useState("GENERAL"); // Fixed: Added Category
+  const [newFolderCategory, setNewFolderCategory] = useState("GENERAL");
 
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false); 
@@ -272,7 +272,6 @@ const BusinessPage: React.FC = () => {
       setBreadcrumbs(prev => [...prev, { id: folderId, name: folderName, type }]);
   };
 
-  // PHOENIX FIX: 422 Error Resolution (Passed Category)
   const handleCreateFolder = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!newFolderName.trim()) return;
@@ -461,13 +460,24 @@ const BusinessPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-10 gap-6">
-        <div><h1 className="text-3xl font-bold text-white mb-2">{t('business.title')}</h1><p className="text-gray-400">{t('business.subtitle')}</p></div>
-        <div className="flex bg-background-light/10 p-1.5 rounded-2xl border border-white/10 backdrop-blur-md">
-            <button onClick={() => setActiveTab('profile')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg scale-105' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}><Building2 size={18} /><span>{t('business.profile')}</span></button>
-            <button onClick={() => setActiveTab('finance')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg scale-105' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}><FileText size={18} /><span>{t('business.finance')}</span></button>
-            <button onClick={() => setActiveTab('archive')} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg scale-105' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}><FolderOpen size={18} /><span>{t('business.archive')}</span></button>
+      {/* PHOENIX FIX: Responsive Header & Tabs */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-10 gap-4 sm:gap-6">
+        <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">{t('business.title')}</h1>
+            <p className="text-gray-400 text-sm sm:text-base">{t('business.subtitle')}</p>
+        </div>
+        
+        {/* Responsive Tabs Container: Scrollable on mobile, Auto on desktop */}
+        <div className="w-full sm:w-auto flex overflow-x-auto no-scrollbar bg-background-light/10 p-1.5 rounded-2xl border border-white/10 backdrop-blur-md">
+            <button onClick={() => setActiveTab('profile')} className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+                <Building2 size={18} /><span>{t('business.profile')}</span>
+            </button>
+            <button onClick={() => setActiveTab('finance')} className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+                <FileText size={18} /><span>{t('business.finance')}</span>
+            </button>
+            <button onClick={() => setActiveTab('archive')} className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+                <FolderOpen size={18} /><span>{t('business.archive')}</span>
+            </button>
         </div>
       </div>
 
@@ -625,10 +635,10 @@ const BusinessPage: React.FC = () => {
             {/* Toolbar */}
             <div className="flex flex-col gap-4">
                 <div className="flex justify-between items-center bg-white/5 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl">
-                    <div className="flex items-center gap-2 overflow-x-auto text-sm no-scrollbar px-2 py-1">
+                    <div className="flex items-center gap-2 overflow-x-auto text-sm no-scrollbar px-2 py-1 min-w-0">
                         {breadcrumbs.map((crumb, index) => (
                             <React.Fragment key={crumb.id || 'root'}>
-                                <button onClick={() => handleNavigate(crumb, index)} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${index === breadcrumbs.length - 1 ? 'bg-primary-start/20 text-primary-start font-bold border border-primary-start/20 shadow-inner' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
+                                <button onClick={() => handleNavigate(crumb, index)} className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${index === breadcrumbs.length - 1 ? 'bg-primary-start/20 text-primary-start font-bold border border-primary-start/20 shadow-inner' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
                                     {crumb.type === 'ROOT' ? <Home size={14} /> : crumb.type === 'CASE' ? <Briefcase size={14} /> : <FolderOpen size={14} />}
                                     {crumb.name}
                                 </button>
@@ -636,13 +646,13 @@ const BusinessPage: React.FC = () => {
                             </React.Fragment>
                         ))}
                     </div>
-                    <div className="flex gap-2 flex-shrink-0 p-1">
-                        <button onClick={() => setShowFolderModal(true)} className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 hover:text-amber-400 rounded-xl border border-amber-500/30 transition-all font-bold text-xs uppercase tracking-wide">
+                    <div className="flex gap-2 flex-shrink-0 p-1 ml-2">
+                        <button onClick={() => setShowFolderModal(true)} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 hover:text-amber-400 rounded-xl border border-amber-500/30 transition-all font-bold text-xs uppercase tracking-wide">
                             <FolderPlus size={16} /> <span className="hidden sm:inline">{t('archive.createFolder')}</span>
                         </button>
                         <div className="relative">
                             <input type="file" ref={archiveInputRef} className="hidden" onChange={handleSmartUpload} />
-                            <button onClick={() => archiveInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-4 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl shadow-lg shadow-primary-start/20 transition-all font-bold text-xs uppercase tracking-wide disabled:opacity-50 disabled:cursor-wait">
+                            <button onClick={() => archiveInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl shadow-lg shadow-primary-start/20 transition-all font-bold text-xs uppercase tracking-wide disabled:opacity-50 disabled:cursor-wait">
                                 {isUploading ? <Loader2 className="animate-spin w-4 h-4" /> : <Upload size={16} />} <span className="hidden sm:inline">{t('archive.upload')}</span>
                             </button>
                         </div>

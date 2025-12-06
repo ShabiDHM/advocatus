@@ -21,7 +21,8 @@
     "loading": "Duke ngarkuar...",
     "copied": "U kopjua në kujtesë!",
     "error": "Gabim",
-    "confirmDelete": "A jeni i sigurt?"
+    "confirmDelete": "A jeni i sigurt që doni ta fshini këtë element?",
+    "general": "Të Përgjithshme"
   },
   "auth": {
     "loginTitle": "Hyni në Juristi AI",
@@ -109,7 +110,7 @@
       "ARCHIVED": "Arkivuar"
     }
   },
- "documentsPanel": {
+  "documentsPanel": {
     "title": "Dokumentet",
     "uploadDocument": "Ngarko Dokument",
     "noDocuments": "Asnjë dokument i ngarkuar.",
@@ -124,7 +125,7 @@
     "delete": "Fshi",
     "confirmDelete": "A jeni të sigurt?",
     "uploadFailed": "Ngarkimi dështoi",
-    "deleteFailed": "Fshirja dështoi",
+    "deleteFailed": "Fshirja dështoi.",
     "uploaded": "Ngarkuar",
     "deepScan": "Skanim i Thellë (Vision AI)",
     "scanStarted": "Skanimi i Thellë filloi! Kontrolloni gjetjet pas pak.",
@@ -236,6 +237,17 @@
     "newFolderTitle": "Krijo Dosje të Re",
     "folderNamePlaceholder": "Emëro dosjen..."
   },
+  "caseCard": {
+    "createdOn": "Krijuar më",
+    "client": "Informacioni i Klientit",
+    "documents": "Dokumente",
+    "alerts": "Alarme",
+    "events": "Ngjarje",
+    "viewDetails": "Shiko Detajet",
+    "deleteCase": "Fshij Rastin",
+    "untitled": "Rast pa Titull",
+    "caseNumber": "Rasti"
+  },
   "account": {
     "title": "Llogaria Ime",
     "profileInfo": "Informacione Personale",
@@ -331,17 +343,6 @@
       "create": "Krijo Ngjarje"
     }
   },
-  "caseCard": {
-    "createdOn": "Krijuar më",
-    "client": "Informacioni i Klientit",
-    "documents": "Dokumente",
-    "alerts": "Alarme",
-    "events": "Ngjarje",
-    "viewDetails": "Shiko Detajet",
-    "deleteCase": "Fshij Rastin",
-    "untitled": "Rast pa Titull",
-    "caseNumber": "Rasti"
-  },
   "support": {
     "title": "Qendra e Ndihmës",
     "contactInfo": "Informacion Kontakti",
@@ -362,7 +363,7 @@
     "successMessage": "Cilësimet u ruajtën me sukses!"
   },
   "pdfViewer": {
-  "downloadOriginal": "Shkarko Dokumentin Origjinal",
-  "close": "Mbyll"
-}
+    "downloadOriginal": "Shkarko Dokumentin Origjinal",
+    "close": "Mbyll"
+  }
 }
