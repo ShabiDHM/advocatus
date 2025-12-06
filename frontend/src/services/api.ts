@@ -1,8 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API PAYLOAD SANITIZATION
-// 1. FIX: 'createArchiveFolder' now strips undefined keys instead of sending 'null' (Fixes 422 Strictness).
-// 2. DEBUG: Added explicit error logging for schema validation failures.
-// 3. STATUS: Optimization for Pydantic/FastAPI defaults.
+// PHOENIX PROTOCOL - FINAL SYNC
+// 1. FIX: 'createArchiveFolder' now uses FormData + Category (Matching 'uploadArchiveItem' protocol).
+// 2. LOGIC: Reverts JSON attempt, as backend likely enforces Form dependency for all Archive items.
+// 3. STATUS: Aligned with working Upload endpoint.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -212,26 +212,25 @@ class ApiService {
         return Array.isArray(response.data) ? response.data : ((response.data as any).items || []); 
     }
     
-    // PHOENIX FIX: Payload Cleanliness
-    // Only includes fields that have actual values. 
-    // Sending keys with 'null' values can trigger 422 in strict Pydantic schemas.
+    // PHOENIX FIX: Switched back to FormData to match 'uploadArchiveItem'.
+    // Including 'category' is critical.
     public async createArchiveFolder(title: string, parentId?: string, caseId?: string, category?: string): Promise<ArchiveItemOut> {
-        const payload: Record<string, any> = { title };
+        const formData = new FormData();
+        formData.append('title', title);
         
-        if (parentId) payload.parent_id = parentId;
-        if (caseId) payload.case_id = caseId;
-        if (category) payload.category = category;
+        // Ensure category is sent. Default to GENERAL if missing.
+        formData.append('category', category || "GENERAL");
         
-        try {
-            const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', payload);
-            return response.data;
-        } catch (error: any) {
-            // DEBUG: Log the validation error from backend to help diagnosis if it persists
-            if (error.response?.status === 422) {
-                console.error("[API] 422 Validation Error on Create Folder:", JSON.stringify(error.response.data, null, 2));
-            }
-            throw error;
-        }
+        // Only append optional fields if they have values to avoid "null" string issues
+        if (parentId) formData.append('parent_id', parentId);
+        if (caseId) formData.append('case_id', caseId);
+        
+        // Header 'Content-Type': 'multipart/form-data' is automatic when passing FormData, 
+        // but explicit headers are safe in this architecture.
+        const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
     }
     
     public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { 
