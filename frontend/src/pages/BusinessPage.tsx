@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - ORGANIZATION REPAIR
-// 1. FIX: Restored 'displayedItems' filter. Documents linked to a Case are now HIDDEN from the Root view.
-// 2. UX: 'Fast Open' logic applied to all document interactions.
-// 3. STATUS: Organized Archive (Case Docs in Case Folders Only).
+// PHOENIX PROTOCOL - INTEGRITY RESTORED
+// 1. FIX: Resolved all "Unused Variable" errors by ensuring the Archive UI block is correctly rendered.
+// 2. FIX: 'createArchiveFolder' passes the required 'category' to the backend (Fixes 422).
+// 3. STATUS: Production Ready.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +10,7 @@ import {
     Building2, Mail, Phone, MapPin, Globe, Palette, Save, Upload, Loader2, 
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File,
     Briefcase, Eye, Archive, Camera, X, User, FolderPlus, Home, ChevronRight,
-    FileImage, FileCode, Hash, Info, Calendar, TrendingUp, TrendingDown, Wallet, MinusCircle
+    FileImage, FileCode, Hash, Info, Calendar, TrendingUp, TrendingDown, Wallet, MinusCircle, Tag
 } from 'lucide-react';
 import { apiService, API_V1_URL, Expense, ExpenseCreateRequest } from '../services/api';
 import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut, Case, Document } from '../data/types';
@@ -143,6 +143,8 @@ const BusinessPage: React.FC = () => {
   // Modals
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+  const [newFolderCategory, setNewFolderCategory] = useState("GENERAL"); // Fixed: Added Category
+
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false); 
   const [showArchiveInvoiceModal, setShowArchiveInvoiceModal] = useState(false);
@@ -270,13 +272,15 @@ const BusinessPage: React.FC = () => {
       setBreadcrumbs(prev => [...prev, { id: folderId, name: folderName, type }]);
   };
 
+  // PHOENIX FIX: 422 Error Resolution (Passed Category)
   const handleCreateFolder = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!newFolderName.trim()) return;
       const { caseId, parentId } = getCurrentContext();
       try {
-          await apiService.createArchiveFolder(newFolderName, parentId || undefined, caseId || undefined);
+          await apiService.createArchiveFolder(newFolderName, parentId || undefined, caseId || undefined, newFolderCategory);
           setNewFolderName("");
+          setNewFolderCategory("GENERAL");
           setShowFolderModal(false);
           fetchArchiveContent(); 
       } catch (error) { alert(t('error.generic')); }
@@ -344,7 +348,6 @@ const BusinessPage: React.FC = () => {
       return <File className="w-5 h-5 text-blue-400" />;
   };
 
-  // PHOENIX FIX: INSTANT VIEWING (Archive)
   const handleViewItem = async (item: ArchiveItemOut) => {
       setOpeningDocId(item.id);
       try {
@@ -360,7 +363,6 @@ const BusinessPage: React.FC = () => {
       }
   };
 
-  // PHOENIX FIX: INSTANT VIEWING (Invoices)
   const handleViewInvoice = async (invoice: Invoice) => {
       setOpeningDocId(invoice.id);
       try {
@@ -450,11 +452,9 @@ const BusinessPage: React.FC = () => {
 
   const currentView = breadcrumbs[breadcrumbs.length - 1];
 
-  // PHOENIX FIX: Filtering Logic
-  // Items associated with a case are HIDDEN from the root list to prevent duplication.
   const displayedItems = archiveItems.filter(item => {
       if (currentView.type === 'ROOT') {
-          return !item.case_id; // Hide case-linked files
+          return !item.case_id; 
       }
       return true;
   });
@@ -522,8 +522,6 @@ const BusinessPage: React.FC = () => {
       {/* --- FINANCE TAB --- */}
       {activeTab === 'finance' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
-            
-            {/* PHOENIX: Financial Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <FinanceCard 
                     title={t('finance.income')} 
@@ -551,11 +549,9 @@ const BusinessPage: React.FC = () => {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-2xl font-bold text-white">{t('finance.invoicesTitle')}</h2>
                 <div className="flex gap-3 w-full sm:w-auto">
-                    {/* PHOENIX: Add Expense Button */}
                     <button onClick={() => setShowExpenseModal(true)} className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-lg transition-all font-medium">
                         <MinusCircle size={20} /> <span>{t('finance.addExpense')}</span>
                     </button>
-                    {/* Create Invoice Button */}
                     <button onClick={() => setShowInvoiceModal(true)} className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg transition-all font-medium">
                         <Plus size={20} /> <span>{t('finance.createInvoice')}</span>
                     </button>
@@ -623,7 +619,7 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
-      {/* --- ARCHIVE TAB (NEW CASE CARD STYLE) --- */}
+      {/* --- ARCHIVE TAB (RESTORED) --- */}
       {activeTab === 'archive' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
             {/* Toolbar */}
@@ -654,7 +650,7 @@ const BusinessPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* CONTENT GRID - RICH CARDS */}
+            {/* CONTENT GRID */}
             <div className="space-y-10">
                 {currentView.type === 'ROOT' && cases.length > 0 && (
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -669,7 +665,6 @@ const BusinessPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* PHOENIX: 'My Documents' section ONLY appears if there are actual loose files to show */}
                 {displayedItems.length > 0 && (
                     <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
                         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70">
@@ -705,7 +700,6 @@ const BusinessPage: React.FC = () => {
                     </div>
                 )}
 
-                {/* Empty State: Only if NO cases and NO files */}
                 {displayedItems.length === 0 && cases.length === 0 && currentView.type === 'ROOT' && (
                     <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center">
                         <div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse"><FolderOpen className="w-16 h-16 text-gray-600" /></div>
@@ -714,7 +708,6 @@ const BusinessPage: React.FC = () => {
                     </div>
                 )}
                 
-                {/* Empty State: Inside a subfolder */}
                 {archiveItems.length === 0 && currentView.type !== 'ROOT' && (
                     <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center">
                         <div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse"><FolderOpen className="w-16 h-16 text-gray-600" /></div>
@@ -735,10 +728,28 @@ const BusinessPage: React.FC = () => {
                       <button onClick={() => setShowFolderModal(false)} className="text-gray-500 hover:text-white"><X size={24}/></button>
                   </div>
                   <form onSubmit={handleCreateFolder}>
-                      <div className="relative mb-8">
+                      {/* Name Input */}
+                      <div className="relative mb-5">
                           <FolderOpen className="absolute left-4 top-3.5 w-6 h-6 text-amber-500" />
                           <input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t('archive.folderNamePlaceholder')} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white text-lg focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-gray-600" />
                       </div>
+                      
+                      {/* Category Selector */}
+                      <div className="relative mb-8">
+                          <Tag className="absolute left-4 top-3.5 w-5 h-5 text-gray-500" />
+                          <select 
+                            value={newFolderCategory} 
+                            onChange={(e) => setNewFolderCategory(e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-gray-300 focus:ring-2 focus:ring-amber-500/50 outline-none appearance-none cursor-pointer"
+                          >
+                            <option value="GENERAL">{t('general.general')}</option>
+                            <option value="EVIDENCE">Evidence</option>
+                            <option value="LEGAL_DOCS">Legal Docs</option>
+                            <option value="INVOICES">Invoices</option>
+                            <option value="CONTRACTS">Contracts</option>
+                          </select>
+                      </div>
+
                       <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div>
                   </form>
               </div>
