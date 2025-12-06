@@ -1,6 +1,6 @@
-# FILE: backend/requirements.txt (UNIFIED & PINNED - V4.6)
-# PHOENIX PROTOCOL - DEEPSEEK ENABLED
-# 1. ADDED: openai>=1.0.0 (Required for OpenRouter/DeepSeek integration).
+# FILE: backend/requirements.txt (UNIFIED & PINNED - V4.7)
+# PHOENIX PROTOCOL - PDF GENERATION SUPPORT
+# 1. ADDED: fpdf2==2.7.9 (Required for Universal PDF Conversion Service).
 # 2. MAINTAINED: All previous versions.
 
 # --- Core Web Framework & Async ---
@@ -45,6 +45,7 @@ requests
 dateparser==1.2.0
 
 # --- Document Processing ---
+fpdf2==2.7.9
 pdf2image==1.17.0
 pdfminer.six==20250506
 PyMuPDF==1.26.4

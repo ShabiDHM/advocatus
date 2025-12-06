@@ -1,8 +1,8 @@
 # FILE: backend/app/services/pdf_service.py
-# PHOENIX PROTOCOL - UNIVERSAL DOCUMENT CONVERTER (STRICT MODE)
-# 1. FIX: Explicit 'None' check for filename (Solves "lower" error).
-# 2. FIX: Positional arguments for FPDF (Solves "txt" parameter error).
-# 3. FIX: Output type checking (Solves "bytearray" encode error).
+# PHOENIX PROTOCOL - UNIVERSAL DOCUMENT CONVERTER (MAGIC BYTE DETECTION)
+# 1. FIX: Detects file type by content (Magic Bytes) to prevent corrupting mismatched extensions.
+# 2. FEATURE: Automatically fixes extensions (e.g., renames .txt to .pdf if content is PDF).
+# 3. ROBUSTNESS: Handles binary files masquerading as text.
 
 import io
 from PIL import Image
@@ -14,45 +14,67 @@ class PDFConverter:
     @staticmethod
     async def convert_to_pdf(file: UploadFile) -> Tuple[bytes, str]:
         """
-        Converts incoming file to PDF bytes.
+        Converts incoming file to PDF bytes based on CONTENT, not just extension.
         Returns: (pdf_bytes, new_filename)
         """
-        # 1. FIX: Type Guard to ensure we never operate on None
-        # We assign to a strictly typed variable 'original_name'
-        raw_filename = file.filename
-        if raw_filename is None:
+        # 1. READ CONTENT
+        content = await file.read()
+        file_size = len(content)
+        
+        # 2. PREPARE FILENAME
+        raw_name = file.filename
+        if raw_name is None:
             original_name: str = "untitled_document"
         else:
-            original_name: str = raw_filename
+            original_name: str = raw_name
+            
+        base_name = original_name.rsplit('.', 1)[0]
 
-        filename_lower = original_name.lower()
-        content = await file.read()
-        
-        # Scenario A: Already PDF -> Return as is
-        if filename_lower.endswith('.pdf'):
+        # 3. MAGIC BYTE DETECTION
+        # Check if it's ALREADY a PDF (Signature: %PDF)
+        if content.startswith(b'%PDF'):
             await file.seek(0)
-            return content, original_name
+            # Fix extension if it was wrong (e.g. user uploaded .txt but it was a pdf)
+            return content, f"{base_name}.pdf"
 
-        # Scenario B: Image -> Convert
-        if filename_lower.endswith(('.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif')):
+        # Check for Common Images
+        # JPEG: FF D8 FF
+        # PNG: 89 50 4E 47 0D 0A 1A 0A
+        # BMP: 42 4D
+        # TIFF: 49 49 2A 00 or 4D 4D 00 2A
+        if (content.startswith(b'\xff\xd8\xff') or 
+            content.startswith(b'\x89PNG') or 
+            content.startswith(b'BM') or 
+            content.startswith(b'II*\x00') or 
+            content.startswith(b'MM\x00*')):
             try:
                 return PDFConverter._image_to_pdf(content, original_name)
             except Exception as e:
                 print(f"Image conversion failed: {e}")
-                # Fallback to original if conversion crashes
+                # Fallback to original
                 await file.seek(0)
                 return content, original_name
 
-        # Scenario C: Text -> Convert
-        if filename_lower.endswith('.txt'):
+        # 4. TEXT FILE HANDLING
+        # Only treat as text if extension is text-like AND content looks like text
+        # If it's a binary file (not PDF/Image) named .txt, we don't want to convert it (garbage output)
+        filename_lower = original_name.lower()
+        if filename_lower.endswith(('.txt', '.md', '.csv', '.log')):
             try:
+                # Basic binary check: look for null bytes
+                if b'\x00' in content[:1024]: 
+                    # Likely a binary file misnamed as txt -> Return original to be safe
+                    await file.seek(0)
+                    return content, original_name
+                
                 return PDFConverter._text_to_pdf(content, original_name)
             except Exception as e:
                 print(f"Text conversion failed: {e}")
                 await file.seek(0)
                 return content, original_name
 
-        # Scenario D: Unsupported -> Return original
+        # 5. DEFAULT / UNSUPPORTED (DOCX, ZIP, etc.)
+        # Return as is
         await file.seek(0)
         return content, original_name
 
@@ -84,21 +106,18 @@ class PDFConverter:
         # Sanitize text to Latin-1 to prevent FPDF unicode crashes
         sanitized_text = text.encode('latin-1', 'replace').decode('latin-1')
         
-        # 2. FIX: Use positional arguments (0, 10, text) instead of keywords
+        # Use positional arguments
         pdf.multi_cell(0, 10, sanitized_text)
         
-        # 3. FIX: Handle variable return types from different FPDF versions
+        # Handle output type variance
         output = pdf.output(dest='S')
         
         pdf_output_bytes: bytes
         if isinstance(output, str):
-            # Older FPDF returns string -> encode it
             pdf_output_bytes = output.encode('latin-1')
         elif isinstance(output, bytearray):
-            # Newer FPDF returns bytearray -> cast to bytes
             pdf_output_bytes = bytes(output)
         else:
-            # Fallback for unknown types (safe cast)
             pdf_output_bytes = bytes(output)
         
         base_name = original_name.rsplit('.', 1)[0]
