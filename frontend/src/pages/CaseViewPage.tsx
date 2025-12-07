@@ -1,7 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - SYNTAX REPAIR
-// 1. FIX: Correctly closed tags at the end of the file.
-// 2. STATUS: Error-free.
+// PHOENIX PROTOCOL - TABBED WORKSPACE V3
+// 1. LAYOUT: Implemented Tabs (Documents | Graph) in Left Panel.
+// 2. STABILITY: Preserved all Modals, Sockets, and Handlers.
+// 3. DESIGN: Aligned with "Mobile Screenshot 2" vision (Compact, Professional).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -16,8 +17,12 @@ import FindingsModal from '../components/FindingsModal';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import { motion } from 'framer-motion';
-import { ArrowLeft, AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb, X, Save } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+    ArrowLeft, AlertCircle, User, Briefcase, Info, 
+    ShieldCheck, Loader2, Lightbulb, X, Save, 
+    FileText, Network // Icons for Tabs
+} from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -25,6 +30,8 @@ type CaseData = {
     details: Case | null;
     findings: Finding[];
 };
+
+type ActiveTab = 'documents' | 'graph';
 
 // --- RENAME MODAL ---
 const RenameDocumentModal: React.FC<{ 
@@ -119,6 +126,8 @@ const CaseViewPage: React.FC = () => {
   const [caseData, setCaseData] = useState<CaseData>({ details: null, findings: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTab>('documents'); // PHOENIX: Tab State
+
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
   
@@ -226,26 +235,71 @@ const CaseViewPage: React.FC = () => {
         <div className="mb-4"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
         <CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} />
         
-        <div className="flex flex-col gap-6">
-            <div className="w-full h-[450px]">
-                <CaseGraph caseId={caseData.details.id} height={450} className="h-full w-full" />
+        {/* PHOENIX LAYOUT: Split View (60% Workspace / 40% Chat) */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+            
+            {/* LEFT PANEL: Workspace (Tabs: Documents | Graph) */}
+            <div className="lg:col-span-3 flex flex-col h-[600px] bg-background-dark/40 border border-white/10 rounded-2xl shadow-xl overflow-hidden backdrop-blur-md">
+                
+                {/* Custom Tab Navigation */}
+                <div className="flex items-center border-b border-white/10 bg-black/20">
+                    <button 
+                        onClick={() => setActiveTab('documents')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium transition-all relative ${activeTab === 'documents' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                        <FileText size={16} />
+                        {t('documentsPanel.title')}
+                        {activeTab === 'documents' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-start" />}
+                    </button>
+                    
+                    <button 
+                        onClick={() => setActiveTab('graph')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium transition-all relative ${activeTab === 'graph' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                    >
+                        <Network size={16} />
+                        Harta e Çështjes
+                        {activeTab === 'graph' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-start" />}
+                    </button>
+                </div>
+
+                {/* Content Area */}
+                <div className="flex-1 overflow-hidden relative">
+                    <AnimatePresence mode="wait">
+                        {activeTab === 'documents' ? (
+                            <motion.div 
+                                key="docs"
+                                initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.2 }}
+                                className="h-full w-full"
+                            >
+                                <DocumentsPanel
+                                    caseId={caseData.details.id}
+                                    documents={liveDocuments}
+                                    findings={caseData.findings} 
+                                    t={t}
+                                    connectionStatus={connectionStatus}
+                                    reconnect={reconnect}
+                                    onDocumentUploaded={handleDocumentUploaded}
+                                    onDocumentDeleted={handleDocumentDeleted}
+                                    onViewOriginal={handleViewOriginal}
+                                    onRename={(doc) => setDocumentToRename(doc)} 
+                                    className="h-full border-none shadow-none bg-transparent" // Remove double border
+                                />
+                            </motion.div>
+                        ) : (
+                            <motion.div 
+                                key="graph"
+                                initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.2 }}
+                                className="h-full w-full"
+                            >
+                                <CaseGraph caseId={caseData.details.id} height={550} className="h-full w-full border-none shadow-none bg-transparent" />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start h-[600px]">
-                <DocumentsPanel
-                    caseId={caseData.details.id}
-                    documents={liveDocuments}
-                    findings={caseData.findings} 
-                    t={t}
-                    connectionStatus={connectionStatus}
-                    reconnect={reconnect}
-                    onDocumentUploaded={handleDocumentUploaded}
-                    onDocumentDeleted={handleDocumentDeleted}
-                    onViewOriginal={handleViewOriginal}
-                    onRename={(doc) => setDocumentToRename(doc)} 
-                    className="h-full"
-                />
-
+            {/* RIGHT PANEL: Socratic Assistant (Persistent) */}
+            <div className="lg:col-span-2 h-[600px]">
                 <ChatPanel
                     messages={liveMessages}
                     connectionStatus={connectionStatus}
