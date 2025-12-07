@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - SYMMETRY FIX
-// 1. LAYOUT: Changed to strict 50/50 split (lg:grid-cols-2).
-// 2. UI: Added "Connection Light" (Green Dot) to the Dokumentet Tab.
-// 3. STATUS: Panels are now identical in size and visual hierarchy.
+// PHOENIX PROTOCOL - LAYOUT SYMMETRY FIX
+// 1. LAYOUT: Strict 50/50 Split (lg:grid-cols-2).
+// 2. UI: Added Connection Light to Tab Header.
+// 3. STATUS: Perfect symmetry achieved.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -153,7 +153,6 @@ const CaseViewPage: React.FC = () => {
 
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // Connection Dot Helper
   const statusDotColor = (status: string) => {
     switch (status) {
       case 'CONNECTED': return 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]';
@@ -244,7 +243,7 @@ const CaseViewPage: React.FC = () => {
         <div className="mb-4"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
         <CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} />
         
-        {/* PHOENIX: STRICT 50/50 SPLIT */}
+        {/* PHOENIX: SYMMETRICAL 50/50 SPLIT */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             
             {/* LEFT PANEL: Workspace (Tabs) */}
@@ -256,8 +255,8 @@ const CaseViewPage: React.FC = () => {
                         onClick={() => setActiveTab('documents')}
                         className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium transition-all relative ${activeTab === 'documents' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
                     >
-                        {/* PHOENIX: Added Connection Status Light */}
-                        <span className={`w-2 h-2 rounded-full ${statusDotColor(connectionStatus)}`}></span>
+                        {/* Status Light visible on the Tab Header */}
+                        <span className={`w-2 h-2 rounded-full ${statusDotColor(connectionStatus)}`} title={connectionStatus}></span>
                         <FileText size={16} />
                         {t('documentsPanel.title')}
                         {activeTab === 'documents' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-start" />}
