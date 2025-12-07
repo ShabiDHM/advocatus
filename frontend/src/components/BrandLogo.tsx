@@ -1,16 +1,21 @@
 // FILE: src/components/BrandLogo.tsx
-// PHOENIX PROTOCOL - BRANDING INTEGRITY
-// 1. COMPONENT: A new, reusable component for the official "Juristi AI" brand logo.
-// 2. SVG: Contains the vector data for the "scales of justice" icon.
-// 3. USAGE: To be used in Sidebar.tsx and MainLayout.tsx to enforce brand consistency.
+// PHOENIX PROTOCOL - PLATFORM IDENTITY
+// 1. PURPOSE: Represents the SaaS Platform ("Juristi AI"). 
+// 2. USAGE: Use ONLY in Sidebar, Navbar, and Auth screens. NEVER in user-generated content.
+// 3. OPTIMIZATION: Added 'className' for flexible layout.
 
 import React from 'react';
 
-const BrandLogo: React.FC = () => {
+interface BrandLogoProps {
+  className?: string;
+  showText?: boolean;
+}
+
+const BrandLogo: React.FC<BrandLogoProps> = ({ className = "", showText = true }) => {
   return (
-    <div className="flex items-center gap-2">
-      <div className="w-8 h-8 bg-background-light border border-glass-edge rounded-lg flex items-center justify-center shadow-lg">
-        {/* SVG Icon: Scales of Justice */}
+    <div className={`flex items-center gap-2 ${className}`}>
+      {/* Platform Icon - Scales of Justice */}
+      <div className="w-8 h-8 flex-shrink-0 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center shadow-lg backdrop-blur-md">
         <svg 
           width="20" 
           height="20" 
@@ -30,9 +35,13 @@ const BrandLogo: React.FC = () => {
           <path d="M18 16h4"></path>
         </svg>
       </div>
-      <span className="text-xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
-        Juristi AI
-      </span>
+      
+      {/* Platform Name */}
+      {showText && (
+        <span className="text-xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent whitespace-nowrap">
+          Juristi AI
+        </span>
+      )}
     </div>
   );
 };
