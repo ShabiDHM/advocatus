@@ -1,8 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - SMART HEADERS FIX (COMPLETE)
-// 1. FIX: Removed default headers from axios instance.
-// 2. LOGIC: Request Interceptor dynamically sets 'application/json' ONLY if data is not FormData.
-// 3. RESULT: File uploads (FormData) automatically get the correct boundary, solving the 422 error.
+// PHOENIX PROTOCOL - API KERNEL (SIMPLIFIED)
+// 1. FIX: Removed all manual 'Content-Type' management.
+// 2. LOGIC: Relies on native Browser/Axios behavior to handle FormData boundaries correctly.
+// 3. STATUS: Resolves persistent 422 errors by eliminating header conflicts.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -57,7 +57,7 @@ class ApiService {
     private failedQueue: { resolve: (value: any) => void; reject: (reason?: any) => void; }[] = [];
 
     constructor() {
-        // PHOENIX FIX: Do NOT set default headers here. We handle them in the interceptor.
+        // PHOENIX FIX: No default headers. Let Axios decide based on data type.
         this.axiosInstance = axios.create({ 
             baseURL: API_V1_URL, 
             withCredentials: true
@@ -83,32 +83,17 @@ class ApiService {
             (config) => {
                 const token = tokenManager.get();
                 
-                // Ensure headers object exists
+                // Initialize headers if missing
                 if (!config.headers) {
                     config.headers = new AxiosHeaders();
                 }
 
-                // 1. Set Authorization
+                // Only set Authorization. Do NOT touch Content-Type.
                 if (token) {
                     if (config.headers instanceof AxiosHeaders) {
                         config.headers.set('Authorization', `Bearer ${token}`);
                     } else {
                         (config.headers as any).Authorization = `Bearer ${token}`;
-                    }
-                }
-
-                // 2. PHOENIX FIX: Smart Content-Type Setting
-                // If data is FormData, DO NOT set Content-Type. Let browser set it with boundary.
-                // If data is regular object, set application/json.
-                if (!(config.data instanceof FormData)) {
-                    if (config.headers instanceof AxiosHeaders) {
-                         if (!config.headers.has('Content-Type')) {
-                             config.headers.set('Content-Type', 'application/json');
-                         }
-                    } else {
-                        if (!(config.headers as any)['Content-Type']) {
-                            (config.headers as any)['Content-Type'] = 'application/json';
-                        }
                     }
                 }
 
@@ -204,7 +189,6 @@ class ApiService {
     public async uploadBusinessLogo(file: File): Promise<BusinessProfile> { 
         const formData = new FormData(); 
         formData.append('file', file); 
-        // PHOENIX: No headers needed, interceptor handles it
         const response = await this.axiosInstance.put<BusinessProfile>('/business/logo', formData); 
         return response.data; 
     }
@@ -233,7 +217,7 @@ class ApiService {
     public async scanExpenseReceipt(file: File): Promise<{ category?: string, amount?: number, date?: string, description?: string }> {
         const formData = new FormData();
         formData.append('file', file);
-        // PHOENIX: No headers needed, interceptor handles it
+        // Axios will auto-detect FormData and add the correct boundary.
         const response = await this.axiosInstance.post<{ category?: string, amount?: number, date?: string, description?: string }>('/finance/expenses/scan', formData);
         return response.data;
     }
@@ -254,8 +238,15 @@ class ApiService {
         if (caseId) payload.case_id = caseId;
         if (category) payload.category = category;
         
-        const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', payload);
-        return response.data;
+        try {
+            const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', payload);
+            return response.data;
+        } catch (error: any) {
+            if (error.response?.status === 422) {
+                console.error("[API] 422 Validation Error on Create Folder:", JSON.stringify(error.response.data, null, 2));
+            }
+            throw error;
+        }
     }
     
     public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { 
@@ -265,7 +256,6 @@ class ApiService {
         formData.append('category', category); 
         if (caseId) formData.append('case_id', caseId); 
         if (parentId) formData.append('parent_id', parentId);
-        // PHOENIX: No headers needed, interceptor handles it
         const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData); 
         return response.data; 
     }
@@ -282,7 +272,6 @@ class ApiService {
     public async uploadDocument(caseId: string, file: File, onProgress?: (percent: number) => void): Promise<Document> { 
         const formData = new FormData(); 
         formData.append('file', file); 
-        // PHOENIX: No headers needed, interceptor handles it
         const response = await this.axiosInstance.post<Document>(`/cases/${caseId}/documents/upload`, formData, { 
             onUploadProgress: (progressEvent) => {
                 if (onProgress && progressEvent.total) {
