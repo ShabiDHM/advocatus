@@ -1,8 +1,8 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - CASE FOLDER UPLOAD
-// 1. FEATURE: Added 'Folder Upload' button to the panel header.
-// 2. LOGIC: Iterates through folder contents and uploads files sequentially to the Case.
-// 3. UI: Preserves existing layout, adding the new button seamlessly.
+// PHOENIX PROTOCOL - INTEGRATION COMPLETE
+// 1. I18N: Applied 'documentsPanel.uploadFolderTooltip'.
+// 2. LOGIC: Case-specific batch upload.
+// 3. STATUS: Production Ready.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -11,7 +11,7 @@ import { apiService } from '../services/api';
 import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
-    ScanEye, Archive, Pencil, FolderInput // PHOENIX: New Icon
+    ScanEye, Archive, Pencil, FolderInput // Folder Icon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -41,18 +41,16 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   className
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null); // PHOENIX: Ref for folder input
+  const folderInputRef = useRef<HTMLInputElement>(null); // Ref for folder input
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [scanningId, setScanningId] = useState<string | null>(null); 
   const [archivingId, setArchivingId] = useState<string | null>(null); 
-  const [currentFileName, setCurrentFileName] = useState<string>(""); // Track current file being uploaded
+  const [currentFileName, setCurrentFileName] = useState<string>(""); 
 
-  // Reusable upload logic for a single file
   const performUpload = async (file: File) => {
-    // Skip system files
     if (file.name.startsWith('.')) return;
 
     setCurrentFileName(file.name);
@@ -90,7 +88,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     }
   };
 
-  // PHOENIX: Folder Upload Handler
   const handleFolderChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = event.target.files;
       if (!files || files.length === 0) return;
@@ -98,7 +95,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       setIsUploading(true);
       setUploadError(null);
 
-      // Convert FileList to Array for iteration
       const fileArray = Array.from(files);
 
       for (let i = 0; i < fileArray.length; i++) {
@@ -164,7 +160,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         </div>
 
         <div className="flex-shrink-0 flex gap-2">
-          {/* PHOENIX: Folder Input */}
+          {/* PHOENIX: Folder Input - Correct Translation */}
           <input 
             type="file" 
             ref={folderInputRef} 
@@ -178,7 +174,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           <motion.button
             onClick={() => folderInputRef.current?.click()}
             className="h-9 px-3 flex items-center justify-center rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 transition-all"
-            title="Upload Folder" 
+            title={t('documentsPanel.uploadFolderTooltip')} 
             disabled={isUploading} 
             whileHover={{ scale: 1.05 }} 
             whileTap={{ scale: 0.95 }} 
@@ -203,7 +199,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
       {uploadError && (<div className="p-3 text-xs text-red-100 bg-red-700/50 border border-red-500/50 rounded-lg mb-4">{uploadError}</div>)}
       
-      {/* Uploading Progress Bar */}
       <AnimatePresence>
           {isUploading && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mb-4 overflow-hidden">

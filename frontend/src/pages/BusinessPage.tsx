@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - FOLDER UPLOAD SUPPORT
-// 1. FEATURE: Added 'Upload Folder' capability.
-// 2. LOGIC: Auto-creates the folder in the system and uploads contents into it.
-// 3. UI: Added a dedicated button in the Archive toolbar.
+// PHOENIX PROTOCOL - INTEGRATION COMPLETE
+// 1. I18N: Applied 'archive.uploadFolder' and 'archive.uploadFolderTooltip'.
+// 2. LOGIC: Includes Folder Upload, File Upload, and Archive Management.
+// 3. UI: Mobile responsive tabs and headers.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,14 +11,13 @@ import {
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File,
     Briefcase, Eye, Archive, Camera, X, User, FolderPlus, Home, ChevronRight,
     FileImage, FileCode, Hash, Info, Calendar, TrendingUp, TrendingDown, Wallet, MinusCircle, Tag,
-    FolderInput // New Icon
+    FolderInput // Folder Icon
 } from 'lucide-react';
 import { apiService, API_V1_URL, Expense, ExpenseCreateRequest } from '../services/api';
 import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut, Case, Document } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import PDFViewerModal from '../components/PDFViewerModal';
 
-// ... (Types remain the same)
 type ActiveTab = 'profile' | 'finance' | 'archive';
 
 type Breadcrumb = {
@@ -29,8 +28,8 @@ type Breadcrumb = {
 
 const DEFAULT_COLOR = '#3b82f6';
 
-// --- SUB-COMPONENTS (FinanceCard, ArchiveCard) ---
-// (Keeping these exactly as they were for brevity, they are unchanged)
+// --- SUB-COMPONENTS ---
+
 const FinanceCard = ({ title, amount, icon, color, subtext }: { title: string, amount: string, icon: React.ReactNode, color: string, subtext?: string }) => (
     <div className="group relative overflow-hidden rounded-2xl bg-gray-900/40 backdrop-blur-md border border-white/5 p-6 hover:bg-gray-800/60 transition-all duration-300 hover:-translate-y-1 shadow-lg">
         <div className={`absolute top-0 left-0 w-1 h-full ${color}`} />
@@ -124,7 +123,7 @@ const BusinessPage: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const archiveInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null); // PHOENIX: New Ref for Folders
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Logo State
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
@@ -314,12 +313,9 @@ const BusinessPage: React.FC = () => {
       const { caseId, parentId } = getCurrentContext();
       
       try {
-          // 1. Determine Root Folder Name from the first file's path
-          // Example path: "MyContracts/2024/doc.pdf" -> "MyContracts"
           const firstPath = files[0].webkitRelativePath || "";
           const rootFolderName = firstPath.split('/')[0] || "New Folder";
 
-          // 2. Create the Root Folder in the Backend
           const newFolder = await apiService.createArchiveFolder(
               rootFolderName, 
               parentId || undefined, 
@@ -329,18 +325,14 @@ const BusinessPage: React.FC = () => {
           
           if (!newFolder || !newFolder.id) throw new Error("Failed to create folder");
 
-          // 3. Upload all files into this new folder
-          // Note: This flattens sub-folders into the main folder for now (V1 Safe Approach)
           const uploadPromises = Array.from(files).map(file => {
-              // Skip system files
               if (file.name.startsWith('.')) return Promise.resolve();
-              
               return apiService.uploadArchiveItem(
                   file, 
                   file.name, 
                   "GENERAL", 
                   caseId || undefined, 
-                  newFolder.id // Upload INTO the new folder
+                  newFolder.id 
               );
           });
 
@@ -517,14 +509,12 @@ const BusinessPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-10 gap-4 sm:gap-6">
         <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">{t('business.title')}</h1>
             <p className="text-gray-400 text-sm sm:text-base">{t('business.subtitle')}</p>
         </div>
         
-        {/* Responsive Tabs Container */}
         <div className="w-full sm:w-auto flex overflow-x-auto no-scrollbar bg-background-light/10 p-1.5 rounded-2xl border border-white/10 backdrop-blur-md">
             <button onClick={() => setActiveTab('profile')} className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
                 <Building2 size={18} /><span>{t('business.profile')}</span>
@@ -689,7 +679,6 @@ const BusinessPage: React.FC = () => {
       {/* --- ARCHIVE TAB --- */}
       {activeTab === 'archive' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
-            {/* Toolbar */}
             <div className="flex flex-col gap-4">
                 <div className="flex justify-between items-center bg-white/5 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl">
                     <div className="flex items-center gap-2 overflow-x-auto text-sm no-scrollbar px-2 py-1 min-w-0">
@@ -704,14 +693,11 @@ const BusinessPage: React.FC = () => {
                         ))}
                     </div>
                     <div className="flex gap-2 flex-shrink-0 p-1 ml-2">
-                        {/* PHOENIX: Folder Creation Button */}
                         <button onClick={() => setShowFolderModal(true)} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 hover:text-amber-400 rounded-xl border border-amber-500/30 transition-all font-bold text-xs uppercase tracking-wide">
                             <FolderPlus size={16} /> <span className="hidden sm:inline">{t('archive.createFolder')}</span>
                         </button>
                         
-                        {/* PHOENIX: New Folder Upload Button */}
                         <div className="relative">
-                            {/* Note: TypeScript React doesn't officially support webkitdirectory yet, but it works in browsers. We suppress the error or cast as any if strict. */}
                             <input 
                                 type="file" 
                                 ref={folderInputRef} 
@@ -722,17 +708,17 @@ const BusinessPage: React.FC = () => {
                                 directory=""
                                 multiple 
                             />
+                            {/* PHOENIX: Updated with correct translation key */}
                             <button 
                                 onClick={() => folderInputRef.current?.click()} 
                                 disabled={isUploading} 
                                 className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 rounded-xl border border-indigo-500/30 transition-all font-bold text-xs uppercase tracking-wide disabled:opacity-50 disabled:cursor-wait"
-                                title="Upload a whole folder"
+                                title={t('archive.uploadFolderTooltip')} 
                             >
-                                {isUploading ? <Loader2 className="animate-spin w-4 h-4" /> : <FolderInput size={16} />} <span className="hidden sm:inline">Upload Folder</span>
+                                {isUploading ? <Loader2 className="animate-spin w-4 h-4" /> : <FolderInput size={16} />} <span className="hidden sm:inline">{t('archive.uploadFolder')}</span>
                             </button>
                         </div>
 
-                        {/* Standard File Upload */}
                         <div className="relative">
                             <input type="file" ref={archiveInputRef} className="hidden" onChange={handleSmartUpload} />
                             <button onClick={() => archiveInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl shadow-lg shadow-primary-start/20 transition-all font-bold text-xs uppercase tracking-wide disabled:opacity-50 disabled:cursor-wait">

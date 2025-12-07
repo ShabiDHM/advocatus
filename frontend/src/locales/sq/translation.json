@@ -113,6 +113,8 @@
   "documentsPanel": {
     "title": "Dokumentet",
     "uploadDocument": "Ngarko Dokument",
+    "uploadFolder": "Ngarko Folder",
+    "uploadFolderTooltip": "Ngarko një folder të tërë me dokumente",
     "noDocuments": "Asnjë dokument i ngarkuar.",
     "statusPending": "Në proces...",
     "statusCompleted": "Përfunduar",
@@ -139,7 +141,13 @@
     "thinking": "Duke analizuar...",
     "welcomeMessage": "Përshëndetje! Unë jam asistenti juaj ligjor.",
     "statusConnected": "Lidhur",
-    "confirmClear": "Pastro bisedën?"
+    "confirmClear": "Pastro bisedën?",
+    "contextGeneral": "E gjithë Dosja"
+  },
+  "jurisdiction": {
+    "kosovo": "Kosovë",
+    "albania": "Shqipëri",
+    "international": "Ndërkombëtare"
   },
   "analysis": {
     "analyzeButton": "Analizo Rastin",
@@ -227,6 +235,8 @@
     "emptyHint": "Filloni duke ngarkuar dokumente ose krijoni nën-dosje për të organizuar punën tuaj.",
     "createFolder": "Krijo Dosje",
     "upload": "Ngarko",
+    "uploadFolder": "Ngarko Folder",
+    "uploadFolderTooltip": "Ngarko një folder të tërë",
     "created": "Krijuar",
     "uploaded": "Ngarkuar",
     "details": "Detajet",
@@ -274,6 +284,7 @@
   "calendar": {
     "loadFailure": "Dështoi ngarkimi i të dhënave të kalendarit.",
     "noEventsFound": "Nuk u gjetën ngjarje.",
+    "moreEvents": "Ngjarje",
     "today": "Sot",
     "pageTitle": "Kalendari",
     "pageSubtitle": "Menaxho ngjarjet, afatet dhe seancat e tua.",
@@ -285,7 +296,6 @@
     "allPriorities": "Të gjitha Prioritetet",
     "noUpcomingEvents": "Nuk ka afate të ardhshme në 7 ditët e ardhshme.",
     "upcomingAlerts": "Afatet e Ardhshme",
-    "moreEvents": "Të tjera",
     "addToCalendar": "Shto në Kalendar",
     "eventSaved": "Ngjarje u ruajt me sukses!",
     "date": "Data",
