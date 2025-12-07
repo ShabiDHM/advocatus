@@ -1,7 +1,8 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - IMPORT PATH CORRECTION
-# 1. FIX: Corrected all relative import paths (e.g., from ..models to app.models).
-# 2. STATUS: Resolves all 'could not be resolved' errors.
+# PHOENIX PROTOCOL - REVISION 2
+# 1. FIX: Logo now loads directly from Storage Service bytes (bypassing HTTP loopback).
+# 2. FEATURE: Added intelligent prefix injection for Client Details (Address, Tel, NUI).
+# 3. STABILITY: Enhanced PIL image processing to handle RGBA/Palette transparency for PDFs.
 
 import io
 import structlog
@@ -23,7 +24,6 @@ from bson import ObjectId
 from xml.sax.saxutils import escape
 from PIL import Image as PILImage
 
-# PHOENIX FIX: Changed from relative to absolute paths from the 'app' root
 from app.models.finance import InvoiceInDB
 from app.services import storage_service, findings_service
 
@@ -94,22 +94,39 @@ def _get_branding(db: Database, user_id: str) -> dict:
     return {"firm_name": "Juristi.tech", "branding_color": BRAND_COLOR_DEFAULT, "address": "", "email_public": "", "phone": "", "nui": ""}
 
 def _fetch_logo_buffer(url: Optional[str], storage_key: Optional[str] = None) -> Optional[io.BytesIO]:
+    """
+    Retrieves the logo as a BytesIO buffer suitable for ReportLab.
+    Prioritizes direct byte retrieval from Storage Service to avoid Docker DNS issues.
+    """
     raw_data = None
+    
+    # 1. Try Direct Storage (Fastest & Most Reliable in Docker)
     if storage_key:
         try:
             stream = storage_service.get_file_stream(storage_key)
-            if hasattr(stream, 'read'): raw_data = stream.read()
-        except Exception as e: logger.warning(f"Storage logo fetch failed: {e}")
+            if hasattr(stream, 'read'): 
+                raw_data = stream.read()
+            elif isinstance(stream, bytes):
+                raw_data = stream
+        except Exception as e: 
+            logger.warning(f"Storage logo fetch failed for key {storage_key}: {e}")
 
+    # 2. Fallback to URL (Only if storage key failed or missing)
     if not raw_data and url and url.startswith("http"):
         try:
-            response = requests.get(url, timeout=5)
-            if response.status_code == 200: raw_data = response.content
-        except Exception as e: logger.warning(f"URL logo fetch failed: {e}")
+            # PHOENIX FIX: Set short timeout to prevent hanging
+            response = requests.get(url, timeout=3)
+            if response.status_code == 200: 
+                raw_data = response.content
+        except Exception as e: 
+            logger.warning(f"URL logo fetch failed: {e}")
 
+    # 3. Process Image Bytes
     if raw_data:
         try:
             img = PILImage.open(io.BytesIO(raw_data))
+            
+            # Handle Transparency (RGBA/P) -> RGB with White Background
             if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
                 bg = PILImage.new("RGB", img.size, (255, 255, 255))
                 if img.mode == 'P': img = img.convert('RGBA')
@@ -119,10 +136,12 @@ def _fetch_logo_buffer(url: Optional[str], storage_key: Optional[str] = None) ->
                 img = img.convert('RGB')
             
             out_buffer = io.BytesIO()
-            img.save(out_buffer, format='JPEG', quality=100)
+            img.save(out_buffer, format='JPEG', quality=95)
             out_buffer.seek(0)
             return out_buffer
-        except Exception as e: logger.error(f"Logo processing error: {e}")
+        except Exception as e: 
+            logger.error(f"Logo processing error: {e}")
+            
     return None
 
 # --- PDF GENERATOR ---
@@ -184,7 +203,7 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     
     Story: List[Flowable] = []
 
-    # Logo
+    # 1. Logo Section
     logo_buffer = _fetch_logo_buffer(branding.get("logo_url"), branding.get("logo_storage_key"))
     logo_obj = Spacer(0, 0)
     
@@ -199,14 +218,16 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
             logo_buffer.seek(0)
             logo_obj = ReportLabImage(logo_buffer, width=w, height=h)
             logo_obj.hAlign = 'LEFT'
-        except Exception: pass
+        except Exception: 
+            pass
 
-    # Firm Details
+    # 2. Firm Details Section
     firm_details_content: List[Flowable] = []
     
     fn = branding.get("firm_name")
     if fn: firm_details_content.append(Paragraph(str(fn), STYLES['FirmName']))
     
+    # PHOENIX FIX: Strict Check for missing firm details
     addr = branding.get("address")
     if addr: firm_details_content.append(Paragraph(f"<b>{_get_text('lbl_address', lang)}</b> {addr}", STYLES['FirmMeta']))
         
@@ -226,7 +247,7 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     Story.append(header_table)
     Story.append(Spacer(1, 15*mm))
 
-    # Meta
+    # 3. Invoice Meta (Title, Date, Number)
     meta_table_data = [
         [Paragraph(f"{_get_text('invoice_num', lang)} {invoice.invoice_number}", STYLES['MetaValue'])],
         [Spacer(1, 3*mm)],
@@ -239,34 +260,51 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     Story.append(title_table)
     Story.append(Spacer(1, 15*mm))
 
-    # Client
+    # 4. Client Section (Intelligent Prefixing)
     client_content: List[Flowable] = []
+    
+    # Client Name (Always Bold)
     client_content.append(Paragraph(f"<b>{invoice.client_name}</b>", STYLES['AddressText']))
     
+    # Intelligent Field Processing
     raw_addr = invoice.client_address or ""
     lines = [l.strip() for l in raw_addr.split('\n') if l.strip()]
     address_line_found = False
     
+    # Regex Patterns for guessing content
+    re_phone = re.compile(r'(\+?\d[\d\s\-\(\)]{6,})')
+    re_nui = re.compile(r'(\d{8,})') # Assuming 8+ digits for Tax ID
+    
     for line in lines:
         lower = line.lower()
         formatted = line
-        if any(x in lower for x in ['tel:', 'tel.', 'mobile:', 'mob:']):
-            parts = re.split(r'[:.]', line, 1)
-            if len(parts) > 1: formatted = f"<b>{parts[0].strip()}:</b> {parts[1].strip()}"
-        elif any(x in lower for x in ['nui:', 'nui.', 'nr.', 'fiscal']):
-             parts = re.split(r'[:.]', line, 1)
-             if len(parts) > 1: formatted = f"<b>{parts[0].strip()}:</b> {parts[1].strip()}"
-        elif '@' in lower:
-             if not lower.startswith('email'): formatted = f"<b>{_get_text('lbl_email', lang)}</b> {line}"
-             else:
-                 parts = line.split(":", 1)
-                 if len(parts) > 1: formatted = f"<b>{parts[0].strip()}:</b> {parts[1].strip()}"
-        elif not address_line_found:
-             formatted = f"<b>{_get_text('lbl_address', lang)}</b> {line}"
-             address_line_found = True
+        
+        # Check if line already has a prefix
+        has_prefix = ':' in line or 'Tel' in line or 'NUI' in line or 'Email' in line
+        
+        if not has_prefix:
+            if re_phone.search(line):
+                formatted = f"<b>{_get_text('lbl_tel', lang)}</b> {line}"
+            elif re_nui.search(line) and len(line) < 15: # Avoid confusing long addresses with NUI
+                formatted = f"<b>{_get_text('lbl_nui', lang)}</b> {line}"
+            elif '@' in line:
+                formatted = f"<b>{_get_text('lbl_email', lang)}</b> {line}"
+            elif not address_line_found:
+                 formatted = f"<b>{_get_text('lbl_address', lang)}</b> {line}"
+                 address_line_found = True
+        else:
+            # Clean up existing prefixes if they are rough
+            if lower.startswith('tel'):
+                parts = re.split(r'[:.]', line, 1)
+                if len(parts) > 1: formatted = f"<b>{_get_text('lbl_tel', lang)}</b> {parts[1].strip()}"
+            elif lower.startswith('nui') or lower.startswith('fiscal'):
+                parts = re.split(r'[:.]', line, 1)
+                if len(parts) > 1: formatted = f"<b>{_get_text('lbl_nui', lang)}</b> {parts[1].strip()}"
+
         client_content.append(Paragraph(formatted, STYLES['AddressText']))
 
-    if invoice.client_email:
+    # Append explicitly stored fields if not already in text
+    if invoice.client_email and '@' not in raw_addr:
         client_content.append(Paragraph(f"<b>{_get_text('lbl_email', lang)}</b> {invoice.client_email}", STYLES['AddressText']))
     
     address_wrapper = Table([[Paragraph(_get_text('to', lang), STYLES['AddressLabel']), client_content]], colWidths=[20*mm, 160*mm])
@@ -274,7 +312,7 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     Story.append(address_wrapper)
     Story.append(Spacer(1, 10*mm))
     
-    # Items
+    # 5. Items Table
     headers = [_get_text('desc', lang), _get_text('qty', lang), _get_text('price', lang), _get_text('total', lang)]
     header_row = [Paragraph(h, STYLES['TableHeader']) for h in headers]
     data = [header_row]
@@ -289,7 +327,7 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     t = Table(data, colWidths=[95*mm, 20*mm, 30*mm, 35*mm], style=[('BACKGROUND', (0,0), (-1,0), brand_color), ('VALIGN', (0,0), (-1,-1), 'TOP'), ('LINEBELOW', (0,-1), (-1,-1), 1, COLOR_BORDER), ('TOPPADDING', (0,0), (-1,-1), 8), ('BOTTOMPADDING', (0,0), (-1,-1), 8), ('ROWBACKGROUNDS', (0,1), (-1,-1), [HexColor("#FFFFFF"), HexColor("#F9FAFB")])])
     Story.append(t)
     
-    # Totals
+    # 6. Totals Section
     totals_data = [
         [Paragraph(_get_text('subtotal', lang), STYLES['TotalLabel']), Paragraph(f"€{invoice.subtotal:,.2f}", STYLES['TotalLabel'])],
         [Paragraph(_get_text('tax', lang), STYLES['TotalLabel']), Paragraph(f"€{invoice.tax_amount:,.2f}", STYLES['TotalLabel'])],
@@ -299,6 +337,7 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     wrapper = Table([["", t_totals]], colWidths=[110*mm, 75*mm], style=[('ALIGN', (1,0), (1,0), 'RIGHT')])
     Story.append(wrapper)
 
+    # 7. Notes
     if invoice.notes:
         Story.append(Spacer(1, 10*mm))
         Story.append(Paragraph(_get_text('notes', lang), STYLES['NotesLabel']))
