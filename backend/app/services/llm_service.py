@@ -1,7 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - TIERED HYBRID INTELLIGENCE V4.2
-# 1. ADDED: 'generate_text' generic method for flexible AI tasks (like Receipt Scanning).
-# 2. STATUS: Fully capable of serving the Finance module.
+# PHOENIX PROTOCOL - CLEANUP
+# 1. REMOVED: 'generate_text' (AI Scan feature deprecated).
+# 2. STATUS: Reverted to core analysis functions only.
 
 import os
 import json
@@ -56,12 +56,10 @@ def _parse_json_safely(content: str) -> Dict[str, Any]:
     try:
         return json.loads(content)
     except json.JSONDecodeError:
-        # Strip Markdown
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
         if match:
             try: return json.loads(match.group(1))
             except: pass
-        # Brute force
         start, end = content.find('{'), content.rfind('}')
         if start != -1 and end != -1:
             try: return json.loads(content[start:end+1])
@@ -159,19 +157,8 @@ def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
     if content: return _parse_json_safely(content)
     return {"entities": [], "relations": []}
 
-# PHOENIX NEW: Generic Text Generator (Used by Finance Service)
-def generate_text(user_prompt: str, system_prompt: str = "You are a helpful assistant.", json_mode: bool = False) -> str:
-    # Tier 1
-    res = _call_deepseek(system_prompt, user_prompt, json_mode)
-    if res: return res
-    # Tier 2
-    res = _call_groq(system_prompt, user_prompt, json_mode)
-    if res: return res
-    # Tier 3
-    return _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode)
-
-# Legacy stubs
 def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict:
     return {"answer": "Logic moved to RAG Service.", "sources": []}
+
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
     return []

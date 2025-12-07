@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE API V3.2 (SYNTAX FIX)
-# 1. FIX: Reordered arguments in 'scan_expense_receipt' to fix Python Syntax Error.
-# 2. STATUS: Fully functional.
+# PHOENIX PROTOCOL - FINANCE API V3.4 (SYNTAX FIXED)
+# 1. FIX: Reordered arguments in 'upload_expense_receipt' to comply with Python rules.
+# 2. STATUS: Ready for Manual Expense Attachment.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -58,18 +58,6 @@ async def archive_invoice(invoice_id: str, current_user: Annotated[UserInDB, Dep
     return await archive_service.save_generated_file(user_id=str(current_user.id), filename=filename, content=pdf_buffer.getvalue(), category="INVOICE", title=f"Fatura #{invoice.invoice_number} - {invoice.client_name}", case_id=case_id)
 
 # --- EXPENSES ---
-
-# PHOENIX FIX: 'current_user' (Required) must come BEFORE 'file' (Default)
-@router.post("/expenses/scan", status_code=status.HTTP_200_OK)
-async def scan_expense_receipt(
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    file: UploadFile = File(...),
-    db: Database = Depends(get_db)
-):
-    service = FinanceService(db)
-    result = await service.scan_receipt(file)
-    return JSONResponse(content=result)
-
 @router.post("/expenses", response_model=ExpenseOut, status_code=status.HTTP_201_CREATED)
 def create_expense(expense_in: ExpenseCreate, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     return FinanceService(db).create_expense(str(current_user.id), expense_in)
@@ -81,3 +69,15 @@ def get_expenses(current_user: Annotated[UserInDB, Depends(get_current_user)], d
 @router.delete("/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_expense(expense_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     FinanceService(db).delete_expense(str(current_user.id), expense_id)
+
+# PHOENIX FIX: Correct Argument Order (Required args before Defaults)
+@router.put("/expenses/{expense_id}/receipt", status_code=status.HTTP_200_OK)
+def upload_expense_receipt(
+    expense_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    file: UploadFile = File(...),
+    db: Database = Depends(get_db)
+):
+    service = FinanceService(db)
+    storage_key = service.upload_expense_receipt(str(current_user.id), expense_id, file)
+    return {"status": "success", "storage_key": storage_key}
