@@ -1,8 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - UPLOAD HEADERS RESTORED
-// 1. FIX: Explicitly sets 'multipart/form-data' for all file uploads.
-// 2. REASON: Overrides the default 'application/json' to prevent 422 errors.
-// 3. STATUS: Production Ready.
+// PHOENIX PROTOCOL - HEADER BOUNDARY FIX
+// 1. FIX: Sets 'Content-Type' to undefined for uploads. This forces the browser to auto-generate the boundary.
+// 2. STATUS: Solves the 422 error by ensuring valid Multipart payloads.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -184,9 +183,9 @@ class ApiService {
     public async uploadBusinessLogo(file: File): Promise<BusinessProfile> { 
         const formData = new FormData(); 
         formData.append('file', file); 
-        // PHOENIX FIX: Restored Content-Type header
+        // PHOENIX FIX: Allow browser to set boundary
         const response = await this.axiosInstance.put<BusinessProfile>('/business/logo', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+            headers: { 'Content-Type': undefined } as any
         }); 
         return response.data; 
     }
@@ -212,13 +211,17 @@ class ApiService {
     public async deleteExpense(expenseId: string): Promise<void> { await this.axiosInstance.delete(`/finance/expenses/${expenseId}`); }
 
     // PHOENIX: Smart Expense Scanner
-    // FIX: Restored Content-Type header to ensure multipart processing
+    // FIX: Content-Type: undefined forces browser to generate boundary
     public async scanExpenseReceipt(file: File): Promise<{ category?: string, amount?: number, date?: string, description?: string }> {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await this.axiosInstance.post<{ category?: string, amount?: number, date?: string, description?: string }>('/finance/expenses/scan', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
+        const response = await this.axiosInstance.post<{ category?: string, amount?: number, date?: string, description?: string }>(
+            '/finance/expenses/scan', 
+            formData, 
+            {
+                headers: { 'Content-Type': undefined } as any
+            }
+        );
         return response.data;
     }
 
@@ -249,7 +252,7 @@ class ApiService {
         }
     }
     
-    // FIX: Restored header
+    // FIX: Allow browser boundary
     public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { 
         const formData = new FormData(); 
         formData.append('file', file); 
@@ -258,7 +261,7 @@ class ApiService {
         if (caseId) formData.append('case_id', caseId); 
         if (parentId) formData.append('parent_id', parentId);
         const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData, { 
-            headers: { 'Content-Type': 'multipart/form-data' }
+            headers: { 'Content-Type': undefined } as any
         }); 
         return response.data; 
     }
@@ -272,12 +275,12 @@ class ApiService {
         return Array.isArray(response.data) ? response.data : (response.data.documents || []);
     }
     
-    // FIX: Restored header
+    // FIX: Allow browser boundary
     public async uploadDocument(caseId: string, file: File, onProgress?: (percent: number) => void): Promise<Document> { 
         const formData = new FormData(); 
         formData.append('file', file); 
         const response = await this.axiosInstance.post<Document>(`/cases/${caseId}/documents/upload`, formData, { 
-            headers: { 'Content-Type': 'multipart/form-data' },
+            headers: { 'Content-Type': undefined } as any,
             onUploadProgress: (progressEvent) => {
                 if (onProgress && progressEvent.total) {
                     const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
