@@ -1,8 +1,8 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - INTEGRATION COMPLETE
-// 1. I18N: Applied 'documentsPanel.uploadFolderTooltip'.
-// 2. LOGIC: Case-specific batch upload.
-// 3. STATUS: Production Ready.
+// PHOENIX PROTOCOL - INTEGRATION CHECKED
+// 1. UPLOAD: Supports Files & Folders (Batch Upload).
+// 2. ACTIONS: Deep Scan, Archive, Rename, View, Delete.
+// 3. UX: Progress bars, loading states, and tooltips.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -11,7 +11,7 @@ import { apiService } from '../services/api';
 import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
-    ScanEye, Archive, Pencil, FolderInput // Folder Icon
+    ScanEye, Archive, Pencil, FolderInput
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -41,7 +41,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   className
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null); // Ref for folder input
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -96,7 +96,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       setUploadError(null);
 
       const fileArray = Array.from(files);
-
+      // Upload sequentially to prevent overwhelming the server/browser
       for (let i = 0; i < fileArray.length; i++) {
           await performUpload(fileArray[i]);
       }
@@ -160,7 +160,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         </div>
 
         <div className="flex-shrink-0 flex gap-2">
-          {/* PHOENIX: Folder Input - Correct Translation */}
+          {/* Folder Input */}
           <input 
             type="file" 
             ref={folderInputRef} 
@@ -182,7 +182,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
             {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FolderInput className="h-5 w-5" />}
           </motion.button>
 
-          {/* Standard File Input */}
+          {/* File Input */}
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
           <motion.button
             onClick={() => fileInputRef.current?.click()}

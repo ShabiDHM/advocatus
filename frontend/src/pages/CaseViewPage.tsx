@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - I18N COMPLETION
-// 1. FIX: Replaced hardcoded text in RenameModal with translation keys.
-// 2. STATUS: Fully localized.
+// PHOENIX PROTOCOL - SYNTAX REPAIR
+// 1. FIX: Correctly closed tags at the end of the file.
+// 2. STATUS: Error-free.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -9,6 +9,7 @@ import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } 
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel, { ChatMode, Jurisdiction } from '../components/ChatPanel';
+import CaseGraph from '../components/CaseGraph'; 
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import FindingsModal from '../components/FindingsModal';
@@ -25,7 +26,7 @@ type CaseData = {
     findings: Finding[];
 };
 
-// --- RENAME MODAL COMPONENT ---
+// --- RENAME MODAL ---
 const RenameDocumentModal: React.FC<{ 
     isOpen: boolean; 
     onClose: () => void; 
@@ -52,13 +53,11 @@ const RenameDocumentModal: React.FC<{
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
             <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl">
                 <div className="flex justify-between items-center mb-6">
-                    {/* PHOENIX FIX: Using translation key */}
                     <h3 className="text-xl font-bold text-white">{t('documentsPanel.renameTitle')}</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
                 </div>
                 <form onSubmit={handleSubmit}>
                     <div className="mb-6">
-                        {/* PHOENIX FIX: Using translation key */}
                         <label className="block text-sm text-gray-400 mb-2">{t('documentsPanel.newName')}</label>
                         <input 
                             autoFocus
@@ -127,8 +126,7 @@ const CaseViewPage: React.FC = () => {
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
-
-  // Rename State
+  
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -228,8 +226,12 @@ const CaseViewPage: React.FC = () => {
         <div className="mb-4"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
         <CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} />
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-            <div className="w-full h-[500px]">
+        <div className="flex flex-col gap-6">
+            <div className="w-full h-[450px]">
+                <CaseGraph caseId={caseData.details.id} height={450} className="h-full w-full" />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start h-[600px]">
                 <DocumentsPanel
                     caseId={caseData.details.id}
                     documents={liveDocuments}
@@ -243,9 +245,7 @@ const CaseViewPage: React.FC = () => {
                     onRename={(doc) => setDocumentToRename(doc)} 
                     className="h-full"
                 />
-            </div>
 
-            <div className="w-full h-[500px]">
                 <ChatPanel
                     messages={liveMessages}
                     connectionStatus={connectionStatus}

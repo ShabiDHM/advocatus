@@ -1,8 +1,8 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH MASTER V4.1
-# 1. NORMALIZATION: Auto-capitalizes names to prevent duplicates (e.g., "agim" -> "Agim").
-# 2. DEPTH: 'find_hidden_connections' now searches 2 degrees of separation.
-# 3. SCHEMA: Enforces strict labels (Person, Org, etc.) for better visualization colors.
+# PHOENIX PROTOCOL - GRAPH MASTER V5 (NETWORK INTELLIGENCE)
+# 1. UPGRADE: 'get_case_graph' now fetches INTER-ENTITY connections (The "Web"), not just Document links.
+# 2. VISUAL: Calculates 'val' (Node Size) dynamically based on importance (Degree Centrality).
+# 3. SCHEMA: strict upper-case Grouping for easy Frontend Color mapping.
 
 import os
 import structlog
@@ -30,7 +30,7 @@ class GraphService:
                 auth=basic_auth(NEO4J_USER, NEO4J_PASSWORD)
             )
             self._driver.verify_connectivity()
-            logger.info("✅ Connected to Neo4j Graph Database.")
+            # logger.info("✅ Connected to Neo4j Graph Database.")
         except Exception as e:
             logger.error(f"❌ Failed to connect to Neo4j: {e}")
             self._driver = None
@@ -41,7 +41,7 @@ class GraphService:
 
     def delete_document_nodes(self, document_id: str):
         """
-        Removes a document and cleans up orphaned entities.
+        Removes a document and cleans up orphaned entities to keep graph clean.
         """
         self._connect()
         if not self._driver: return
@@ -50,6 +50,7 @@ class GraphService:
         MATCH (d:Document {id: $doc_id})
         DETACH DELETE d
         """
+        # Cleanup orphans (Nodes with no relationships left)
         cleanup_query = """
         MATCH (n)
         WHERE NOT (n)--()
@@ -65,7 +66,8 @@ class GraphService:
 
     def ingest_entities_and_relations(self, case_id: str, document_id: str, doc_name: str, entities: List[Dict], relations: List[Dict]):
         """
-        Creates nodes/relationships. Uses MERGE to prevent duplicates.
+        Ingests extracted data. 
+        Crucial: Creates the 'MENTIONS' link from Doc to Entity, AND the 'ACTION' link between Entities.
         """
         self._connect()
         if not self._driver: return
@@ -74,42 +76,52 @@ class GraphService:
             # 1. Document Node (The Anchor)
             tx.run("""
                 MERGE (d:Document {id: $doc_id})
-                SET d.case_id = $case_id, d.name = $doc_name
+                SET d.case_id = $case_id, d.name = $doc_name, d.group = 'DOCUMENT'
             """, doc_id=d_id, case_id=c_id, doc_name=d_name)
 
-            # 2. Entities (With Normalization)
+            # 2. Entities (Nodes)
             for ent in ents:
-                # Normalize Label
-                raw_label = ent.get("type", "Entity").capitalize()
-                allowed_labels = ["Person", "Organization", "Location", "Date", "Money", "Law", "Entity"]
-                label = raw_label if raw_label in allowed_labels else "Entity"
+                # Normalize Label & Name
+                raw_label = ent.get("type", "Entity").strip().capitalize()
+                # Strict Schema for Colors
+                if raw_label in ["Person", "People"]: label = "PERSON"
+                elif raw_label in ["Organization", "Company", "Org"]: label = "ORGANIZATION"
+                elif raw_label in ["Money", "Amount", "Currency"]: label = "MONEY"
+                elif raw_label in ["Date", "Time"]: label = "DATE"
+                elif raw_label in ["Location", "Place"]: label = "LOCATION"
+                else: label = "ENTITY"
                 
-                # Normalize Name (Title Case to merge "agim" and "Agim")
-                name = ent.get("name", "").strip().title()
+                name = ent.get("name", "").strip()
+                # Capitalize generic names, keep Acronyms if detected? Simple title case is safest.
+                name = name.title() 
                 if not name or len(name) < 2: continue
 
                 # Create Entity and Link to Doc
+                # Note: We use the 'name' as the unique constraints usually.
                 query = f"""
                 MERGE (e:{label} {{name: $name}})
+                ON CREATE SET e.group = '{label}'
                 MERGE (d:Document {{id: $doc_id}})
                 MERGE (d)-[:MENTIONS]->(e)
                 """
                 tx.run(query, name=name, doc_id=d_id)
 
-            # 3. Relationships (Subject -> Object)
+            # 3. Relationships (Edges)
             for rel in rels:
                 subj = rel.get("subject", "").strip().title()
                 obj = rel.get("object", "").strip().title()
-                # Normalize Predicate (e.g., "signed contract" -> "SIGNED_CONTRACT")
-                predicate = rel.get("relation", "RELATED_TO").upper().replace(" ", "_")
+                
+                # Predicate Normalization (e.g., "paid to" -> "PAID_TO")
+                predicate = rel.get("relation", "RELATED_TO").upper().strip().replace(" ", "_")
+                if len(predicate) > 20: predicate = "RELATED_TO" # Safety cap
                 
                 if not subj or not obj: continue
 
-                # We search for ANY node with this name, regardless of label
+                # Search for ANY existing node with these names to link them
                 query = f"""
                 MATCH (a {{name: $subj}})
                 MATCH (b {{name: $obj}})
-                MERGE (a)-[:{predicate}]->(b)
+                MERGE (a)-[r:{predicate}]->(b)
                 """
                 try:
                     tx.run(query, subj=subj, obj=obj)
@@ -119,131 +131,146 @@ class GraphService:
         try:
             with self._driver.session() as session:
                 session.execute_write(_tx_ingest, case_id, document_id, doc_name, entities, relations)
-            logger.info(f"🕸️ Graph Ingestion Complete: {len(entities)} Entities.")
+            logger.info(f"🕸️ Graph Ingestion Complete: {len(entities)} Entities for {doc_name}")
         except Exception as e:
             logger.error(f"Graph Transaction Failed: {e}")
 
-    def find_hidden_connections(self, query_term: str) -> List[str]:
-        """
-        Finds direct and 2-hop connections. 
-        Example: "Agim" -> Signed -> "Contract" -> Mentioned -> "Company X"
-        """
-        self._connect()
-        if not self._driver: return []
-        
-        # PHOENIX UPGRADE: 2-Hop Search
-        query = """
-        MATCH (start)-[r1]-(mid)-[r2]-(end)
-        WHERE toLower(start.name) CONTAINS toLower($term)
-        RETURN start.name, type(r1), mid.name, type(r2), end.name
-        LIMIT 10
-        """
-        
-        # Fallback for direct connections if 2-hop is empty or too slow
-        direct_query = """
-        MATCH (a)-[r]-(b)
-        WHERE toLower(a.name) CONTAINS toLower($term)
-        RETURN a.name, type(r), b.name, labels(b) as type
-        LIMIT 10
-        """
-        
-        connections = []
-        try:
-            with self._driver.session() as session:
-                # 1. Try Deep Search first
-                result = session.run(query, term=query_term)
-                for record in result:
-                    # Format: "Agim --SIGNED--> Contract --OWNED_BY--> Company"
-                    connections.append(
-                        f"{record['start.name']} --{record['type(r1)']}--> {record['mid.name']} --{record['type(r2)']}--> {record['end.name']}"
-                    )
-                
-                # 2. Get Direct connections to fill gaps
-                res_direct = session.run(direct_query, term=query_term)
-                for rec in res_direct:
-                    target_type = rec['type'][0] if rec['type'] else "Entity"
-                    connections.append(f"{rec['a.name']} --{rec['type(r)']}--> {rec['b.name']} ({target_type})")
-                    
-                return list(set(connections)) # Deduplicate
-        except Exception as e:
-            logger.warning(f"Graph Search Error: {e}")
-            return []
-
     def get_case_graph(self, case_id: str) -> Dict[str, List]:
         """
-        Visualization Query. Returns Document nodes and their 1-hop neighbors.
+        The "Professional V5" Query.
+        Fetches the entire connected subgraph for a case, allowing us to see 
+        connections between people that don't involve the document directly.
         """
         self._connect()
         if not self._driver: return {"nodes": [], "links": []}
 
-        # Optimized Query: Find Documents in Case, then find everything connected to them.
+        # QUERY LOGIC:
+        # 1. Find all Documents in this Case.
+        # 2. Collect all Entities mentioned by these Documents.
+        # 3. UNWIND this list to get a set of "Relevant Nodes".
+        # 4. Find ALL relationships (r) where BOTH start and end nodes are in this Relevant set.
+        # 5. Return everything.
+        
         query = """
         MATCH (d:Document {case_id: $case_id})
-        OPTIONAL MATCH (d)-[r]-(target)
-        RETURN d, r, target
+        OPTIONAL MATCH (d)-[:MENTIONS]->(e)
+        
+        WITH collect(DISTINCT d) + collect(DISTINCT e) as nodes
+        UNWIND nodes as n
+        
+        OPTIONAL MATCH (n)-[r]-(m)
+        WHERE m IN nodes
+        
+        RETURN DISTINCT n, r, m
         """
         
-        nodes = {}
-        links = []
+        nodes_dict = {}
+        links_list = []
         
         try:
             with self._driver.session() as session:
                 result = session.run(query, case_id=case_id)
                 
                 for record in result:
-                    # 1. Document Node
-                    doc_node = record['d']
-                    if not doc_node: continue
+                    n = record['n']
+                    r = record['r']
+                    m = record['m']
                     
-                    # Neo4j 5.x uses element_id
-                    d_id = getattr(doc_node, "element_id", str(doc_node.id))
-                    # We stored the real UUID in property 'id'
-                    doc_uuid = doc_node.get("id", d_id)
-                    
-                    if doc_uuid not in nodes:
-                        nodes[doc_uuid] = {
-                            "id": doc_uuid,
-                            "name": doc_node.get("name", "Document"),
-                            "group": "DOCUMENT",
-                            "val": 25 # Size
-                        }
-                    
-                    # 2. Target Entity
-                    target = record['target']
-                    rel = record['r']
-                    
-                    if target and rel:
-                        # Target UUID strategy: Use name as ID for entities to merge them visually
-                        # Or use element_id if we want strict graph separation. 
-                        # Using 'name' merges "Agim" from Doc A and "Agim" from Doc B -> ONE NODE (Better)
-                        target_name = target.get("name", "Unknown")
-                        t_id = target_name # Visual Merge
+                    # Process Node N
+                    if n:
+                        # Use Neo4j element_id or fallback 'id' property or name
+                        # For Documents, we have 'id'. For Entities, 'name' is the unique key.
+                        nid = n.get("id", n.get("name")) 
+                        if not nid: continue
                         
-                        target_labels = list(target.labels)
-                        # Filter out internal labels if any
-                        lbl = target_labels[0] if target_labels else "Entity"
-                        
-                        if t_id not in nodes:
-                            nodes[t_id] = {
-                                "id": t_id,
-                                "name": target_name,
-                                "group": lbl.upper(), # 'PERSON', 'ORG'
-                                "val": 10
+                        if nid not in nodes_dict:
+                            # Calculate Importance (Simple Degree Centrality Simulation)
+                            # We default to 1, and increment on links later, or rely on Frontend physics
+                            grp = n.get("group", "ENTITY")
+                            base_size = 20 if grp == 'DOCUMENT' else 8
+                            
+                            nodes_dict[nid] = {
+                                "id": nid,
+                                "name": n.get("name", "Unknown"),
+                                "group": grp,
+                                "val": base_size, # Base size
+                                "neighbor_count": 0
                             }
+                    
+                    # Process Node M (Target)
+                    if m:
+                        mid = m.get("id", m.get("name"))
+                        if mid and mid not in nodes_dict:
+                            grp = m.get("group", "ENTITY")
+                            base_size = 20 if grp == 'DOCUMENT' else 8
+                            nodes_dict[mid] = {
+                                "id": mid,
+                                "name": m.get("name", "Unknown"),
+                                "group": grp,
+                                "val": base_size,
+                                "neighbor_count": 0
+                            }
+
+                    # Process Relationship
+                    if r and n and m:
+                        src = n.get("id", n.get("name"))
+                        tgt = m.get("id", m.get("name"))
+                        rel_type = r.type
                         
-                        links.append({
-                            "source": doc_uuid,
-                            "target": t_id,
-                            "label": type(rel).__name__
+                        # Filter out basic "MENTIONS" to reduce noise? 
+                        # No, user wants to see connections.
+                        
+                        links_list.append({
+                            "source": src,
+                            "target": tgt,
+                            "label": rel_type.replace("_", " ") # Clean formatting "PAID_TO" -> "PAID TO"
                         })
                         
+                        # Increment Centrality for Visualization Sizing
+                        if src in nodes_dict: nodes_dict[src]['neighbor_count'] += 1
+                        if tgt in nodes_dict: nodes_dict[tgt]['neighbor_count'] += 1
+
+            # Post-Process: Adjust Size based on Centrality
+            final_nodes = []
+            for node in nodes_dict.values():
+                # Documents stay large (20). Entities grow from 8 up to 30 based on connections.
+                if node['group'] != 'DOCUMENT':
+                    # Cap size at 30 to prevent massive bubbles
+                    node['val'] = min(30, 8 + (node['neighbor_count'] * 1.5))
+                
+                final_nodes.append(node)
+
             return {
-                "nodes": list(nodes.values()),
-                "links": links
+                "nodes": final_nodes,
+                "links": links_list
             }
+
         except Exception as e:
             logger.error(f"Graph Retrieval Failed: {e}")
             return {"nodes": [], "links": []}
 
-# Global Instance
+    def find_hidden_connections(self, query_term: str) -> List[str]:
+        """
+        Deep Search for Search Bar.
+        """
+        self._connect()
+        if not self._driver: return []
+        
+        # Simple 1-Hop Search
+        query = """
+        MATCH (a)-[r]-(b)
+        WHERE toLower(a.name) CONTAINS toLower($term)
+        RETURN a.name, type(r), b.name
+        LIMIT 15
+        """
+        results = []
+        try:
+            with self._driver.session() as session:
+                res = session.run(query, term=query_term)
+                for rec in res:
+                    results.append(f"{rec['a.name']} --[{rec['type(r)']}]--> {rec['b.name']}")
+            return list(set(results))
+        except Exception:
+            return []
+
 graph_service = GraphService()
