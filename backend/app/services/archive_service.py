@@ -1,8 +1,8 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE V2 SERVICE (FOLDER SUPPORT)
-# 1. FEATURE: Added 'create_folder' method.
-# 2. LOGIC: Updated 'get_archive_items' to support hierarchical browsing via 'parent_id'.
-# 3. SCHEMA: Supports the new 'item_type' (FILE/FOLDER) distinction.
+# PHOENIX PROTOCOL - ARCHIVE V2.1 (CASCADE DELETE)
+# 1. UPDATE: 'delete_archive_item' now performs recursive deletion for folders.
+# 2. LOGIC: Ensures all children (files/subfolders) are wiped from DB and Storage.
+# 3. SAFETY: Prevents orphaned data.
 
 import os
 import logging
@@ -156,22 +156,38 @@ class ArchiveService:
         cursor = self.db.archives.find(query).sort([("item_type", -1), ("created_at", -1)])
         return [ArchiveItemInDB(**doc) for doc in cursor]
 
+    # --- CASCADE DELETION ---
     def delete_archive_item(self, user_id: str, item_id: str):
-        query: Dict[str, Any] = {"_id": self._to_oid(item_id), "user_id": self._to_oid(user_id)}
-        item = self.db.archives.find_one(query)
-        if not item: raise HTTPException(status_code=404, detail="Item not found")
+        """
+        Deletes an archive item.
+        If item is a FOLDER, recursively deletes all children (files and subfolders).
+        """
+        oid_user = self._to_oid(user_id)
+        oid_item = self._to_oid(item_id)
         
-        # If it's a file, delete from S3
-        if item.get("item_type", "FILE") == "FILE" and item.get("storage_key"):
+        item = self.db.archives.find_one({"_id": oid_item, "user_id": oid_user})
+        if not item: 
+            raise HTTPException(status_code=404, detail="Item not found")
+        
+        # 1. Recursive Delete for Folders
+        if item.get("item_type") == "FOLDER":
+            # Find children where parent_id == current folder id
+            children = self.db.archives.find({"parent_id": oid_item, "user_id": oid_user})
+            for child in children:
+                # Recurse using string ID
+                self.delete_archive_item(user_id, str(child["_id"]))
+        
+        # 2. File Cleanup (Storage)
+        if item.get("item_type") == "FILE" and item.get("storage_key"):
             try:
                 s3_client = get_s3_client()
                 s3_client.delete_object(Bucket=B2_BUCKET_NAME, Key=item["storage_key"])
-            except Exception: pass
+            except Exception as e:
+                logger.error(f"Failed to delete S3 file {item['storage_key']}: {e}")
+                # Proceed to delete DB record regardless to prevent ghosts
         
-        # If it's a folder, we should ideally check for children, but for now we just delete the folder entry.
-        # Ideally: Prevent delete if folder not empty.
-        
-        self.db.archives.delete_one(query)
+        # 3. DB Record Cleanup
+        self.db.archives.delete_one({"_id": oid_item})
 
     def get_file_stream(self, user_id: str, item_id: str) -> Tuple[Any, str]:
         query: Dict[str, Any] = {"_id": self._to_oid(item_id), "user_id": self._to_oid(user_id)}

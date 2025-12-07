@@ -1,19 +1,32 @@
 // FILE: src/pages/DashboardPage.tsx
-import React, { useState, useEffect } from 'react';
+// PHOENIX PROTOCOL - DASHBOARD BRIEFING
+// 1. FEATURE: Auto-opens 'Daily Briefing' popup if events exist for today.
+// 2. LOGIC: Fetches calendar events in parallel with cases to power the briefing.
+// 3. UX: Non-intrusive; only appears if actionable items exist.
+
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { apiService } from '../services/api';
-import { Case, CreateCaseRequest } from '../data/types';
+import { Case, CreateCaseRequest, CalendarEvent } from '../data/types';
 import { useAuth } from '../context/AuthContext';
 import CaseCard from '../components/CaseCard';
+import DayEventsModal from '../components/DayEventsModal'; // PHOENIX: Import
+import { isSameDay, parseISO } from 'date-fns';
 
 const DashboardPage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   
+  // PHOENIX: Briefing State
+  const [todaysEvents, setTodaysEvents] = useState<CalendarEvent[]>([]);
+  const [isBriefingOpen, setIsBriefingOpen] = useState(false);
+  const hasCheckedBriefing = useRef(false);
+
   const initialNewCaseData = { 
     title: '', 
     clientName: '',
@@ -23,14 +36,20 @@ const DashboardPage: React.FC = () => {
   const [newCaseData, setNewCaseData] = useState(initialNewCaseData);
 
   useEffect(() => {
-    loadCases();
+    loadData();
   }, []);
 
-  const loadCases = async () => {
+  const loadData = async () => {
     setIsLoading(true);
     try {
-      const data = await apiService.getCases();
-      const casesWithDefaults = data.map(c => ({
+      // PHOENIX: Parallel Fetch (Cases + Calendar)
+      const [casesData, eventsData] = await Promise.all([
+          apiService.getCases(),
+          apiService.getCalendarEvents()
+      ]);
+
+      // 1. Process Cases
+      const casesWithDefaults = casesData.map(c => ({
           ...c,
           document_count: c.document_count || 0,
           alert_count: c.alert_count || 0,
@@ -38,8 +57,21 @@ const DashboardPage: React.FC = () => {
           finding_count: c.finding_count || 0,
       }));
       setCases(casesWithDefaults);
+
+      // 2. Process Briefing (Run Once)
+      if (!hasCheckedBriefing.current && eventsData.length > 0) {
+          const today = new Date();
+          const matches = eventsData.filter(e => isSameDay(parseISO(e.start_date), today));
+          
+          if (matches.length > 0) {
+              setTodaysEvents(matches);
+              setIsBriefingOpen(true);
+          }
+          hasCheckedBriefing.current = true;
+      }
+
     } catch (error) {
-      console.error("Failed to load cases", error);
+      console.error("Failed to load dashboard data", error);
     } finally {
       setIsLoading(false);
     }
@@ -63,7 +95,7 @@ const DashboardPage: React.FC = () => {
       await apiService.createCase(payload);
       setShowCreateModal(false);
       setNewCaseData(initialNewCaseData);
-      loadCases();
+      loadData(); // Reload all data
     } catch (error) {
       console.error("Failed to create case", error);
       alert(t('error.generic'));
@@ -87,10 +119,8 @@ const DashboardPage: React.FC = () => {
     setNewCaseData(prev => ({ ...prev, [name]: value }));
   };
 
-  // PHOENIX FIX: Robust Name Capitalization
   const getFormattedName = () => {
     if (!user || !user.username) return '';
-    // Trim, Split, Capitalize First Letter
     const namePart = user.username.trim().split(' ')[0];
     if (!namePart) return '';
     return namePart.charAt(0).toUpperCase() + namePart.slice(1).toLowerCase();
@@ -158,6 +188,20 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* PHOENIX: Daily Briefing Modal */}
+      <DayEventsModal 
+        isOpen={isBriefingOpen}
+        onClose={() => setIsBriefingOpen(false)}
+        date={new Date()} // Always today
+        events={todaysEvents}
+        t={t}
+        onAddEvent={() => {
+            setIsBriefingOpen(false);
+            // Optional: Redirect to calendar or show add modal here
+            window.location.href = '/calendar'; 
+        }}
+      />
     </div>
   );
 };

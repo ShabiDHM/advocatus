@@ -1,14 +1,19 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - I18N POLISH
-// 1. FIX: Replaced hardcoded "Emërto" tooltip with translation key.
+// PHOENIX PROTOCOL - CASE FOLDER UPLOAD
+// 1. FEATURE: Added 'Folder Upload' button to the panel header.
+// 2. LOGIC: Iterates through folder contents and uploads files sequentially to the Case.
+// 3. UI: Preserves existing layout, adding the new button seamlessly.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
-import { FolderOpen, Eye, Trash, Plus, Loader2, RefreshCw, ScanEye, Archive, Pencil } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { 
+    FolderOpen, Eye, Trash, Plus, Loader2, 
+    ScanEye, Archive, Pencil, FolderInput // PHOENIX: New Icon
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface DocumentsPanelProps {
   caseId: string;
@@ -20,7 +25,7 @@ interface DocumentsPanelProps {
   onViewOriginal: (document: Document) => void;
   onRename?: (document: Document) => void; 
   connectionStatus: ConnectionStatus;
-  reconnect: () => void;
+  reconnect: () => void; 
   className?: string;
 }
 
@@ -28,7 +33,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   caseId,
   documents,
   connectionStatus,
-  reconnect,
   onDocumentDeleted,
   onDocumentUploaded,
   onViewOriginal,
@@ -37,37 +41,73 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   className
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null); // PHOENIX: Ref for folder input
+
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [scanningId, setScanningId] = useState<string | null>(null); 
   const [archivingId, setArchivingId] = useState<string | null>(null); 
+  const [currentFileName, setCurrentFileName] = useState<string>(""); // Track current file being uploaded
 
+  // Reusable upload logic for a single file
   const performUpload = async (file: File) => {
-    setIsUploading(true);
-    setUploadError(null);
+    // Skip system files
+    if (file.name.startsWith('.')) return;
+
+    setCurrentFileName(file.name);
+    setUploadProgress(0);
+    
     try {
-      const responseData = await apiService.uploadDocument(caseId, file);
+      const responseData = await apiService.uploadDocument(caseId, file, (percent) => {
+          setUploadProgress(percent);
+      });
+      
       const rawData = responseData as any;
       const newDoc: Document = {
           ...responseData,
           id: responseData.id || rawData._id, 
           status: 'PENDING',
-          progress_percent: 5,
+          progress_percent: 0, 
           progress_message: t('documentsPanel.statusPending')
       } as any;
       
       onDocumentUploaded(newDoc);
     } catch (error: any) {
-      setUploadError(t('documentsPanel.uploadFailed') + `: ${error.message}`);
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      console.error(`Failed to upload ${file.name}`, error);
+      setUploadError(`${t('documentsPanel.uploadFailed')}: ${file.name}`);
     }
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) performUpload(file);
+    if (file) {
+        setIsUploading(true);
+        setUploadError(null);
+        await performUpload(file);
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // PHOENIX: Folder Upload Handler
+  const handleFolderChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
+
+      setIsUploading(true);
+      setUploadError(null);
+
+      // Convert FileList to Array for iteration
+      const fileArray = Array.from(files);
+
+      for (let i = 0; i < fileArray.length; i++) {
+          await performUpload(fileArray[i]);
+      }
+
+      setIsUploading(false);
+      setCurrentFileName("");
+      if (folderInputRef.current) folderInputRef.current.value = '';
   };
 
   const handleDeleteDocument = async (documentId: string | undefined) => {
@@ -121,14 +161,32 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
             <div className="flex items-center justify-center h-full pt-1" title={connectionStatus}>
                 <span className={`w-2.5 h-2.5 rounded-full ${statusDotColor(connectionStatus)} transition-colors duration-500`}></span>
             </div>
-            {connectionStatus !== 'CONNECTED' && (
-                <button onClick={reconnect} className="text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.reconnect')}>
-                    <RefreshCw size={14} />
-                </button>
-            )}
         </div>
 
         <div className="flex-shrink-0 flex gap-2">
+          {/* PHOENIX: Folder Input */}
+          <input 
+            type="file" 
+            ref={folderInputRef} 
+            onChange={handleFolderChange} 
+            className="hidden" 
+            // @ts-ignore
+            webkitdirectory="" 
+            directory="" 
+            multiple 
+          />
+          <motion.button
+            onClick={() => folderInputRef.current?.click()}
+            className="h-9 px-3 flex items-center justify-center rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 transition-all"
+            title="Upload Folder" 
+            disabled={isUploading} 
+            whileHover={{ scale: 1.05 }} 
+            whileTap={{ scale: 0.95 }} 
+          >
+            {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FolderInput className="h-5 w-5" />}
+          </motion.button>
+
+          {/* Standard File Input */}
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
           <motion.button
             onClick={() => fileInputRef.current?.click()}
@@ -144,6 +202,23 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       </div>
 
       {uploadError && (<div className="p-3 text-xs text-red-100 bg-red-700/50 border border-red-500/50 rounded-lg mb-4">{uploadError}</div>)}
+      
+      {/* Uploading Progress Bar */}
+      <AnimatePresence>
+          {isUploading && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mb-4 overflow-hidden">
+                  <div className="bg-background-light/50 border border-primary-start/30 rounded-lg p-3">
+                      <div className="flex justify-between text-xs text-primary-start font-bold mb-1">
+                          <span className="truncate max-w-[200px]">{currentFileName || "Uploading..."}</span>
+                          <span>{uploadProgress}%</span>
+                      </div>
+                      <div className="h-1.5 bg-black/40 rounded-full overflow-hidden">
+                          <motion.div className="h-full bg-primary-start" initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} />
+                      </div>
+                  </div>
+              </motion.div>
+          )}
+      </AnimatePresence>
 
       <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar">
         {(documents.length === 0 && !isUploading) && (
@@ -154,9 +229,15 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         )}
         
         {documents.map((doc) => {
-          const isReady = doc.status.toUpperCase() === 'READY' || doc.status.toUpperCase() === 'COMPLETED';
-          const isPending = doc.status.toUpperCase() === 'PENDING';
+          const status = doc.status?.toUpperCase() || 'PENDING';
+          const isPending = status === 'PENDING';
+          const isReady = status === 'READY' || status === 'COMPLETED';
           const progressPercent = (doc as any).progress_percent;
+
+          const canView = true;
+          const canRename = onRename;
+          const canArchive = true;
+          const isScanEnabled = isReady;
 
           return (
             <motion.div
@@ -165,10 +246,19 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
             >
               <div className="min-w-0 flex-1 pr-3">
-                <p className="text-sm font-medium text-gray-200 truncate">{doc.file_name}</p>
+                <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-gray-200 truncate">{doc.file_name}</p>
+                </div>
+
                 {isPending ? (
-                    <div className="w-full max-w-[150px] mt-1.5 h-1 bg-white/10 rounded-full overflow-hidden">
-                        <motion.div className="h-full bg-primary-start" initial={{ width: 0 }} animate={{ width: `${progressPercent || 5}%` }} />
+                    <div className="flex flex-col gap-1 mt-1">
+                        <div className="flex justify-between text-[9px] text-gray-400">
+                           <span>Processing...</span>
+                           <span>{progressPercent || 0}%</span>
+                        </div>
+                        <div className="w-full max-w-[150px] h-1 bg-white/10 rounded-full overflow-hidden">
+                            <motion.div className="h-full bg-blue-500" initial={{ width: 0 }} animate={{ width: `${progressPercent || 5}%` }} transition={{ duration: 0.5 }} />
+                        </div>
                     </div>
                 ) : (
                     <p className="text-[10px] text-gray-500 truncate mt-0.5">{moment(doc.created_at).format('YYYY-MM-DD HH:mm')}</p>
@@ -176,26 +266,37 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               </div>
               
               <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
-                 {isReady && (
-                  <>
-                    {/* PHOENIX FIX: Using translation key for tooltip */}
-                    {onRename && (
-                        <button onClick={() => onRename(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}>
-                            <Pencil size={14} />
-                        </button>
-                    )}
-                    
-                    <button onClick={() => handleDeepScan(doc.id)} className="p-1.5 hover:bg-white/10 rounded-lg text-secondary-start transition-colors" title={t('documentsPanel.deepScan')}>
-                        {scanningId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <ScanEye size={14} />}
+                {canRename && (
+                    <button onClick={() => onRename && onRename(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}>
+                        <Pencil size={14} />
                     </button>
+                )}
+                
+                <button 
+                    onClick={() => isScanEnabled && handleDeepScan(doc.id)} 
+                    disabled={!isScanEnabled}
+                    className={`p-1.5 rounded-lg transition-colors ${
+                        isScanEnabled 
+                        ? "hover:bg-white/10 text-secondary-start" 
+                        : "text-gray-600 cursor-not-allowed opacity-50"
+                    }`}
+                    title={isScanEnabled ? t('documentsPanel.deepScan') : t('documentsPanel.statusPending')}
+                >
+                    {scanningId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <ScanEye size={14} />}
+                </button>
+
+                {canView && (
                     <button onClick={() => onViewOriginal(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-blue-400 transition-colors" title={t('documentsPanel.viewOriginal')}>
                         <Eye size={14} />
                     </button>
+                )}
+
+                {canArchive && (
                     <button onClick={() => handleArchiveDocument(doc.id)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Archive">
                         {archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
                     </button>
-                  </>
                 )}
+
                 <button onClick={() => handleDeleteDocument(doc.id)} className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-500/70 hover:text-red-500 transition-colors" title={t('documentsPanel.delete')}>
                   <Trash size={14} />
                 </button>
