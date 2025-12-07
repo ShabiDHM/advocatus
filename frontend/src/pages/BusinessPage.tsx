@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - SCOPE & TYPE FIXES
-// 1. FIX: Moved 'getFileIcon' to top-level scope.
-// 2. FIX: Renamed Lucide 'File' to 'FileIcon'.
-// 3. FEATURE: Implemented Expense Archiving (UI & Logic) to match Invoices.
+// PHOENIX PROTOCOL - REVISION 2
+// 1. VISUAL: Aligned Expense Card UI strictly with Invoice Card (Icons, Layout, Buttons).
+// 2. UX: Enabled all Expense buttons (View/Download/Archive). Added alerts if file is missing.
+// 3. CLEANUP: Removed inconsistent "Shpenzimet" header wrapper.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -178,7 +178,7 @@ const BusinessPage: React.FC = () => {
   
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
-  const [selectedCaseForInvoice, setSelectedCaseForInvoice] = useState<string>(""); // Used for both invoices and expenses to select case
+  const [selectedCaseForInvoice, setSelectedCaseForInvoice] = useState<string>(""); 
   const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
   
@@ -371,32 +371,23 @@ const BusinessPage: React.FC = () => {
       }
   };
 
-  // PHOENIX: Option A - Manual Create + Upload
   const handleCreateExpense = async (e: React.FormEvent) => {
       e.preventDefault();
       try {
-          // 1. Create the Expense Record
           const payload = {
               ...newExpense,
               date: expenseDate ? expenseDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
           };
-          
           let expense = await apiService.createExpense(payload);
-          
-          // 2. If a file is attached, upload it now
           if (expenseReceipt && expense.id) {
               await apiService.uploadExpenseReceipt(expense.id, expenseReceipt);
-              // Optimistically update the local object so icons appear immediately
               expense = { ...expense, receipt_url: "PENDING_REFRESH" };
           }
-
-          // 3. Cleanup
           setExpenses([expense, ...expenses]);
           setShowExpenseModal(false);
           setNewExpense({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0] });
           setExpenseDate(new Date());
           setExpenseReceipt(null);
-          
       } catch {
           alert(t('error.generic'));
       }
@@ -413,7 +404,7 @@ const BusinessPage: React.FC = () => {
   };
 
   const handleViewExpense = async (expense: Expense) => { 
-      if (!expense.receipt_url) return; 
+      if (!expense.receipt_url) { alert("Nuk ka faturë të bashkangjitur."); return; }
       setOpeningDocId(expense.id); 
       try { 
           const { blob, filename } = await apiService.getExpenseReceiptBlob(expense.id); 
@@ -427,7 +418,7 @@ const BusinessPage: React.FC = () => {
   };
   
   const handleDownloadExpense = async (expense: Expense) => { 
-      if (!expense.receipt_url) return; 
+      if (!expense.receipt_url) { alert("Nuk ka faturë të bashkangjitur."); return; }
       try { 
           const { blob, filename } = await apiService.getExpenseReceiptBlob(expense.id); 
           const url = window.URL.createObjectURL(blob); 
@@ -456,18 +447,18 @@ const BusinessPage: React.FC = () => {
   const submitArchiveInvoice = async () => { if (!selectedInvoiceId) return; try { await apiService.archiveInvoice(selectedInvoiceId, selectedCaseForInvoice || undefined); alert(t('general.saveSuccess')); setShowArchiveInvoiceModal(false); setSelectedCaseForInvoice(""); } catch (error) { alert(t('error.generic')); } };
   
   // Expense Archive Handlers
-  const handleArchiveExpenseClick = (expenseId: string) => { setSelectedExpenseId(expenseId); setShowArchiveExpenseModal(true); };
+  const handleArchiveExpenseClick = (expenseId: string) => { 
+      const expense = expenses.find(e => e.id === expenseId);
+      if (!expense || !expense.receipt_url) { alert("Nuk ka faturë për të arkivuar."); return; }
+      setSelectedExpenseId(expenseId); 
+      setShowArchiveExpenseModal(true); 
+  };
   const submitArchiveExpense = async () => {
       if (!selectedExpenseId) return;
       try {
-          // Retrieve expense info
           const expense = expenses.find(e => e.id === selectedExpenseId);
           if (!expense || !expense.receipt_url) return;
-
-          // Fetch the receipt blob
           const { blob, filename } = await apiService.getExpenseReceiptBlob(expense.id);
-          
-          // Re-upload as Archive Item linked to the selected case
           const fileToUpload = new File([blob], filename, { type: blob.type });
           await apiService.uploadArchiveItem(
               fileToUpload, 
@@ -476,7 +467,6 @@ const BusinessPage: React.FC = () => {
               selectedCaseForInvoice || undefined, 
               undefined 
           );
-          
           alert(t('general.saveSuccess'));
           setShowArchiveExpenseModal(false);
           setSelectedCaseForInvoice("");
@@ -524,24 +514,7 @@ const BusinessPage: React.FC = () => {
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500"><FinanceCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp className="w-6 h-6" />} color="bg-emerald-500" subtext={t('finance.incomeSub')} /><FinanceCard title={t('finance.expense')} amount={`€${totalExpenses.toFixed(2)}`} icon={<TrendingDown className="w-6 h-6" />} color="bg-rose-500" subtext={t('finance.expenseSub')} /><FinanceCard title={t('finance.balance')} amount={`€${totalBalance.toFixed(2)}`} icon={<Wallet className="w-6 h-6" />} color="bg-blue-500" subtext={t('finance.balanceSub')} /></div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"><h2 className="text-2xl font-bold text-white">{t('finance.invoicesTitle')}</h2><div className="flex gap-3 w-full sm:w-auto"><button onClick={() => setShowExpenseModal(true)} className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-lg transition-all font-medium"><MinusCircle size={20} /> <span>{t('finance.addExpense')}</span></button><button onClick={() => setShowInvoiceModal(true)} className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg transition-all font-medium"><Plus size={20} /> <span>{t('finance.createInvoice')}</span></button></div></div>
-            {expenses.length > 0 && (<div className="bg-background-dark border border-glass-edge rounded-3xl p-6 shadow-xl mb-8"><h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><MinusCircle className="text-rose-500" size={20} /> {t('finance.expense')}</h3><div className="divide-y divide-white/5">{expenses.map(exp => (<div key={exp.id} className="bg-background-dark border border-glass-edge rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-white/20 transition-all group"><div className="flex items-center gap-5 w-full md:w-auto overflow-hidden"><div className={`p-3.5 rounded-xl flex-shrink-0 bg-rose-500/10 text-rose-400`}><MinusCircle size={28} /></div><div className="min-w-0"><h3 className="font-bold text-white text-lg truncate pr-2">{exp.category}</h3><p className="text-sm text-gray-400 font-mono truncate">{exp.description} • {new Date(exp.date).toLocaleDateString()}</p>{exp.receipt_url && <div className="flex items-center gap-1 mt-1 text-xs text-indigo-400"><Paperclip size={10} /> <span>Faturë e bashkangjitur</span></div>}</div></div><div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-8 mt-2 md:mt-0"><div className="text-left md:text-right"><p className="text-xl font-bold text-white">-€{exp.amount.toFixed(2)}</p><span className="inline-block text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide uppercase mt-1 bg-rose-900/30 text-rose-400 border border-rose-500/20">EXPENSE</span></div>
-            
-            <div className="flex gap-1 sm:gap-2">
-                <button onClick={() => handleViewExpense(exp)} disabled={!exp.receipt_url} className={`p-2.5 rounded-xl transition-colors ${exp.receipt_url ? 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-blue-400' : 'bg-transparent text-gray-700 cursor-not-allowed'}`} title={t('archive.view')}>
-                    {openingDocId === exp.id ? <Loader2 className="h-4 w-4 animate-spin text-blue-400" /> : <Eye size={18} />}
-                </button>
-                <button onClick={() => handleDownloadExpense(exp)} disabled={!exp.receipt_url} className={`p-2.5 rounded-xl transition-colors ${exp.receipt_url ? 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-green-400' : 'bg-transparent text-gray-700 cursor-not-allowed'}`} title={t('archive.download')}>
-                    <Download size={18} />
-                </button>
-                <button onClick={() => handleArchiveExpenseClick(exp.id)} disabled={!exp.receipt_url} className={`p-2.5 rounded-xl transition-colors ${exp.receipt_url ? 'bg-white/5 hover:bg-white/10 text-gray-400 hover:text-indigo-400' : 'bg-transparent text-gray-700 cursor-not-allowed'}`} title={t('finance.archiveInvoice')}>
-                    <Archive size={18} />
-                </button>
-                <button onClick={() => deleteExpense(exp.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title={t('general.delete')}>
-                    <Trash2 size={18} />
-                </button>
-            </div>
-            
-            </div></div>))}</div></div>)}
+            {expenses.length > 0 && (<div className="grid gap-4 mb-4">{expenses.map(exp => (<div key={exp.id} className="bg-background-dark border border-glass-edge rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-white/20 transition-all group"><div className="flex items-center gap-5 w-full md:w-auto overflow-hidden"><div className={`p-3.5 rounded-xl flex-shrink-0 bg-rose-500/10 text-rose-400`}><FileText size={28} /></div><div className="min-w-0"><h3 className="font-bold text-white text-lg truncate pr-2">{exp.category}</h3><p className="text-sm text-gray-400 font-mono truncate">{exp.description} • {new Date(exp.date).toLocaleDateString()}</p></div></div><div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-8 mt-2 md:mt-0"><div className="text-left md:text-right"><p className="text-xl font-bold text-white">-€{exp.amount.toFixed(2)}</p><span className="inline-block text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide uppercase mt-1 bg-rose-900/30 text-rose-400 border border-rose-500/20">EXPENSE</span></div><div className="flex gap-1 sm:gap-2"><button onClick={() => handleViewExpense(exp)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title={t('archive.view')}>{openingDocId === exp.id ? <Loader2 className="h-4 w-4 animate-spin text-blue-400" /> : <Eye size={18} />}</button><button onClick={() => handleDownloadExpense(exp)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title={t('archive.download')}><Download size={18} /></button><button onClick={() => handleArchiveExpenseClick(exp.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title={t('finance.archiveInvoice')}><Archive size={18} /></button><button onClick={() => deleteExpense(exp.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title={t('general.delete')}><Trash2 size={18} /></button></div></div></div>))}</div>)}
             {invoices.length === 0 && expenses.length === 0 && (<div className="text-center py-20 bg-background-dark border border-glass-edge rounded-3xl"><FileText className="w-16 h-16 text-gray-700 mx-auto mb-4" /><p className="text-gray-400 text-lg">{t('finance.noInvoices')}</p></div>)}
             {invoices.length > 0 && (<div className="grid gap-4">{invoices.map(inv => (<div key={inv.id} className="bg-background-dark border border-glass-edge rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-white/20 transition-all group"><div className="flex items-center gap-5 w-full md:w-auto overflow-hidden"><div className={`p-3.5 rounded-xl flex-shrink-0 ${inv.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}><FileText size={28} /></div><div className="min-w-0"><h3 className="font-bold text-white text-lg truncate pr-2">{inv.client_name}</h3><p className="text-sm text-gray-400 font-mono truncate">{inv.invoice_number} • {new Date(inv.issue_date).toLocaleDateString()}</p></div></div><div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-8 mt-2 md:mt-0"><div className="text-left md:text-right"><p className="text-xl font-bold text-white">€{inv.total_amount.toFixed(2)}</p><span className={`inline-block text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide uppercase mt-1 ${inv.status === 'PAID' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/20' : 'bg-amber-900/30 text-amber-400 border border-amber-500/20'}`}>{inv.status}</span></div><div className="flex gap-1 sm:gap-2"><button onClick={() => handleViewInvoice(inv)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title={t('finance.viewPdf')}>{openingDocId === inv.id ? <Loader2 className="h-4 w-4 animate-spin text-blue-400" /> : <Eye size={18} />}</button><button onClick={() => downloadInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title={t('finance.downloadPdf')}><Download size={18} /></button><button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title={t('finance.archiveInvoice')}><Archive size={18} /></button><button onClick={() => deleteInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title={t('finance.deleteInvoice')}><Trash2 size={18} /></button></div></div></div>))}</div>)}
         </motion.div>
