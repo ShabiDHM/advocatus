@@ -1,20 +1,21 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE API V3.4 (SYNTAX FIXED)
-# 1. FIX: Reordered arguments in 'upload_expense_receipt' to comply with Python rules.
-# 2. STATUS: Ready for Manual Expense Attachment.
+# PHOENIX PROTOCOL - IMPORT PATH FIX
+# 1. FIX: Switched to absolute imports (app.services) to resolve module errors.
+# 2. STATUS: All dependencies correctly linked.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from fastapi.responses import StreamingResponse, JSONResponse
 from typing import List, Annotated, Optional
 from pymongo.database import Database
 
-from ...models.user import UserInDB
-from ...models.finance import InvoiceCreate, InvoiceOut, InvoiceUpdate, ExpenseCreate, ExpenseOut
-from ...models.archive import ArchiveItemOut 
-from ...services.finance_service import FinanceService
-from ...services.archive_service import ArchiveService
-from ...services.report_service import generate_invoice_pdf
-from .dependencies import get_current_user, get_db
+# PHOENIX FIX: Absolute Imports
+from app.models.user import UserInDB
+from app.models.finance import InvoiceCreate, InvoiceOut, InvoiceUpdate, ExpenseCreate, ExpenseOut
+from app.models.archive import ArchiveItemOut 
+from app.services.finance_service import FinanceService
+from app.services.archive_service import ArchiveService
+from app.services import report_service 
+from app.api.endpoints.dependencies import get_current_user, get_db
 
 router = APIRouter(tags=["Finance"])
 
@@ -41,21 +42,47 @@ def delete_invoice(invoice_id: str, current_user: Annotated[UserInDB, Depends(ge
     FinanceService(db).delete_invoice(str(current_user.id), invoice_id)
 
 @router.get("/invoices/{invoice_id}/pdf")
-def download_invoice_pdf(invoice_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db), lang: Optional[str] = Query("sq")):
+def download_invoice_pdf(
+    invoice_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db),
+    lang: Optional[str] = Query("sq")
+):
     service = FinanceService(db)
     invoice = service.get_invoice(str(current_user.id), invoice_id)
-    pdf_buffer = generate_invoice_pdf(invoice, db, str(current_user.id), lang=lang or "sq")
+    pdf_buffer = report_service.generate_invoice_pdf(invoice, db, str(current_user.id), lang=lang or "sq")
+    
     filename = f"Invoice_{invoice.invoice_number}.pdf"
-    return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={'Content-Disposition': f'inline; filename="{filename}"'})
+    headers = {'Content-Disposition': f'inline; filename="{filename}"'}
+    return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
 
 @router.post("/invoices/{invoice_id}/archive", response_model=ArchiveItemOut)
-async def archive_invoice(invoice_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db), case_id: Optional[str] = Query(None), lang: Optional[str] = Query("sq")):
+async def archive_invoice(
+    invoice_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db),
+    case_id: Optional[str] = Query(None),
+    lang: Optional[str] = Query("sq")
+):
     finance_service = FinanceService(db)
     archive_service = ArchiveService(db)
+    
     invoice = finance_service.get_invoice(str(current_user.id), invoice_id)
-    pdf_buffer = generate_invoice_pdf(invoice, db, str(current_user.id), lang=lang or "sq")
+    pdf_buffer = report_service.generate_invoice_pdf(invoice, db, str(current_user.id), lang=lang or "sq")
+    pdf_content = pdf_buffer.getvalue()
+    
     filename = f"Invoice_{invoice.invoice_number}.pdf"
-    return await archive_service.save_generated_file(user_id=str(current_user.id), filename=filename, content=pdf_buffer.getvalue(), category="INVOICE", title=f"Fatura #{invoice.invoice_number} - {invoice.client_name}", case_id=case_id)
+    title = f"Fatura #{invoice.invoice_number} - {invoice.client_name}"
+    
+    archived_item = await archive_service.save_generated_file(
+        user_id=str(current_user.id),
+        filename=filename,
+        content=pdf_content,
+        category="INVOICE",
+        title=title,
+        case_id=case_id
+    )
+    return archived_item
 
 # --- EXPENSES ---
 @router.post("/expenses", response_model=ExpenseOut, status_code=status.HTTP_201_CREATED)
@@ -70,7 +97,6 @@ def get_expenses(current_user: Annotated[UserInDB, Depends(get_current_user)], d
 def delete_expense(expense_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     FinanceService(db).delete_expense(str(current_user.id), expense_id)
 
-# PHOENIX FIX: Correct Argument Order (Required args before Defaults)
 @router.put("/expenses/{expense_id}/receipt", status_code=status.HTTP_200_OK)
 def upload_expense_receipt(
     expense_id: str,
