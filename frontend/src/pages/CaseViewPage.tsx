@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - TABBED WORKSPACE V3
-// 1. LAYOUT: Implemented Tabs (Documents | Graph) in Left Panel.
-// 2. STABILITY: Preserved all Modals, Sockets, and Handlers.
-// 3. DESIGN: Aligned with "Mobile Screenshot 2" vision (Compact, Professional).
+// PHOENIX PROTOCOL - SYMMETRY FIX
+// 1. LAYOUT: Changed to strict 50/50 split (lg:grid-cols-2).
+// 2. UI: Added "Connection Light" (Green Dot) to the Dokumentet Tab.
+// 3. STATUS: Panels are now identical in size and visual hierarchy.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -21,7 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     ArrowLeft, AlertCircle, User, Briefcase, Info, 
     ShieldCheck, Loader2, Lightbulb, X, Save, 
-    FileText, Network // Icons for Tabs
+    FileText, Network 
 } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
@@ -126,7 +126,7 @@ const CaseViewPage: React.FC = () => {
   const [caseData, setCaseData] = useState<CaseData>({ details: null, findings: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('documents'); // PHOENIX: Tab State
+  const [activeTab, setActiveTab] = useState<ActiveTab>('documents'); 
 
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
@@ -152,6 +152,15 @@ const CaseViewPage: React.FC = () => {
   } = useDocumentSocket(currentCaseId);
 
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
+
+  // Connection Dot Helper
+  const statusDotColor = (status: string) => {
+    switch (status) {
+      case 'CONNECTED': return 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]';
+      case 'CONNECTING': return 'bg-yellow-500 animate-pulse';
+      default: return 'bg-red-500';
+    }
+  };
 
   const fetchCaseData = useCallback(async (isInitialLoad = false) => {
     if (!caseId) return;
@@ -235,18 +244,20 @@ const CaseViewPage: React.FC = () => {
         <div className="mb-4"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
         <CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} />
         
-        {/* PHOENIX LAYOUT: Split View (60% Workspace / 40% Chat) */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
+        {/* PHOENIX: STRICT 50/50 SPLIT */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
             
-            {/* LEFT PANEL: Workspace (Tabs: Documents | Graph) */}
-            <div className="lg:col-span-3 flex flex-col h-[600px] bg-background-dark/40 border border-white/10 rounded-2xl shadow-xl overflow-hidden backdrop-blur-md">
+            {/* LEFT PANEL: Workspace (Tabs) */}
+            <div className="flex flex-col h-[600px] bg-background-dark/40 border border-white/10 rounded-2xl shadow-xl overflow-hidden backdrop-blur-md">
                 
-                {/* Custom Tab Navigation */}
+                {/* Tab Navigation */}
                 <div className="flex items-center border-b border-white/10 bg-black/20">
                     <button 
                         onClick={() => setActiveTab('documents')}
                         className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-medium transition-all relative ${activeTab === 'documents' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
                     >
+                        {/* PHOENIX: Added Connection Status Light */}
+                        <span className={`w-2 h-2 rounded-full ${statusDotColor(connectionStatus)}`}></span>
                         <FileText size={16} />
                         {t('documentsPanel.title')}
                         {activeTab === 'documents' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary-start" />}
@@ -282,7 +293,7 @@ const CaseViewPage: React.FC = () => {
                                     onDocumentDeleted={handleDocumentDeleted}
                                     onViewOriginal={handleViewOriginal}
                                     onRename={(doc) => setDocumentToRename(doc)} 
-                                    className="h-full border-none shadow-none bg-transparent" // Remove double border
+                                    className="h-full border-none shadow-none bg-transparent"
                                 />
                             </motion.div>
                         ) : (
@@ -298,8 +309,8 @@ const CaseViewPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* RIGHT PANEL: Socratic Assistant (Persistent) */}
-            <div className="lg:col-span-2 h-[600px]">
+            {/* RIGHT PANEL: Socratic Assistant */}
+            <div className="h-[600px]">
                 <ChatPanel
                     messages={liveMessages}
                     connectionStatus={connectionStatus}
