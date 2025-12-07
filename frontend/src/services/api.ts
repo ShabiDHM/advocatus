@@ -1,8 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API V4 (MANUAL UPLOAD)
-// 1. REMOVED: 'scanExpenseReceipt'.
-// 2. ADDED: 'uploadExpenseReceipt' (PUT request).
-// 3. STATUS: Aligned with Option A strategy.
+// PHOENIX PROTOCOL - API MASTER
+// 1. FIX: Includes 'getExpenseReceiptBlob' & 'uploadExpenseReceipt'.
+// 2. FIX: Uses the 'Content-Type: undefined' strategy for all uploads (No 422 errors).
+// 3. STATUS: Complete.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -21,7 +21,7 @@ export interface Expense {
     description?: string;
     date: string;
     currency: string;
-    receipt_url?: string; // Track if receipt exists
+    receipt_url?: string;
 }
 
 export interface ExpenseCreateRequest {
@@ -58,6 +58,7 @@ class ApiService {
     private failedQueue: { resolve: (value: any) => void; reject: (reason?: any) => void; }[] = [];
 
     constructor() {
+        // No default headers to allow browser boundary generation for FormData
         this.axiosInstance = axios.create({ 
             baseURL: API_V1_URL, 
             withCredentials: true
@@ -156,6 +157,21 @@ class ApiService {
     }
     public logout() { tokenManager.set(null); }
     public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
+    
+    // PHOENIX: Expense Receipt Download (Restored)
+    public async getExpenseReceiptBlob(expenseId: string): Promise<{ blob: Blob, filename: string }> {
+        const response = await this.axiosInstance.get(`/finance/expenses/${expenseId}/receipt`, { 
+            responseType: 'blob' 
+        });
+        const disposition = response.headers['content-disposition'];
+        let filename = `receipt-${expenseId}.pdf`;
+        if (disposition && disposition.indexOf('filename=') !== -1) {
+            const matches = /filename="([^"]*)"/.exec(disposition);
+            if (matches != null && matches[1]) filename = matches[1]; 
+        }
+        return { blob: response.data, filename };
+    }
+
     public async sendChatMessage(caseId: string, message: string, documentId?: string, jurisdiction?: string): Promise<string> { const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks' }); return response.data.response; }
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     public async getBusinessProfile(): Promise<BusinessProfile> { const response = await this.axiosInstance.get<BusinessProfile>('/business/profile'); return response.data; }
@@ -172,7 +188,7 @@ class ApiService {
     public async createExpense(data: ExpenseCreateRequest): Promise<Expense> { const response = await this.axiosInstance.post<Expense>('/finance/expenses', data); return response.data; }
     public async deleteExpense(expenseId: string): Promise<void> { await this.axiosInstance.delete(`/finance/expenses/${expenseId}`); }
 
-    // PHOENIX: Option A - Manual Upload
+    // PHOENIX: Option A - Manual Upload (Restored)
     public async uploadExpenseReceipt(expenseId: string, file: File): Promise<void> {
         const formData = new FormData();
         formData.append('file', file);
