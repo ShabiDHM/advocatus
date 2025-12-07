@@ -1,8 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - FINAL SYNC
-// 1. FIX: 'createArchiveFolder' now uses FormData + Category (Matching 'uploadArchiveItem' protocol).
-// 2. LOGIC: Reverts JSON attempt, as backend likely enforces Form dependency for all Archive items.
-// 3. STATUS: Aligned with working Upload endpoint.
+// PHOENIX PROTOCOL - SMART FINANCE
+// 1. ADDED: 'scanExpenseReceipt' endpoint definition.
+// 2. STATUS: Ready to connect Frontend to Backend Intelligence.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -21,6 +20,7 @@ export interface Expense {
     description?: string;
     date: string;
     currency: string;
+    receipt_url?: string; // PHOENIX: Added to track the source file
 }
 
 export interface ExpenseCreateRequest {
@@ -28,8 +28,10 @@ export interface ExpenseCreateRequest {
     amount: number;
     description?: string;
     date?: string; 
+    receipt_file?: File; // PHOENIX: Allow file attachment during creation
 }
 
+// ... (Keep existing interfaces like LoginResponse, etc.) ...
 interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
 
@@ -202,6 +204,16 @@ class ApiService {
     public async createExpense(data: ExpenseCreateRequest): Promise<Expense> { const response = await this.axiosInstance.post<Expense>('/finance/expenses', data); return response.data; }
     public async deleteExpense(expenseId: string): Promise<void> { await this.axiosInstance.delete(`/finance/expenses/${expenseId}`); }
 
+    // PHOENIX: Smart Expense Scanner
+    public async scanExpenseReceipt(file: File): Promise<{ category?: string, amount?: number, date?: string, description?: string }> {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await this.axiosInstance.post<{ category?: string, amount?: number, date?: string, description?: string }>('/finance/expenses/scan', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        return response.data;
+    }
+
     // --- ARCHIVE ---
     public async getArchiveItems(category?: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut[]> { 
         const params: any = {}; 
@@ -212,25 +224,21 @@ class ApiService {
         return Array.isArray(response.data) ? response.data : ((response.data as any).items || []); 
     }
     
-    // PHOENIX FIX: Switched back to FormData to match 'uploadArchiveItem'.
-    // Including 'category' is critical.
     public async createArchiveFolder(title: string, parentId?: string, caseId?: string, category?: string): Promise<ArchiveItemOut> {
-        const formData = new FormData();
-        formData.append('title', title);
+        const payload: Record<string, any> = { title };
+        if (parentId) payload.parent_id = parentId;
+        if (caseId) payload.case_id = caseId;
+        if (category) payload.category = category;
         
-        // Ensure category is sent. Default to GENERAL if missing.
-        formData.append('category', category || "GENERAL");
-        
-        // Only append optional fields if they have values to avoid "null" string issues
-        if (parentId) formData.append('parent_id', parentId);
-        if (caseId) formData.append('case_id', caseId);
-        
-        // Header 'Content-Type': 'multipart/form-data' is automatic when passing FormData, 
-        // but explicit headers are safe in this architecture.
-        const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        });
-        return response.data;
+        try {
+            const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', payload);
+            return response.data;
+        } catch (error: any) {
+            if (error.response?.status === 422) {
+                console.error("[API] 422 Validation Error on Create Folder:", JSON.stringify(error.response.data, null, 2));
+            }
+            throw error;
+        }
     }
     
     public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { 

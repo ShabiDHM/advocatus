@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - INTEGRATION COMPLETE
-// 1. I18N: Applied 'archive.uploadFolder' and 'archive.uploadFolderTooltip'.
-// 2. LOGIC: Includes Folder Upload, File Upload, and Archive Management.
-// 3. UI: Mobile responsive tabs and headers.
+// PHOENIX PROTOCOL - COMPLETE RESTORATION
+// 1. INTEGRITY: All handlers and variables are fully defined. No placeholders.
+// 2. TYPES: Fixed 'webkitdirectory' type error using spread cast.
+// 3. FEATURES: Smart Scan, Folder Upload, and Date Picker fully integrated.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,12 +11,19 @@ import {
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File,
     Briefcase, Eye, Archive, Camera, X, User, FolderPlus, Home, ChevronRight,
     FileImage, FileCode, Hash, Info, Calendar, TrendingUp, TrendingDown, Wallet, MinusCircle, Tag,
-    FolderInput // Folder Icon
+    FolderInput, ScanLine
 } from 'lucide-react';
 import { apiService, API_V1_URL, Expense, ExpenseCreateRequest } from '../services/api';
 import { BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceItem, ArchiveItemOut, Case, Document } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import PDFViewerModal from '../components/PDFViewerModal';
+
+// Date Picker Imports
+import * as ReactDatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
+import '../styles/DatePicker.css';
+import { sq, enUS } from 'date-fns/locale';
+const DatePicker = (ReactDatePicker as any).default;
 
 type ActiveTab = 'profile' | 'finance' | 'archive';
 
@@ -116,6 +123,9 @@ const ArchiveCard = ({
 
 const BusinessPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const localeMap: { [key: string]: any } = { sq, al: sq, en: enUS };
+  const currentLocale = localeMap[i18n.language] || enUS;
+
   const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,6 +134,7 @@ const BusinessPage: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const archiveInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const scanInputRef = useRef<HTMLInputElement>(null);
 
   // Logo State
   const [logoSrc, setLogoSrc] = useState<string | null>(null);
@@ -170,16 +181,17 @@ const BusinessPage: React.FC = () => {
   });
   const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
 
+  const [isScanning, setIsScanning] = useState(false);
   const [newExpense, setNewExpense] = useState<ExpenseCreateRequest>({
       category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0]
   });
+  const [expenseDate, setExpenseDate] = useState<Date | null>(new Date());
 
   // --- FINANCIAL CALCULATIONS ---
   const totalIncome = invoices.reduce((sum, inv) => sum + inv.total_amount, 0);
   const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
   const totalBalance = totalIncome - totalExpenses;
 
-  // --- INITIAL LOAD ---
   useEffect(() => { fetchData(); }, []);
 
   useEffect(() => {
@@ -304,7 +316,6 @@ const BusinessPage: React.FC = () => {
       finally { setIsUploading(false); if (archiveInputRef.current) archiveInputRef.current.value = ''; }
   };
 
-  // PHOENIX FIX: Intelligent Folder Upload Logic
   const handleFolderUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
@@ -337,7 +348,6 @@ const BusinessPage: React.FC = () => {
           });
 
           await Promise.all(uploadPromises);
-          
           fetchArchiveContent();
           alert(t('general.saveSuccess'));
 
@@ -350,6 +360,31 @@ const BusinessPage: React.FC = () => {
       }
   };
 
+  const handleReceiptScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setIsScanning(true);
+      try {
+          const result = await apiService.scanExpenseReceipt(file);
+          if (result.amount) setNewExpense(prev => ({ ...prev, amount: result.amount! }));
+          if (result.category) setNewExpense(prev => ({ ...prev, category: result.category! }));
+          if (result.description) setNewExpense(prev => ({ ...prev, description: result.description! }));
+          if (result.date) {
+              const d = new Date(result.date);
+              if (!isNaN(d.getTime())) {
+                  setExpenseDate(d);
+              }
+          }
+      } catch (error) {
+          console.error("Scan failed", error);
+          alert("Skanimi dështoi. Ju lutem plotësoni manualisht.");
+      } finally {
+          setIsScanning(false);
+          if (scanInputRef.current) scanInputRef.current.value = '';
+      }
+  };
+
   const onDragStart = (e: React.DragEvent, id: string) => {
       e.dataTransfer.effectAllowed = 'move';
       setDraggedItemId(id);
@@ -358,28 +393,22 @@ const BusinessPage: React.FC = () => {
       e.dataTransfer.setDragImage(img, 0, 0);
   };
 
-  const onDragOver = (e: React.DragEvent) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-  };
-
+  const onDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; };
   const onDrop = (e: React.DragEvent, targetId: string) => {
       e.preventDefault();
       if (!draggedItemId || draggedItemId === targetId) return;
-
       const draggedIndex = archiveItems.findIndex(i => i.id === draggedItemId);
       const targetIndex = archiveItems.findIndex(i => i.id === targetId);
       if (draggedIndex === -1 || targetIndex === -1) return;
-
       const newItems = [...archiveItems];
       const [movedItem] = newItems.splice(draggedIndex, 1);
       newItems.splice(targetIndex, 0, movedItem);
       setArchiveItems(newItems);
       setDraggedItemId(null);
   };
-
+  
   const onDragEnd = () => { setDraggedItemId(null); };
-
+  
   const getMimeType = (fileType: string, fileName: string) => {
       const ext = fileName.split('.').pop()?.toLowerCase() || '';
       if (fileType === 'PDF' || ext === 'pdf') return 'application/pdf';
@@ -387,7 +416,7 @@ const BusinessPage: React.FC = () => {
       if (['TXT', 'MD', 'LOG', 'CSV', 'JSON'].includes(fileType) || ['txt', 'md', 'log', 'csv', 'json'].includes(ext)) return 'text/plain';
       return 'application/octet-stream';
   };
-
+  
   const getFileIcon = (fileType: string) => {
       const ft = fileType.toUpperCase();
       if (ft === 'PDF') return <FileText className="w-5 h-5 text-red-400" />;
@@ -395,7 +424,7 @@ const BusinessPage: React.FC = () => {
       if (['JSON', 'JS', 'TS'].includes(ft)) return <FileCode className="w-5 h-5 text-yellow-400" />;
       return <File className="w-5 h-5 text-blue-400" />;
   };
-
+  
   const handleViewItem = async (item: ArchiveItemOut) => {
       setOpeningDocId(item.id);
       try {
@@ -404,13 +433,9 @@ const BusinessPage: React.FC = () => {
         const mime = getMimeType(item.file_type, item.title);
         setViewingUrl(url);
         setViewingDoc({ id: item.id, file_name: item.title, mime_type: mime, status: 'READY' } as any);
-      } catch (error) {
-        alert(t('error.generic'));
-      } finally {
-        setOpeningDocId(null);
-      }
+      } catch (error) { alert(t('error.generic')); } finally { setOpeningDocId(null); }
   };
-
+  
   const handleViewInvoice = async (invoice: Invoice) => {
       setOpeningDocId(invoice.id);
       try {
@@ -418,23 +443,21 @@ const BusinessPage: React.FC = () => {
         const url = window.URL.createObjectURL(blob);
         setViewingUrl(url);
         setViewingDoc({ id: invoice.id, file_name: `Invoice #${invoice.invoice_number}`, mime_type: 'application/pdf', status: 'READY' } as any);
-      } catch (error) {
-          alert(t('error.generic'));
-      } finally {
-          setOpeningDocId(null);
-      }
+      } catch (error) { alert(t('error.generic')); } finally { setOpeningDocId(null); }
   };
-
+  
   const closePreview = () => { if (viewingUrl) window.URL.revokeObjectURL(viewingUrl); setViewingUrl(null); setViewingDoc(null); };
   
   const deleteArchiveItem = async (id: string) => { if(!window.confirm(t('general.confirmDelete'))) return; try { await apiService.deleteArchiveItem(id); fetchArchiveContent(); } catch (error) { alert(t('documentsPanel.deleteFailed')); } };
   const downloadArchiveItem = async (id: string, title: string) => { try { await apiService.downloadArchiveItem(id, title); } catch (error) { alert(t('error.generic')); } };
-
-  // --- HANDLERS ---
+  
   const handleProfileSubmit = async (e: React.FormEvent) => { e.preventDefault(); setSaving(true); try { const clean: any = {...formData}; Object.keys(clean).forEach(k => clean[k]=== '' && (clean[k]=null)); await apiService.updateBusinessProfile(clean); alert(t('settings.successMessage')); } catch{ alert(t('error.generic')); } finally { setSaving(false); } };
+  
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if(!f) return; setSaving(true); try { const p = await apiService.uploadBusinessLogo(f); setProfile(p); } catch { alert(t('business.logoUploadFailed')); } finally { setSaving(false); } };
+  
   const handleArchiveInvoiceClick = (invoiceId: string) => { setSelectedInvoiceId(invoiceId); setShowArchiveInvoiceModal(true); };
   const submitArchiveInvoice = async () => { if (!selectedInvoiceId) return; try { await apiService.archiveInvoice(selectedInvoiceId, selectedCaseForInvoice || undefined); alert(t('general.saveSuccess')); setShowArchiveInvoiceModal(false); setSelectedCaseForInvoice(""); } catch (error) { alert(t('error.generic')); } };
+  
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
   const removeLineItem = (i: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, idx) => idx !== i));
   const updateLineItem = (i: number, f: keyof InvoiceItem, v: any) => { const n = [...lineItems]; n[i] = { ...n[i], [f]: v }; n[i].total = n[i].quantity * n[i].unit_price; setLineItems(n); };
@@ -442,57 +465,33 @@ const BusinessPage: React.FC = () => {
   const handleCreateInvoice = async (e: React.FormEvent) => { 
       e.preventDefault(); 
       try { 
-          const fullAddressBlock = [
-              newInvoice.client_address,
-              newInvoice.client_city,
-              newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '',
-              newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : '',
-              newInvoice.client_website
-          ].filter(Boolean).join('\n');
-
-          const payload = { 
-              client_name: newInvoice.client_name, 
-              client_email: newInvoice.client_email, 
-              client_address: fullAddressBlock, 
-              items: lineItems, 
-              tax_rate: newInvoice.tax_rate, 
-              notes: newInvoice.notes 
-          }; 
-          
+          const fullAddressBlock = [ newInvoice.client_address, newInvoice.client_city, newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '', newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : '', newInvoice.client_website ].filter(Boolean).join('\n');
+          const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: fullAddressBlock, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes }; 
           const inv = await apiService.createInvoice(payload); 
-          setInvoices([inv, ...invoices]); 
-          setShowInvoiceModal(false); 
-          setNewInvoice({ 
-              client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' 
-          }); 
+          setInvoices([inv, ...invoices]); setShowInvoiceModal(false); 
+          setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' }); 
           setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); 
-      } catch { 
-          alert(t('error.generic')); 
-      } 
+      } catch { alert(t('error.generic')); } 
   };
 
   const handleCreateExpense = async (e: React.FormEvent) => {
       e.preventDefault();
       try {
-          const expense = await apiService.createExpense(newExpense);
+          const payload = {
+              ...newExpense,
+              date: expenseDate ? expenseDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+          };
+          const expense = await apiService.createExpense(payload);
           setExpenses([expense, ...expenses]);
           setShowExpenseModal(false);
           setNewExpense({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0] });
+          setExpenseDate(new Date());
       } catch {
           alert(t('error.generic'));
       }
   };
 
-  const deleteExpense = async (id: string) => {
-      if(!window.confirm(t('general.confirmDelete'))) return;
-      try {
-          await apiService.deleteExpense(id);
-          setExpenses(expenses.filter(e => e.id !== id));
-      } catch {
-          alert(t('error.generic'));
-      }
-  };
-
+  const deleteExpense = async (id: string) => { if(!window.confirm(t('general.confirmDelete'))) return; try { await apiService.deleteExpense(id); setExpenses(expenses.filter(e => e.id !== id)); } catch { alert(t('error.generic')); } };
   const deleteInvoice = async (id: string) => { if(!window.confirm(t('general.confirmDelete'))) return; try { await apiService.deleteInvoice(id); setInvoices(invoices.filter(inv => inv.id !== id)); } catch (error) { alert(t('documentsPanel.deleteFailed')); } };
   const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id, i18n.language); } catch (error) { alert(t('error.generic')); } };
 
@@ -576,31 +575,12 @@ const BusinessPage: React.FC = () => {
         </motion.div>
       )}
 
-      {/* --- FINANCE TAB --- */}
       {activeTab === 'finance' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <FinanceCard 
-                    title={t('finance.income')} 
-                    amount={`€${totalIncome.toFixed(2)}`} 
-                    icon={<TrendingUp className="w-6 h-6" />} 
-                    color="bg-emerald-500" 
-                    subtext={t('finance.incomeSub')}
-                />
-                <FinanceCard 
-                    title={t('finance.expense')} 
-                    amount={`€${totalExpenses.toFixed(2)}`} 
-                    icon={<TrendingDown className="w-6 h-6" />} 
-                    color="bg-rose-500" 
-                    subtext={t('finance.expenseSub')}
-                />
-                <FinanceCard 
-                    title={t('finance.balance')} 
-                    amount={`€${totalBalance.toFixed(2)}`} 
-                    icon={<Wallet className="w-6 h-6" />} 
-                    color="bg-blue-500" 
-                    subtext={t('finance.balanceSub')}
-                />
+                <FinanceCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp className="w-6 h-6" />} color="bg-emerald-500" subtext={t('finance.incomeSub')} />
+                <FinanceCard title={t('finance.expense')} amount={`€${totalExpenses.toFixed(2)}`} icon={<TrendingDown className="w-6 h-6" />} color="bg-rose-500" subtext={t('finance.expenseSub')} />
+                <FinanceCard title={t('finance.balance')} amount={`€${totalBalance.toFixed(2)}`} icon={<Wallet className="w-6 h-6" />} color="bg-blue-500" subtext={t('finance.balanceSub')} />
             </div>
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -615,68 +595,24 @@ const BusinessPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* EXPENSE LIST SECTION */}
             {expenses.length > 0 && (
                 <div className="bg-background-dark border border-glass-edge rounded-3xl p-6 shadow-xl mb-8">
                     <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><MinusCircle className="text-rose-500" size={20} /> {t('finance.expense')}</h3>
                     <div className="divide-y divide-white/5">
                         {expenses.map(exp => (
                             <div key={exp.id} className="py-3 flex justify-between items-center group hover:bg-white/5 px-2 rounded-lg transition-colors">
-                                <div>
-                                    <p className="text-white font-bold">{exp.category}</p>
-                                    <p className="text-gray-400 text-xs">{exp.description} • {new Date(exp.date).toLocaleDateString()}</p>
-                                </div>
-                                <div className="flex items-center gap-4">
-                                    <p className="text-rose-400 font-mono font-bold">-€{exp.amount.toFixed(2)}</p>
-                                    <button onClick={() => deleteExpense(exp.id)} className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16} /></button>
-                                </div>
+                                <div><p className="text-white font-bold">{exp.category}</p><p className="text-gray-400 text-xs">{exp.description} • {new Date(exp.date).toLocaleDateString()}</p></div>
+                                <div className="flex items-center gap-4"><p className="text-rose-400 font-mono font-bold">-€{exp.amount.toFixed(2)}</p><button onClick={() => deleteExpense(exp.id)} className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16} /></button></div>
                             </div>
                         ))}
                     </div>
                 </div>
             )}
 
-            {invoices.length === 0 ? (
-                <div className="text-center py-20 bg-background-dark border border-glass-edge rounded-3xl"><FileText className="w-16 h-16 text-gray-700 mx-auto mb-4" /><p className="text-gray-400 text-lg">{t('finance.noInvoices')}</p></div>
-            ) : (
-                <div className="grid gap-4">
-                    {invoices.map(inv => (
-                        <div key={inv.id} className="bg-background-dark border border-glass-edge rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-white/20 transition-all group">
-                            <div className="flex items-center gap-5 w-full md:w-auto overflow-hidden">
-                                <div className={`p-3.5 rounded-xl flex-shrink-0 ${inv.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
-                                    <FileText size={28} />
-                                </div>
-                                <div className="min-w-0">
-                                    <h3 className="font-bold text-white text-lg truncate pr-2">{inv.client_name}</h3>
-                                    <p className="text-sm text-gray-400 font-mono truncate">{inv.invoice_number} • {new Date(inv.issue_date).toLocaleDateString()}</p>
-                                </div>
-                            </div>
-                            
-                            <div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-8 mt-2 md:mt-0">
-                                <div className="text-left md:text-right">
-                                    <p className="text-xl font-bold text-white">€{inv.total_amount.toFixed(2)}</p>
-                                    <span className={`inline-block text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide uppercase mt-1 ${inv.status === 'PAID' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/20' : 'bg-amber-900/30 text-amber-400 border border-amber-500/20'}`}>
-                                        {inv.status}
-                                    </span>
-                                </div>
-                                
-                                <div className="flex gap-1 sm:gap-2">
-                                    <button onClick={() => handleViewInvoice(inv)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title={t('finance.viewPdf')}>
-                                        {openingDocId === inv.id ? <Loader2 className="h-4 w-4 animate-spin text-blue-400" /> : <Eye size={18} />}
-                                    </button>
-                                    <button onClick={() => downloadInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title={t('finance.downloadPdf')}><Download size={18} /></button>
-                                    <button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title={t('finance.archiveInvoice')}><Archive size={18} /></button>
-                                    <button onClick={() => deleteInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title={t('finance.deleteInvoice')}><Trash2 size={18} /></button>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+            {invoices.length === 0 ? (<div className="text-center py-20 bg-background-dark border border-glass-edge rounded-3xl"><FileText className="w-16 h-16 text-gray-700 mx-auto mb-4" /><p className="text-gray-400 text-lg">{t('finance.noInvoices')}</p></div>) : (<div className="grid gap-4">{invoices.map(inv => (<div key={inv.id} className="bg-background-dark border border-glass-edge rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-white/20 transition-all group"><div className="flex items-center gap-5 w-full md:w-auto overflow-hidden"><div className={`p-3.5 rounded-xl flex-shrink-0 ${inv.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}><FileText size={28} /></div><div className="min-w-0"><h3 className="font-bold text-white text-lg truncate pr-2">{inv.client_name}</h3><p className="text-sm text-gray-400 font-mono truncate">{inv.invoice_number} • {new Date(inv.issue_date).toLocaleDateString()}</p></div></div><div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-8 mt-2 md:mt-0"><div className="text-left md:text-right"><p className="text-xl font-bold text-white">€{inv.total_amount.toFixed(2)}</p><span className={`inline-block text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide uppercase mt-1 ${inv.status === 'PAID' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/20' : 'bg-amber-900/30 text-amber-400 border border-amber-500/20'}`}>{inv.status}</span></div><div className="flex gap-1 sm:gap-2"><button onClick={() => handleViewInvoice(inv)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title={t('finance.viewPdf')}>{openingDocId === inv.id ? <Loader2 className="h-4 w-4 animate-spin text-blue-400" /> : <Eye size={18} />}</button><button onClick={() => downloadInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title={t('finance.downloadPdf')}><Download size={18} /></button><button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title={t('finance.archiveInvoice')}><Archive size={18} /></button><button onClick={() => deleteInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title={t('finance.deleteInvoice')}><Trash2 size={18} /></button></div></div></div>))}</div>)}
         </motion.div>
       )}
 
-      {/* --- ARCHIVE TAB --- */}
       {activeTab === 'archive' && (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
             <div className="flex flex-col gap-4">
@@ -696,7 +632,6 @@ const BusinessPage: React.FC = () => {
                         <button onClick={() => setShowFolderModal(true)} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 hover:text-amber-400 rounded-xl border border-amber-500/30 transition-all font-bold text-xs uppercase tracking-wide">
                             <FolderPlus size={16} /> <span className="hidden sm:inline">{t('archive.createFolder')}</span>
                         </button>
-                        
                         <div className="relative">
                             <input 
                                 type="file" 
@@ -708,7 +643,6 @@ const BusinessPage: React.FC = () => {
                                 directory=""
                                 multiple 
                             />
-                            {/* PHOENIX: Updated with correct translation key */}
                             <button 
                                 onClick={() => folderInputRef.current?.click()} 
                                 disabled={isUploading} 
@@ -718,7 +652,6 @@ const BusinessPage: React.FC = () => {
                                 {isUploading ? <Loader2 className="animate-spin w-4 h-4" /> : <FolderInput size={16} />} <span className="hidden sm:inline">{t('archive.uploadFolder')}</span>
                             </button>
                         </div>
-
                         <div className="relative">
                             <input type="file" ref={archiveInputRef} className="hidden" onChange={handleSmartUpload} />
                             <button onClick={() => archiveInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl shadow-lg shadow-primary-start/20 transition-all font-bold text-xs uppercase tracking-wide disabled:opacity-50 disabled:cursor-wait">
@@ -728,155 +661,31 @@ const BusinessPage: React.FC = () => {
                     </div>
                 </div>
             </div>
-
-            {/* CONTENT GRID */}
             <div className="space-y-10">
                 {currentView.type === 'ROOT' && cases.length > 0 && (
                     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70"><Briefcase size={14} /> {t('archive.caseFolders')}</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {cases.map(c => (
-                                <div key={c.id} className="h-full">
-                                    <ArchiveCard title={c.title || `Rasti #${c.case_number}`} subtitle={c.case_number || 'Pa numër'} type="Dosje Çështjeje" date={new Date(c.created_at).toLocaleDateString()} icon={<Briefcase className="w-5 h-5 text-indigo-400" />} statusColor="bg-indigo-400" isFolder={true} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} />
-                                </div>
-                            ))}
+                            {cases.map(c => (<div key={c.id} className="h-full"><ArchiveCard title={c.title || `Rasti #${c.case_number}`} subtitle={c.case_number || 'Pa numër'} type="Dosje Çështjeje" date={new Date(c.created_at).toLocaleDateString()} icon={<Briefcase className="w-5 h-5 text-indigo-400" />} statusColor="bg-indigo-400" isFolder={true} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} /></div>))}
                         </div>
                     </div>
                 )}
-
                 {displayedItems.length > 0 && (
                     <div className="animate-in fade-in slide-in-from-bottom-8 duration-700 delay-100">
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70">
-                            <FolderOpen size={14} /> {currentView.type === 'ROOT' ? t('archive.myDocuments') : t('archive.contents')}
-                        </h3>
-                        <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            <AnimatePresence>
-                            {displayedItems.map(item => {
-                                const isFolder = (item as any).item_type === 'FOLDER';
-                                const fileExt = item.file_type || 'FILE';
-                                const isDragging = draggedItemId === item.id;
-                                return (
-                                    <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ type: "spring", stiffness: 300, damping: 25 }} key={item.id} draggable onDragStart={(e) => onDragStart(e as any, item.id)} onDragOver={onDragOver} onDrop={(e) => onDrop(e as any, item.id)} onDragEnd={onDragEnd} className="h-full">
-                                        <ArchiveCard 
-                                            title={item.title} 
-                                            subtitle={isFolder ? t('archive.caseFolders') : `${fileExt} Dokument`} 
-                                            type={isFolder ? 'Folder' : fileExt} 
-                                            date={new Date().toLocaleDateString()} 
-                                            icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)} 
-                                            statusColor={isFolder ? 'bg-amber-400' : 'bg-blue-400'} 
-                                            isFolder={isFolder} 
-                                            isDragging={isDragging} 
-                                            isLoading={openingDocId === item.id}
-                                            onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)} 
-                                            onDownload={() => downloadArchiveItem(item.id, item.title)} 
-                                            onDelete={() => deleteArchiveItem(item.id)} 
-                                        />
-                                    </motion.div>
-                                );
-                            })}
-                            </AnimatePresence>
-                        </motion.div>
+                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 ml-2 flex items-center gap-2 opacity-70"><FolderOpen size={14} /> {currentView.type === 'ROOT' ? t('archive.myDocuments') : t('archive.contents')}</h3>
+                        <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"><AnimatePresence>{displayedItems.map(item => { const isFolder = (item as any).item_type === 'FOLDER'; const fileExt = item.file_type || 'FILE'; const isDragging = draggedItemId === item.id; return (<motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ type: "spring", stiffness: 300, damping: 25 }} key={item.id} draggable onDragStart={(e) => onDragStart(e as any, item.id)} onDragOver={onDragOver} onDrop={(e) => onDrop(e as any, item.id)} onDragEnd={onDragEnd} className="h-full"><ArchiveCard title={item.title} subtitle={isFolder ? t('archive.caseFolders') : `${fileExt} Dokument`} type={isFolder ? 'Folder' : fileExt} date={new Date().toLocaleDateString()} icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)} statusColor={isFolder ? 'bg-amber-400' : 'bg-blue-400'} isFolder={isFolder} isDragging={isDragging} isLoading={openingDocId === item.id} onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)} onDownload={() => downloadArchiveItem(item.id, item.title)} onDelete={() => deleteArchiveItem(item.id)} /></motion.div>);})}</AnimatePresence></motion.div>
                     </div>
                 )}
-
-                {displayedItems.length === 0 && cases.length === 0 && currentView.type === 'ROOT' && (
-                    <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center">
-                        <div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse"><FolderOpen className="w-16 h-16 text-gray-600" /></div>
-                        <p className="text-gray-300 font-medium text-lg">{t('archive.emptyFolder')}</p>
-                        <p className="text-sm text-gray-500 mt-2">{t('archive.emptyHint')}</p>
-                    </div>
-                )}
-                
-                {archiveItems.length === 0 && currentView.type !== 'ROOT' && (
-                    <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center">
-                        <div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse"><FolderOpen className="w-16 h-16 text-gray-600" /></div>
-                        <p className="text-gray-300 font-medium text-lg">{t('archive.emptyFolder')}</p>
-                        <p className="text-sm text-gray-500 mt-2">{t('archive.emptyHint')}</p>
-                    </div>
-                )}
+                {displayedItems.length === 0 && cases.length === 0 && currentView.type === 'ROOT' && (<div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center"><div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse"><FolderOpen className="w-16 h-16 text-gray-600" /></div><p className="text-gray-300 font-medium text-lg">{t('archive.emptyFolder')}</p><p className="text-sm text-gray-500 mt-2">{t('archive.emptyHint')}</p></div>)}
+                {archiveItems.length === 0 && currentView.type !== 'ROOT' && (<div className="text-center py-24 border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02] flex flex-col items-center justify-center"><div className="p-6 bg-white/5 rounded-full mb-4 animate-pulse"><FolderOpen className="w-16 h-16 text-gray-600" /></div><p className="text-gray-300 font-medium text-lg">{t('archive.emptyFolder')}</p><p className="text-sm text-gray-500 mt-2">{t('archive.emptyHint')}</p></div>)}
             </div>
         </motion.div>
       )}
 
-      {/* --- CREATE FOLDER MODAL --- */}
-      {showFolderModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-              <div className="bg-background-dark border border-glass-edge rounded-3xl w-full max-w-sm p-8 shadow-2xl scale-100">
-                  <div className="flex justify-between items-center mb-6">
-                      <h3 className="text-xl font-bold text-white">{t('archive.newFolderTitle')}</h3>
-                      <button onClick={() => setShowFolderModal(false)} className="text-gray-500 hover:text-white"><X size={24}/></button>
-                  </div>
-                  <form onSubmit={handleCreateFolder}>
-                      {/* Name Input */}
-                      <div className="relative mb-5">
-                          <FolderOpen className="absolute left-4 top-3.5 w-6 h-6 text-amber-500" />
-                          <input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t('archive.folderNamePlaceholder')} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white text-lg focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-gray-600" />
-                      </div>
-                      
-                      {/* Category Selector */}
-                      <div className="relative mb-8">
-                          <Tag className="absolute left-4 top-3.5 w-5 h-5 text-gray-500" />
-                          <select 
-                            value={newFolderCategory} 
-                            onChange={(e) => setNewFolderCategory(e.target.value)}
-                            className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-gray-300 focus:ring-2 focus:ring-amber-500/50 outline-none appearance-none cursor-pointer"
-                          >
-                            <option value="GENERAL">{t('general.general')}</option>
-                            <option value="EVIDENCE">Evidence</option>
-                            <option value="LEGAL_DOCS">Legal Docs</option>
-                            <option value="INVOICES">Invoices</option>
-                            <option value="CONTRACTS">Contracts</option>
-                          </select>
-                      </div>
+      {showFolderModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-3xl w-full max-w-sm p-8 shadow-2xl scale-100"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-white">{t('archive.newFolderTitle')}</h3><button onClick={() => setShowFolderModal(false)} className="text-gray-500 hover:text-white"><X size={24}/></button></div><form onSubmit={handleCreateFolder}><div className="relative mb-5"><FolderOpen className="absolute left-4 top-3.5 w-6 h-6 text-amber-500" /><input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t('archive.folderNamePlaceholder')} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white text-lg focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-gray-600" /></div><div className="relative mb-8"><Tag className="absolute left-4 top-3.5 w-5 h-5 text-gray-500" /><select value={newFolderCategory} onChange={(e) => setNewFolderCategory(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-gray-300 focus:ring-2 focus:ring-amber-500/50 outline-none appearance-none cursor-pointer"><option value="GENERAL">{t('general.general')}</option><option value="EVIDENCE">Evidence</option><option value="LEGAL_DOCS">Legal Docs</option><option value="INVOICES">Invoices</option><option value="CONTRACTS">Contracts</option></select></div><div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div></form></div></div>)}
+      {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{t('finance.createInvoice')}</h2><button onClick={() => setShowInvoiceModal(false)} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateInvoice} className="space-y-6"><div className="space-y-4"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-sm text-gray-300 mb-1">Emri</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">Email</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">Telefon</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} placeholder="NUI / Fiscal No." /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.website')} <span className="text-gray-500 text-xs">(Opsional)</span></label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_website} onChange={e => setNewInvoice({...newInvoice, client_website: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">Adresa</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> Shërbimet</h3>{lineItems.map((item, index) => (<div key={index} className="flex gap-2 items-center"><input type="text" placeholder="Përshkrimi" className="flex-1 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder="Sasia" className="w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder="Çmimi" className="w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> Shto Rresht</button></div><div className="flex justify-end gap-3"><button type="button" onClick={() => setShowInvoiceModal(false)} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.create')}</button></div></form></div></div>)}
 
-                      <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div>
-                  </form>
-              </div>
-          </div>
-      )}
-
-      {/* --- CREATE INVOICE MODAL --- */}
-      {showInvoiceModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-              <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-white">{t('finance.createInvoice')}</h2>
-                    <button onClick={() => setShowInvoiceModal(false)} className="text-gray-400 hover:text-white"><X size={24} /></button>
-                  </div>
-                  <form onSubmit={handleCreateInvoice} className="space-y-6">
-                      <div className="space-y-4">
-                          <h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3>
-                          <div><label className="block text-sm text-gray-300 mb-1">Emri</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div>
-                          <div className="grid grid-cols-2 gap-4">
-                              <div><label className="block text-sm text-gray-300 mb-1">Email</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div>
-                              <div><label className="block text-sm text-gray-300 mb-1">Telefon</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                              <div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div>
-                              <div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} placeholder="NUI / Fiscal No." /></div>
-                          </div>
-                          <div><label className="block text-sm text-gray-300 mb-1">{t('business.website')} <span className="text-gray-500 text-xs">(Opsional)</span></label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_website} onChange={e => setNewInvoice({...newInvoice, client_website: e.target.value})} /></div>
-                          <div><label className="block text-sm text-gray-300 mb-1">Adresa</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div>
-                      </div>
-                      <div className="space-y-3 pt-4 border-t border-white/10">
-                          <h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> Shërbimet</h3>
-                          {lineItems.map((item, index) => (
-                              <div key={index} className="flex gap-2 items-center">
-                                  <input type="text" placeholder="Përshkrimi" className="flex-1 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required />
-                                  <input type="number" placeholder="Sasia" className="w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" />
-                                  <input type="number" placeholder="Çmimi" className="w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" />
-                                  <button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg"><Trash2 size={18} /></button>
-                              </div>
-                          ))}
-                          <button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> Shto Rresht</button>
-                      </div>
-                      <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowInvoiceModal(false)} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.create')}</button></div>
-                  </form>
-              </div>
-          </div>
-      )}
-
-      {/* --- CREATE EXPENSE MODAL --- */}
+      {/* --- CREATE EXPENSE MODAL (WITH SMART SCAN & DATE PICKER) --- */}
       {showExpenseModal && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl">
@@ -884,10 +693,37 @@ const BusinessPage: React.FC = () => {
                     <h2 className="text-xl font-bold text-white flex items-center gap-2"><MinusCircle size={20} className="text-rose-500" /> {t('finance.addExpense')}</h2>
                     <button onClick={() => setShowExpenseModal(false)} className="text-gray-400 hover:text-white"><X size={24} /></button>
                   </div>
+                  
+                  {/* PHOENIX: Smart Scan Button */}
+                  <div className="mb-6">
+                      <input type="file" ref={scanInputRef} className="hidden" accept="image/*,.pdf" onChange={handleReceiptScan} />
+                      <button 
+                        onClick={() => scanInputRef.current?.click()}
+                        disabled={isScanning}
+                        className="w-full py-3 bg-gradient-to-r from-indigo-600/20 to-purple-600/20 hover:from-indigo-600/30 hover:to-purple-600/30 border border-indigo-500/30 rounded-xl text-indigo-300 font-medium flex items-center justify-center gap-2 transition-all group"
+                      >
+                          {isScanning ? <Loader2 className="w-5 h-5 animate-spin" /> : <ScanLine className="w-5 h-5 group-hover:scale-110 transition-transform" />}
+                          {isScanning ? "Duke analizuar..." : "Skano Faturën (AI)"}
+                      </button>
+                  </div>
+
                   <form onSubmit={handleCreateExpense} className="space-y-5">
                       <div><label className="block text-sm text-gray-300 mb-1">{t('finance.expenseCategory')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.category} onChange={e => setNewExpense({...newExpense, category: e.target.value})} placeholder="psh. Qira, Rrogat" /></div>
                       <div><label className="block text-sm text-gray-300 mb-1">{t('finance.amount')}</label><input required type="number" step="0.01" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: parseFloat(e.target.value)})} /></div>
-                      <div><label className="block text-sm text-gray-300 mb-1">{t('finance.date')}</label><input required type="date" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.date} onChange={e => setNewExpense({...newExpense, date: e.target.value})} /></div>
+                      
+                      {/* PHOENIX: React DatePicker */}
+                      <div>
+                        <label className="block text-sm text-gray-300 mb-1">{t('finance.date')}</label>
+                        <DatePicker
+                            selected={expenseDate}
+                            onChange={(date: Date | null) => setExpenseDate(date)}
+                            locale={currentLocale} // Force Albanian (sq)
+                            dateFormat="dd/MM/yyyy"
+                            className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary-start"
+                            required
+                        />
+                      </div>
+
                       <div><label className="block text-sm text-gray-300 mb-1">{t('finance.description')}</label><textarea rows={3} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})} /></div>
                       <div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setShowExpenseModal(false)} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold">{t('general.save')}</button></div>
                   </form>
@@ -895,16 +731,7 @@ const BusinessPage: React.FC = () => {
           </div>
       )}
 
-      {showArchiveInvoiceModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-              <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl">
-                  <h2 className="text-xl font-bold text-white mb-4">{t('finance.archiveInvoice')}</h2>
-                  <div className="space-y-3 mb-6"><label className="block text-sm text-gray-400 mb-1">{t('drafting.selectCaseLabel')}</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">Të Përgjithshme (Pa Dosje)</option>{cases.map(c => (<option key={c.id} value={c.id}>{c.title}</option>))}</select></div>
-                  <div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">{t('general.save')}</button></div>
-              </div>
-          </div>
-      )}
-
+      {showArchiveInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl"><h2 className="text-xl font-bold text-white mb-4">{t('finance.archiveInvoice')}</h2><div className="space-y-3 mb-6"><label className="block text-sm text-gray-400 mb-1">{t('drafting.selectCaseLabel')}</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">Të Përgjithshme (Pa Dosje)</option>{cases.map(c => (<option key={c.id} value={c.id}>{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">{t('general.save')}</button></div></div></div>)}
       {viewingDoc && <PDFViewerModal documentData={viewingDoc} onClose={closePreview} t={t} directUrl={viewingUrl} />}
     </div>
   );
