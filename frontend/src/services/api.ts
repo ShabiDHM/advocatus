@@ -1,8 +1,7 @@
 // FILE: src/services/api.ts
 // PHOENIX PROTOCOL - API MASTER
-// 1. FIX: Includes 'getExpenseReceiptBlob' & 'uploadExpenseReceipt'.
-// 2. FIX: Uses the 'Content-Type: undefined' strategy for all uploads (No 422 errors).
-// 3. STATUS: Complete.
+// 1. FIX: Converted 'createArchiveFolder' to use FormData (Resolves 422 Error).
+// 2. STATUS: API now strictly aligns with Backend 'Form(...)' expectations.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -58,7 +57,6 @@ class ApiService {
     private failedQueue: { resolve: (value: any) => void; reject: (reason?: any) => void; }[] = [];
 
     constructor() {
-        // No default headers to allow browser boundary generation for FormData
         this.axiosInstance = axios.create({ 
             baseURL: API_V1_URL, 
             withCredentials: true
@@ -158,7 +156,6 @@ class ApiService {
     public logout() { tokenManager.set(null); }
     public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
     
-    // PHOENIX: Expense Receipt Download (Restored)
     public async getExpenseReceiptBlob(expenseId: string): Promise<{ blob: Blob, filename: string }> {
         const response = await this.axiosInstance.get(`/finance/expenses/${expenseId}/receipt`, { 
             responseType: 'blob' 
@@ -188,7 +185,6 @@ class ApiService {
     public async createExpense(data: ExpenseCreateRequest): Promise<Expense> { const response = await this.axiosInstance.post<Expense>('/finance/expenses', data); return response.data; }
     public async deleteExpense(expenseId: string): Promise<void> { await this.axiosInstance.delete(`/finance/expenses/${expenseId}`); }
 
-    // PHOENIX: Option A - Manual Upload (Restored)
     public async uploadExpenseReceipt(expenseId: string, file: File): Promise<void> {
         const formData = new FormData();
         formData.append('file', file);
@@ -196,7 +192,26 @@ class ApiService {
     }
 
     public async getArchiveItems(category?: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut[]> { const params: any = {}; if (category) params.category = category; if (caseId) params.case_id = caseId; if (parentId) params.parent_id = parentId; const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); return Array.isArray(response.data) ? response.data : ((response.data as any).items || []); }
-    public async createArchiveFolder(title: string, parentId?: string, caseId?: string, category?: string): Promise<ArchiveItemOut> { const payload: Record<string, any> = { title }; if (parentId) payload.parent_id = parentId; if (caseId) payload.case_id = caseId; if (category) payload.category = category; try { const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', payload); return response.data; } catch (error: any) { if (error.response?.status === 422) { console.error("[API] 422 Validation Error on Create Folder:", JSON.stringify(error.response.data, null, 2)); } throw error; } }
+    
+    // PHOENIX FIX: Use FormData to match Backend 'Form(...)' expectation
+    public async createArchiveFolder(title: string, parentId?: string, caseId?: string, category?: string): Promise<ArchiveItemOut> {
+        const formData = new FormData();
+        formData.append('title', title);
+        if (parentId) formData.append('parent_id', parentId);
+        if (caseId) formData.append('case_id', caseId);
+        if (category) formData.append('category', category);
+
+        try {
+            const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', formData);
+            return response.data;
+        } catch (error: any) {
+            if (error.response?.status === 422) {
+                console.error("[API] 422 Validation Error on Create Folder:", JSON.stringify(error.response.data, null, 2));
+            }
+            throw error;
+        }
+    }
+
     public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { const formData = new FormData(); formData.append('file', file); formData.append('title', title); formData.append('category', category); if (caseId) formData.append('case_id', caseId); if (parentId) formData.append('parent_id', parentId); const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData); return response.data; }
     public async deleteArchiveItem(itemId: string): Promise<void> { await this.axiosInstance.delete(`/archive/items/${itemId}`); }
     public async downloadArchiveItem(itemId: string, title: string): Promise<void> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', title); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
