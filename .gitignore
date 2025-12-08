@@ -15,4 +15,8 @@ __pycache__/
 # IDE and OS files
 .DS_Store
 .vscode/
-data/
+# Ignore all data directories...
+data/*
+
+# ...but EXPLICITLY ALLOW the laws knowledge base
+!data/laws/
