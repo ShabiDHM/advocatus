@@ -225,8 +225,8 @@ const CaseViewPage: React.FC = () => {
         <div className="mb-4"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
         <CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} />
         
-        {/* PHOENIX: SYMMETRICAL SPLIT - HEIGHT FIXED TO 800px */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[800px]">
+        {/* PHOENIX FIX: Dynamic height constraint (Start 600px -> Grow -> Stop at 800px) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[600px] max-h-[800px]">
             
             {/* LEFT PANEL: Documents */}
             <DocumentsPanel

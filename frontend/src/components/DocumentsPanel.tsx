@@ -144,8 +144,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   return (
-    // PHOENIX FIX: Consumes className for height and forces flex-col + flex-1 for scrolling
-    <div className={`documents-panel bg-background-dark/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl flex flex-col ${className || 'h-[500px]'}`}>
+    // PHOENIX FIX: 'h-full' to fill grid cell, 'min-h-0' is handled inside the list area.
+    <div className={`documents-panel bg-background-dark/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl flex flex-col h-full ${className}`}>
       <div className="flex flex-row justify-between items-center border-b border-white/10 pb-3 mb-4 flex-shrink-0 gap-2">
         <div className="flex items-center gap-3 min-w-0">
             <h2 className="text-lg font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
@@ -210,7 +210,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           )}
       </AnimatePresence>
 
-      <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar">
+      {/* PHOENIX FIX: 'min-h-0' added here to enable scrolling when parent constraint is hit */}
+      <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar min-h-0">
         {(documents.length === 0 && !isUploading) && (
           <div className="text-text-secondary text-center py-10 flex flex-col items-center">
             <FolderOpen className="w-12 h-12 text-text-secondary/30 mb-3" />

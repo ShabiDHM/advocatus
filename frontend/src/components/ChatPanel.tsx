@@ -148,8 +148,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    // PHOENIX FIX: Uses className for height (e.g. h-full) and forces internal scrolling
-    <div className={`flex flex-col relative bg-background-dark/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl overflow-visible ${className}`}>
+    // PHOENIX FIX: 'h-full' fills the parent Grid. 'relative' helps positioning.
+    // 'overflow-visible' allows dropdowns to fly out.
+    <div className={`flex flex-col relative bg-background-dark/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl overflow-visible h-full ${className}`}>
       
       <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-white/10 bg-white/5 rounded-t-2xl z-50">
         <div className="flex items-center gap-2 sm:gap-3">
@@ -189,7 +190,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar z-0 relative">
+      {/* PHOENIX FIX: 'min-h-0' is critical here. It allows the flex child to shrink/scroll 
+          instead of pushing the parent container beyond 800px. */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar z-0 relative min-h-0">
         {messages.length === 0 && !isSendingMessage ? (
             <div className="flex flex-col items-center justify-center h-full text-center opacity-40">
                 <BrainCircuit size={48} className="mb-4 text-primary-start" />
