@@ -1,8 +1,8 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - LITIGATION ENGINE V6
-# 1. SCHEMA: Added support for 'CLAIM', 'EVIDENCE', 'LAW' nodes.
-# 2. LOGIC: Added 'ACCUSES', 'CONTRADICTS', 'CORROBORATES' relationship handling.
-# 3. INTELLIGENCE: New 'find_contradictions' method to feed the Chatbot.
+# PHOENIX PROTOCOL - UNIFIED GRAPH SERVICE (V7)
+# 1. MERGE: Combines "Network Intelligence" (V5) with "Litigation Engine" (V6).
+# 2. RESTORATION: Restored 'find_hidden_connections' to fix RAG Service error.
+# 3. CAPABILITY: Supports Entity extraction, Legal Claims, and Contradiction detection.
 
 import os
 import structlog
@@ -11,6 +11,7 @@ from typing import List, Dict, Any, Optional
 
 logger = structlog.get_logger(__name__)
 
+# --- CONFIGURATION ---
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://neo4j:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
@@ -18,37 +19,157 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
 class GraphService:
     _driver: Optional[Driver] = None
 
+    def __init__(self):
+        pass
+
     def _connect(self):
         if self._driver: return
         try:
-            self._driver = GraphDatabase.driver(NEO4J_URI, auth=basic_auth(NEO4J_USER, NEO4J_PASSWORD))
+            self._driver = GraphDatabase.driver(
+                NEO4J_URI, 
+                auth=basic_auth(NEO4J_USER, NEO4J_PASSWORD)
+            )
             self._driver.verify_connectivity()
         except Exception as e:
             logger.error(f"❌ Neo4j Connection Failed: {e}")
             self._driver = None
 
     def close(self):
-        if self._driver: self._driver.close()
+        if self._driver:
+            self._driver.close()
 
-    # --- ADVANCED INGESTION ---
+    # ==============================================================================
+    # SECTION 1: MAINTENANCE & VISUALIZATION (V5)
+    # ==============================================================================
+
+    def delete_document_nodes(self, document_id: str):
+        self._connect()
+        if not self._driver: return
+        try:
+            with self._driver.session() as session:
+                session.run("MATCH (d:Document {id: $doc_id}) DETACH DELETE d", doc_id=document_id)
+                session.run("MATCH (n) WHERE NOT (n)--() DELETE n") # Cleanup orphans
+            logger.info(f"🗑️ Deleted Graph Nodes for Document {document_id}")
+        except Exception as e:
+            logger.error(f"Graph Deletion Failed: {e}")
+
+    def get_case_graph(self, case_id: str) -> Dict[str, List]:
+        """
+        Retrieves the node/link structure for visualization.
+        """
+        self._connect()
+        if not self._driver: return {"nodes": [], "links": []}
+        
+        query = """
+        MATCH (d:Document {case_id: $case_id})
+        OPTIONAL MATCH (d)-[:MENTIONS]->(e)
+        WITH collect(DISTINCT d) + collect(DISTINCT e) as nodes
+        UNWIND nodes as n
+        OPTIONAL MATCH (n)-[r]-(m)
+        WHERE m IN nodes
+        RETURN DISTINCT n, r, m
+        """
+        
+        nodes_dict = {}
+        links_list = []
+        
+        try:
+            with self._driver.session() as session:
+                result = session.run(query, case_id=case_id)
+                for record in result:
+                    n, m, r = record['n'], record['m'], record['r']
+                    
+                    for node_obj in [n, m]:
+                        if node_obj:
+                            nid = node_obj.get("id", node_obj.get("name"))
+                            if nid and nid not in nodes_dict:
+                                grp = node_obj.get("group", "ENTITY")
+                                nodes_dict[nid] = {
+                                    "id": nid,
+                                    "name": node_obj.get("name", "Unknown"),
+                                    "group": grp,
+                                    "val": 20 if grp == 'DOCUMENT' else 8
+                                }
+
+                    if r and n and m:
+                        links_list.append({
+                            "source": n.get("id", n.get("name")),
+                            "target": m.get("id", m.get("name")),
+                            "label": r.type.replace("_", " ")
+                        })
+
+            return {"nodes": list(nodes_dict.values()), "links": links_list}
+        except Exception as e:
+            logger.error(f"Graph Retrieval Failed: {e}")
+            return {"nodes": [], "links": []}
+
+    # ==============================================================================
+    # SECTION 2: DATA INGESTION (ENTITIES & RELATIONSHIPS)
+    # ==============================================================================
+
+    def ingest_entities_and_relations(self, case_id: str, document_id: str, doc_name: str, entities: List[Dict], relations: List[Dict]):
+        """
+        Standard ingestion for People, Money, Orgs.
+        """
+        self._connect()
+        if not self._driver: return
+
+        def _tx_ingest(tx, c_id, d_id, d_name, ents, rels):
+            tx.run("""
+                MERGE (d:Document {id: $doc_id})
+                SET d.case_id = $case_id, d.name = $doc_name, d.group = 'DOCUMENT'
+            """, doc_id=d_id, case_id=c_id, doc_name=d_name)
+
+            for ent in ents:
+                raw_label = ent.get("type", "Entity").strip().capitalize()
+                label = "ENTITY"
+                if raw_label in ["Person", "People"]: label = "PERSON"
+                elif raw_label in ["Organization", "Company"]: label = "ORGANIZATION"
+                elif raw_label in ["Money", "Amount"]: label = "MONEY"
+                elif raw_label in ["Date", "Time"]: label = "DATE"
+                
+                name = ent.get("name", "").strip().title()
+                if not name or len(name) < 2: continue
+
+                tx.run(f"""
+                MERGE (e:{label} {{name: $name}})
+                ON CREATE SET e.group = '{label}'
+                MERGE (d:Document {{id: $doc_id}})
+                MERGE (d)-[:MENTIONS]->(e)
+                """, name=name, doc_id=d_id)
+
+            for rel in rels:
+                subj = rel.get("subject", "").strip().title()
+                obj = rel.get("object", "").strip().title()
+                predicate = rel.get("relation", "RELATED_TO").upper().replace(" ", "_")
+                
+                if subj and obj:
+                    tx.run(f"""
+                    MATCH (a {{name: $subj}})
+                    MATCH (b {{name: $obj}})
+                    MERGE (a)-[:{predicate}]->(b)
+                    """, subj=subj, obj=obj)
+
+        try:
+            with self._driver.session() as session:
+                session.execute_write(_tx_ingest, case_id, document_id, doc_name, entities, relations)
+        except Exception: pass
+
+    # ==============================================================================
+    # SECTION 3: LITIGATION ENGINE (V6 - CLAIMS & CONTRADICTIONS)
+    # ==============================================================================
+
     def ingest_legal_analysis(self, case_id: str, doc_id: str, analysis: List[Dict]):
         """
-        Ingests high-level legal concepts extracted by the LLM.
-        Expected format from LLM:
-        [
-          {"type": "CLAIM", "source": "Agim", "target": "Besnik", "text": "Stole the car", "status": "DISPUTED"},
-          {"type": "FACT", "text": "Agim was in Tirana", "evidence_doc": "Flight Ticket.pdf"}
-        ]
+        Ingests high-level legal concepts (Accusations, Contradictions).
         """
         self._connect()
         if not self._driver: return
 
         def _tx_ingest_legal(tx, c_id, d_id, items):
-            # Link Document to Case
             tx.run("MERGE (d:Document {id: $d_id}) SET d.case_id = $c_id", d_id=d_id, c_id=c_id)
 
             for item in items:
-                # 1. Handle ACCUSATIONS (Person vs Person)
                 if item.get('type') == 'ACCUSATION':
                     accuser = item.get('source', 'Unknown').title()
                     accused = item.get('target', 'Unknown').title()
@@ -65,18 +186,14 @@ class GraphService:
                     """
                     tx.run(query, accuser=accuser, accused=accused, claim_text=claim_text, case_id=c_id, doc_id=d_id)
 
-                # 2. Handle CONTRADICTIONS (Evidence vs Claim) - The "False Claim" Detector
                 elif item.get('type') == 'CONTRADICTION':
-                    claim_text = item.get('claim_text')
-                    evidence_text = item.get('evidence_text')
-                    
                     query = """
                     MERGE (c:Claim {text: $claim_text})
                     MERGE (e:Evidence {text: $evidence_text})
                     MERGE (d:Document {id: $doc_id})-[:CONTAINS]->(e)
                     MERGE (e)-[:CONTRADICTS]->(c)
                     """
-                    tx.run(query, claim_text=claim_text, evidence_text=evidence_text, doc_id=d_id)
+                    tx.run(query, claim_text=item.get('claim_text'), evidence_text=item.get('evidence_text'), doc_id=d_id)
 
         try:
             with self._driver.session() as session:
@@ -85,12 +202,37 @@ class GraphService:
         except Exception as e:
             logger.error(f"Legal Ingestion Failed: {e}")
 
-    # --- THE DETECTIVE QUERIES ---
-    
+    # ==============================================================================
+    # SECTION 4: INTELLIGENCE QUERIES (DETECTIVE TOOLS)
+    # ==============================================================================
+
+    def find_hidden_connections(self, query_term: str) -> List[str]:
+        """
+        Deep Search for RAG Service. Finds 1-hop connections for a term.
+        Crucial for context building.
+        """
+        self._connect()
+        if not self._driver: return []
+        
+        query = """
+        MATCH (a)-[r]-(b)
+        WHERE toLower(a.name) CONTAINS toLower($term)
+        RETURN a.name, type(r), b.name
+        LIMIT 15
+        """
+        results = []
+        try:
+            with self._driver.session() as session:
+                res = session.run(query, term=query_term)
+                for rec in res:
+                    results.append(f"{rec['a.name']} --[{rec['type(r)']}]--> {rec['b.name']}")
+            return list(set(results))
+        except Exception:
+            return []
+
     def find_contradictions(self, case_id: str) -> str:
         """
-        Returns a text summary of all contradictions found in the graph.
-        Used by the Chatbot to answer "Is anyone lying?"
+        Returns a text summary of contradictions for the Chatbot.
         """
         self._connect()
         if not self._driver: return ""
@@ -98,7 +240,7 @@ class GraphService:
         query = """
         MATCH (e:Evidence)-[:CONTRADICTS]->(c:Claim)<-[:ASSERTS]-(p:Person)
         WHERE c.case_id = $case_id
-        RETURN p.name as liar, c.text as lie, e.text as proof, e.source_doc as doc
+        RETURN p.name as liar, c.text as lie, e.text as proof
         """
         
         try:
@@ -106,19 +248,15 @@ class GraphService:
                 result = session.run(query, case_id=case_id)
                 summary = []
                 for r in result:
-                    summary.append(f"⚠️ POTENTIAL FALSE CLAIM: {r['liar']} claimed '{r['lie']}', but evidence '{r['proof']}' contradicts this.")
+                    summary.append(f"⚠️ FALSE CLAIM: {r['liar']} claimed '{r['lie']}', but evidence '{r['proof']}' contradicts this.")
                 
                 return "\n".join(summary) if summary else "No direct contradictions found in the graph."
         except Exception:
             return ""
 
     def get_accusation_chain(self, person_name: str) -> List[str]:
-        """
-        Who accused this person, and what did they accuse them of?
-        """
         self._connect()
         if not self._driver: return []
-
         query = """
         MATCH (accuser:Person)-[:ACCUSES]->(target:Person {name: $name})
         MATCH (accuser)-[:ASSERTS]->(c:Claim)-[:CONCERNS]->(target)
@@ -134,4 +272,5 @@ class GraphService:
         except Exception:
             return []
 
+# Global Instance
 graph_service = GraphService()

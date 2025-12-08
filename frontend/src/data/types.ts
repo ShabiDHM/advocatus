@@ -1,7 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - DATA TYPES REFACTOR
-// 1. FIXED: Added 'case_id' to ArchiveItemOut to support folder organization.
-// 2. CLEANUP: Removed Library types.
+// PHOENIX PROTOCOL - TYPES REFACTOR
+// 1. FIX: Updated ChatMessage to use 'role' instead of 'sender'.
+// 2. STATUS: Aligned with Backend V5.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -69,11 +69,11 @@ export interface Finding {
     created_at: string;
 }
 
+// PHOENIX FIX: Aligned with Backend logic
 export interface ChatMessage {
-    sender: 'user' | 'ai';
+    role: 'user' | 'ai'; 
     content: string;
     timestamp: string;
-    text?: string;
 }
 
 export interface CalendarEvent {
@@ -154,7 +154,6 @@ export interface InvoiceCreateRequest {
     notes?: string;
 }
 
-// --- ARCHIVE (REPLACES LIBRARY) ---
 export interface ArchiveItemOut {
     id: string;
     title: string;
@@ -163,8 +162,9 @@ export interface ArchiveItemOut {
     storage_key: string;
     file_size: number;
     created_at: string;
-    // PHOENIX FIX: Added missing property
-    case_id?: string; 
+    case_id?: string;
+    parent_id?: string; // Added for folder structure
+    item_type?: 'FILE' | 'FOLDER'; // Added for folder structure
 }
 
 // --- SHARED ---
