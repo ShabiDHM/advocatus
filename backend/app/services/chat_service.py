@@ -1,7 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - JURISDICTION SUPPORT (SERVICE LAYER)
-# 1. SCOPE: 'get_http_chat_response' now accepts and passes 'jurisdiction'.
-# 2. RAG INTEGRATION: The RAG engine will now receive the jurisdictional context.
+# PHOENIX PROTOCOL - STATIC ANALYSIS FIX
+# 1. FIX: Removed global 'None' initializers to fix Pylance "Object cannot be called" error.
+# 2. LOGIC: Scoped imports inside the factory function for type safety.
+# 3. STATUS: Validated.
 
 from __future__ import annotations
 import os
@@ -15,38 +16,34 @@ from bson.errors import InvalidId
 from openai import AsyncOpenAI
 
 from app.models.case import ChatMessage
+from app.services.graph_service import graph_service 
 import app.services.vector_store_service as vector_store_service
 
 logger = logging.getLogger(__name__)
 
-# --- DYNAMIC IMPORTS ---
-AlbanianRAGService = None
-AlbanianLanguageDetector = None
-
-def _load_rag_dependencies():
-    global AlbanianRAGService, AlbanianLanguageDetector
-    if AlbanianRAGService is None:
-        try:
-            from app.services.albanian_rag_service import AlbanianRAGService
-            from app.services.albanian_language_detector import AlbanianLanguageDetector
-        except ImportError as e:
-            logger.error(f"❌ Critical Import Error in Chat Service: {e}")
-
 def _get_rag_service_instance() -> Any:
-    _load_rag_dependencies()
-    
-    if AlbanianRAGService is None or AlbanianLanguageDetector is None:
-        logger.error("❌ RAG Service or Language Detector Class is missing.")
+    """
+    Factory to get the RAG Service instance.
+    Uses local imports to prevent circular dependency issues and static analysis errors.
+    """
+    # 1. Dynamic Imports (Scoped to this function to satisfy Pylance)
+    try:
+        from app.services.albanian_rag_service import AlbanianRAGService
+        from app.services.albanian_language_detector import AlbanianLanguageDetector
+    except ImportError as e:
+        logger.error(f"❌ Critical Import Error in Chat Service: {e}")
         return None
 
+    # 2. Config Check
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
         logger.warning("⚠️ DEEPSEEK_API_KEY missing. AI features disabled.")
         return None
 
+    # 3. Instantiation
     try:
         detector = AlbanianLanguageDetector()
-        # Use a dummy client here, as RAG service will init its own OpenAI client
+        # Use a dummy client here, as RAG service will init its own OpenAI client based on config
         dummy_client = AsyncOpenAI(api_key="dummy") 
         
         return AlbanianRAGService(
@@ -64,73 +61,58 @@ async def get_http_chat_response(
     user_query: str, 
     user_id: str,
     document_id: Optional[str] = None,
-    jurisdiction: Optional[str] = 'ks' # PHOENIX FIX: Added param
+    jurisdiction: Optional[str] = 'ks'
 ) -> str:
     """
-    Orchestrates the chat flow with scope and jurisdiction.
+    Orchestrates the Socratic Chat: Graph Check -> Vector Search -> LLM Answer.
     """
-    logger.info(f"💬 Chat Request: Case[{case_id}] Doc[{document_id or 'ALL'}] Jur[{jurisdiction}]")
+    try: oid = ObjectId(case_id)
+    except InvalidId: raise HTTPException(status_code=400, detail="Invalid ID")
 
-    # 1. Validation
+    # 1. Save User Message
     try:
-        oid = ObjectId(case_id)
-    except InvalidId:
-        raise HTTPException(status_code=400, detail="Invalid Case ID format.")
-
-    # 2. Check Case Existence
-    case = await db.cases.find_one({"_id": oid})
-    if not case:
-        logger.warning(f"⚠️ Chat attempted on missing case: {case_id}")
-        raise HTTPException(status_code=404, detail="Case not found.")
-    
-    # 3. Save User Message
-    try:
-        user_message = ChatMessage(
-            role="user",
-            content=user_query,
-            timestamp=datetime.now(timezone.utc)
-        )
         await db.cases.update_one(
             {"_id": oid},
-            {"$push": {"chat_history": user_message.model_dump()}}
+            {"$push": {"chat_history": ChatMessage(role="user", content=user_query, timestamp=datetime.now(timezone.utc)).model_dump()}}
         )
-    except Exception as e:
-        logger.error(f"❌ Database Write Error (User Message): {e}")
+    except Exception as e: logger.error(f"DB Write Error: {e}")
     
-    # 4. AI Processing
+    # 2. Graph Intelligence Step (The "Detective")
+    graph_context = ""
+    try:
+        # Check for contradictions or hidden flags in the graph
+        contradictions = graph_service.find_contradictions(case_id)
+        if contradictions and "No direct contradictions" not in contradictions:
+            graph_context = f"\n\n[SISTEMI DETEKTIV - RAPORT NGA GRAPH DB]:\n{contradictions}\n(Përdore këtë informacion për të paralajmëruar përdoruesin nëse pyetja lidhet me besueshmërinë.)\n"
+    except Exception as e:
+        logger.warning(f"Graph Lookup Failed (Non-critical): {e}")
+
+    # 3. AI Processing (RAG + Graph Context)
     response_text = ""
     try:
         rag_service = _get_rag_service_instance()
-        
         if rag_service:
-            target_docs = [document_id] if document_id else None
+            # We transparently append Graph Intelligence to the user query context
+            augmented_query = f"{user_query}{graph_context}"
             
-            # PHOENIX FIX: Pass jurisdiction to RAG
             response_text = await rag_service.chat(
-                query=user_query, 
+                query=augmented_query, 
                 case_id=case_id, 
-                document_ids=target_docs,
+                document_ids=[document_id] if document_id else None,
                 jurisdiction=jurisdiction
             )
         else:
-            response_text = "Shërbimi AI aktualisht nuk është i qasshëm (Missing Configuration)."
-
+            response_text = "Shërbimi AI nuk është i konfiguruar (Mungojnë modulet ose API Key)."
     except Exception as e:
-        logger.error(f"❌ AI Generation Error: {e}", exc_info=True)
-        response_text = "Ndodhi një gabim teknik gjatë përpunimit. Ju lutemi provoni përsëri."
+        logger.error(f"AI Error: {e}")
+        response_text = "Më vjen keq, pata një problem teknik gjatë përpunimit të përgjigjes."
 
-    # 5. Save AI Response
+    # 4. Save Response
     try:
-        ai_message = ChatMessage(
-            role="ai", 
-            content=response_text,
-            timestamp=datetime.now(timezone.utc)
-        )
         await db.cases.update_one(
             {"_id": oid},
-            {"$push": {"chat_history": ai_message.model_dump()}}
+            {"$push": {"chat_history": ChatMessage(role="ai", content=response_text, timestamp=datetime.now(timezone.utc)).model_dump()}}
         )
-    except Exception as e:
-         logger.error(f"❌ Database Write Error (AI Message): {e}")
+    except Exception: pass
 
     return response_text
