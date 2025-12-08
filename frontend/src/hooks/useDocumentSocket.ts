@@ -1,12 +1,12 @@
 // FILE: src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - JURISDICTION INTEGRATION (HOOK LAYER)
-// 1. SCOPE: sendChatMessage now accepts and forwards 'jurisdiction'.
-// 2. API: Passes the jurisdiction to the 'apiService' call.
+// PHOENIX PROTOCOL - TYPE ALIGNMENT
+// 1. FIX: Replaced 'sender' with 'role' in all ChatMessage objects to match types.ts.
+// 2. STATUS: Build-ready and type-safe.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
-import { Jurisdiction } from '../components/ChatPanel'; // Import type from UI
+import { Jurisdiction } from '../components/ChatPanel';
 
 interface UseDocumentSocketReturn {
   documents: Document[];
@@ -15,7 +15,6 @@ interface UseDocumentSocketReturn {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
-  // PHOENIX UPDATE: Added jurisdiction parameter
   sendChatMessage: (content: string, documentId?: string, jurisdiction?: Jurisdiction) => void;
   isSendingMessage: boolean;
 }
@@ -89,8 +88,9 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                     }
 
                     if (payload.type === 'CHAT_MESSAGE' && payload.case_id === caseId) {
+                         // PHOENIX FIX: Changed 'sender' to 'role'
                          setMessages(prev => [...prev, {
-                             sender: 'ai',
+                             role: 'ai',
                              content: payload.content,
                              timestamp: new Date().toISOString()
                          }]);
@@ -120,21 +120,19 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
     setReconnectCounter(prev => prev + 1); 
   }, []);
   
-  // PHOENIX UPDATE: Handle specialized chat with jurisdiction
   const sendChatMessage = useCallback(async (content: string, documentId?: string, jurisdiction?: Jurisdiction) => {
     if (!content.trim() || !caseId) return;
     
     setIsSendingMessage(true);
-    // Optimistic UI update
-    setMessages(prev => [...prev, { sender: 'user', content, timestamp: new Date().toISOString() }]);
+    // PHOENIX FIX: Changed 'sender' to 'role'
+    setMessages(prev => [...prev, { role: 'user', content, timestamp: new Date().toISOString() }]);
     
     try {
-        // Use the centralized API method with all parameters
         await apiService.sendChatMessage(caseId, content, documentId, jurisdiction);
     } catch (error) {
         console.error("Message send failed:", error);
-        // Optionally add a failure message to the chat
-        setMessages(prev => [...prev, { sender: 'ai', content: "Dështoi dërgimi i mesazhit.", timestamp: new Date().toISOString() }]);
+        // PHOENIX FIX: Changed 'sender' to 'role'
+        setMessages(prev => [...prev, { role: 'ai', content: "Dështoi dërgimi i mesazhit.", timestamp: new Date().toISOString() }]);
     } finally {
         setIsSendingMessage(false);
     }

@@ -1,13 +1,14 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING ENGINE V5.1 (PYMONGO TYPE FIX)
-# 1. FIX: Replaced implicit 'if db:' checks with explicit 'if db is not None:'.
-# 2. STATUS: Resolves Pylance type errors regarding Database objects.
+# PHOENIX PROTOCOL - DRAFTING ENGINE V6.1 (JURISDICTION AWARE)
+# 1. FIX: '_fetch_relevant_laws_sync' now accepts and uses 'jurisdiction'.
+# 2. LOGIC: Ensures drafts for Kosovo only cite Kosovo laws.
 
 import os
 import asyncio
 import structlog
 import httpx
 import json
+import re
 from typing import AsyncGenerator, Optional, List, Any, cast, Dict
 from openai import AsyncOpenAI
 from openai.types.chat import ChatCompletionMessageParam 
@@ -18,6 +19,7 @@ from ..models.user import UserInDB
 from app.services.text_sterilization_service import sterilize_text_for_llm 
 from .vector_store_service import query_legal_knowledge_base
 from .embedding_service import generate_embedding
+from .graph_service import graph_service 
 
 logger = structlog.get_logger(__name__)
 
@@ -27,7 +29,31 @@ OPENROUTER_MODEL = "deepseek/deepseek-chat"
 LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
 LOCAL_MODEL_NAME = "llama3"
 
-# --- HELPERS (Sync versions wrapped later) ---
+# --- GRAPH INTELLIGENCE ---
+def _fetch_graph_intelligence_sync(case_id: Optional[str], prompt_text: str) -> str:
+    buffer = []
+    if case_id:
+        try:
+            conflicts = graph_service.find_contradictions(case_id)
+            if conflicts and "No direct contradictions" not in conflicts:
+                buffer.append(f"⚠️ KONTRADIKTA NGA GRAFI:\n{conflicts}")
+        except Exception: pass
+
+    potential_entities = list(set(re.findall(r'\b[A-Z][a-z]{3,}\b', prompt_text)))
+    connections = []
+    for entity in potential_entities[:3]:
+        try:
+            results = graph_service.find_hidden_connections(entity)
+            if results: connections.extend(results)
+        except Exception: pass
+    
+    if connections:
+        unique_conns = list(set(connections))[:5]
+        buffer.append(f"🕸️ LIDHJE TË FSHEHURA:\n" + "\n".join(unique_conns))
+
+    return "\n\n".join(buffer) if buffer else ""
+
+# --- HELPERS ---
 def _get_template_augmentation_sync(draft_type: str, jurisdiction: str, favorability: Optional[str], db: Database) -> Optional[str]:
     try:
         template_filter = {"document_type": draft_type, "jurisdiction": jurisdiction, "favorability": favorability}
@@ -40,20 +66,26 @@ def _get_template_augmentation_sync(draft_type: str, jurisdiction: str, favorabi
         return text
     except Exception: return None
 
-def _fetch_relevant_laws_sync(prompt_text: str) -> str:
+# PHOENIX FIX: Added 'jurisdiction' parameter
+def _fetch_relevant_laws_sync(prompt_text: str, jurisdiction: str = "ks") -> str:
     try:
         embedding = generate_embedding(prompt_text[:1000])
         if not embedding: return ""
-        laws = query_legal_knowledge_base(embedding, n_results=3)
+        
+        # PHOENIX FIX: Passing jurisdiction to Vector Store
+        # Note: vector_store_service.py must support this kwarg!
+        laws = query_legal_knowledge_base(embedding, n_results=3, jurisdiction=jurisdiction)
+        
         if not laws: return ""
-        buffer = ["\n=== BAZA LIGJORE (NGA DATABAZA) ==="]
+        buffer = [f"\n=== BAZA LIGJORE ({jurisdiction.upper()}) ==="]
         for law in laws:
             buffer.append(f"BURIMI: {law.get('document_name','Ligj')}\nNENET: {law.get('text','l')[:1500]}\n---")
         return "\n".join(buffer)
-    except Exception: return ""
+    except Exception as e: 
+        logger.warning(f"Law fetch failed: {e}")
+        return ""
 
 def _fetch_library_context_sync(db: Database, user_id: str, prompt_text: str) -> str:
-    # PHOENIX FIX: Explicit None check
     if db is None: return ""
     try:
         templates = list(db.library.find({"user_id": ObjectId(user_id)}))
@@ -69,7 +101,6 @@ def _fetch_library_context_sync(db: Database, user_id: str, prompt_text: str) ->
 
 def _format_business_identity_sync(db: Database, user: UserInDB) -> str:
     try:
-        # PHOENIX FIX: Explicit None check
         if db is not None:
             profile = db.business_profiles.find_one({"user_id": str(user.id)})
             if profile:
@@ -78,7 +109,6 @@ def _format_business_identity_sync(db: Database, user: UserInDB) -> str:
     return f"=== HARTUESI ===\nEmri: {user.username}\nEmail: {user.email}\n"
 
 async def _stream_local_llm(messages: List[Dict[str, Any]]) -> AsyncGenerator[str, None]:
-    logger.info("🔄 LOCAL LLM Drafting...")
     payload = {"model": LOCAL_MODEL_NAME, "messages": messages, "stream": True, "options": {"temperature": 0.3}}
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -100,47 +130,54 @@ async def generate_draft_stream(
     user: UserInDB,
     draft_type: Optional[str] = None,
     case_id: Optional[str] = None,
-    jurisdiction: Optional[str] = None,
+    jurisdiction: Optional[str] = "ks", # Default to Kosovo
     favorability: Optional[str] = None,
     use_library: bool = False,
     db: Optional[Database] = None
 ) -> AsyncGenerator[str, None]:
     
     log = logger.bind(case_id=case_id, user_id=str(user.id))
-    log.info("drafting_service.stream_start")
+    log.info(f"drafting_service.stream_start jurisdiction={jurisdiction}")
 
     sanitized_prompt = sterilize_text_for_llm(prompt_text)
     sanitized_context = sterilize_text_for_llm(context)
 
-    # 1. PARALLEL DATA FETCHING
-    future_laws = asyncio.to_thread(_fetch_relevant_laws_sync, sanitized_prompt)
+    # 1. PARALLEL DATA FETCHING (Graph + Jurisdiction-Aware Laws)
+    future_laws = asyncio.to_thread(_fetch_relevant_laws_sync, sanitized_prompt, jurisdiction or "ks")
     future_identity = asyncio.to_thread(_format_business_identity_sync, cast(Database, db), user)
+    future_graph = asyncio.to_thread(_fetch_graph_intelligence_sync, case_id, sanitized_prompt)
     
-    # PHOENIX FIX: Explicit None check for db
     library_task = asyncio.to_thread(_fetch_library_context_sync, cast(Database, db), str(user.id), sanitized_prompt) if (db is not None and use_library) else asyncio.sleep(0, result="")
     
     template_task = asyncio.sleep(0, result=None)
-    # PHOENIX FIX: Explicit None check for db
     if draft_type and jurisdiction and db is not None:
         template_task = asyncio.to_thread(_get_template_augmentation_sync, draft_type, jurisdiction, favorability, cast(Database, db))
 
-    # Wait for all background tasks to finish concurrently
-    relevant_laws, business_identity, library_context, template_augment = await asyncio.gather(
-        future_laws, future_identity, library_task, template_task
+    relevant_laws, business_identity, graph_intelligence, library_context, template_augment = await asyncio.gather(
+        future_laws, future_identity, future_graph, library_task, template_task
     )
 
     # 2. PROMPT CONSTRUCTION
+    jurisdiction_name = "Shqipërisë" if jurisdiction == "al" else "Kosovës"
+    
     system_prompt = (
-        "Ti je 'Juristi AI', Ekspert i Hartimit Ligjor (Kosovë). "
-        "DETYRA: Harto dokumentin. "
-        "FORMATI: 1. Titull i qartë. 2. Identiteti i saktë. 3. Cito ligjet. 4. Gjuhe letrare. 5. Vetëm teksti i dokumentit."
+        f"Ti je 'Juristi AI', Ekspert i Hartimit Ligjor për legjislacionin e {jurisdiction_name}. "
+        "DETYRA: Harto dokumentin duke përdorur faktet, BAZËN LIGJORE TË SIGURUAR dhe inteligjencën nga Grafi. "
+        "FORMATI: Titull, Palët, Baza Ligjore (cito ligjet e sakta nga konteksti), Argumentimi, Kërkesa."
     )
     
-    full_prompt = f"{business_identity}\n{relevant_laws}\n{library_context}\nKONTEKSTI:\n{sanitized_context}\n---\nKËRKESA:\n{sanitized_prompt}"
+    full_prompt = (
+        f"{business_identity}\n"
+        f"{relevant_laws}\n"
+        f"{graph_intelligence}\n"
+        f"{library_context}\n"
+        f"KONTEKSTI:\n{sanitized_context}\n---\n"
+        f"KËRKESA:\n{sanitized_prompt}"
+    )
     
     if template_augment: 
-        system_prompt += " Përdor strukturën specifike."
-        full_prompt = f"Template:\n{template_augment}\n\n{full_prompt}"
+        system_prompt += " Ndiq strukturën e mëposhtme."
+        full_prompt = f"Template Strict:\n{template_augment}\n\n{full_prompt}"
 
     messages: List[ChatCompletionMessageParam] = [
         {"role": "system", "content": system_prompt},
@@ -164,7 +201,6 @@ async def generate_draft_stream(
         except Exception as e:
             log.warning(f"DeepSeek Failed: {e}")
 
-    # Fallback
     yield "**[Backup AI]**\n\n"
     async for chunk in _stream_local_llm(cast(List[Dict[str, Any]], messages)):
         yield chunk
