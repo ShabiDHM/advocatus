@@ -225,8 +225,8 @@ const CaseViewPage: React.FC = () => {
         <div className="mb-4"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
         <CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} />
         
-        {/* PHOENIX FIX: Strict 'h-[800px]' height to stop endless growth */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[800px]">
+        {/* PHOENIX FIX: Fixed Height [600px] as requested */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
             
             {/* LEFT PANEL: Documents */}
             <DocumentsPanel

@@ -113,17 +113,39 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [input, setInput] = useState('');
   const [selectedContextId, setSelectedContextId] = useState<string>('general');
   const [jurisdiction, setJurisdiction] = useState<Jurisdiction>('ks');
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Auto-scroll to bottom
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isSendingMessage]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Auto-expand textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+    }
+  }, [input]);
+
+  const sendMessage = () => {
     if (!input.trim() || isSendingMessage) return;
     const mode: ChatMode = selectedContextId === 'general' ? 'general' : 'document';
     const docId = mode === 'document' ? selectedContextId : undefined;
     onSendMessage(input, mode, docId, jurisdiction);
     setInput('');
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessage();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+    }
   };
 
   const contextItems: DropdownItem[] = useMemo(() => [
@@ -148,7 +170,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    // PHOENIX FIX: 'overflow-hidden' added to root. THIS IS THE FIX.
+    // PHOENIX FIX: 'overflow-hidden' on root ensures constraints are respected
     <div className={`flex flex-col relative bg-background-dark/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl overflow-hidden h-full ${className}`}>
       
       <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-white/10 bg-white/5 rounded-t-2xl z-50">
@@ -250,9 +272,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       <div className="p-4 border-t border-white/10 bg-white/5 rounded-b-2xl z-10">
-        <form onSubmit={handleSubmit} className="relative">
-            <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={t('chatPanel.inputPlaceholder')} className="w-full bg-black/40 border border-white/10 text-white rounded-xl pl-4 pr-12 py-3 focus:outline-none focus:border-primary-start/50 focus:ring-1 focus:ring-primary-start/50 transition-all placeholder:text-gray-600 text-sm"/>
-            <button type="submit" disabled={!input.trim() || isSendingMessage} className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-primary-start hover:bg-primary-end text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+        <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
+            <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={t('chatPanel.inputPlaceholder')}
+                rows={1}
+                className="w-full bg-black/40 border border-white/10 text-white rounded-xl pl-4 pr-12 py-3 focus:outline-none focus:border-primary-start/50 focus:ring-1 focus:ring-primary-start/50 transition-all placeholder:text-gray-600 text-sm resize-none custom-scrollbar"
+                style={{ maxHeight: '150px' }}
+            />
+            <button 
+                type="submit" 
+                disabled={!input.trim() || isSendingMessage} 
+                className="absolute right-2 bottom-2 p-2 bg-primary-start hover:bg-primary-end text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
                 <Send size={16} />
             </button>
         </form>

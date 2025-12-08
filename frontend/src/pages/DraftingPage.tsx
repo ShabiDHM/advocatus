@@ -160,10 +160,10 @@ const DraftingPage: React.FC = () => {
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
 
-      {/* PHOENIX FIX: Added 'max-h-[800px]' to grid container */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0 max-h-[800px]">
+      {/* PHOENIX FIX: Strict 'h-[600px]' height constraint */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
         
-        {/* Input Column */}
+        {/* Input Column - overflow-hidden is CRITICAL here */}
         <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0">
                 <FileText className="text-primary-400" size={20} />
@@ -193,7 +193,7 @@ const DraftingPage: React.FC = () => {
             </form>
         </div>
 
-        {/* Result Column */}
+        {/* Result Column - overflow-hidden is CRITICAL here */}
         <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5 flex-shrink-0">
                 <h3 className="text-white font-semibold flex items-center gap-2">
@@ -216,7 +216,9 @@ const DraftingPage: React.FC = () => {
             {currentJob.error && (
                 <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-4 text-sm text-red-300 flex items-center gap-2 flex-shrink-0"><AlertCircle size={16} />{currentJob.error}</div>
             )}
-            <div className="flex-1 bg-black/50 rounded-xl border border-white/5 p-4 overflow-auto custom-scrollbar relative">
+            
+            {/* Scrollable Result Area - min-h-0 prevents overflow issues */}
+            <div className="flex-1 bg-black/50 rounded-xl border border-white/5 p-4 overflow-y-auto custom-scrollbar relative min-h-0">
                 {currentJob.result ? (
                     <div className="markdown-content text-gray-300 text-sm leading-relaxed">
                         <ReactMarkdown 
