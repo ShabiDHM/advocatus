@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } from '../data/types';
+import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel, { ChatMode, Jurisdiction } from '../components/ChatPanel';
@@ -154,9 +154,20 @@ const CaseViewPage: React.FC = () => {
         apiService.getFindings(caseId)
       ]);
       setCaseData({ details, findings: findingsResponse || [] });
+      
       if (isInitialLoad) {
           setLiveDocuments((initialDocs || []).map(sanitizeDocument));
-          if (details.chat_history) setMessages(details.chat_history);
+          
+          // PHOENIX FIX: Sanitization Layer
+          // Explicitly map 'sender' to 'role' to handle legacy/backend variations.
+          if (details.chat_history && Array.isArray(details.chat_history)) {
+              const cleanHistory: ChatMessage[] = details.chat_history.map((msg: any) => ({
+                  role: (msg.role || msg.sender || 'user') as 'user' | 'ai',
+                  content: msg.content || msg.message || '',
+                  timestamp: msg.timestamp || new Date().toISOString()
+              }));
+              setMessages(cleanHistory);
+          }
       }
     } catch (err) {
       console.error("Load Error:", err);
