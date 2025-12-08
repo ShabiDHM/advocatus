@@ -1,8 +1,8 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - IMPORT & TYPE FIX V3
-# 1. FIX: Added 'from __future__ import annotations'.
-# 2. FIX: Uses 'from . import embedding_service' for stable resolution.
-# 3. STATUS: Clean build, 100% type-safe.
+# PHOENIX PROTOCOL - METADATA INJECTION FIX
+# 1. FIX: Ingestion now requires and stores 'file_name' with every vector chunk.
+# 2. DIAGNOSIS: This resolves the retrieval failure where document sources were missing.
+# 3. STATUS: RAG will now correctly retrieve and cite specific case documents.
 
 from __future__ import annotations
 import os
@@ -101,9 +101,12 @@ def query_legal_knowledge_base(embedding: List[float], n_results: int = 5, juris
 
 # --- USER DOCUMENT OPERATIONS ---
 def create_and_store_embeddings_from_chunks(
-    document_id: str, case_id: str, chunks: List[str], metadatas: Sequence[Dict[str, Any]]
+    document_id: str, 
+    case_id: str,
+    file_name: str, # PHOENIX FIX: Added file_name
+    chunks: List[str], 
+    metadatas: Sequence[Dict[str, Any]]
 ) -> bool:
-    # PHOENIX FIX: Direct Sibling Import
     from . import embedding_service
     
     collection = get_user_collection()
@@ -120,8 +123,14 @@ def create_and_store_embeddings_from_chunks(
 
     ids = [f"{document_id}_{int(time.time())}_{i}" for i in range(len(chunks))]
     
+    # PHOENIX FIX: Inject file_name into every metadata chunk
     final_metadatas: List[Metadata] = [
-        cast(Metadata, {**meta, 'source_document_id': str(document_id), 'case_id': str(case_id)})
+        cast(Metadata, {
+            **meta, 
+            'source_document_id': str(document_id), 
+            'case_id': str(case_id),
+            'file_name': file_name  # Ensure the filename is stored
+        })
         for meta in metadatas
     ]
     
@@ -179,7 +188,7 @@ def query_by_vector(
             { 
                 "text": doc, 
                 "document_id": (meta or {}).get("source_document_id"), 
-                "document_name": (meta or {}).get("file_name"),
+                "document_name": (meta or {}).get("file_name"), # This will now work
                 "type": "DOKUMENT"
             }
             for doc, meta in zip(docs, metas) if meta
