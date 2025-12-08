@@ -24,6 +24,30 @@ type CaseData = {
     findings: Finding[];
 };
 
+// --- HELPER: HISTORY PARSER (FIXED TYPES) ---
+const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
+    if (!data) return [];
+    
+    // Check all possible property names the backend might use
+    const rawArray = data.chat_history || data.chatHistory || data.history || data.messages || [];
+    
+    if (!Array.isArray(rawArray)) return [];
+
+    return rawArray.map((item: any) => {
+        const rawRole = (item.role || item.sender || item.author || 'user').toString().toLowerCase();
+        
+        // PHOENIX FIX: Explicitly type 'role' to match ChatMessage interface ('user' | 'ai')
+        const role: 'user' | 'ai' = (rawRole.includes('ai') || rawRole.includes('assistant') || rawRole.includes('system')) 
+            ? 'ai' 
+            : 'user';
+
+        const content = item.content || item.message || item.text || '';
+        const timestamp = item.timestamp || item.created_at || new Date().toISOString();
+
+        return { role, content, timestamp };
+    }).filter(msg => msg.content.trim() !== '');
+};
+
 // --- RENAME MODAL ---
 const RenameDocumentModal: React.FC<{ 
     isOpen: boolean; 
@@ -143,6 +167,31 @@ const CaseViewPage: React.FC = () => {
 
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
+  // --- PHOENIX PROTOCOL: BROWSER PERSISTENCE ---
+  
+  // 1. Load from Browser Cache immediately
+  useEffect(() => {
+      if (!currentCaseId) return;
+      const cached = localStorage.getItem(`chat_history_${currentCaseId}`);
+      if (cached) {
+          try {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                  setMessages(parsed);
+              }
+          } catch (e) { console.error("Cache load failed", e); }
+      }
+  }, [currentCaseId, setMessages]);
+
+  // 2. Save to Browser Cache on every update
+  useEffect(() => {
+      if (!currentCaseId) return;
+      if (liveMessages.length > 0) {
+          localStorage.setItem(`chat_history_${currentCaseId}`, JSON.stringify(liveMessages));
+      }
+  }, [liveMessages, currentCaseId]);
+  // ---------------------------------------------
+
   const fetchCaseData = useCallback(async (isInitialLoad = false) => {
     if (!caseId) return;
     if(isInitialLoad) setIsLoading(true);
@@ -158,27 +207,10 @@ const CaseViewPage: React.FC = () => {
       if (isInitialLoad) {
           setLiveDocuments((initialDocs || []).map(sanitizeDocument));
           
-          // PHOENIX FIX: Universal History Translator
-          // This block aggressively maps various backend formats to the required frontend format.
-          const rawHistory = (details.chat_history || (details as any).chatHistory || (details as any).history);
-          
-          if (rawHistory && Array.isArray(rawHistory)) {
-              const cleanHistory: ChatMessage[] = rawHistory.map((msg: any) => {
-                  // Detect Role
-                  let role: 'user' | 'ai' = 'user';
-                  const rawRole = (msg.role || msg.sender || msg.author || '').toLowerCase();
-                  if (rawRole === 'ai' || rawRole === 'assistant' || rawRole === 'system') role = 'ai';
-                  
-                  // Detect Content
-                  const content = msg.content || msg.message || msg.text || '';
-                  
-                  // Detect Timestamp
-                  const timestamp = msg.timestamp || msg.created_at || msg.date || new Date().toISOString();
-
-                  return { role, content, timestamp };
-              });
-              
-              setMessages(cleanHistory);
+          // Robust Server-Side Merge
+          const serverHistory = extractAndNormalizeHistory(details);
+          if (serverHistory.length > 0) {
+              setMessages(serverHistory);
           }
       }
     } catch (err) {
@@ -204,7 +236,11 @@ const CaseViewPage: React.FC = () => {
 
   const handleClearChat = async () => {
       if (!caseId || !window.confirm(t('chatPanel.confirmClear'))) return;
-      try { await apiService.clearChatHistory(caseId); setMessages([]); } catch (err) { alert(t('error.generic')); }
+      try { 
+          await apiService.clearChatHistory(caseId); 
+          setMessages([]); 
+          localStorage.removeItem(`chat_history_${caseId}`); // Clear Cache
+      } catch (err) { alert(t('error.generic')); }
   };
 
   const handleAnalyzeCase = async () => {
