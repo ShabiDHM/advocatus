@@ -1,34 +1,29 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - JURISDICTION-AWARE RAG
-# 1. LOGIC: Accepts 'jurisdiction' and dynamically switches the AI's "persona" (Kosovo vs. Albania).
-# 2. KB FILTER: Passes jurisdiction to the vector store to search the correct laws.
-
+# PHOENIX PROTOCOL - FINAL POLISH (PREMIUM RESPONSE STRUCTURE)
+# 1. PROMPT: Upgraded System Prompt to force a professional "Legal Memo" structure.
+# 2. SECTIONS: AI must now generate an Executive Summary, Key Findings, Strategic Analysis, and Recommendations.
+# 3. GOAL: Deliver a premium, high-value response that justifies a paid subscription.
 
 import os
 import asyncio
 import logging
-import httpx
 from typing import AsyncGenerator, List, Optional, Dict, Protocol, cast, Any
 from openai import AsyncOpenAI
 
-# Import the graph service instance
 from .graph_service import graph_service
 
 logger = logging.getLogger(__name__)
 
-# --- CONFIGURATION (OPENROUTER) ---
+# --- CONFIGURATION ---
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY") 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
-
-# Local Backup Configuration
 LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
 LOCAL_MODEL_NAME = "llama3"
 
-# Protocol Definitions
+# --- PROTOCOLS ---
 class VectorStoreServiceProtocol(Protocol):
     def query_by_vector(self, embedding: List[float], case_id: str, n_results: int, document_ids: Optional[List[str]]) -> List[Dict]: ...
-    # PHOENIX UPDATE: Add jurisdiction to the protocol
     def query_legal_knowledge_base(self, embedding: List[float], n_results: int, jurisdiction: str) -> List[Dict]: ...
 
 class LanguageDetectorProtocol(Protocol):
@@ -49,9 +44,6 @@ class AlbanianRAGService:
         else:
             self.client = None
 
-        self.AI_CORE_URL = os.getenv("AI_CORE_URL", "http://ai-core-service:8000")
-        self.RERANK_TIMEOUT = 10.0
-
     async def chat(
         self, 
         query: str, 
@@ -66,17 +58,10 @@ class AlbanianRAGService:
 
     async def _rerank_chunks(self, query: str, chunks: List[Dict]) -> List[Dict]:
         if not chunks: return []
-        # Simple deduplication
         unique_texts = {c.get('text', ''): c for c in chunks}
-        try:
-            # Reranking is now optional as DeepSeek is very smart
-            return list(unique_texts.values())
-        except Exception as e:
-            logger.warning(f"⚠️ Reranking skipped: {e}")
-            return list(unique_texts.values())
+        return list(unique_texts.values())
 
     async def _call_local_backup(self, system_prompt: str, user_prompt: str) -> str:
-        # ... (Implementation remains unchanged) ...
         return "Shërbimi AI momentalisht i padisponueshëm."
 
     async def chat_stream(
@@ -86,83 +71,79 @@ class AlbanianRAGService:
         document_ids: Optional[List[str]] = None, 
         jurisdiction: str = 'ks'
     ) -> AsyncGenerator[str, None]:
-        relevant_chunks = []
-        graph_knowledge = []
         
-        # --- PHASE 1: RETRIEVAL ---
+        user_docs, kb_docs, graph_knowledge = [], [], []
+        
         try:
             from .embedding_service import generate_embedding
             query_embedding = await asyncio.to_thread(generate_embedding, query, 'standard')
             
             if query_embedding:
-                async def safe_vector_search():
-                    return await asyncio.to_thread(
-                        self.vector_store.query_by_vector,
-                        embedding=query_embedding, case_id=case_id, n_results=10, document_ids=document_ids
-                    )
-                
-                # PHOENIX FIX: Pass jurisdiction to the Knowledge Base search
-                async def safe_kb_search():
-                    return await asyncio.to_thread(
-                        self.vector_store.query_legal_knowledge_base,
-                        embedding=query_embedding, n_results=4, jurisdiction=jurisdiction
-                    )
-
-                async def safe_graph_search():
-                    keywords = [w for w in query.split() if len(w) > 4]
-                    results = []
-                    for k in keywords:
-                        results.extend(await asyncio.to_thread(graph_service.find_hidden_connections, k))
-                    return list(set(results))
-
                 results = await asyncio.gather(
-                    safe_vector_search(), safe_kb_search(), safe_graph_search(), return_exceptions=True
+                    asyncio.to_thread(self.vector_store.query_by_vector, embedding=query_embedding, case_id=case_id, n_results=10, document_ids=document_ids),
+                    asyncio.to_thread(self.vector_store.query_legal_knowledge_base, embedding=query_embedding, n_results=4, jurisdiction=jurisdiction),
+                    asyncio.to_thread(graph_service.find_contradictions, case_id),
+                    return_exceptions=True
                 )
-
                 user_docs = results[0] if isinstance(results[0], list) else []
                 kb_docs = results[1] if isinstance(results[1], list) else []
-                graph_knowledge = results[2] if isinstance(results[2], list) else []
-
-                raw_candidates = user_docs + kb_docs
-                if raw_candidates:
-                    relevant_chunks = await self._rerank_chunks(query, raw_candidates)
-                    relevant_chunks = relevant_chunks[:8] 
-                
+                graph_knowledge = results[2] if isinstance(results[2], str) and "No direct" not in results[2] else ""
         except Exception as e:
             logger.error(f"Retrieval Phase Error: {e}")
 
-        # --- PHASE 2: GENERATION ---
         context_text = ""
-        if graph_knowledge:
-            context_text += "### TË DHËNA NGA GRAFI:\n" + "\n".join(graph_knowledge[:5]) + "\n\n"
+        if user_docs:
+            reranked_user_docs = await self._rerank_chunks(query, user_docs)
+            context_text += "### FAKTE NGA DOSJA (PRIORITET #1):\n"
+            for chunk in reranked_user_docs[:6]:
+                context_text += f"NGA DOKUMENTI '{chunk.get('document_name', '...')}': \"{chunk.get('text', '')}\"\n---\n"
         
-        if relevant_chunks:
-            context_text += "### DOKUMENTET DHE LIGJET:\n"
-            for chunk in relevant_chunks:
-                source = chunk.get('document_name', 'Burim i Panjohur')
-                text = chunk.get('text', '')
-                context_text += f"BURIMI: {source}\nPËRMBAJTJA: {text}\n---\n"
+        if graph_knowledge:
+            context_text += f"\n### INTELIGJENCA NGA GRAFI (PRIORITET #2):\n{graph_knowledge}\n---\n"
+        
+        if kb_docs:
+            context_text += "\n### BAZA LIGJORE RELEVANTE (PËR REFERENCË):\n"
+            for chunk in kb_docs[:3]:
+                context_text += f"NGA LIGJI '{chunk.get('document_name', '...')}': \"{chunk.get('text', '')}\"\n---\n"
         
         if not context_text:
-            context_text = "Nuk u gjetën dokumente specifike."
+            context_text = "Nuk u gjetën dokumente ose informacione relevante për këtë pyetje."
 
-        # PHOENIX FIX: Dynamic System Prompt based on Jurisdiction
         jurisdiction_name = "Republikës së Shqipërisë" if jurisdiction == 'al' else "Republikës së Kosovës"
         
+        # PHOENIX: The "Premium Response" System Prompt
         system_prompt = f"""
-        Ti je "Juristi AI", një Asistent Ligjor ekspert për sistemin e drejtësisë në {jurisdiction_name}.
+        Ti je "Juristi AI", një Këshilltar Ligjor Elitar i specializuar në legjislacionin e {jurisdiction_name}.
         
-        MISIONI:
-        Të ofrosh këshilla juridike të sakta duke u bazuar në dokumentet e dosjes dhe ligjet në fuqi të {jurisdiction_name}.
+        MISIONI YT:
+        Analizo pyetjen e përdoruesit dhe kontekstin e dhënë për të prodhuar një Memo Ligjore të strukturuar, të qartë dhe me vlerë të lartë.
 
-        UDHËZIME:
-        1. Prioriteti #1 është 'KONTEKSTI I DOSJES'. Përdore atë për faktet.
-        2. Për bazën ligjore, përdor ligjet nga konteksti, ose njohuritë e tua për legjislacionin e {jurisdiction_name}.
-        3. Formato përgjigjen në mënyrë profesionale (Hyrje, Analizë, Konkluzion).
-        4. Përgjigju gjithmonë në gjuhën Shqipe.
+        STRUKTURA E OBLIGUESHME E PËRGJIGJES (PËRDOR MARKDOWN):
+
+        ### Përmbledhje Ekzekutive
+        Përgjigju pyetjes së përdoruesit direkt dhe në mënyrë konçize në 1-2 fjali. Kjo është përgjigja që një avokat i zënë duhet ta lexojë së pari.
+
+        ### Gjetjet Kyçe nga Dosja
+        - Listë me pika të fakteve më të rëndësishme që ke gjetur në seksionin "FAKTE NGA DOSJA".
+        - Për çdo pikë, CITO burimin e dokumentit (psh. "Sipas Faturës...").
+
+        ### Analiza Strategjike
+        Këtu bën lidhjen mes fakteve, inteligjencës nga grafi dhe ligjit.
+        - A ka ndonjë kontradiktë të gjetur nga "INTELIGJENCA NGA GRAFI"? Shpjegoje.
+        - Si aplikohet "BAZA LIGJORE" mbi "GJETJET KYÇE"?
+        - Cilat janë pikat e forta dhe të dobëta të rastit bazuar në këtë analizë?
+
+        ### Rekomandime / Hapat e Ardhshëm
+        - Bazuar në analizën tënde, çfarë duhet të bëjë avokati tani?
+        - Listë me pika të veprimeve konkrete (psh. "Kërko dokumentin X", "Përgatit një padi bazuar në nenin Y", "Kontakto dëshmitarin Z").
+
+        RREGULLAT KRITIKE:
+        - **HIERARKIA:** Gjithmonë bazo arsyetimin te FAKTE NGA DOSJA së pari.
+        - **PRECISIONI:** Mos krijo fakte. Nëse informacioni mungon, thuaje qartë.
+        - **GJUHA:** Përdor gjuhë profesionale ligjore shqipe.
         """
 
-        user_message = f"PYETJA E PËRDORUESIT: {query}\n\nKONTEKSTI I DOSJES:\n{context_text}"
+        user_message = f"KONTEKSTI I PLOTË:\n{context_text}\n\nPYETJA E PËRDORUESIT: {query}"
 
         try:
             if not self.client:
@@ -174,9 +155,9 @@ class AlbanianRAGService:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
                 ],
-                temperature=0.3, 
+                temperature=0.1, # Maximum precision
                 stream=True,
-                extra_headers={ "HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI" }
+                extra_headers={ "HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Premium" }
             )
 
             async for chunk in stream:
@@ -184,8 +165,9 @@ class AlbanianRAGService:
                 if content:
                     yield content
             
-            yield "\n\n**Burimi:** Asistenti sokratik"
-
+            # Add a final disclaimer
+            yield f"\n\n---\n*Shënim: Kjo analizë është gjeneruar nga AI dhe shërben vetëm për qëllime informative. Verifikoni gjithmonë faktet dhe ligjet përpara se të ndërmerrni veprime ligjore.*"
+            
         except Exception as e:
             logger.error(f"OpenRouter API Error: {e}")
             yield await self._call_local_backup(system_prompt, user_message)
