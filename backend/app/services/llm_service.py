@@ -1,7 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CLEANUP
-# 1. REMOVED: 'generate_text' (AI Scan feature deprecated).
-# 2. STATUS: Reverted to core analysis functions only.
+# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V3
+# 1. UPGRADE: 'extract_graph_data' now hunts for Conflict & Money (Litigation Graph).
+# 2. UPGRADE: 'extract_findings_from_text' performs Forensic auditing on Dates & Amounts.
+# 3. GOAL: Feed high-quality data to the Chatbot & Graph.
 
 import os
 import json
@@ -9,7 +10,7 @@ import logging
 import httpx
 import re
 from typing import List, Dict, Any, Optional
-from openai import OpenAI # For DeepSeek/OpenRouter
+from openai import OpenAI 
 from groq import Groq
 
 logger = logging.getLogger(__name__)
@@ -117,12 +118,17 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
     except Exception:
         return ""
 
-# --- CORE SERVICES ---
+# --- CORE SERVICES (UPGRADED) ---
 
 def generate_summary(text: str) -> str:
-    truncated_text = text[:15000]
-    system_prompt = "You are a professional legal assistant. Summarize this document in 1 paragraph (Albanian)."
-    user_prompt = f"DOCUMENT:\n{truncated_text}"
+    truncated_text = text[:20000] # Increased context window
+    system_prompt = (
+        "Ti je 'Juristi AI', një asistent ligjor elitar. "
+        "Detyra: Krijo një përmbledhje ekzekutive të këtij dokumenti në gjuhën Shqipe. "
+        "Fokusi: Identifiko Palët, Objektin e Marrëveshjes/Konfliktit, dhe Datat Kryesore. "
+        "Stili: Profesional, konciz, dhe i qartë."
+    )
+    user_prompt = f"DOKUMENTI:\n{truncated_text}"
     
     res = _call_deepseek(system_prompt, user_prompt)
     if res: return res
@@ -131,34 +137,91 @@ def generate_summary(text: str) -> str:
     return _call_local_llm(f"{system_prompt}\n\n{user_prompt}") or "Përmbledhja e padisponueshme."
 
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
-    truncated_text = text[:15000]
-    system_prompt = "Extract key legal findings (Dates, Amounts, Obligations). Return JSON: {\"findings\": [{\"finding_text\": \"...\", \"source_text\": \"...\"}]}"
-    user_prompt = f"TEXT:\n{truncated_text}"
+    """
+    Forensic Extraction: Hunts for Dates, Money, Obligations, and Anomalies.
+    """
+    truncated_text = text[:20000]
+    
+    system_prompt = """
+    Ti je Auditor Ligjor Forenzik. Analizo tekstin për Gjetje Kritike (Facts).
+    
+    KATEGORITË E KËRKIMIT:
+    1. 📅 AFATET & KRONOLOGJIA: Identifiko çdo datë. A ka data që bien ndesh (psh. afati para nënshkrimit)? Shënoji si rreziqe.
+    2. 💰 DETYRIMET FINANCIARE: Shuma, Këste, Penalitete, Afate pagese.
+    3. ⚖️ DETYRIMET LIGJORE: Çfarë duhet të bëjë secila palë? (Dorëzimi i çelësave, Raportet, etj).
+    
+    FORMATI JSON (STRIKT):
+    {
+      "findings": [
+        {
+          "finding_text": "Përshkrimi i qartë i faktit (psh. 'Çelësat duhet të dorëzohen më 1 Dhjetor 2025')",
+          "source_text": "Cito tekstin origjinal nga dokumenti për saktësi",
+          "category": "DATE" | "MONEY" | "OBLIGATION" | "RISK"
+        }
+      ]
+    }
+    """
+    user_prompt = f"TEKSTI PËR ANALIZË:\n{truncated_text}"
 
+    # Try DeepSeek first (Best logic)
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content).get("findings", [])
     
+    # Fallback to Groq
     content = _call_groq(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content).get("findings", [])
     
+    # Fallback to Local
     content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     if content: return _parse_json_safely(content).get("findings", [])
+    
     return []
 
 def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
-    truncated_text = text[:10000]
-    system_prompt = "Extract entities and relationships. Return JSON: {\"entities\": [], \"relations\": []}"
-    user_prompt = f"TEXT:\n{truncated_text}"
+    """
+    Litigation Graph Extraction: Builds the 'Conflict Map'.
+    """
+    truncated_text = text[:15000]
+    
+    system_prompt = """
+    Ti je Inxhinier i Grafit Ligjor. Detyra jote është të nxjerrësh Entitetet dhe Marrëdhëniet për një bazë të dhënash Neo4j.
+    
+    ENTITETET (Nodes):
+    - Person (Emra njerëzish)
+    - Organization (Kompania, Institucione)
+    - Money (Shuma specifike psh. '2500 EUR')
+    - Date (Data specifike)
+    - Claim (Pretendime, psh. 'Mospagim qiraje', 'Shkelje afati')
+    
+    MARRËDHËNIET (Edges - Subject -> Relation -> Object):
+    - Transaksione: PAID, OWES, AGREED_TO_PAY
+    - Ligjore: SIGNED, REPRESENTS, SUED
+    - Konflikt: ACCUSES, CONTRADICTS, VIOLATED
+    - Kohore: DUE_ON, SIGNED_ON
+    
+    SHEMBULL LOGJIK:
+    Nëse teksti thotë "Artani akuzon Besnikun për vonesë", krijo:
+    Person(Artan) --ACCUSES--> Person(Besnik)
+    
+    FORMATI JSON (STRIKT):
+    {
+      "entities": [{"name": "Emri", "type": "Person | Organization | Money | Date | Claim"}],
+      "relations": [{"subject": "Emri1", "relation": "UPPERCASE_VERB", "object": "Emri2"}]
+    }
+    """
+    user_prompt = f"TEKSTI:\n{truncated_text}"
     
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content)
     
     content = _call_groq(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content)
+    
     return {"entities": [], "relations": []}
 
 def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict:
     return {"answer": "Logic moved to RAG Service.", "sources": []}
 
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
+    # Can be expanded later for specific calendar events
     return []

@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - FINAL POLISH (PREMIUM RESPONSE STRUCTURE)
-# 1. PROMPT: Upgraded System Prompt to force a professional "Legal Memo" structure.
-# 2. SECTIONS: AI must now generate an Executive Summary, Key Findings, Strategic Analysis, and Recommendations.
-# 3. GOAL: Deliver a premium, high-value response that justifies a paid subscription.
+# PHOENIX PROTOCOL - AGGRESSIVE LAWYER MODE
+# 1. LOGIC CHECK: Forces AI to scan for Date/Time anomalies (Chronology).
+# 2. LEGAL AUDIT: Forces AI to cite specific articles from the Knowledge Base instead of generic statements.
+# 3. GOAL: Catch the "Dec 15 vs Dec 1" error and cite the LMD.
 
 import os
 import asyncio
@@ -81,7 +81,8 @@ class AlbanianRAGService:
             if query_embedding:
                 results = await asyncio.gather(
                     asyncio.to_thread(self.vector_store.query_by_vector, embedding=query_embedding, case_id=case_id, n_results=10, document_ids=document_ids),
-                    asyncio.to_thread(self.vector_store.query_legal_knowledge_base, embedding=query_embedding, n_results=4, jurisdiction=jurisdiction),
+                    # PHOENIX: Increased KB results to 6 to ensure we get the specific articles
+                    asyncio.to_thread(self.vector_store.query_legal_knowledge_base, embedding=query_embedding, n_results=6, jurisdiction=jurisdiction),
                     asyncio.to_thread(graph_service.find_contradictions, case_id),
                     return_exceptions=True
                 )
@@ -94,56 +95,54 @@ class AlbanianRAGService:
         context_text = ""
         if user_docs:
             reranked_user_docs = await self._rerank_chunks(query, user_docs)
-            context_text += "### FAKTE NGA DOSJA (PRIORITET #1):\n"
+            context_text += "### FAKTE NGA DOSJA (EVIDENCA):\n"
             for chunk in reranked_user_docs[:6]:
-                context_text += f"NGA DOKUMENTI '{chunk.get('document_name', '...')}': \"{chunk.get('text', '')}\"\n---\n"
+                context_text += f"DOKUMENTI '{chunk.get('document_name', 'Unknown')}':\n{chunk.get('text', '')}\n---\n"
         
         if graph_knowledge:
-            context_text += f"\n### INTELIGJENCA NGA GRAFI (PRIORITET #2):\n{graph_knowledge}\n---\n"
+            context_text += f"\n### FLAMUJ TË KUQ NGA GRAFI:\n{graph_knowledge}\n---\n"
         
         if kb_docs:
-            context_text += "\n### BAZA LIGJORE RELEVANTE (PËR REFERENCË):\n"
-            for chunk in kb_docs[:3]:
-                context_text += f"NGA LIGJI '{chunk.get('document_name', '...')}': \"{chunk.get('text', '')}\"\n---\n"
+            context_text += "\n### BAZA LIGJORE (LIGJET E APLIKUESHME):\n"
+            for chunk in kb_docs[:4]: # Use more laws
+                context_text += f"BURIMI '{chunk.get('document_name', 'Ligj')}':\n{chunk.get('text', '')}\n---\n"
         
         if not context_text:
-            context_text = "Nuk u gjetën dokumente ose informacione relevante për këtë pyetje."
+            context_text = "Nuk u gjetën dokumente ose informacione relevante."
 
         jurisdiction_name = "Republikës së Shqipërisë" if jurisdiction == 'al' else "Republikës së Kosovës"
         
-        # PHOENIX: The "Premium Response" System Prompt
+        # PHOENIX: Aggressive Lawyer Prompt
         system_prompt = f"""
-        Ti je "Juristi AI", një Këshilltar Ligjor Elitar i specializuar në legjislacionin e {jurisdiction_name}.
+        Ti je "Juristi AI", Avokat Senior Forenzik në {jurisdiction_name}.
         
-        MISIONI YT:
-        Analizo pyetjen e përdoruesit dhe kontekstin e dhënë për të prodhuar një Memo Ligjore të strukturuar, të qartë dhe me vlerë të lartë.
+        DETYRA JOTE:
+        Bëj një "Cross-Examination" (Kundër-Pyetje) të fakteve të dosjes kundrejt (A) Logjikës dhe (B) Ligjit.
 
-        STRUKTURA E OBLIGUESHME E PËRGJIGJES (PËRDOR MARKDOWN):
+        STRUKTURA E PËRGJIGJES (Markdown):
 
-        ### Përmbledhje Ekzekutive
-        Përgjigju pyetjes së përdoruesit direkt dhe në mënyrë konçize në 1-2 fjali. Kjo është përgjigja që një avokat i zënë duhet ta lexojë së pari.
+        ### 1. Përmbledhje Ekzekutive
+        Përgjigje direkte. Nëse dokumenti ka gabime logjike (data, shuma) ose ligjore, fillo menjëherë duke i përmendur ato si "RREZIQE KRITIKE".
 
-        ### Gjetjet Kyçe nga Dosja
-        - Listë me pika të fakteve më të rëndësishme që ke gjetur në seksionin "FAKTE NGA DOSJA".
-        - Për çdo pikë, CITO burimin e dokumentit (psh. "Sipas Faturës...").
+        ### 2. Auditim Ligjor & Faktik
+        - **Kontrolli i Afateve:** Krahaso të gjitha datat në tekst. A ka data që bien ndesh me njëra-tjetrën? (Psh. Nënshkrimi pas dorëzimit?). Nëse po, shënoje me 🔴.
+        - **Përputhshmëria Ligjore:** Krahaso klauzolat e kontratës me "BAZA LIGJORE". A mungon ndonjë element i detyrueshëm sipas ligjit (LMD/Civil)? Cito Nenin specifik nëse gjendet në kontekst.
 
-        ### Analiza Strategjike
-        Këtu bën lidhjen mes fakteve, inteligjencës nga grafi dhe ligjit.
-        - A ka ndonjë kontradiktë të gjetur nga "INTELIGJENCA NGA GRAFI"? Shpjegoje.
-        - Si aplikohet "BAZA LIGJORE" mbi "GJETJET KYÇE"?
-        - Cilat janë pikat e forta dhe të dobëta të rastit bazuar në këtë analizë?
+        ### 3. Analiza e Dokumentit
+        Nxirr detajet kryesore:
+        - Palët: ...
+        - Objekti: ...
+        - Vlera: ...
 
-        ### Rekomandime / Hapat e Ardhshëm
-        - Bazuar në analizën tënde, çfarë duhet të bëjë avokati tani?
-        - Listë me pika të veprimeve konkrete (psh. "Kërko dokumentin X", "Përgatit një padi bazuar në nenin Y", "Kontakto dëshmitarin Z").
+        ### 4. Rekomandime Strategjike
+        Çfarë duhet të përmirësohet ose ndryshohet urgjentisht në dokument?
 
-        RREGULLAT KRITIKE:
-        - **HIERARKIA:** Gjithmonë bazo arsyetimin te FAKTE NGA DOSJA së pari.
-        - **PRECISIONI:** Mos krijo fakte. Nëse informacioni mungon, thuaje qartë.
-        - **GJUHA:** Përdor gjuhë profesionale ligjore shqipe.
+        STILI I TË MENDUARIT:
+        - Mos beso verbërisht tekstin. Nëse data e dokumentit është 15 Dhjetor dhe afati është 1 Dhjetor, kjo është e pamundur. IDENTIFIKOJË KËTË GABIM.
+        - Ji specifik. Mos thuaj "sipas ligjit", thuaj "Sipas Nenit X të Ligjit Y (nëse është në kontekst)".
         """
 
-        user_message = f"KONTEKSTI I PLOTË:\n{context_text}\n\nPYETJA E PËRDORUESIT: {query}"
+        user_message = f"KONTEKSTI I DOSJES:\n{context_text}\n\nPYETJA/KËRKESA: {query}"
 
         try:
             if not self.client:
@@ -155,18 +154,15 @@ class AlbanianRAGService:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
                 ],
-                temperature=0.1, # Maximum precision
+                temperature=0.1, 
                 stream=True,
-                extra_headers={ "HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Premium" }
+                extra_headers={ "HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI" }
             )
 
             async for chunk in stream:
                 content = chunk.choices[0].delta.content
                 if content:
                     yield content
-            
-            # Add a final disclaimer
-            yield f"\n\n---\n*Shënim: Kjo analizë është gjeneruar nga AI dhe shërben vetëm për qëllime informative. Verifikoni gjithmonë faktet dhe ligjet përpara se të ndërmerrni veprime ligjore.*"
             
         except Exception as e:
             logger.error(f"OpenRouter API Error: {e}")

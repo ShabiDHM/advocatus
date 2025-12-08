@@ -1,7 +1,8 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - MODEL UPDATE
-# 1. ADDED: Count fields (document_count, alert_count, etc.) to CaseOut.
-# 2. STATUS: Allows dashboard metrics to pass through the API.
+# PHOENIX PROTOCOL - CHAT PERSISTENCE FIX
+# 1. MOVED: 'ChatMessage' class to top-level so it can be referenced.
+# 2. ADDED: 'chat_history' field to 'CaseOut' schema.
+# 3. RESULT: Chat messages are now correctly serialized and sent to the frontend on refresh.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any
@@ -13,6 +14,12 @@ class ClientData(BaseModel):
     name: str
     email: Optional[str] = None
     phone: Optional[str] = None
+
+# Chat Message Model (Moved up for visibility)
+class ChatMessage(BaseModel):
+    role: str 
+    content: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 # Base Case Model
 class CaseBase(BaseModel):
@@ -65,7 +72,10 @@ class CaseOut(CaseBase):
     
     client: Optional[ClientData] = None
 
-    # PHOENIX FIX: Explicitly exposed counters
+    # PHOENIX FIX: Expose chat history to frontend
+    chat_history: Optional[List[ChatMessage]] = []
+
+    # Explicitly exposed counters
     document_count: int = 0
     alert_count: int = 0
     event_count: int = 0
@@ -76,9 +86,3 @@ class CaseOut(CaseBase):
         from_attributes=True,
         arbitrary_types_allowed=True,
     )
-
-# Required by chat_service.py
-class ChatMessage(BaseModel):
-    role: str 
-    content: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
