@@ -1,8 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING RENDERER UPGRADE
-// 1. FEATURE: Integrated 'react-markdown' for structured legal document rendering.
-// 2. STYLE: Applied typography styles (Gold/Bold, Spacing) for readability.
-// 3. UI: Preserved exact layout structure while removing the raw <pre> tag.
+// PHOENIX PROTOCOL - HEIGHT CONSTRAINT FIX
+// 1. LAYOUT: Added 'max-h-[800px]' to the main grid container.
+// 2. SCROLLING: Ensured internal content areas scroll while container stays fixed.
+// 3. STATUS: Layout is now compact and consistent with Chat Panel.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -165,30 +165,32 @@ const DraftingPage: React.FC = () => {
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
+      {/* PHOENIX FIX: Added 'max-h-[800px]' to grid container */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0 max-h-[800px]">
+        
         {/* Input Column */}
-        <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl">
-            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
+        <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
+            <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0">
                 <FileText className="text-primary-400" size={20} />
                 {t('drafting.configuration')}
             </h3>
-            <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4">
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4 min-h-0">
                 
-                <div className="flex-1 flex flex-col">
-                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.instructionsLabel')}</label>
+                <div className="flex-1 flex flex-col min-h-0">
+                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider flex-shrink-0">{t('drafting.instructionsLabel')}</label>
                     <textarea
                         ref={textareaRef}
                         value={context}
                         onChange={(e) => setContext(e.target.value)}
                         placeholder={t('drafting.promptPlaceholder')}
-                        className="flex-1 w-full p-4 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none resize-none text-sm leading-relaxed"
+                        className="flex-1 w-full p-4 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none resize-none text-sm leading-relaxed custom-scrollbar"
                         disabled={isSubmitting}
                     />
                 </div>
                 <button
                   type="submit"
                   disabled={isSubmitting || !context.trim()}
-                  className="w-full py-3 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+                  className="w-full py-3 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex-shrink-0"
                 >
                   {isSubmitting ? <RefreshCw className="animate-spin" /> : <Send size={18} />}
                   {t('drafting.generateBtn')}
@@ -197,7 +199,7 @@ const DraftingPage: React.FC = () => {
         </div>
 
         {/* Result Column */}
-        <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl">
+        <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5 flex-shrink-0">
                 <h3 className="text-white font-semibold flex items-center gap-2">
                     {statusDisplay.icon}
@@ -221,7 +223,6 @@ const DraftingPage: React.FC = () => {
             )}
             <div className="flex-1 bg-black/50 rounded-xl border border-white/5 p-4 overflow-auto custom-scrollbar relative">
                 {currentJob.result ? (
-                    // --- PHOENIX: Replaced <pre> with ReactMarkdown ---
                     <div className="markdown-content text-gray-300 text-sm leading-relaxed">
                         <ReactMarkdown 
                             remarkPlugins={[remarkGfm]}

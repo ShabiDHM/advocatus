@@ -1,15 +1,15 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - BUILD FIX
-// 1. FIX: Imported the missing 'User' icon from lucide-react.
-// 2. CLEANUP: Removed unused 'RefreshCw' icon and 'ConnectionStatus' type imports.
-// 3. STATUS: Build-ready, all errors and warnings resolved.
+// PHOENIX PROTOCOL - HEIGHT CONSTRAINT FIX
+// 1. LAYOUT: Added 'max-h-[800px]' to prevent endless vertical growth.
+// 2. BEHAVIOR: Enables internal scrolling when content exceeds 800px.
+// 3. STATUS: Fixed & Polished.
 
 import React, { useState, useRef, useEffect, ReactNode, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    Send, BrainCircuit, Trash2, MapPin, ChevronDown, FileText, Briefcase, Loader2, User // PHOENIX: Added 'User'
+    Send, BrainCircuit, Trash2, MapPin, ChevronDown, FileText, Briefcase, Loader2, User 
 } from 'lucide-react';
-import { ChatMessage, Document } from '../data/types'; // PHOENIX: Removed unused ConnectionStatus
+import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -153,7 +153,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    <div className={`flex flex-col relative bg-background-dark/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl overflow-visible ${className}`}>
+    // PHOENIX FIX: Added 'max-h-[800px]' to constrain height and force internal scrolling
+    <div className={`flex flex-col relative bg-background-dark/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl overflow-visible max-h-[800px] ${className}`}>
       
       <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-white/10 bg-white/5 rounded-t-2xl z-50">
         <div className="flex items-center gap-2 sm:gap-3">
@@ -220,7 +221,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                                         components={{
                                             p: ({node, ...props}) => <p className="mb-1 last:mb-0" {...props} />,
                                             strong: ({node, ...props}) => <span className="font-bold text-amber-200" {...props} />,
+                                            em: ({node, ...props}) => <span className="italic text-gray-300" {...props} />,
+                                            ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-1 my-1 marker:text-primary-start" {...props} />,
+                                            ol: ({node, ...props}) => <ol className="list-decimal pl-4 space-y-1 my-1 marker:text-primary-start" {...props} />,
                                             li: ({node, ...props}) => <li className="pl-1" {...props} />,
+                                            blockquote: ({node, ...props}) => <blockquote className="border-l-2 border-primary-start pl-3 py-1 my-1 bg-white/5 rounded-r text-gray-400 italic" {...props} />,
+                                            code: ({node, ...props}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-pink-300" {...props} />,
+                                            a: ({node, ...props}) => <a className="text-blue-400 hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" {...props} />,
+                                            table: ({node, ...props}) => <div className="overflow-x-auto my-2"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>,
+                                            th: ({node, ...props}) => <th className="border border-white/10 px-2 py-1 bg-white/5 font-bold text-left" {...props} />,
+                                            td: ({node, ...props}) => <td className="border border-white/10 px-2 py-1" {...props} />,
                                         }}
                                     >
                                         {msg.content}
