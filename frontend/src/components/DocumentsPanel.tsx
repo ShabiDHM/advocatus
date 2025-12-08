@@ -1,9 +1,4 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - INTEGRATION CHECKED
-// 1. UPLOAD: Supports Files & Folders (Batch Upload).
-// 2. ACTIONS: Deep Scan, Archive, Rename, View, Delete.
-// 3. UX: Progress bars, loading states, and tooltips.
-
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
@@ -47,7 +42,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [scanningId, setScanningId] = useState<string | null>(null); 
-  const [archivingId, setArchivingId] = useState<string | null>(null); 
+  const [archivingId, setScanningIdArchive] = useState<string | null>(null); 
   const [currentFileName, setCurrentFileName] = useState<string>(""); 
 
   const performUpload = async (file: File) => {
@@ -96,7 +91,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       setUploadError(null);
 
       const fileArray = Array.from(files);
-      // Upload sequentially to prevent overwhelming the server/browser
       for (let i = 0; i < fileArray.length; i++) {
           await performUpload(fileArray[i]);
       }
@@ -130,14 +124,14 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   const handleArchiveDocument = async (docId: string) => {
-      setArchivingId(docId);
+      setScanningIdArchive(docId);
       try {
           await apiService.archiveCaseDocument(caseId, docId);
           alert("Dokumenti u arkivua me sukses!");
       } catch (error) {
           alert("Arkivimi dështoi.");
       } finally {
-          setArchivingId(null);
+          setScanningIdArchive(null);
       }
   };
 
@@ -150,6 +144,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   return (
+    // PHOENIX FIX: Consumes className for height and forces flex-col + flex-1 for scrolling
     <div className={`documents-panel bg-background-dark/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl flex flex-col ${className || 'h-[500px]'}`}>
       <div className="flex flex-row justify-between items-center border-b border-white/10 pb-3 mb-4 flex-shrink-0 gap-2">
         <div className="flex items-center gap-3 min-w-0">

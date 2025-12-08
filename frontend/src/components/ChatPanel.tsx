@@ -1,9 +1,4 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - HEIGHT CONSTRAINT FIX
-// 1. LAYOUT: Added 'max-h-[800px]' to prevent endless vertical growth.
-// 2. BEHAVIOR: Enables internal scrolling when content exceeds 800px.
-// 3. STATUS: Fixed & Polished.
-
 import React, { useState, useRef, useEffect, ReactNode, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -153,8 +148,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    // PHOENIX FIX: Added 'max-h-[800px]' to constrain height and force internal scrolling
-    <div className={`flex flex-col relative bg-background-dark/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl overflow-visible max-h-[800px] ${className}`}>
+    // PHOENIX FIX: Uses className for height (e.g. h-full) and forces internal scrolling
+    <div className={`flex flex-col relative bg-background-dark/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl overflow-visible ${className}`}>
       
       <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-white/10 bg-white/5 rounded-t-2xl z-50">
         <div className="flex items-center gap-2 sm:gap-3">

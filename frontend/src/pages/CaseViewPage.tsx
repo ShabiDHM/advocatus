@@ -1,9 +1,4 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - RESTORATION
-// 1. ACTION: Removed Graph and Tabbed Interface entirely.
-// 2. LAYOUT: Restored clean, symmetrical split view (Documents Left / Chat Right).
-// 3. STATUS: Professional, clutter-free interface.
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult } from '../data/types';
@@ -230,8 +225,8 @@ const CaseViewPage: React.FC = () => {
         <div className="mb-4"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
         <CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} />
         
-        {/* PHOENIX: SYMMETRICAL 50/50 SPLIT - NO GRAPH */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start h-[600px]">
+        {/* PHOENIX: SYMMETRICAL SPLIT - HEIGHT FIXED TO 800px */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[800px]">
             
             {/* LEFT PANEL: Documents */}
             <DocumentsPanel

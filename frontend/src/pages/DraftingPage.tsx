@@ -1,9 +1,4 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - HEIGHT CONSTRAINT FIX
-// 1. LAYOUT: Added 'max-h-[800px]' to the main grid container.
-// 2. SCROLLING: Ensured internal content areas scroll while container stays fixed.
-// 3. STATUS: Layout is now compact and consistent with Chat Panel.
-
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
