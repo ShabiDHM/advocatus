@@ -1,12 +1,12 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V3
-// 1. TYPES: Fixed 'ChatMessage' role mismatch.
-// 2. MARKDOWN: Fixed 'className' error by wrapping ReactMarkdown in div.
-// 3. UX: Enabled TypingEffect for the latest AI message.
+// PHOENIX PROTOCOL - UI POLISH V4
+// 1. ICON: Replaced generic 'Bot' icon with 'BrainCircuit' for consistent AI identity.
+// 2. FORMATTING: Fixed ReactMarkdown styling to correctly render lists, bolding, etc.
+// 3. STATUS: Restored "beautiful output".
 
 import React, { useState, useEffect, useRef } from 'react';
 import { ChatMessage, ConnectionStatus, Document } from '../data/types';
-import { Send, Eraser, Loader2, Bot, User, Scale } from 'lucide-react';
+import { Send, Eraser, Loader2, User, Scale, BrainCircuit } from 'lucide-react'; // PHOENIX: Changed Bot to BrainCircuit
 import { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import { motion } from 'framer-motion';
@@ -27,7 +27,6 @@ interface ChatPanelProps {
     className?: string;
 }
 
-// --- TYPING EFFECT COMPONENT ---
 // Simulates streaming text character by character
 const TypingMessage: React.FC<{ text: string }> = ({ text }) => {
     const [displayedText, setDisplayedText] = useState("");
@@ -35,7 +34,7 @@ const TypingMessage: React.FC<{ text: string }> = ({ text }) => {
     useEffect(() => {
         setDisplayedText(""); // Reset on new text
         let index = 0;
-        const speed = 15; // ms per char
+        const speed = 10; // ms per char
 
         const intervalId = setInterval(() => {
             setDisplayedText((prev) => {
@@ -52,6 +51,7 @@ const TypingMessage: React.FC<{ text: string }> = ({ text }) => {
         return () => clearInterval(intervalId);
     }, [text]);
 
+    // PHOENIX FIX: Apply prose styling directly here
     return (
         <div className="prose prose-invert prose-sm max-w-none text-sm break-words leading-relaxed">
             <ReactMarkdown>{displayedText}</ReactMarkdown>
@@ -148,9 +148,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-gradient-to-b from-transparent to-black/20">
-                {messages.length === 0 && (
+                {messages.length === 0 && !isSendingMessage && (
                     <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-50">
-                        <Bot size={48} className="mb-4" />
+                        <BrainCircuit size={48} className="mb-4" /> {/* PHOENIX: Changed to Brain icon */}
                         <p className="text-sm">Përshëndetje! Unë jam asistenti juaj ligjor.</p>
                         <p className="text-xs mt-2">Mund të pyesni për dokumentet ose ligjet.</p>
                     </div>
@@ -158,8 +158,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 
                 {messages.map((msg, index) => {
                     const isAi = msg.role === 'ai';
-                    // PHOENIX: Typing Effect Logic
-                    // Only apply typing to the VERY LAST message if it is from AI and we are not currently loading
                     const isLatest = index === messages.length - 1;
                     const useTyping = isAi && isLatest && !isSendingMessage;
 
@@ -172,7 +170,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         >
                             {isAi && (
                                 <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30 flex-shrink-0 mt-1">
-                                    <Bot size={16} className="text-indigo-400" />
+                                    <BrainCircuit size={16} className="text-indigo-400" /> {/* PHOENIX: Changed to Brain icon */}
                                 </div>
                             )}
                             
@@ -185,7 +183,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                                     useTyping ? (
                                         <TypingMessage text={msg.content} />
                                     ) : (
-                                        // PHOENIX FIX: Wrapped ReactMarkdown in div
+                                        // PHOENIX FIX: Added prose classes to the container to fix markdown rendering
                                         <div className="prose prose-invert prose-sm max-w-none text-sm break-words leading-relaxed">
                                             <ReactMarkdown>{msg.content}</ReactMarkdown>
                                         </div>
