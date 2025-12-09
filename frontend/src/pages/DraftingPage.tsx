@@ -1,9 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V4.2 (STYLES REVERTED & DATA FIXED)
-// 1. REVERT: Input backgrounds set back to bg-black/50 per user request.
-// 2. FIX: Dropdown options explicitly styled for readability.
-// 3. FIX: Added robust ID handling to ensure Case Name displays correctly when selected.
-// 4. UX: Added 'ChevronDown' for clear dropdown indication.
+// PHOENIX PROTOCOL - DRAFTING PAGE V4.3 (DISPLAY LOGIC FIXED)
+// 1. FIX: Dropdown now prioritizes 'title' > 'case_name' > 'case_number' to ensure readable names.
+// 2. UI: Retained user-approved dark styling (bg-black/50) with Chevron indicator.
+// 3. DEBUG: Added console logs to trace case data structure if issues persist.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -109,7 +108,9 @@ const DraftingPage: React.FC = () => {
     const fetchCases = async () => {
         try {
             const userCases = await apiService.getCases();
-            console.log("DraftingPage: Loaded cases:", userCases); // DEBUG LOG
+            // PHOENIX DEBUG: Check what field holds the name in the console
+            console.log("DraftingPage: Loaded cases raw:", userCases); 
+            
             if (Array.isArray(userCases)) {
                 setCases(userCases);
             } else {
@@ -128,6 +129,14 @@ const DraftingPage: React.FC = () => {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     };
   }, []);
+
+  // Helper to safely get display name based on Types.ts priority
+  const getCaseDisplayName = (c: Case) => {
+    if (c.title && c.title.trim().length > 0) return c.title;
+    if (c.case_name && c.case_name.trim().length > 0) return c.case_name;
+    if (c.case_number) return `Rasti: ${c.case_number}`;
+    return `Rasti #${c.id.substring(0, 8)}...`;
+  };
 
   const startPolling = (jobId: string) => {
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
@@ -214,7 +223,7 @@ const DraftingPage: React.FC = () => {
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-400" size={20} />{t('drafting.configuration')}</h3>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4 min-h-0">
                 
-                {/* PHOENIX: CASE SELECTOR */}
+                {/* PHOENIX: CASE SELECTOR (TITLE PRIORITY) */}
                 <div className='flex-shrink-0'>
                     <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.caseLabel', 'Rasti')}</label>
                     <div className="relative">
@@ -229,7 +238,7 @@ const DraftingPage: React.FC = () => {
                             {cases.length > 0 ? (
                                 cases.map(c => (
                                     <option key={c.id} value={String(c.id)} className="bg-gray-900 text-white">
-                                        {c.case_name || `Rasti #${c.id}`}
+                                        {getCaseDisplayName(c)}
                                     </option>
                                 ))
                             ) : (
