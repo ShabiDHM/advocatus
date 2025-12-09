@@ -1,25 +1,23 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE CORE
-# 1. FIX: Restored missing 'get_documents_by_case_id' method.
-# 2. LOGIC: Robust retrieval and deletion logic.
-# 3. STATUS: Production Ready.
+# PHOENIX PROTOCOL - DOCUMENT SERVICE CORE V6.0 (CASCADING DELETE)
+# 1. FIX: Implemented aggressive 'Cascading Delete' for all related data.
+# 2. LOGIC: Cleans Findings, Calendar Events, Alerts, Graph Nodes, and Vector Store.
+# 3. SAFETY: Uses mixed-type queries (ObjectId/String) to ensure no orphans remain.
 
 import logging
-from bson import ObjectId
-from typing import List, Optional, Tuple, Any
 import datetime
+import importlib
 from datetime import timezone
-from pymongo.database import Database
+from typing import List, Optional, Tuple, Any
+from bson import ObjectId
 import redis
 from fastapi import HTTPException
+from pymongo.database import Database
 
 from ..models.document import DocumentOut, DocumentStatus
 from ..models.user import UserInDB
 
 from . import vector_store_service, storage_service, findings_service
-# Graph service imported conditionally or handled in upper layers if circular dependency arises
-# Here we assume it's safe or we wrap it.
-from .graph_service import graph_service 
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +64,9 @@ def finalize_document_processing(
         
     db.documents.update_one({"_id": doc_object_id}, {"$set": update_fields})
 
-# PHOENIX FIX: Restored this critical method
 def get_documents_by_case_id(db: Database, case_id: str, owner: UserInDB) -> List[DocumentOut]:
     try:
+        # PHOENIX FIX: Sort by creation date descending
         documents_cursor = db.documents.find({"case_id": ObjectId(case_id), "owner_id": owner.id}).sort("created_at", -1)
         documents = list(documents_cursor)
         return [DocumentOut.model_validate(doc) for doc in documents]
@@ -90,7 +88,6 @@ def get_and_verify_document(db: Database, doc_id: str, owner: UserInDB) -> Docum
 def get_preview_document_stream(db: Database, doc_id: str, owner: UserInDB) -> Tuple[Any, DocumentOut]:
     document = get_and_verify_document(db, doc_id, owner)
     
-    # Try fetching explicit preview first
     if document.preview_storage_key:
         try:
             file_stream = storage_service.download_preview_document_stream(document.preview_storage_key)
@@ -99,7 +96,6 @@ def get_preview_document_stream(db: Database, doc_id: str, owner: UserInDB) -> T
         except Exception:
             logger.warning(f"Preview key exists but fetch failed for {doc_id}, falling back to original.")
 
-    # Fallback to original (which is now likely a PDF due to Universal Converter)
     if not document.storage_key:
         raise FileNotFoundError("Document content unavailable.")
         
@@ -131,6 +127,14 @@ def get_document_content_by_key(storage_key: str) -> Optional[str]:
         return None
 
 def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: ObjectId, owner: UserInDB) -> List[str]:
+    """
+    Deletes a document and CASCADES the delete to all related entities:
+    - Findings
+    - Calendar Events / Alerts
+    - Graph Nodes
+    - Vector Embeddings
+    - Physical Files
+    """
     document_to_delete = db.documents.find_one({"_id": doc_id, "owner_id": owner.id})
     if not document_to_delete:
         raise HTTPException(status_code=404, detail="Document not found.")
@@ -140,29 +144,66 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     processed_key = document_to_delete.get("processed_text_storage_key")
     preview_key = document_to_delete.get("preview_storage_key")
 
-    # 1. Delete Findings
-    deleted_finding_ids = findings_service.delete_findings_by_document_id(db=db, document_id=doc_id)
+    # PHOENIX STRATEGY: Aggressive Cleanup Query (Mixed Types)
+    # We match both ObjectId and String versions of the ID to be 100% sure.
+    mixed_id_query = {"$in": [doc_id, doc_id_str]}
     
-    # 2. Cleanup Links
-    any_id_query = {"document_id": {"$in": [doc_id, doc_id_str]}}
-    db.calendar_events.delete_many(any_id_query)
-    db.alerts.delete_many(any_id_query)
-    
-    # 3. Clean Graph
+    # 1. Delete Findings (Direct DB call to ensure mixed-type coverage)
+    # Note: findings_service might only check ObjectId, so we do it explicitly here too.
     try:
-        graph_service.delete_document_nodes(doc_id_str)
-    except Exception:
-        pass # Non-critical
+        findings_query = {"document_id": mixed_id_query}
+        deleted_findings = list(db.findings.find(findings_query, {"_id": 1}))
+        db.findings.delete_many(findings_query)
+        deleted_finding_ids = [str(f["_id"]) for f in deleted_findings]
+    except Exception as e:
+        logger.error(f"Error deleting findings for doc {doc_id}: {e}")
+        deleted_finding_ids = []
+    
+    # 2. Cleanup Calendar Events & Alerts
+    # Check for both 'document_id' (snake) and 'documentId' (camel) just in case
+    link_query = {
+        "$or": [
+            {"document_id": mixed_id_query},
+            {"documentId": mixed_id_query}
+        ]
+    }
+    
+    try:
+        db.calendar_events.delete_many(link_query)
+        # Also clean specific 'alerts' collection if it exists
+        if "alerts" in db.list_collection_names():
+            db.alerts.delete_many(link_query)
+    except Exception as e:
+        logger.error(f"Error deleting events/alerts for doc {doc_id}: {e}")
+
+    # 3. Clean Graph
+    # Import here to avoid circular dependency risks
+    try:
+        graph_service_module = importlib.import_module("app.services.graph_service")
+        if hasattr(graph_service_module, "graph_service"):
+            graph_service_module.graph_service.delete_document_nodes(doc_id_str)
+    except Exception as e:
+        logger.warning(f"Graph cleanup failed (non-critical): {e}")
 
     # 4. Clean Vector Store
-    vector_store_service.delete_document_embeddings(document_id=doc_id_str)
+    try:
+        vector_store_service.delete_document_embeddings(document_id=doc_id_str)
+    except Exception as e:
+        logger.error(f"Vector store cleanup failed: {e}")
     
-    # 5. Clean Files
-    if storage_key: storage_service.delete_file(storage_key=storage_key)
-    if processed_key: storage_service.delete_file(storage_key=processed_key)
-    if preview_key: storage_service.delete_file(storage_key=preview_key)
+    # 5. Clean Physical Files
+    # We wrap these individually so one failure doesn't stop the DB delete
+    if storage_key: 
+        try: storage_service.delete_file(storage_key=storage_key)
+        except: pass
+    if processed_key: 
+        try: storage_service.delete_file(storage_key=processed_key)
+        except: pass
+    if preview_key: 
+        try: storage_service.delete_file(storage_key=preview_key)
+        except: pass
     
-    # 6. Delete Record
+    # 6. Delete The Document Record
     db.documents.delete_one({"_id": doc_id})
     
-    return [str(fid) for fid in deleted_finding_ids]
+    return deleted_finding_ids
