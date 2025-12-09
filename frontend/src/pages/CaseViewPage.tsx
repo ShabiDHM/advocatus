@@ -1,6 +1,11 @@
 // FILE: src/pages/CaseViewPage.tsx
+// PHOENIX PROTOCOL - CASE VIEW PAGE V5.1 (UI POLISH)
+// 1. UI: Removed redundant 'Back to Dashboard' link for cleaner vertical rhythm.
+// 2. UI: Harmonized 'Analizo Rastin' button style with 'Gjetjet' (Ghost Style).
+// 3. RESPONSIVE: Optimized grid height for mobile (stacked) vs desktop (side-by-side).
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
@@ -13,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { 
-    ArrowLeft, AlertCircle, User, Briefcase, Info, 
+    AlertCircle, User, Briefcase, Info, 
     ShieldCheck, Loader2, Lightbulb, X, Save 
 } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
@@ -128,6 +133,7 @@ const CaseHeader: React.FC<{
           </div>
           
           <div className="flex items-center gap-4 self-start md:self-center flex-shrink-0 w-full md:w-auto mt-2 md:mt-0">
+              {/* Findings Button - Ghost Style with Amber Icon */}
               <button 
                   onClick={onShowFindings} 
                   className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all"
@@ -137,13 +143,14 @@ const CaseHeader: React.FC<{
                   <span className="inline">{t('caseView.findingsTitle')}</span>
               </button>
               
+              {/* Analyze Button - Harmonized Ghost Style with Primary Icon */}
               <button 
                   onClick={onAnalyze} 
                   disabled={isAnalyzing} 
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-secondary-start/10 hover:bg-secondary-start/20 border border-secondary-start/30 text-secondary-start text-sm font-medium transition-all disabled:opacity-50"
+                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all disabled:opacity-50"
                   type="button"
               >
-                  {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin text-primary-start" /> : <ShieldCheck className="h-4 w-4 text-primary-start" />}
                   <span className="inline">{isAnalyzing ? t('analysis.analyzing') : t('analysis.analyzeButton')}</span>
               </button>
           </div>
@@ -314,7 +321,7 @@ const CaseViewPage: React.FC = () => {
   return (
     <motion.div className="w-full min-h-screen bg-background-dark pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:py-6">
-        <div className="mb-4"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
+        {/* PHOENIX: Removed Back Link for Cleaner Header */}
         
         <CaseHeader 
             caseDetails={caseData.details} 
@@ -324,7 +331,8 @@ const CaseViewPage: React.FC = () => {
             isAnalyzing={isAnalyzing} 
         />
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
+        {/* PHOENIX: Responsive Grid - Auto height on mobile (stacked), Fixed height on Desktop */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px]">
             {/* LEFT PANEL: Documents */}
             <DocumentsPanel
                 caseId={caseData.details.id}
@@ -337,7 +345,7 @@ const CaseViewPage: React.FC = () => {
                 onDocumentDeleted={handleDocumentDeleted}
                 onViewOriginal={handleViewOriginal}
                 onRename={(doc) => setDocumentToRename(doc)} 
-                className="h-full"
+                className="h-[500px] lg:h-full" 
             />
 
             {/* RIGHT PANEL: Socratic Assistant */}
@@ -351,7 +359,7 @@ const CaseViewPage: React.FC = () => {
                 onClearChat={handleClearChat}
                 t={t}
                 documents={liveDocuments}
-                className="h-full"
+                className="h-[600px] lg:h-full"
             />
         </div>
       </div>
