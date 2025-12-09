@@ -1,4 +1,9 @@
 // FILE: src/components/DocumentsPanel.tsx
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.0 (SEAMLESS UPLOAD UX)
+// 1. UX: Replaced 'Large Upload Card' with 'Compact Upload Row' to match list style.
+// 2. ANIMATION: Added smooth transitions for upload-to-processing state.
+// 3. UI: Standardized progress bars across Uploading and Processing states.
+
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
@@ -144,7 +149,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   return (
-    // PHOENIX FIX: 'overflow-hidden' added to root. THIS IS THE FIX.
     <div className={`documents-panel bg-background-dark/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl flex flex-col h-full overflow-hidden ${className}`}>
       <div className="flex flex-row justify-between items-center border-b border-white/10 pb-3 mb-4 flex-shrink-0 gap-2">
         <div className="flex items-center gap-3 min-w-0">
@@ -194,23 +198,46 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
       {uploadError && (<div className="p-3 text-xs text-red-100 bg-red-700/50 border border-red-500/50 rounded-lg mb-4">{uploadError}</div>)}
       
-      <AnimatePresence>
-          {isUploading && (
-              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mb-4 overflow-hidden">
-                  <div className="bg-background-light/50 border border-primary-start/30 rounded-lg p-3">
-                      <div className="flex justify-between text-xs text-primary-start font-bold mb-1">
-                          <span className="truncate max-w-[200px]">{currentFileName || "Uploading..."}</span>
-                          <span>{uploadProgress}%</span>
-                      </div>
-                      <div className="h-1.5 bg-black/40 rounded-full overflow-hidden">
-                          <motion.div className="h-full bg-primary-start" initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} />
-                      </div>
-                  </div>
-              </motion.div>
-          )}
-      </AnimatePresence>
-
       <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar min-h-0">
+        
+        {/* PHOENIX: Seamless Upload Row (Replaces Large Card) */}
+        <AnimatePresence>
+          {isUploading && (
+            <motion.div
+              initial={{ opacity: 0, y: -10, height: 0 }} 
+              animate={{ opacity: 1, y: 0, height: 'auto' }} 
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-3 overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-3 bg-background-light/30 border border-primary-start/30 rounded-xl transition-all shadow-[0_0_10px_rgba(var(--primary-start-rgb),0.1)]">
+                <div className="min-w-0 flex-1 pr-3">
+                    <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-gray-200 truncate">{currentFileName || "Uploading..."}</p>
+                    </div>
+                    
+                    <div className="flex flex-col gap-1 mt-1">
+                        <div className="flex justify-between text-[9px] text-primary-start">
+                           <span className="animate-pulse">Uploading...</span>
+                           <span className="font-mono">{uploadProgress}%</span>
+                        </div>
+                        <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                            <motion.div 
+                                className="h-full bg-primary-start" 
+                                initial={{ width: 0 }} 
+                                animate={{ width: `${uploadProgress}%` }} 
+                                transition={{ ease: "linear", duration: 0.2 }} 
+                            />
+                        </div>
+                    </div>
+                </div>
+                <div className="flex-shrink-0">
+                    <Loader2 className="h-4 w-4 text-primary-start animate-spin" />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {(documents.length === 0 && !isUploading) && (
           <div className="text-text-secondary text-center py-10 flex flex-col items-center">
             <FolderOpen className="w-12 h-12 text-text-secondary/30 mb-3" />
