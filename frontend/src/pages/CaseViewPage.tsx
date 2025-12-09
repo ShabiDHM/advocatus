@@ -24,11 +24,13 @@ type CaseData = {
     findings: Finding[];
 };
 
-// --- HELPER: HISTORY PARSER (FIXED TYPES) ---
+// PHOENIX PROTOCOL: State Exclusivity
+type ActiveModal = 'none' | 'findings' | 'analysis';
+
+// --- HELPER: HISTORY PARSER ---
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     if (!data) return [];
     
-    // Check all possible property names the backend might use
     const rawArray = data.chat_history || data.chatHistory || data.history || data.messages || [];
     
     if (!Array.isArray(rawArray)) return [];
@@ -36,7 +38,6 @@ const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     return rawArray.map((item: any) => {
         const rawRole = (item.role || item.sender || item.author || 'user').toString().toLowerCase();
         
-        // PHOENIX FIX: Explicitly type 'role' to match ChatMessage interface ('user' | 'ai')
         const role: 'user' | 'ai' = (rawRole.includes('ai') || rawRole.includes('assistant') || rawRole.includes('system')) 
             ? 'ai' 
             : 'user';
@@ -102,11 +103,12 @@ const RenameDocumentModal: React.FC<{
     );
 };
 
+// --- CASE HEADER ---
 const CaseHeader: React.FC<{ 
     caseDetails: Case; 
     t: TFunction; 
-    onAnalyze: () => void; 
-    onShowFindings: () => void;
+    onAnalyze: (e: React.MouseEvent) => void; 
+    onShowFindings: (e: React.MouseEvent) => void;
     isAnalyzing: boolean; 
 }> = ({ caseDetails, t, onAnalyze, onShowFindings, isAnalyzing }) => (
     <motion.div
@@ -125,9 +127,25 @@ const CaseHeader: React.FC<{
               </div>
           </div>
           
-          <div className="flex items-center gap-3 self-start md:self-center flex-shrink-0 w-full md:w-auto mt-2 md:mt-0">
-              <button onClick={onShowFindings} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all"><Lightbulb className="h-4 w-4 text-amber-400" /><span className="inline">{t('caseView.findingsTitle')}</span></button>
-              <button onClick={onAnalyze} disabled={isAnalyzing} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-secondary-start/10 hover:bg-secondary-start/20 border border-secondary-start/30 text-secondary-start text-sm font-medium transition-all disabled:opacity-50">{isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}<span className="inline">{isAnalyzing ? t('analysis.analyzing') : t('analysis.analyzeButton')}</span></button>
+          <div className="flex items-center gap-4 self-start md:self-center flex-shrink-0 w-full md:w-auto mt-2 md:mt-0">
+              <button 
+                  onClick={onShowFindings} 
+                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all"
+                  type="button"
+              >
+                  <Lightbulb className="h-4 w-4 text-amber-400" />
+                  <span className="inline">{t('caseView.findingsTitle')}</span>
+              </button>
+              
+              <button 
+                  onClick={onAnalyze} 
+                  disabled={isAnalyzing} 
+                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-secondary-start/10 hover:bg-secondary-start/20 border border-secondary-start/30 text-secondary-start text-sm font-medium transition-all disabled:opacity-50"
+                  type="button"
+              >
+                  {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  <span className="inline">{isAnalyzing ? t('analysis.analyzing') : t('analysis.analyzeButton')}</span>
+              </button>
           </div>
       </div>
     </motion.div>
@@ -147,8 +165,9 @@ const CaseViewPage: React.FC = () => {
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
-  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
-  const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
+  
+  // PHOENIX FIX: Strict Mutual Exclusivity
+  const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
 
@@ -167,9 +186,7 @@ const CaseViewPage: React.FC = () => {
 
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // --- PHOENIX PROTOCOL: BROWSER PERSISTENCE ---
-  
-  // 1. Load from Browser Cache immediately
+  // --- PERSISTENCE ---
   useEffect(() => {
       if (!currentCaseId) return;
       const cached = localStorage.getItem(`chat_history_${currentCaseId}`);
@@ -183,14 +200,12 @@ const CaseViewPage: React.FC = () => {
       }
   }, [currentCaseId, setMessages]);
 
-  // 2. Save to Browser Cache on every update
   useEffect(() => {
       if (!currentCaseId) return;
       if (liveMessages.length > 0) {
           localStorage.setItem(`chat_history_${currentCaseId}`, JSON.stringify(liveMessages));
       }
   }, [liveMessages, currentCaseId]);
-  // ---------------------------------------------
 
   const fetchCaseData = useCallback(async (isInitialLoad = false) => {
     if (!caseId) return;
@@ -206,8 +221,6 @@ const CaseViewPage: React.FC = () => {
       
       if (isInitialLoad) {
           setLiveDocuments((initialDocs || []).map(sanitizeDocument));
-          
-          // Robust Server-Side Merge
           const serverHistory = extractAndNormalizeHistory(details);
           if (serverHistory.length > 0) {
               setMessages(serverHistory);
@@ -239,18 +252,38 @@ const CaseViewPage: React.FC = () => {
       try { 
           await apiService.clearChatHistory(caseId); 
           setMessages([]); 
-          localStorage.removeItem(`chat_history_${caseId}`); // Clear Cache
+          localStorage.removeItem(`chat_history_${caseId}`); 
       } catch (err) { alert(t('error.generic')); }
   };
 
-  const handleAnalyzeCase = async () => {
+  const handleAnalyzeCase = async (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    
     if (!caseId) return;
     setIsAnalyzing(true);
+    // Explicitly reset any other state to prevent "merging"
+    setActiveModal('none');
+    
     try {
         const result = await apiService.analyzeCase(caseId);
-        if (result.error) alert(result.error);
-        else { setAnalysisResult(result); setIsAnalysisModalOpen(true); }
-    } catch (err) { alert(t('error.generic')); } finally { setIsAnalyzing(false); }
+        if (result.error) {
+            alert(result.error);
+        } else { 
+            setAnalysisResult(result); 
+            setActiveModal('analysis');
+        }
+    } catch (err) { 
+        alert(t('error.generic')); 
+    } finally { 
+        setIsAnalyzing(false); 
+    }
+  };
+
+  const handleShowFindings = (e?: React.MouseEvent) => {
+      e?.preventDefault();
+      e?.stopPropagation();
+      setActiveModal('findings');
   };
 
   const handleChatSubmit = (text: string, _mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => {
@@ -282,11 +315,16 @@ const CaseViewPage: React.FC = () => {
     <motion.div className="w-full min-h-screen bg-background-dark pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:py-6">
         <div className="mb-4"><Link to="/dashboard" className="inline-flex items-center text-xs text-gray-400 hover:text-white transition-colors"><ArrowLeft className="h-3 w-3 mr-1" />{t('caseView.backToDashboard')}</Link></div>
-        <CaseHeader caseDetails={caseData.details} t={t} onAnalyze={handleAnalyzeCase} onShowFindings={() => setIsFindingsModalOpen(true)} isAnalyzing={isAnalyzing} />
         
-        {/* PHOENIX FIX: Strict 600px Height Layout */}
+        <CaseHeader 
+            caseDetails={caseData.details} 
+            t={t} 
+            onAnalyze={handleAnalyzeCase} 
+            onShowFindings={handleShowFindings}
+            isAnalyzing={isAnalyzing} 
+        />
+        
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
-            
             {/* LEFT PANEL: Documents */}
             <DocumentsPanel
                 caseId={caseData.details.id}
@@ -329,8 +367,20 @@ const CaseViewPage: React.FC = () => {
           />
       )}
 
-      {analysisResult && <AnalysisModal isOpen={isAnalysisModalOpen} onClose={() => setIsAnalysisModalOpen(false)} result={analysisResult} />}
-      <FindingsModal isOpen={isFindingsModalOpen} onClose={() => setIsFindingsModalOpen(false)} findings={caseData.findings} />
+      {/* MODALS - Mutually Exclusive */}
+      {analysisResult && (
+          <AnalysisModal 
+            isOpen={activeModal === 'analysis'} 
+            onClose={() => setActiveModal('none')} 
+            result={analysisResult} 
+          />
+      )}
+      
+      <FindingsModal 
+          isOpen={activeModal === 'findings'} 
+          onClose={() => setActiveModal('none')} 
+          findings={caseData.findings} 
+      />
       
       <RenameDocumentModal 
         isOpen={!!documentToRename} 
