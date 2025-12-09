@@ -1,14 +1,14 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V3
-// 1. PERSISTENCE: Saves prompt and result to localStorage to survive reloads.
-// 2. STREAMING: Implements 'Typewriter' effect for the result, mimicking Chat UI.
-// 3. LAYOUT: Strict height constraints to match Dashboard aesthetics.
+// PHOENIX PROTOCOL - DRAFTING PAGE V3.1
+// 1. FEATURE: Added 'Clear Result' (Trash) button to reset the generated content.
+// 2. STATE: Logic to reset currentJob and clear localStorage entry via effect.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { 
-  PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, FileText, Sparkles, RotateCcw
+  PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, 
+  FileText, Sparkles, RotateCcw, Trash2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -23,7 +23,6 @@ interface DraftingJobState {
 }
 
 // --- STREAMING COMPONENT ---
-// Animates the full text to look like it's being generated in real-time
 const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () => void }> = ({ text, isNew, onComplete }) => {
     const [displayedText, setDisplayedText] = useState(isNew ? "" : text);
     
@@ -35,13 +34,13 @@ const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () 
 
         setDisplayedText(""); 
         let index = 0;
-        const speed = 5; // Fast drafting speed
+        const speed = 5; 
 
         const intervalId = setInterval(() => {
             setDisplayedText((prev) => {
                 if (index >= text.length) {
                     clearInterval(intervalId);
-                    onComplete(); // Notify parent that animation is done
+                    onComplete(); 
                     return text;
                 }
                 const nextChar = text.charAt(index);
@@ -83,7 +82,7 @@ const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () 
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
   
-  // Initialize state from LocalStorage if available
+  // Initialize state from LocalStorage
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
   
   const [currentJob, setCurrentJob] = useState<DraftingJobState>(() => {
@@ -91,9 +90,7 @@ const DraftingPage: React.FC = () => {
       return savedJob ? JSON.parse(savedJob) : { jobId: null, status: null, result: null, error: null };
   });
 
-  // Track if the result is "fresh" (just arrived) to trigger animation
   const [isResultNew, setIsResultNew] = useState(false);
-  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pollingIntervalRef = useRef<number | null>(null);
@@ -123,7 +120,7 @@ const DraftingPage: React.FC = () => {
             const resultResponse = await apiService.getDraftingJobResult(jobId);
             const finalResult = resultResponse.document_text || resultResponse.result_text || "";
 
-            setIsResultNew(true); // Trigger Animation
+            setIsResultNew(true); 
             
             setCurrentJob(prev => ({ 
               ...prev, 
@@ -160,7 +157,6 @@ const DraftingPage: React.FC = () => {
     if (!context.trim()) return;
 
     setIsSubmitting(true);
-    // Reset state but keep prompt
     setCurrentJob({ jobId: null, status: 'PENDING', result: null, error: null });
     setIsResultNew(false);
 
@@ -206,6 +202,15 @@ const DraftingPage: React.FC = () => {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+    }
+  };
+
+  // PHOENIX: New Clear Function
+  const handleClearResult = () => {
+    if (window.confirm(t('drafting.confirmClear', 'A jeni i sigurt që doni të fshini përmbajtjen e gjeneruar?'))) {
+        if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        setCurrentJob({ jobId: null, status: null, result: null, error: null });
+        setIsResultNew(false);
     }
   };
 
@@ -283,6 +288,16 @@ const DraftingPage: React.FC = () => {
                     </button>
                     <button onClick={handleCopyResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.copyTitle')}><Copy size={18}/></button>
                     <button onClick={handleDownloadResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.downloadTitle')}><Download size={18}/></button>
+                    
+                    {/* PHOENIX: Delete/Clear Button */}
+                    <button 
+                        onClick={handleClearResult} 
+                        disabled={!currentJob.result && !currentJob.error} 
+                        className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-lg disabled:opacity-30 transition-colors border border-red-500/20" 
+                        title={t('drafting.clearTitle', 'Pastro')}
+                    >
+                        <Trash2 size={18}/>
+                    </button>
                 </div>
             </div>
             {currentJob.error && (
@@ -295,7 +310,7 @@ const DraftingPage: React.FC = () => {
                     <StreamedMarkdown 
                         text={currentJob.result} 
                         isNew={isResultNew} 
-                        onComplete={() => setIsResultNew(false)} // Mark as "old" once animation finishes
+                        onComplete={() => setIsResultNew(false)} 
                     />
                 ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 opacity-50">
