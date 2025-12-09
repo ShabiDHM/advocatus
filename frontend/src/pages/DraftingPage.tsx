@@ -1,9 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V4.1 (FIXED DROPDOWN UX)
-// 1. FEATURE: Added 'Select Case' dropdown to link drafting to a specific case.
-// 2. DATA: Fetches user's cases on load to populate the dropdown.
-// 3. LOGIC: Passes the selected 'caseId' to the backend for RAG processing.
-// 4. FIX: Corrected Dropdown styling, visibility, and added explicit UI indicators.
+// PHOENIX PROTOCOL - DRAFTING PAGE V4.2 (STYLES REVERTED & DATA FIXED)
+// 1. REVERT: Input backgrounds set back to bg-black/50 per user request.
+// 2. FIX: Dropdown options explicitly styled for readability.
+// 3. FIX: Added robust ID handling to ensure Case Name displays correctly when selected.
+// 4. UX: Added 'ChevronDown' for clear dropdown indication.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -109,9 +109,15 @@ const DraftingPage: React.FC = () => {
     const fetchCases = async () => {
         try {
             const userCases = await apiService.getCases();
-            setCases(userCases);
+            console.log("DraftingPage: Loaded cases:", userCases); // DEBUG LOG
+            if (Array.isArray(userCases)) {
+                setCases(userCases);
+            } else {
+                console.error("DraftingPage: userCases is not an array", userCases);
+                setCases([]);
+            }
         } catch (error) {
-            console.error("Failed to fetch cases:", error);
+            console.error("DraftingPage: Failed to fetch cases:", error);
         }
     };
     fetchCases();
@@ -165,8 +171,8 @@ const DraftingPage: React.FC = () => {
       const jobResponse = await apiService.initiateDraftingJob({
         user_prompt: context.trim(),
         context: context.trim(),
-        case_id: selectedCaseId, // PHOENIX: Pass the selected case ID
-        use_library: !!selectedCaseId // Use RAG only if a case is selected
+        case_id: selectedCaseId, 
+        use_library: !!selectedCaseId 
       });
 
       const jobId = jobResponse.job_id;
@@ -208,7 +214,7 @@ const DraftingPage: React.FC = () => {
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-400" size={20} />{t('drafting.configuration')}</h3>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4 min-h-0">
                 
-                {/* PHOENIX: CASE SELECTOR (FIXED STYLING) */}
+                {/* PHOENIX: CASE SELECTOR */}
                 <div className='flex-shrink-0'>
                     <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.caseLabel', 'Rasti')}</label>
                     <div className="relative">
@@ -216,11 +222,21 @@ const DraftingPage: React.FC = () => {
                         <select
                             value={selectedCaseId || ''}
                             onChange={(e) => setSelectedCaseId(e.target.value || undefined)}
-                            className="w-full bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer"
+                            className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer"
                             disabled={isSubmitting}
                         >
-                            <option value="" className="bg-gray-900 text-gray-300">{t('drafting.noCaseSelected', 'Pa Kontekst (Gjenerik)')}</option>
-                            {cases.map(c => <option key={c.id} value={c.id} className="bg-gray-900 text-white">{c.case_name}</option>)}
+                            <option value="" className="bg-gray-900 text-gray-400">{t('drafting.noCaseSelected', 'Pa Kontekst (Gjenerik)')}</option>
+                            {cases.length > 0 ? (
+                                cases.map(c => (
+                                    <option key={c.id} value={String(c.id)} className="bg-gray-900 text-white">
+                                        {c.case_name || `Rasti #${c.id}`}
+                                    </option>
+                                ))
+                            ) : (
+                                <option value="" disabled className="bg-gray-900 text-gray-500 italic">
+                                    {t('drafting.noCasesFound', 'Asnjë rast i gjetur')}
+                                </option>
+                            )}
                         </select>
                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                     </div>
@@ -233,7 +249,7 @@ const DraftingPage: React.FC = () => {
                         value={context}
                         onChange={(e) => setContext(e.target.value)}
                         placeholder={t('drafting.promptPlaceholder')}
-                        className="flex-1 w-full p-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-200 placeholder-gray-500 focus:ring-1 focus:ring-primary-500 outline-none resize-none text-sm leading-relaxed custom-scrollbar transition-colors"
+                        className="flex-1 w-full p-4 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none resize-none text-sm leading-relaxed custom-scrollbar transition-colors"
                         disabled={isSubmitting}
                     />
                 </div>
@@ -254,7 +270,7 @@ const DraftingPage: React.FC = () => {
                 </div>
             </div>
             {currentJob.error && (<div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-4 text-sm text-red-300 flex items-center gap-2 flex-shrink-0"><AlertCircle size={16} />{currentJob.error}</div>)}
-            <div className="flex-1 bg-black/30 rounded-xl border border-white/5 p-4 overflow-y-auto custom-scrollbar relative min-h-0">
+            <div className="flex-1 bg-black/50 rounded-xl border border-white/5 p-4 overflow-y-auto custom-scrollbar relative min-h-0">
                 {currentJob.result ? (<StreamedMarkdown text={currentJob.result} isNew={isResultNew} onComplete={() => setIsResultNew(false)} />) : (<div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 opacity-50">{isSubmitting || (currentJob.status === 'PENDING' || currentJob.status === 'PROCESSING') ? (<><RefreshCw className="w-12 h-12 animate-spin mb-4 text-primary-500" /><p>{t('drafting.generatingMessage')}</p></>) : (<><FileText className="w-16 h-16 mb-4" /><p>{t('drafting.emptyState')}</p></>)}</div>)}
             </div>
         </div>
