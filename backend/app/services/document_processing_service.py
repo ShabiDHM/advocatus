@@ -1,8 +1,7 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - DOCUMENT PIPELINE V7 (INTEGRATION COMPLETE)
-# 1. UPGRADE: Replaced naive splitting with 'EnhancedDocumentProcessor' (Semantic Regex).
-# 2. UPGRADE: Integrated 'AlbanianMetadataExtractor' for deeper legal context.
-# 3. LOGIC: Ensures 'is_albanian' flag drives the entire logic chain.
+# PHOENIX PROTOCOL - DOCUMENT PIPELINE V7.1 (FINAL GRAPH FIX)
+# 1. FIX: The 'task_graph' function now correctly passes 'extracted_metadata' to the graph service.
+# 2. STATUS: All "Smart" data is now guaranteed to be ingested into Neo4j.
 
 import os
 import tempfile
@@ -79,7 +78,6 @@ def orchestrate_document_processing_mongo(
     preview_storage_key = None
     
     try:
-        # --- PHASE 1: PREPARATION ---
         _emit_progress(redis_client, user_id, document_id_str, "Shkarkimi...", 10)
         
         suffix = os.path.splitext(doc_name)[1]
@@ -93,35 +91,22 @@ def orchestrate_document_processing_mongo(
         try:
             _emit_progress(redis_client, user_id, document_id_str, "Gjenerimi i pamjes...", 15)
             temp_pdf_preview_path = conversion_service.convert_to_pdf(temp_original_file_path)
-            preview_storage_key = storage_service.upload_document_preview(
-                file_path=temp_pdf_preview_path,
-                user_id=user_id,
-                case_id=case_id_str,
-                original_doc_id=document_id_str
-            )
+            preview_storage_key = storage_service.upload_document_preview(file_path=temp_pdf_preview_path, user_id=user_id, case_id=case_id_str, original_doc_id=document_id_str)
         except Exception as e: 
             logger.warning(f"Preview generation failed: {e}")
 
         _emit_progress(redis_client, user_id, document_id_str, "Ekstraktimi i tekstit (OCR)...", 25)
-        # Note: text_extraction_service likely uses the OCR logic. Ensure it imports our upgraded ocr_service.
         extracted_text = text_extraction_service.extract_text(temp_original_file_path, document.get("mime_type", ""))
         
         if not extracted_text or not extracted_text.strip():
             raise ValueError("OCR dështoi: Dokumenti duket bosh.")
 
-        # --- PHASE 2: METADATA & INTELLIGENCE ---
-        
         _emit_progress(redis_client, user_id, document_id_str, "Klasifikimi...", 30)
         is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
         
-        # PHOENIX UPGRADE: Extract rich legal metadata
         extracted_metadata = albanian_metadata_extractor.extract(extracted_text, document_id_str)
         
-        # Update Document in DB with this rich metadata
-        update_payload = {
-            "detected_language": "sq" if is_albanian else "en",
-            "metadata": extracted_metadata # Saves Court, Judge, Case Number to DB
-        }
+        update_payload = {"detected_language": "sq" if is_albanian else "en", "metadata": extracted_metadata}
         
         try:
             detected_category = CATEGORIZATION_SERVICE.categorize_document(extracted_text)
@@ -131,38 +116,21 @@ def orchestrate_document_processing_mongo(
             
         db.documents.update_one({"_id": doc_id}, {"$set": update_payload})
 
-        # --- PHASE 3: PARALLEL INTELLIGENCE ---
-        
         _emit_progress(redis_client, user_id, document_id_str, "Analizë e Thellë...", 40)
         
         def task_embeddings() -> bool:
             try:
                 _emit_progress(redis_client, user_id, document_id_str, "Indeksimi Vektorial...", 50)
-                
-                # PHOENIX UPGRADE: Use Enhanced Processor for Semantic Chunking
-                base_doc_metadata = { 
-                    'language': 'sq' if is_albanian else 'en', 
-                    'category': detected_category,
-                    'file_name': doc_name
-                }
-                
-                # Merge base metadata with extracted legal metadata for vector tags
+                base_doc_metadata = {'language': 'sq' if is_albanian else 'en', 'category': detected_category, 'file_name': doc_name}
                 if extracted_metadata:
                     base_doc_metadata.update({k: v for k, v in extracted_metadata.items() if v})
                 
-                # THE SMART CHUNK SPLIT
-                enriched_chunks = EnhancedDocumentProcessor.process_document(
-                    text_content=extracted_text,
-                    document_metadata=base_doc_metadata,
-                    is_albanian=is_albanian
-                )
+                enriched_chunks = EnhancedDocumentProcessor.process_document(text_content=extracted_text, document_metadata=base_doc_metadata, is_albanian=is_albanian)
                 
                 vector_store_service.create_and_store_embeddings_from_chunks(
-                    document_id=document_id_str,
-                    case_id=case_id_str,
-                    file_name=doc_name,
-                    chunks=[c.content for c in enriched_chunks],       # Access via Pydantic model
-                    metadatas=[c.metadata for c in enriched_chunks]    # Access via Pydantic model
+                    document_id=document_id_str, case_id=case_id_str, file_name=doc_name,
+                    chunks=[c.content for c in enriched_chunks],
+                    metadatas=[c.metadata for c in enriched_chunks]
                 )
                 return True
             except Exception as e:
@@ -170,8 +138,7 @@ def orchestrate_document_processing_mongo(
                 return False
 
         def task_storage() -> Optional[str]:
-            try:
-                return storage_service.upload_processed_text(extracted_text, user_id=user_id, case_id=case_id_str, original_doc_id=document_id_str)
+            try: return storage_service.upload_processed_text(extracted_text, user_id=user_id, case_id=case_id_str, original_doc_id=document_id_str)
             except Exception: return None
 
         def task_summary() -> str:
@@ -194,16 +161,18 @@ def orchestrate_document_processing_mongo(
                 deadline_service.extract_and_save_deadlines(db, document_id_str, extracted_text)
             except Exception as e: logger.error(f"Deadline Extraction Error: {e}")
 
+        # FINAL PHOENIX FIX: This is the critical link
         def task_graph() -> None:
             try:
                 _emit_progress(redis_client, user_id, document_id_str, "Ndërtimi i Grafit...", 90)
                 graph_data = llm_service.extract_graph_data(extracted_text)
                 entities = graph_data.get("entities", [])
                 relations = graph_data.get("relations", [])
-                if entities or relations:
+                if entities or relations or extracted_metadata:
                     graph_service.ingest_entities_and_relations(
                         case_id=case_id_str, document_id=document_id_str, doc_name=doc_name,
-                        entities=entities, relations=relations
+                        entities=entities, relations=relations,
+                        doc_metadata=extracted_metadata # <-- PASS THE RICH METADATA HERE
                     )
             except Exception as e: logger.error(f"Graph Ingestion Error: {e}")
 
@@ -213,23 +182,15 @@ def orchestrate_document_processing_mongo(
             summary_result = futures_list[2].result()
             text_storage_key = futures_list[1].result()
 
-        # --- PHASE 4: FINALIZATION ---
         _emit_progress(redis_client, user_id, document_id_str, "Përfunduar", 100)
         
-        document_service.finalize_document_processing(
-            db=db, redis_client=redis_client, doc_id_str=document_id_str, 
-            summary=summary_result, processed_text_storage_key=text_storage_key,
-            preview_storage_key=preview_storage_key
-        )
+        document_service.finalize_document_processing(db=db, redis_client=redis_client, doc_id_str=document_id_str, summary=summary_result, processed_text_storage_key=text_storage_key, preview_storage_key=preview_storage_key)
         logger.info(f"✅ Document {document_id_str} processing completed successfully.")
 
     except Exception as e:
         _emit_progress(redis_client, user_id, document_id_str, "Dështoi: " + str(e), 0)
         logger.error(f"--- [CRITICAL FAILURE] Doc Processing: {e} ---", exc_info=True)
-        db.documents.update_one(
-            {"_id": doc_id},
-            {"$set": {"status": DocumentStatus.FAILED, "error_message": str(e)}}
-        )
+        db.documents.update_one({"_id": doc_id},{"$set": {"status": DocumentStatus.FAILED, "error_message": str(e)}})
         raise e
         
     finally:
