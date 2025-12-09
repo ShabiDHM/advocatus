@@ -13,7 +13,8 @@ export type ChatMode = 'general' | 'document';
 export type Jurisdiction = 'ks' | 'al';
 
 // --- TYPING EFFECT COMPONENT ---
-const TypingMessage: React.FC<{ text: string }> = ({ text }) => {
+// Added onComplete callback to notify parent when animation finishes
+const TypingMessage: React.FC<{ text: string; onComplete?: () => void }> = ({ text, onComplete }) => {
     const [displayedText, setDisplayedText] = useState("");
     
     useEffect(() => {
@@ -25,6 +26,7 @@ const TypingMessage: React.FC<{ text: string }> = ({ text }) => {
             setDisplayedText((prev) => {
                 if (index >= text.length) {
                     clearInterval(intervalId);
+                    if (onComplete) onComplete(); // Notify finished
                     return text;
                 }
                 const nextChar = text.charAt(index);
@@ -34,7 +36,7 @@ const TypingMessage: React.FC<{ text: string }> = ({ text }) => {
         }, speed);
 
         return () => clearInterval(intervalId);
-    }, [text]);
+    }, [text, onComplete]);
 
     return (
         <div className="markdown-content space-y-2">
@@ -116,17 +118,38 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // PHOENIX FIX: Track if we've already rendered the initial history to prevent typing effect on load
-  const historyLoadedRef = useRef(false);
+  // PHOENIX FIX: Strict logic to differentiate History vs New Message vs Re-render
+  const prevMessagesLength = useRef(0);
+  const [typingIndex, setTypingIndex] = useState<number | null>(null);
 
   // Auto-scroll to bottom
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isSendingMessage]);
 
-  // Mark history as loaded once we receive messages
+  // INTELLIGENT TYPING TRIGGER
   useEffect(() => {
-      if (messages.length > 0 && !historyLoadedRef.current) {
-          historyLoadedRef.current = true;
+      const currentLength = messages.length;
+      const prevLength = prevMessagesLength.current;
+
+      if (currentLength > prevLength) {
+          // New messages arrived
+          if (prevLength === 0) {
+              // CASE 1: Initial Load (History). Do NOT animate.
+              // Just update ref.
+          } else {
+              // CASE 2: New message added to existing list. ANIMATE the last one.
+              // Check if the last message is AI before deciding to animate
+              const lastMsg = messages[currentLength - 1];
+              if (lastMsg.role === 'ai') {
+                  setTypingIndex(currentLength - 1);
+              }
+          }
+      } else if (currentLength < prevLength) {
+          // Messages cleared (Delete or Clear Chat). Reset.
+          setTypingIndex(null);
       }
+      
+      // Always update ref
+      prevMessagesLength.current = currentLength;
   }, [messages]);
 
   // Auto-expand textarea
@@ -209,10 +232,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         ) : (
             messages.map((msg, idx) => {
                 const isAi = msg.role === 'ai';
-                const isLatest = idx === messages.length - 1;
                 
-                // PHOENIX FIX: Only use typing if it's the latest AI message, NOT sending, AND history has already been loaded once.
-                const useTyping = isAi && isLatest && !isSendingMessage && historyLoadedRef.current;
+                // Only animate if this specific index is marked for typing
+                const useTyping = isAi && idx === typingIndex;
 
                 return (
                     <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -221,7 +243,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             {msg.role === 'user' ? (
                                 msg.content
                             ) : useTyping ? (
-                                <TypingMessage text={msg.content} />
+                                <TypingMessage 
+                                    text={msg.content} 
+                                    onComplete={() => setTypingIndex(null)} // Mark as done forever
+                                />
                             ) : (
                                 <div className="markdown-content space-y-2">
                                     <ReactMarkdown 
