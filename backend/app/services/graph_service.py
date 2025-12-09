@@ -1,8 +1,8 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - UNIFIED GRAPH SERVICE (V7)
-# 1. MERGE: Combines "Network Intelligence" (V5) with "Litigation Engine" (V6).
-# 2. RESTORATION: Restored 'find_hidden_connections' to fix RAG Service error.
-# 3. CAPABILITY: Supports Entity extraction, Legal Claims, and Contradiction detection.
+# PHOENIX PROTOCOL - GRAPH SERVICE V8 (LEGAL ENTITY AWARE)
+# 1. NEW NODES: Added 'Court', 'Judge', and 'CaseNumber' as first-class citizens.
+# 2. NEW RELATIONSHIP: Added ':ISSUED_BY' to link Documents to Courts.
+# 3. CAPABILITY: Enables queries like "Find all cases from Gjykata Themelore".
 
 import os
 import structlog
@@ -54,15 +54,12 @@ class GraphService:
             logger.error(f"Graph Deletion Failed: {e}")
 
     def get_case_graph(self, case_id: str) -> Dict[str, List]:
-        """
-        Retrieves the node/link structure for visualization.
-        """
         self._connect()
         if not self._driver: return {"nodes": [], "links": []}
         
         query = """
         MATCH (d:Document {case_id: $case_id})
-        OPTIONAL MATCH (d)-[:MENTIONS]->(e)
+        OPTIONAL MATCH (d)-[:MENTIONS|ISSUED_BY]->(e)
         WITH collect(DISTINCT d) + collect(DISTINCT e) as nodes
         UNWIND nodes as n
         OPTIONAL MATCH (n)-[r]-(m)
@@ -107,19 +104,41 @@ class GraphService:
     # SECTION 2: DATA INGESTION (ENTITIES & RELATIONSHIPS)
     # ==============================================================================
 
-    def ingest_entities_and_relations(self, case_id: str, document_id: str, doc_name: str, entities: List[Dict], relations: List[Dict]):
+    def ingest_entities_and_relations(self, case_id: str, document_id: str, doc_name: str, entities: List[Dict], relations: List[Dict], doc_metadata: Optional[Dict] = None):
         """
-        Standard ingestion for People, Money, Orgs.
+        Ingests People, Money, Orgs, AND rich legal metadata (Court, Judge).
         """
         self._connect()
         if not self._driver: return
 
-        def _tx_ingest(tx, c_id, d_id, d_name, ents, rels):
+        def _tx_ingest(tx, c_id, d_id, d_name, ents, rels, meta):
             tx.run("""
                 MERGE (d:Document {id: $doc_id})
                 SET d.case_id = $case_id, d.name = $doc_name, d.group = 'DOCUMENT'
             """, doc_id=d_id, case_id=c_id, doc_name=d_name)
 
+            # PHOENIX UPGRADE: Ingest rich legal metadata first
+            if meta:
+                if meta.get("court"):
+                    tx.run("""
+                        MERGE (c:Court {name: $court_name, group: 'COURT'})
+                        MERGE (d:Document {id: $doc_id})
+                        MERGE (d)-[:ISSUED_BY]->(c)
+                    """, court_name=meta["court"], doc_id=d_id)
+                if meta.get("judge"):
+                    tx.run("""
+                        MERGE (j:Judge {name: $judge_name, group: 'JUDGE'})
+                        MERGE (d:Document {id: $doc_id})
+                        MERGE (d)-[:MENTIONS]->(j)
+                    """, judge_name=meta["judge"], doc_id=d_id)
+                if meta.get("case_number"):
+                    tx.run("""
+                        MERGE (cn:CaseNumber {name: $case_num, group: 'CASE_NUMBER'})
+                        MERGE (d:Document {id: $doc_id})
+                        MERGE (d)-[:MENTIONS]->(cn)
+                    """, case_num=meta["case_number"], doc_id=d_id)
+
+            # Ingest standard entities from LLM
             for ent in ents:
                 raw_label = ent.get("type", "Entity").strip().capitalize()
                 label = "ENTITY"
@@ -152,30 +171,25 @@ class GraphService:
 
         try:
             with self._driver.session() as session:
-                session.execute_write(_tx_ingest, case_id, document_id, doc_name, entities, relations)
-        except Exception: pass
+                session.execute_write(_tx_ingest, case_id, document_id, doc_name, entities, relations, doc_metadata)
+        except Exception as e:
+            logger.error(f"Graph Ingestion Error: {e}")
 
     # ==============================================================================
     # SECTION 3: LITIGATION ENGINE (V6 - CLAIMS & CONTRADICTIONS)
     # ==============================================================================
 
     def ingest_legal_analysis(self, case_id: str, doc_id: str, analysis: List[Dict]):
-        """
-        Ingests high-level legal concepts (Accusations, Contradictions).
-        """
         self._connect()
         if not self._driver: return
-
         def _tx_ingest_legal(tx, c_id, d_id, items):
             tx.run("MERGE (d:Document {id: $d_id}) SET d.case_id = $c_id", d_id=d_id, c_id=c_id)
-
             for item in items:
                 if item.get('type') == 'ACCUSATION':
                     accuser = item.get('source', 'Unknown').title()
                     accused = item.get('target', 'Unknown').title()
                     claim_text = item.get('text', 'Unspecified Claim')
-                    
-                    query = """
+                    tx.run("""
                     MERGE (p1:Person {name: $accuser})
                     MERGE (p2:Person {name: $accused})
                     MERGE (c:Claim {text: $claim_text, case_id: $case_id})
@@ -183,18 +197,14 @@ class GraphService:
                     MERGE (p1)-[:ASSERTS]->(c)
                     MERGE (c)-[:CONCERNS]->(p2)
                     MERGE (d:Document {id: $doc_id})-[:RECORDS]->(c)
-                    """
-                    tx.run(query, accuser=accuser, accused=accused, claim_text=claim_text, case_id=c_id, doc_id=d_id)
-
+                    """, accuser=accuser, accused=accused, claim_text=claim_text, case_id=c_id, doc_id=d_id)
                 elif item.get('type') == 'CONTRADICTION':
-                    query = """
+                    tx.run("""
                     MERGE (c:Claim {text: $claim_text})
                     MERGE (e:Evidence {text: $evidence_text})
                     MERGE (d:Document {id: $doc_id})-[:CONTAINS]->(e)
                     MERGE (e)-[:CONTRADICTS]->(c)
-                    """
-                    tx.run(query, claim_text=item.get('claim_text'), evidence_text=item.get('evidence_text'), doc_id=d_id)
-
+                    """, claim_text=item.get('claim_text'), evidence_text=item.get('evidence_text'), doc_id=d_id)
         try:
             with self._driver.session() as session:
                 session.execute_write(_tx_ingest_legal, case_id, doc_id, analysis)
@@ -207,13 +217,8 @@ class GraphService:
     # ==============================================================================
 
     def find_hidden_connections(self, query_term: str) -> List[str]:
-        """
-        Deep Search for RAG Service. Finds 1-hop connections for a term.
-        Crucial for context building.
-        """
         self._connect()
         if not self._driver: return []
-        
         query = """
         MATCH (a)-[r]-(b)
         WHERE toLower(a.name) CONTAINS toLower($term)
@@ -231,25 +236,19 @@ class GraphService:
             return []
 
     def find_contradictions(self, case_id: str) -> str:
-        """
-        Returns a text summary of contradictions for the Chatbot.
-        """
         self._connect()
         if not self._driver: return ""
-
         query = """
         MATCH (e:Evidence)-[:CONTRADICTS]->(c:Claim)<-[:ASSERTS]-(p:Person)
         WHERE c.case_id = $case_id
         RETURN p.name as liar, c.text as lie, e.text as proof
         """
-        
         try:
             with self._driver.session() as session:
                 result = session.run(query, case_id=case_id)
                 summary = []
                 for r in result:
                     summary.append(f"⚠️ FALSE CLAIM: {r['liar']} claimed '{r['lie']}', but evidence '{r['proof']}' contradicts this.")
-                
                 return "\n".join(summary) if summary else "No direct contradictions found in the graph."
         except Exception:
             return ""

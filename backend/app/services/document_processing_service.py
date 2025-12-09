@@ -1,7 +1,8 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - METADATA PIPELINE FIX
-# 1. FIX: Added the 'file_name' argument to the 'create_and_store_embeddings_from_chunks' call.
-# 2. STATUS: This completes the data pipeline, ensuring document names are stored in the vector DB.
+# PHOENIX PROTOCOL - DOCUMENT PIPELINE V7 (INTEGRATION COMPLETE)
+# 1. UPGRADE: Replaced naive splitting with 'EnhancedDocumentProcessor' (Semantic Regex).
+# 2. UPGRADE: Integrated 'AlbanianMetadataExtractor' for deeper legal context.
+# 3. LOGIC: Ensures 'is_albanian' flag drives the entire logic chain.
 
 import os
 import tempfile
@@ -14,7 +15,6 @@ from typing import List, Dict, Any, cast, Optional
 from pymongo.database import Database
 import redis
 from bson import ObjectId
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 # Core Services
 from . import (
@@ -30,22 +30,14 @@ from . import (
 from .graph_service import graph_service 
 from .categorization_service import CATEGORIZATION_SERVICE
 from .albanian_language_detector import AlbanianLanguageDetector
+from .albanian_document_processor import EnhancedDocumentProcessor
+from .albanian_metadata_extractor import albanian_metadata_extractor
 from ..models.document import DocumentStatus
 
 logger = logging.getLogger(__name__)
 
 class DocumentNotFoundInDBError(Exception):
     pass
-
-def _process_and_split_text(full_text: str, document_metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
-    base_metadata = document_metadata.copy()
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1200, 
-        chunk_overlap=250, 
-        length_function=len
-    )
-    text_chunks = text_splitter.split_text(full_text)
-    return [{'content': chunk, 'metadata': {**base_metadata, 'chunk_index': i}} for i, chunk in enumerate(text_chunks)]
 
 def _emit_progress(redis_client: redis.Redis, user_id: str, doc_id: str, message: str, percent: int):
     try:
@@ -111,22 +103,33 @@ def orchestrate_document_processing_mongo(
             logger.warning(f"Preview generation failed: {e}")
 
         _emit_progress(redis_client, user_id, document_id_str, "Ekstraktimi i tekstit (OCR)...", 25)
+        # Note: text_extraction_service likely uses the OCR logic. Ensure it imports our upgraded ocr_service.
         extracted_text = text_extraction_service.extract_text(temp_original_file_path, document.get("mime_type", ""))
         
         if not extracted_text or not extracted_text.strip():
             raise ValueError("OCR dështoi: Dokumenti duket bosh.")
 
-        # --- PHASE 2: METADATA & CLASSIFICATION ---
+        # --- PHASE 2: METADATA & INTELLIGENCE ---
         
         _emit_progress(redis_client, user_id, document_id_str, "Klasifikimi...", 30)
+        is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
+        
+        # PHOENIX UPGRADE: Extract rich legal metadata
+        extracted_metadata = albanian_metadata_extractor.extract(extracted_text, document_id_str)
+        
+        # Update Document in DB with this rich metadata
+        update_payload = {
+            "detected_language": "sq" if is_albanian else "en",
+            "metadata": extracted_metadata # Saves Court, Judge, Case Number to DB
+        }
+        
         try:
             detected_category = CATEGORIZATION_SERVICE.categorize_document(extracted_text)
-            db.documents.update_one({"_id": doc_id}, {"$set": {"category": detected_category}})
+            update_payload["category"] = detected_category
         except Exception:
             detected_category = "Unknown"
-
-        is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
-        detected_lang = 'albanian' if is_albanian else 'standard'
+            
+        db.documents.update_one({"_id": doc_id}, {"$set": update_payload})
 
         # --- PHASE 3: PARALLEL INTELLIGENCE ---
         
@@ -135,16 +138,31 @@ def orchestrate_document_processing_mongo(
         def task_embeddings() -> bool:
             try:
                 _emit_progress(redis_client, user_id, document_id_str, "Indeksimi Vektorial...", 50)
-                base_doc_metadata = { 'language': detected_lang, 'category': detected_category }
-                enriched_chunks = _process_and_split_text(extracted_text, base_doc_metadata)
                 
-                # PHOENIX FIX: Pass the 'file_name' to the vector store service
+                # PHOENIX UPGRADE: Use Enhanced Processor for Semantic Chunking
+                base_doc_metadata = { 
+                    'language': 'sq' if is_albanian else 'en', 
+                    'category': detected_category,
+                    'file_name': doc_name
+                }
+                
+                # Merge base metadata with extracted legal metadata for vector tags
+                if extracted_metadata:
+                    base_doc_metadata.update({k: v for k, v in extracted_metadata.items() if v})
+                
+                # THE SMART CHUNK SPLIT
+                enriched_chunks = EnhancedDocumentProcessor.process_document(
+                    text_content=extracted_text,
+                    document_metadata=base_doc_metadata,
+                    is_albanian=is_albanian
+                )
+                
                 vector_store_service.create_and_store_embeddings_from_chunks(
                     document_id=document_id_str,
                     case_id=case_id_str,
-                    file_name=doc_name, # <-- THIS IS THE FIX
-                    chunks=[c['content'] for c in enriched_chunks],
-                    metadatas=[c['metadata'] for c in enriched_chunks]
+                    file_name=doc_name,
+                    chunks=[c.content for c in enriched_chunks],       # Access via Pydantic model
+                    metadatas=[c.metadata for c in enriched_chunks]    # Access via Pydantic model
                 )
                 return True
             except Exception as e:
@@ -192,7 +210,6 @@ def orchestrate_document_processing_mongo(
         summary_result, text_storage_key = None, None
         with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
             futures_list = [executor.submit(task) for task in [task_embeddings, task_storage, task_summary, task_findings, task_deadlines, task_graph]]
-            # Retrieve results as they complete
             summary_result = futures_list[2].result()
             text_storage_key = futures_list[1].result()
 

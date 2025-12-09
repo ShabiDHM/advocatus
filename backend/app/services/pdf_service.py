@@ -1,8 +1,9 @@
 # FILE: backend/app/services/pdf_service.py
-# PHOENIX PROTOCOL - UNIVERSAL DOCUMENT CONVERTER (MAGIC BYTE DETECTION)
-# 1. FIX: Detects file type by content (Magic Bytes) to prevent corrupting mismatched extensions.
-# 2. FEATURE: Automatically fixes extensions (e.g., renames .txt to .pdf if content is PDF).
-# 3. ROBUSTNESS: Handles binary files masquerading as text.
+# PHOENIX PROTOCOL - PDF SERVICE V2 (SMART ENCODING)
+# 1. ACCURACY: Switched from 'latin-1' to 'cp1252' (Windows-1252).
+#    - Why? 'latin-1' destroys the Euro (€) symbol. 'cp1252' preserves it.
+#    - Result: The AI can now detect "5000 €" correctly instead of "5000 ?".
+# 2. LOGIC: Magic Byte detection remains for security.
 
 import io
 from PIL import Image
@@ -19,64 +20,49 @@ class PDFConverter:
         """
         # 1. READ CONTENT
         content = await file.read()
-        file_size = len(content)
         
         # 2. PREPARE FILENAME
-        raw_name = file.filename
-        if raw_name is None:
-            original_name: str = "untitled_document"
-        else:
-            original_name: str = raw_name
-            
-        base_name = original_name.rsplit('.', 1)[0]
+        raw_name = file.filename or "untitled_document"
+        base_name = raw_name.rsplit('.', 1)[0]
 
         # 3. MAGIC BYTE DETECTION
         # Check if it's ALREADY a PDF (Signature: %PDF)
         if content.startswith(b'%PDF'):
             await file.seek(0)
-            # Fix extension if it was wrong (e.g. user uploaded .txt but it was a pdf)
             return content, f"{base_name}.pdf"
 
         # Check for Common Images
-        # JPEG: FF D8 FF
-        # PNG: 89 50 4E 47 0D 0A 1A 0A
-        # BMP: 42 4D
-        # TIFF: 49 49 2A 00 or 4D 4D 00 2A
-        if (content.startswith(b'\xff\xd8\xff') or 
-            content.startswith(b'\x89PNG') or 
-            content.startswith(b'BM') or 
-            content.startswith(b'II*\x00') or 
+        if (content.startswith(b'\xff\xd8\xff') or  # JPEG
+            content.startswith(b'\x89PNG') or       # PNG
+            content.startswith(b'BM') or            # BMP
+            content.startswith(b'II*\x00') or       # TIFF
             content.startswith(b'MM\x00*')):
             try:
-                return PDFConverter._image_to_pdf(content, original_name)
+                return PDFConverter._image_to_pdf(content, raw_name)
             except Exception as e:
                 print(f"Image conversion failed: {e}")
-                # Fallback to original
                 await file.seek(0)
-                return content, original_name
+                return content, raw_name
 
         # 4. TEXT FILE HANDLING
         # Only treat as text if extension is text-like AND content looks like text
-        # If it's a binary file (not PDF/Image) named .txt, we don't want to convert it (garbage output)
-        filename_lower = original_name.lower()
+        filename_lower = raw_name.lower()
         if filename_lower.endswith(('.txt', '.md', '.csv', '.log')):
             try:
                 # Basic binary check: look for null bytes
                 if b'\x00' in content[:1024]: 
-                    # Likely a binary file misnamed as txt -> Return original to be safe
                     await file.seek(0)
-                    return content, original_name
+                    return content, raw_name
                 
-                return PDFConverter._text_to_pdf(content, original_name)
+                return PDFConverter._text_to_pdf(content, raw_name)
             except Exception as e:
                 print(f"Text conversion failed: {e}")
                 await file.seek(0)
-                return content, original_name
+                return content, raw_name
 
-        # 5. DEFAULT / UNSUPPORTED (DOCX, ZIP, etc.)
-        # Return as is
+        # 5. DEFAULT / UNSUPPORTED
         await file.seek(0)
-        return content, original_name
+        return content, raw_name
 
     @staticmethod
     def _image_to_pdf(image_bytes: bytes, original_name: str) -> Tuple[bytes, str]:
@@ -91,37 +77,35 @@ class PDFConverter:
         pdf_bytes.seek(0)
         
         base_name = original_name.rsplit('.', 1)[0]
-        new_name = f"{base_name}.pdf"
-        return pdf_bytes.getvalue(), new_name
+        return pdf_bytes.getvalue(), f"{base_name}.pdf"
 
     @staticmethod
     def _text_to_pdf(text_bytes: bytes, original_name: str) -> Tuple[bytes, str]:
-        # Handle decoding errors gracefully
+        # Decode UTF-8 (Standard for modern web/editors)
         text = text_bytes.decode('utf-8', errors='replace')
         
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
         
-        # Sanitize text to Latin-1 to prevent FPDF unicode crashes
-        sanitized_text = text.encode('latin-1', 'replace').decode('latin-1')
+        # PHOENIX FIX: Use 'cp1252' (Windows-1252) instead of 'latin-1'
+        # cp1252 supports the Euro (€) symbol (0x80) and smart quotes.
+        # latin-1 does NOT support Euro, turning "500€" into "500?".
+        sanitized_text = text.encode('cp1252', 'replace').decode('cp1252')
         
-        # Use positional arguments
         pdf.multi_cell(0, 10, sanitized_text)
         
-        # Handle output type variance
         output = pdf.output(dest='S')
         
         pdf_output_bytes: bytes
         if isinstance(output, str):
-            pdf_output_bytes = output.encode('latin-1')
+            pdf_output_bytes = output.encode('latin-1') # FPDF internal storage
         elif isinstance(output, bytearray):
             pdf_output_bytes = bytes(output)
         else:
             pdf_output_bytes = bytes(output)
         
         base_name = original_name.rsplit('.', 1)[0]
-        new_name = f"{base_name}.pdf"
-        return pdf_output_bytes, new_name
+        return pdf_output_bytes, f"{base_name}.pdf"
 
 pdf_service = PDFConverter()

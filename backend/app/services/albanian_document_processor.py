@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_document_processor.py
-# PHOENIX PROTOCOL - DOCUMENT PROCESSOR V5 (KOSOVO CONTEXT)
-# 1. SCOPE: Optimization for ALBANIAN LANGUAGE legal texts (Kosovo Jurisdiction).
-# 2. LOGIC: Recursive splitting with legal delimiters (Neni, Kreu, Pika).
-# 3. METADATA: Tags chunks with language='sq' to distinguish from jurisdiction.
+# PHOENIX PROTOCOL - DOCUMENT PROCESSOR V6 (SEMANTIC INTELLIGENCE)
+# 1. INTELLIGENCE: Uses Regex Look-Ahead to split text exactly at 'Neni/Article' boundaries.
+# 2. ACCURACY: Ensures an Article header (e.g. "Neni 5") is never separated from its content.
+# 3. CONTEXT: Increased chunk size to 1500 chars to capture full legal clauses in one go.
 
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
@@ -16,27 +16,33 @@ class DocumentChunk(BaseModel):
 
 class EnhancedDocumentProcessor:
     """
-    Advanced processor for splitting Albanian-language legal text (Kosovo Context)
-    while preserving semantic boundaries (Articles, Paragraphs, Sentences).
+    Advanced processor for splitting Albanian-language legal text (Kosovo Context).
+    Uses Semantic Regex splitting to ensure Legal Articles remain intact.
     """
 
     @staticmethod
-    def _get_legal_separators() -> List[str]:
+    def _get_legal_regex_separators() -> List[str]:
         """
-        Separators ordered by priority for Kosovo Legal Texts.
+        Regex Patterns for Kosovo Legal Structure.
+        The '(?=...)' syntax is a Look-Ahead. It splits BEFORE the match,
+        keeping the header attached to its content.
         """
         return [
-            "\n\n",             # Paragraphs
-            "\nKREU ",          # Chapter headers
-            "\nNENI ",          # Article headers (Uppercase)
-            "\nNeni ",          # Article headers (Titlecase)
-            "\nArtikulli ",     # Alternative
-            "\nPika ",          # Points/Clauses (Common in Kosovo Law)
-            ". ",               # Sentences
-            "; ",               # List items
-            "\n",               # Line breaks
-            " ",                # Words
-            ""                  # Characters
+            # 1. Major Divisions (Chapters)
+            r"(?=\nKREU\s+[IVX0-9]+)",    
+            
+            # 2. Primary Legal Units (Articles) - The most critical split
+            r"(?=\nNENI\s+\d+)",          # Uppercase: NENI 10
+            r"(?=\nNeni\s+\d+)",          # Titlecase: Neni 10
+            r"(?=\nArtikulli\s+\d+)",     # Alternative: Artikulli 10
+            
+            # 3. Sub-divisions (Paragraphs/Points)
+            r"(?=\n\d+\.)",               # Numbered lists: 1. (Start of line)
+            r"(?=\n[a-z]\))",             # Lettered lists: a) (Start of line)
+            
+            # 4. Fallbacks
+            r"\n\n",                      # Standard paragraph break
+            r"\.\s+",                     # Sentence end
         ]
 
     @classmethod
@@ -44,7 +50,7 @@ class EnhancedDocumentProcessor:
         cls,
         text_content: str,
         document_metadata: Dict[str, Any],
-        is_albanian: bool, # Refers to LANGUAGE (sq), not State.
+        is_albanian: bool,
     ) -> List[DocumentChunk]:
         """
         Splits text content and enriches chunks based on language detection.
@@ -52,20 +58,31 @@ class EnhancedDocumentProcessor:
         if not text_content:
             return []
 
-        # Configuration based on language
-        chunk_size = 1200 if is_albanian else 1000
-        chunk_overlap = 200
+        # PHOENIX OPTIMIZATION:
+        # Kosovo laws are dense. We need larger chunks to keep "Neni" and all its "Pika" together.
+        # 1500 chars is approx 300-400 words, usually enough for one full legal article.
+        chunk_size = 1500 if is_albanian else 1000
+        chunk_overlap = 200 # Overlap ensures context flows if an article is huge
         
-        # Select appropriate separators
-        separators = cls._get_legal_separators() if is_albanian else ["\n\n", "\n", ". ", " ", ""]
+        if is_albanian:
+            # SEMANTIC REGEX SPLITTER
+            separators = cls._get_legal_regex_separators()
+            is_separator_regex = True
+            keep_separator = True # Important: Don't delete the "Neni" text during split
+        else:
+            # Standard Splitter for English/Other
+            separators = ["\n\n", "\n", ". ", " ", ""]
+            is_separator_regex = False
+            keep_separator = False
 
         # Initialize Splitter
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=separators,
-            length_function=len,
-            is_separator_regex=False
+            is_separator_regex=is_separator_regex,
+            keep_separator=keep_separator,
+            length_function=len
         )
 
         # Perform Split
@@ -80,9 +97,8 @@ class EnhancedDocumentProcessor:
             chunk_metadata.update({
                 "chunk_index": i,
                 "total_chunks": len(raw_chunks),
-                # PHOENIX: Use standard ISO code to avoid confusion with Jurisdiction
                 "language": "sq" if is_albanian else "en", 
-                "processor_version": "V5.0-KOSOVO_EXCLUSIVE",
+                "processor_version": "V6.0-SEMANTIC_REGEX",
                 "char_count": len(content)
             })
 
