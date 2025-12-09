@@ -1,8 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V2.2 (POLYMORPHIC DATE FIX)
-# 1. FIX: 'alert_count' query now checks for BOTH BSON Date objects and ISO Strings.
-# 2. LOGIC: Ensures 'event_count' accurately reflects all items linked to the case ID.
-# 3. ROBUSTNESS: Explicitly handles ObjectId/String mismatches in DB queries.
+# PHOENIX PROTOCOL - CASE SERVICE V2.3 (SCHEMA COMPATIBILITY FIX)
+# 1. FIX: Added 'caseId' (camelCase) fallback to queries to catch legacy/migrated data.
+# 2. FIX: Implemented Case-Insensitive Regex for 'status' to handle 'pending' vs 'PENDING'.
+# 3. ROBUSTNESS: alert_count now explicitly queries 'calendar_events' and 'alerts' with relaxed filters.
 
 import re
 import importlib
@@ -31,40 +31,52 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         counts = {"document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0}
         
         if db is not None:
-            # PHOENIX CORE: Dual-Mode ID Query (Matches stored ObjectIds OR Strings)
-            any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id_obj, case_id_str]}}
+            # PHOENIX FIX: Wide Net Query (Snake_case AND CamelCase)
+            # This handles data created by different versions of the backend/frontend.
+            any_id_query: Dict[str, Any] = {
+                "$or": [
+                    {"case_id": {"$in": [case_id_obj, case_id_str]}},
+                    {"caseId": {"$in": [case_id_obj, case_id_str]}}
+                ]
+            }
             
-            # 1. Standard Counts (Broadest possible match)
+            # 1. Basic Counts
             counts["document_count"] = db.documents.count_documents(any_id_query)
             counts["finding_count"] = db.findings.count_documents(any_id_query)
             counts["event_count"] = db.calendar_events.count_documents(any_id_query)
             
-            # 2. Advanced Alert Counting (Polymorphic Date Handling)
-            # We must detect events that are 'PENDING' and in the 'FUTURE'.
-            # MongoDB stores dates as BSON Dates (if datetime used) or Strings (if ISO used).
-            # We query for BOTH to be safe.
-            
+            # 2. Advanced Alert Counting
             now_utc = datetime.now(timezone.utc)
             now_iso = now_utc.isoformat()
             
+            # Status Regex: Matches "PENDING", "pending", "Pending"
+            status_pending_query = {"$regex": "^pending$", "$options": "i"}
+
             calendar_alert_query = {
-                **any_id_query, 
-                "status": "PENDING", 
-                "$or": [
-                    {"start_date": {"$gte": now_utc}},              # Match BSON Date
-                    {"start_date": {"$gte": now_iso}},              # Match ISO String
-                    {"start_date": {"$gte": now_utc.replace(tzinfo=None)}} # Match Naive Date (Fallback)
+                "$and": [
+                    any_id_query, # Must match case
+                    {"status": status_pending_query}, # Must be pending (case-insensitive)
+                    {"$or": [ # Must be in future
+                        {"start_date": {"$gte": now_utc}},
+                        {"start_date": {"$gte": now_iso}},
+                        {"start_date": {"$gte": now_utc.replace(tzinfo=None)}}
+                    ]}
                 ]
             }
             calendar_alerts = db.calendar_events.count_documents(calendar_alert_query)
             
-            # 3. Dedicated Alerts Collection (If exists)
+            # 3. Dedicated Alerts Collection
             dedicated_alerts = 0
             if "alerts" in db.list_collection_names():
-                alert_collection_query = {**any_id_query, "status": {"$ne": "RESOLVED"}}
+                status_not_resolved = {"$not": {"$regex": "^resolved$", "$options": "i"}}
+                alert_collection_query = {
+                    "$and": [
+                        any_id_query,
+                        {"status": status_not_resolved}
+                    ]
+                }
                 dedicated_alerts = db.alerts.count_documents(alert_collection_query)
             
-            # Sum the sources
             counts["alert_count"] = calendar_alerts + dedicated_alerts
 
         return {
@@ -81,7 +93,6 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         }
     except Exception as e:
         print(f"Error mapping case {case_doc.get('_id')}: {e}")
-        # Return basic map on error to prevent UI crash
         return {
              "id": case_doc["_id"], "title": "Error Loading Case", "case_number": "ERR", 
              "created_at": datetime.now(), "updated_at": datetime.now(), **counts
@@ -111,7 +122,7 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     results = []
-    # Sort by updated_at desc to show most recent activity first
+    # Sort by updated_at desc
     cursor = db.cases.find({"$or": [{"owner_id": owner.id}, {"user_id": owner.id}]}).sort("updated_at", -1)
     for case_doc in cursor:
         if mapped_case := _map_case_document(case_doc, db):
@@ -162,8 +173,6 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     db.documents.delete_many(any_id_query)
     db.calendar_events.delete_many(any_id_query)
     db.findings.delete_many(any_id_query)
-    
-    # Clean up alerts if the collection exists
     if "alerts" in db.list_collection_names():
         db.alerts.delete_many(any_id_query)
 
@@ -182,29 +191,19 @@ def create_draft_job_for_case(db: Database, case_id: ObjectId, job_in: DraftRequ
     )
     return {"job_id": task.id, "status": "queued", "message": "Drafting job created."}
 
-# PHOENIX NEW: Document Renaming Logic
 def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name: str, owner: UserInDB) -> Dict[str, Any]:
-    """
-    Updates the 'file_name' (and optionally 'title') of a document.
-    Ensures the document belongs to the user's case.
-    """
-    # 1. Verify Case Ownership
     case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
 
-    # 2. Verify Document Existence
     doc = db.documents.find_one({"_id": doc_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
     
-    # Check if doc belongs to this case (using string or ObjectId comparison)
     doc_case_id = doc.get("case_id")
     if str(doc_case_id) != str(case_id):
          raise HTTPException(status_code=403, detail="Document does not belong to this case.")
 
-    # 3. Update Name
-    # Ensure extension is preserved if user didn't type it
     original_name = doc.get("file_name", "untitled")
     extension = ""
     if "." in original_name:
