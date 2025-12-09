@@ -1,8 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V2.1 (SYNC & COUNT REPAIR)
-# 1. FIX: 'alert_count' now aggregates from both 'calendar_events' AND 'alerts' collection.
-# 2. FIX: Standardized date comparisons to UTC to prevent missing future events.
-# 3. LOGIC: Maintained ID flexibility (ObjectId vs String) for robust counting.
+# PHOENIX PROTOCOL - CASE SERVICE V2.2 (POLYMORPHIC DATE FIX)
+# 1. FIX: 'alert_count' query now checks for BOTH BSON Date objects and ISO Strings.
+# 2. LOGIC: Ensures 'event_count' accurately reflects all items linked to the case ID.
+# 3. ROBUSTNESS: Explicitly handles ObjectId/String mismatches in DB queries.
 
 import re
 import importlib
@@ -31,34 +31,40 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         counts = {"document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0}
         
         if db is not None:
-            # PHOENIX FIX: Robust Querying for both ObjectId and String formats
+            # PHOENIX CORE: Dual-Mode ID Query (Matches stored ObjectIds OR Strings)
             any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id_obj, case_id_str]}}
             
-            # 1. Basic Counts
+            # 1. Standard Counts (Broadest possible match)
             counts["document_count"] = db.documents.count_documents(any_id_query)
             counts["finding_count"] = db.findings.count_documents(any_id_query)
             counts["event_count"] = db.calendar_events.count_documents(any_id_query)
             
-            # 2. Advanced Alert Counting (Calendar Deadlines + Dedicated Alerts)
-            # Ensure we use UTC for "Future" comparison
-            current_time_iso = datetime.now(timezone.utc).isoformat()
+            # 2. Advanced Alert Counting (Polymorphic Date Handling)
+            # We must detect events that are 'PENDING' and in the 'FUTURE'.
+            # MongoDB stores dates as BSON Dates (if datetime used) or Strings (if ISO used).
+            # We query for BOTH to be safe.
             
-            # A. Calendar items that are PENDING and in the FUTURE
+            now_utc = datetime.now(timezone.utc)
+            now_iso = now_utc.isoformat()
+            
             calendar_alert_query = {
                 **any_id_query, 
                 "status": "PENDING", 
-                "start_date": {"$gte": current_time_iso}
+                "$or": [
+                    {"start_date": {"$gte": now_utc}},              # Match BSON Date
+                    {"start_date": {"$gte": now_iso}},              # Match ISO String
+                    {"start_date": {"$gte": now_utc.replace(tzinfo=None)}} # Match Naive Date (Fallback)
+                ]
             }
             calendar_alerts = db.calendar_events.count_documents(calendar_alert_query)
             
-            # B. Dedicated Alerts from 'alerts' collection (if it exists)
+            # 3. Dedicated Alerts Collection (If exists)
             dedicated_alerts = 0
             if "alerts" in db.list_collection_names():
-                # Count all unresolved alerts for this case
                 alert_collection_query = {**any_id_query, "status": {"$ne": "RESOLVED"}}
                 dedicated_alerts = db.alerts.count_documents(alert_collection_query)
             
-            # Sum both sources for the UI
+            # Sum the sources
             counts["alert_count"] = calendar_alerts + dedicated_alerts
 
         return {
@@ -75,7 +81,11 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         }
     except Exception as e:
         print(f"Error mapping case {case_doc.get('_id')}: {e}")
-        return None
+        # Return basic map on error to prevent UI crash
+        return {
+             "id": case_doc["_id"], "title": "Error Loading Case", "case_number": "ERR", 
+             "created_at": datetime.now(), "updated_at": datetime.now(), **counts
+        }
 
 def _parse_finding_date(text: str) -> datetime | None:
     return None
