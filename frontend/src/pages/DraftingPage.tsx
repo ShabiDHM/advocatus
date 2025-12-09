@@ -1,4 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
+// PHOENIX PROTOCOL - DRAFTING PAGE V3
+// 1. PERSISTENCE: Saves prompt and result to localStorage to survive reloads.
+// 2. STREAMING: Implements 'Typewriter' effect for the result, mimicking Chat UI.
+// 3. LAYOUT: Strict height constraints to match Dashboard aesthetics.
+
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
@@ -17,21 +22,85 @@ interface DraftingJobState {
   error: string | null;
 }
 
+// --- STREAMING COMPONENT ---
+// Animates the full text to look like it's being generated in real-time
+const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () => void }> = ({ text, isNew, onComplete }) => {
+    const [displayedText, setDisplayedText] = useState(isNew ? "" : text);
+    
+    useEffect(() => {
+        if (!isNew) {
+            setDisplayedText(text);
+            return;
+        }
+
+        setDisplayedText(""); 
+        let index = 0;
+        const speed = 5; // Fast drafting speed
+
+        const intervalId = setInterval(() => {
+            setDisplayedText((prev) => {
+                if (index >= text.length) {
+                    clearInterval(intervalId);
+                    onComplete(); // Notify parent that animation is done
+                    return text;
+                }
+                const nextChar = text.charAt(index);
+                index++;
+                return prev + nextChar;
+            });
+        }, speed);
+
+        return () => clearInterval(intervalId);
+    }, [text, isNew, onComplete]);
+
+    return (
+        <div className="markdown-content text-gray-300 text-sm leading-relaxed">
+             <ReactMarkdown 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                    p: ({node, ...props}) => <p className="mb-4 last:mb-0 text-justify" {...props} />,
+                    strong: ({node, ...props}) => <span className="font-bold text-amber-100" {...props} />,
+                    em: ({node, ...props}) => <span className="italic text-gray-400" {...props} />,
+                    ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-2 my-3 marker:text-primary-500" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal pl-5 space-y-2 my-3 marker:text-primary-500" {...props} />,
+                    li: ({node, ...props}) => <li className="pl-1" {...props} />,
+                    h1: ({node, ...props}) => <h1 className="text-xl font-bold text-white mt-6 mb-4 border-b border-white/10 pb-2 uppercase tracking-wide text-center" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-lg font-bold text-white mt-5 mb-3" {...props} />,
+                    h3: ({node, ...props}) => <h3 className="text-base font-bold text-gray-200 mt-4 mb-2" {...props} />,
+                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary-500 pl-4 py-2 my-4 bg-white/5 italic text-gray-400" {...props} />,
+                    code: ({node, ...props}) => <code className="bg-black/40 px-1.5 py-0.5 rounded text-xs font-mono text-pink-300" {...props} />,
+                    table: ({node, ...props}) => <div className="overflow-x-auto my-4"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>,
+                    th: ({node, ...props}) => <th className="border border-white/10 px-3 py-2 bg-white/5 font-bold text-left" {...props} />,
+                    td: ({node, ...props}) => <td className="border border-white/10 px-3 py-2" {...props} />,
+                }}
+            >
+                {displayedText}
+            </ReactMarkdown>
+        </div>
+    );
+};
+
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
   
-  const [context, setContext] = useState('');
+  // Initialize state from LocalStorage if available
+  const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
   
-  const [currentJob, setCurrentJob] = useState<DraftingJobState>({
-    jobId: null, 
-    status: null, 
-    result: null, 
-    error: null,
+  const [currentJob, setCurrentJob] = useState<DraftingJobState>(() => {
+      const savedJob = localStorage.getItem('drafting_job');
+      return savedJob ? JSON.parse(savedJob) : { jobId: null, status: null, result: null, error: null };
   });
+
+  // Track if the result is "fresh" (just arrived) to trigger animation
+  const [isResultNew, setIsResultNew] = useState(false);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pollingIntervalRef = useRef<number | null>(null);
+
+  // SAVE TO LOCAL STORAGE
+  useEffect(() => { localStorage.setItem('drafting_context', context); }, [context]);
+  useEffect(() => { localStorage.setItem('drafting_job', JSON.stringify(currentJob)); }, [currentJob]);
 
   useEffect(() => {
     return () => {
@@ -54,6 +123,8 @@ const DraftingPage: React.FC = () => {
             const resultResponse = await apiService.getDraftingJobResult(jobId);
             const finalResult = resultResponse.document_text || resultResponse.result_text || "";
 
+            setIsResultNew(true); // Trigger Animation
+            
             setCurrentJob(prev => ({ 
               ...prev, 
               status: 'COMPLETED',
@@ -89,7 +160,9 @@ const DraftingPage: React.FC = () => {
     if (!context.trim()) return;
 
     setIsSubmitting(true);
+    // Reset state but keep prompt
     setCurrentJob({ jobId: null, status: 'PENDING', result: null, error: null });
+    setIsResultNew(false);
 
     try {
       const jobResponse = await apiService.initiateDraftingJob({
@@ -160,10 +233,9 @@ const DraftingPage: React.FC = () => {
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
 
-      {/* PHOENIX FIX: Strict 'h-[600px]' height constraint */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
         
-        {/* Input Column - overflow-hidden is CRITICAL here */}
+        {/* Input Column */}
         <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0">
                 <FileText className="text-primary-400" size={20} />
@@ -193,7 +265,7 @@ const DraftingPage: React.FC = () => {
             </form>
         </div>
 
-        {/* Result Column - overflow-hidden is CRITICAL here */}
+        {/* Result Column */}
         <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5 flex-shrink-0">
                 <h3 className="text-white font-semibold flex items-center gap-2">
@@ -217,32 +289,14 @@ const DraftingPage: React.FC = () => {
                 <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-4 text-sm text-red-300 flex items-center gap-2 flex-shrink-0"><AlertCircle size={16} />{currentJob.error}</div>
             )}
             
-            {/* Scrollable Result Area - min-h-0 prevents overflow issues */}
+            {/* Scrollable Result Area */}
             <div className="flex-1 bg-black/50 rounded-xl border border-white/5 p-4 overflow-y-auto custom-scrollbar relative min-h-0">
                 {currentJob.result ? (
-                    <div className="markdown-content text-gray-300 text-sm leading-relaxed">
-                        <ReactMarkdown 
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                                p: ({node, ...props}) => <p className="mb-4 last:mb-0 text-justify" {...props} />,
-                                strong: ({node, ...props}) => <span className="font-bold text-amber-100" {...props} />,
-                                em: ({node, ...props}) => <span className="italic text-gray-400" {...props} />,
-                                ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-2 my-3 marker:text-primary-500" {...props} />,
-                                ol: ({node, ...props}) => <ol className="list-decimal pl-5 space-y-2 my-3 marker:text-primary-500" {...props} />,
-                                li: ({node, ...props}) => <li className="pl-1" {...props} />,
-                                h1: ({node, ...props}) => <h1 className="text-xl font-bold text-white mt-6 mb-4 border-b border-white/10 pb-2 uppercase tracking-wide text-center" {...props} />,
-                                h2: ({node, ...props}) => <h2 className="text-lg font-bold text-white mt-5 mb-3" {...props} />,
-                                h3: ({node, ...props}) => <h3 className="text-base font-bold text-gray-200 mt-4 mb-2" {...props} />,
-                                blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary-500 pl-4 py-2 my-4 bg-white/5 italic text-gray-400" {...props} />,
-                                code: ({node, ...props}) => <code className="bg-black/40 px-1.5 py-0.5 rounded text-xs font-mono text-pink-300" {...props} />,
-                                table: ({node, ...props}) => <div className="overflow-x-auto my-4"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>,
-                                th: ({node, ...props}) => <th className="border border-white/10 px-3 py-2 bg-white/5 font-bold text-left" {...props} />,
-                                td: ({node, ...props}) => <td className="border border-white/10 px-3 py-2" {...props} />,
-                            }}
-                        >
-                            {currentJob.result}
-                        </ReactMarkdown>
-                    </div>
+                    <StreamedMarkdown 
+                        text={currentJob.result} 
+                        isNew={isResultNew} 
+                        onComplete={() => setIsResultNew(false)} // Mark as "old" once animation finishes
+                    />
                 ) : (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 opacity-50">
                         {isSubmitting || (currentJob.status === 'PENDING' || currentJob.status === 'PROCESSING') ? (
