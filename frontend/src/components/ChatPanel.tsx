@@ -112,13 +112,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   const [input, setInput] = useState('');
   const [selectedContextId, setSelectedContextId] = useState<string>('general');
-  // PHOENIX: Removed 'jurisdiction' state. Defaults to 'ks' (Kosovo).
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // PHOENIX FIX: Track if we've already rendered the initial history to prevent typing effect on load
+  const historyLoadedRef = useRef(false);
+
   // Auto-scroll to bottom
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isSendingMessage]);
+
+  // Mark history as loaded once we receive messages
+  useEffect(() => {
+      if (messages.length > 0 && !historyLoadedRef.current) {
+          historyLoadedRef.current = true;
+      }
+  }, [messages]);
 
   // Auto-expand textarea
   useEffect(() => {
@@ -132,8 +141,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!input.trim() || isSendingMessage) return;
     const mode: ChatMode = selectedContextId === 'general' ? 'general' : 'document';
     const docId = mode === 'document' ? selectedContextId : undefined;
-    
-    // PHOENIX FIX: Strict 'ks' jurisdiction passed to backend
     onSendMessage(input, mode, docId, 'ks');
     setInput('');
   };
@@ -166,7 +173,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    // PHOENIX FIX: 'overflow-hidden' on root ensures constraints are respected
     <div className={`flex flex-col relative bg-background-dark/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl overflow-hidden h-full ${className}`}>
       
       <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-white/10 bg-white/5 rounded-t-2xl z-50">
@@ -188,8 +194,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 } 
             />
             
-            {/* PHOENIX: Removed Jurisdiction Dropdown */}
-
             <button onClick={onClearChat} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors" title={t('chatPanel.confirmClear')}>
                 <Trash2 size={16} />
             </button>
@@ -206,7 +210,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             messages.map((msg, idx) => {
                 const isAi = msg.role === 'ai';
                 const isLatest = idx === messages.length - 1;
-                const useTyping = isAi && isLatest && !isSendingMessage;
+                
+                // PHOENIX FIX: Only use typing if it's the latest AI message, NOT sending, AND history has already been loaded once.
+                const useTyping = isAi && isLatest && !isSendingMessage && historyLoadedRef.current;
 
                 return (
                     <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
