@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGGRESSIVE LAWYER MODE
-# 1. LOGIC CHECK: Forces AI to scan for Date/Time anomalies (Chronology).
-# 2. LEGAL AUDIT: Forces AI to cite specific articles from the Knowledge Base instead of generic statements.
-# 3. GOAL: Catch the "Dec 15 vs Dec 1" error and cite the LMD.
+# PHOENIX PROTOCOL - KOSOVO EXCLUSIVE RAG V8
+# 1. JURISDICTION: Hardcoded to 'ks' (Republic of Kosovo).
+# 2. PROMPT: Strictly defines the AI as a Kosovo Forensic Auditor.
+# 3. LOGIC: Ignores foreign jurisdiction requests to prevent hallucinations.
 
 import os
 import asyncio
@@ -51,8 +51,9 @@ class AlbanianRAGService:
         document_ids: Optional[List[str]] = None, 
         jurisdiction: str = 'ks'
     ) -> str:
+        # PHOENIX: Force jurisdiction to 'ks' regardless of input
         full_response_parts = []
-        async for chunk in self.chat_stream(query, case_id, document_ids, jurisdiction):
+        async for chunk in self.chat_stream(query, case_id, document_ids, 'ks'):
             if chunk: full_response_parts.append(chunk)
         return "".join(full_response_parts)
 
@@ -69,8 +70,11 @@ class AlbanianRAGService:
         query: str, 
         case_id: str, 
         document_ids: Optional[List[str]] = None, 
-        jurisdiction: str = 'ks'
+        jurisdiction: str = 'ks' # Parameter kept for signature compatibility but ignored
     ) -> AsyncGenerator[str, None]:
+        
+        # PHOENIX: STRICT ENFORCEMENT
+        target_jurisdiction = 'ks'
         
         user_docs, kb_docs, graph_knowledge = [], [], []
         
@@ -81,8 +85,8 @@ class AlbanianRAGService:
             if query_embedding:
                 results = await asyncio.gather(
                     asyncio.to_thread(self.vector_store.query_by_vector, embedding=query_embedding, case_id=case_id, n_results=10, document_ids=document_ids),
-                    # PHOENIX: Increased KB results to 6 to ensure we get the specific articles
-                    asyncio.to_thread(self.vector_store.query_legal_knowledge_base, embedding=query_embedding, n_results=6, jurisdiction=jurisdiction),
+                    # PHOENIX: Increased KB results to 6, STRICTLY KOSOVO
+                    asyncio.to_thread(self.vector_store.query_legal_knowledge_base, embedding=query_embedding, n_results=6, jurisdiction=target_jurisdiction),
                     asyncio.to_thread(graph_service.find_contradictions, case_id),
                     return_exceptions=True
                 )
@@ -103,30 +107,29 @@ class AlbanianRAGService:
             context_text += f"\n### FLAMUJ TË KUQ NGA GRAFI:\n{graph_knowledge}\n---\n"
         
         if kb_docs:
-            context_text += "\n### BAZA LIGJORE (LIGJET E APLIKUESHME):\n"
-            for chunk in kb_docs[:4]: # Use more laws
+            context_text += "\n### BAZA LIGJORE (LIGJET E KOSOVËS):\n"
+            for chunk in kb_docs[:4]: 
                 context_text += f"BURIMI '{chunk.get('document_name', 'Ligj')}':\n{chunk.get('text', '')}\n---\n"
         
         if not context_text:
             context_text = "Nuk u gjetën dokumente ose informacione relevante."
 
-        jurisdiction_name = "Republikës së Shqipërisë" if jurisdiction == 'al' else "Republikës së Kosovës"
-        
-        # PHOENIX: Aggressive Lawyer Prompt
+        # PHOENIX: Aggressive Kosovo Lawyer Prompt
         system_prompt = f"""
-        Ti je "Juristi AI", Avokat Senior Forenzik në {jurisdiction_name}.
+        Ti je "Juristi AI", Avokat Senior Forenzik në Republikën e Kosovës.
         
         DETYRA JOTE:
-        Bëj një "Cross-Examination" (Kundër-Pyetje) të fakteve të dosjes kundrejt (A) Logjikës dhe (B) Ligjit.
+        Bëj një "Cross-Examination" (Kundër-Pyetje) të fakteve të dosjes kundrejt (A) Logjikës dhe (B) Ligjeve të Kosovës.
 
         STRUKTURA E PËRGJIGJES (Markdown):
 
         ### 1. Përmbledhje Ekzekutive
-        Përgjigje direkte. Nëse dokumenti ka gabime logjike (data, shuma) ose ligjore, fillo menjëherë duke i përmendur ato si "RREZIQE KRITIKE".
+        Përgjigje direkte. Nëse dokumenti ka gabime logjike (data, shuma) ose ligjore (referenca të huaja), fillo menjëherë duke i përmendur ato si "RREZIQE KRITIKE".
 
         ### 2. Auditim Ligjor & Faktik
-        - **Kontrolli i Afateve:** Krahaso të gjitha datat në tekst. A ka data që bien ndesh me njëra-tjetrën? (Psh. Nënshkrimi pas dorëzimit?). Nëse po, shënoje me 🔴.
-        - **Përputhshmëria Ligjore:** Krahaso klauzolat e kontratës me "BAZA LIGJORE". A mungon ndonjë element i detyrueshëm sipas ligjit (LMD/Civil)? Cito Nenin specifik nëse gjendet në kontekst.
+        - **Kontrolli i Afateve:** Krahaso të gjitha datat në tekst. A ka data që bien ndesh me njëra-tjetrën? (Psh. Nënshkrimi pas dorëzimit?).
+        - **Juridiksioni:** A përmendet Tiranë/Shqipëri? Nëse po, ngre FLAMUR TË KUQ se ky dokument mund të mos jetë i zbatueshëm në Kosovë.
+        - **Përputhshmëria:** Krahaso klauzolat me "BAZA LIGJORE" (Ligjet e Kosovës). Cito Nenin specifik nëse gjendet.
 
         ### 3. Analiza e Dokumentit
         Nxirr detajet kryesore:
@@ -138,7 +141,7 @@ class AlbanianRAGService:
         Çfarë duhet të përmirësohet ose ndryshohet urgjentisht në dokument?
 
         STILI I TË MENDUARIT:
-        - Mos beso verbërisht tekstin. Nëse data e dokumentit është 15 Dhjetor dhe afati është 1 Dhjetor, kjo është e pamundur. IDENTIFIKOJË KËTË GABIM.
+        - Mos beso verbërisht tekstin. Nëse data e dokumentit është "228 Dhjetor", kjo është e pamundur. IDENTIFIKOJË KËTË GABIM.
         - Ji specifik. Mos thuaj "sipas ligjit", thuaj "Sipas Nenit X të Ligjit Y (nëse është në kontekst)".
         """
 

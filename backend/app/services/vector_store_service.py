@@ -1,8 +1,8 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - METADATA INJECTION FIX
-# 1. FIX: Ingestion now requires and stores 'file_name' with every vector chunk.
-# 2. DIAGNOSIS: This resolves the retrieval failure where document sources were missing.
-# 3. STATUS: RAG will now correctly retrieve and cite specific case documents.
+# PHOENIX PROTOCOL - KOSOVO EXCLUSIVE RETRIEVAL
+# 1. JURISDICTION: 'query_legal_knowledge_base' now forces 'ks' (Kosovo).
+# 2. LOGIC: Ignores requests for other jurisdictions to prevent law leakage.
+# 3. METADATA: Keeps the 'file_name' fix for proper citations.
 
 from __future__ import annotations
 import os
@@ -66,12 +66,20 @@ def get_kb_collection() -> Optional[Collection]:
         connect_chroma_db()
     return _kb_collection
 
-# --- KNOWLEDGE BASE QUERY ---
+# --- KNOWLEDGE BASE QUERY (STRICT KOSOVO) ---
 def query_legal_knowledge_base(embedding: List[float], n_results: int = 5, jurisdiction: str = 'ks') -> List[Dict[str, Any]]:
+    """
+    Retrieves legal context from the Knowledge Base.
+    ENFORCEMENT: Strictly searches for 'ks' (Kosovo) laws only.
+    """
     kb = get_kb_collection()
     if not kb: return []
     
-    where_filter: Dict[str, Any] = {"jurisdiction": {"$eq": jurisdiction}}
+    # PHOENIX FORCE: Overwrite any passed jurisdiction to 'ks'
+    # This ensures that even if the UI sends 'al', the backend refuses to serve it.
+    forced_jurisdiction = 'ks'
+    
+    where_filter: Dict[str, Any] = {"jurisdiction": {"$eq": forced_jurisdiction}}
     
     try:
         results = kb.query(
@@ -92,7 +100,7 @@ def query_legal_knowledge_base(embedding: List[float], n_results: int = 5, juris
         if metas_list is None: metas_list = [{}] * len(docs_list)
         
         return [
-            {"text": doc, "document_name": (meta or {}).get("source", "Ligj"), "type": "LAW"}
+            {"text": doc, "document_name": (meta or {}).get("source", "Ligj i Kosovës"), "type": "LAW"}
             for doc, meta in zip(docs_list, metas_list) if doc
         ]
     except Exception as e:
@@ -103,7 +111,7 @@ def query_legal_knowledge_base(embedding: List[float], n_results: int = 5, juris
 def create_and_store_embeddings_from_chunks(
     document_id: str, 
     case_id: str,
-    file_name: str, # PHOENIX FIX: Added file_name
+    file_name: str, 
     chunks: List[str], 
     metadatas: Sequence[Dict[str, Any]]
 ) -> bool:
@@ -123,13 +131,13 @@ def create_and_store_embeddings_from_chunks(
 
     ids = [f"{document_id}_{int(time.time())}_{i}" for i in range(len(chunks))]
     
-    # PHOENIX FIX: Inject file_name into every metadata chunk
+    # Inject file_name into every metadata chunk
     final_metadatas: List[Metadata] = [
         cast(Metadata, {
             **meta, 
             'source_document_id': str(document_id), 
             'case_id': str(case_id),
-            'file_name': file_name  # Ensure the filename is stored
+            'file_name': file_name 
         })
         for meta in metadatas
     ]
@@ -188,7 +196,7 @@ def query_by_vector(
             { 
                 "text": doc, 
                 "document_id": (meta or {}).get("source_document_id"), 
-                "document_name": (meta or {}).get("file_name"), # This will now work
+                "document_name": (meta or {}).get("file_name"),
                 "type": "DOKUMENT"
             }
             for doc, meta in zip(docs, metas) if meta

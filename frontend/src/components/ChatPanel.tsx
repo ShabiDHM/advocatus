@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, ReactNode, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    Send, BrainCircuit, Trash2, MapPin, ChevronDown, FileText, Briefcase, Loader2, User 
+    Send, BrainCircuit, Trash2, ChevronDown, FileText, Briefcase, Loader2, User 
 } from 'lucide-react';
 import { ChatMessage, Document } from '../data/types';
 import { TFunction } from 'i18next';
@@ -112,7 +112,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   const [input, setInput] = useState('');
   const [selectedContextId, setSelectedContextId] = useState<string>('general');
-  const [jurisdiction, setJurisdiction] = useState<Jurisdiction>('ks');
+  // PHOENIX: Removed 'jurisdiction' state. Defaults to 'ks' (Kosovo).
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -132,7 +132,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!input.trim() || isSendingMessage) return;
     const mode: ChatMode = selectedContextId === 'general' ? 'general' : 'document';
     const docId = mode === 'document' ? selectedContextId : undefined;
-    onSendMessage(input, mode, docId, jurisdiction);
+    
+    // PHOENIX FIX: Strict 'ks' jurisdiction passed to backend
+    onSendMessage(input, mode, docId, 'ks');
     setInput('');
   };
 
@@ -152,14 +154,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       { id: 'general', label: t('chatPanel.contextGeneral', 'E gjithë Dosja'), icon: <Briefcase size={14} className="text-amber-400" /> },
       ...(documents || []).map(doc => ({ id: doc.id, label: doc.file_name, icon: <FileText size={14} className="text-blue-400" /> }))
   ], [documents, t]);
-
-  const jurisdictionItems: DropdownItem[] = useMemo(() => [
-      { id: 'ks', label: t('jurisdiction.kosovo', 'Kosovë'), shortLabel: 'KS', icon: <MapPin size={14} /> },
-      { id: 'al', label: t('jurisdiction.albania', 'Shqipëri'), shortLabel: 'AL', icon: <MapPin size={14} /> }
-  ], [t]);
   
   const selectedContextItem = contextItems.find(item => item.id === selectedContextId) || contextItems[0];
-  const selectedJurisdictionItem = jurisdictionItems.find(item => item.id === jurisdiction) || jurisdictionItems[0];
 
   const statusDotColor = (status: string) => {
     switch (status) {
@@ -192,18 +188,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 } 
             />
             
-            <Dropdown 
-                items={jurisdictionItems} 
-                onSelect={(id) => setJurisdiction(id as Jurisdiction)} 
-                trigger={
-                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/40 border border-white/10 hover:border-white/20 text-xs font-medium text-gray-300 transition-all">
-                        {selectedJurisdictionItem.icon}
-                        <span className="inline md:hidden">{selectedJurisdictionItem.shortLabel}</span>
-                        <span className="hidden md:inline">{selectedJurisdictionItem.label}</span>
-                        <ChevronDown className="h-3 w-3 opacity-50" />
-                    </div>
-                } 
-            />
+            {/* PHOENIX: Removed Jurisdiction Dropdown */}
 
             <button onClick={onClearChat} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors" title={t('chatPanel.confirmClear')}>
                 <Trash2 size={16} />

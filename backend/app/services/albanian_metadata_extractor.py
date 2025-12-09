@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_metadata_extractor.py
-# PHOENIX PROTOCOL - METADATA EXTRACTOR V4.1
-# 1. ENGINE: DeepSeek V3 (Tier 1) for semantic metadata extraction.
-# 2. FALLBACK: Regex Patterns (Tier 2) for safety and speed.
-# 3. SCHEMA: Extracts Courts, Judges, Parties, Dates, Amounts, Case Numbers.
+# PHOENIX PROTOCOL - METADATA EXTRACTOR V5.1 (SYNTAX FIX)
+# 1. FIX: Resolved truncated variable name at end of file.
+# 2. JURISDICTION: Target strictly "Republic of Kosovo" Institutions.
+# 3. SCHEMA: Standardized extraction for Graph & DB ingestion.
 
 import re
 import logging
@@ -31,17 +31,18 @@ class AlbanianMetadataExtractor:
             self.client = None
 
         # Tier 2: Regex Patterns (Backup)
+        # PHOENIX: Optimized for Kosovo context (EUR primary)
         self.patterns = {
             'contract_section': re.compile(r'Neni\s+(\d+\.?\d*)[:\-]\s*(.+?)(?=\n|$)', re.IGNORECASE),
             'date': re.compile(r'(\d{1,2}\s+(Janar|Shkurt|Mars|Prill|Maj|Qershor|Korrik|Gusht|Shtator|Tetor|Nëntor|Dhjetor)\s+\d{4})', re.IGNORECASE),
             'case_reference': re.compile(r'Çështja\s+(Nr\.?\s*[\w\-\/]+)', re.IGNORECASE),
             'party': re.compile(r'(Paditësi|Padituesi|Pale|E Paditura)\s*[:\-]\s*(.+?)(?=\n|$)', re.IGNORECASE),
-            'amount': re.compile(r'(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*(€|EUR|euro|LEK|lek)', re.IGNORECASE),
+            'amount': re.compile(r'(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*(€|EUR|euro)', re.IGNORECASE),
             'court': re.compile(r'(Gjykat[aë]s?\s+(e|ë)\s+[\w\s]+)', re.IGNORECASE),
             'judge': re.compile(r'(Gjykat[aë]s(it)?\s+[\w\s]+)', re.IGNORECASE),
         }
         
-        logger.info("✅ Albanian Metadata Extractor V4.1 Initialized")
+        logger.info("✅ Kosovo Metadata Extractor V5.1 Initialized")
 
     def _extract_with_deepseek(self, text: str) -> Optional[Dict[str, Any]]:
         """
@@ -49,26 +50,26 @@ class AlbanianMetadataExtractor:
         """
         if not self.client: return None
 
-        truncated_text = text[:15000] # Header + First few pages usually contain metadata
+        truncated_text = text[:15000] 
 
         system_prompt = """
-        Ti je një "Specialist i Arkivës Ligjore" për gjykatat e Kosovës.
+        Ti je "Specialist i Arkivës Ligjore" për Republikën e Kosovës.
         
         DETYRA:
-        Identifiko të dhënat strukturore (Metadata) nga dokumenti i mëposhtëm.
+        Identifiko të dhënat strukturore (Metadata) nga dokumenti.
         
         FUSHAT E KËRKUARA (JSON):
-        - court: Emri i Gjykatës (psh. "Gjykata Themelore në Prishtinë")
-        - judge: Emri i Gjyqtarit (psh. "Agim Gashi")
-        - case_number: Numri i Lëndës (psh. "C.nr. 123/2023")
-        - parties: Lista e palëve (Paditës, I Paditur, Dëshmitar)
-        - document_type: Lloji i dokumentit (Aktgjykim, Padi, Ankesë, Kontratë)
-        - date: Data e dokumentit (DD/MM/YYYY)
-        - amount: Vlera monetare nëse ka (psh. "5000 EUR")
+        - court: Emri i Gjykatës (psh. "Gjykata Themelore në Prishtinë").
+        - judge: Emri i Gjyqtarit.
+        - case_number: Numri i Lëndës (format: C.nr... / P.nr...).
+        - parties: Lista e palëve.
+        - document_type: Lloji (Aktgjykim, Padi, Kontratë).
+        - date: Data e dokumentit.
+        - amount: Vlera monetare (Prefero EUR).
+        - jurisdiction_check: "KOSOVË" ose "E HUAJ" (nëse është Shqipëri/Tjetër).
         
         RREGULLA:
-        - Nëse një fushë nuk gjendet, ktheje null ose listë bosh.
-        - Mos shpik të dhëna.
+        - Fokusohu te institucionet e Kosovës.
         - Përgjigju VETËM me JSON valid.
         """
 
@@ -102,23 +103,18 @@ class AlbanianMetadataExtractor:
         """
         metadata = {}
         
-        # Case Number
         match = self.patterns['case_reference'].search(text)
         if match: metadata['case_number'] = match.group(1)
         
-        # Court
         match = self.patterns['court'].search(text)
         if match: metadata['court'] = match.group(0)
         
-        # Judge
         match = self.patterns['judge'].search(text)
         if match: metadata['judge'] = match.group(0)
         
-        # Amount
         match = self.patterns['amount'].search(text)
         if match: metadata['amount'] = f"{match.group(1)} {match.group(2)}"
         
-        # Parties (Simple list)
         parties = []
         matches = self.patterns['party'].findall(text)
         for m in matches:
@@ -137,7 +133,7 @@ class AlbanianMetadataExtractor:
         # 1. Try DeepSeek
         metadata = self._extract_with_deepseek(text)
         
-        # 2. If DeepSeek failed (or API key missing), use Regex
+        # 2. Fallback
         if not metadata:
             logger.info("Falling back to Regex Metadata Extraction")
             metadata = self._extract_with_regex(text)
@@ -152,7 +148,8 @@ class AlbanianMetadataExtractor:
             "parties": metadata.get("parties", []),
             "document_type": metadata.get("document_type"),
             "amount": metadata.get("amount"),
-            "date": metadata.get("date")
+            "date": metadata.get("date"),
+            "jurisdiction": metadata.get("jurisdiction_check", "UNKNOWN")
         }
         
         return result

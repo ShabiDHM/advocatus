@@ -1,8 +1,8 @@
 # FILE: backend/scripts/ingest_laws.py
-# PHOENIX PROTOCOL - TYPE SAFETY FIX
-# 1. FIX: Imported the specific 'Metadata' type from chromadb's type definitions.
-# 2. TYPE HINT: Corrected the type hint for 'metadatas_batch' to 'List[Metadata]'.
-# 3. ROBUSTNESS: This resolves the Pylance 'reportArgumentType' error, ensuring the script is type-safe.
+# PHOENIX PROTOCOL - INGESTION SCRIPT V2 (KOSOVO EXCLUSIVE)
+# 1. JURISDICTION: Removed CLI argument. STRICTLY hardcoded to 'ks'.
+# 2. TYPE SAFETY: Preserved Metadata typing fix from previous version.
+# 3. LOGIC: Tags all ingested documents as Kosovo Law.
 
 import os
 import sys
@@ -21,7 +21,6 @@ try:
 
     from langchain.text_splitter import RecursiveCharacterTextSplitter
     import chromadb
-    # PHOENIX FIX: Import the canonical embedding class and the specific Metadata type
     from app.core.embeddings import JuristiRemoteEmbeddings 
     from chromadb.api.types import Metadata
 except ImportError as e:
@@ -33,6 +32,8 @@ except ImportError as e:
 CHROMA_HOST = os.getenv("CHROMA_HOST", "chroma")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8000))
 COLLECTION_NAME = "legal_knowledge_base"
+# PHOENIX: STRICT ENFORCEMENT
+TARGET_JURISDICTION = 'ks'
 
 print(f"⚙️  CONFIG: Chroma={CHROMA_HOST}:{CHROMA_PORT}")
 
@@ -48,8 +49,8 @@ def calculate_file_hash(filepath: str) -> str:
         print(f"⚠️ Could not hash file {filepath}: {e}")
         return ""
 
-def ingest_legal_docs(directory_path: str, jurisdiction: str):
-    print(f"🔌 Connecting to ChromaDB (Target: {jurisdiction.upper()})...")
+def ingest_legal_docs(directory_path: str):
+    print(f"🔌 Connecting to ChromaDB (Target: {TARGET_JURISDICTION.upper()})...")
     
     try:
         client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
@@ -76,7 +77,7 @@ def ingest_legal_docs(directory_path: str, jurisdiction: str):
         print(f"⚠️ No documents found in {directory_path}")
         return
 
-    print(f"📚 Scanning {len(all_files)} files in library for Jurisdiction: {jurisdiction.upper()}...")
+    print(f"📚 Scanning {len(all_files)} files in library for Jurisdiction: {TARGET_JURISDICTION.upper()}...")
     
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     stats = {"skipped": 0, "added": 0, "updated": 0, "failed": 0}
@@ -96,7 +97,8 @@ def ingest_legal_docs(directory_path: str, jurisdiction: str):
             ids = existing_records.get('ids', [])
             metas = existing_records.get('metadatas', [])
             
-            if ids and metas and metas[0].get("file_hash") == current_hash and metas[0].get("jurisdiction") == jurisdiction:
+            # Check for hash match AND strict jurisdiction match
+            if ids and metas and metas[0].get("file_hash") == current_hash and metas[0].get("jurisdiction") == TARGET_JURISDICTION:
                 print(f"⏭️  Skipped: {filename}")
                 stats["skipped"] += 1
                 continue
@@ -122,16 +124,15 @@ def ingest_legal_docs(directory_path: str, jurisdiction: str):
             BATCH_SIZE = 20
             for i in range(0, len(chunks), BATCH_SIZE):
                 batch = chunks[i:i + BATCH_SIZE]
-                ids_batch = [f"{filename}_{i+j}_{jurisdiction}" for j in range(len(batch))]
+                ids_batch = [f"{filename}_{i+j}_{TARGET_JURISDICTION}" for j in range(len(batch))]
                 texts_batch = [c.page_content for c in batch]
                 
-                # PHOENIX FIX: Use the specific 'Metadata' type for type safety.
                 metadatas_batch: List[Metadata] = [
                     {
                         "source": filename, 
                         "type": "LAW", 
                         "file_hash": current_hash, 
-                        "jurisdiction": jurisdiction, 
+                        "jurisdiction": TARGET_JURISDICTION, 
                         "page": c.metadata.get("page", 0)
                     } 
                     for c in batch
@@ -146,16 +147,16 @@ def ingest_legal_docs(directory_path: str, jurisdiction: str):
             stats["failed"] += 1
 
     print("-" * 50)
-    print(f"🏁 Ingestion Complete [{jurisdiction.upper()}].")
+    print(f"🏁 Ingestion Complete [{TARGET_JURISDICTION.upper()}].")
     print(f"   Added:   {stats['added']}")
     print(f"   Updated: {stats['updated']}")
     print(f"   Skipped: {stats['skipped']}")
     print("-" * 50)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Ingest laws into ChromaDB with Jurisdiction tagging.")
+    parser = argparse.ArgumentParser(description="Ingest laws into ChromaDB (KOSOVO EXCLUSIVE).")
     parser.add_argument("path", nargs="?", default="/app/data/laws", help="Path to documents folder")
-    parser.add_argument("--jurisdiction", choices=['ks', 'al'], default='ks', help="Jurisdiction tag (ks=Kosovo, al=Albania)")
+    # PHOENIX: Removed --jurisdiction argument
     
     args = parser.parse_args()
-    ingest_legal_docs(args.path, args.jurisdiction)
+    ingest_legal_docs(args.path)

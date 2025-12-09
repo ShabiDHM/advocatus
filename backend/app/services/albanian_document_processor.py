@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_document_processor.py
-# PHOENIX PROTOCOL - DOCUMENT PROCESSOR V4.1
-# 1. LOGIC: Replaced naïve slicing with LangChain's RecursiveCharacterTextSplitter.
-# 2. ALBANIAN: Added specific separators (Neni, Pika, Kreu) to keep legal clauses intact.
-# 3. METADATA: Enriches chunks with semantic context.
+# PHOENIX PROTOCOL - DOCUMENT PROCESSOR V5 (KOSOVO CONTEXT)
+# 1. SCOPE: Optimization for ALBANIAN LANGUAGE legal texts (Kosovo Jurisdiction).
+# 2. LOGIC: Recursive splitting with legal delimiters (Neni, Kreu, Pika).
+# 3. METADATA: Tags chunks with language='sq' to distinguish from jurisdiction.
 
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
@@ -16,15 +16,14 @@ class DocumentChunk(BaseModel):
 
 class EnhancedDocumentProcessor:
     """
-    Advanced processor for splitting Albanian legal text while preserving 
-    semantic boundaries (Articles, Paragraphs, Sentences).
+    Advanced processor for splitting Albanian-language legal text (Kosovo Context)
+    while preserving semantic boundaries (Articles, Paragraphs, Sentences).
     """
 
     @staticmethod
     def _get_legal_separators() -> List[str]:
         """
-         separators ordered by priority. 
-         Keeps 'Neni X' or 'Kreu Y' at the start of chunks.
+        Separators ordered by priority for Kosovo Legal Texts.
         """
         return [
             "\n\n",             # Paragraphs
@@ -32,6 +31,7 @@ class EnhancedDocumentProcessor:
             "\nNENI ",          # Article headers (Uppercase)
             "\nNeni ",          # Article headers (Titlecase)
             "\nArtikulli ",     # Alternative
+            "\nPika ",          # Points/Clauses (Common in Kosovo Law)
             ". ",               # Sentences
             "; ",               # List items
             "\n",               # Line breaks
@@ -44,7 +44,7 @@ class EnhancedDocumentProcessor:
         cls,
         text_content: str,
         document_metadata: Dict[str, Any],
-        is_albanian: bool,
+        is_albanian: bool, # Refers to LANGUAGE (sq), not State.
     ) -> List[DocumentChunk]:
         """
         Splits text content and enriches chunks based on language detection.
@@ -80,8 +80,9 @@ class EnhancedDocumentProcessor:
             chunk_metadata.update({
                 "chunk_index": i,
                 "total_chunks": len(raw_chunks),
-                "is_albanian_content": is_albanian,
-                "processor_version": "V4.1-DEEPSEEK_READY",
+                # PHOENIX: Use standard ISO code to avoid confusion with Jurisdiction
+                "language": "sq" if is_albanian else "en", 
+                "processor_version": "V5.0-KOSOVO_EXCLUSIVE",
                 "char_count": len(content)
             })
 

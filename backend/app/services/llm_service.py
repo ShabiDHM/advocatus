@@ -1,8 +1,9 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V3
-# 1. UPGRADE: 'extract_graph_data' now hunts for Conflict & Money (Litigation Graph).
-# 2. UPGRADE: 'extract_findings_from_text' performs Forensic auditing on Dates & Amounts.
-# 3. GOAL: Feed high-quality data to the Chatbot & Graph.
+# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V4 (KOSOVO EXCLUSIVE)
+# 1. JURISDICTION: All prompts strictly enforce "Republic of Kosovo" context.
+# 2. FILTERING: Instructs LLM to ignore/flag foreign legal concepts (e.g. Albania).
+# 3. UPGRADE: 'extract_graph_data' hunts for Conflict & Money (Litigation Graph).
+# 4. UPGRADE: 'extract_findings_from_text' performs Forensic auditing on Dates & Amounts.
 
 import os
 import json
@@ -76,7 +77,7 @@ def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False
         kwargs = {
             "model": OPENROUTER_MODEL,
             "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            "temperature": 0.1,
+            "temperature": 0.0, # ZERO Temperature for strict adherence to facts/rules
             "extra_headers": {"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI"}
         }
         if json_mode: kwargs["response_format"] = {"type": "json_object"}
@@ -121,12 +122,13 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
 # --- CORE SERVICES (UPGRADED) ---
 
 def generate_summary(text: str) -> str:
-    truncated_text = text[:20000] # Increased context window
+    truncated_text = text[:20000] 
+    # PHOENIX: Kosovo-Specific System Prompt
     system_prompt = (
-        "Ti je 'Juristi AI', një asistent ligjor elitar. "
-        "Detyra: Krijo një përmbledhje ekzekutive të këtij dokumenti në gjuhën Shqipe. "
-        "Fokusi: Identifiko Palët, Objektin e Marrëveshjes/Konfliktit, dhe Datat Kryesore. "
-        "Stili: Profesional, konciz, dhe i qartë."
+        "Ti je 'Juristi AI', ekspert për dokumentacionin ligjor në Republikën e Kosovës. "
+        "Detyra: Krijo një përmbledhje ekzekutive. "
+        "Fokusi: Identifiko Palët, Objektin, dhe Datat. "
+        "RREGULL: Nëse përmenden ligje apo qytete të Shqipërisë (psh Tiranë), shënoje qartë si 'Juridiksion i Huaj' në përmbledhje."
     )
     user_prompt = f"DOKUMENTI:\n{truncated_text}"
     
@@ -139,23 +141,25 @@ def generate_summary(text: str) -> str:
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     """
     Forensic Extraction: Hunts for Dates, Money, Obligations, and Anomalies.
+    Strictly restricted to logical fact-checking.
     """
     truncated_text = text[:20000]
     
     system_prompt = """
-    Ti je Auditor Ligjor Forenzik. Analizo tekstin për Gjetje Kritike (Facts).
+    Ti je Auditor Ligjor Forenzik për Kosovën.
     
-    KATEGORITË E KËRKIMIT:
-    1. 📅 AFATET & KRONOLOGJIA: Identifiko çdo datë. A ka data që bien ndesh (psh. afati para nënshkrimit)? Shënoji si rreziqe.
-    2. 💰 DETYRIMET FINANCIARE: Shuma, Këste, Penalitete, Afate pagese.
-    3. ⚖️ DETYRIMET LIGJORE: Çfarë duhet të bëjë secila palë? (Dorëzimi i çelësave, Raportet, etj).
+    DETYRA: Gjej fakte kritike në tekst (Datat, Paratë, Detyrimet).
+    
+    RREGULLA:
+    1. VALIDIMI: Injoro ligjet e huaja (Shqipëri), por nxirr faktet (shumat, datat).
+    2. DATAT: Nëse data është "228 Dhjetor", shënoje si 'DATE' por shto '(GABIM LOGJIK)' në tekst.
     
     FORMATI JSON (STRIKT):
     {
       "findings": [
         {
-          "finding_text": "Përshkrimi i qartë i faktit (psh. 'Çelësat duhet të dorëzohen më 1 Dhjetor 2025')",
-          "source_text": "Cito tekstin origjinal nga dokumenti për saktësi",
+          "finding_text": "Përshkrimi i qartë i faktit",
+          "source_text": "Citat i saktë",
           "category": "DATE" | "MONEY" | "OBLIGATION" | "RISK"
         }
       ]
@@ -163,15 +167,12 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     """
     user_prompt = f"TEKSTI PËR ANALIZË:\n{truncated_text}"
 
-    # Try DeepSeek first (Best logic)
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content).get("findings", [])
     
-    # Fallback to Groq
     content = _call_groq(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content).get("findings", [])
     
-    # Fallback to Local
     content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     if content: return _parse_json_safely(content).get("findings", [])
     
@@ -184,24 +185,20 @@ def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
     truncated_text = text[:15000]
     
     system_prompt = """
-    Ti je Inxhinier i Grafit Ligjor. Detyra jote është të nxjerrësh Entitetet dhe Marrëdhëniet për një bazë të dhënash Neo4j.
+    Ti je Inxhinier i Grafit Ligjor (Kosovo Context).
     
     ENTITETET (Nodes):
-    - Person (Emra njerëzish)
-    - Organization (Kompania, Institucione)
-    - Money (Shuma specifike psh. '2500 EUR')
-    - Date (Data specifike)
-    - Claim (Pretendime, psh. 'Mospagim qiraje', 'Shkelje afati')
+    - Person (Emra)
+    - Organization (Kompania)
+    - Money (Shuma)
+    - Date (Data)
+    - Claim (Pretendime)
     
-    MARRËDHËNIET (Edges - Subject -> Relation -> Object):
-    - Transaksione: PAID, OWES, AGREED_TO_PAY
-    - Ligjore: SIGNED, REPRESENTS, SUED
-    - Konflikt: ACCUSES, CONTRADICTS, VIOLATED
-    - Kohore: DUE_ON, SIGNED_ON
+    MARRËDHËNIET:
+    - PAID, OWES, SIGNED, ACCUSES, CONTRADICTS
     
-    SHEMBULL LOGJIK:
-    Nëse teksti thotë "Artani akuzon Besnikun për vonesë", krijo:
-    Person(Artan) --ACCUSES--> Person(Besnik)
+    RREGULL:
+    - Mos krijo nodes për ligje të Shqipërisë.
     
     FORMATI JSON (STRIKT):
     {
@@ -223,5 +220,4 @@ def generate_socratic_response(socratic_context: List[Dict], question: str) -> D
     return {"answer": "Logic moved to RAG Service.", "sources": []}
 
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
-    # Can be expanded later for specific calendar events
     return []
