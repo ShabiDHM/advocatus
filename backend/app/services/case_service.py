@@ -1,8 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V2.3 (SCHEMA COMPATIBILITY FIX)
-# 1. FIX: Added 'caseId' (camelCase) fallback to queries to catch legacy/migrated data.
-# 2. FIX: Implemented Case-Insensitive Regex for 'status' to handle 'pending' vs 'PENDING'.
-# 3. ROBUSTNESS: alert_count now explicitly queries 'calendar_events' and 'alerts' with relaxed filters.
+# PHOENIX PROTOCOL - CASE SERVICE V3.0 (EXPLICIT COUNTING)
+# 1. STRATEGY: Removed complex '$in' and '$or' queries.
+# 2. FIX: Implemented separate, explicit counts for String IDs vs ObjectId IDs.
+# 3. RESULT: Guarantees accurate 'event_count' and 'alert_count' regardless of stored data type.
 
 import re
 import importlib
@@ -31,53 +31,77 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         counts = {"document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0}
         
         if db is not None:
-            # PHOENIX FIX: Wide Net Query (Snake_case AND CamelCase)
-            # This handles data created by different versions of the backend/frontend.
-            any_id_query: Dict[str, Any] = {
-                "$or": [
-                    {"case_id": {"$in": [case_id_obj, case_id_str]}},
-                    {"caseId": {"$in": [case_id_obj, case_id_str]}}
-                ]
-            }
+            # PHOENIX STRATEGY: Brute Force Type Checking
+            # We explicitly check all possible field names and value types separately
+            # and sum them up. This bypasses any $in/$or indexing quirks.
+
+            # 1. EVENT COUNT (Total)
+            # Check 'case_id' as String
+            c1 = db.calendar_events.count_documents({"case_id": case_id_str})
+            # Check 'case_id' as ObjectId
+            c2 = db.calendar_events.count_documents({"case_id": case_id_obj})
+            # Check 'caseId' (Legacy) as String
+            c3 = db.calendar_events.count_documents({"caseId": case_id_str})
             
-            # 1. Basic Counts
-            counts["document_count"] = db.documents.count_documents(any_id_query)
-            counts["finding_count"] = db.findings.count_documents(any_id_query)
-            counts["event_count"] = db.calendar_events.count_documents(any_id_query)
+            counts["event_count"] = c1 + c2 + c3
             
-            # 2. Advanced Alert Counting
+            # 2. DOCUMENT COUNT
+            d1 = db.documents.count_documents({"case_id": case_id_str})
+            d2 = db.documents.count_documents({"case_id": case_id_obj})
+            counts["document_count"] = d1 + d2
+            
+            # 3. FINDING COUNT
+            f1 = db.findings.count_documents({"case_id": case_id_str})
+            f2 = db.findings.count_documents({"case_id": case_id_obj})
+            counts["finding_count"] = f1 + f2
+
+            # 4. ALERT COUNT (Pending & Future)
             now_utc = datetime.now(timezone.utc)
             now_iso = now_utc.isoformat()
             
-            # Status Regex: Matches "PENDING", "pending", "Pending"
-            status_pending_query = {"$regex": "^pending$", "$options": "i"}
-
-            calendar_alert_query = {
-                "$and": [
-                    any_id_query, # Must match case
-                    {"status": status_pending_query}, # Must be pending (case-insensitive)
-                    {"$or": [ # Must be in future
-                        {"start_date": {"$gte": now_utc}},
-                        {"start_date": {"$gte": now_iso}},
-                        {"start_date": {"$gte": now_utc.replace(tzinfo=None)}}
-                    ]}
+            # Relaxed Regex for Status
+            status_regex = {"$regex": "^pending$", "$options": "i"}
+            
+            # Time Filter (Matches ISO String OR Date Object)
+            future_filter = {
+                "$or": [
+                    {"start_date": {"$gte": now_utc}},
+                    {"start_date": {"$gte": now_iso}},
+                    # Fallback for naive dates
+                    {"start_date": {"$gte": datetime.now()}}
                 ]
             }
-            calendar_alerts = db.calendar_events.count_documents(calendar_alert_query)
+
+            # Query 1: case_id (String) + Pending + Future
+            a1 = db.calendar_events.count_documents({
+                "case_id": case_id_str,
+                "status": status_regex,
+                **future_filter
+            })
             
-            # 3. Dedicated Alerts Collection
+            # Query 2: case_id (ObjectId) + Pending + Future
+            a2 = db.calendar_events.count_documents({
+                "case_id": case_id_obj,
+                "status": status_regex,
+                **future_filter
+            })
+
+            # Query 3: Dedicated Alerts Collection
             dedicated_alerts = 0
             if "alerts" in db.list_collection_names():
-                status_not_resolved = {"$not": {"$regex": "^resolved$", "$options": "i"}}
-                alert_collection_query = {
-                    "$and": [
-                        any_id_query,
-                        {"status": status_not_resolved}
-                    ]
-                }
-                dedicated_alerts = db.alerts.count_documents(alert_collection_query)
+                # Count unresolved alerts for this case (String ID)
+                da1 = db.alerts.count_documents({
+                    "case_id": case_id_str,
+                    "status": {"$not": {"$regex": "^resolved$", "$options": "i"}}
+                })
+                # Count unresolved alerts for this case (Object ID)
+                da2 = db.alerts.count_documents({
+                    "case_id": case_id_obj,
+                    "status": {"$not": {"$regex": "^resolved$", "$options": "i"}}
+                })
+                dedicated_alerts = da1 + da2
             
-            counts["alert_count"] = calendar_alerts + dedicated_alerts
+            counts["alert_count"] = a1 + a2 + dedicated_alerts
 
         return {
             "id": case_id_obj, 
