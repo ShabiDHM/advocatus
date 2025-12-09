@@ -1,7 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V2 (DOCUMENT RENAMING)
-# 1. ADDED: 'rename_document' function to update file names.
-# 2. MAINTAIN: Preserved dynamic imports and deep clean logic.
+# PHOENIX PROTOCOL - CASE SERVICE V2.1 (SYNC & COUNT REPAIR)
+# 1. FIX: 'alert_count' now aggregates from both 'calendar_events' AND 'alerts' collection.
+# 2. FIX: Standardized date comparisons to UTC to prevent missing future events.
+# 3. LOGIC: Maintained ID flexibility (ObjectId vs String) for robust counting.
 
 import re
 import importlib
@@ -16,7 +17,7 @@ from ..models.user import UserInDB
 from ..models.drafting import DraftRequest
 from ..celery_app import celery_app
 
-# --- HELPER FUNCTIONS (UNCHANGED) ---
+# --- HELPER FUNCTIONS ---
 
 def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) -> Optional[Dict[str, Any]]:
     try:
@@ -26,19 +27,51 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         case_number = case_doc.get("case_number") or f"REF-{case_id_str[-6:]}"
         created_at = case_doc.get("created_at") or datetime.now(timezone.utc)
         updated_at = case_doc.get("updated_at") or created_at
+        
         counts = {"document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0}
+        
         if db is not None:
+            # PHOENIX FIX: Robust Querying for both ObjectId and String formats
             any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id_obj, case_id_str]}}
+            
+            # 1. Basic Counts
             counts["document_count"] = db.documents.count_documents(any_id_query)
-            counts["event_count"] = db.calendar_events.count_documents(any_id_query)
             counts["finding_count"] = db.findings.count_documents(any_id_query)
-            alert_query = {**any_id_query, "status": "PENDING", "start_date": {"$gte": datetime.now().isoformat()}}
-            counts["alert_count"] = db.calendar_events.count_documents(alert_query)
+            counts["event_count"] = db.calendar_events.count_documents(any_id_query)
+            
+            # 2. Advanced Alert Counting (Calendar Deadlines + Dedicated Alerts)
+            # Ensure we use UTC for "Future" comparison
+            current_time_iso = datetime.now(timezone.utc).isoformat()
+            
+            # A. Calendar items that are PENDING and in the FUTURE
+            calendar_alert_query = {
+                **any_id_query, 
+                "status": "PENDING", 
+                "start_date": {"$gte": current_time_iso}
+            }
+            calendar_alerts = db.calendar_events.count_documents(calendar_alert_query)
+            
+            # B. Dedicated Alerts from 'alerts' collection (if it exists)
+            dedicated_alerts = 0
+            if "alerts" in db.list_collection_names():
+                # Count all unresolved alerts for this case
+                alert_collection_query = {**any_id_query, "status": {"$ne": "RESOLVED"}}
+                dedicated_alerts = db.alerts.count_documents(alert_collection_query)
+            
+            # Sum both sources for the UI
+            counts["alert_count"] = calendar_alerts + dedicated_alerts
+
         return {
-            "id": case_id_obj, "case_number": case_number, "title": title,
-            "description": case_doc.get("description"), "status": case_doc.get("status", "OPEN"),
+            "id": case_id_obj, 
+            "case_number": case_number, 
+            "title": title,
+            "description": case_doc.get("description"), 
+            "status": case_doc.get("status", "OPEN"),
             "client_id": str(case_doc.get("client_id")) if case_doc.get("client_id") else None,
-            "client": case_doc.get("client"), "created_at": created_at, "updated_at": updated_at, **counts
+            "client": case_doc.get("client"), 
+            "created_at": created_at, 
+            "updated_at": updated_at, 
+            **counts
         }
     except Exception as e:
         print(f"Error mapping case {case_doc.get('_id')}: {e}")
@@ -59,7 +92,7 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
     case_dict.update({
         "owner_id": owner.id, "user_id": owner.id,
         "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
-        "case_number": case_dict.get("case_number") or f"NEW-{int(datetime.utcnow().timestamp())}"
+        "case_number": case_dict.get("case_number") or f"NEW-{int(datetime.now(timezone.utc).timestamp())}"
     })
     result = db.cases.insert_one(case_dict)
     new_case = db.cases.find_one({"_id": result.inserted_id})
@@ -68,6 +101,7 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     results = []
+    # Sort by updated_at desc to show most recent activity first
     cursor = db.cases.find({"$or": [{"owner_id": owner.id}, {"user_id": owner.id}]}).sort("updated_at", -1)
     for case_doc in cursor:
         if mapped_case := _map_case_document(case_doc, db):
@@ -118,6 +152,8 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     db.documents.delete_many(any_id_query)
     db.calendar_events.delete_many(any_id_query)
     db.findings.delete_many(any_id_query)
+    
+    # Clean up alerts if the collection exists
     if "alerts" in db.list_collection_names():
         db.alerts.delete_many(any_id_query)
 
