@@ -1,9 +1,8 @@
 # FILE: backend/app/api/endpoints/auth.py
-# PHOENIX PROTOCOL - REVISED AUTHENTICATION FLOW
-# 1. SECURITY: Implemented secure, HttpOnly cookie-based refresh tokens.
-# 2. LOGIC: Corrected the /refresh endpoint to validate the refresh token from the cookie.
-# 3. INTEGRATION: Uses existing functions from security.py and user_service.py, resolving all Pylance errors.
-# 4. ARCHITECTURE: Aligned the implementation with the specified JWT + Refresh Token Cookie architecture.
+# PHOENIX PROTOCOL - AUTHENTICATION V2 (PERSISTENCE FIX)
+# 1. COOKIE POLICY: Changed SameSite from 'strict' to 'lax' to fix "Logout on Refresh".
+# 2. FEATURE: Added /logout endpoint to properly clear the HttpOnly cookie.
+# 3. SECURITY: Maintains HttpOnly and Secure flags for production safety.
 
 from datetime import timedelta
 from typing import Any
@@ -97,12 +96,13 @@ async def login_access_token(
         expires_delta=refresh_token_expires
     )
 
+    # PHOENIX FIX: 'lax' allows cookie sending across same-site navigations/subrequests
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
         secure=settings.ENVIRONMENT != "development",
-        samesite="strict",
+        samesite="lax", 
         max_age=int(refresh_token_expires.total_seconds())
     )
     
@@ -147,6 +147,19 @@ async def refresh_token(
         "access_token": new_access_token,
         "token_type": "bearer",
     }
+
+@router.post("/logout", status_code=status.HTTP_200_OK)
+async def logout(response: Response):
+    """
+    Clear the refresh token cookie.
+    """
+    response.delete_cookie(
+        key="refresh_token",
+        httponly=True,
+        secure=settings.ENVIRONMENT != "development",
+        samesite="lax"
+    )
+    return {"message": "Logged out successfully"}
 
 @router.post("/change-password", status_code=status.HTTP_200_OK)
 async def change_password(
