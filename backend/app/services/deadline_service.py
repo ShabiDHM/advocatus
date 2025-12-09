@@ -1,8 +1,8 @@
 # FILE: backend/app/services/deadline_service.py
-# PHOENIX PROTOCOL - DEADLINE ENGINE V4.1
-# 1. ENGINE: DeepSeek V3 (OpenRouter) for relative date calculation.
-# 2. LOGIC: Smart filtering of past dates.
-# 3. SAFETY: Regex Fallback for robustness.
+# PHOENIX PROTOCOL - DEADLINE ENGINE V4.2 (ENHANCED EXTRACTION)
+# 1. FIX: Added robust Regex support for numeric dates (DD.MM.YYYY, DD/MM/YYYY).
+# 2. FIX: Storing 'start_date' as BSON Date Object (not String) for reliable DB querying.
+# 3. LOGIC: Improved date parsing to prefer future dates.
 
 import os
 import json
@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from bson import ObjectId
 from pymongo.database import Database
-from openai import OpenAI # PHOENIX FIX: Standard client
+from openai import OpenAI 
 
 logger = structlog.get_logger(__name__)
 
@@ -34,17 +34,34 @@ def _clean_json_string(json_str: str) -> str:
 
 def _extract_dates_with_regex(text: str) -> List[Dict[str, str]]:
     matches = []
-    # Regex capturing date AND surrounding context
-    date_pattern = r'(.{0,30})\b(\d{1,2})\s+(Janar|Shkurt|Mars|Prill|Maj|Qershor|Korrik|Gusht|Shtator|Tetor|Nëntor|Dhjetor|January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b(.{0,30})'
     
-    found = re.findall(date_pattern, text, re.IGNORECASE)
-    for pre, day, month, year, post in found:
+    # Pattern 1: Long Form (12 Janar 2025)
+    long_pattern = r'(.{0,30})\b(\d{1,2})\s+(Janar|Shkurt|Mars|Prill|Maj|Qershor|Korrik|Gusht|Shtator|Tetor|Nëntor|Dhjetor|January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b(.{0,30})'
+    
+    # Pattern 2: Numeric EU (12.01.2025 or 12/01/2025)
+    numeric_pattern = r'(.{0,30})\b(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{4})\b(.{0,30})'
+    
+    # Scan Long Form
+    found_long = re.findall(long_pattern, text, re.IGNORECASE)
+    for pre, day, month, year, post in found_long:
         date_str = f"{day} {month} {year}"
         matches.append({
-            "title": "Afat i Gjetur (Regex)",
+            "title": "Afat i Gjetur (Tekst)",
             "date_text": date_str,
             "description": f"Konteksti: ...{pre.strip()} {date_str} {post.strip()}..."
         })
+
+    # Scan Numeric Form
+    found_numeric = re.findall(numeric_pattern, text)
+    for pre, day, month, year, post in found_numeric:
+        # Standardize separator to dot for parser
+        date_str = f"{day}.{month}.{year}"
+        matches.append({
+            "title": "Afat i Gjetur (Numerik)",
+            "date_text": date_str,
+            "description": f"Konteksti: ...{pre.strip()} {date_str} {post.strip()}..."
+        })
+
     return matches
 
 def _call_local_llm(prompt: str) -> str:
@@ -170,49 +187,53 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
     # 1. Extract (Hybrid Strategy)
     raw_deadlines = _extract_dates_with_llm(full_text)
     
-    # 2. Fallback to Regex if AI found nothing
+    # 2. Fallback to Regex if AI found nothing (Now enhanced)
     if not raw_deadlines:
         log.info("deadline_service.switching_to_regex")
         raw_deadlines = _extract_dates_with_regex(full_text[:5000])
 
-    if not raw_deadlines: return
+    if not raw_deadlines: 
+        log.info("deadline_service.no_dates_found")
+        return
 
     unique_events = {}
     
-    # PHOENIX FIX: Filter past dates
+    # Filter past dates
     now_date = datetime.now().date() 
 
     for item in raw_deadlines:
         date_text = item.get("date_text", "")
         if not date_text: continue
 
-        parsed_date = dateparser.parse(date_text, languages=['sq', 'en'])
+        # PHOENIX FIX: Prefer DMY for ambiguity (common in Kosovo/EU)
+        parsed_date = dateparser.parse(date_text, languages=['sq', 'en'], settings={'DATE_ORDER': 'DMY', 'PREFER_DATES_FROM': 'future'})
         if not parsed_date: continue
         
         # Only future/today events
         if parsed_date.date() < now_date:
             continue
 
-        iso_date = parsed_date.date().isoformat()
+        # Use ISO string for deduplication key, but Object for DB
+        iso_key = parsed_date.date().isoformat()
         
         title = item.get('title', "Afat Ligjor")
         if len(title) > 50: title = title[:47] + "..."
 
-        if iso_date in unique_events:
-             unique_events[iso_date]["description"] += f"\n\n• {title}: {item.get('description', '')}"
+        if iso_key in unique_events:
+             unique_events[iso_key]["description"] += f"\n\n• {title}: {item.get('description', '')}"
         else:
-            unique_events[iso_date] = {
-                "case_id": case_id_str,
+            unique_events[iso_key] = {
+                "case_id": case_id_str, # Store as String consistent with V4 logic
                 "owner_id": owner_id,
                 "document_id": document_id,
                 "title": title,
                 "description": item.get("description", "") + f"\n(Burimi: {document.get('file_name')})",
-                "start_date": parsed_date.isoformat(),
-                "end_date": parsed_date.isoformat(),
+                "start_date": parsed_date, # PHOENIX FIX: BSON Date Object
+                "end_date": parsed_date,   # PHOENIX FIX: BSON Date Object
                 "is_all_day": True,
                 "event_type": "DEADLINE",
                 "priority": "HIGH",
-                "status": "PENDING",
+                "status": "PENDING", # Uppercase Match
                 "created_at": datetime.now(timezone.utc),
                 "location": "",
                 "attendees": []
