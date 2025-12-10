@@ -1,7 +1,8 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES REFACTOR
-// 1. FIX: Updated ChatMessage to use 'role' instead of 'sender'.
-// 2. STATUS: Aligned with Backend V5.
+// PHOENIX PROTOCOL - TYPES REFACTOR V5.5 (INTELLIGENCE UPDATE)
+// 1. FIX: Added 'ConflictingParty' interface.
+// 2. FIX: Updated 'CaseAnalysisResult' to include 'conflicting_parties' and 'key_evidence'.
+// 3. COMPATIBILITY: Marked 'risks' as optional to support legacy data without breaking strict typing.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -64,12 +65,12 @@ export interface Finding {
     document_name?: string;
     finding_text: string;
     source_text: string;
+    category?: string;
     page_number?: number;
     confidence_score: number;
     created_at: string;
 }
 
-// PHOENIX FIX: Aligned with Backend logic
 export interface ChatMessage {
     role: 'user' | 'ai'; 
     content: string;
@@ -84,7 +85,7 @@ export interface CalendarEvent {
     end_date: string;
     is_all_day: boolean;
     event_type: 'HEARING' | 'DEADLINE' | 'MEETING' | 'OTHER' | 'FILING' | 'COURT_DATE' | 'CONSULTATION';
-    status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+    status: 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'OVERDUE' | 'ARCHIVED';
     case_id?: string;
     document_id?: string;
     location?: string;
@@ -163,8 +164,8 @@ export interface ArchiveItemOut {
     file_size: number;
     created_at: string;
     case_id?: string;
-    parent_id?: string; // Added for folder structure
-    item_type?: 'FILE' | 'FOLDER'; // Added for folder structure
+    parent_id?: string; 
+    item_type?: 'FILE' | 'FOLDER'; 
 }
 
 // --- SHARED ---
@@ -201,7 +202,28 @@ export type DraftingJobResult = {
     status?: string;
 };
 
-export interface CaseAnalysisResult { summary_analysis: string; contradictions: string[]; risks: string[]; missing_info: string[]; error?: string; }
+// --- INTELLIGENCE & ANALYSIS (UPDATED) ---
+
+// New Interface for the Debate Judge
+export interface ConflictingParty {
+    party_name: string;
+    core_claim: string;
+}
+
+export interface CaseAnalysisResult { 
+    summary_analysis: string; 
+    contradictions: string[]; 
+    missing_info: string[]; 
+    
+    // New Fields for V5.2 Intelligence
+    conflicting_parties?: ConflictingParty[];
+    key_evidence?: string[];
+    
+    // Legacy support (optional)
+    risks?: string[]; 
+    error?: string; 
+}
+
 export interface GraphNode { id: string; name: string; group: string; val: number; }
 export interface GraphLink { source: string; target: string; label: string; }
 export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
