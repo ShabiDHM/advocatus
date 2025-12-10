@@ -263,7 +263,9 @@
       "regimeSmall": "Regjimi: Biznes i Vogël",
       "regimeVat": "Regjimi: TVSH (Standard)",
       "operationalExpenses": "Shpenzimet Operacionale",
-      "noTaxEffect": "Pa efekt tatimor"
+      "noTaxEffect": "Pa efekt tatimor",
+      "rate9": "9% (Biznes i Vogël / Shërbime)",
+      "rate18": "18% (TVSH Standarde)"
     }
   },
   "archive": {

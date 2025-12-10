@@ -1,7 +1,7 @@
 // FILE: src/pages/FinanceWizardPage.tsx
-// PHOENIX PROTOCOL - FINANCE WIZARD UI v1.6 (FINAL CLEANUP)
-// 1. FIX: Replaced hardcoded 'Regime' strings with translation keys.
-// 2. STATUS: 100% Localized and Ready for Deployment.
+// PHOENIX PROTOCOL - REVISION 9 (TEXT CLEANUP)
+// 1. FIX: Removed payment deadline hint text.
+// 2. FIX: Localized tax rate description in Frontend (Ignoring Backend string).
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -134,7 +134,8 @@ const TaxStep = ({ data }: { data: TaxCalculation }) => {
                         {isSmallBusiness ? t('finance.wizard.regimeSmall') : t('finance.wizard.regimeVat')}
                     </p>
                     <p className="text-sm text-gray-300 mt-1">
-                        {data.tax_rate_applied}
+                        {/* PHOENIX FIX: Use frontend translation keys for rate description */}
+                        {isSmallBusiness ? t('finance.wizard.rate9') : t('finance.wizard.rate18')}
                     </p>
                 </div>
 
@@ -181,11 +182,8 @@ const TaxStep = ({ data }: { data: TaxCalculation }) => {
                 <span className={`text-4xl font-bold mb-4 ${isPayable ? 'text-red-400' : 'text-green-400'}`}>
                     €{Math.abs(data.net_obligation).toFixed(2)}
                 </span>
-                <p className="text-sm text-gray-400">
-                    {isPayable 
-                        ? t('finance.wizard.payableHint') 
-                        : t('finance.wizard.creditHint')}
-                </p>
+                
+                {/* PHOENIX FIX: Removed the hint text paragraph here */}
             </div>
         </div>
     );
@@ -202,7 +200,6 @@ const FinanceWizardPage = () => {
     const [downloading, setDownloading] = useState(false);
     const [state, setState] = useState<WizardState | null>(null);
     
-    // Default to "Previous Month"
     const today = new Date();
     const [selectedMonth, setSelectedMonth] = useState(today.getMonth() === 0 ? 12 : today.getMonth());
     const [selectedYear, setSelectedYear] = useState(today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear());
@@ -259,7 +256,6 @@ const FinanceWizardPage = () => {
              <div className="flex-1 flex flex-col overflow-hidden relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-transparent to-blue-900/10 pointer-events-none" />
                 
-                {/* Header Navigation */}
                 <div className="p-6 border-b border-white/5 flex items-center justify-between bg-[#030711]/80 backdrop-blur-md z-10">
                     <button 
                         onClick={() => navigate('/business')} 
@@ -274,11 +270,8 @@ const FinanceWizardPage = () => {
                     <div className="w-24" />
                 </div>
 
-                {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 md:p-12">
                     <div className="max-w-4xl mx-auto">
-                        
-                        {/* Month Selector */}
                         <div className="flex justify-center mb-8">
                             <select 
                                 value={selectedMonth}
@@ -361,7 +354,6 @@ const FinanceWizardPage = () => {
                                         </div>
                                     )}
 
-                                    {/* Action Buttons */}
                                     <div className="flex justify-between mt-10 pt-6 border-t border-gray-800">
                                         <button 
                                             onClick={handlePrev}

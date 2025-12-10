@@ -263,7 +263,9 @@
       "regimeSmall": "Regime: Small Business",
       "regimeVat": "Regime: VAT (Standard)",
       "operationalExpenses": "Operational Expenses",
-      "noTaxEffect": "No tax effect"
+      "noTaxEffect": "No tax effect",
+      "rate9": "9% (Small Business / Services)",
+      "rate18": "18% (Standard VAT)"
     }
   },
   "archive": {
