@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER
-// 1. FIX: Converted 'createArchiveFolder' to use FormData (Resolves 422 Error).
-// 2. STATUS: API now strictly aligns with Backend 'Form(...)' expectations.
+// PHOENIX PROTOCOL - API MASTER v2.2
+// 1. FEATURE: Added 'downloadMonthlyReport' to Finance Wizard methods.
+// 2. STATUS: Fully connected to Backend PDF Generator.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -11,6 +11,33 @@ import type {
     BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest,
     GraphData, ArchiveItemOut
 } from '../data/types';
+
+// --- FINANCE WIZARD TYPES ---
+export interface AuditIssue {
+    id: string;
+    severity: 'CRITICAL' | 'WARNING';
+    message: string;
+    related_item_id?: string;
+    item_type?: 'INVOICE' | 'EXPENSE';
+}
+
+export interface TaxCalculation {
+    period_month: number;
+    period_year: number;
+    total_sales_gross: number;
+    total_purchases_gross: number;
+    vat_collected: number;
+    vat_deductible: number;
+    net_obligation: number;
+    currency: string;
+    status: string;
+}
+
+export interface WizardState {
+    calculation: TaxCalculation;
+    issues: AuditIssue[];
+    ready_to_close: boolean;
+}
 
 // Expense Type Definitions
 export interface Expense {
@@ -169,6 +196,31 @@ class ApiService {
         return { blob: response.data, filename };
     }
 
+    // --- FINANCE WIZARD METHODS ---
+    public async getWizardState(month: number, year: number): Promise<WizardState> {
+        const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', {
+            params: { month, year }
+        });
+        return response.data;
+    }
+
+    public async downloadMonthlyReport(month: number, year: number): Promise<void> {
+        const response = await this.axiosInstance.get('/finance/wizard/report/pdf', {
+            params: { month, year },
+            responseType: 'blob'
+        });
+        
+        // Trigger Browser Download
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Raporti_${month}_${year}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    }
+
     public async sendChatMessage(caseId: string, message: string, documentId?: string, jurisdiction?: string): Promise<string> { const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks' }); return response.data.response; }
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     public async getBusinessProfile(): Promise<BusinessProfile> { const response = await this.axiosInstance.get<BusinessProfile>('/business/profile'); return response.data; }
@@ -193,7 +245,6 @@ class ApiService {
 
     public async getArchiveItems(category?: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut[]> { const params: any = {}; if (category) params.category = category; if (caseId) params.case_id = caseId; if (parentId) params.parent_id = parentId; const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); return Array.isArray(response.data) ? response.data : ((response.data as any).items || []); }
     
-    // PHOENIX FIX: Use FormData to match Backend 'Form(...)' expectation
     public async createArchiveFolder(title: string, parentId?: string, caseId?: string, category?: string): Promise<ArchiveItemOut> {
         const formData = new FormData();
         formData.append('title', title);

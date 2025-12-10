@@ -1,8 +1,8 @@
 # FILE: backend/app/main.py
 # PHOENIX PROTOCOL - SYSTEM INTEGRITY ENFORCED
-# 1. ROBUSTNESS: Removed the try/except block around the drafting_v2_router import.
-# 2. BEHAVIOR: The application will now fail on startup if a required router is missing, preventing runtime 404s.
-# 3. STATUS: Clean build, zero warnings, architecturally sound.
+# 1. ROBUSTNESS: Enforced strict router registration.
+# 2. FEATURE: Added 'finance_wizard' for the Small Accountant module.
+# 3. STATUS: Phase 1 (Backend) Complete.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,9 +23,10 @@ from app.api.endpoints.stream import router as stream_router
 from app.api.endpoints.support import router as support_router
 from app.api.endpoints.business import router as business_router
 from app.api.endpoints.finance import router as finance_router
+# NEW: Import the Wizard Router
+from app.api.endpoints import finance_wizard
 from app.api.endpoints.graph import router as graph_router
 from app.api.endpoints.archive import router as archive_router
-# PHOENIX FIX: Removed try/except to enforce module existence at startup.
 from app.api.endpoints.drafting_v2 import router as drafting_v2_router
 
 
@@ -79,10 +80,11 @@ api_v1_router.include_router(stream_router, prefix="/stream", tags=["Streaming"]
 api_v1_router.include_router(support_router, prefix="/support", tags=["Support"])
 api_v1_router.include_router(business_router, prefix="/business", tags=["Business"])
 api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"])
+# NEW: Register the Wizard Router
+api_v1_router.include_router(finance_wizard.router, prefix="/finance/wizard", tags=["Finance Wizard"])
 api_v1_router.include_router(graph_router, prefix="/graph", tags=["Graph"])
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
 
-# PHOENIX FIX: Register V2 router unconditionally.
 api_v2_router = APIRouter(prefix="/api/v2")
 api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])
 

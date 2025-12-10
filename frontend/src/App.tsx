@@ -1,9 +1,7 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING (COMPLETE)
-// 1. Adds AdminRoute guard for role-based access control.
-// 2. Defines the '/admin' route for AdminDashboardPage.
-// 3. Defines the '/account' route for AccountPage.
-// 4. All existing page components are now correctly routed.
+// PHOENIX PROTOCOL - ROUTING V2.1
+// 1. FEATURE: Added '/finance/wizard' route.
+// 2. LAYOUT: Wizard is placed outside MainLayout for full-screen immersive mode.
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -20,8 +18,9 @@ import DraftingPage from './pages/DraftingPage';
 import SupportPage from './pages/SupportPage';
 import LandingPage from './pages/LandingPage';
 import BusinessPage from './pages/BusinessPage';
-import AccountPage from './pages/AccountPage'; // PHOENIX: Import the AccountPage
-import AdminDashboardPage from './pages/AdminDashboardPage'; // PHOENIX: Import the AdminDashboardPage
+import AccountPage from './pages/AccountPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
+import FinanceWizardPage from './pages/FinanceWizardPage'; // PHOENIX: Imported Wizard
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -65,7 +64,10 @@ const AppRoutes: React.FC = () => {
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
 
-      {/* Standard Protected Routes */}
+      {/* Standalone Protected Routes (No Sidebar) */}
+      <Route path="/finance/wizard" element={<ProtectedRoute><FinanceWizardPage /></ProtectedRoute>} />
+
+      {/* Standard Protected Routes (With Sidebar) */}
       <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/cases/:caseId" element={<CaseViewPage />} />
@@ -73,7 +75,7 @@ const AppRoutes: React.FC = () => {
         <Route path="/drafting" element={<DraftingPage />} />
         <Route path="/support" element={<SupportPage />} />
         <Route path="/business" element={<BusinessPage />} />
-        <Route path="/account" element={<AccountPage />} /> {/* PHOENIX: Add the route for the Account Page */}
+        <Route path="/account" element={<AccountPage />} />
       </Route>
 
       {/* Admin Protected Route */}

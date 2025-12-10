@@ -1,8 +1,6 @@
 # FILE: backend/app/services/finance_service.py
-# PHOENIX PROTOCOL - FINANCE LOGIC V3 (ATTACHMENT SUPPORT)
-# 1. REMOVED: AI Scanning logic.
-# 2. ADDED: 'upload_expense_receipt' to attach files to existing expenses.
-# 3. STORAGE: Uses storage_service for secure file handling.
+# PHOENIX PROTOCOL - FINANCE LOGIC V3.1
+# 1. FIX: Absolute imports used for stability.
 
 import structlog
 from datetime import datetime, timezone
@@ -10,8 +8,12 @@ from bson import ObjectId
 from pymongo.database import Database
 from fastapi import HTTPException, UploadFile
 
-from ..models.finance import InvoiceCreate, InvoiceInDB, InvoiceUpdate, InvoiceItem, ExpenseCreate, ExpenseInDB
-from . import storage_service
+# ABSOLUTE IMPORTS (Fixes "unknown import symbol")
+from app.models.finance import (
+    InvoiceCreate, InvoiceInDB, InvoiceUpdate, InvoiceItem, 
+    ExpenseCreate, ExpenseInDB
+)
+from app.services import storage_service
 
 logger = structlog.get_logger(__name__)
 
@@ -82,7 +84,7 @@ class FinanceService:
         expense_doc.update({
             "user_id": ObjectId(user_id),
             "created_at": datetime.now(timezone.utc),
-            "receipt_url": None # Initialize empty
+            "receipt_url": None
         })
         result = self.db.expenses.insert_one(expense_doc)
         expense_doc["_id"] = result.inserted_id
@@ -98,21 +100,17 @@ class FinanceService:
         result = self.db.expenses.delete_one({"_id": oid, "user_id": ObjectId(user_id)})
         if result.deleted_count == 0: raise HTTPException(status_code=404, detail="Expense not found")
 
-    # PHOENIX: Option A - Manual Attachment Upload
     def upload_expense_receipt(self, user_id: str, expense_id: str, file: UploadFile) -> str:
         try: oid = ObjectId(expense_id)
         except: raise HTTPException(status_code=400, detail="Invalid Expense ID")
         
-        # Verify ownership
         expense = self.db.expenses.find_one({"_id": oid, "user_id": ObjectId(user_id)})
         if not expense:
             raise HTTPException(status_code=404, detail="Expense not found")
 
-        # Upload to Storage (Using generic raw upload)
         folder = f"expenses/{user_id}"
         storage_key = storage_service.upload_file_raw(file, folder)
         
-        # Update Record
         self.db.expenses.update_one(
             {"_id": oid},
             {"$set": {"receipt_url": storage_key}}

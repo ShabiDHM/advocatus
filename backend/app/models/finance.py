@@ -1,8 +1,4 @@
 # FILE: backend/app/models/finance.py
-# PHOENIX PROTOCOL - FINANCE MODELS V2 (EXPENSES ADDED)
-# 1. ADDED: ExpenseBase, ExpenseCreate, ExpenseInDB, ExpenseOut.
-# 2. STATUS: Ready for database integration.
-
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime
@@ -34,6 +30,8 @@ class InvoiceBase(BaseModel):
     
     currency: str = "EUR"
     status: str = "DRAFT" 
+    
+    is_locked: bool = False
 
 class InvoiceCreate(BaseModel):
     client_name: str
@@ -47,6 +45,7 @@ class InvoiceCreate(BaseModel):
 class InvoiceUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
+    is_locked: Optional[bool] = None
 
 class InvoiceInDB(InvoiceBase):
     id: PyObjectId = Field(alias="_id", default=None)
@@ -62,13 +61,17 @@ class InvoiceInDB(InvoiceBase):
 class InvoiceOut(InvoiceInDB):
     id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
 
-# --- EXPENSE MODELS (NEW) ---
+# --- EXPENSE MODELS ---
 class ExpenseBase(BaseModel):
-    category: str  # e.g., "Office", "Software", "Travel", "Utilities"
+    category: str
     amount: float
     description: Optional[str] = None
     date: datetime = Field(default_factory=datetime.utcnow)
     currency: str = "EUR"
+    
+    receipt_url: Optional[str] = None
+    related_case_id: Optional[str] = None
+    is_locked: bool = False
 
 class ExpenseCreate(ExpenseBase):
     pass
@@ -85,3 +88,27 @@ class ExpenseInDB(ExpenseBase):
 
 class ExpenseOut(ExpenseInDB):
     id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
+
+# --- TAX ENGINE MODELS ---
+class TaxCalculation(BaseModel):
+    period_month: int
+    period_year: int
+    total_sales_gross: float
+    total_purchases_gross: float
+    vat_collected: float
+    vat_deductible: float
+    net_obligation: float
+    currency: str = "EUR"
+    status: str
+
+class AuditIssue(BaseModel):
+    id: str
+    severity: str
+    message: str
+    related_item_id: Optional[str] = None
+    item_type: Optional[str] = None
+
+class WizardState(BaseModel):
+    calculation: TaxCalculation
+    issues: List[AuditIssue]
+    ready_to_close: bool

@@ -216,13 +216,17 @@
     "invoicesTitle": "Faturat e Lëshuara",
     "accountantAI": "Kontabilisti AI",
     "createInvoice": "Krijo Faturë",
+    "monthlyClose": "Mbyllja Mujore",
     "noInvoices": "Nuk keni asnjë faturë të krijuar.",
     "viewPdf": "Shiko PDF",
     "downloadPdf": "Shkarko PDF",
     "archiveInvoice": "Arkivo Faturën",
+    "archiveExpenseTitle": "Arkivo Shpenzimin",
     "deleteInvoice": "Fshi Faturën",
     "addExpense": "Shto Shpenzim",
-    "expenseCategory": "Kategoria (psh. Qira, Rrogat)",
+    "attachReceipt": "Bashkangjit Faturën (Opsionale)",
+    "expenseCategory": "Kategoria",
+    "expenseCategoryPlaceholder": "psh. Qira, Rrogat",
     "amount": "Shuma (€)",
     "date": "Data",
     "description": "Përshkrimi"
@@ -230,6 +234,7 @@
   "archive": {
     "caseFolders": "Dosjet e Çështjeve",
     "myDocuments": "Dokumentet e Mia",
+    "generalNoCase": "Të Përgjithshme (Pa Dosje)",
     "contents": "Përmbajtja",
     "emptyFolder": "Kjo dosje është e zbrazët",
     "emptyHint": "Filloni duke ngarkuar dokumente ose krijoni nën-dosje për të organizuar punën tuaj.",
@@ -367,7 +372,10 @@
   "error": {
     "generic": "Ndodhi një gabim. Ju lutemi provoni përsëri.",
     "failedToLoadCase": "Dështoi ngarkimi i të dhënave të rastit.",
-    "uploadFailed": "Ngarkimi dështoi"
+    "uploadFailed": "Ngarkimi dështoi",
+    "receiptNotFound": "Fatura nuk u gjet.",
+    "noReceiptToArchive": "Nuk ka faturë për të arkivuar.",
+    "noReceiptAttached": "Nuk ka faturë të bashkangjitur."
   },
   "settings": {
     "successMessage": "Cilësimet u ruajtën me sukses!"

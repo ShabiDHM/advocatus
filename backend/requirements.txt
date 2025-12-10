@@ -1,7 +1,7 @@
 # FILE: backend/requirements.txt (UNIFIED & PINNED - V4.7)
 # PHOENIX PROTOCOL - PDF GENERATION SUPPORT
-# 1. ADDED: fpdf2==2.7.9 (Required for Universal PDF Conversion Service).
-# 2. MAINTAINED: All previous versions.
+# 1. VERIFIED: reportlab==4.4.3 is present (Required for Finance PDF Reports).
+# 2. STATUS: Ready for deployment.
 
 # --- Core Web Framework & Async ---
 fastapi==0.109.2
