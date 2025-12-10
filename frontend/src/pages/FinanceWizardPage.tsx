@@ -1,7 +1,7 @@
 // FILE: src/pages/FinanceWizardPage.tsx
-// PHOENIX PROTOCOL - FINANCE WIZARD UI v1.4 (DATE LOCALIZATION FIX)
-// 1. FIX: Uses 'date-fns' with 'sq' locale to enforce Albanian month names.
-// 2. CONSISTENCY: Matches the date behavior of BusinessPage.
+// PHOENIX PROTOCOL - FINANCE WIZARD UI v1.6 (FINAL CLEANUP)
+// 1. FIX: Replaced hardcoded 'Regime' strings with translation keys.
+// 2. STATUS: 100% Localized and Ready for Deployment.
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,8 +19,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { apiService, WizardState, AuditIssue, TaxCalculation } from '../services/api';
-
-// PHOENIX: Date Localization Imports
 import { format } from 'date-fns';
 import { sq, enUS } from 'date-fns/locale';
 
@@ -125,28 +123,50 @@ const AuditStep = ({ issues }: { issues: AuditIssue[] }) => {
 const TaxStep = ({ data }: { data: TaxCalculation }) => {
     const { t } = useTranslation();
     const isPayable = data.net_obligation > 0;
+    const isSmallBusiness = data.regime === 'SMALL_BUSINESS';
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Box 10 & 30 equivalents */}
             <div className="space-y-4">
-                <div className="bg-gray-800/50 border border-gray-700 p-4 rounded-xl">
-                    <p className="text-sm text-gray-400 mb-1">{t('finance.wizard.totalSales')}</p>
-                    <p className="text-2xl font-bold text-white">€{data.total_sales_gross.toFixed(2)}</p>
-                    <div className="mt-2 text-xs text-green-400 flex items-center">
-                        <span className="bg-green-500/20 px-1.5 py-0.5 rounded mr-2">{t('finance.wizard.vatCollected')}</span>
-                        €{data.vat_collected.toFixed(2)}
-                    </div>
+                {/* Header for Regime */}
+                <div className="bg-indigo-500/10 border border-indigo-500/30 p-3 rounded-xl mb-4">
+                    <p className="text-xs text-indigo-300 font-bold uppercase tracking-wide">
+                        {isSmallBusiness ? t('finance.wizard.regimeSmall') : t('finance.wizard.regimeVat')}
+                    </p>
+                    <p className="text-sm text-gray-300 mt-1">
+                        {data.tax_rate_applied}
+                    </p>
                 </div>
 
                 <div className="bg-gray-800/50 border border-gray-700 p-4 rounded-xl">
-                    <p className="text-sm text-gray-400 mb-1">{t('finance.wizard.totalPurchases')}</p>
-                    <p className="text-2xl font-bold text-white">€{data.total_purchases_gross.toFixed(2)}</p>
-                    <div className="mt-2 text-xs text-red-400 flex items-center">
-                        <span className="bg-red-500/20 px-1.5 py-0.5 rounded mr-2">{t('finance.wizard.vatDeductible')}</span>
-                        €{data.vat_deductible.toFixed(2)}
-                    </div>
+                    <p className="text-sm text-gray-400 mb-1">{t('finance.wizard.totalSales')}</p>
+                    <p className="text-2xl font-bold text-white">€{data.total_sales_gross.toFixed(2)}</p>
+                    {!isSmallBusiness && (
+                        <div className="mt-2 text-xs text-green-400 flex items-center">
+                            <span className="bg-green-500/20 px-1.5 py-0.5 rounded mr-2">{t('finance.wizard.vatCollected')}</span>
+                            €{data.vat_collected.toFixed(2)}
+                        </div>
+                    )}
                 </div>
+
+                {isSmallBusiness ? (
+                    <div className="bg-gray-800/50 border border-gray-700 p-4 rounded-xl opacity-60">
+                        <p className="text-sm text-gray-400 mb-1">{t('finance.wizard.operationalExpenses')}</p>
+                        <p className="text-2xl font-bold text-gray-300">€{data.total_purchases_gross.toFixed(2)}</p>
+                        <div className="mt-2 text-xs text-gray-500 flex items-center">
+                            <span className="bg-gray-700 px-1.5 py-0.5 rounded mr-2">{t('finance.wizard.noTaxEffect')}</span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="bg-gray-800/50 border border-gray-700 p-4 rounded-xl">
+                        <p className="text-sm text-gray-400 mb-1">{t('finance.wizard.totalPurchases')}</p>
+                        <p className="text-2xl font-bold text-white">€{data.total_purchases_gross.toFixed(2)}</p>
+                        <div className="mt-2 text-xs text-red-400 flex items-center">
+                            <span className="bg-red-500/20 px-1.5 py-0.5 rounded mr-2">{t('finance.wizard.vatDeductible')}</span>
+                            €{data.vat_deductible.toFixed(2)}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* The Result Card */}
@@ -156,7 +176,7 @@ const TaxStep = ({ data }: { data: TaxCalculation }) => {
                     : 'bg-green-500/10 border-green-500/30'
             }`}>
                 <h3 className="text-lg font-medium text-gray-300 mb-2">
-                    {isPayable ? t('finance.wizard.netPayable') : t('finance.wizard.netCredit')}
+                    {data.description}
                 </h3>
                 <span className={`text-4xl font-bold mb-4 ${isPayable ? 'text-red-400' : 'text-green-400'}`}>
                     €{Math.abs(data.net_obligation).toFixed(2)}
@@ -187,7 +207,6 @@ const FinanceWizardPage = () => {
     const [selectedMonth, setSelectedMonth] = useState(today.getMonth() === 0 ? 12 : today.getMonth());
     const [selectedYear, setSelectedYear] = useState(today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear());
 
-    // PHOENIX: Localization Logic (Matches BusinessPage)
     const localeMap: { [key: string]: any } = { sq, al: sq, en: enUS };
     const currentLocale = localeMap[i18n.language] || enUS;
 
@@ -259,7 +278,7 @@ const FinanceWizardPage = () => {
                 <div className="flex-1 overflow-y-auto p-6 md:p-12">
                     <div className="max-w-4xl mx-auto">
                         
-                        {/* Month Selector - STRICTLY LOCALIZED */}
+                        {/* Month Selector */}
                         <div className="flex justify-center mb-8">
                             <select 
                                 value={selectedMonth}
@@ -268,7 +287,6 @@ const FinanceWizardPage = () => {
                             >
                                 {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
                                     <option key={m} value={m}>
-                                        {/* PHOENIX: Uses date-fns with 'sq' locale to guarantee 'Nëntor' */}
                                         {format(new Date(2024, m - 1, 1), 'MMMM', { locale: currentLocale })}
                                     </option>
                                 ))}
@@ -318,7 +336,7 @@ const FinanceWizardPage = () => {
 
                                     {step === 2 && (
                                         <div>
-                                            <h2 className="text-2xl font-bold mb-6">{t('finance.wizard.stepTax')} (ATK)</h2>
+                                            <h2 className="text-2xl font-bold mb-6">{t('finance.wizard.stepTax')}</h2>
                                             <TaxStep data={state.calculation} />
                                         </div>
                                     )}

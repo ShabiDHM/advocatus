@@ -253,7 +253,11 @@
       "readyDesc": "Raporti mujor është gjeneruar. Tani mund të shkarkoni PDF-në ose ta arkivoni.",
       "downloadReport": "Shkarko Raportin Mujor",
       "fixIssues": "Rregullo Problemet",
-      "next": "Vazhdo"
+      "next": "Vazhdo",
+      "regimeSmall": "Regjimi: Biznes i Vogël",
+      "regimeVat": "Regjimi: TVSH (Standard)",
+      "operationalExpenses": "Shpenzimet Operacionale",
+      "noTaxEffect": "Pa efekt tatimor"
     }
   },
   "archive": {

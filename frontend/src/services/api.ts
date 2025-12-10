@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER v2.2
-// 1. FEATURE: Added 'downloadMonthlyReport' to Finance Wizard methods.
-// 2. STATUS: Fully connected to Backend PDF Generator.
+// PHOENIX PROTOCOL - API MASTER v2.3
+// 1. UPDATE: TaxCalculation interface now includes 'regime' and 'tax_rate_applied'.
+// 2. STATUS: Synced with Backend v2.0 logic.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -31,6 +31,10 @@ export interface TaxCalculation {
     net_obligation: number;
     currency: string;
     status: string;
+    // PHOENIX: New Smart Accountant Fields
+    regime: string; // 'SMALL_BUSINESS' or 'VAT_STANDARD'
+    tax_rate_applied: string;
+    description: string;
 }
 
 export interface WizardState {
@@ -196,7 +200,6 @@ class ApiService {
         return { blob: response.data, filename };
     }
 
-    // --- FINANCE WIZARD METHODS ---
     public async getWizardState(month: number, year: number): Promise<WizardState> {
         const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', {
             params: { month, year }
@@ -210,7 +213,6 @@ class ApiService {
             responseType: 'blob'
         });
         
-        // Trigger Browser Download
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;

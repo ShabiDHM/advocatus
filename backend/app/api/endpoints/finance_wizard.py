@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/finance_wizard.py
-# PHOENIX PROTOCOL - FINANCE WIZARD ENDPOINT (FINAL)
-# 1. REFACTOR: Logic extracted to '_get_wizard_data' for reuse.
-# 2. ADDED: /report/pdf endpoint for downloading the generated PDF.
-# 3. STATUS: Complete backend implementation.
+# PHOENIX PROTOCOL - FINANCE WIZARD ENDPOINT v2.0
+# 1. LOGIC: Calculates Annual Turnover (YTD) to determine VAT eligibility.
+# 2. INTEGRATION: Passes YTD data to KosovoTaxAdapter.
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -32,6 +31,21 @@ def _filter_by_month(items: list, month: int, year: int) -> list:
         if date_val and date_val.month == month and date_val.year == year:
             filtered.append(item)
     return filtered
+
+def _calculate_annual_turnover(invoices: list, current_year: int) -> float:
+    """
+    Calculates total gross sales from Jan 1st to the end of the current year.
+    Used to check the €30,000 threshold.
+    """
+    total = 0.0
+    for inv in invoices:
+        # Skip cancelled or draft invoices if necessary, but usually Draft counts if Issued
+        if inv.status == 'CANCELLED': 
+            continue
+            
+        if inv.issue_date.year == current_year:
+            total += inv.total_amount
+    return total
 
 def _run_audit_rules(invoices: list, expenses: list) -> List[AuditIssue]:
     issues = []
@@ -73,19 +87,33 @@ def _run_audit_rules(invoices: list, expenses: list) -> List[AuditIssue]:
 def _get_wizard_data(month: int, year: int, user: UserInDB) -> WizardState:
     """
     Shared logic to fetch data, calculate tax, and run audits.
-    Used by both the UI state endpoint and the PDF generator.
     """
     service = get_finance_service()
     
+    # 1. Fetch ALL data for the user (needed for YTD calculation)
     all_invoices = service.get_invoices(str(user.id))
     all_expenses = service.get_expenses(str(user.id))
     
+    # 2. Filter for current month view
     period_invoices = _filter_by_month(all_invoices, month, year)
     period_expenses = _filter_by_month(all_expenses, month, year)
 
-    calculation_result = tax_adapter.analyze_month(period_invoices, period_expenses, month, year)
+    # 3. Calculate Annual Turnover (YTD)
+    # This determines if they are < €30k (Small Biz) or > €30k (VAT)
+    annual_turnover = _calculate_annual_turnover(all_invoices, year)
+
+    # 4. Run Tax Logic
+    calculation_result = tax_adapter.analyze_month(
+        period_invoices, 
+        period_expenses, 
+        month, 
+        year, 
+        annual_turnover # <--- Passing YTD here
+    )
+    
     tax_calc = TaxCalculation(**calculation_result)
 
+    # 5. Run Audits
     audit_issues = _run_audit_rules(period_invoices, period_expenses)
     critical_count = len([i for i in audit_issues if i.severity == "CRITICAL"])
     
