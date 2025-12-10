@@ -229,7 +229,32 @@
     "expenseCategoryPlaceholder": "psh. Qira, Rrogat",
     "amount": "Shuma (€)",
     "date": "Data",
-    "description": "Përshkrimi"
+    "description": "Përshkrimi",
+    "wizard": {
+      "back": "Kthehu te Financat",
+      "stepAudit": "Auditimi",
+      "stepTax": "Llogaritja e Taksave",
+      "stepFinalize": "Finalizimi",
+      "cleanRecordTitle": "Të Dhëna të Pastra",
+      "cleanRecordDesc": "Nuk u gjetën probleme për këtë muaj. Jeni gati për llogaritje.",
+      "criticalIssues": "Probleme Kritike",
+      "warnings": "Paralajmërime",
+      "mustFix": "Duhet Rregulluar",
+      "recommended": "E Rekomanduar",
+      "totalSales": "Shitjet Totale (Bruto)",
+      "totalPurchases": "Blerjet Totale (Bruto)",
+      "vatCollected": "TVSH e Mbledhur",
+      "vatDeductible": "TVSH e Zbritshme",
+      "netPayable": "Tatimi Neto për Pagesë",
+      "netCredit": "Kredia Tatimore (Rimbursim)",
+      "payableHint": "Kjo shumë duhet të paguhet në ATK deri më datën 20.",
+      "creditHint": "Kjo shumë bartet për muajin tjetër.",
+      "readyToFile": "Gati për Deklarim",
+      "readyDesc": "Raporti mujor është gjeneruar. Tani mund të shkarkoni PDF-në ose ta arkivoni.",
+      "downloadReport": "Shkarko Raportin Mujor",
+      "fixIssues": "Rregullo Problemet",
+      "next": "Vazhdo"
+    }
   },
   "archive": {
     "caseFolders": "Dosjet e Çështjeve",

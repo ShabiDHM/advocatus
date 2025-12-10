@@ -1,8 +1,8 @@
 // FILE: src/pages/FinanceWizardPage.tsx
-// PHOENIX PROTOCOL - FINANCE WIZARD UI v1.2 (FINAL)
-// 1. FEATURE: 'handleDownloadReport' is now active and downloads the PDF.
-// 2. UX: Added loading state feedback during download.
-// 3. STATUS: Module Complete.
+// PHOENIX PROTOCOL - FINANCE WIZARD UI v1.3 (I18N FIX)
+// 1. FIX: Applied i18next translations to all UI elements.
+// 2. FIX: Localized month names in dropdown based on active language.
+// 3. UX: Improved error reporting.
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,15 +18,18 @@ import {
     Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next'; // PHOENIX: Import translation hook
 import { apiService, WizardState, AuditIssue, TaxCalculation } from '../services/api';
 
 // --- COMPONENTS ---
 
 const StepIndicator = ({ currentStep }: { currentStep: number }) => {
+    const { t } = useTranslation();
+    
     const steps = [
-        { id: 1, label: 'Audit', icon: ShieldAlert },
-        { id: 2, label: 'Tax Calculation', icon: Calculator },
-        { id: 3, label: 'Finalize', icon: FileText },
+        { id: 1, label: t('finance.wizard.stepAudit'), icon: ShieldAlert },
+        { id: 2, label: t('finance.wizard.stepTax'), icon: Calculator },
+        { id: 3, label: t('finance.wizard.stepFinalize'), icon: FileText },
     ];
 
     return (
@@ -59,6 +62,7 @@ const StepIndicator = ({ currentStep }: { currentStep: number }) => {
 };
 
 const AuditStep = ({ issues }: { issues: AuditIssue[] }) => {
+    const { t } = useTranslation();
     const critical = issues.filter(i => i.severity === 'CRITICAL');
     const warnings = issues.filter(i => i.severity === 'WARNING');
 
@@ -68,8 +72,8 @@ const AuditStep = ({ issues }: { issues: AuditIssue[] }) => {
                 <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                     <CheckCircle className="text-green-400" size={32} />
                 </div>
-                <h3 className="text-xl font-bold text-white mb-2">Clean Record</h3>
-                <p className="text-gray-400">No issues found for this month. You are ready to calculate taxes.</p>
+                <h3 className="text-xl font-bold text-white mb-2">{t('finance.wizard.cleanRecordTitle')}</h3>
+                <p className="text-gray-400">{t('finance.wizard.cleanRecordDesc')}</p>
             </div>
         );
     }
@@ -80,8 +84,8 @@ const AuditStep = ({ issues }: { issues: AuditIssue[] }) => {
                 <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
                     <h3 className="flex items-center text-red-400 font-bold mb-3">
                         <ShieldAlert className="mr-2" size={20} />
-                        Critical Issues ({critical.length})
-                        <span className="ml-auto text-xs bg-red-500/20 px-2 py-1 rounded text-red-300">Must Fix</span>
+                        {t('finance.wizard.criticalIssues')} ({critical.length})
+                        <span className="ml-auto text-xs bg-red-500/20 px-2 py-1 rounded text-red-300">{t('finance.wizard.mustFix')}</span>
                     </h3>
                     <div className="space-y-2">
                         {critical.map(issue => (
@@ -98,8 +102,8 @@ const AuditStep = ({ issues }: { issues: AuditIssue[] }) => {
                 <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
                     <h3 className="flex items-center text-yellow-400 font-bold mb-3">
                         <AlertTriangle className="mr-2" size={20} />
-                        Warnings ({warnings.length})
-                        <span className="ml-auto text-xs bg-yellow-500/20 px-2 py-1 rounded text-yellow-300">Recommended</span>
+                        {t('finance.wizard.warnings')} ({warnings.length})
+                        <span className="ml-auto text-xs bg-yellow-500/20 px-2 py-1 rounded text-yellow-300">{t('finance.wizard.recommended')}</span>
                     </h3>
                     <div className="space-y-2">
                         {warnings.map(issue => (
@@ -116,6 +120,7 @@ const AuditStep = ({ issues }: { issues: AuditIssue[] }) => {
 };
 
 const TaxStep = ({ data }: { data: TaxCalculation }) => {
+    const { t } = useTranslation();
     const isPayable = data.net_obligation > 0;
 
     return (
@@ -123,19 +128,19 @@ const TaxStep = ({ data }: { data: TaxCalculation }) => {
             {/* Box 10 & 30 equivalents */}
             <div className="space-y-4">
                 <div className="bg-gray-800/50 border border-gray-700 p-4 rounded-xl">
-                    <p className="text-sm text-gray-400 mb-1">Total Sales (Gross)</p>
+                    <p className="text-sm text-gray-400 mb-1">{t('finance.wizard.totalSales')}</p>
                     <p className="text-2xl font-bold text-white">€{data.total_sales_gross.toFixed(2)}</p>
                     <div className="mt-2 text-xs text-green-400 flex items-center">
-                        <span className="bg-green-500/20 px-1.5 py-0.5 rounded mr-2">VAT Collected</span>
+                        <span className="bg-green-500/20 px-1.5 py-0.5 rounded mr-2">{t('finance.wizard.vatCollected')}</span>
                         €{data.vat_collected.toFixed(2)}
                     </div>
                 </div>
 
                 <div className="bg-gray-800/50 border border-gray-700 p-4 rounded-xl">
-                    <p className="text-sm text-gray-400 mb-1">Total Purchases (Gross)</p>
+                    <p className="text-sm text-gray-400 mb-1">{t('finance.wizard.totalPurchases')}</p>
                     <p className="text-2xl font-bold text-white">€{data.total_purchases_gross.toFixed(2)}</p>
                     <div className="mt-2 text-xs text-red-400 flex items-center">
-                        <span className="bg-red-500/20 px-1.5 py-0.5 rounded mr-2">VAT Deductible</span>
+                        <span className="bg-red-500/20 px-1.5 py-0.5 rounded mr-2">{t('finance.wizard.vatDeductible')}</span>
                         €{data.vat_deductible.toFixed(2)}
                     </div>
                 </div>
@@ -148,15 +153,15 @@ const TaxStep = ({ data }: { data: TaxCalculation }) => {
                     : 'bg-green-500/10 border-green-500/30'
             }`}>
                 <h3 className="text-lg font-medium text-gray-300 mb-2">
-                    {isPayable ? 'Net Tax Payable' : 'Tax Credit (Refund)'}
+                    {isPayable ? t('finance.wizard.netPayable') : t('finance.wizard.netCredit')}
                 </h3>
                 <span className={`text-4xl font-bold mb-4 ${isPayable ? 'text-red-400' : 'text-green-400'}`}>
                     €{Math.abs(data.net_obligation).toFixed(2)}
                 </span>
                 <p className="text-sm text-gray-400">
                     {isPayable 
-                        ? 'This amount must be paid to ATK by the 20th.' 
-                        : 'This amount carries forward to next month.'}
+                        ? t('finance.wizard.payableHint') 
+                        : t('finance.wizard.creditHint')}
                 </p>
             </div>
         </div>
@@ -166,13 +171,15 @@ const TaxStep = ({ data }: { data: TaxCalculation }) => {
 // --- MAIN PAGE ---
 
 const FinanceWizardPage = () => {
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(true);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [downloading, setDownloading] = useState(false);
     const [state, setState] = useState<WizardState | null>(null);
     
-    // Default to "Previous Month" (since you close months after they end)
+    // Default to "Previous Month"
     const today = new Date();
     const [selectedMonth, setSelectedMonth] = useState(today.getMonth() === 0 ? 12 : today.getMonth());
     const [selectedYear, setSelectedYear] = useState(today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear());
@@ -183,11 +190,20 @@ const FinanceWizardPage = () => {
 
     const fetchData = async () => {
         setLoading(true);
+        setErrorMsg(null);
         try {
             const data = await apiService.getWizardState(selectedMonth, selectedYear);
             setState(data);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to fetch wizard state", error);
+            // PHOENIX: Improved error feedback
+            if (error.response?.status === 500) {
+                setErrorMsg(t('error.generic') + " (Server Error)");
+            } else if (error.code === 'ERR_NETWORK') {
+                setErrorMsg(t('drafting.errorConnectionLost'));
+            } else {
+                setErrorMsg(t('error.generic'));
+            }
         } finally {
             setLoading(false);
         }
@@ -199,7 +215,7 @@ const FinanceWizardPage = () => {
             await apiService.downloadMonthlyReport(selectedMonth, selectedYear);
         } catch (error) {
             console.error("Download failed", error);
-            alert("Failed to download report. Please try again.");
+            alert(t('error.generic'));
         } finally {
             setDownloading(false);
         }
@@ -215,7 +231,6 @@ const FinanceWizardPage = () => {
 
     return (
         <div className="flex h-screen bg-[#030711] text-white overflow-hidden font-sans">
-             {/* Main Content Area - Full width since we are a "Modal" style page or standalone */}
              <div className="flex-1 flex flex-col overflow-hidden relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-transparent to-blue-900/10 pointer-events-none" />
                 
@@ -226,27 +241,30 @@ const FinanceWizardPage = () => {
                         className="flex items-center text-gray-400 hover:text-white transition-colors"
                     >
                         <ArrowLeft size={20} className="mr-2" />
-                        Back to Finance
+                        {t('finance.wizard.back')}
                     </button>
                     <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-                        Monthly Closing Wizard
+                        {t('finance.monthlyClose')}
                     </h1>
-                    <div className="w-24" /> {/* Spacer */}
+                    <div className="w-24" />
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 md:p-12">
                     <div className="max-w-4xl mx-auto">
                         
-                        {/* Month Selector */}
+                        {/* Month Selector - LOCALIZED */}
                         <div className="flex justify-center mb-8">
                             <select 
                                 value={selectedMonth}
                                 onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                                className="bg-gray-800 border border-gray-700 text-white rounded-l-lg px-4 py-2 focus:outline-none"
+                                className="bg-gray-800 border border-gray-700 text-white rounded-l-lg px-4 py-2 focus:outline-none capitalize"
                             >
                                 {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                                    <option key={m} value={m}>{new Date(0, m - 1).toLocaleString('default', { month: 'long' })}</option>
+                                    <option key={m} value={m}>
+                                        {/* PHOENIX: Dynamic Date Localization */}
+                                        {new Date(0, m - 1).toLocaleString(i18n.language, { month: 'long' })}
+                                    </option>
                                 ))}
                             </select>
                             <select 
@@ -265,6 +283,16 @@ const FinanceWizardPage = () => {
                             <div className="flex justify-center py-20">
                                 <Loader2 className="animate-spin text-indigo-500 w-12 h-12" />
                             </div>
+                        ) : errorMsg ? (
+                            <div className="flex flex-col items-center justify-center py-20 text-center">
+                                <div className="bg-red-500/10 p-4 rounded-full mb-4">
+                                    <AlertTriangle className="text-red-500 w-10 h-10" />
+                                </div>
+                                <p className="text-red-400 text-lg mb-2">{errorMsg}</p>
+                                <button onClick={fetchData} className="px-6 py-2 bg-gray-800 rounded-lg text-white hover:bg-gray-700 transition-colors">
+                                    {t('documentsPanel.reconnect')}
+                                </button>
+                            </div>
                         ) : state ? (
                             <AnimatePresence mode="wait">
                                 <motion.div 
@@ -277,14 +305,14 @@ const FinanceWizardPage = () => {
                                 >
                                     {step === 1 && (
                                         <div>
-                                            <h2 className="text-2xl font-bold mb-6">Audit Check</h2>
+                                            <h2 className="text-2xl font-bold mb-6">{t('finance.wizard.stepAudit')}</h2>
                                             <AuditStep issues={state.issues} />
                                         </div>
                                     )}
 
                                     {step === 2 && (
                                         <div>
-                                            <h2 className="text-2xl font-bold mb-6">Tax Calculation (ATK)</h2>
+                                            <h2 className="text-2xl font-bold mb-6">{t('finance.wizard.stepTax')} (ATK)</h2>
                                             <TaxStep data={state.calculation} />
                                         </div>
                                     )}
@@ -294,10 +322,9 @@ const FinanceWizardPage = () => {
                                             <div className="w-20 h-20 bg-indigo-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                                                 <FileText className="text-indigo-400" size={40} />
                                             </div>
-                                            <h2 className="text-2xl font-bold mb-2">Ready to File</h2>
+                                            <h2 className="text-2xl font-bold mb-2">{t('finance.wizard.readyToFile')}</h2>
                                             <p className="text-gray-400 max-w-md mx-auto mb-8">
-                                                The monthly report has been generated. You can now download the PDF or archive it.
-                                                (Filing automation coming soon).
+                                                {t('finance.wizard.readyDesc')}
                                             </p>
                                             <button 
                                                 onClick={handleDownloadReport}
@@ -305,7 +332,7 @@ const FinanceWizardPage = () => {
                                                 className="bg-indigo-600 hover:bg-indigo-500 text-white px-8 py-3 rounded-lg font-medium flex items-center mx-auto transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 {downloading ? <Loader2 className="animate-spin mr-2" size={20} /> : <Download className="mr-2" size={20} />}
-                                                {downloading ? "Generating PDF..." : "Download Monthly Report"}
+                                                {downloading ? t('general.loading') : t('finance.wizard.downloadReport')}
                                             </button>
                                         </div>
                                     )}
@@ -319,7 +346,7 @@ const FinanceWizardPage = () => {
                                                 step === 1 ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:bg-gray-800'
                                             }`}
                                         >
-                                            Back
+                                            {t('general.cancel')} {/* Using Cancel/Back logic */}
                                         </button>
                                         
                                         {step < 3 && (
@@ -332,16 +359,14 @@ const FinanceWizardPage = () => {
                                                         : 'bg-white text-black hover:bg-gray-200'
                                                 }`}
                                             >
-                                                {step === 1 && !state.ready_to_close ? 'Fix Critical Issues' : 'Next Step'}
+                                                {step === 1 && !state.ready_to_close ? t('finance.wizard.fixIssues') : t('finance.wizard.next')}
                                                 <ChevronRight size={18} className="ml-2" />
                                             </button>
                                         )}
                                     </div>
                                 </motion.div>
                             </AnimatePresence>
-                        ) : (
-                            <div className="text-center text-red-400">Error loading data.</div>
-                        )}
+                        ) : null}
                     </div>
                 </div>
              </div>
