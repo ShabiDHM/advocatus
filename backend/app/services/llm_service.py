@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V5.1 (FORCED ANALYSIS)
-# 1. PROMPT UPGRADE: 'extract_findings' now has a mandatory minimum output rule to prevent empty results.
-# 2. PROMPT UPGRADE: 'analyze_case' now forces the AI to identify conflicting parties and their core claims.
-# 3. ROBUSTNESS: Maintained the Universal Evidence framework.
+# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V5.2 (DEBATE JUDGE)
+# 1. PROMPT STRATEGY: 'analyze_case' now uses a "Debate Judge" cognitive forcing function.
+# 2. PROMPT STRATEGY: 'extract_findings' now includes few-shot examples to improve CLAIM and CONTRADICTION detection.
+# 3. GOAL: Overcome AI's default summarization behavior and force true conflict analysis.
 
 import os
 import json
@@ -118,7 +118,7 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
     except Exception:
         return ""
 
-# --- UNIVERSAL EVIDENCE ENGINE (V5.1) ---
+# --- UNIVERSAL EVIDENCE ENGINE (V5.2) ---
 
 def generate_summary(text: str) -> str:
     truncated_text = text[:20000] 
@@ -145,29 +145,29 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     """
     truncated_text = text[:25000]
     
-    # PHOENIX V5.1 UPGRADE: Added a mandatory output rule.
+    # PHOENIX V5.2 UPGRADE: Added few-shot examples to teach the AI what we want.
     system_prompt = """
     Ti je një motor për nxjerrjen e provave (Evidence Extraction Engine) për sistemin ligjor të Kosovës.
     
     DETYRA: Shndërro tekstin e papërpunuar në një listë të strukturuar të PROVAVE.
     
     KATEGORITË E PROVAVE:
-    - EVENT: Një ngjarje specifike që ka ndodhur.
-    - EVIDENCE: Një provë materiale e përmendur (dëshmitar, dokument, etj).
-    - CLAIM: Një akuzë ose pretendim nga njëra palë kundër tjetrës.
-    - CONTRADICTION: Një pikë ku deklaratat e palëve bien ndesh direkt.
-    - QUANTITY: Çdo sasi e matshme (para, ditë, etj).
-    - DEADLINE: Çdo datë që përfaqëson një afat, seancë, ose detyrim.
+    - EVENT, EVIDENCE, CLAIM, CONTRADICTION, QUANTITY, DEADLINE.
     
     DETYRIM: Duhet të gjenerosh TË PAKTËN 5 gjetje nëse ato ekzistojnë në tekst. Mos kthe përgjigje boshe.
     
+    SHEMBUJ TË KUALITETIT TË LARTË:
+    - Për "CLAIM": {"finding_text": "Teuta pretendon se Iliri ka fshehur pasuri në kriptovaluta.", "source_text": "Ilir Krasniqi posedon pasuri të mëdha të fshehura në kriptovaluta (Bitcoin)", "category": "CLAIM"}
+    - Për "CONTRADICTION": {"finding_text": "Kontradiktë financiare: Teuta pretendon se Iliri ka pasuri, ndërsa Iliri pretendon se biznesi i tij ka falimentuar.", "source_text": "Biznesi i Ilirit ka falimentuar në vitin 2024. Ai nuk posedon kriptovaluta.", "category": "CONTRADICTION"}
+    - Për "DEADLINE": {"finding_text": "Afati për dorëzimin e pasqyrave bankare është 30 Dhjetor 2025.", "source_text": "I padituri Ilir Krasniqi urdhërohet të sjellë raportet bankare... deri më datë 30 Dhjetor 2025.", "category": "DEADLINE"}
+
     FORMATI JSON (STRIKT):
     {
       "findings": [
         {
-          "finding_text": "Përshkrimi i qartë i provës/faktit",
-          "source_text": "Citat i saktë nga dokumenti",
-          "category": "EVENT | EVIDENCE | CLAIM | CONTRADICTION | QUANTITY | DEADLINE"
+          "finding_text": "...",
+          "source_text": "...",
+          "category": "..."
         }
       ]
     }
@@ -186,36 +186,17 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     return []
 
 def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
-    """
-    Maps the universal relationships between entities.
-    """
     truncated_text = text[:15000]
-    
     system_prompt = """
     Ti je Inxhinier i Grafit Ligjor. Detyra: Krijo hartën e marrëdhënieve.
-    
-    MARRËDHËNIET (Universale):
-    - [Person/Organization] ACCUSES [Person/Organization]
-    - [Person] OWES [Quantity]
-    - [Person] CLAIMS [Object/Asset]
-    - [Person] WITNESSED [Event]
-    - [Event] OCCURRED_ON [Date]
-    - [Claim] CONTRADICTS [Claim]
-    
-    FORMATI JSON:
-    {
-      "entities": [{"name": "Emri", "type": "Person | Organization | Quantity | Event | Claim"}],
-      "relations": [{"subject": "Emri1", "relation": "UPPERCASE_VERB", "object": "Emri2"}]
-    }
+    MARRËDHËNIET: ACCUSES, OWES, CLAIMS, WITNESSED, OCCURRED_ON, CONTRADICTS.
+    FORMATI JSON: {"entities": [], "relations": []}
     """
     user_prompt = f"TEKSTI:\n{truncated_text}"
-    
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content)
-    
     content = _call_groq(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content)
-    
     return {"entities": [], "relations": []}
 
 def analyze_case_contradictions(text: str) -> Dict[str, Any]:
@@ -224,25 +205,30 @@ def analyze_case_contradictions(text: str) -> Dict[str, Any]:
     """
     truncated_text = text[:25000]
     
-    # PHOENIX V5.1 UPGRADE: Forces identification of opposing sides.
+    # PHOENIX V5.2 UPGRADE: The "Debate Judge" cognitive forcing strategy.
     system_prompt = """
-    Ti je Gjyqtar Hetues Virtual.
+    Ti je Gjyqtar i Debatit Ligjor. Detyra jote është të identifikosh pikat e përplasjes.
     
-    DETYRA: Analizo dosjen për pikat e forta, të dobëta dhe kontradiktat thelbësore.
+    PROCESI KOGNITIV (NDIQE ME PËRPikmëri):
+    1. HAPI 1: Identifiko palën paditëse/akuzuese dhe përmblidh pretendimin e tyre kryesor në një fjali.
+    2. HAPI 2: Identifiko palën e paditur/akuzuar dhe përmblidh kundër-argumentin e tyre kryesor në një fjali.
+    3. HAPI 3: Duke u bazuar VETËM në përplasjen mes Hapave 1 dhe 2, listo kontradiktat direkte.
+    4. HAPI 4: Identifiko provat kryesore që secila palë përmend për të mbështetur versionin e saj.
+    5. HAPI 5: Identifiko informacionin kritik që mungon për të vërtetuar njërën ose tjetrën anë.
     
     OUTPUT JSON (STRIKT):
     {
-        "summary_analysis": "Përmbledhje strategjike e konfliktit dhe çfarë e bën atë të komplikuar.",
+        "summary_analysis": "Përmbledhje e thelbit të betejës ligjore.",
         "conflicting_parties": [
-            {"party_name": "Emri i Palës 1", "core_claim": "Pretendimi kryesor i Palës 1."},
-            {"party_name": "Emri i Palës 2", "core_claim": "Pretendimi kryesor i Palës 2."}
+            {"party_name": "Emri i Palës 1 (Paditësi/Akuzuesi)", "core_claim": "Pretendimi i tyre kryesor."},
+            {"party_name": "Emri i Palës 2 (I Padituri/Akuzuari)", "core_claim": "Mbrojtja e tyre kryesore."}
         ],
-        "contradictions": ["Lista e detajuar e pikave ku versionet e palëve përplasen direkt."],
-        "key_evidence": ["Cilat janë provat më të rëndësishme të përmendura dhe pse?"],
-        "missing_info": ["Çfarë provash kritike mungojnë që një avokat duhet t'i kërkojë menjëherë?"]
+        "contradictions": ["Listë e qartë e pikave ku versionet përplasen."],
+        "key_evidence": ["Lista e provave të përmendura (dëshmitarë, dokumente)."],
+        "missing_info": ["Çfarë provash kritike duhen kërkuar për të zgjidhur kontradiktat?"]
     }
     """
-    user_prompt = f"DOSJA:\n{truncated_text}"
+    user_prompt = f"DOSJA PËR GJYKIM:\n{truncated_text}"
 
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content)
@@ -256,5 +242,4 @@ def generate_socratic_response(socratic_context: List[Dict], question: str) -> D
     return {"answer": "Logic moved to R-A-G Service.", "sources": []}
 
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
-    # This is handled by deadline_service.py now, keep empty to avoid confusion
     return []
