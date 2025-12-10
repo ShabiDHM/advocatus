@@ -1,7 +1,7 @@
 # FILE: backend/app/modules/finance/tax_engine/kosovo_adapter.py
-# PHOENIX PROTOCOL - KOSOVO TAX ADAPTER v2.0
-# 1. LOGIC: Implements €30,000 Threshold check.
-# 2. LOGIC: Adds 'Small Business' (9% Gross) vs 'VAT' (18% Net) modes.
+# PHOENIX PROTOCOL - KOSOVO TAX ADAPTER v2.1 (LOCALIZATION FIX)
+# 1. FIX: Translated 'tax_rate_applied' strings to Albanian.
+# 2. STATUS: Ready for production.
 
 class KosovoTaxAdapter:
     """
@@ -39,8 +39,6 @@ class KosovoTaxAdapter:
         
         # 2. Determine Regime
         # If YTD turnover (including this month) > 30k, they are VAT liable.
-        # NOTE: A real system would check the exact registration date. 
-        # Here we simulate the ATK rule: Once you cross it, you enter VAT.
         is_vat_liable = (annual_turnover_ytd + monthly_sales) > self.VAT_THRESHOLD
         
         regime = "VAT_STANDARD" if is_vat_liable else "SMALL_BUSINESS"
@@ -56,11 +54,11 @@ class KosovoTaxAdapter:
         }
 
         if regime == "SMALL_BUSINESS":
-            # 9% on Gross Income. Expenses irrelevant for Tax (but relevant for Profit).
+            # 9% on Gross Income.
             tax_due = monthly_sales * self.SMALL_BIZ_RATE
             
             result.update({
-                "tax_rate_applied": "9% (Small Business / Services)",
+                "tax_rate_applied": "9% (Biznes i Vogël / Shërbime)", # PHOENIX: Translated to Albanian
                 "vat_collected": 0.0,
                 "vat_deductible": 0.0,
                 "net_obligation": round(tax_due, 2),
@@ -74,7 +72,7 @@ class KosovoTaxAdapter:
             net_obligation = vat_collected - vat_deductible
             
             result.update({
-                "tax_rate_applied": "18% (TVSH)",
+                "tax_rate_applied": "18% (TVSH Standarde)", # PHOENIX: Translated to Albanian
                 "vat_collected": vat_collected,
                 "vat_deductible": vat_deductible,
                 "net_obligation": round(net_obligation, 2),

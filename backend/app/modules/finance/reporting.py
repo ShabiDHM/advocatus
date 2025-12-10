@@ -1,7 +1,7 @@
 # FILE: backend/app/modules/finance/reporting.py
-# PHOENIX PROTOCOL - FINANCE REPORT GENERATOR v2.0
-# 1. LOGIC: Supports Dynamic Tax Regimes (Small Biz vs VAT).
-# 2. UI: Hides VAT columns if not applicable.
+# PHOENIX PROTOCOL - FINANCE REPORT GENERATOR v2.1 (DATE FIX)
+# 1. FIX: Forces Albanian Month names in PDF (removes English 'December').
+# 2. STATUS: Fully Localized.
 
 from io import BytesIO
 from reportlab.lib.pagesizes import A4
@@ -14,6 +14,12 @@ from datetime import datetime
 from app.models.finance import WizardState
 from app.models.user import UserInDB
 
+# PHOENIX: Explicit Albanian Month Mapping to bypass server locale
+ALBANIAN_MONTHS = {
+    1: "Janar", 2: "Shkurt", 3: "Mars", 4: "Prill", 5: "Maj", 6: "Qershor",
+    7: "Korrik", 8: "Gusht", 9: "Shtator", 10: "Tetor", 11: "Nëntor", 12: "Dhjetor"
+}
+
 def generate_monthly_report_pdf(state: WizardState, user: UserInDB, month: int, year: int) -> BytesIO:
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
@@ -24,13 +30,14 @@ def generate_monthly_report_pdf(state: WizardState, user: UserInDB, month: int, 
     firm_name = user.username.upper()
     elements.append(Paragraph(f"<b>{firm_name}</b>", styles['Heading1']))
     
-    # Dynamic Title
     title_text = "Raporti Mujor Financiar (TVSH)" if state.calculation.regime == "VAT_STANDARD" else "Raporti Mujor (Biznes i Vogël)"
     elements.append(Paragraph(title_text, styles['Title']))
     elements.append(Spacer(1, 0.2 * inch))
 
-    period_date = datetime(year, month, 1)
-    period_str = period_date.strftime('%B %Y')
+    # PHOENIX: Use Albanian Month Name
+    month_name_sq = ALBANIAN_MONTHS.get(month, "")
+    period_str = f"{month_name_sq} {year}"
+    
     current_date = datetime.now().strftime('%d/%m/%Y')
     
     elements.append(Paragraph(f"<b>Periudha:</b> {period_str}", styles['Normal']))
@@ -43,7 +50,6 @@ def generate_monthly_report_pdf(state: WizardState, user: UserInDB, month: int, 
     currency = calc.currency
 
     if calc.regime == "SMALL_BUSINESS":
-        # 9% Logic Table
         data = [
             ["Përshkrimi", "Vlera"],
             ["Shitjet Bruto (Totale)", f"{calc.total_sales_gross:,.2f} {currency}"],
@@ -52,7 +58,6 @@ def generate_monthly_report_pdf(state: WizardState, user: UserInDB, month: int, 
             ["TATIMI PËR T'U PAGUAR", f"{calc.net_obligation:,.2f} {currency}"]
         ]
     else:
-        # 18% VAT Logic Table
         data = [
             ["Përshkrimi", "Vlera"],
             ["Shitjet e Tatueshme (Bruto)", f"{calc.total_sales_gross:,.2f} {currency}"],
