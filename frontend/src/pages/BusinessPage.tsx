@@ -1,8 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - REVISION 4
-// 1. I18N: All hardcoded strings replaced with t() keys.
-// 2. MOBILE: Optimized Action Bar layout for small screens (flex-wrap + flex-1).
-// 3. UX: Added 'whitespace-nowrap' to buttons to prevent ugly text breaking.
+// PHOENIX PROTOCOL - REVISION 6 (TYPE FIX)
+// 1. FIX: Explicitly typed 'savedExpense' to resolve TS7034 error.
+// 2. STATUS: Fully compiled and ready.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,7 +10,7 @@ import {
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File as FileIcon, 
     Briefcase, Eye, Archive, Camera, X, User, FolderPlus, Home, ChevronRight,
     FileImage, FileCode, Hash, Info, Calendar, TrendingUp, TrendingDown, Wallet, MinusCircle, Tag,
-    FolderInput, Paperclip, CheckCircle, Calculator
+    FolderInput, Paperclip, CheckCircle, Calculator, Edit2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL, Expense, ExpenseCreateRequest } from '../services/api';
@@ -184,6 +183,10 @@ const BusinessPage: React.FC = () => {
   const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
   
+  // EDIT STATES
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
+
   const [formData, setFormData] = useState<BusinessProfileUpdate>({
     firm_name: '', email_public: '', phone: '', address: '', city: '', website: '', tax_id: '', branding_color: DEFAULT_COLOR
   });
@@ -373,26 +376,61 @@ const BusinessPage: React.FC = () => {
       }
   };
 
-  const handleCreateExpense = async (e: React.FormEvent) => {
+  // --- EXPENSE HANDLERS (UPDATED) ---
+  const handleEditExpense = (expense: Expense) => {
+      setEditingExpenseId(expense.id);
+      setNewExpense({
+          category: expense.category,
+          amount: expense.amount,
+          description: expense.description || '',
+          date: expense.date
+      });
+      setExpenseDate(new Date(expense.date));
+      setShowExpenseModal(true);
+  };
+
+  const handleCreateOrUpdateExpense = async (e: React.FormEvent) => {
       e.preventDefault();
       try {
           const payload = {
               ...newExpense,
               date: expenseDate ? expenseDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
           };
-          let expense = await apiService.createExpense(payload);
-          if (expenseReceipt && expense.id) {
-              await apiService.uploadExpenseReceipt(expense.id, expenseReceipt);
-              expense = { ...expense, receipt_url: "PENDING_REFRESH" };
+
+          let savedExpense: Expense; // PHOENIX: Explicitly Typed
+          if (editingExpenseId) {
+              // Update
+              savedExpense = await apiService.updateExpense(editingExpenseId, payload);
+              setExpenses(expenses.map(e => e.id === editingExpenseId ? savedExpense : e));
+          } else {
+              // Create
+              savedExpense = await apiService.createExpense(payload);
+              setExpenses([savedExpense, ...expenses]);
           }
-          setExpenses([expense, ...expenses]);
+
+          if (expenseReceipt && savedExpense.id) {
+              await apiService.uploadExpenseReceipt(savedExpense.id, expenseReceipt);
+              // Optimistic update for receipt existence
+              const finalExpense = { ...savedExpense, receipt_url: "PENDING_REFRESH" };
+              setExpenses(prev => prev.map(e => e.id === finalExpense.id ? finalExpense : e));
+          }
+
           setShowExpenseModal(false);
+          // Reset
+          setEditingExpenseId(null);
           setNewExpense({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0] });
           setExpenseDate(new Date());
           setExpenseReceipt(null);
       } catch {
           alert(t('error.generic'));
       }
+  };
+
+  const closeExpenseModal = () => {
+      setShowExpenseModal(false);
+      setEditingExpenseId(null);
+      setNewExpense({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0] });
+      setExpenseReceipt(null);
   };
 
   const deleteExpense = async (id: string) => {
@@ -478,10 +516,72 @@ const BusinessPage: React.FC = () => {
       }
   };
 
+  // --- INVOICE HANDLERS (UPDATED) ---
   const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
   const removeLineItem = (i: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, idx) => idx !== i));
   const updateLineItem = (i: number, f: keyof InvoiceItem, v: any) => { const n = [...lineItems]; n[i] = { ...n[i], [f]: v }; n[i].total = n[i].quantity * n[i].unit_price; setLineItems(n); };
-  const handleCreateInvoice = async (e: React.FormEvent) => { e.preventDefault(); try { const fullAddressBlock = [ newInvoice.client_address, newInvoice.client_city, newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '', newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : '', newInvoice.client_website ].filter(Boolean).join('\n'); const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: fullAddressBlock, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes }; const inv = await apiService.createInvoice(payload); setInvoices([inv, ...invoices]); setShowInvoiceModal(false); setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' }); setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); } catch { alert(t('error.generic')); } };
+  
+  const handleEditInvoice = (invoice: Invoice) => {
+      setEditingInvoiceId(invoice.id);
+      // Pre-fill form
+      setNewInvoice({
+          client_name: invoice.client_name,
+          client_email: invoice.client_email || '',
+          client_address: invoice.client_address || '', // Might contain merged address/phone
+          client_phone: '', // Can't easily parse back if merged, user can re-enter
+          client_city: '',
+          client_tax_id: '',
+          client_website: '',
+          tax_rate: invoice.tax_rate,
+          notes: invoice.notes || ''
+      });
+      setLineItems(invoice.items);
+      setShowInvoiceModal(true);
+  };
+
+  const handleCreateOrUpdateInvoice = async (e: React.FormEvent) => {
+      e.preventDefault();
+      try {
+          const fullAddressBlock = [ 
+              newInvoice.client_address, 
+              newInvoice.client_city, 
+              newInvoice.client_phone ? `Tel: ${newInvoice.client_phone}` : '', 
+              newInvoice.client_tax_id ? `NUI: ${newInvoice.client_tax_id}` : '', 
+              newInvoice.client_website 
+          ].filter(Boolean).join('\n');
+          
+          const payload = { 
+              client_name: newInvoice.client_name, 
+              client_email: newInvoice.client_email, 
+              client_address: fullAddressBlock, 
+              items: lineItems, 
+              tax_rate: newInvoice.tax_rate, 
+              notes: newInvoice.notes 
+          };
+          
+          if (editingInvoiceId) {
+              // Update
+              const updatedInv = await apiService.updateInvoice(editingInvoiceId, payload);
+              setInvoices(invoices.map(i => i.id === editingInvoiceId ? updatedInv : i));
+          } else {
+              // Create
+              const inv = await apiService.createInvoice(payload);
+              setInvoices([inv, ...invoices]);
+          }
+          
+          closeInvoiceModal();
+      } catch { 
+          alert(t('error.generic')); 
+      }
+  };
+
+  const closeInvoiceModal = () => {
+      setShowInvoiceModal(false);
+      setEditingInvoiceId(null);
+      setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' });
+      setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
+  };
+
   const deleteInvoice = async (id: string) => { if(!window.confirm(t('general.confirmDelete'))) return; try { await apiService.deleteInvoice(id); setInvoices(invoices.filter(inv => inv.id !== id)); } catch { alert(t('documentsPanel.deleteFailed')); } };
   const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id, i18n.language); } catch (error) { alert(t('error.generic')); } };
 
@@ -516,10 +616,8 @@ const BusinessPage: React.FC = () => {
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500"><FinanceCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp className="w-6 h-6" />} color="bg-emerald-500" subtext={t('finance.incomeSub')} /><FinanceCard title={t('finance.expense')} amount={`€${totalExpenses.toFixed(2)}`} icon={<TrendingDown className="w-6 h-6" />} color="bg-rose-500" subtext={t('finance.expenseSub')} /><FinanceCard title={t('finance.balance')} amount={`€${totalBalance.toFixed(2)}`} icon={<Wallet className="w-6 h-6" />} color="bg-blue-500" subtext={t('finance.balanceSub')} /></div>
             
-            {/* PHOENIX: UPDATED ACTION BAR (MOBILE OPTIMIZED) */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h2 className="text-2xl font-bold text-white">{t('finance.invoicesTitle')}</h2>
-                {/* Flex-wrap and Flex-1 ensure buttons resize or stack gracefully */}
                 <div className="flex gap-3 w-full sm:w-auto flex-wrap justify-end">
                     <button onClick={() => navigate('/finance/wizard')} className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg transition-all font-medium whitespace-nowrap">
                         <Calculator size={20} /> <span>{t('finance.monthlyClose')}</span>
@@ -533,9 +631,9 @@ const BusinessPage: React.FC = () => {
                 </div>
             </div>
 
-            {expenses.length > 0 && (<div className="grid gap-4 mb-4">{expenses.map(exp => (<div key={exp.id} className="bg-background-dark border border-glass-edge rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-white/20 transition-all group"><div className="flex items-center gap-5 w-full md:w-auto overflow-hidden"><div className={`p-3.5 rounded-xl flex-shrink-0 bg-rose-500/10 text-rose-400`}><FileText size={28} /></div><div className="min-w-0"><h3 className="font-bold text-white text-lg truncate pr-2">{exp.category}</h3><p className="text-sm text-gray-400 font-mono truncate">{exp.description} • {new Date(exp.date).toLocaleDateString()}</p></div></div><div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-8 mt-2 md:mt-0"><div className="text-left md:text-right"><p className="text-xl font-bold text-white">-€{exp.amount.toFixed(2)}</p><span className="inline-block text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide uppercase mt-1 bg-rose-900/30 text-rose-400 border border-rose-500/20">EXPENSE</span></div><div className="flex gap-1 sm:gap-2"><button onClick={() => handleViewExpense(exp)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title={t('archive.view')}>{openingDocId === exp.id ? <Loader2 className="h-4 w-4 animate-spin text-blue-400" /> : <Eye size={18} />}</button><button onClick={() => handleDownloadExpense(exp)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title={t('archive.download')}><Download size={18} /></button><button onClick={() => handleArchiveExpenseClick(exp.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title={t('finance.archiveInvoice')}><Archive size={18} /></button><button onClick={() => deleteExpense(exp.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title={t('general.delete')}><Trash2 size={18} /></button></div></div></div>))}</div>)}
+            {expenses.length > 0 && (<div className="grid gap-4 mb-4">{expenses.map(exp => (<div key={exp.id} className="bg-background-dark border border-glass-edge rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-white/20 transition-all group"><div className="flex items-center gap-5 w-full md:w-auto overflow-hidden"><div className={`p-3.5 rounded-xl flex-shrink-0 bg-rose-500/10 text-rose-400`}><FileText size={28} /></div><div className="min-w-0"><h3 className="font-bold text-white text-lg truncate pr-2">{exp.category}</h3><p className="text-sm text-gray-400 font-mono truncate">{exp.description} • {new Date(exp.date).toLocaleDateString()}</p></div></div><div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-8 mt-2 md:mt-0"><div className="text-left md:text-right"><p className="text-xl font-bold text-white">-€{exp.amount.toFixed(2)}</p><span className="inline-block text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide uppercase mt-1 bg-rose-900/30 text-rose-400 border border-rose-500/20">EXPENSE</span></div><div className="flex gap-1 sm:gap-2"><button onClick={() => handleEditExpense(exp)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-amber-400 transition-colors" title="Edit"><Edit2 size={18} /></button><button onClick={() => handleViewExpense(exp)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title={t('archive.view')}>{openingDocId === exp.id ? <Loader2 className="h-4 w-4 animate-spin text-blue-400" /> : <Eye size={18} />}</button><button onClick={() => handleDownloadExpense(exp)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title={t('archive.download')}><Download size={18} /></button><button onClick={() => handleArchiveExpenseClick(exp.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title={t('finance.archiveInvoice')}><Archive size={18} /></button><button onClick={() => deleteExpense(exp.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title={t('general.delete')}><Trash2 size={18} /></button></div></div></div>))}</div>)}
             {invoices.length === 0 && expenses.length === 0 && (<div className="text-center py-20 bg-background-dark border border-glass-edge rounded-3xl"><FileText className="w-16 h-16 text-gray-700 mx-auto mb-4" /><p className="text-gray-400 text-lg">{t('finance.noInvoices')}</p></div>)}
-            {invoices.length > 0 && (<div className="grid gap-4">{invoices.map(inv => (<div key={inv.id} className="bg-background-dark border border-glass-edge rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-white/20 transition-all group"><div className="flex items-center gap-5 w-full md:w-auto overflow-hidden"><div className={`p-3.5 rounded-xl flex-shrink-0 ${inv.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}><FileText size={28} /></div><div className="min-w-0"><h3 className="font-bold text-white text-lg truncate pr-2">{inv.client_name}</h3><p className="text-sm text-gray-400 font-mono truncate">{inv.invoice_number} • {new Date(inv.issue_date).toLocaleDateString()}</p></div></div><div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-8 mt-2 md:mt-0"><div className="text-left md:text-right"><p className="text-xl font-bold text-white">€{inv.total_amount.toFixed(2)}</p><span className={`inline-block text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide uppercase mt-1 ${inv.status === 'PAID' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/20' : 'bg-amber-900/30 text-amber-400 border border-amber-500/20'}`}>{inv.status}</span></div><div className="flex gap-1 sm:gap-2"><button onClick={() => handleViewInvoice(inv)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title={t('finance.viewPdf')}>{openingDocId === inv.id ? <Loader2 className="h-4 w-4 animate-spin text-blue-400" /> : <Eye size={18} />}</button><button onClick={() => downloadInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title={t('finance.downloadPdf')}><Download size={18} /></button><button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title={t('finance.archiveInvoice')}><Archive size={18} /></button><button onClick={() => deleteInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title={t('finance.deleteInvoice')}><Trash2 size={18} /></button></div></div></div>))}</div>)}
+            {invoices.length > 0 && (<div className="grid gap-4">{invoices.map(inv => (<div key={inv.id} className="bg-background-dark border border-glass-edge rounded-2xl p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-white/20 transition-all group"><div className="flex items-center gap-5 w-full md:w-auto overflow-hidden"><div className={`p-3.5 rounded-xl flex-shrink-0 ${inv.status === 'PAID' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}><FileText size={28} /></div><div className="min-w-0"><h3 className="font-bold text-white text-lg truncate pr-2">{inv.client_name}</h3><p className="text-sm text-gray-400 font-mono truncate">{inv.invoice_number} • {new Date(inv.issue_date).toLocaleDateString()}</p></div></div><div className="flex items-center justify-between w-full md:w-auto gap-4 md:gap-8 mt-2 md:mt-0"><div className="text-left md:text-right"><p className="text-xl font-bold text-white">€{inv.total_amount.toFixed(2)}</p><span className={`inline-block text-[10px] px-2.5 py-1 rounded-full font-bold tracking-wide uppercase mt-1 ${inv.status === 'PAID' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/20' : 'bg-amber-900/30 text-amber-400 border border-amber-500/20'}`}>{inv.status}</span></div><div className="flex gap-1 sm:gap-2"><button onClick={() => handleEditInvoice(inv)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-amber-400 transition-colors" title="Edit"><Edit2 size={18} /></button><button onClick={() => handleViewInvoice(inv)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-blue-400 transition-colors" title={t('finance.viewPdf')}>{openingDocId === inv.id ? <Loader2 className="h-4 w-4 animate-spin text-blue-400" /> : <Eye size={18} />}</button><button onClick={() => downloadInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-green-400 transition-colors" title={t('finance.downloadPdf')}><Download size={18} /></button><button onClick={() => handleArchiveInvoiceClick(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-indigo-400 transition-colors" title={t('finance.archiveInvoice')}><Archive size={18} /></button><button onClick={() => deleteInvoice(inv.id)} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-red-400 transition-colors" title={t('finance.deleteInvoice')}><Trash2 size={18} /></button></div></div></div>))}</div>)}
         </motion.div>
       )}
 
@@ -546,8 +644,8 @@ const BusinessPage: React.FC = () => {
 
       {/* --- MODALS --- */}
       {showFolderModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-3xl w-full max-w-sm p-8 shadow-2xl scale-100"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-white">{t('archive.newFolderTitle')}</h3><button onClick={() => setShowFolderModal(false)} className="text-gray-500 hover:text-white"><X size={24}/></button></div><form onSubmit={handleCreateFolder}><div className="relative mb-5"><FolderOpen className="absolute left-4 top-3.5 w-6 h-6 text-amber-500" /><input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t('archive.folderNamePlaceholder')} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white text-lg focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-gray-600" /></div><div className="relative mb-8"><Tag className="absolute left-4 top-3.5 w-5 h-5 text-gray-500" /><select value={newFolderCategory} onChange={(e) => setNewFolderCategory(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-gray-300 focus:ring-2 focus:ring-amber-500/50 outline-none appearance-none cursor-pointer"><option value="GENERAL">{t('general.general')}</option><option value="EVIDENCE">Evidence</option><option value="LEGAL_DOCS">Legal Docs</option><option value="INVOICES">Invoices</option><option value="CONTRACTS">Contracts</option></select></div><div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div></form></div></div>)}
-      {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{t('finance.createInvoice')}</h2><button onClick={() => setShowInvoiceModal(false)} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateInvoice} className="space-y-6"><div className="space-y-4"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-sm text-gray-300 mb-1">Emri</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">Email</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">Telefon</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} placeholder="NUI / Fiscal No." /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.website')} <span className="text-gray-500 text-xs">(Opsional)</span></label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_website} onChange={e => setNewInvoice({...newInvoice, client_website: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">Adresa</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> Shërbimet</h3>{lineItems.map((item, index) => (<div key={index} className="flex gap-2 items-center"><input type="text" placeholder="Përshkrimi" className="flex-1 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder="Sasia" className="w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder="Çmimi" className="w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> Shto Rresht</button></div><div className="flex justify-end gap-3"><button type="button" onClick={() => setShowInvoiceModal(false)} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.create')}</button></div></form></div></div>)}
-      {showExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-white flex items-center gap-2"><MinusCircle size={20} className="text-rose-500" /> {t('finance.addExpense')}</h2><button onClick={() => setShowExpenseModal(false)} className="text-gray-400 hover:text-white"><X size={24} /></button></div><div className="mb-6"><input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => setExpenseReceipt(e.target.files?.[0] || null)} /><button onClick={() => receiptInputRef.current?.click()} className={`w-full py-3 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all font-medium ${expenseReceipt ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>{expenseReceipt ? (<><CheckCircle size={18} /> {expenseReceipt.name}</>) : (<><Paperclip size={18} /> {t('finance.attachReceipt')}</>)}</button></div><form onSubmit={handleCreateExpense} className="space-y-5"><div><label className="block text-sm text-gray-300 mb-1">{t('finance.expenseCategory')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.category} onChange={e => setNewExpense({...newExpense, category: e.target.value})} placeholder={t('finance.expenseCategoryPlaceholder')} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.amount')}</label><input required type="number" step="0.01" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: parseFloat(e.target.value)})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.date')}</label><DatePicker selected={expenseDate} onChange={(date: Date | null) => setExpenseDate(date)} locale={currentLocale} dateFormat="dd/MM/yyyy" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary-start" required /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.description')}</label><textarea rows={3} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})} /></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={() => setShowExpenseModal(false)} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
+      {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{editingInvoiceId ? 'Ndrysho Faturën' : t('finance.createInvoice')}</h2><button onClick={closeInvoiceModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateOrUpdateInvoice} className="space-y-6"><div className="space-y-4"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-sm text-gray-300 mb-1">Emri</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">Email</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">Telefon</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} placeholder="NUI / Fiscal No." /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.website')} <span className="text-gray-500 text-xs">(Opsional)</span></label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_website} onChange={e => setNewInvoice({...newInvoice, client_website: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">Adresa</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> Shërbimet</h3>{lineItems.map((item, index) => (<div key={index} className="flex gap-2 items-center"><input type="text" placeholder="Përshkrimi" className="flex-1 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder="Sasia" className="w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder="Çmimi" className="w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> Shto Rresht</button></div><div className="flex justify-end gap-3"><button type="button" onClick={closeInvoiceModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
+      {showExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-white flex items-center gap-2"><MinusCircle size={20} className="text-rose-500" /> {editingExpenseId ? 'Ndrysho Shpenzimin' : t('finance.addExpense')}</h2><button onClick={closeExpenseModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><div className="mb-6"><input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => setExpenseReceipt(e.target.files?.[0] || null)} /><button onClick={() => receiptInputRef.current?.click()} className={`w-full py-3 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all font-medium ${expenseReceipt ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>{expenseReceipt ? (<><CheckCircle size={18} /> {expenseReceipt.name}</>) : (<><Paperclip size={18} /> {t('finance.attachReceipt')}</>)}</button></div><form onSubmit={handleCreateOrUpdateExpense} className="space-y-5"><div><label className="block text-sm text-gray-300 mb-1">{t('finance.expenseCategory')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.category} onChange={e => setNewExpense({...newExpense, category: e.target.value})} placeholder={t('finance.expenseCategoryPlaceholder')} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.amount')}</label><input required type="number" step="0.01" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: parseFloat(e.target.value)})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.date')}</label><DatePicker selected={expenseDate} onChange={(date: Date | null) => setExpenseDate(date)} locale={currentLocale} dateFormat="dd/MM/yyyy" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary-start" required /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.description')}</label><textarea rows={3} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})} /></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={closeExpenseModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
       {showArchiveInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl"><h2 className="text-xl font-bold text-white mb-4">{t('finance.archiveInvoice')}</h2><div className="space-y-3 mb-6"><label className="block text-sm text-gray-400 mb-1">{t('drafting.selectCaseLabel')}</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id}>{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">{t('general.save')}</button></div></div></div>)}
       {showArchiveExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl"><h2 className="text-xl font-bold text-white mb-4">{t('finance.archiveExpenseTitle')}</h2><div className="space-y-3 mb-6"><label className="block text-sm text-gray-400 mb-1">{t('drafting.selectCaseLabel')}</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id}>{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveExpenseModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">{t('general.cancel')}</button><button onClick={submitArchiveExpense} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold">{t('general.save')}</button></div></div></div>)}
       

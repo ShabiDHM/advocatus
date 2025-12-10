@@ -1,18 +1,18 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER v2.3
-// 1. UPDATE: TaxCalculation interface now includes 'regime' and 'tax_rate_applied'.
-// 2. STATUS: Synced with Backend v2.0 logic.
+// PHOENIX PROTOCOL - API MASTER v2.4 (EDIT SUPPORT)
+// 1. FEATURE: Added 'updateInvoice' and 'updateExpense' methods.
+// 2. TYPES: Added 'InvoiceUpdate' and 'ExpenseUpdate' interfaces.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
     LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, User, UpdateUserRequest,
     DeletedDocumentResponse, CalendarEvent, CalendarEventCreateRequest, CreateDraftingJobRequest,
     DraftingJobStatus, DraftingJobResult, ChangePasswordRequest, Finding, CaseAnalysisResult,
-    BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest,
+    BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest, InvoiceItem,
     GraphData, ArchiveItemOut
 } from '../data/types';
 
-// --- FINANCE WIZARD TYPES ---
+// --- FINANCE TYPES ---
 export interface AuditIssue {
     id: string;
     severity: 'CRITICAL' | 'WARNING';
@@ -31,8 +31,7 @@ export interface TaxCalculation {
     net_obligation: number;
     currency: string;
     status: string;
-    // PHOENIX: New Smart Accountant Fields
-    regime: string; // 'SMALL_BUSINESS' or 'VAT_STANDARD'
+    regime: string;
     tax_rate_applied: string;
     description: string;
 }
@@ -43,7 +42,6 @@ export interface WizardState {
     ready_to_close: boolean;
 }
 
-// Expense Type Definitions
 export interface Expense {
     id: string;
     category: string;
@@ -59,6 +57,25 @@ export interface ExpenseCreateRequest {
     amount: number;
     description?: string;
     date?: string; 
+}
+
+// NEW: Update Types
+export interface InvoiceUpdate {
+    client_name?: string;
+    client_email?: string;
+    client_address?: string;
+    items?: InvoiceItem[];
+    tax_rate?: number;
+    due_date?: string;
+    status?: string;
+    notes?: string;
+}
+
+export interface ExpenseUpdate {
+    category?: string;
+    amount?: number;
+    description?: string;
+    date?: string;
 }
 
 interface LoginResponse { access_token: string; }
@@ -221,6 +238,17 @@ class ApiService {
         link.click();
         link.parentNode?.removeChild(link);
         window.URL.revokeObjectURL(url);
+    }
+
+    // --- NEW EDIT METHODS ---
+    public async updateInvoice(invoiceId: string, data: InvoiceUpdate): Promise<Invoice> {
+        const response = await this.axiosInstance.put<Invoice>(`/finance/invoices/${invoiceId}`, data);
+        return response.data;
+    }
+
+    public async updateExpense(expenseId: string, data: ExpenseUpdate): Promise<Expense> {
+        const response = await this.axiosInstance.put<Expense>(`/finance/expenses/${expenseId}`, data);
+        return response.data;
     }
 
     public async sendChatMessage(caseId: string, message: string, documentId?: string, jurisdiction?: string): Promise<string> { const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks' }); return response.data.response; }

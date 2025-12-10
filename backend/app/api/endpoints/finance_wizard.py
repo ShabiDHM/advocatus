@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/finance_wizard.py
-# PHOENIX PROTOCOL - FINANCE WIZARD ENDPOINT v2.0
-# 1. LOGIC: Calculates Annual Turnover (YTD) to determine VAT eligibility.
-# 2. INTEGRATION: Passes YTD data to KosovoTaxAdapter.
+# PHOENIX PROTOCOL - FINANCE WIZARD ENDPOINT v2.1 (LOCALIZATION)
+# 1. FIX: Translated Audit Messages to Albanian (SQ).
+# 2. LOGIC: Maintains YTD calculation and Tax Regime logic.
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -39,7 +39,7 @@ def _calculate_annual_turnover(invoices: list, current_year: int) -> float:
     """
     total = 0.0
     for inv in invoices:
-        # Skip cancelled or draft invoices if necessary, but usually Draft counts if Issued
+        # Skip cancelled invoices
         if inv.status == 'CANCELLED': 
             continue
             
@@ -49,36 +49,37 @@ def _calculate_annual_turnover(invoices: list, current_year: int) -> float:
 
 def _run_audit_rules(invoices: list, expenses: list) -> List[AuditIssue]:
     issues = []
-    # Rule 1: Missing Receipts
+    
+    # Rule 1: Missing Receipts (Mungon Fatura)
     for exp in expenses:
         if exp.amount > 10.0 and not exp.receipt_url:
             issues.append(AuditIssue(
                 id=f"missing_receipt_{exp.id}",
                 severity="WARNING",
-                message=f"Expense '{exp.category}' of €{exp.amount} has no receipt attached.",
+                message=f"Shpenzimi '{exp.category}' prej €{exp.amount} nuk ka faturë të bashkangjitur.",
                 related_item_id=str(exp.id),
                 item_type="EXPENSE"
             ))
     
-    # Rule 2: Unbilled Court Fees
+    # Rule 2: Unbilled Court Fees (Tarifat Gjyqësore të Pafaturuara)
     for exp in expenses:
         cat_lower = exp.category.lower() if exp.category else ""
         if "court" in cat_lower and not exp.related_case_id:
             issues.append(AuditIssue(
                 id=f"unlinked_court_fee_{exp.id}",
                 severity="CRITICAL",
-                message=f"Court Fee of €{exp.amount} is not linked to a Client Case (Unbilled).",
+                message=f"Taksa Gjyqësore prej €{exp.amount} nuk është lidhur me një Rast Klienti (E pafaturuar).",
                 related_item_id=str(exp.id),
                 item_type="EXPENSE"
             ))
 
-    # Rule 3: Draft Invoices
+    # Rule 3: Draft Invoices (Fatura në Draft)
     for inv in invoices:
         if inv.status == "DRAFT":
             issues.append(AuditIssue(
                 id=f"draft_invoice_{inv.id}",
                 severity="WARNING",
-                message=f"Invoice #{inv.invoice_number or '???'} is still in DRAFT.",
+                message=f"Fatura #{inv.invoice_number or '???'} është ende në statusin DRAFT (E pa lëshuar).",
                 related_item_id=str(inv.id),
                 item_type="INVOICE"
             ))
@@ -90,7 +91,7 @@ def _get_wizard_data(month: int, year: int, user: UserInDB) -> WizardState:
     """
     service = get_finance_service()
     
-    # 1. Fetch ALL data for the user (needed for YTD calculation)
+    # 1. Fetch ALL data for the user
     all_invoices = service.get_invoices(str(user.id))
     all_expenses = service.get_expenses(str(user.id))
     
@@ -99,7 +100,6 @@ def _get_wizard_data(month: int, year: int, user: UserInDB) -> WizardState:
     period_expenses = _filter_by_month(all_expenses, month, year)
 
     # 3. Calculate Annual Turnover (YTD)
-    # This determines if they are < €30k (Small Biz) or > €30k (VAT)
     annual_turnover = _calculate_annual_turnover(all_invoices, year)
 
     # 4. Run Tax Logic
@@ -108,7 +108,7 @@ def _get_wizard_data(month: int, year: int, user: UserInDB) -> WizardState:
         period_expenses, 
         month, 
         year, 
-        annual_turnover # <--- Passing YTD here
+        annual_turnover
     )
     
     tax_calc = TaxCalculation(**calculation_result)

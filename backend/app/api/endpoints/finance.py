@@ -1,16 +1,20 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - IMPORT PATH FIX
-# 1. FIX: Switched to absolute imports (app.services) to resolve module errors.
-# 2. STATUS: All dependencies correctly linked.
+# PHOENIX PROTOCOL - FINANCE ENDPOINTS V2 (EDIT SUPPORT)
+# 1. ADDED: PUT /invoices/{invoice_id} for full edits.
+# 2. ADDED: PUT /expenses/{expense_id} for editing expenses.
+# 3. FIX: Imported ExpenseUpdate model.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from fastapi.responses import StreamingResponse, JSONResponse
 from typing import List, Annotated, Optional
 from pymongo.database import Database
 
-# PHOENIX FIX: Absolute Imports
+# Absolute Imports
 from app.models.user import UserInDB
-from app.models.finance import InvoiceCreate, InvoiceOut, InvoiceUpdate, ExpenseCreate, ExpenseOut
+from app.models.finance import (
+    InvoiceCreate, InvoiceOut, InvoiceUpdate, 
+    ExpenseCreate, ExpenseOut, ExpenseUpdate
+)
 from app.models.archive import ArchiveItemOut 
 from app.services.finance_service import FinanceService
 from app.services.archive_service import ArchiveService
@@ -31,6 +35,16 @@ def create_invoice(invoice_in: InvoiceCreate, current_user: Annotated[UserInDB, 
 @router.get("/invoices/{invoice_id}", response_model=InvoiceOut)
 def get_invoice_details(invoice_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     return FinanceService(db).get_invoice(str(current_user.id), invoice_id)
+
+# NEW: Full Update Endpoint
+@router.put("/invoices/{invoice_id}", response_model=InvoiceOut)
+def update_invoice(
+    invoice_id: str, 
+    invoice_update: InvoiceUpdate, 
+    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    db: Database = Depends(get_db)
+):
+    return FinanceService(db).update_invoice(str(current_user.id), invoice_id, invoice_update)
 
 @router.put("/invoices/{invoice_id}/status", response_model=InvoiceOut)
 def update_invoice_status(invoice_id: str, status_update: InvoiceUpdate, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
@@ -92,6 +106,16 @@ def create_expense(expense_in: ExpenseCreate, current_user: Annotated[UserInDB, 
 @router.get("/expenses", response_model=List[ExpenseOut])
 def get_expenses(current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     return FinanceService(db).get_expenses(str(current_user.id))
+
+# NEW: Update Expense Endpoint
+@router.put("/expenses/{expense_id}", response_model=ExpenseOut)
+def update_expense(
+    expense_id: str, 
+    expense_update: ExpenseUpdate, 
+    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    db: Database = Depends(get_db)
+):
+    return FinanceService(db).update_expense(str(current_user.id), expense_id, expense_update)
 
 @router.delete("/expenses/{expense_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_expense(expense_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
