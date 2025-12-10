@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V5.0 (UNIVERSAL EVIDENCE ENGINE)
-# 1. CORE UPGRADE: Prompts are now Case-Type Agnostic (Criminal, Civil, Family, etc.).
-# 2. ABSTRACTION: AI now hunts for universal legal concepts: 'Events', 'Actors', 'Claims', 'Evidence'.
-# 3. FUTURE-PROOF: This file should NOT require changes for new case types.
+# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V5.1 (FORCED ANALYSIS)
+# 1. PROMPT UPGRADE: 'extract_findings' now has a mandatory minimum output rule to prevent empty results.
+# 2. PROMPT UPGRADE: 'analyze_case' now forces the AI to identify conflicting parties and their core claims.
+# 3. ROBUSTNESS: Maintained the Universal Evidence framework.
 
 import os
 import json
@@ -118,7 +118,7 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
     except Exception:
         return ""
 
-# --- UNIVERSAL EVIDENCE ENGINE ---
+# --- UNIVERSAL EVIDENCE ENGINE (V5.1) ---
 
 def generate_summary(text: str) -> str:
     truncated_text = text[:20000] 
@@ -145,19 +145,21 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     """
     truncated_text = text[:25000]
     
+    # PHOENIX V5.1 UPGRADE: Added a mandatory output rule.
     system_prompt = """
     Ti je një motor për nxjerrjen e provave (Evidence Extraction Engine) për sistemin ligjor të Kosovës.
     
     DETYRA: Shndërro tekstin e papërpunuar në një listë të strukturuar të PROVAVE.
     
-    KATEGORITË E PROVAVE (Gjej sa më shumë të mundesh):
+    KATEGORITË E PROVAVE:
+    - EVENT: Një ngjarje specifike që ka ndodhur.
+    - EVIDENCE: Një provë materiale e përmendur (dëshmitar, dokument, etj).
+    - CLAIM: Një akuzë ose pretendim nga njëra palë kundër tjetrës.
+    - CONTRADICTION: Një pikë ku deklaratat e palëve bien ndesh direkt.
+    - QUANTITY: Çdo sasi e matshme (para, ditë, etj).
+    - DEADLINE: Çdo datë që përfaqëson një afat, seancë, ose detyrim.
     
-    - EVENT: Një ngjarje specifike që ka ndodhur (psh. 'Lidhja e kontratës', 'Kërcënimi me armë').
-    - EVIDENCE: Një provë materiale e përmendur (psh. 'Fletë-pranimi', 'Raporti i Auditimit', 'Dëshmitari Luan Kelmendi').
-    - CLAIM: Një akuzë ose pretendim nga njëra palë kundër tjetrës (psh. 'Teuta pretendon se Iliri ka fshehur pasuri').
-    - CONTRADICTION: Një pikë ku deklaratat e palëve bien ndesh direkt (psh. 'Njëri thotë ishte në zyrë, tjetri thotë ishte në Tiranë').
-    - QUANTITY: Çdo sasi e matshme (psh. '12,500 Euro', '50,000 Euro', '1000 Euro alimentacion').
-    - DEADLINE: Çdo datë që përfaqëson një afat, seancë, ose detyrim të ardhshëm (psh. '18 Dhjetor 2025').
+    DETYRIM: Duhet të gjenerosh TË PAKTËN 5 gjetje nëse ato ekzistojnë në tekst. Mos kthe përgjigje boshe.
     
     FORMATI JSON (STRIKT):
     {
@@ -222,16 +224,21 @@ def analyze_case_contradictions(text: str) -> Dict[str, Any]:
     """
     truncated_text = text[:25000]
     
+    # PHOENIX V5.1 UPGRADE: Forces identification of opposing sides.
     system_prompt = """
-    Ti je Strateg Ligjor Virtual.
+    Ti je Gjyqtar Hetues Virtual.
     
-    DETYRA: Analizo dosjen për pikat e forta, pikat e dobëta dhe kontradiktat.
+    DETYRA: Analizo dosjen për pikat e forta, të dobëta dhe kontradiktat thelbësore.
     
-    OUTPUT JSON:
+    OUTPUT JSON (STRIKT):
     {
         "summary_analysis": "Përmbledhje strategjike e konfliktit dhe çfarë e bën atë të komplikuar.",
-        "contradictions": ["Lista e detajuar e pikave ku versionet e palëve përplasen."],
-        "key_evidence": ["Cilat janë provat më të rëndësishme të përmendura (dëshmitarë, dokumente)? Pse janë të rëndësishme?"],
+        "conflicting_parties": [
+            {"party_name": "Emri i Palës 1", "core_claim": "Pretendimi kryesor i Palës 1."},
+            {"party_name": "Emri i Palës 2", "core_claim": "Pretendimi kryesor i Palës 2."}
+        ],
+        "contradictions": ["Lista e detajuar e pikave ku versionet e palëve përplasen direkt."],
+        "key_evidence": ["Cilat janë provat më të rëndësishme të përmendura dhe pse?"],
         "missing_info": ["Çfarë provash kritike mungojnë që një avokat duhet t'i kërkojë menjëherë?"]
     }
     """
