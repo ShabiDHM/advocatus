@@ -1,8 +1,7 @@
 // FILE: src/pages/FinanceWizardPage.tsx
-// PHOENIX PROTOCOL - FINANCE WIZARD UI v1.3 (I18N FIX)
-// 1. FIX: Applied i18next translations to all UI elements.
-// 2. FIX: Localized month names in dropdown based on active language.
-// 3. UX: Improved error reporting.
+// PHOENIX PROTOCOL - FINANCE WIZARD UI v1.4 (DATE LOCALIZATION FIX)
+// 1. FIX: Uses 'date-fns' with 'sq' locale to enforce Albanian month names.
+// 2. CONSISTENCY: Matches the date behavior of BusinessPage.
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,8 +17,12 @@ import {
     Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next'; // PHOENIX: Import translation hook
+import { useTranslation } from 'react-i18next';
 import { apiService, WizardState, AuditIssue, TaxCalculation } from '../services/api';
+
+// PHOENIX: Date Localization Imports
+import { format } from 'date-fns';
+import { sq, enUS } from 'date-fns/locale';
 
 // --- COMPONENTS ---
 
@@ -184,6 +187,10 @@ const FinanceWizardPage = () => {
     const [selectedMonth, setSelectedMonth] = useState(today.getMonth() === 0 ? 12 : today.getMonth());
     const [selectedYear, setSelectedYear] = useState(today.getMonth() === 0 ? today.getFullYear() - 1 : today.getFullYear());
 
+    // PHOENIX: Localization Logic (Matches BusinessPage)
+    const localeMap: { [key: string]: any } = { sq, al: sq, en: enUS };
+    const currentLocale = localeMap[i18n.language] || enUS;
+
     useEffect(() => {
         fetchData();
     }, [selectedMonth, selectedYear]);
@@ -196,7 +203,6 @@ const FinanceWizardPage = () => {
             setState(data);
         } catch (error: any) {
             console.error("Failed to fetch wizard state", error);
-            // PHOENIX: Improved error feedback
             if (error.response?.status === 500) {
                 setErrorMsg(t('error.generic') + " (Server Error)");
             } else if (error.code === 'ERR_NETWORK') {
@@ -253,7 +259,7 @@ const FinanceWizardPage = () => {
                 <div className="flex-1 overflow-y-auto p-6 md:p-12">
                     <div className="max-w-4xl mx-auto">
                         
-                        {/* Month Selector - LOCALIZED */}
+                        {/* Month Selector - STRICTLY LOCALIZED */}
                         <div className="flex justify-center mb-8">
                             <select 
                                 value={selectedMonth}
@@ -262,8 +268,8 @@ const FinanceWizardPage = () => {
                             >
                                 {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
                                     <option key={m} value={m}>
-                                        {/* PHOENIX: Dynamic Date Localization */}
-                                        {new Date(0, m - 1).toLocaleString(i18n.language, { month: 'long' })}
+                                        {/* PHOENIX: Uses date-fns with 'sq' locale to guarantee 'Nëntor' */}
+                                        {format(new Date(2024, m - 1, 1), 'MMMM', { locale: currentLocale })}
                                     </option>
                                 ))}
                             </select>
@@ -346,7 +352,7 @@ const FinanceWizardPage = () => {
                                                 step === 1 ? 'text-gray-600 cursor-not-allowed' : 'text-gray-300 hover:bg-gray-800'
                                             }`}
                                         >
-                                            {t('general.cancel')} {/* Using Cancel/Back logic */}
+                                            {t('general.cancel')}
                                         </button>
                                         
                                         {step < 3 && (
