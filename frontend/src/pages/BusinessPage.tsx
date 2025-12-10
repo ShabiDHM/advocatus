@@ -1,7 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - REVISION 6 (TYPE FIX)
-// 1. FIX: Explicitly typed 'savedExpense' to resolve TS7034 error.
-// 2. STATUS: Fully compiled and ready.
+// PHOENIX PROTOCOL - REVISION 7 (STATUS EDIT)
+// 1. FEATURE: Added 'Status' dropdown to Invoice Edit Modal.
+// 2. LOGIC: Allows user to resolve 'DRAFT' audit warnings by changing status to 'SENT' or 'PAID'.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +10,7 @@ import {
     CreditCard, FileText, Plus, Download, Trash2, FolderOpen, File as FileIcon, 
     Briefcase, Eye, Archive, Camera, X, User, FolderPlus, Home, ChevronRight,
     FileImage, FileCode, Hash, Info, Calendar, TrendingUp, TrendingDown, Wallet, MinusCircle, Tag,
-    FolderInput, Paperclip, CheckCircle, Calculator, Edit2
+    FolderInput, Paperclip, CheckCircle, Calculator, Edit2, Activity
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiService, API_V1_URL, Expense, ExpenseCreateRequest } from '../services/api';
@@ -191,8 +191,9 @@ const BusinessPage: React.FC = () => {
     firm_name: '', email_public: '', phone: '', address: '', city: '', website: '', tax_id: '', branding_color: DEFAULT_COLOR
   });
   
+  // PHOENIX: Added 'status' to state
   const [newInvoice, setNewInvoice] = useState({ 
-      client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' 
+      client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '', status: 'DRAFT'
   });
   const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
   
@@ -376,7 +377,7 @@ const BusinessPage: React.FC = () => {
       }
   };
 
-  // --- EXPENSE HANDLERS (UPDATED) ---
+  // --- EXPENSE HANDLERS ---
   const handleEditExpense = (expense: Expense) => {
       setEditingExpenseId(expense.id);
       setNewExpense({
@@ -397,26 +398,22 @@ const BusinessPage: React.FC = () => {
               date: expenseDate ? expenseDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
           };
 
-          let savedExpense: Expense; // PHOENIX: Explicitly Typed
+          let savedExpense: Expense; 
           if (editingExpenseId) {
-              // Update
               savedExpense = await apiService.updateExpense(editingExpenseId, payload);
               setExpenses(expenses.map(e => e.id === editingExpenseId ? savedExpense : e));
           } else {
-              // Create
               savedExpense = await apiService.createExpense(payload);
               setExpenses([savedExpense, ...expenses]);
           }
 
           if (expenseReceipt && savedExpense.id) {
               await apiService.uploadExpenseReceipt(savedExpense.id, expenseReceipt);
-              // Optimistic update for receipt existence
               const finalExpense = { ...savedExpense, receipt_url: "PENDING_REFRESH" };
               setExpenses(prev => prev.map(e => e.id === finalExpense.id ? finalExpense : e));
           }
 
           setShowExpenseModal(false);
-          // Reset
           setEditingExpenseId(null);
           setNewExpense({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0] });
           setExpenseDate(new Date());
@@ -523,17 +520,17 @@ const BusinessPage: React.FC = () => {
   
   const handleEditInvoice = (invoice: Invoice) => {
       setEditingInvoiceId(invoice.id);
-      // Pre-fill form
       setNewInvoice({
           client_name: invoice.client_name,
           client_email: invoice.client_email || '',
-          client_address: invoice.client_address || '', // Might contain merged address/phone
-          client_phone: '', // Can't easily parse back if merged, user can re-enter
+          client_address: invoice.client_address || '', 
+          client_phone: '', 
           client_city: '',
           client_tax_id: '',
           client_website: '',
           tax_rate: invoice.tax_rate,
-          notes: invoice.notes || ''
+          notes: invoice.notes || '',
+          status: invoice.status // PHOENIX: Load existing status
       });
       setLineItems(invoice.items);
       setShowInvoiceModal(true);
@@ -556,15 +553,14 @@ const BusinessPage: React.FC = () => {
               client_address: fullAddressBlock, 
               items: lineItems, 
               tax_rate: newInvoice.tax_rate, 
-              notes: newInvoice.notes 
+              notes: newInvoice.notes,
+              status: newInvoice.status // PHOENIX: Send status update
           };
           
           if (editingInvoiceId) {
-              // Update
               const updatedInv = await apiService.updateInvoice(editingInvoiceId, payload);
               setInvoices(invoices.map(i => i.id === editingInvoiceId ? updatedInv : i));
           } else {
-              // Create
               const inv = await apiService.createInvoice(payload);
               setInvoices([inv, ...invoices]);
           }
@@ -578,7 +574,7 @@ const BusinessPage: React.FC = () => {
   const closeInvoiceModal = () => {
       setShowInvoiceModal(false);
       setEditingInvoiceId(null);
-      setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '' });
+      setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '', status: 'DRAFT' });
       setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
   };
 
@@ -604,6 +600,7 @@ const BusinessPage: React.FC = () => {
         </div>
       </div>
 
+      {/* ... Profile Tab ... */}
       {activeTab === 'profile' && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-8"><div className="bg-background-dark border border-glass-edge rounded-3xl p-8 flex flex-col items-center shadow-xl relative overflow-hidden group"><div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" /><h3 className="text-white font-bold mb-8 self-start text-lg">{t('business.logoIdentity')}</h3><div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}><div className={`w-40 h-40 rounded-full overflow-hidden flex items-center justify-center border-4 transition-all shadow-2xl ${logoSrc ? 'border-white/20' : 'border-dashed border-gray-700 hover:border-primary-start'}`}>{logoLoading ? <Loader2 className="w-10 h-10 animate-spin text-primary-start" /> : logoSrc ? <img src={logoSrc} alt="Logo" className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" onError={() => setLogoSrc(null)} /> : <div className="text-center group-hover:scale-110 transition-transform"><Upload className="w-10 h-10 text-gray-600 mx-auto mb-2" /><span className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('business.upload')}</span></div>}</div><div className="absolute inset-0 rounded-full bg-black/60 backdrop-blur-[2px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"><Camera className="w-10 h-10 text-white drop-shadow-lg" /></div></div><input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" /></div><div className="bg-background-dark border border-glass-edge rounded-3xl p-8 shadow-xl relative overflow-hidden"><div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-pink-500 to-purple-600" /><h3 className="text-white font-bold mb-6 flex items-center gap-2"><Palette className="w-5 h-5 text-purple-400" /> {t('business.branding')}</h3><div className="flex items-center gap-4 mb-6"><div className="relative overflow-hidden w-16 h-16 rounded-2xl border-2 border-white/10 shadow-inner"><input type="color" value={formData.branding_color || DEFAULT_COLOR} onChange={(e) => setFormData({...formData, branding_color: e.target.value})} className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] cursor-pointer" /></div><div className="flex-1"><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-lg">#</span><input type="text" value={(formData.branding_color || DEFAULT_COLOR).replace('#', '')} onChange={(e) => setFormData({...formData, branding_color: `#${e.target.value}`})} className="w-full bg-background-light/50 border border-glass-edge rounded-xl pl-8 pr-4 py-3 text-white font-mono uppercase focus:ring-2 focus:ring-primary-start outline-none transition-all" /></div></div></div><button className="w-full py-3 rounded-xl text-white font-bold text-sm shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2" style={{ backgroundColor: formData.branding_color || DEFAULT_COLOR }}><Save className="w-4 h-4" />{t('business.saveColor')}</button></div></div>
@@ -644,7 +641,28 @@ const BusinessPage: React.FC = () => {
 
       {/* --- MODALS --- */}
       {showFolderModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-3xl w-full max-w-sm p-8 shadow-2xl scale-100"><div className="flex justify-between items-center mb-6"><h3 className="text-xl font-bold text-white">{t('archive.newFolderTitle')}</h3><button onClick={() => setShowFolderModal(false)} className="text-gray-500 hover:text-white"><X size={24}/></button></div><form onSubmit={handleCreateFolder}><div className="relative mb-5"><FolderOpen className="absolute left-4 top-3.5 w-6 h-6 text-amber-500" /><input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t('archive.folderNamePlaceholder')} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-white text-lg focus:ring-2 focus:ring-amber-500/50 outline-none transition-all placeholder:text-gray-600" /></div><div className="relative mb-8"><Tag className="absolute left-4 top-3.5 w-5 h-5 text-gray-500" /><select value={newFolderCategory} onChange={(e) => setNewFolderCategory(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-gray-300 focus:ring-2 focus:ring-amber-500/50 outline-none appearance-none cursor-pointer"><option value="GENERAL">{t('general.general')}</option><option value="EVIDENCE">Evidence</option><option value="LEGAL_DOCS">Legal Docs</option><option value="INVOICES">Invoices</option><option value="CONTRACTS">Contracts</option></select></div><div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-white rounded-xl font-bold shadow-lg shadow-amber-500/20 transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div></form></div></div>)}
-      {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{editingInvoiceId ? 'Ndrysho Faturën' : t('finance.createInvoice')}</h2><button onClick={closeInvoiceModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateOrUpdateInvoice} className="space-y-6"><div className="space-y-4"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-sm text-gray-300 mb-1">Emri</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">Email</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">Telefon</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} placeholder="NUI / Fiscal No." /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.website')} <span className="text-gray-500 text-xs">(Opsional)</span></label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_website} onChange={e => setNewInvoice({...newInvoice, client_website: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">Adresa</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> Shërbimet</h3>{lineItems.map((item, index) => (<div key={index} className="flex gap-2 items-center"><input type="text" placeholder="Përshkrimi" className="flex-1 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder="Sasia" className="w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder="Çmimi" className="w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> Shto Rresht</button></div><div className="flex justify-end gap-3"><button type="button" onClick={closeInvoiceModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
+      {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 shadow-2xl [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-700 [&::-webkit-scrollbar-thumb]:rounded-full"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{editingInvoiceId ? 'Ndrysho Faturën' : t('finance.createInvoice')}</h2><button onClick={closeInvoiceModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateOrUpdateInvoice} className="space-y-6"><div className="space-y-4">
+          
+          {/* PHOENIX: Status Dropdown (Only Visible when Editing) */}
+          {editingInvoiceId && (
+              <div className="bg-white/5 p-4 rounded-xl border border-white/10 mb-4">
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                      <Activity size={14} /> Statusi i Faturës
+                  </label>
+                  <select 
+                      value={newInvoice.status} 
+                      onChange={(e) => setNewInvoice({...newInvoice, status: e.target.value})}
+                      className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary-start"
+                  >
+                      <option value="DRAFT">Draft (E pa lëshuar)</option>
+                      <option value="SENT">E Dërguar (Sent)</option>
+                      <option value="PAID">E Paguar (Paid)</option>
+                      <option value="CANCELLED">E Anuluar</option>
+                  </select>
+              </div>
+          )}
+
+          <h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-sm text-gray-300 mb-1">Emri</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">Email</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">Telefon</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} placeholder="NUI / Fiscal No." /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.website')} <span className="text-gray-500 text-xs">(Opsional)</span></label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_website} onChange={e => setNewInvoice({...newInvoice, client_website: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">Adresa</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> Shërbimet</h3>{lineItems.map((item, index) => (<div key={index} className="flex gap-2 items-center"><input type="text" placeholder="Përshkrimi" className="flex-1 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder="Sasia" className="w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder="Çmimi" className="w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> Shto Rresht</button></div><div className="flex justify-end gap-3"><button type="button" onClick={closeInvoiceModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
       {showExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-white flex items-center gap-2"><MinusCircle size={20} className="text-rose-500" /> {editingExpenseId ? 'Ndrysho Shpenzimin' : t('finance.addExpense')}</h2><button onClick={closeExpenseModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><div className="mb-6"><input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => setExpenseReceipt(e.target.files?.[0] || null)} /><button onClick={() => receiptInputRef.current?.click()} className={`w-full py-3 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all font-medium ${expenseReceipt ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>{expenseReceipt ? (<><CheckCircle size={18} /> {expenseReceipt.name}</>) : (<><Paperclip size={18} /> {t('finance.attachReceipt')}</>)}</button></div><form onSubmit={handleCreateOrUpdateExpense} className="space-y-5"><div><label className="block text-sm text-gray-300 mb-1">{t('finance.expenseCategory')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.category} onChange={e => setNewExpense({...newExpense, category: e.target.value})} placeholder={t('finance.expenseCategoryPlaceholder')} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.amount')}</label><input required type="number" step="0.01" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: parseFloat(e.target.value)})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.date')}</label><DatePicker selected={expenseDate} onChange={(date: Date | null) => setExpenseDate(date)} locale={currentLocale} dateFormat="dd/MM/yyyy" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary-start" required /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.description')}</label><textarea rows={3} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})} /></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={closeExpenseModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
       {showArchiveInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl"><h2 className="text-xl font-bold text-white mb-4">{t('finance.archiveInvoice')}</h2><div className="space-y-3 mb-6"><label className="block text-sm text-gray-400 mb-1">{t('drafting.selectCaseLabel')}</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id}>{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold">{t('general.save')}</button></div></div></div>)}
       {showArchiveExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl"><h2 className="text-xl font-bold text-white mb-4">{t('finance.archiveExpenseTitle')}</h2><div className="space-y-3 mb-6"><label className="block text-sm text-gray-400 mb-1">{t('drafting.selectCaseLabel')}</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-start" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id}>{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveExpenseModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">{t('general.cancel')}</button><button onClick={submitArchiveExpense} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold">{t('general.save')}</button></div></div></div>)}
