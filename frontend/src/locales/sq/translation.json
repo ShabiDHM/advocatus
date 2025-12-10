@@ -25,8 +25,8 @@
     "general": "Të Përgjithshme"
   },
   "auth": {
-    "loginTitle": "Hyni në Juristi AI",
-    "loginSubtitle": "Menaxhoni çështjet ligjore me inteligjencë.",
+    "loginTitle": "Hyni",
+    "loginSubtitle": "Menaxhoni çështjet me inteligjencë.",
     "usernameOrEmail": "Përdoruesi ose Email",
     "usernameOrEmailPlaceholder": "psh: blerim ose blerim@example.com",
     "password": "Fjalëkalimi",
@@ -56,11 +56,11 @@
     "heroSubtitle": "Analizoni kontrata, menaxhoni raste dhe gjeneroni dokumente me fuqinë e AI.",
     "getStarted": "Fillo Falas",
     "feature1Title": "Analizë e Sigurt",
-    "feature1Desc": "Skanoni dokumente për rreziqe ligjore dhe shkelje të kodit civil/penal.",
+    "feature1Desc": "Skanoni dokumente për rreziqe ligjore dhe shkelje të kodeve ligjore.",
     "feature2Title": "AI Sokratike",
     "feature2Desc": "Bisedoni me dokumentet tuaja. Bëni pyetje dhe merrni përgjigje me citime.",
     "feature3Title": "Hartim Inteligjent",
-    "feature3Desc": "Krijoni kontrata dhe padi të personalizuara bazuar në shabllone të verifikuara."
+    "feature3Desc": "Krijoni kontrata dhe padi të personalizuara."
   },
   "sidebar": {
     "dashboard": "Paneli",
@@ -114,7 +114,7 @@
     "title": "Dokumentet",
     "uploadDocument": "Ngarko Dokument",
     "uploadFolder": "Ngarko Folder",
-    "uploadFolderTooltip": "Ngarko një folder të tërë me dokumente",
+    "uploadFolderTooltip": "Ngarko një skader të tërë me dokumente",
     "noDocuments": "Asnjë dokument i ngarkuar.",
     "statusPending": "Në proces...",
     "statusCompleted": "Përfunduar",
@@ -129,7 +129,7 @@
     "uploadFailed": "Ngarkimi dështoi",
     "deleteFailed": "Fshirja dështoi.",
     "uploaded": "Ngarkuar",
-    "deepScan": "Skanim i Thellë (Vision AI)",
+    "deepScan": "Skanim i Thellë",
     "scanStarted": "Skanimi i Thellë filloi! Kontrolloni gjetjet pas pak.",
     "rename": "Emërto",
     "renameTitle": "Emërto Dokumentin",
