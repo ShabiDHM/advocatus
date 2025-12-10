@@ -1,7 +1,7 @@
 # FILE: backend/scripts/sync_findings.py
-# PHOENIX PROTOCOL - MEMORY SYNC UTILITY V1.1 (AUTH FIX)
-# 1. FIX: Added MongoDB Authentication support using environment variables.
-# 2. LOGIC: Constructs a secure connection string (mongodb://user:pass@host...).
+# PHOENIX PROTOCOL - MEMORY SYNC UTILITY V1.2 (AUTH SOURCE FIX)
+# 1. FIX: Added MONGO_AUTH_SOURCE to specify which database to authenticate against.
+# 2. RESULT: Resolves the 'command find requires authentication' error.
 
 import os
 import sys
@@ -22,15 +22,16 @@ MONGO_PORT = os.getenv("MONGO_PORT", "27017")
 MONGO_USER = os.getenv("MONGO_USER")
 MONGO_PASSWORD = os.getenv("MONGO_PASSWORD")
 DB_NAME = os.getenv("MONGO_DB_NAME", "advocatus")
+# PHOENIX FIX: Specify the authentication database. Often 'admin' or the app DB itself.
+MONGO_AUTH_SOURCE = os.getenv("MONGO_AUTH_SOURCE", "admin") 
 
 # Construct Secure URL
 if MONGO_USER and MONGO_PASSWORD:
-    # URL encode credentials to handle special characters
     username = urllib.parse.quote_plus(MONGO_USER)
     password = urllib.parse.quote_plus(MONGO_PASSWORD)
-    MONGO_URL = f"mongodb://{username}:{password}@{MONGO_HOST}:{MONGO_PORT}/"
+    # The 'authSource' parameter is the critical fix
+    MONGO_URL = f"mongodb://{username}:{password}@{MONGO_HOST}:{MONGO_PORT}/?authSource={MONGO_AUTH_SOURCE}"
 else:
-    # Fallback to direct URL if provided, or unauthenticated default
     MONGO_URL = os.getenv("MONGO_URL", f"mongodb://{MONGO_HOST}:{MONGO_PORT}/")
 
 def sync_memory():
@@ -58,12 +59,11 @@ def sync_memory():
 
         print(f"📊 Found {len(findings)} findings. Initiating Transfer to Vector Store...")
 
-        # 3. Import Service (Lazy load to avoid startup conflicts)
+        # 3. Import Service (Lazy load)
         try:
             from app.services.vector_store_service import store_structured_findings
         except ImportError as ie:
             print(f"❌ Import Error: {ie}")
-            print("Ensure you are running this inside the docker container.")
             return
         
         # 4. Clean & Normalize Data
