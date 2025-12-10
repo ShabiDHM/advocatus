@@ -1,7 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - REVISION 7 (STATUS EDIT)
-// 1. FEATURE: Added 'Status' dropdown to Invoice Edit Modal.
-// 2. LOGIC: Allows user to resolve 'DRAFT' audit warnings by changing status to 'SENT' or 'PAID'.
+// PHOENIX PROTOCOL - REVISION 8 (STYLING & I18N)
+// 1. STYLE: Invoice Status dropdown now matches application theme (Dark Mode).
+// 2. I18N: Replaced hardcoded status text with translation keys.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -191,7 +191,6 @@ const BusinessPage: React.FC = () => {
     firm_name: '', email_public: '', phone: '', address: '', city: '', website: '', tax_id: '', branding_color: DEFAULT_COLOR
   });
   
-  // PHOENIX: Added 'status' to state
   const [newInvoice, setNewInvoice] = useState({ 
       client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '', status: 'DRAFT'
   });
@@ -377,7 +376,7 @@ const BusinessPage: React.FC = () => {
       }
   };
 
-  // --- EXPENSE HANDLERS ---
+  // --- EXPENSE HANDLERS (UPDATED) ---
   const handleEditExpense = (expense: Expense) => {
       setEditingExpenseId(expense.id);
       setNewExpense({
@@ -398,22 +397,26 @@ const BusinessPage: React.FC = () => {
               date: expenseDate ? expenseDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
           };
 
-          let savedExpense: Expense; 
+          let savedExpense: Expense; // PHOENIX: Explicitly Typed
           if (editingExpenseId) {
+              // Update
               savedExpense = await apiService.updateExpense(editingExpenseId, payload);
               setExpenses(expenses.map(e => e.id === editingExpenseId ? savedExpense : e));
           } else {
+              // Create
               savedExpense = await apiService.createExpense(payload);
               setExpenses([savedExpense, ...expenses]);
           }
 
           if (expenseReceipt && savedExpense.id) {
               await apiService.uploadExpenseReceipt(savedExpense.id, expenseReceipt);
+              // Optimistic update for receipt existence
               const finalExpense = { ...savedExpense, receipt_url: "PENDING_REFRESH" };
               setExpenses(prev => prev.map(e => e.id === finalExpense.id ? finalExpense : e));
           }
 
           setShowExpenseModal(false);
+          // Reset
           setEditingExpenseId(null);
           setNewExpense({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0] });
           setExpenseDate(new Date());
@@ -652,12 +655,12 @@ const BusinessPage: React.FC = () => {
                   <select 
                       value={newInvoice.status} 
                       onChange={(e) => setNewInvoice({...newInvoice, status: e.target.value})}
-                      className="w-full bg-black/40 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary-start"
+                      className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white focus:outline-none focus:border-primary-start"
                   >
-                      <option value="DRAFT">Draft (E pa lëshuar)</option>
-                      <option value="SENT">E Dërguar (Sent)</option>
-                      <option value="PAID">E Paguar (Paid)</option>
-                      <option value="CANCELLED">E Anuluar</option>
+                      <option value="DRAFT">{t('finance.status.draft')}</option>
+                      <option value="SENT">{t('finance.status.sent')}</option>
+                      <option value="PAID">{t('finance.status.paid')}</option>
+                      <option value="CANCELLED">{t('finance.status.cancelled')}</option>
                   </select>
               </div>
           )}

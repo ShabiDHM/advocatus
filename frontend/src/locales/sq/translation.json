@@ -230,6 +230,12 @@
     "amount": "Shuma (€)",
     "date": "Data",
     "description": "Përshkrimi",
+    "status": {
+      "draft": "Draft (E pa lëshuar)",
+      "sent": "E Dërguar",
+      "paid": "E Paguar",
+      "cancelled": "E Anuluar"
+    },
     "wizard": {
       "back": "Kthehu te Financat",
       "stepAudit": "Auditimi",
