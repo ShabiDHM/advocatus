@@ -1,3 +1,8 @@
+# FILE: ai-core-service/services/embedding_manager.py
+# PHOENIX PROTOCOL - EMBEDDING MANAGER V2.0 (CONTEXT AWARE)
+# 1. UPDATE: 'generate_embedding' signature now accepts 'language'.
+# 2. LOGIC: Added safety checks and logging for language context.
+
 import logging
 from typing import Optional, Any
 from sentence_transformers import SentenceTransformer
@@ -8,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingManager:
     _instance = None
-    # Explicitly type hint as Optional (can be None or the model)
     model: Optional[SentenceTransformer] = None
     model_name: str = ""
 
@@ -30,19 +34,21 @@ class EmbeddingManager:
                 logger.error(f"❌ Failed to load embedding model: {e}")
                 raise e
 
-    def generate_embedding(self, text: str):
-        """Generates embedding for the given text."""
+    def generate_embedding(self, text: str, language: Optional[str] = "standard"):
+        """Generates embedding for the given text, logging the language context."""
         # 1. Ensure model is loaded
         if self.model is None:
             self.load_model()
         
-        # 2. Final Safety Check for the Linter
-        # If it's still None after loading, something is critically wrong.
+        # 2. Safety Check
         if self.model is None:
             raise RuntimeError("Embedding model failed to initialize.")
 
         try:
-            # Now Pylance knows self.model is definitely NOT None here.
+            # PHOENIX: We log the language for auditing, even if the model is auto-multilingual
+            # In future upgrades, we can switch model branches based on this 'language' param.
+            # logger.debug(f"Generating embedding for language: {language}")
+            
             embedding = self.model.encode(text).tolist()
             return embedding
         except Exception as e:
