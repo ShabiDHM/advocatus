@@ -1,8 +1,7 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REVISION 3 (ROBUSTNESS UPDATE)
-# 1. FIX: "Physical File Discovery" for logos. Searches disk directly to bypass Docker DNS issues.
-# 2. FIX: "Smart Labeling" for Address block. Forces 'Adresa:' and 'Email:' prefixes on raw text.
-# 3. CLEANUP: Refactored image processing into a safe helper function.
+# PHOENIX PROTOCOL - REPORT SERVICE V4.0 (CURRENCY SAFETY)
+# 1. FIX: Replaced '€' symbol with 'EUR' to prevent encoding crashes on standard Helvetica fonts.
+# 2. STATUS: Ensures safe PDF generation for all financial documents.
 
 import io
 import os
@@ -71,7 +70,6 @@ def _get_branding(db: Database, user_id: str) -> dict:
         try: oid = ObjectId(user_id)
         except: oid = user_id
         
-        # Try finding by ObjectId first, then string
         profile = db.business_profiles.find_one({"user_id": oid})
         if not profile:
             profile = db.business_profiles.find_one({"user_id": str(user_id)})
@@ -92,13 +90,10 @@ def _get_branding(db: Database, user_id: str) -> dict:
         logger.error(f"Branding fetch failed: {e}")
     return {"firm_name": "Juristi.tech", "branding_color": BRAND_COLOR_DEFAULT}
 
-# --- LOGO LOGIC (ROBUST) ---
-
+# --- LOGO LOGIC ---
 def _process_image_bytes(data: bytes) -> Optional[io.BytesIO]:
-    """Helper to convert raw bytes into a ReportLab-friendly JPEG buffer."""
     try:
         img = PILImage.open(io.BytesIO(data))
-        # Handle Transparency (RGBA/P) -> RGB with White Background
         if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
             bg = PILImage.new("RGB", img.size, (255, 255, 255))
             if img.mode == 'P': img = img.convert('RGBA')
@@ -116,37 +111,23 @@ def _process_image_bytes(data: bytes) -> Optional[io.BytesIO]:
         return None
 
 def _fetch_logo_buffer(url: Optional[str], storage_key: Optional[str] = None) -> Optional[io.BytesIO]:
-    """
-    Strategies to find the logo:
-    1. Disk Search (Most Robust in Docker): Maps URL to local file system.
-    2. Storage Service: Uses the abstract stream.
-    3. HTTP Request: Last resort fallback.
-    """
     if not url and not storage_key: return None
 
-    # STRATEGY 1: DISK SEARCH (Bypasses Network)
     if url and "static" in url:
-        # Clean the path to find it on the container disk
-        # e.g., "http://localhost:8000/static/uploads/logo.png" -> "/app/static/uploads/logo.png"
-        clean_path = url.split("static/", 1)[-1] # Get everything after static/
-        
+        clean_path = url.split("static/", 1)[-1] 
         candidates = [
-            f"/app/static/{clean_path}",      # Standard Docker
-            f"app/static/{clean_path}",       # Relative
-            f"static/{clean_path}",           # Relative root
-            f"/usr/src/app/static/{clean_path}" # Common Node/Python path
+            f"/app/static/{clean_path}",      
+            f"app/static/{clean_path}",       
+            f"static/{clean_path}",           
+            f"/usr/src/app/static/{clean_path}" 
         ]
-
         for cand in candidates:
             if os.path.exists(cand):
                 try:
                     with open(cand, "rb") as f:
-                        logger.info(f"PDF: Loaded logo from disk: {cand}")
                         return _process_image_bytes(f.read())
-                except Exception as e:
-                    logger.warning(f"PDF: Found file {cand} but failed to read: {e}")
+                except Exception: pass
 
-    # STRATEGY 2: STORAGE SERVICE
     if storage_key:
         try:
             stream = storage_service.get_file_stream(storage_key)
@@ -154,10 +135,9 @@ def _fetch_logo_buffer(url: Optional[str], storage_key: Optional[str] = None) ->
             if isinstance(stream, bytes): return _process_image_bytes(stream)
         except Exception: pass
 
-    # STRATEGY 3: HTTP FALLBACK (Low Timeout)
     if url and url.startswith("http"):
         try:
-            response = requests.get(url, timeout=2) # 2s timeout to avoid hanging
+            response = requests.get(url, timeout=2) 
             if response.status_code == 200:
                 return _process_image_bytes(response.content)
         except Exception: pass
@@ -215,7 +195,6 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     brand_color = HexColor(branding.get("branding_color", BRAND_COLOR_DEFAULT))
     Story: List[Flowable] = []
 
-    # 1. HEADER (Logo + Firm Details)
     logo_buffer = _fetch_logo_buffer(branding.get("logo_url"), branding.get("logo_storage_key"))
     logo_obj = Spacer(0, 0)
     if logo_buffer:
@@ -232,7 +211,6 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     firm_content: List[Flowable] = []
     if branding.get("firm_name"): firm_content.append(Paragraph(str(branding.get("firm_name")), STYLES['FirmName']))
     
-    # Iterate known fields to ensure labels
     for key, label_key in [("address", "lbl_address"), ("nui", "lbl_nui"), ("email_public", "lbl_email"), ("phone", "lbl_tel"), ("website", "lbl_web")]:
         val = branding.get(key)
         if val: firm_content.append(Paragraph(f"<b>{_get_text(label_key, lang)}</b> {val}", STYLES['FirmMeta']))
@@ -240,7 +218,6 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     Story.append(Table([[logo_obj, firm_content]], colWidths=[100*mm, 80*mm], style=[('VALIGN', (0,0), (-1,-1), 'TOP')]))
     Story.append(Spacer(1, 15*mm))
 
-    # 2. INVOICE META
     meta_data = [
         [Paragraph(f"{_get_text('invoice_num', lang)} {invoice.invoice_number}", STYLES['MetaValue'])],
         [Spacer(1, 3*mm)],
@@ -251,42 +228,23 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     Story.append(Table([[Paragraph(_get_text('invoice_title', lang), STYLES['H1']), Table(meta_data, colWidths=[80*mm], style=[('ALIGN', (0,0), (-1,-1), 'RIGHT')])]], colWidths=[100*mm, 80*mm], style=[('VALIGN', (0,0), (-1,-1), 'TOP')]))
     Story.append(Spacer(1, 15*mm))
 
-    # 3. CLIENT DETAILS (SMART LABELING)
     client_content: List[Flowable] = []
     client_content.append(Paragraph(f"<b>{invoice.client_name}</b>", STYLES['AddressText']))
     
-    # Split raw address block
     raw_addr = invoice.client_address or ""
     lines = [l.strip() for l in raw_addr.split('\n') if l.strip()]
-    
     labeled_address = False
-    
     for line in lines:
-        # Check if line already starts with a label (case insensitive)
         if re.match(r'^(Tel|NUI|Email|Web|Adresa|Mob|Nr\.|Fiscal)[:.]', line, re.IGNORECASE):
-            # Already formatted, just print
             formatted = line
-            # Force bolding the label part if not bolded
-            if ':' in line:
-                parts = line.split(':', 1)
-                formatted = f"<b>{parts[0].strip()}:</b> {parts[1].strip()}"
+            if ':' in line: parts = line.split(':', 1); formatted = f"<b>{parts[0].strip()}:</b> {parts[1].strip()}"
         else:
-            # Heuristic guessing
-            if '@' in line:
-                formatted = f"<b>{_get_text('lbl_email', lang)}</b> {line}"
-            elif line.lower().startswith('www') or line.lower().startswith('http'):
-                formatted = f"<b>{_get_text('lbl_web', lang)}</b> {line}"
-            elif not labeled_address:
-                # First unknown line is assumed to be Address
-                formatted = f"<b>{_get_text('lbl_address', lang)}</b> {line}"
-                labeled_address = True
-            else:
-                # Subsequent unknown lines (e.g. City) just print as is
-                formatted = line
-        
+            if '@' in line: formatted = f"<b>{_get_text('lbl_email', lang)}</b> {line}"
+            elif line.lower().startswith('www') or line.lower().startswith('http'): formatted = f"<b>{_get_text('lbl_web', lang)}</b> {line}"
+            elif not labeled_address: formatted = f"<b>{_get_text('lbl_address', lang)}</b> {line}"; labeled_address = True
+            else: formatted = line
         client_content.append(Paragraph(formatted, STYLES['AddressText']))
 
-    # If email exists in DB but wasn't in the text block
     if invoice.client_email and '@' not in raw_addr:
         client_content.append(Paragraph(f"<b>{_get_text('lbl_email', lang)}</b> {invoice.client_email}", STYLES['AddressText']))
 
@@ -295,15 +253,15 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     Story.append(t_addr)
     Story.append(Spacer(1, 10*mm))
 
-    # 4. ITEMS
     headers = [_get_text('desc', lang), _get_text('qty', lang), _get_text('price', lang), _get_text('total', lang)]
     data = [[Paragraph(h, STYLES['TableHeader']) for h in headers]]
     for item in invoice.items:
+        # PHOENIX FIX: Switched '€' to 'EUR'
         data.append([
             Paragraph(item.description, STYLES['TableCell']),
             Paragraph(str(item.quantity), STYLES['TableCellRight']),
-            Paragraph(f"€{item.unit_price:,.2f}", STYLES['TableCellRight']),
-            Paragraph(f"€{item.total:,.2f}", STYLES['TableCellRight']),
+            Paragraph(f"{item.unit_price:,.2f} EUR", STYLES['TableCellRight']),
+            Paragraph(f"{item.total:,.2f} EUR", STYLES['TableCellRight']),
         ])
     t_items = Table(data, colWidths=[95*mm, 20*mm, 30*mm, 35*mm])
     t_items.setStyle(TableStyle([
@@ -316,16 +274,14 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     ]))
     Story.append(t_items)
 
-    # 5. TOTALS
     totals_data = [
-        [Paragraph(_get_text('subtotal', lang), STYLES['TotalLabel']), Paragraph(f"€{invoice.subtotal:,.2f}", STYLES['TotalLabel'])],
-        [Paragraph(_get_text('tax', lang), STYLES['TotalLabel']), Paragraph(f"€{invoice.tax_amount:,.2f}", STYLES['TotalLabel'])],
-        [Paragraph(f"<b>{_get_text('total', lang)}</b>", STYLES['TotalValue']), Paragraph(f"<b>€{invoice.total_amount:,.2f}</b>", STYLES['TotalValue'])],
+        [Paragraph(_get_text('subtotal', lang), STYLES['TotalLabel']), Paragraph(f"{invoice.subtotal:,.2f} EUR", STYLES['TotalLabel'])],
+        [Paragraph(_get_text('tax', lang), STYLES['TotalLabel']), Paragraph(f"{invoice.tax_amount:,.2f} EUR", STYLES['TotalLabel'])],
+        [Paragraph(f"<b>{_get_text('total', lang)}</b>", STYLES['TotalValue']), Paragraph(f"<b>{invoice.total_amount:,.2f} EUR</b>", STYLES['TotalValue'])],
     ]
     t_totals = Table(totals_data, colWidths=[40*mm, 35*mm], style=[('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('LINEABOVE', (0, 2), (1, 2), 1.5, COLOR_PRIMARY_TEXT), ('TOPPADDING', (0, 2), (1, 2), 6)])
     Story.append(Table([["", t_totals]], colWidths=[110*mm, 75*mm], style=[('ALIGN', (1,0), (1,0), 'RIGHT')]))
 
-    # 6. NOTES
     if invoice.notes:
         Story.append(Spacer(1, 10*mm))
         Story.append(Paragraph(_get_text('notes', lang), STYLES['NotesLabel']))
@@ -350,7 +306,16 @@ def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, us
     else:
         for i, f in enumerate(findings, 1):
             Story.append(Paragraph(f"{_get_text('finding', lang)} #{i}: {escape(f.get('document_name', ''))}", STYLES['h3']))
-            Story.append(Paragraph(escape(f.get('finding_text', '')).replace('\n', '<br/>'), STYLES['Normal']))
+            # Ensure text is encoded properly for ReportLab default fonts
+            text = f.get('finding_text', '')
+            try:
+                # Basic check to prevent encoding crash, though Helvetica handles most latin-1 chars
+                text.encode('latin-1')
+            except UnicodeEncodeError:
+                # Fallback: Replace unknown chars if they exist
+                text = text.encode('ascii', 'xmlcharrefreplace').decode('ascii')
+                
+            Story.append(Paragraph(escape(text).replace('\n', '<br/>'), STYLES['Normal']))
             Story.append(Spacer(1, 5 * mm))
     doc.build(Story); buffer.seek(0); return buffer
 

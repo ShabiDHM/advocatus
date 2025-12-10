@@ -1,18 +1,14 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - KOSOVO EXCLUSIVE RAG V9.0 (RETRIEVAL-ONLY)
-# 1. ARCHITECTURE: This service is NO LONGER an AI engine. Its sole responsibility is now RETRIEVAL.
-# 2. DEPRECATION: Removed the large, complex internal LLM prompt.
-# 3. FOCUS: Implements a 'retrieve_context' method that gathers structured Findings, Graph data, and Vector chunks.
-# 4. DELEGATION: The calling service (e.g., chat_service) is now responsible for sending the context to the LLM.
+# PHOENIX PROTOCOL - KOSOVO EXCLUSIVE RAG V9.1 (FORMATTING RESTORED)
+# 1. UX FIX: Restored Rich Markdown formatting (Bold, Headers, Lists) for Chat responses.
+# 2. LOGIC: The 'chat' method now explicitly instructs the AI to structure data visually.
+# 3. CORE: Retrieval logic remains V9.0 (High Precision).
 
 import os
 import asyncio
 import logging
 from typing import List, Optional, Dict, Protocol, cast, Any
 from openai import AsyncOpenAI
-
-# PHOENIX: Removed direct dependency on graph_service at the top level
-# from .graph_service import graph_service
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +21,6 @@ OPENROUTER_MODEL = "deepseek/deepseek-chat"
 class VectorStoreServiceProtocol(Protocol):
     def query_by_vector(self, embedding: List[float], case_id: str, n_results: int, document_ids: Optional[List[str]]) -> List[Dict]: ...
     def query_legal_knowledge_base(self, embedding: List[float], n_results: int, jurisdiction: str) -> List[Dict]: ...
-    # PHOENIX: Add the new required method to the protocol for type safety
     def query_findings_by_similarity(self, case_id: str, embedding: List[float], n_results: int) -> List[Dict]: ...
 
 class LanguageDetectorProtocol(Protocol):
@@ -35,9 +30,9 @@ class AlbanianRAGService:
     def __init__(
         self,
         vector_store: VectorStoreServiceProtocol,
-        llm_client: Any, # Kept for signature, but will not be used for generation
+        llm_client: Any, 
         language_detector: LanguageDetectorProtocol,
-        db: Any # PHOENIX: Pass the database client for direct findings query
+        db: Any
     ):
         self.vector_store = cast(VectorStoreServiceProtocol, vector_store)
         self.language_detector = language_detector
@@ -56,35 +51,26 @@ class AlbanianRAGService:
         jurisdiction: str = 'ks'
     ) -> str:
         """
-        Retrieves and assembles a rich, multi-source context dossier for a given query.
-        This is the new core function of the RAG service.
+        Retrieves and assembles a rich, multi-source context dossier.
         """
-        # PHOENIX: Dynamically import graph_service here to avoid circular dependencies
         from .graph_service import graph_service
         from .embedding_service import generate_embedding
 
-        # 1. Generate a single embedding for the user's query
         try:
             query_embedding = await asyncio.to_thread(generate_embedding, query, 'standard')
             if not query_embedding:
-                logger.warning("RAG: Failed to generate query embedding.")
                 return "Nuk u gjetën informacione relevante (problem me embedding)."
         except Exception as e:
             logger.error(f"RAG: Embedding generation failed: {e}")
             return "Nuk u gjetën informacione relevante (problem teknik)."
 
-        # 2. Concurrently fetch from all three context sources
         user_docs, kb_docs, graph_knowledge, structured_findings = [], [], "", []
         
         try:
             results = await asyncio.gather(
-                # Source 1: Raw text chunks from documents
                 asyncio.to_thread(self.vector_store.query_by_vector, embedding=query_embedding, case_id=case_id, n_results=5, document_ids=document_ids),
-                # Source 2: Legal knowledge base (Kosovo Law)
                 asyncio.to_thread(self.vector_store.query_legal_knowledge_base, embedding=query_embedding, n_results=3, jurisdiction='ks'),
-                # Source 3: High-level contradictions from the graph
                 asyncio.to_thread(graph_service.find_contradictions, case_id),
-                # PHOENIX: SOURCE 4: High-density structured findings (The most important context!)
                 asyncio.to_thread(self.vector_store.query_findings_by_similarity, case_id=case_id, embedding=query_embedding, n_results=7),
                 return_exceptions=True
             )
@@ -97,7 +83,6 @@ class AlbanianRAGService:
         except Exception as e:
             logger.error(f"RAG: Retrieval Phase Error: {e}")
 
-        # 3. Assemble the context dossier, prioritizing structured findings
         context_parts = []
         if structured_findings:
             findings_text = "\n".join([f"- [{f.get('category', 'FAKT')}]: {f.get('finding_text', 'N/A')}" for f in structured_findings])
@@ -128,24 +113,31 @@ class AlbanianRAGService:
         jurisdiction: str = 'ks'
     ) -> str:
         """
-        DEPRECATED METHOD - Maintained for compatibility.
-        The logic has been moved to the calling service (e.g., chat_service).
-        This now serves as a simple wrapper around the new 'retrieve_context' logic.
+        Generates the AI response using the retrieved context.
+        Now enforces RICH MARKDOWN FORMATTING.
         """
-        # This function is now just a placeholder. The real logic is in the calling service
-        # which will first call retrieve_context and then call the LLM.
-        # For now, we can simulate a basic response for any old code that might still call this.
-        logger.warning("DEPRECATION WARNING: Direct 'chat' method on RAG service is outdated. Refactor to use 'retrieve_context'.")
-        
         context = await self.retrieve_context(query, case_id, document_ids, jurisdiction)
         
-        # A simple, non-streaming call for basic compatibility
         if not self.client:
             return "Klienti AI nuk është inicializuar."
 
         try:
-            system_prompt = "Ti je një asistent ligjor. Përgjigju pyetjes bazuar në kontekstin e dhënë."
-            user_message = f"KONTEKSTI:\n{context}\n\nPYETJA: {query}"
+            # PHOENIX FIX: The "Beautiful Output" Prompt
+            system_prompt = """
+            Ti je 'Juristi AI', asistent ligjor inteligjent.
+            DETYRA: Përgjigju pyetjes duke përdorur KONTEKSTIN e dhënë.
+
+            RREGULLAT E FORMATIMIT (E DETYRUESHME):
+            1. Përdor **Markdown** për të strukturuar përgjigjen.
+            2. Përdor **Tituj** (###) për të ndarë seksionet e ndryshme (psh. ### Përmbledhje, ### Analiza Ligjore).
+            3. Përdor **Pika** (-) për të listuar fakte ose argumente.
+            4. Përdor **Bold** (**) për termat kyç, datat, dhe shumat e parave.
+            5. Nëse citon një ligj ose dokument, vendose në *italic* ose si [Burimi].
+
+            Stili: Profesional, i qartë, dhe vizualisht i lehtë për t'u lexuar.
+            """
+            
+            user_message = f"KONTEKSTI I GJETUR:\n{context}\n\nPYETJA E PËRDORUESIT: {query}"
             
             response = await self.client.chat.completions.create(
                 model=OPENROUTER_MODEL,
@@ -157,5 +149,5 @@ class AlbanianRAGService:
             )
             return response.choices[0].message.content or "Pati një problem gjatë gjenerimit të përgjigjes."
         except Exception as e:
-            logger.error(f"Fallback Chat Error: {e}")
+            logger.error(f"Chat Error: {e}")
             return "Ndodhi një gabim në komunikimin me shërbimin AI."
