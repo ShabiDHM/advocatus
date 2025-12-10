@@ -1,111 +1,106 @@
 # FILE: backend/app/services/pdf_service.py
-# PHOENIX PROTOCOL - PDF SERVICE V2 (SMART ENCODING)
-# 1. ACCURACY: Switched from 'latin-1' to 'cp1252' (Windows-1252).
-#    - Why? 'latin-1' destroys the Euro (€) symbol. 'cp1252' preserves it.
-#    - Result: The AI can now detect "5000 €" correctly instead of "5000 ?".
-# 2. LOGIC: Magic Byte detection remains for security.
+# PHOENIX PROTOCOL - PDF SERVICE V3.1 (PYPDF V6 COMPATIBILITY)
+# 1. UPGRADE: Replaced legacy 'PyPDF2' with modern 'pypdf' to match requirements.txt.
+# 2. FIX: Updated syntax for PdfReader/PdfWriter to resolve import errors.
+# 3. STATUS: Branding & Security pipeline is now fully compatible with the project environment.
 
 import io
-from PIL import Image
-from fpdf import FPDF
+import os
+import tempfile
+import shutil
+# PHOENIX FIX: Use the modern 'pypdf' library which is already in requirements.txt
+from pypdf import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import cm
+from reportlab.lib import colors
 from fastapi import UploadFile
-from typing import Tuple
+from typing import Tuple, Optional
 
-class PDFConverter:
+# Import the robust conversion engine
+from . import conversion_service
+
+class PDFProcessor:
     @staticmethod
-    async def convert_to_pdf(file: UploadFile) -> Tuple[bytes, str]:
+    async def process_and_brand_pdf(
+        file: UploadFile, case_id: Optional[str] = "N/A"
+    ) -> Tuple[bytes, str]:
         """
-        Converts incoming file to PDF bytes based on CONTENT, not just extension.
-        Returns: (pdf_bytes, new_filename)
+        Orchestrates the conversion, branding, and watermarking of any uploaded document.
         """
-        # 1. READ CONTENT
-        content = await file.read()
-        
-        # 2. PREPARE FILENAME
-        raw_name = file.filename or "untitled_document"
-        base_name = raw_name.rsplit('.', 1)[0]
+        original_ext = os.path.splitext(file.filename or ".tmp")[1]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=original_ext) as tmp_file:
+            shutil.copyfileobj(file.file, tmp_file)
+            source_path = tmp_file.name
 
-        # 3. MAGIC BYTE DETECTION
-        # Check if it's ALREADY a PDF (Signature: %PDF)
-        if content.startswith(b'%PDF'):
-            await file.seek(0)
-            return content, f"{base_name}.pdf"
-
-        # Check for Common Images
-        if (content.startswith(b'\xff\xd8\xff') or  # JPEG
-            content.startswith(b'\x89PNG') or       # PNG
-            content.startswith(b'BM') or            # BMP
-            content.startswith(b'II*\x00') or       # TIFF
-            content.startswith(b'MM\x00*')):
-            try:
-                return PDFConverter._image_to_pdf(content, raw_name)
-            except Exception as e:
-                print(f"Image conversion failed: {e}")
-                await file.seek(0)
-                return content, raw_name
-
-        # 4. TEXT FILE HANDLING
-        # Only treat as text if extension is text-like AND content looks like text
-        filename_lower = raw_name.lower()
-        if filename_lower.endswith(('.txt', '.md', '.csv', '.log')):
-            try:
-                # Basic binary check: look for null bytes
-                if b'\x00' in content[:1024]: 
-                    await file.seek(0)
-                    return content, raw_name
-                
-                return PDFConverter._text_to_pdf(content, raw_name)
-            except Exception as e:
-                print(f"Text conversion failed: {e}")
-                await file.seek(0)
-                return content, raw_name
-
-        # 5. DEFAULT / UNSUPPORTED
         await file.seek(0)
-        return content, raw_name
-
-    @staticmethod
-    def _image_to_pdf(image_bytes: bytes, original_name: str) -> Tuple[bytes, str]:
-        image = Image.open(io.BytesIO(image_bytes))
         
-        # Convert to RGB (drops Alpha channel which helps PDF compatibility)
-        if image.mode in ("RGBA", "P"):
-            image = image.convert("RGB")
+        base_name = os.path.splitext(file.filename or "dokument")[0]
+        final_pdf_name = f"{base_name}.pdf"
+
+        converted_pdf_path = None
+        try:
+            # Delegate conversion to the robust LibreOffice-based service
+            converted_pdf_path = conversion_service.convert_to_pdf(source_path)
+
+            # Apply branding and security layers to the newly created PDF
+            with open(converted_pdf_path, "rb") as f:
+                pdf_bytes = f.read()
             
-        pdf_bytes = io.BytesIO()
-        image.save(pdf_bytes, format="PDF", resolution=100.0)
-        pdf_bytes.seek(0)
-        
-        base_name = original_name.rsplit('.', 1)[0]
-        return pdf_bytes.getvalue(), f"{base_name}.pdf"
+            branded_pdf_bytes = PDFProcessor._apply_branding(pdf_bytes, str(case_id))
+            
+            return branded_pdf_bytes, final_pdf_name
+
+        finally:
+            # Cleanup all temporary files
+            if os.path.exists(source_path):
+                os.remove(source_path)
+            if converted_pdf_path and os.path.exists(converted_pdf_path):
+                os.remove(converted_pdf_path)
 
     @staticmethod
-    def _text_to_pdf(text_bytes: bytes, original_name: str) -> Tuple[bytes, str]:
-        # Decode UTF-8 (Standard for modern web/editors)
-        text = text_bytes.decode('utf-8', errors='replace')
+    def _apply_branding(pdf_bytes: bytes, case_id: str) -> bytes:
+        """
+        Adds Header, Footer, and Watermark to an existing PDF's bytes using pypdf.
+        """
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        writer = PdfWriter()
         
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-        
-        # PHOENIX FIX: Use 'cp1252' (Windows-1252) instead of 'latin-1'
-        # cp1252 supports the Euro (€) symbol (0x80) and smart quotes.
-        # latin-1 does NOT support Euro, turning "500€" into "500?".
-        sanitized_text = text.encode('cp1252', 'replace').decode('cp1252')
-        
-        pdf.multi_cell(0, 10, sanitized_text)
-        
-        output = pdf.output(dest='S')
-        
-        pdf_output_bytes: bytes
-        if isinstance(output, str):
-            pdf_output_bytes = output.encode('latin-1') # FPDF internal storage
-        elif isinstance(output, bytearray):
-            pdf_output_bytes = bytes(output)
-        else:
-            pdf_output_bytes = bytes(output)
-        
-        base_name = original_name.rsplit('.', 1)[0]
-        return pdf_output_bytes, f"{base_name}.pdf"
+        for i, page in enumerate(reader.pages):
+            # Create a transparent layer (watermark) for merging
+            watermark_stream = io.BytesIO()
+            c = canvas.Canvas(watermark_stream, pagesize=page.mediabox)
+            
+            # --- FOOTER ---
+            c.setFont("Helvetica", 8)
+            c.setFillColor(colors.grey)
+            footer_text = f"Rasti: {case_id} | Faqja {i + 1} / {len(reader.pages)}"
+            c.drawCentredString(float(page.mediabox.width) / 2, 1 * cm, footer_text)
 
-pdf_service = PDFConverter()
+            # --- HEADER ---
+            header_text = "KONFIDENCIALE | Gjeneruar nga Juristi AI"
+            c.drawCentredString(float(page.mediabox.width) / 2, float(page.mediabox.height) - 1 * cm, header_text)
+
+            # --- DIAGONAL WATERMARK ---
+            c.setFont("Helvetica-Bold", 48)
+            c.setFillColor(colors.lightgrey, alpha=0.15)
+            # Position and rotate the canvas for the diagonal text
+            c.translate(float(page.mediabox.width)/2, float(page.mediabox.height)/2)
+            c.rotate(45)
+            c.drawCentredString(0, 0, "DOKUMENT PUNE")
+            
+            c.save()
+            
+            # Merge the watermark layer with the original page content
+            watermark_pdf = PdfReader(watermark_stream)
+            # PHOENIX FIX: pypdf uses merge_page(), not a direct attribute
+            page.merge_page(watermark_pdf.pages[0])
+            writer.add_page(page)
+
+        # Write the final branded PDF to a memory buffer
+        output_stream = io.BytesIO()
+        writer.write(output_stream)
+        
+        return output_stream.getvalue()
+
+# Singleton instance
+pdf_service = PDFProcessor()

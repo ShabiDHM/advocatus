@@ -1,9 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V4 (KOSOVO EXCLUSIVE)
-# 1. JURISDICTION: All prompts strictly enforce "Republic of Kosovo" context.
-# 2. FILTERING: Instructs LLM to ignore/flag foreign legal concepts (e.g. Albania).
-# 3. UPGRADE: 'extract_graph_data' hunts for Conflict & Money (Litigation Graph).
-# 4. UPGRADE: 'extract_findings_from_text' performs Forensic auditing on Dates & Amounts.
+# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V5.0 (UNIVERSAL EVIDENCE ENGINE)
+# 1. CORE UPGRADE: Prompts are now Case-Type Agnostic (Criminal, Civil, Family, etc.).
+# 2. ABSTRACTION: AI now hunts for universal legal concepts: 'Events', 'Actors', 'Claims', 'Evidence'.
+# 3. FUTURE-PROOF: This file should NOT require changes for new case types.
 
 import os
 import json
@@ -77,7 +76,7 @@ def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False
         kwargs = {
             "model": OPENROUTER_MODEL,
             "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            "temperature": 0.0, # ZERO Temperature for strict adherence to facts/rules
+            "temperature": 0.1, 
             "extra_headers": {"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI"}
         }
         if json_mode: kwargs["response_format"] = {"type": "json_object"}
@@ -119,16 +118,18 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
     except Exception:
         return ""
 
-# --- CORE SERVICES (UPGRADED) ---
+# --- UNIVERSAL EVIDENCE ENGINE ---
 
 def generate_summary(text: str) -> str:
     truncated_text = text[:20000] 
-    # PHOENIX: Kosovo-Specific System Prompt
     system_prompt = (
-        "Ti je 'Juristi AI', ekspert për dokumentacionin ligjor në Republikën e Kosovës. "
-        "Detyra: Krijo një përmbledhje ekzekutive. "
-        "Fokusi: Identifiko Palët, Objektin, dhe Datat. "
-        "RREGULL: Nëse përmenden ligje apo qytete të Shqipërisë (psh Tiranë), shënoje qartë si 'Juridiksion i Huaj' në përmbledhje."
+        "Ti je Analist Gjyqësor për Republikën e Kosovës. "
+        "Detyra jote është të krijosh një përmbledhje të qartë dhe koncize të çdo lloj dokumenti ligjor. "
+        "Fokuso te: "
+        "1. KUSH janë palët kryesore? "
+        "2. CILI është konflikti thelbësor? "
+        "3. KUR ka ndodhur ngjarja kryesore? "
+        "4. CILI është hapi i radhës procedural (nëse përmendet)?"
     )
     user_prompt = f"DOKUMENTI:\n{truncated_text}"
     
@@ -140,32 +141,36 @@ def generate_summary(text: str) -> str:
 
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     """
-    Forensic Extraction: Hunts for Dates, Money, Obligations, and Anomalies.
-    Strictly restricted to logical fact-checking.
+    Extracts universal legal building blocks from text, regardless of case type.
     """
-    truncated_text = text[:20000]
+    truncated_text = text[:25000]
     
     system_prompt = """
-    Ti je Auditor Ligjor Forenzik për Kosovën.
+    Ti je një motor për nxjerrjen e provave (Evidence Extraction Engine) për sistemin ligjor të Kosovës.
     
-    DETYRA: Gjej fakte kritike në tekst (Datat, Paratë, Detyrimet).
+    DETYRA: Shndërro tekstin e papërpunuar në një listë të strukturuar të PROVAVE.
     
-    RREGULLA:
-    1. VALIDIMI: Injoro ligjet e huaja (Shqipëri), por nxirr faktet (shumat, datat).
-    2. DATAT: Nëse data është "228 Dhjetor", shënoje si 'DATE' por shto '(GABIM LOGJIK)' në tekst.
+    KATEGORITË E PROVAVE (Gjej sa më shumë të mundesh):
+    
+    - EVENT: Një ngjarje specifike që ka ndodhur (psh. 'Lidhja e kontratës', 'Kërcënimi me armë').
+    - EVIDENCE: Një provë materiale e përmendur (psh. 'Fletë-pranimi', 'Raporti i Auditimit', 'Dëshmitari Luan Kelmendi').
+    - CLAIM: Një akuzë ose pretendim nga njëra palë kundër tjetrës (psh. 'Teuta pretendon se Iliri ka fshehur pasuri').
+    - CONTRADICTION: Një pikë ku deklaratat e palëve bien ndesh direkt (psh. 'Njëri thotë ishte në zyrë, tjetri thotë ishte në Tiranë').
+    - QUANTITY: Çdo sasi e matshme (psh. '12,500 Euro', '50,000 Euro', '1000 Euro alimentacion').
+    - DEADLINE: Çdo datë që përfaqëson një afat, seancë, ose detyrim të ardhshëm (psh. '18 Dhjetor 2025').
     
     FORMATI JSON (STRIKT):
     {
       "findings": [
         {
-          "finding_text": "Përshkrimi i qartë i faktit",
-          "source_text": "Citat i saktë",
-          "category": "DATE" | "MONEY" | "OBLIGATION" | "RISK"
+          "finding_text": "Përshkrimi i qartë i provës/faktit",
+          "source_text": "Citat i saktë nga dokumenti",
+          "category": "EVENT | EVIDENCE | CLAIM | CONTRADICTION | QUANTITY | DEADLINE"
         }
       ]
     }
     """
-    user_prompt = f"TEKSTI PËR ANALIZË:\n{truncated_text}"
+    user_prompt = f"TEKSTI I DOSJES:\n{truncated_text}"
 
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content).get("findings", [])
@@ -180,29 +185,24 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
 
 def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
     """
-    Litigation Graph Extraction: Builds the 'Conflict Map'.
+    Maps the universal relationships between entities.
     """
     truncated_text = text[:15000]
     
     system_prompt = """
-    Ti je Inxhinier i Grafit Ligjor (Kosovo Context).
+    Ti je Inxhinier i Grafit Ligjor. Detyra: Krijo hartën e marrëdhënieve.
     
-    ENTITETET (Nodes):
-    - Person (Emra)
-    - Organization (Kompania)
-    - Money (Shuma)
-    - Date (Data)
-    - Claim (Pretendime)
+    MARRËDHËNIET (Universale):
+    - [Person/Organization] ACCUSES [Person/Organization]
+    - [Person] OWES [Quantity]
+    - [Person] CLAIMS [Object/Asset]
+    - [Person] WITNESSED [Event]
+    - [Event] OCCURRED_ON [Date]
+    - [Claim] CONTRADICTS [Claim]
     
-    MARRËDHËNIET:
-    - PAID, OWES, SIGNED, ACCUSES, CONTRADICTS
-    
-    RREGULL:
-    - Mos krijo nodes për ligje të Shqipërisë.
-    
-    FORMATI JSON (STRIKT):
+    FORMATI JSON:
     {
-      "entities": [{"name": "Emri", "type": "Person | Organization | Money | Date | Claim"}],
+      "entities": [{"name": "Emri", "type": "Person | Organization | Quantity | Event | Claim"}],
       "relations": [{"subject": "Emri1", "relation": "UPPERCASE_VERB", "object": "Emri2"}]
     }
     """
@@ -216,8 +216,38 @@ def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
     
     return {"entities": [], "relations": []}
 
+def analyze_case_contradictions(text: str) -> Dict[str, Any]:
+    """
+    High-Level Strategy Analysis for the 'Analizo Rastin' Modal.
+    """
+    truncated_text = text[:25000]
+    
+    system_prompt = """
+    Ti je Strateg Ligjor Virtual.
+    
+    DETYRA: Analizo dosjen për pikat e forta, pikat e dobëta dhe kontradiktat.
+    
+    OUTPUT JSON:
+    {
+        "summary_analysis": "Përmbledhje strategjike e konfliktit dhe çfarë e bën atë të komplikuar.",
+        "contradictions": ["Lista e detajuar e pikave ku versionet e palëve përplasen."],
+        "key_evidence": ["Cilat janë provat më të rëndësishme të përmendura (dëshmitarë, dokumente)? Pse janë të rëndësishme?"],
+        "missing_info": ["Çfarë provash kritike mungojnë që një avokat duhet t'i kërkojë menjëherë?"]
+    }
+    """
+    user_prompt = f"DOSJA:\n{truncated_text}"
+
+    content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
+    if content: return _parse_json_safely(content)
+    
+    content = _call_groq(system_prompt, user_prompt, json_mode=True)
+    if content: return _parse_json_safely(content)
+
+    return {}
+
 def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict:
-    return {"answer": "Logic moved to RAG Service.", "sources": []}
+    return {"answer": "Logic moved to R-A-G Service.", "sources": []}
 
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
+    # This is handled by deadline_service.py now, keep empty to avoid confusion
     return []
