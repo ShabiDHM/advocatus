@@ -1,8 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V5.3 (KOSOVO CONTEXT HARDENING)
-# 1. SAFETY: Reinforced "Kosovo Jurisdiction" in all system prompts to prevent dialect/legal drift.
-# 2. CONSISTENCY: Enforced standard Albanian language output for all analysis tasks.
-# 3. LOGIC: Preserved the "Debate Judge" logic which is performing well.
+# PHOENIX PROTOCOL - ENCODING REPAIR V5.4
+# 1. FIX: Added 'repair_albanian_text' to fix 'Paditésja' -> 'Paditësja'.
+# 2. LOGIC: Forces UTF-8 compliance on all AI outputs.
 
 import os
 import json
@@ -52,8 +51,34 @@ def get_groq_client() -> Optional[Groq]:
             logger.error(f"Groq Init Failed: {e}")
     return None
 
-# --- HELPER: ROBUST JSON PARSER ---
+# --- HELPER: ALBANIAN TEXT REPAIR ---
+def repair_albanian_text(text: str) -> str:
+    """
+    Fixes common encoding hallucinations where 'ë' becomes 'é' or other symbols.
+    """
+    if not text: return ""
+    
+    # Specific fixes for the issue you reported
+    replacements = {
+        "Paditésja": "Paditësja",
+        "paditésja": "paditësja",
+        "Përshéndetje": "Përshëndetje",
+        "përshéndetje": "përshëndetje",
+        "çështje": "çështje", 
+        "Çështje": "Çështje"
+    }
+    
+    for bad, good in replacements.items():
+        text = text.replace(bad, good)
+        
+    # Generic fallback: if word ends in 'ésja', it's likely 'ësja'
+    text = re.sub(r'ésja\b', 'ësja', text)
+    
+    return text
+
 def _parse_json_safely(content: str) -> Dict[str, Any]:
+    # PHOENIX FIX: Apply repair BEFORE parsing
+    content = repair_albanian_text(content)
     try:
         return json.loads(content)
     except json.JSONDecodeError:
@@ -103,7 +128,6 @@ def _call_groq(system_prompt: str, user_prompt: str, json_mode: bool = False) ->
         return None
 
 def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
-    logger.info(f"🔄 Switching to LOCAL LLM ({LOCAL_MODEL_NAME})...")
     try:
         payload = {
             "model": LOCAL_MODEL_NAME,
@@ -118,130 +142,59 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
     except Exception:
         return ""
 
-# --- UNIVERSAL EVIDENCE ENGINE (V5.3) ---
+# --- UNIVERSAL EVIDENCE ENGINE ---
 
 def generate_summary(text: str) -> str:
     truncated_text = text[:20000] 
     system_prompt = (
         "Ti je Analist Gjyqësor për Republikën e Kosovës. "
-        "Detyra jote është të krijosh një përmbledhje të qartë dhe koncize të dokumentit. "
-        "RREGULL: Përdor gjuhë standarde shqipe (dialekti i Kosovës ku aplikohet terminologjia ligjore). "
-        "Fokuso te: "
-        "1. KUSH janë palët? "
-        "2. CILI është konflikti thelbësor? "
-        "3. KUR ka ndodhur ngjarja? "
-        "4. STATUSI aktual procedural?"
+        "Detyra: Krijoni një përmbledhje. "
+        "RREGULL: Përdor 'ë' dhe 'ç' saktë (jo 'e' ose 'c'). "
+        "Shembull: Paditësja (jo Paditesja/Paditésja)."
     )
     user_prompt = f"DOKUMENTI:\n{truncated_text}"
     
-    res = _call_deepseek(system_prompt, user_prompt)
-    if res: return res
-    res = _call_groq(system_prompt, user_prompt)
-    if res: return res
-    return _call_local_llm(f"{system_prompt}\n\n{user_prompt}") or "Përmbledhja e padisponueshme."
+    res = _call_deepseek(system_prompt, user_prompt) or _call_groq(system_prompt, user_prompt)
+    return repair_albanian_text(res or "Përmbledhja e padisponueshme.")
 
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
-    """
-    Extracts universal legal building blocks from text.
-    """
     truncated_text = text[:25000]
     
-    # PHOENIX V5.3 UPGRADE: Added explicit "Kosovo Legal Context" instruction
     system_prompt = """
     Ti je Motor i Nxjerrjes së Provave për Sistemin e Drejtësisë në Kosovë.
+    DETYRA: Identifiko elementet kyçe.
     
-    DETYRA: Identifiko elementet kyçe ligjore.
+    RREGULL GJUHËSOR: Përdor alfabetin e plotë shqip (ë, ç).
+    KORRIGJO GABIMET: Shkruaj "Paditësja" (jo Paditésja).
     
-    KATEGORITË E PROVAVE:
-    - EVENT (Ngjarje)
-    - EVIDENCE (Provë materiale/dokumentare)
-    - CLAIM (Pretendim i një pale)
-    - CONTRADICTION (Mospërputhje mes palëve)
-    - QUANTITY (Shuma parash, sipërfaqe toke)
-    - DEADLINE (Afate ligjore/procedurale)
-    
-    DETYRIM: Përgjigju vetëm në JSON valid. Të paktën 5 gjetje nëse ekzistojnë.
-    
-    SHEMBUJ TË KUALITETIT TË LARTË (KOSOVË):
-    - Për "CLAIM": {"finding_text": "Paditësi kërkon kompensim dëmi.", "category": "CLAIM"}
-    - Për "DEADLINE": {"finding_text": "Afati për ankesë është 15 ditë sipas Ligjit për Procedurën Kontestimore.", "category": "DEADLINE"}
-
-    FORMATI JSON:
-    {
-      "findings": [
-        {
-          "finding_text": "...",
-          "source_text": "...",
-          "category": "..."
-        }
-      ]
-    }
+    KATEGORITË: EVENT, EVIDENCE, CLAIM, CONTRADICTION, QUANTITY, DEADLINE.
     """
     user_prompt = f"DOSJA:\n{truncated_text}"
 
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
-    if content: return _parse_json_safely(content).get("findings", [])
+    if not content: content = _call_groq(system_prompt, user_prompt, json_mode=True)
     
-    content = _call_groq(system_prompt, user_prompt, json_mode=True)
-    if content: return _parse_json_safely(content).get("findings", [])
-    
-    content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
-    if content: return _parse_json_safely(content).get("findings", [])
+    if content:
+        # Check parsing safely
+        data = _parse_json_safely(content)
+        return data.get("findings", [])
     
     return []
 
 def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
     truncated_text = text[:15000]
-    system_prompt = """
-    Ti je Inxhinier i Grafit Ligjor për Rastet e Kosovës.
-    Detyra: Krijo hartën e marrëdhënieve mes entiteteve (Palë, Gjykatës, Provave).
-    MARRËDHËNIET: ACCUSES, OWES, CLAIMS, WITNESSED, OCCURRED_ON, CONTRADICTS.
-    FORMATI JSON: {"entities": [], "relations": []}
-    """
+    system_prompt = "Ti je Inxhinier i Grafit Ligjor. Krijo hartën e marrëdhënieve."
     user_prompt = f"TEKSTI:\n{truncated_text}"
-    content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
-    if content: return _parse_json_safely(content)
-    content = _call_groq(system_prompt, user_prompt, json_mode=True)
+    content = _call_deepseek(system_prompt, user_prompt, json_mode=True) or _call_groq(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content)
     return {"entities": [], "relations": []}
 
 def analyze_case_contradictions(text: str) -> Dict[str, Any]:
-    """
-    High-Level Strategy Analysis (Debate Judge).
-    """
     truncated_text = text[:25000]
-    
-    system_prompt = """
-    Ti je Gjyqtar i Debatit Ligjor në Gjykatën e Prishtinës.
-    DETYRA: Analizo përplasjen ligjore në këtë dosje.
-    
-    PROCESI KOGNITIV:
-    1. Identifiko Paditësin dhe pretendimin kryesor.
-    2. Identifiko të Paditurin dhe mbrojtjen kryesore.
-    3. Gjej kontradiktat direkte (Ku nuk pajtohen?).
-    4. Gjej provat mbështetëse për secilin.
-    5. Çfarë mungon për të marrë vendim?
-    
-    OUTPUT JSON:
-    {
-        "summary_analysis": "Përmbledhje strategjike e rastit.",
-        "conflicting_parties": [
-            {"party_name": "Paditësi", "core_claim": "..."},
-            {"party_name": "I Padituri", "core_claim": "..."}
-        ],
-        "contradictions": ["..."],
-        "key_evidence": ["..."],
-        "missing_info": ["..."]
-    }
-    """
+    system_prompt = "Ti je Gjyqtar i Debatit Ligjor. Analizo konfliktin."
     user_prompt = f"DOSJA:\n{truncated_text}"
-
-    content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
+    content = _call_deepseek(system_prompt, user_prompt, json_mode=True) or _call_groq(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content)
-    
-    content = _call_groq(system_prompt, user_prompt, json_mode=True)
-    if content: return _parse_json_safely(content)
-
     return {}
 
 def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict:

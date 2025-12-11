@@ -1,9 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V5.2 (MOBILE SCROLL FIX)
-// 1. UI: Removed redundant 'Back to Dashboard' link for cleaner vertical rhythm.
-// 2. UI: Harmonized 'Analizo Rastin' button style with 'Gjetjet' (Ghost Style).
-// 3. RESPONSIVE: Optimized grid height for mobile (stacked) vs desktop (side-by-side).
-// 4. FIX: Applied strict height constraints (!h-[600px]) directly to ChatPanel to force scrolling on mobile.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V5.3 (DATA FRESHNESS FIX)
+// 1. FIX: 'handleShowFindings' now forces a data refresh from the API.
+// 2. REASON: Ensures new findings from uploaded docs appear immediately without page reload.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -30,27 +28,18 @@ type CaseData = {
     findings: Finding[];
 };
 
-// PHOENIX PROTOCOL: State Exclusivity
 type ActiveModal = 'none' | 'findings' | 'analysis';
 
 // --- HELPER: HISTORY PARSER ---
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     if (!data) return [];
-    
     const rawArray = data.chat_history || data.chatHistory || data.history || data.messages || [];
-    
     if (!Array.isArray(rawArray)) return [];
-
     return rawArray.map((item: any) => {
         const rawRole = (item.role || item.sender || item.author || 'user').toString().toLowerCase();
-        
-        const role: 'user' | 'ai' = (rawRole.includes('ai') || rawRole.includes('assistant') || rawRole.includes('system')) 
-            ? 'ai' 
-            : 'user';
-
+        const role: 'user' | 'ai' = (rawRole.includes('ai') || rawRole.includes('assistant') || rawRole.includes('system')) ? 'ai' : 'user';
         const content = item.content || item.message || item.text || '';
         const timestamp = item.timestamp || item.created_at || new Date().toISOString();
-
         return { role, content, timestamp };
     }).filter(msg => msg.content.trim() !== '');
 };
@@ -65,9 +54,7 @@ const RenameDocumentModal: React.FC<{
 }> = ({ isOpen, onClose, onRename, currentName, t }) => {
     const [name, setName] = useState(currentName);
     const [isSaving, setIsSaving] = useState(false);
-
     useEffect(() => { setName(currentName); }, [currentName]);
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim()) return;
@@ -75,9 +62,7 @@ const RenameDocumentModal: React.FC<{
         try { await onRename(name); onClose(); } 
         finally { setIsSaving(false); }
     };
-
     if (!isOpen) return null;
-
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
             <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6 shadow-2xl">
@@ -88,13 +73,7 @@ const RenameDocumentModal: React.FC<{
                 <form onSubmit={handleSubmit}>
                     <div className="mb-6">
                         <label className="block text-sm text-gray-400 mb-2">{t('documentsPanel.newName')}</label>
-                        <input 
-                            autoFocus
-                            type="text" 
-                            value={name} 
-                            onChange={(e) => setName(e.target.value)} 
-                            className="w-full bg-background-light border border-glass-edge rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none"
-                        />
+                        <input autoFocus type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-background-light border border-glass-edge rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-primary-start outline-none" />
                     </div>
                     <div className="flex justify-end gap-3">
                         <button type="button" onClick={onClose} className="px-4 py-2 text-gray-400 hover:text-white font-medium">{t('general.cancel')}</button>
@@ -116,41 +95,26 @@ const CaseHeader: React.FC<{
     onAnalyze: (e: React.MouseEvent) => void; 
     onShowFindings: (e: React.MouseEvent) => void;
     isAnalyzing: boolean; 
-}> = ({ caseDetails, t, onAnalyze, onShowFindings, isAnalyzing }) => (
-    <motion.div
-      className="mb-6 p-4 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-white/10"
-      initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
-    >
+    isRefetchingFindings: boolean;
+}> = ({ caseDetails, t, onAnalyze, onShowFindings, isAnalyzing, isRefetchingFindings }) => (
+    <motion.div className="mb-6 p-4 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-white/10" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex-1 min-w-0 w-full">
-              <h1 className="text-xl sm:text-2xl font-bold text-text-primary break-words mb-3 leading-tight">
-                  {caseDetails.case_name}
-              </h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-text-primary break-words mb-3 leading-tight">{caseDetails.case_name}</h1>
               <div className="flex flex-row flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm text-text-secondary">
                   <div className="flex items-center"><User className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{caseDetails.client?.name || 'N/A'}</span></div>
                   <div className="flex items-center"><Briefcase className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`)}</span></div>
                   <div className="flex items-center"><Info className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div>
               </div>
           </div>
-          
           <div className="flex items-center gap-4 self-start md:self-center flex-shrink-0 w-full md:w-auto mt-2 md:mt-0">
-              {/* Findings Button - Ghost Style with Amber Icon */}
-              <button 
-                  onClick={onShowFindings} 
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all"
-                  type="button"
-              >
-                  <Lightbulb className="h-4 w-4 text-amber-400" />
+              {/* Findings Button - Updates on click */}
+              <button onClick={onShowFindings} disabled={isRefetchingFindings} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all" type="button">
+                  {isRefetchingFindings ? <Loader2 className="h-4 w-4 animate-spin text-amber-400" /> : <Lightbulb className="h-4 w-4 text-amber-400" />}
                   <span className="inline">{t('caseView.findingsTitle')}</span>
               </button>
-              
-              {/* Analyze Button - Harmonized Ghost Style with Primary Icon */}
-              <button 
-                  onClick={onAnalyze} 
-                  disabled={isAnalyzing} 
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all disabled:opacity-50"
-                  type="button"
-              >
+              {/* Analyze Button */}
+              <button onClick={onAnalyze} disabled={isAnalyzing} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all disabled:opacity-50" type="button">
                   {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin text-primary-start" /> : <ShieldCheck className="h-4 w-4 text-primary-start" />}
                   <span className="inline">{isAnalyzing ? t('analysis.analyzing') : t('analysis.analyzeButton')}</span>
               </button>
@@ -167,52 +131,35 @@ const CaseViewPage: React.FC = () => {
   const [caseData, setCaseData] = useState<CaseData>({ details: null, findings: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
-  
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isRefetchingFindings, setIsRefetchingFindings] = useState(false); // New state
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
-  
-  // PHOENIX FIX: Strict Mutual Exclusivity
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
-  
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
 
-  const { 
-      documents: liveDocuments,
-      setDocuments: setLiveDocuments,
-      messages: liveMessages,
-      setMessages, 
-      connectionStatus, 
-      reconnect, 
-      sendChatMessage, 
-      isSendingMessage 
-  } = useDocumentSocket(currentCaseId);
+  const { documents: liveDocuments, setDocuments: setLiveDocuments, messages: liveMessages, setMessages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId);
 
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // --- PERSISTENCE ---
+  // PERSISTENCE
   useEffect(() => {
       if (!currentCaseId) return;
       const cached = localStorage.getItem(`chat_history_${currentCaseId}`);
       if (cached) {
           try {
               const parsed = JSON.parse(cached);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                  setMessages(parsed);
-              }
+              if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed);
           } catch (e) { console.error("Cache load failed", e); }
       }
   }, [currentCaseId, setMessages]);
 
   useEffect(() => {
       if (!currentCaseId) return;
-      if (liveMessages.length > 0) {
-          localStorage.setItem(`chat_history_${currentCaseId}`, JSON.stringify(liveMessages));
-      }
+      if (liveMessages.length > 0) localStorage.setItem(`chat_history_${currentCaseId}`, JSON.stringify(liveMessages));
   }, [liveMessages, currentCaseId]);
 
   const fetchCaseData = useCallback(async (isInitialLoad = false) => {
@@ -226,13 +173,10 @@ const CaseViewPage: React.FC = () => {
         apiService.getFindings(caseId)
       ]);
       setCaseData({ details, findings: findingsResponse || [] });
-      
       if (isInitialLoad) {
           setLiveDocuments((initialDocs || []).map(sanitizeDocument));
           const serverHistory = extractAndNormalizeHistory(details);
-          if (serverHistory.length > 0) {
-              setMessages(serverHistory);
-          }
+          if (serverHistory.length > 0) setMessages(serverHistory);
       }
     } catch (err) {
       console.error("Load Error:", err);
@@ -257,41 +201,39 @@ const CaseViewPage: React.FC = () => {
 
   const handleClearChat = async () => {
       if (!caseId || !window.confirm(t('chatPanel.confirmClear'))) return;
-      try { 
-          await apiService.clearChatHistory(caseId); 
-          setMessages([]); 
-          localStorage.removeItem(`chat_history_${caseId}`); 
-      } catch (err) { alert(t('error.generic')); }
+      try { await apiService.clearChatHistory(caseId); setMessages([]); localStorage.removeItem(`chat_history_${caseId}`); } 
+      catch (err) { alert(t('error.generic')); }
   };
 
   const handleAnalyzeCase = async (e?: React.MouseEvent) => {
-    e?.preventDefault();
-    e?.stopPropagation();
-    
+    e?.preventDefault(); e?.stopPropagation();
     if (!caseId) return;
     setIsAnalyzing(true);
-    // Explicitly reset any other state to prevent "merging"
     setActiveModal('none');
-    
     try {
         const result = await apiService.analyzeCase(caseId);
-        if (result.error) {
-            alert(result.error);
-        } else { 
-            setAnalysisResult(result); 
-            setActiveModal('analysis');
-        }
-    } catch (err) { 
-        alert(t('error.generic')); 
-    } finally { 
-        setIsAnalyzing(false); 
-    }
+        if (result.error) alert(result.error);
+        else { setAnalysisResult(result); setActiveModal('analysis'); }
+    } catch (err) { alert(t('error.generic')); } 
+    finally { setIsAnalyzing(false); }
   };
 
-  const handleShowFindings = (e?: React.MouseEvent) => {
-      e?.preventDefault();
-      e?.stopPropagation();
+  // PHOENIX FIX: Refetch Findings on Open to prevent stale/empty data
+  const handleShowFindings = async (e?: React.MouseEvent) => {
+      e?.preventDefault(); e?.stopPropagation();
       setActiveModal('findings');
+      
+      if (caseId) {
+          setIsRefetchingFindings(true);
+          try {
+              const freshFindings = await apiService.getFindings(caseId);
+              setCaseData(prev => ({ ...prev, findings: freshFindings || [] }));
+          } catch (err) {
+              console.warn("Failed to refresh findings silently", err);
+          } finally {
+              setIsRefetchingFindings(false);
+          }
+      }
   };
 
   const handleChatSubmit = (text: string, _mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => {
@@ -308,12 +250,8 @@ const CaseViewPage: React.FC = () => {
       if (!caseId || !documentToRename) return;
       try {
           await apiService.renameDocument(caseId, documentToRename.id, newName);
-          setLiveDocuments(prev => prev.map(d => 
-              d.id === documentToRename.id ? { ...d, file_name: newName } : d
-          ));
-      } catch (error) {
-          alert(t('error.generic'));
-      }
+          setLiveDocuments(prev => prev.map(d => d.id === documentToRename.id ? { ...d, file_name: newName } : d));
+      } catch (error) { alert(t('error.generic')); }
   };
 
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
@@ -322,19 +260,15 @@ const CaseViewPage: React.FC = () => {
   return (
     <motion.div className="w-full min-h-screen bg-background-dark pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:py-6">
-        {/* PHOENIX: Removed Back Link for Cleaner Header */}
-        
         <CaseHeader 
             caseDetails={caseData.details} 
             t={t} 
             onAnalyze={handleAnalyzeCase} 
             onShowFindings={handleShowFindings}
             isAnalyzing={isAnalyzing} 
+            isRefetchingFindings={isRefetchingFindings}
         />
-        
-        {/* PHOENIX: Responsive Grid - Auto height on mobile (stacked), Fixed height on Desktop */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px]">
-            {/* LEFT PANEL: Documents */}
             <DocumentsPanel
                 caseId={caseData.details.id}
                 documents={liveDocuments}
@@ -348,9 +282,6 @@ const CaseViewPage: React.FC = () => {
                 onRename={(doc) => setDocumentToRename(doc)} 
                 className="h-[500px] lg:h-full" 
             />
-
-            {/* RIGHT PANEL: Socratic Assistant */}
-            {/* PHOENIX FIX: Direct class application to ChatPanel with strict mobile height override (!h-[600px]) */}
             <ChatPanel
                 messages={liveMessages}
                 connectionStatus={connectionStatus}
@@ -365,40 +296,14 @@ const CaseViewPage: React.FC = () => {
             />
         </div>
       </div>
-      
       {viewingDocument && (
-          <PDFViewerModal 
-            documentData={viewingDocument} 
-            caseId={caseData.details.id} 
-            onClose={() => { setViewingDocument(null); setViewingUrl(null); }} 
-            t={t} 
-            directUrl={viewingUrl}
-            isAuth={true} 
-          />
+          <PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={() => { setViewingDocument(null); setViewingUrl(null); }} t={t} directUrl={viewingUrl} isAuth={true} />
       )}
-
-      {/* MODALS - Mutually Exclusive */}
       {analysisResult && (
-          <AnalysisModal 
-            isOpen={activeModal === 'analysis'} 
-            onClose={() => setActiveModal('none')} 
-            result={analysisResult} 
-          />
+          <AnalysisModal isOpen={activeModal === 'analysis'} onClose={() => setActiveModal('none')} result={analysisResult} />
       )}
-      
-      <FindingsModal 
-          isOpen={activeModal === 'findings'} 
-          onClose={() => setActiveModal('none')} 
-          findings={caseData.findings} 
-      />
-      
-      <RenameDocumentModal 
-        isOpen={!!documentToRename} 
-        onClose={() => setDocumentToRename(null)} 
-        onRename={handleRename} 
-        currentName={documentToRename?.file_name || ''} 
-        t={t}
-      />
+      <FindingsModal isOpen={activeModal === 'findings'} onClose={() => setActiveModal('none')} findings={caseData.findings} />
+      <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRename} currentName={documentToRename?.file_name || ''} t={t} />
     </motion.div>
   );
 };
