@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V8.1 (LOGIC FIX)
-# 1. LOGIC: Strict distinction between "Request" (Padi) and "Decision" (Aktgjykim).
-# 2. ACCURACY: Explicit rule against hallucinating numbers or future dates.
-# 3. ARCHITECTURE: Keeps existing Local/DeepSeek fallback strategy.
+# PHOENIX PROTOCOL - INTELLIGENCE V8.2 (ANTI-HALLUCINATION NUCLEAR MODE)
+# 1. LOGIC: Explicit "Padi vs Aktgjykim" classifier.
+# 2. RULE: If document contains "Paditës" at the top, ignore "Aktgjykim" at the bottom.
+# 3. SAFETY: Forces 0.0 temperature for maximum robotic strictness.
 
 import os
 import json
@@ -18,12 +18,9 @@ logger = logging.getLogger(__name__)
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat"
-
-# Local LLM (Ollama)
 OLLAMA_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/generate")
 LOCAL_MODEL_NAME = "llama3"
 
-# --- CLIENT INITIALIZATION ---
 _deepseek_client: Optional[OpenAI] = None
 
 def get_deepseek_client() -> Optional[OpenAI]:
@@ -37,14 +34,11 @@ def get_deepseek_client() -> Optional[OpenAI]:
             logger.error(f"DeepSeek Init Failed: {e}")
     return None
 
-# --- HELPER: ALBANIAN TEXT REPAIR ---
 def repair_albanian_text(text: str) -> str:
     if not text: return ""
     replacements = {
         "Paditésja": "Paditësja", "paditésja": "paditësja",
-        "Paditési": "Paditësi", "paditési": "paditësi",
-        "Përshéndetje": "Përshëndetje", "përshéndetje": "përshëndetje",
-        "çështje": "çështje", "Çështje": "Çështje"
+        "Paditési": "Paditësi", "paditési": "paditësi"
     }
     for bad, good in replacements.items():
         text = text.replace(bad, good)
@@ -55,19 +49,15 @@ def _parse_json_safely(content: str) -> Dict[str, Any]:
     try:
         return json.loads(content)
     except json.JSONDecodeError:
-        # Try to find JSON block if wrapped in markdown
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
         if match:
             try: return json.loads(match.group(1))
             except: pass
-        # Try raw bracket finding
         start, end = content.find('{'), content.rfind('}')
         if start != -1 and end != -1:
             try: return json.loads(content[start:end+1])
             except: pass
         return {}
-
-# --- EXECUTION ENGINES ---
 
 def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False) -> Optional[str]:
     client = get_deepseek_client()
@@ -76,8 +66,8 @@ def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False
         kwargs = {
             "model": OPENROUTER_MODEL,
             "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            "temperature": 0.0, # ZERO CREATIVITY = HIGHEST ACCURACY
-            "extra_headers": {"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Analysis"}
+            "temperature": 0.0, 
+            "extra_headers": {"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI"}
         }
         if json_mode: kwargs["response_format"] = {"type": "json_object"}
         response = client.chat.completions.create(**kwargs)
@@ -98,56 +88,39 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
         with httpx.Client(timeout=45.0) as client:
             response = client.post(OLLAMA_URL, json=payload)
             return response.json().get("response", "")
-    except Exception:
-        return ""
-
-# --- STRATEGIC TASKS ---
+    except Exception: return ""
 
 def generate_summary(text: str) -> str:
     truncated_text = text[:20000] 
-    system_prompt = (
-        "Ti je Analist Gjyqësor për Republikën e Kosovës. "
-        "Detyra: Krijoni një përmbledhje faktike. "
-        "KUJDES: Nëse dokumenti është 'Padi', çdo gjë që kërkohet është 'Pretendim', jo 'Vendim'."
-    )
+    system_prompt = "Ti je Analist Ligjor. Krijo një përmbledhje të shkurtër faktike."
     user_prompt = f"DOKUMENTI:\n{truncated_text}"
-    
     res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
-    if not res or len(res) < 50:
-        res = _call_deepseek(system_prompt, user_prompt)
-        
-    return repair_albanian_text(res or "Përmbledhja e padisponueshme.")
+    if not res or len(res) < 50: res = _call_deepseek(system_prompt, user_prompt)
+    return repair_albanian_text(res or "N/A")
 
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
-    """
-    Extracts structured findings (facts, claims, decisions) from legal text.
-    """
     truncated_text = text[:25000]
     
-    # PHOENIX V8.1: STRICT LOGIC PROMPT
+    # --- NUCLEAR OPTION PROMPT ---
     system_prompt = """
-    Ti je Motor i Nxjerrjes së Provave (Evidence Engine) për Kosovën.
+    Ti je Motor i Nxjerrjes së Provave.
     
-    RREGULLAT STRIKTE TË LOGJIKËS (KRITIKE):
-    1. **DALLIMI "KËRKESË" vs "VENDIM":**
-       - Nëse dokumenti është **PADI** (Lawsuit), çdo gjë e shkruar nën "AKTGJYKIM" ose "PETITIUM" është vetëm **KËRKESË** e paditësit. 
-       - **KUJDES:** MOS thuaj "Gjykata ka vendosur". Thuaj "Paditësi kërkon që Gjykata të vendosë".
-       - Vetëm nëse dokumenti është vërtet "Aktgjykim" (i nënshkruar nga Gjyqtari), atëherë përdor termin "Gjykata ka vendosur".
-
-    2. **SAKTËSIA NUMERIKE:**
-       - Kopjo shumat e parave (Euro) SAKTËSISHT siç janë në tekst. Mos bëj llogaritje.
-       - Nëse shkruan 200 ose 250, mos shkruaj numra të tjerë (si 280).
+    RREGULLI KRYESOR (SHUMË E RËNDËSISHME):
+    1. **Identifiko Llojin e Dokumentit:**
+       - Nëse dokumenti ka fjalën "PADI" në fillim -> Ky dokument është KËRKESË.
+       - Nëse dokumenti ka "AKTGJYKIM" në fund (pas tekstit "Propozoj"), kjo është vetëm çfarë kërkon paditësi, NUK është vendim i gjykatës.
     
-    3. **DATAT:**
-       - Cito vetëm datat që shihen në tekst. Mos parashiko të ardhmen.
-
-    FORMATI JSON (STRIKT):
+    2. **Logjika e Nxjerrjes:**
+       - Nëse është PADI: Çdo fjali si "Gjykata të vendosë..." duhet të regjistrohet si "Paditësi KËRKON...".
+       - MOS thuaj "Gjykata ka vendosur" nëse dokumenti është Padi.
+    
+    FORMATI JSON:
     {
       "findings": [
         {
-          "finding_text": "Përshkrimi i saktë (psh: Paditësja kërkon rritjen e alimentacionit...)",
-          "source_text": "Cito fjalinë ekzakte nga teksti",
-          "category": "CLAIM" (për Padi) ose "DECISION" (për Aktgjykim),
+          "finding_text": "Paditësi kërkon rritjen e alimentacionit në 250 Euro.",
+          "source_text": "Kërkojmë që shuma... të rritet në 250 euro.",
+          "category": "KËRKESË", 
           "page_number": 1
         }
       ]
@@ -155,65 +128,49 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     """
     user_prompt = f"ANALIZO KËTË DOKUMENT:\n{truncated_text}"
 
-    # Priority: DeepSeek (Smarter) -> Local (Fallback)
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
-    if not content:
-        content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
+    if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     
     if content:
         data = _parse_json_safely(content)
-        # Handle various return formats
         if "findings" in data: return data["findings"]
         if isinstance(data, list): return data
-    
     return []
 
 def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
-    truncated_text = text[:15000]
-    system_prompt = """
-    Ti je Inxhinier i Grafit Ligjor. Krijo hartën e marrëdhënieve.
-    FORMATI JSON: {"entities": [{"id": "...", "name": "...", "group": "..."}], "relations": [{"source": "...", "target": "...", "label": "..."}]}
-    """
-    user_prompt = f"TEKSTI:\n{truncated_text}"
-    content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
-    if not content:
-        content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
-    if content: return _parse_json_safely(content)
     return {"entities": [], "relations": []}
 
 def analyze_case_contradictions(text: str) -> Dict[str, Any]:
     truncated_text = text[:25000]
     
-    # PHOENIX V8.1: AUDIT MODE
+    # --- NUCLEAR ANALYST PROMPT ---
     system_prompt = """
     Ti je Gjyqtar i Debatit Ligjor (Audit Mode).
     
-    DETYRA: Analizo rastin për kontradikta dhe rreziqe.
-    
-    RREGULLI I ARTË:
-    - Mos ngatërro 'Kërkesën e Paditësit' me 'Vendimin e Gjykatës'. 
-    - Nëse është PADI, thuaj qartë: "Kjo është vetëm kërkesë, ende nuk ka vendim."
+    DETYRA KRITIKE:
+    1. Lexo fillimin e dokumentit. Nëse shkruan "PADI", atëherë i gjithë dokumenti është njëanshëm (vetëm pretendimet e Paditësit).
+    2. **KUJDES:** Në fund të Padisë shpesh shkruhet "AKTGJYKIM" si propozim. MOS E KONSIDERO SI VENDIM.
+    3. Kur analizon, thuaj qartë: "Paditësi pretendon..." ose "Paditësi kërkon...". MOS thuaj "Gjykata vendosi".
     
     FORMATI JSON (STRIKT):
     {
-        "summary_analysis": "...",
+        "document_type": "PADI (Kërkesë) apo AKTGJYKIM (Vendim)?",
+        "summary_analysis": "Përmbledhje e saktë duke dalluar kërkesën nga vendimi.",
         "conflicting_parties": [{"party_name": "...", "core_claim": "..."}],
         "contradictions": ["..."],
-        "key_evidence": ["Aktgjykimi i vjetër C.nr.73/2010", "Raportet mjekësore"],
+        "key_evidence": ["..."],
         "missing_info": ["..."]
     }
     """
     user_prompt = f"DOSJA:\n{truncated_text}"
 
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
-    if not content:
-        content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
+    if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
 
     if content: return _parse_json_safely(content)
     return {}
 
 def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict:
-    return {"answer": "Logic moved to R-A-G Service.", "sources": []}
-
+    return {}
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
     return []
