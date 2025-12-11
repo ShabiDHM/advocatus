@@ -1,7 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V12.2 (TYPE SAFETY FIX)
-# 1. FIX: Handled 'Optional[str]' from OpenAI response to satisfy Pylance strict typing.
-# 2. SAFETY: Defaults to empty string if AI returns None.
+# PHOENIX PROTOCOL - CHAT SERVICE V13.0 (SMART PROMPT)
+# 1. LOGIC: Implemented "Chain of Thought" (CoT) System Prompt.
+# 2. BEHAVIOR: Forces AI to think in steps (Analyze -> Link -> Conclude).
+# 3. SAFETY: Strict anti-hallucination rules for Kosovo Jurisdiction.
 
 from __future__ import annotations
 import os
@@ -24,16 +25,26 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# --- KOSOVO STRICT PROMPT ---
+# --- KOSOVO SMART PROMPT (CHAIN OF THOUGHT) ---
 SYSTEM_PROMPT_KOSOVO = """
-Ti je "Juristi AI", Asistent Ligjor Sokratik për REPUBLIKËN E KOSOVËS.
-DETYRA: Përgjigju pyetjes së përdoruesit duke u bazuar EKSKLUZIVISHT në "KONTEKSTIN E DOSJES" dhe "LIGJET E GJETURA".
+Ti je "Juristi AI", një Partner i Lartë Ligjor i specializuar në ligjet e REPUBLIKËS SË KOSOVËS.
+Qëllimi yt është të ofrosh këshilla ligjore të sakta, të bazuara në fakte dhe të cituara mirë.
 
-RREGULLAT E ARTA (ANTI-HALUCINACION):
-1. **JURISDIKSIONI:** Përdor VETËM ligjet e KOSOVËS. Injoro çdo gjë nga Shqipëria/Tirana.
-2. **E VËRTETA:** Nëse informacioni nuk gjendet në kontekst, thuaj: "Nuk kam informacion të mjaftueshëm në dosje për këtë." MOS SHPIK FAKTE.
-3. **CITIMET:** Kur përmend një ligj, sigurohu që ai ekziston në tekstin e mëposhtëm.
-4. **STILI:** Profesional, i qartë, ndihmues.
+PROTOKOLLI I TË MENDUARIT (Zgjidhja Hap-pas-Hapi):
+1. **ANALIZA:** Identifiko saktësisht se çfarë po kërkon klienti. Cila është çështja kryesore juridike?
+2. **KËRKIMI:** Skano tekstin e dhënë më poshtë ("KONTEKSTI I DOSJES") për fakte relevante, data dhe nene ligjore.
+3. **LIDHJA LOGJIKE:** Lidh faktet e gjetura me ligjet e aplikueshme të Kosovës.
+4. **PËRFUNDIMI:** Përgjigju pyetjes direkt dhe qartë.
+
+RREGULLAT E PANEGOCIUESHME:
+1. **JURISDIKSIONI:** Përdor VETËM ligjet e KOSOVËS. Injoro çdo referencë nga Shqipëria ose legjislacioni i vjetër jugosllav nëse nuk kërkohet specifikisht.
+2. **E VËRTETA E VETME:** Përgjigju VETËM bazuar në informacionin e dhënë në "KONTEKSTI I DOSJES".
+3. **ANTI-HALUCINACION:** Nëse informacioni mungon në dokumente, thuaj: "Nuk kam informacion të mjaftueshëm në dokumentet e ofruara për të dhënë një përgjigje të saktë." MOS SHPIK NENE.
+4. **CITIMET:** Çdo pohim duhet të mbështetet nga një citim (psh: "Sipas Nenit 4 të Kontratës...").
+
+STILI I PËRGJIGJES:
+- Profesional, i drejtpërdrejtë, pa fjalë të tepërta.
+- Përdor 'Markdown' për të theksuar pikat kryesore (**bold**).
 """
 
 def _get_rag_service_instance(db: Any) -> Any:
@@ -92,13 +103,14 @@ async def get_http_chat_response(
     except Exception as e:
         logger.error(f"DB Write Error (User Message): {e}")
     
-    response_text: str = "" # Explicit type hint
+    response_text: str = "" 
     try:
         # 3. RETRIEVAL STEP
         rag_service = _get_rag_service_instance(db)
         
         context_dossier = ""
         if rag_service:
+            # We specifically look for chunks related to the user query
             context_dossier = await rag_service.retrieve_context(
                 query=user_query, 
                 case_id=case_id, 
@@ -109,11 +121,11 @@ async def get_http_chat_response(
 
         # 4. GENERATION STEP
         if not context_dossier:
-            context_dossier = "Nuk u gjetën të dhëna specifike. Përdor njohuritë e përgjithshme ligjore të KOSOVËS."
+            context_dossier = "Nuk u gjetën të dhëna specifike në dokumente. Përdor vetëm njohuritë e përgjithshme ligjore të KOSOVËS, por theksoje që po flet në përgjithësi."
 
         final_user_prompt = (
-            f"=== KONTEKSTI I DOSJES DHE LIGJET ===\n{context_dossier}\n\n"
-            f"=== PYETJA E PËRDORUESIT ===\n{user_query}"
+            f"=== KONTEKSTI I DOSJES (Provat dhe Ligjet) ===\n{context_dossier}\n\n"
+            f"=== PYETJA E KLIENTIT ===\n{user_query}"
         )
 
         if DEEPSEEK_API_KEY:
@@ -125,11 +137,11 @@ async def get_http_chat_response(
                     {"role": "system", "content": SYSTEM_PROMPT_KOSOVO},
                     {"role": "user", "content": final_user_prompt}
                 ],
-                temperature=0.2, 
+                temperature=0.1, # Lower temperature for higher precision
                 max_tokens=1000,
                 extra_headers={"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Chat"}
             )
-            # PHOENIX FIX: Handle Optional[str] explicitly
+            
             content = completion.choices[0].message.content
             response_text = content if content is not None else "Më vjen keq, nuk munda të gjeneroj një përgjigje."
         else:

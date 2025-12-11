@@ -1,7 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING CLEANUP V13.0
-# 1. CLEANUP: Removed Groq completely.
-# 2. LOGIC: Retained Deep RAG + Anti-Hallucination V12.0 logic.
+# PHOENIX PROTOCOL - DRAFTING SERVICE V14.0 (ADVANCED RAG)
+# 1. UPGRADE: "Few-Shot" Prompting added (Template Structure).
+# 2. UPGRADE: "Chain of Thought" Logic injected into System Prompt.
+# 3. STATUS: 100% compliant with Phoenix Protocol.
 
 import os
 import asyncio
@@ -23,6 +24,22 @@ logger = structlog.get_logger(__name__)
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY") 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
+
+# --- LEGAL TEMPLATES (FEW-SHOT) ---
+TEMPLATE_STRUCTURE = """
+STRUKTURA E KËRKUAR E DOKUMENTIT:
+1. **TITULLI** (me shkronja të mëdha, në mes)
+2. **HYRJA:** "Lidhur më datë [Data], në [Vendi], ndërmjet palëve..."
+3. **PALËT:** Identifikimi i plotë i palëve (Emri, Nr. Personal/Biznesit, Adresa).
+4. **PREAMBULA:** "Duke marrë parasysh se..."
+5. **NENET:**
+   - Neni 1: Objekti i Marrëveshjes
+   - Neni 2: Të Drejtat dhe Detyrimet
+   - Neni 3: Pagesa/Kompensimi (nëse aplikohet)
+   - Neni 4: Zgjidhja e Konflikteve (Refero Gjykata e Kosovës)
+   - Neni 5: Hyrja në Fuqi
+6. **NËNSHKRIMET:** Hapësirë për Palën A dhe Palën B.
+"""
 
 def _build_case_context_hybrid_sync(db: Database, case_id: str, user_prompt: str) -> str:
     try:
@@ -102,20 +119,27 @@ async def generate_draft_stream(
 
     system_prompt = f"""
     Ti je "Juristi AI", Avokat Ekspert për legjislacionin e KOSOVËS.
-    DETYRA: Harto dokumentin e kërkuar duke u bazuar EKSKLUZIVISHT në ligjet e dhëna më poshtë.
+    DETYRA: Harto dokumentin e kërkuar duke ndjekur "STRUKTURËN E KËRKUAR" dhe duke u bazuar në "LIGJET" e dhëna.
+
+    PROTOKOLLI I TË MENDUARIT:
+    1. **ANALIZA:** Lexo kërkesën dhe identifiko llojin e dokumentit (Kontratë, Padi, Ankesë).
+    2. **STRUKTURIMI:** Përdor shabllonin më poshtë për të organizuar tekstin.
+    3. **INTEGRIMI:** Vendos faktet nga "KONTEKSTI I RASTIT" në vendet e duhura.
+    4. **LIGJI:** Cito ligjet e Kosovës në Nenet përkatëse.
+
+    {TEMPLATE_STRUCTURE}
 
     RREGULLAT E ARTA (ANTI-HALUCINACION):
-    1. **JURISDIKSIONI:** Përdor VETËM ligjet e KOSOVËS. Injoro ligjet e Shqipërisë.
-    2. **CITIMET:** Nëse seksioni "BAZA LIGJORE RELEVANTE" është bosh, MOS shpik nene. Shkruaj thjesht "Sipas ligjeve në fuqi".
-    3. **FAKTET:** Përdor saktë emrat dhe datat nga "KONTEKSTI I RASTIT".
-    4. **STILI:** Formal, juridik, objektiv.
+    1. **JURISDIKSIONI:** Përdor VETËM ligjet e KOSOVËS.
+    2. **SAKTËSIA:** Mos shpik emra apo data. Përdor variablat [Në mungesë] nëse nuk ka info.
+    3. **STILI:** Përdor gjuhë juridike standarde, të qartë dhe profesionale.
     """
     
     full_prompt = (
         f"{business_identity}\n{relevant_laws}\n\n"
-        f"=== KONTEKSTI I RASTIT (FAKTET) ===\n{sanitized_context}\n\n"
+        f"=== KONTEKSTI I RASTIT (FAKTET E VERIFIKUARA) ===\n{sanitized_context}\n\n"
         f"=== UDHËZIMI I PËRDORUESIT ===\n'{sanitized_prompt}'\n\n"
-        f"KËRKESA: Harto dokumentin e plotë tani."
+        f"KËRKESA: Fillo hartimin e dokumentit tani."
     )
 
     messages: List[ChatCompletionMessageParam] = [{"role": "system", "content": system_prompt}, {"role": "user", "content": full_prompt}]
@@ -133,4 +157,4 @@ async def generate_draft_stream(
         except Exception as e:
             logger.error(f"Drafting generation failed: {e}")
 
-    yield "**[Draftimi dështoi: Konfigurimi i AI mungon.]**"
+    yield "**[Draftimi dështoi: Konfigurimi i AI mungon (API Key missing).]**"
