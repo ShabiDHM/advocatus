@@ -1,21 +1,22 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V4.3 (DISPLAY LOGIC FIXED)
-// 1. FIX: Dropdown now prioritizes 'title' > 'case_name' > 'case_number' to ensure readable names.
-// 2. UI: Retained user-approved dark styling (bg-black/50) with Chevron indicator.
-// 3. DEBUG: Added console logs to trace case data structure if issues persist.
+// PHOENIX PROTOCOL - DRAFTING PAGE V5.2 (TYPE SAFETY FIX)
+// 1. FIX: Removed invalid 'case_type' reference.
+// 2. LOGIC: Correctly mapped 'client.name' and 'opposing_party.name' from Case interface.
+// 3. UX: Retained intelligent template injection.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { Case } from '../data/types'; // Import Case type
+import { Case } from '../data/types'; 
 import { 
   PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, 
-  FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown
+  FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'SUCCESS' | 'FAILED' | 'FAILURE';
+type TemplateType = 'generic' | 'padi' | 'pergjigje' | 'kunderpadi' | 'kontrate';
 
 interface DraftingJobState {
   jobId: string | null;
@@ -23,6 +24,66 @@ interface DraftingJobState {
   result: string | null;
   error: string | null;
 }
+
+// --- TEMPLATE PROMPTS (Base Skeletons) ---
+const TEMPLATE_PROMPTS: Record<TemplateType, string> = {
+    generic: "",
+    padi: `**Lloji:** Padi (Lawsuit)
+**Palët:**
+- Paditësi: {{CLIENT_NAME}}
+- I Padituri: {{OPPOSING_PARTY}}
+
+**Objekti i Mosmarrëveshjes:**
+{{CASE_CONTEXT}}
+
+**Baza Ligjore (Opsionale):**
+[P.sh., Ligji për Detyrimet, Neni X]
+
+**Kërkesëpadia (Petitiumi):**
+Kërkoj nga gjykata që të aprovojë këtë kërkesë dhe të detyrojë të paditurin të...`,
+    
+    pergjigje: `**Lloji:** Përgjigje në Padi (Response to Lawsuit)
+**Numri i Lëndës:** {{CASE_NUMBER}}
+
+**Deklarim:**
+I padituri {{CLIENT_NAME}} kundërshton në tërësi pretendimet e palës tjetër...
+
+**Arsyetimi:**
+1. Padia nuk ka bazë ligjore sepse...
+2. Faktet e paraqitura nuk janë të sakta sepse...
+
+**Kërkesa:**
+Kërkojmë nga gjykata që të refuzojë padinë si të pabazuar.`,
+    
+    kunderpadi: `**Lloji:** Kundërpadi (Counter-claim)
+**Në lidhje me rastin:** {{CASE_NUMBER}}
+
+**Palët:**
+- Kundërpaditësi: {{CLIENT_NAME}}
+- I Kundërpadituri: {{OPPOSING_PARTY}}
+
+**Baza e Kundërpadisë:**
+Përveç që kundërshtojmë padinë, ne kërkojmë...
+
+**Faktet Kryesore:**
+[Shpjego faktet që mbështesin kundërpadinë]`,
+    
+    kontrate: `**Lloji:** Kontratë (Contract)
+**Lloji i Kontratës:** [P.sh. Qira, Shitblerje, Punësim]
+
+**Palët:**
+1. {{CLIENT_NAME}} (Palë A)
+2. {{OPPOSING_PARTY}} (Palë B)
+
+**Nenet Kryesore:**
+- Objekti i kontratës: ...
+- Çmimi / Pagesa: ...
+- Kohëzgjatja: ...
+- Të drejtat dhe detyrimet: ...
+
+**Zgjidhja e Mosmarrëveshjeve:**
+[Gjykata kompetente ose Arbitrazhi]`
+};
 
 // --- STREAMING COMPONENT ---
 const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () => void }> = ({ text, isNew, onComplete }) => {
@@ -90,9 +151,9 @@ const DraftingPage: React.FC = () => {
       return savedJob ? JSON.parse(savedJob) : { jobId: null, status: null, result: null, error: null };
   });
 
-  // PHOENIX: State for Case Selection
   const [cases, setCases] = useState<Case[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('generic');
 
   const [isResultNew, setIsResultNew] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -108,13 +169,9 @@ const DraftingPage: React.FC = () => {
     const fetchCases = async () => {
         try {
             const userCases = await apiService.getCases();
-            // PHOENIX DEBUG: Check what field holds the name in the console
-            console.log("DraftingPage: Loaded cases raw:", userCases); 
-            
             if (Array.isArray(userCases)) {
                 setCases(userCases);
             } else {
-                console.error("DraftingPage: userCases is not an array", userCases);
                 setCases([]);
             }
         } catch (error) {
@@ -130,7 +187,73 @@ const DraftingPage: React.FC = () => {
     };
   }, []);
 
-  // Helper to safely get display name based on Types.ts priority
+  // --- INTELLIGENT TEMPLATE ENGINE ---
+  const applyTemplate = (templateKey: TemplateType, caseId?: string) => {
+      if (templateKey === 'generic') {
+          return; 
+      }
+
+      let templateText = TEMPLATE_PROMPTS[templateKey];
+      
+      // HYDRATE WITH CASE DATA
+      if (caseId) {
+          const activeCase = cases.find(c => String(c.id) === caseId);
+          if (activeCase) {
+              const clientName = activeCase.client?.name || '[Emri i Klientit]';
+              const opposingName = activeCase.opposing_party?.name || '[Emri i Kundërshtarit]';
+              const caseNum = activeCase.case_number || '[Numri i Lëndës]';
+              // Use Title or Description if Type isn't available
+              const caseCtx = activeCase.title || activeCase.case_name || '[Përshkruaj natyrën e çështjes]';
+
+              templateText = templateText
+                  .replace(/{{CLIENT_NAME}}/g, clientName)
+                  .replace(/{{OPPOSING_PARTY}}/g, opposingName)
+                  .replace(/{{CASE_NUMBER}}/g, caseNum)
+                  .replace(/{{CASE_CONTEXT}}/g, caseCtx);
+          }
+      } 
+      
+      // Fallback cleanups if no case selected
+      templateText = templateText
+          .replace(/{{CLIENT_NAME}}/g, '[Emri dhe Mbiemri / Kompania]')
+          .replace(/{{OPPOSING_PARTY}}/g, '[Emri i Kundërshtarit]')
+          .replace(/{{CASE_NUMBER}}/g, '[Numri i Lëndës]')
+          .replace(/{{CASE_CONTEXT}}/g, '[Përshkruaj shkurtimisht natyrën e çështjes]');
+
+      setContext(templateText);
+  };
+
+  const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newTemplate = e.target.value as TemplateType;
+      
+      const isDirty = context.trim().length > 0;
+      const isCleanSwitch = !isDirty || Object.values(TEMPLATE_PROMPTS).some(t => context.includes(t.substring(0, 20))); 
+
+      if (isDirty && !isCleanSwitch) {
+          if (!window.confirm(t('drafting.confirmTemplateSwitch', 'Ndryshimi i shabllonit do të zëvendësojë tekstin aktual. Vazhdo?'))) {
+              // Revert logic handled by react state not changing
+              // But strictly speaking, the Select 'value' prop controls it, so just returning does nothing if event fired.
+              // In React controlled components, we just don't set state.
+              return; 
+          }
+      }
+
+      setSelectedTemplate(newTemplate);
+      if (newTemplate === 'generic') setContext('');
+      else applyTemplate(newTemplate, selectedCaseId);
+  };
+
+  // If Case changes, re-apply the CURRENT template if it's not generic
+  const handleCaseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newCaseId = e.target.value || undefined;
+      setSelectedCaseId(newCaseId);
+      
+      if (selectedTemplate !== 'generic') {
+          // Auto-update template data with new case data
+          applyTemplate(selectedTemplate, newCaseId);
+      }
+  };
+
   const getCaseDisplayName = (c: Case) => {
     if (c.title && c.title.trim().length > 0) return c.title;
     if (c.case_name && c.case_name.trim().length > 0) return c.case_name;
@@ -181,7 +304,7 @@ const DraftingPage: React.FC = () => {
         user_prompt: context.trim(),
         context: context.trim(),
         case_id: selectedCaseId, 
-        use_library: !!selectedCaseId 
+        use_library: !!selectedCaseId
       });
 
       const jobId = jobResponse.job_id;
@@ -223,32 +346,58 @@ const DraftingPage: React.FC = () => {
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-400" size={20} />{t('drafting.configuration')}</h3>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4 min-h-0">
                 
-                {/* PHOENIX: CASE SELECTOR (TITLE PRIORITY) */}
-                <div className='flex-shrink-0'>
-                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.caseLabel', 'Rasti')}</label>
-                    <div className="relative">
-                        <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                        <select
-                            value={selectedCaseId || ''}
-                            onChange={(e) => setSelectedCaseId(e.target.value || undefined)}
-                            className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer"
-                            disabled={isSubmitting}
-                        >
-                            <option value="" className="bg-gray-900 text-gray-400">{t('drafting.noCaseSelected', 'Pa Kontekst (Gjenerik)')}</option>
-                            {cases.length > 0 ? (
-                                cases.map(c => (
-                                    <option key={c.id} value={String(c.id)} className="bg-gray-900 text-white">
-                                        {getCaseDisplayName(c)}
+                {/* PHOENIX: ROW LAYOUT FOR SELECTORS */}
+                <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
+                    
+                    {/* CASE SELECTOR */}
+                    <div className='flex-1 min-w-0'>
+                        <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.caseLabel', 'Rasti')}</label>
+                        <div className="relative">
+                            <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
+                            <select
+                                value={selectedCaseId || ''}
+                                onChange={handleCaseChange}
+                                className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer truncate"
+                                disabled={isSubmitting}
+                            >
+                                <option value="" className="bg-gray-900 text-gray-400">{t('drafting.noCaseSelected', 'Pa Kontekst (Gjenerik)')}</option>
+                                {cases.length > 0 ? (
+                                    cases.map(c => (
+                                        <option key={c.id} value={String(c.id)} className="bg-gray-900 text-white">
+                                            {getCaseDisplayName(c)}
+                                        </option>
+                                    ))
+                                ) : (
+                                    <option value="" disabled className="bg-gray-900 text-gray-500 italic">
+                                        {t('drafting.noCasesFound', 'Asnjë rast i gjetur')}
                                     </option>
-                                ))
-                            ) : (
-                                <option value="" disabled className="bg-gray-900 text-gray-500 italic">
-                                    {t('drafting.noCasesFound', 'Asnjë rast i gjetur')}
-                                </option>
-                            )}
-                        </select>
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
+                                )}
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
+                        </div>
                     </div>
+
+                    {/* TEMPLATE SELECTOR */}
+                    <div className='flex-1 min-w-0'>
+                        <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.templateLabel', 'Lloji i Dokumentit')}</label>
+                        <div className="relative">
+                            <LayoutTemplate className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
+                            <select
+                                value={selectedTemplate}
+                                onChange={handleTemplateChange}
+                                className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer"
+                                disabled={isSubmitting}
+                            >
+                                <option value="generic" className="bg-gray-900 text-gray-400">{t('drafting.templateGeneric', 'I lirë (Pa shabllon)')}</option>
+                                <option value="padi" className="bg-gray-900 text-white">{t('drafting.templatePadi', 'Padi')}</option>
+                                <option value="pergjigje" className="bg-gray-900 text-white">{t('drafting.templatePergjigje', 'Përgjigje në Padi')}</option>
+                                <option value="kunderpadi" className="bg-gray-900 text-white">{t('drafting.templateKunderpadi', 'Kundërpadi')}</option>
+                                <option value="kontrate" className="bg-gray-900 text-white">{t('drafting.templateKontrate', 'Kontratë')}</option>
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
+                        </div>
+                    </div>
+
                 </div>
 
                 <div className="flex-1 flex flex-col min-h-0">

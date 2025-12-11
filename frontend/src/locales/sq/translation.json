@@ -162,7 +162,15 @@
     "title": "Hartimi Inteligjent",
     "subtitle": "Krijoni dokumente ligjore automatikisht.",
     "configuration": "Konfigurimi",
+    "caseLabel": "Rasti",
     "selectCaseLabel": "Zgjidhni Rastin",
+    "templateLabel": "Lloji i Dokumentit",
+    "templateGeneric": "I lirë (Pa shabllon)",
+    "templatePadi": "Padi",
+    "templatePergjigje": "Përgjigje në Padi",
+    "templateKunderpadi": "Kundërpadi",
+    "templateKontrate": "Kontratë",
+    "confirmTemplateSwitch": "Ndryshimi i shabllonit do të zëvendësojë tekstin aktual. A jeni të sigurt?",
     "generalDraft": "Hartim i Përgjithshëm",
     "instructionsLabel": "Udhëzimet",
     "promptPlaceholder": "Psh: Krijo një kontratë qiraje për një apartament...",
@@ -179,7 +187,11 @@
     "errorJobFailed": "Puna e hartimit dështoi",
     "errorConnectionLost": "Lidhja me serverin u humb",
     "errorStartJob": "Dështoi fillimi i punës së hartimit",
-    "regenerate": "Rigjenero"
+    "regenerate": "Rigjenero",
+    "noCaseSelected": "Pa Kontekst (Gjenerik)",
+    "noCasesFound": "Asnjë rast i gjetur",
+    "clearTitle": "Pastro",
+    "confirmClear": "A jeni i sigurt?"
   },
   "business": {
     "title": "Qendra e Biznesit",
