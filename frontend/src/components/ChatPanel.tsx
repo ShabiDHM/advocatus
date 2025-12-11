@@ -196,7 +196,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   return (
-    <div className={`flex flex-col relative bg-background-dark/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl overflow-hidden h-full ${className}`}>
+    <div className={`flex flex-col relative bg-background-dark/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-xl overflow-hidden h-full w-full ${className}`}>
       
       <div className="flex items-center justify-between px-3 sm:px-4 py-3 border-b border-white/10 bg-white/5 rounded-t-2xl z-50">
         <div className="flex items-center gap-2 sm:gap-3">

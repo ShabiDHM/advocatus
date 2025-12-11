@@ -3,6 +3,7 @@
 // 1. UI: Removed redundant 'Back to Dashboard' link for cleaner vertical rhythm.
 // 2. UI: Harmonized 'Analizo Rastin' button style with 'Gjetjet' (Ghost Style).
 // 3. RESPONSIVE: Optimized grid height for mobile (stacked) vs desktop (side-by-side).
+// 4. FIX: Wrapped ChatPanel to enforce mobile height and scrolling.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -349,18 +350,21 @@ const CaseViewPage: React.FC = () => {
             />
 
             {/* RIGHT PANEL: Socratic Assistant */}
-            <ChatPanel
-                messages={liveMessages}
-                connectionStatus={connectionStatus}
-                reconnect={reconnect}
-                onSendMessage={handleChatSubmit}
-                isSendingMessage={isSendingMessage}
-                caseId={caseData.details.id}
-                onClearChat={handleClearChat}
-                t={t}
-                documents={liveDocuments}
-                className="h-[600px] lg:h-full"
-            />
+            {/* WRAPPER FIX: Explicit wrapper to enforce height on mobile and desktop */}
+            <div className="h-[600px] lg:h-full w-full">
+                <ChatPanel
+                    messages={liveMessages}
+                    connectionStatus={connectionStatus}
+                    reconnect={reconnect}
+                    onSendMessage={handleChatSubmit}
+                    isSendingMessage={isSendingMessage}
+                    caseId={caseData.details.id}
+                    onClearChat={handleClearChat}
+                    t={t}
+                    documents={liveDocuments}
+                    className="h-full w-full"
+                />
+            </div>
         </div>
       </div>
       
