@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V8.0 (CITATION ENGINE)
-# 1. CITATION LOGIC: Prompts now strictly demand "page_ref" (Faqja X) based on text markers.
-# 2. ACCURACY: Retained Financial Audit logic (200 vs 250 Euro).
-# 3. REPAIR: Retained 'Paditësja' fix.
+# PHOENIX PROTOCOL - INTELLIGENCE V8.1 (LOGIC FIX)
+# 1. LOGIC: Strict distinction between "Request" (Padi) and "Decision" (Aktgjykim).
+# 2. ACCURACY: Explicit rule against hallucinating numbers or future dates.
+# 3. ARCHITECTURE: Keeps existing Local/DeepSeek fallback strategy.
 
 import os
 import json
@@ -19,7 +19,7 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat"
 
-# Local LLM (Ollama) - The "Eco" Engine
+# Local LLM (Ollama)
 OLLAMA_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/generate")
 LOCAL_MODEL_NAME = "llama3"
 
@@ -48,9 +48,6 @@ def repair_albanian_text(text: str) -> str:
     }
     for bad, good in replacements.items():
         text = text.replace(bad, good)
-    text = re.sub(r'ésja\b', 'ësja', text)
-    text = re.sub(r'ésit\b', 'ësit', text)
-    text = re.sub(r'éses\b', 'ëses', text)
     return text
 
 def _parse_json_safely(content: str) -> Dict[str, Any]:
@@ -58,10 +55,12 @@ def _parse_json_safely(content: str) -> Dict[str, Any]:
     try:
         return json.loads(content)
     except json.JSONDecodeError:
+        # Try to find JSON block if wrapped in markdown
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
         if match:
             try: return json.loads(match.group(1))
             except: pass
+        # Try raw bracket finding
         start, end = content.find('{'), content.rfind('}')
         if start != -1 and end != -1:
             try: return json.loads(content[start:end+1])
@@ -77,7 +76,7 @@ def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False
         kwargs = {
             "model": OPENROUTER_MODEL,
             "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            "temperature": 0.0, 
+            "temperature": 0.0, # ZERO CREATIVITY = HIGHEST ACCURACY
             "extra_headers": {"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Analysis"}
         }
         if json_mode: kwargs["response_format"] = {"type": "json_object"}
@@ -109,7 +108,7 @@ def generate_summary(text: str) -> str:
     system_prompt = (
         "Ti je Analist Gjyqësor për Republikën e Kosovës. "
         "Detyra: Krijoni një përmbledhje faktike. "
-        "CITIMI: Nëse teksti përmban markera si '[[FAQJA X]]', referoju atyre kur përmend fakte kritike."
+        "KUJDES: Nëse dokumenti është 'Padi', çdo gjë që kërkohet është 'Pretendim', jo 'Vendim'."
     )
     user_prompt = f"DOKUMENTI:\n{truncated_text}"
     
@@ -120,48 +119,60 @@ def generate_summary(text: str) -> str:
     return repair_albanian_text(res or "Përmbledhja e padisponueshme.")
 
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
+    """
+    Extracts structured findings (facts, claims, decisions) from legal text.
+    """
     truncated_text = text[:25000]
     
-    # PHOENIX V8.0: ADDED 'page_ref' REQUIREMENT
+    # PHOENIX V8.1: STRICT LOGIC PROMPT
     system_prompt = """
-    Ti je Motor i Nxjerrjes së Provave (Evidence Engine).
+    Ti je Motor i Nxjerrjes së Provave (Evidence Engine) për Kosovën.
     
-    DETYRA: Gjej elementet kyçe dhe TREGO KU GJENDEN.
+    RREGULLAT STRIKTE TË LOGJIKËS (KRITIKE):
+    1. **DALLIMI "KËRKESË" vs "VENDIM":**
+       - Nëse dokumenti është **PADI** (Lawsuit), çdo gjë e shkruar nën "AKTGJYKIM" ose "PETITIUM" është vetëm **KËRKESË** e paditësit. 
+       - **KUJDES:** MOS thuaj "Gjykata ka vendosur". Thuaj "Paditësi kërkon që Gjykata të vendosë".
+       - Vetëm nëse dokumenti është vërtet "Aktgjykim" (i nënshkruar nga Gjyqtari), atëherë përdor termin "Gjykata ka vendosur".
+
+    2. **SAKTËSIA NUMERIKE:**
+       - Kopjo shumat e parave (Euro) SAKTËSISHT siç janë në tekst. Mos bëj llogaritje.
+       - Nëse shkruan 200 ose 250, mos shkruaj numra të tjerë (si 280).
     
-    INSTRUKSIONE PËR CITIM:
-    1. Shiko tekstin për markera faqesh (psh. "--- [FAQJA 2] ---").
-    2. Për çdo gjetje, identifiko numrin e faqes më të afërt lart.
-    3. Nëse nuk ka numër faqeje, shkruaj "N/A".
-    
+    3. **DATAT:**
+       - Cito vetëm datat që shihen në tekst. Mos parashiko të ardhmen.
+
     FORMATI JSON (STRIKT):
     {
       "findings": [
         {
-          "finding_text": "Paditësja kërkon 250 Euro.",
-          "source_text": "Kërkojmë që shuma... të rritet në 250 euro.",
-          "category": "CLAIM",
-          "page_ref": "Faqja 3" 
+          "finding_text": "Përshkrimi i saktë (psh: Paditësja kërkon rritjen e alimentacionit...)",
+          "source_text": "Cito fjalinë ekzakte nga teksti",
+          "category": "CLAIM" (për Padi) ose "DECISION" (për Aktgjykim),
+          "page_number": 1
         }
       ]
     }
     """
-    user_prompt = f"DOSJA:\n{truncated_text}"
+    user_prompt = f"ANALIZO KËTË DOKUMENT:\n{truncated_text}"
 
+    # Priority: DeepSeek (Smarter) -> Local (Fallback)
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content:
         content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     
     if content:
         data = _parse_json_safely(content)
-        return data.get("findings", [])
+        # Handle various return formats
+        if "findings" in data: return data["findings"]
+        if isinstance(data, list): return data
+    
     return []
 
 def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
     truncated_text = text[:15000]
     system_prompt = """
     Ti je Inxhinier i Grafit Ligjor. Krijo hartën e marrëdhënieve.
-    FORMATI JSON STRIKT:
-    {"entities": [{"id": "...", "name": "...", "group": "..."}], "relations": [{"source": "...", "target": "...", "label": "..."}]}
+    FORMATI JSON: {"entities": [{"id": "...", "name": "...", "group": "..."}], "relations": [{"source": "...", "target": "...", "label": "..."}]}
     """
     user_prompt = f"TEKSTI:\n{truncated_text}"
     content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
@@ -173,22 +184,22 @@ def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
 def analyze_case_contradictions(text: str) -> Dict[str, Any]:
     truncated_text = text[:25000]
     
-    # PHOENIX V8.0: AUDIT + CITATION
+    # PHOENIX V8.1: AUDIT MODE
     system_prompt = """
-    Ti je Gjyqtar i Debatit Ligjor.
+    Ti je Gjyqtar i Debatit Ligjor (Audit Mode).
     
-    DETYRA: Analizo rastin dhe CITO BURIMET.
+    DETYRA: Analizo rastin për kontradikta dhe rreziqe.
     
-    UDHËZIME:
-    1. Identifiko saktë shumat (200 vs 250 Euro).
-    2. Për çdo 'Provë Kyçe', trego në kllapa se ku gjendet (psh. [Faqja 2]).
+    RREGULLI I ARTË:
+    - Mos ngatërro 'Kërkesën e Paditësit' me 'Vendimin e Gjykatës'. 
+    - Nëse është PADI, thuaj qartë: "Kjo është vetëm kërkesë, ende nuk ka vendim."
     
     FORMATI JSON (STRIKT):
     {
         "summary_analysis": "...",
         "conflicting_parties": [{"party_name": "...", "core_claim": "..."}],
         "contradictions": ["..."],
-        "key_evidence": ["Aktgjykimi i vjetër (Faqja 2)", "Raportet mjekësore (Faqja 3)"],
+        "key_evidence": ["Aktgjykimi i vjetër C.nr.73/2010", "Raportet mjekësore"],
         "missing_info": ["..."]
     }
     """
