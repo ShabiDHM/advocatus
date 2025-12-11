@@ -1,9 +1,9 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - ECO-MODE INTELLIGENCE V6.0
-# 1. CLEANUP: Removed Groq completely.
-# 2. ECO-MODE: 'Summary' and 'Graph' now prioritize LOCAL LLM to save money.
-# 3. QUALITY: 'Analysis' and 'Findings' prioritize DEEPSEEK for accuracy.
-# 4. REPAIR: Retained 'Paditësja' encoding fixes.
+# PHOENIX PROTOCOL - MASTER INTELLIGENCE V6.1 (FULL PROMPTS + ECO-MODE)
+# 1. ARCHITECTURE: Groq removed. DeepSeek (Cloud) + Ollama (Local).
+# 2. ECO-MODE: Summaries/Graphs use Local LLM first to save costs.
+# 3. QUALITY: Findings/Analysis use DeepSeek first with FULL, UNTRUNCATED PROMPTS.
+# 4. REPAIR: 'Paditësja' encoding fix active.
 
 import os
 import json
@@ -97,7 +97,7 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
             "options": {"temperature": 0.1, "num_ctx": 4096},
             "format": "json" if json_mode else None
         }
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=45.0) as client:
             response = client.post(OLLAMA_URL, json=payload)
             return response.json().get("response", "")
     except Exception:
@@ -113,8 +113,8 @@ def generate_summary(text: str) -> str:
     truncated_text = text[:20000] 
     system_prompt = (
         "Ti je Analist Gjyqësor për Republikën e Kosovës. "
-        "Detyra: Krijoni një përmbledhje të qartë dhe koncize. "
-        "RREGULL: Përdor 'ë' dhe 'ç' saktë. "
+        "Detyra: Krijoni një përmbledhje të qartë dhe koncize të dokumentit. "
+        "RREGULL: Përdor 'ë' dhe 'ç' saktë. Shembull: 'Paditësja' (jo Paditesja/Paditésja). "
         "Fokuso te: KUSH (Palët), ÇFARË (Konflikti), KUR (Datat), STATUSI."
     )
     user_prompt = f"DOKUMENTI:\n{truncated_text}"
@@ -134,6 +134,7 @@ def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
     Strategy: Try Local LLM first.
     """
     truncated_text = text[:15000]
+    # Full prompt required even for Local LLM
     system_prompt = """
     Ti je Inxhinier i Grafit Ligjor për Rastet e Kosovës.
     Detyra: Krijo hartën e marrëdhënieve mes entiteteve.
@@ -156,16 +157,36 @@ def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     """
     ECO-MODE: OFF (Quality Priority)
-    Strategy: Complex JSON requires DeepSeek first. Local is fallback.
+    Strategy: Complex JSON requires DeepSeek first.
     """
     truncated_text = text[:25000]
+    
+    # FULL PROMPT RESTORED
     system_prompt = """
     Ti je Motor i Nxjerrjes së Provave për Sistemin e Drejtësisë në Kosovë.
     DETYRA: Identifiko elementet kyçe ligjore dhe ktheji në format JSON.
-    KATEGORITË: EVENT, EVIDENCE, CLAIM, CONTRADICTION, QUANTITY, DEADLINE.
+    
+    KATEGORITË E PROVAVE:
+    - EVENT (Ngjarje)
+    - EVIDENCE (Provë materiale/dokumentare)
+    - CLAIM (Pretendim i një pale)
+    - CONTRADICTION (Mospërputhje mes palëve)
+    - QUANTITY (Shuma parash, sipërfaqe toke)
+    - DEADLINE (Afate ligjore/procedurale)
+    
     RREGULL GJUHËSOR: Korrigjo gabimet e encoding (psh. shkruaj 'Paditësja').
+    DETYRIM: Të paktën 5 gjetje nëse ekzistojnë.
+    
     FORMATI JSON (STRIKT):
-    { "findings": [ { "finding_text": "...", "source_text": "...", "category": "..." } ] }
+    {
+      "findings": [
+        {
+          "finding_text": "...",
+          "source_text": "...",
+          "category": "..."
+        }
+      ]
+    }
     """
     user_prompt = f"DOSJA:\n{truncated_text}"
 
@@ -187,17 +208,29 @@ def analyze_case_contradictions(text: str) -> Dict[str, Any]:
     Strategy: Complex Reasoning (Debate Judge) requires DeepSeek.
     """
     truncated_text = text[:25000]
+    
+    # FULL PROMPT RESTORED (DEBATE JUDGE V5.6)
     system_prompt = """
     Ti je Gjyqtar i Debatit Ligjor në Gjykatën e Prishtinës.
     DETYRA: Analizo përplasjen ligjore në këtë dosje dhe kthe përgjigjen në JSON.
-    PROCESI KOGNITIV: Identifiko Palët, Pretendimet, Kontradiktat, Provat, dhe Mungesat.
+    
+    PROCESI KOGNITIV:
+    1. Identifiko Paditësin dhe pretendimin kryesor.
+    2. Identifiko të Paditurin dhe mbrojtjen kryesore.
+    3. Gjej kontradiktat direkte (Ku nuk pajtohen?).
+    4. Gjej provat mbështetëse për secilin.
+    5. Çfarë mungon për të marrë vendim?
+    
     FORMATI JSON (STRIKT):
     {
-        "summary_analysis": "...",
-        "conflicting_parties": [ {"party_name": "...", "core_claim": "..."} ],
-        "contradictions": ["..."],
-        "key_evidence": ["..."],
-        "missing_info": ["..."]
+        "summary_analysis": "Përmbledhje strategjike e rastit dhe konfliktit kryesor.",
+        "conflicting_parties": [
+            {"party_name": "Paditësi", "core_claim": "Pretendimi kryesor..."},
+            {"party_name": "I Padituri", "core_claim": "Mbrojtja kryesore..."}
+        ],
+        "contradictions": ["Listë e mospërputhjeve konkrete."],
+        "key_evidence": ["Listë e provave të përmendura."],
+        "missing_info": ["Çfarë informacioni duhet siguruar shtesë?"]
     }
     """
     user_prompt = f"DOSJA:\n{truncated_text}"
