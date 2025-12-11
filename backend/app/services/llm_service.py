@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V5.2 (DEBATE JUDGE)
-# 1. PROMPT STRATEGY: 'analyze_case' now uses a "Debate Judge" cognitive forcing function.
-# 2. PROMPT STRATEGY: 'extract_findings' now includes few-shot examples to improve CLAIM and CONTRADICTION detection.
-# 3. GOAL: Overcome AI's default summarization behavior and force true conflict analysis.
+# PHOENIX PROTOCOL - INGESTION INTELLIGENCE V5.3 (KOSOVO CONTEXT HARDENING)
+# 1. SAFETY: Reinforced "Kosovo Jurisdiction" in all system prompts to prevent dialect/legal drift.
+# 2. CONSISTENCY: Enforced standard Albanian language output for all analysis tasks.
+# 3. LOGIC: Preserved the "Debate Judge" logic which is performing well.
 
 import os
 import json
@@ -77,7 +77,7 @@ def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False
             "model": OPENROUTER_MODEL,
             "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
             "temperature": 0.1, 
-            "extra_headers": {"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI"}
+            "extra_headers": {"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Analysis"}
         }
         if json_mode: kwargs["response_format"] = {"type": "json_object"}
         response = client.chat.completions.create(**kwargs)
@@ -118,18 +118,19 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
     except Exception:
         return ""
 
-# --- UNIVERSAL EVIDENCE ENGINE (V5.2) ---
+# --- UNIVERSAL EVIDENCE ENGINE (V5.3) ---
 
 def generate_summary(text: str) -> str:
     truncated_text = text[:20000] 
     system_prompt = (
         "Ti je Analist Gjyqësor për Republikën e Kosovës. "
-        "Detyra jote është të krijosh një përmbledhje të qartë dhe koncize të çdo lloj dokumenti ligjor. "
+        "Detyra jote është të krijosh një përmbledhje të qartë dhe koncize të dokumentit. "
+        "RREGULL: Përdor gjuhë standarde shqipe (dialekti i Kosovës ku aplikohet terminologjia ligjore). "
         "Fokuso te: "
-        "1. KUSH janë palët kryesore? "
+        "1. KUSH janë palët? "
         "2. CILI është konflikti thelbësor? "
-        "3. KUR ka ndodhur ngjarja kryesore? "
-        "4. CILI është hapi i radhës procedural (nëse përmendet)?"
+        "3. KUR ka ndodhur ngjarja? "
+        "4. STATUSI aktual procedural?"
     )
     user_prompt = f"DOKUMENTI:\n{truncated_text}"
     
@@ -141,27 +142,31 @@ def generate_summary(text: str) -> str:
 
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     """
-    Extracts universal legal building blocks from text, regardless of case type.
+    Extracts universal legal building blocks from text.
     """
     truncated_text = text[:25000]
     
-    # PHOENIX V5.2 UPGRADE: Added few-shot examples to teach the AI what we want.
+    # PHOENIX V5.3 UPGRADE: Added explicit "Kosovo Legal Context" instruction
     system_prompt = """
-    Ti je një motor për nxjerrjen e provave (Evidence Extraction Engine) për sistemin ligjor të Kosovës.
+    Ti je Motor i Nxjerrjes së Provave për Sistemin e Drejtësisë në Kosovë.
     
-    DETYRA: Shndërro tekstin e papërpunuar në një listë të strukturuar të PROVAVE.
+    DETYRA: Identifiko elementet kyçe ligjore.
     
     KATEGORITË E PROVAVE:
-    - EVENT, EVIDENCE, CLAIM, CONTRADICTION, QUANTITY, DEADLINE.
+    - EVENT (Ngjarje)
+    - EVIDENCE (Provë materiale/dokumentare)
+    - CLAIM (Pretendim i një pale)
+    - CONTRADICTION (Mospërputhje mes palëve)
+    - QUANTITY (Shuma parash, sipërfaqe toke)
+    - DEADLINE (Afate ligjore/procedurale)
     
-    DETYRIM: Duhet të gjenerosh TË PAKTËN 5 gjetje nëse ato ekzistojnë në tekst. Mos kthe përgjigje boshe.
+    DETYRIM: Përgjigju vetëm në JSON valid. Të paktën 5 gjetje nëse ekzistojnë.
     
-    SHEMBUJ TË KUALITETIT TË LARTË:
-    - Për "CLAIM": {"finding_text": "Teuta pretendon se Iliri ka fshehur pasuri në kriptovaluta.", "source_text": "Ilir Krasniqi posedon pasuri të mëdha të fshehura në kriptovaluta (Bitcoin)", "category": "CLAIM"}
-    - Për "CONTRADICTION": {"finding_text": "Kontradiktë financiare: Teuta pretendon se Iliri ka pasuri, ndërsa Iliri pretendon se biznesi i tij ka falimentuar.", "source_text": "Biznesi i Ilirit ka falimentuar në vitin 2024. Ai nuk posedon kriptovaluta.", "category": "CONTRADICTION"}
-    - Për "DEADLINE": {"finding_text": "Afati për dorëzimin e pasqyrave bankare është 30 Dhjetor 2025.", "source_text": "I padituri Ilir Krasniqi urdhërohet të sjellë raportet bankare... deri më datë 30 Dhjetor 2025.", "category": "DEADLINE"}
+    SHEMBUJ TË KUALITETIT TË LARTË (KOSOVË):
+    - Për "CLAIM": {"finding_text": "Paditësi kërkon kompensim dëmi.", "category": "CLAIM"}
+    - Për "DEADLINE": {"finding_text": "Afati për ankesë është 15 ditë sipas Ligjit për Procedurën Kontestimore.", "category": "DEADLINE"}
 
-    FORMATI JSON (STRIKT):
+    FORMATI JSON:
     {
       "findings": [
         {
@@ -172,7 +177,7 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
       ]
     }
     """
-    user_prompt = f"TEKSTI I DOSJES:\n{truncated_text}"
+    user_prompt = f"DOSJA:\n{truncated_text}"
 
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content).get("findings", [])
@@ -188,7 +193,8 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
 def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
     truncated_text = text[:15000]
     system_prompt = """
-    Ti je Inxhinier i Grafit Ligjor. Detyra: Krijo hartën e marrëdhënieve.
+    Ti je Inxhinier i Grafit Ligjor për Rastet e Kosovës.
+    Detyra: Krijo hartën e marrëdhënieve mes entiteteve (Palë, Gjykatës, Provave).
     MARRËDHËNIET: ACCUSES, OWES, CLAIMS, WITNESSED, OCCURRED_ON, CONTRADICTS.
     FORMATI JSON: {"entities": [], "relations": []}
     """
@@ -201,34 +207,34 @@ def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
 
 def analyze_case_contradictions(text: str) -> Dict[str, Any]:
     """
-    High-Level Strategy Analysis for the 'Analizo Rastin' Modal.
+    High-Level Strategy Analysis (Debate Judge).
     """
     truncated_text = text[:25000]
     
-    # PHOENIX V5.2 UPGRADE: The "Debate Judge" cognitive forcing strategy.
     system_prompt = """
-    Ti je Gjyqtar i Debatit Ligjor. Detyra jote është të identifikosh pikat e përplasjes.
+    Ti je Gjyqtar i Debatit Ligjor në Gjykatën e Prishtinës.
+    DETYRA: Analizo përplasjen ligjore në këtë dosje.
     
-    PROCESI KOGNITIV (NDIQE ME PËRPikmëri):
-    1. HAPI 1: Identifiko palën paditëse/akuzuese dhe përmblidh pretendimin e tyre kryesor në një fjali.
-    2. HAPI 2: Identifiko palën e paditur/akuzuar dhe përmblidh kundër-argumentin e tyre kryesor në një fjali.
-    3. HAPI 3: Duke u bazuar VETËM në përplasjen mes Hapave 1 dhe 2, listo kontradiktat direkte.
-    4. HAPI 4: Identifiko provat kryesore që secila palë përmend për të mbështetur versionin e saj.
-    5. HAPI 5: Identifiko informacionin kritik që mungon për të vërtetuar njërën ose tjetrën anë.
+    PROCESI KOGNITIV:
+    1. Identifiko Paditësin dhe pretendimin kryesor.
+    2. Identifiko të Paditurin dhe mbrojtjen kryesore.
+    3. Gjej kontradiktat direkte (Ku nuk pajtohen?).
+    4. Gjej provat mbështetëse për secilin.
+    5. Çfarë mungon për të marrë vendim?
     
-    OUTPUT JSON (STRIKT):
+    OUTPUT JSON:
     {
-        "summary_analysis": "Përmbledhje e thelbit të betejës ligjore.",
+        "summary_analysis": "Përmbledhje strategjike e rastit.",
         "conflicting_parties": [
-            {"party_name": "Emri i Palës 1 (Paditësi/Akuzuesi)", "core_claim": "Pretendimi i tyre kryesor."},
-            {"party_name": "Emri i Palës 2 (I Padituri/Akuzuari)", "core_claim": "Mbrojtja e tyre kryesore."}
+            {"party_name": "Paditësi", "core_claim": "..."},
+            {"party_name": "I Padituri", "core_claim": "..."}
         ],
-        "contradictions": ["Listë e qartë e pikave ku versionet përplasen."],
-        "key_evidence": ["Lista e provave të përmendura (dëshmitarë, dokumente)."],
-        "missing_info": ["Çfarë provash kritike duhen kërkuar për të zgjidhur kontradiktat?"]
+        "contradictions": ["..."],
+        "key_evidence": ["..."],
+        "missing_info": ["..."]
     }
     """
-    user_prompt = f"DOSJA PËR GJYKIM:\n{truncated_text}"
+    user_prompt = f"DOSJA:\n{truncated_text}"
 
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content)

@@ -1,8 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - KOSOVO EXCLUSIVE RAG V9.1 (FORMATTING RESTORED)
-# 1. UX FIX: Restored Rich Markdown formatting (Bold, Headers, Lists) for Chat responses.
-# 2. LOGIC: The 'chat' method now explicitly instructs the AI to structure data visually.
-# 3. CORE: Retrieval logic remains V9.0 (High Precision).
+# PHOENIX PROTOCOL - KOSOVO EXCLUSIVE RAG V9.2 (RETRIEVAL OPTIMIZATION)
+# 1. OPTIMIZATION: Increased legal document retrieval limit (n=3 -> n=5) for better coverage.
+# 2. CLEANUP: Chat method retained as fallback, but primary generation is now in Chat Service.
 
 import os
 import asyncio
@@ -59,19 +58,21 @@ class AlbanianRAGService:
         try:
             query_embedding = await asyncio.to_thread(generate_embedding, query, 'standard')
             if not query_embedding:
-                return "Nuk u gjetën informacione relevante (problem me embedding)."
+                return ""
         except Exception as e:
             logger.error(f"RAG: Embedding generation failed: {e}")
-            return "Nuk u gjetën informacione relevante (problem teknik)."
+            return ""
 
         user_docs, kb_docs, graph_knowledge, structured_findings = [], [], "", []
         
         try:
+            # PHOENIX OPTIMIZATION: Increased Legal Knowledge retrieval to 5 chunks
+            # PHOENIX OPTIMIZATION: Increased Findings retrieval to 10 chunks for deep fact-checking
             results = await asyncio.gather(
                 asyncio.to_thread(self.vector_store.query_by_vector, embedding=query_embedding, case_id=case_id, n_results=5, document_ids=document_ids),
-                asyncio.to_thread(self.vector_store.query_legal_knowledge_base, embedding=query_embedding, n_results=3, jurisdiction='ks'),
+                asyncio.to_thread(self.vector_store.query_legal_knowledge_base, embedding=query_embedding, n_results=5, jurisdiction='ks'),
                 asyncio.to_thread(graph_service.find_contradictions, case_id),
-                asyncio.to_thread(self.vector_store.query_findings_by_similarity, case_id=case_id, embedding=query_embedding, n_results=7),
+                asyncio.to_thread(self.vector_store.query_findings_by_similarity, case_id=case_id, embedding=query_embedding, n_results=10),
                 return_exceptions=True
             )
             
@@ -84,6 +85,7 @@ class AlbanianRAGService:
             logger.error(f"RAG: Retrieval Phase Error: {e}")
 
         context_parts = []
+        
         if structured_findings:
             findings_text = "\n".join([f"- [{f.get('category', 'FAKT')}]: {f.get('finding_text', 'N/A')}" for f in structured_findings])
             context_parts.append(f"### FAKTE KYÇE NGA DOSJA (Gjetjet e Sistemit):\n{findings_text}")
@@ -100,10 +102,9 @@ class AlbanianRAGService:
             context_parts.append(f"### BAZA LIGJORE (LIGJET E KOSOVËS):\n{kb_text}")
         
         if not context_parts:
-            return "Nuk u gjet asnjë informacion relevant në dosje për këtë pyetje."
+            return ""
 
         return "\n\n".join(context_parts)
-
 
     async def chat(
         self, 
@@ -113,8 +114,8 @@ class AlbanianRAGService:
         jurisdiction: str = 'ks'
     ) -> str:
         """
-        Generates the AI response using the retrieved context.
-        Now enforces RICH MARKDOWN FORMATTING.
+        [DEPRECATED] - Logic moved to chat_service.py for centralized prompt control.
+        Kept as fallback.
         """
         context = await self.retrieve_context(query, case_id, document_ids, jurisdiction)
         
@@ -122,22 +123,13 @@ class AlbanianRAGService:
             return "Klienti AI nuk është inicializuar."
 
         try:
-            # PHOENIX FIX: The "Beautiful Output" Prompt
             system_prompt = """
             Ti je 'Juristi AI', asistent ligjor inteligjent.
             DETYRA: Përgjigju pyetjes duke përdorur KONTEKSTIN e dhënë.
-
-            RREGULLAT E FORMATIMIT (E DETYRUESHME):
-            1. Përdor **Markdown** për të strukturuar përgjigjen.
-            2. Përdor **Tituj** (###) për të ndarë seksionet e ndryshme (psh. ### Përmbledhje, ### Analiza Ligjore).
-            3. Përdor **Pika** (-) për të listuar fakte ose argumente.
-            4. Përdor **Bold** (**) për termat kyç, datat, dhe shumat e parave.
-            5. Nëse citon një ligj ose dokument, vendose në *italic* ose si [Burimi].
-
-            Stili: Profesional, i qartë, dhe vizualisht i lehtë për t'u lexuar.
+            RREGULL: Përdor Markdown (Bold, List, Header) për formatim.
             """
             
-            user_message = f"KONTEKSTI I GJETUR:\n{context}\n\nPYETJA E PËRDORUESIT: {query}"
+            user_message = f"KONTEKSTI:\n{context}\n\nPYETJA: {query}"
             
             response = await self.client.chat.completions.create(
                 model=OPENROUTER_MODEL,
@@ -147,7 +139,7 @@ class AlbanianRAGService:
                 ],
                 temperature=0.1
             )
-            return response.choices[0].message.content or "Pati një problem gjatë gjenerimit të përgjigjes."
+            return response.choices[0].message.content or "Error."
         except Exception as e:
             logger.error(f"Chat Error: {e}")
-            return "Ndodhi një gabim në komunikimin me shërbimin AI."
+            return "Error."

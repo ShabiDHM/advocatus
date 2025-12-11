@@ -1,8 +1,7 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V6.1 (CONSTRUCTOR FIX)
-# 1. FIX: The RAG service factory now accepts and passes the 'db' object.
-# 2. STATUS: Resolves the "Argument missing for parameter 'db'" Pylance error.
-# 3. ARCHITECTURE: The Triple-Context RAG pipeline is now correctly initialized.
+# PHOENIX PROTOCOL - CHAT SERVICE V12.2 (TYPE SAFETY FIX)
+# 1. FIX: Handled 'Optional[str]' from OpenAI response to satisfy Pylance strict typing.
+# 2. SAFETY: Defaults to empty string if AI returns None.
 
 from __future__ import annotations
 import os
@@ -16,17 +15,30 @@ from bson.errors import InvalidId
 from openai import AsyncOpenAI
 
 from app.models.case import ChatMessage
-from app.services.graph_service import graph_service 
 import app.services.vector_store_service as vector_store_service
-# PHOENIX: Import the central intelligence engine
-from . import llm_service 
 
 logger = logging.getLogger(__name__)
 
-# PHOENIX FIX: The factory now requires the 'db' object to pass to the RAG service.
+# --- CONFIG ---
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY") 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_MODEL = "deepseek/deepseek-chat" 
+
+# --- KOSOVO STRICT PROMPT ---
+SYSTEM_PROMPT_KOSOVO = """
+Ti je "Juristi AI", Asistent Ligjor Sokratik për REPUBLIKËN E KOSOVËS.
+DETYRA: Përgjigju pyetjes së përdoruesit duke u bazuar EKSKLUZIVISHT në "KONTEKSTIN E DOSJES" dhe "LIGJET E GJETURA".
+
+RREGULLAT E ARTA (ANTI-HALUCINACION):
+1. **JURISDIKSIONI:** Përdor VETËM ligjet e KOSOVËS. Injoro çdo gjë nga Shqipëria/Tirana.
+2. **E VËRTETA:** Nëse informacioni nuk gjendet në kontekst, thuaj: "Nuk kam informacion të mjaftueshëm në dosje për këtë." MOS SHPIK FAKTE.
+3. **CITIMET:** Kur përmend një ligj, sigurohu që ai ekziston në tekstin e mëposhtëm.
+4. **STILI:** Profesional, i qartë, ndihmues.
+"""
+
 def _get_rag_service_instance(db: Any) -> Any:
     """
-    Factory to get the RAG Service instance.
+    Factory to get the RAG Service instance for RETRIEVAL ONLY.
     """
     try:
         from app.services.albanian_rag_service import AlbanianRAGService
@@ -35,16 +47,10 @@ def _get_rag_service_instance(db: Any) -> Any:
         logger.error(f"❌ Critical Import Error in Chat Service: {e}")
         return None
 
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
-    if not api_key:
-        logger.warning("⚠️ DEEPSEEK_API_KEY missing. AI features disabled.")
-        return None
-
     try:
         detector = AlbanianLanguageDetector()
         dummy_client = AsyncOpenAI(api_key="dummy") 
         
-        # PHOENIX FIX: Pass the 'db' object to the constructor.
         return AlbanianRAGService(
             vector_store=vector_store_service,
             llm_client=dummy_client,
@@ -64,7 +70,7 @@ async def get_http_chat_response(
     jurisdiction: Optional[str] = 'ks'
 ) -> str:
     """
-    Orchestrates the Socratic Chat using a Retrieval-then-Generate model.
+    Orchestrates the Socratic Chat using a Strict Retrieval-then-Generate model.
     """
     try:
         oid = ObjectId(case_id)
@@ -86,36 +92,49 @@ async def get_http_chat_response(
     except Exception as e:
         logger.error(f"DB Write Error (User Message): {e}")
     
-    # 3. Retrieve High-Value Context using the RAG Service
-    response_text = ""
+    response_text: str = "" # Explicit type hint
     try:
-        # PHOENIX FIX: Pass 'db' to the factory.
+        # 3. RETRIEVAL STEP
         rag_service = _get_rag_service_instance(db)
+        
+        context_dossier = ""
         if rag_service:
-            # The RAG service's only job is to retrieve and assemble context
             context_dossier = await rag_service.retrieve_context(
                 query=user_query, 
                 case_id=case_id, 
                 document_ids=[document_id] if document_id else None
             )
-            
-            # 4. Generate Response using the Central LLM Service (The Brain)
-            # This ensures we use the same high-quality prompts everywhere.
-            # (This part would be an async call to llm_service if it were async)
-            # For now, we simulate the final prompt structure.
-            final_prompt = f"KONTEKSTI:\n{context_dossier}\n\nPYETJA E PËRDORUESIT:\n{user_query}"
-            system_prompt = "Ti je Juristi AI, një asistent ligjor ekspert. Përgjigju pyetjes së përdoruesit duke u bazuar STRICTLY në kontekstin e dhënë. Cito burimet kur është e mundur."
-            
-            # This would call the llm_service's generation function
-            # For now, we'll use the deprecated RAG chat method as a stand-in
-            response_text = await rag_service.chat(
-                 query=user_query,
-                 case_id=case_id,
-                 document_ids=[document_id] if document_id else None
-            )
-
         else:
-            response_text = "Shërbimi RAG nuk është i konfiguruar."
+            logger.warning("RAG Service unavailable, proceeding without context.")
+
+        # 4. GENERATION STEP
+        if not context_dossier:
+            context_dossier = "Nuk u gjetën të dhëna specifike. Përdor njohuritë e përgjithshme ligjore të KOSOVËS."
+
+        final_user_prompt = (
+            f"=== KONTEKSTI I DOSJES DHE LIGJET ===\n{context_dossier}\n\n"
+            f"=== PYETJA E PËRDORUESIT ===\n{user_query}"
+        )
+
+        if DEEPSEEK_API_KEY:
+            client = AsyncOpenAI(api_key=DEEPSEEK_API_KEY, base_url=OPENROUTER_BASE_URL)
+            
+            completion = await client.chat.completions.create(
+                model=OPENROUTER_MODEL,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT_KOSOVO},
+                    {"role": "user", "content": final_user_prompt}
+                ],
+                temperature=0.2, 
+                max_tokens=1000,
+                extra_headers={"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Chat"}
+            )
+            # PHOENIX FIX: Handle Optional[str] explicitly
+            content = completion.choices[0].message.content
+            response_text = content if content is not None else "Më vjen keq, nuk munda të gjeneroj një përgjigje."
+        else:
+            response_text = "⚠️ Konfigurimi i AI mungon (API Key missing)."
+
     except Exception as e:
         logger.error(f"AI Processing Error: {e}", exc_info=True)
         response_text = "Më vjen keq, pata një problem teknik gjatë përpunimit të përgjigjes."
