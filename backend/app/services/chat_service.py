@@ -1,8 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V13.0 (SMART PROMPT)
-# 1. LOGIC: Implemented "Chain of Thought" (CoT) System Prompt.
-# 2. BEHAVIOR: Forces AI to think in steps (Analyze -> Link -> Conclude).
-# 3. SAFETY: Strict anti-hallucination rules for Kosovo Jurisdiction.
+# PHOENIX PROTOCOL - CHAT SERVICE V13.1 (ANTI-HALLUCINATION HANDCUFFS)
+# 1. LOGIC: Temperature set to 0.0 (Zero Creativity).
+# 2. PROMPT: Added "Party Verification" step to force AI to read names first.
+# 3. SAFETY: Blocks request if Context is empty to prevent guessing.
 
 from __future__ import annotations
 import os
@@ -25,32 +25,27 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# --- KOSOVO SMART PROMPT (CHAIN OF THOUGHT) ---
+# --- KOSOVO SMART PROMPT (STRICT EVIDENCE MODE) ---
 SYSTEM_PROMPT_KOSOVO = """
-Ti je "Juristi AI", një Partner i Lartë Ligjor i specializuar në ligjet e REPUBLIKËS SË KOSOVËS.
-Qëllimi yt është të ofrosh këshilla ligjore të sakta, të bazuara në fakte dhe të cituara mirë.
+Ti je "Juristi AI", një analist ligjor rigoroz për ligjet e REPUBLIKËS SË KOSOVËS.
+Roli yt nuk është të jesh kreativ. Roli yt është të jesh "Forenzik".
 
-PROTOKOLLI I TË MENDUARIT (Zgjidhja Hap-pas-Hapi):
-1. **ANALIZA:** Identifiko saktësisht se çfarë po kërkon klienti. Cila është çështja kryesore juridike?
-2. **KËRKIMI:** Skano tekstin e dhënë më poshtë ("KONTEKSTI I DOSJES") për fakte relevante, data dhe nene ligjore.
-3. **LIDHJA LOGJIKE:** Lidh faktet e gjetura me ligjet e aplikueshme të Kosovës.
-4. **PËRFUNDIMI:** Përgjigju pyetjes direkt dhe qartë.
+PROTOKOLLI I PËRGJIGJES (STRICT):
+Hapi 1: **VERIFIKIMI I PALËVE**: Lexo tekstin më poshtë ("KONTEKSTI I DOSJES"). Identifiko emrat e Paditësit dhe të Paditurit. 
+   - Nëse nuk gjen emra në tekst, thuaj: "Nuk mund të identifikoj palët në këtë dokument." dhe NDALO.
+   - Nëse emrat në tekst nuk përputhen me pyetjen e përdoruesit, thuaj: "Konteksti përmban palë të tjera ([Emrat e gjetur])."
 
-RREGULLAT E PANEGOCIUESHME:
-1. **JURISDIKSIONI:** Përdor VETËM ligjet e KOSOVËS. Injoro çdo referencë nga Shqipëria ose legjislacioni i vjetër jugosllav nëse nuk kërkohet specifikisht.
-2. **E VËRTETA E VETME:** Përgjigju VETËM bazuar në informacionin e dhënë në "KONTEKSTI I DOSJES".
-3. **ANTI-HALUCINACION:** Nëse informacioni mungon në dokumente, thuaj: "Nuk kam informacion të mjaftueshëm në dokumentet e ofruara për të dhënë një përgjigje të saktë." MOS SHPIK NENE.
-4. **CITIMET:** Çdo pohim duhet të mbështetet nga një citim (psh: "Sipas Nenit 4 të Kontratës...").
+Hapi 2: **ANALIZA E FAKTEVE**: Cito vetëm faktet që janë SHKRUAR në tekst. 
+   - Mos supozo. Mos shpik data. Mos shpik shuma parash.
 
-STILI I PËRGJIGJES:
-- Profesional, i drejtpërdrejtë, pa fjalë të tepërta.
-- Përdor 'Markdown' për të theksuar pikat kryesore (**bold**).
+Hapi 3: **PËRFUNDIMI**: Përgjigju pyetjes bazuar vetëm në Hapi 1 dhe Hapi 2.
+
+RREGULLAT E VDEKJES (DO NOT BREAK):
+1. MOS PËRMEND "Teuta", "Ilir", "Kriptovaluta" nëse nuk janë shkruar në tekstin e mëposhtëm.
+2. JURISDIKSIONI: Vetëm Kosova.
 """
 
 def _get_rag_service_instance(db: Any) -> Any:
-    """
-    Factory to get the RAG Service instance for RETRIEVAL ONLY.
-    """
     try:
         from app.services.albanian_rag_service import AlbanianRAGService
         from app.services.albanian_language_detector import AlbanianLanguageDetector
@@ -81,7 +76,7 @@ async def get_http_chat_response(
     jurisdiction: Optional[str] = 'ks'
 ) -> str:
     """
-    Orchestrates the Socratic Chat using a Strict Retrieval-then-Generate model.
+    Orchestrates the Socratic Chat with Anti-Hallucination Guardrails.
     """
     try:
         oid = ObjectId(case_id)
@@ -89,10 +84,10 @@ async def get_http_chat_response(
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid ID format")
 
-    # 1. Verify user has access to the case
+    # 1. Verify access
     case = await db.cases.find_one({"_id": oid, "owner_id": user_oid})
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found or user does not have access.")
+        raise HTTPException(status_code=404, detail="Case not found.")
 
     # 2. Save User Message
     try:
@@ -101,7 +96,7 @@ async def get_http_chat_response(
             {"$push": {"chat_history": ChatMessage(role="user", content=user_query, timestamp=datetime.now(timezone.utc)).model_dump()}}
         )
     except Exception as e:
-        logger.error(f"DB Write Error (User Message): {e}")
+        logger.error(f"DB Write Error: {e}")
     
     response_text: str = "" 
     try:
@@ -110,54 +105,61 @@ async def get_http_chat_response(
         
         context_dossier = ""
         if rag_service:
-            # We specifically look for chunks related to the user query
             context_dossier = await rag_service.retrieve_context(
                 query=user_query, 
                 case_id=case_id, 
                 document_ids=[document_id] if document_id else None
             )
-        else:
-            logger.warning("RAG Service unavailable, proceeding without context.")
-
-        # 4. GENERATION STEP
-        if not context_dossier:
-            context_dossier = "Nuk u gjetën të dhëna specifike në dokumente. Përdor vetëm njohuritë e përgjithshme ligjore të KOSOVËS, por theksoje që po flet në përgjithësi."
-
-        final_user_prompt = (
-            f"=== KONTEKSTI I DOSJES (Provat dhe Ligjet) ===\n{context_dossier}\n\n"
-            f"=== PYETJA E KLIENTIT ===\n{user_query}"
-        )
-
-        if DEEPSEEK_API_KEY:
-            client = AsyncOpenAI(api_key=DEEPSEEK_API_KEY, base_url=OPENROUTER_BASE_URL)
             
-            completion = await client.chat.completions.create(
-                model=OPENROUTER_MODEL,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT_KOSOVO},
-                    {"role": "user", "content": final_user_prompt}
-                ],
-                temperature=0.1, # Lower temperature for higher precision
-                max_tokens=1000,
-                extra_headers={"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Chat"}
+        # 4. SAFETY CHECK: EMPTY CONTEXT
+        # If OCR failed or no text found, DO NOT send to AI. It will hallucinate.
+        if not context_dossier or len(context_dossier.strip()) < 50:
+            logger.warning(f"⚠️ Empty Context for Case {case_id}. Aborting AI generation.")
+            response_text = (
+                "⚠️ **Nuk u gjet informacion.**\n\n"
+                "Sistemi nuk mundi të lexojë tekstin nga dokumentet e këtij rasti. "
+                "Kjo mund të ndodhë nëse:\n"
+                "1. Dokumenti është foto/skanim i paqartë (OCR dështoi).\n"
+                "2. Dokumenti nuk është ngarkuar ende plotësisht.\n\n"
+                "Ju lutem provoni të ngarkoni një PDF më të qartë ose prisni pak minuta."
             )
-            
-            content = completion.choices[0].message.content
-            response_text = content if content is not None else "Më vjen keq, nuk munda të gjeneroj një përgjigje."
         else:
-            response_text = "⚠️ Konfigurimi i AI mungon (API Key missing)."
+            # 5. GENERATION STEP (Only if data exists)
+            final_user_prompt = (
+                f"=== KONTEKSTI I DOSJES (BURIMI I VETËM I TË VËRTETËS) ===\n{context_dossier}\n\n"
+                f"=== PYETJA E KLIENTIT ===\n{user_query}"
+            )
+
+            if DEEPSEEK_API_KEY:
+                client = AsyncOpenAI(api_key=DEEPSEEK_API_KEY, base_url=OPENROUTER_BASE_URL)
+                
+                completion = await client.chat.completions.create(
+                    model=OPENROUTER_MODEL,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT_KOSOVO},
+                        {"role": "user", "content": final_user_prompt}
+                    ],
+                    temperature=0.0, # ZERO CREATIVITY. STRICT FACTS.
+                    max_tokens=1000,
+                    extra_headers={"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Chat"}
+                )
+                
+                content = completion.choices[0].message.content
+                response_text = content if content is not None else "Gabim në gjenerim."
+            else:
+                response_text = "⚠️ Konfigurimi i AI mungon."
 
     except Exception as e:
-        logger.error(f"AI Processing Error: {e}", exc_info=True)
-        response_text = "Më vjen keq, pata një problem teknik gjatë përpunimit të përgjigjes."
+        logger.error(f"AI Error: {e}", exc_info=True)
+        response_text = "Problem teknik gjatë analizës."
 
-    # 5. Save AI Response
+    # 6. Save AI Response
     try:
         await db.cases.update_one(
             {"_id": oid},
             {"$push": {"chat_history": ChatMessage(role="ai", content=response_text, timestamp=datetime.now(timezone.utc)).model_dump()}}
         )
-    except Exception as e:
-        logger.error(f"DB Write Error (AI Response): {e}")
+    except Exception:
+        pass
 
     return response_text
