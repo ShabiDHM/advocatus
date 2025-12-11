@@ -1,8 +1,7 @@
 // FILE: src/pages/FinanceWizardPage.tsx
-// PHOENIX PROTOCOL - REVISION 11 (MOBILE & I18N FINAL)
-// 1. MOBILE: 'ATKBox' layout stacks vertically on mobile, horizontal on desktop.
-// 2. I18N: All ATK Copy/Paste text is now fully localized.
-// 3. UX: Improved touch targets for copy buttons on mobile.
+// PHOENIX PROTOCOL - REVISION 12 (URL FIX)
+// 1. FIX: Updated ATK EDI URL to the correct 'edeklarimi.atk-ks.org' address.
+// 2. STATUS: Verified against user input.
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -62,7 +61,6 @@ const ATKBox = ({ number, label, value, currency }: { number: string, label: str
                 title={t('finance.wizard.atk.copy')}
             >
                 {copied ? <Check size={18} /> : <Copy size={18} />}
-                {/* Show text label only on mobile for better UX */}
                 <span className="sm:hidden text-sm font-medium">
                     {copied ? t('finance.wizard.atk.copied') : t('finance.wizard.atk.copy')}
                 </span>
@@ -290,8 +288,9 @@ const FinanceWizardPage = () => {
         }
     };
 
+    // PHOENIX: Updated to correct government URL
     const handleOpenATK = () => {
-        window.open('https://edi.atk-ks.org/', '_blank');
+        window.open('https://edeklarimi.atk-ks.org/', '_blank');
     };
 
     const handleNext = () => {
