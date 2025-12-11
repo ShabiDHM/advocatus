@@ -1,14 +1,12 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING ENGINE V11.1 (ASYNC FIX)
-# 1. FIX: Corrected the async/sync database call conflict.
-# 2. LOGIC: The context builder is now fully synchronous and wrapped correctly for async execution.
-# 3. STATUS: Resolves the 'Cannot access attribute "to_list"' Pylance error.
+# PHOENIX PROTOCOL - DRAFTING ENGINE V11.2 (SELF-CORRECTION)
+# 1. PROMPT UPGRADE: Added a "SELF-CORRECTION" rule to the system prompt.
+# 2. PRIORITY: Explicitly instructs the AI to prioritize facts from the case file over generic legal text.
+# 3. GOAL: To eliminate placeholder hallucination permanently.
 
 import os
 import asyncio
 import structlog
-import json
-import re
 from typing import AsyncGenerator, Optional, List, Any, cast, Dict
 from openai import AsyncOpenAI
 from groq import AsyncGroq 
@@ -20,7 +18,6 @@ from ..models.user import UserInDB
 from app.services.text_sterilization_service import sterilize_text_for_llm 
 from .vector_store_service import query_legal_knowledge_base, query_findings_by_similarity
 from .embedding_service import generate_embedding
-from .graph_service import graph_service 
 
 logger = structlog.get_logger(__name__)
 
@@ -33,27 +30,20 @@ GROQ_MODEL_NAME = "llama3-8b-8192"
 
 # --- CONTEXT ENRICHER (HYBRID RETRIEVAL - SYNC VERSION) ---
 def _build_case_context_hybrid_sync(db: Database, case_id: str, user_prompt: str) -> str:
-    """
-    Builds a focused context dossier using Hybrid Retrieval (SYNC).
-    """
     try:
         from .embedding_service import generate_embedding
         search_query = user_prompt
         query_embedding = generate_embedding(search_query)
         if not query_embedding: return ""
 
-        # 1. Vector Search (Sync)
         vector_findings = query_findings_by_similarity(
             case_id=case_id, 
             embedding=query_embedding, 
             n_results=10
         )
         
-        # 2. Direct DB Query (Sync)
-        # PHOENIX FIX: Use a standard list conversion for the sync cursor.
         direct_db_findings = list(db.findings.find({"case_id": {"$in": [ObjectId(case_id), case_id]}}))
 
-        # 3. Merge and De-duplicate
         all_findings: Dict[str, Dict] = {}
         for f in vector_findings:
             all_findings[f['finding_text']] = f
@@ -64,7 +54,6 @@ def _build_case_context_hybrid_sync(db: Database, case_id: str, user_prompt: str
 
         if not all_findings: return ""
 
-        # 4. Assemble Dossier
         context_parts = ["FAKTE TË VERIFIKUARA NGA DOSJA:"]
         for finding in all_findings.values():
             category = finding.get('category', 'FAKT')
@@ -73,7 +62,7 @@ def _build_case_context_hybrid_sync(db: Database, case_id: str, user_prompt: str
         
         return "\n".join(context_parts)
     except Exception as e:
-        logger.error(f"Hybrid context enrichment for drafting failed: {e}")
+        logger.error(f"Hybrid context for drafting failed: {e}")
         return ""
 
 async def _fetch_relevant_laws_async(prompt_text: str, context_text: str, jurisdiction: str = "ks") -> str:
@@ -81,7 +70,7 @@ async def _fetch_relevant_laws_async(prompt_text: str, context_text: str, jurisd
         from .embedding_service import generate_embedding
         embedding = generate_embedding(prompt_text)
         if not embedding: return ""
-        laws = query_legal_knowledge_base(embedding, n_results=3, jurisdiction=jurisdiction)
+        laws = query_legal_knowledge_base(embedding, n_results=2, jurisdiction=jurisdiction) # Reduced to 2 for less noise
         if not laws: return ""
         buffer = [f"\n=== BAZA LIGJORE RELEVANTE ({jurisdiction.upper()}) ==="]
         for law in laws:
@@ -107,7 +96,6 @@ async def generate_draft_stream(
     
     sanitized_prompt = sterilize_text_for_llm(prompt_text)
     
-    # PHOENIX FIX: Execute the synchronous context builder in a separate thread.
     db_context = ""
     if case_id and db is not None:
         db_context = await asyncio.to_thread(
@@ -125,13 +113,15 @@ async def generate_draft_stream(
 
     jurisdiction_name = "Shqipërisë" if jurisdiction == "al" else "Kosovës"
     
+    # PHOENIX V11.2 UPGRADE: SELF-CORRECTION PROMPT
     system_prompt = f"""
     Ti je "Juristi AI", Avokat Ekspert në hartimin e dokumenteve për {jurisdiction_name}.
-    DETYRA: Harto një dokument ligjor profesional bazuar në faktet nga dosja dhe udhëzimet e përdoruesit.
-    RREGULLAT E REPTA:
-    1. **PËRDOR FAKTE REALE:** Mos përdor kurrë [placeholder]. Përdor emrat, shumat dhe datat specifike që gjenden tek "FAKTE TË VERIFIKUARA NGA DOSJA".
-    2. **BAZA LIGJORE:** Justifiko kërkesat duke cituar nenet specifike nga "BAZA LIGJORE".
-    3. **PRECISION:** Adreso direkt kërkesën e përdoruesit. Mos devijo.
+    DETYRA: Harto një dokument ligjor profesional.
+
+    RREGULLAT E REPTA (NUK NEGOCIOHEN):
+    1. **FAKTET MBI LIGJET:** Prioriteti yt #1 është të përdorësh emrat, shumat dhe datat specifike nga seksioni "FAKTE TË VERIFIKUARA NGA DOSJA". Mos përdor kurrë [placeholder] si [Emri i paditurit].
+    2. **VETË-KORRIGJIM:** Para se të përfundosh, rishiko draftin tënd. Nëse sheh ndonjë [placeholder], fshije dhe zëvendësoje me faktin korrekt nga konteksti. NESE FAKTI NUK EKZISTON, LËRE BOSH, MOS VENDOS PLACEHOLDER.
+    3. **PRECISION:** Adreso direkt kërkesën e përdoruesit.
     STRUKTURA: Ndiq formatin standard ligjor për llojin e dokumentit që kërkohet.
     """
     
@@ -147,7 +137,7 @@ async def generate_draft_stream(
         try:
             client = AsyncOpenAI(api_key=DEEPSEEK_API_KEY, base_url=OPENROUTER_BASE_URL)
             stream = await client.chat.completions.create(
-                model=OPENROUTER_MODEL, messages=messages, temperature=0.1, stream=True,
+                model=OPENROUTER_MODEL, messages=messages, temperature=0.0, stream=True, # Temperature ZERO for strictness
                 extra_headers={"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Drafting"}
             )
             async for chunk in stream:
