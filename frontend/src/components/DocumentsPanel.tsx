@@ -1,8 +1,8 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.2 (UNIFIED PROGRESS)
-// 1. UX REVOLUTION: Removed separate 'Upload Block'.
-// 2. LOGIC: Injects a 'Ghost Document' during upload so it appears in the list immediately.
-// 3. RESULT: Single row that transitions from 'Uploading' -> 'Processing' -> 'Ready'.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.3 (SCAN FEEDBACK)
+// 1. UX: Implemented Scanning -> Completed -> Ready transition.
+// 2. LOGIC: Added 'completedScanId' to show a checkmark for 3 seconds after success.
+// 3. VISUAL: Real-time feedback for Deep Scan operations.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -11,7 +11,7 @@ import { apiService } from '../services/api';
 import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
-    ScanEye, Archive, Pencil, FolderInput
+    ScanEye, Archive, Pencil, FolderInput, CheckCircle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -47,6 +47,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [scanningId, setScanningId] = useState<string | null>(null); 
+  const [completedScanId, setCompletedScanId] = useState<string | null>(null); // NEW: Track completion
   const [archivingId, setScanningIdArchive] = useState<string | null>(null); 
   const [currentFileName, setCurrentFileName] = useState<string>(""); 
 
@@ -55,7 +56,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
     setCurrentFileName(file.name);
     setUploadProgress(0);
-    setIsUploading(true); // Trigger Ghost Row
+    setIsUploading(true);
     
     try {
       const responseData = await apiService.uploadDocument(caseId, file, (percent) => {
@@ -76,7 +77,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       console.error(`Failed to upload ${file.name}`, error);
       setUploadError(`${t('documentsPanel.uploadFailed')}: ${file.name}`);
     } finally {
-      setIsUploading(false); // Remove Ghost Row (replaced by real one)
+      setIsUploading(false);
     }
   };
 
@@ -115,9 +116,13 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
   const handleDeepScan = async (docId: string) => {
       setScanningId(docId);
+      setCompletedScanId(null);
       try {
           await apiService.deepScanDocument(caseId, docId);
-          alert(t('documentsPanel.scanStarted', 'Deep Scan filloi! Kontrolloni gjetjet pas pak.'));
+          // Show checkmark on success
+          setCompletedScanId(docId);
+          // Auto-remove checkmark after 3 seconds
+          setTimeout(() => setCompletedScanId(null), 3000);
       } catch (error) {
           alert(t('error.generic'));
       } finally {
@@ -129,9 +134,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       setScanningIdArchive(docId);
       try {
           await apiService.archiveCaseDocument(caseId, docId);
-          alert("Dokumenti u arkivua me sukses!");
+          alert(t('documentsPanel.archiveSuccess', 'Dokumenti u arkivua me sukses!'));
       } catch (error) {
-          alert("Arkivimi dështoi.");
+          alert(t('documentsPanel.archiveFailed', 'Arkivimi dështoi.'));
       } finally {
           setScanningIdArchive(null);
       }
@@ -145,13 +150,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     }
   };
 
-  // PHOENIX: Create a combined list that includes the "Ghost" upload document
   const displayDocuments = [...documents];
   if (isUploading) {
       displayDocuments.unshift({
           id: 'ghost-upload',
           file_name: currentFileName,
-          status: 'UPLOADING', // Custom internal status
+          status: 'UPLOADING',
           // @ts-ignore
           progress_percent: uploadProgress,
           created_at: new Date().toISOString()
@@ -169,7 +173,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         </div>
 
         <div className="flex-shrink-0 flex gap-2">
-          {/* Folder Input */}
           <input 
             type="file" 
             ref={folderInputRef} 
@@ -191,7 +194,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
             {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FolderInput className="h-5 w-5" />}
           </motion.button>
 
-          {/* File Input */}
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
           <motion.button
             onClick={() => fileInputRef.current?.click()}
@@ -218,7 +220,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         )}
         
         {displayDocuments.map((doc) => {
-          // Normalize Status
           let status = doc.status?.toUpperCase() || 'PENDING';
           if ((doc as any).status === 'UPLOADING') status = 'UPLOADING';
 
@@ -226,10 +227,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const isProcessingState = status === 'PENDING';
           const isReady = status === 'READY' || status === 'COMPLETED';
           
-          // Get Progress (from ghost or real doc)
           const progressPercent = (doc as any).progress_percent || 0;
 
-          // Determine Display Color/Text based on phase
           const barColor = isUploadingState ? "bg-primary-start" : "bg-blue-500";
           const statusText = isUploadingState ? "Uploading..." : "Processing...";
           const statusTextColor = isUploadingState ? "text-primary-start" : "text-blue-400";
@@ -238,6 +237,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const canRename = !isUploadingState && !isProcessingState;
           const canArchive = !isUploadingState && !isProcessingState;
           const isScanEnabled = isReady;
+
+          const isScanning = scanningId === doc.id;
+          const isDone = completedScanId === doc.id;
 
           return (
             <motion.div
@@ -251,7 +253,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 </div>
 
                 {(isUploadingState || isProcessingState) ? (
-                    // Unified Progress Row
                     <div className="flex items-center gap-3 mt-1.5">
                         <span className={`text-[10px] ${statusTextColor} font-medium w-16`}>{statusText}</span>
                         <div className="w-24 h-1 bg-white/10 rounded-full overflow-hidden">
@@ -276,17 +277,22 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </button>
                 )}
                 
+                {/* DEEP SCAN BUTTON - DYNAMIC FEEDBACK */}
                 <button 
                     onClick={() => isScanEnabled && handleDeepScan(doc.id)} 
-                    disabled={!isScanEnabled}
-                    className={`p-1.5 rounded-lg transition-colors ${
-                        isScanEnabled 
+                    disabled={!isScanEnabled || isScanning}
+                    className={`p-1.5 rounded-lg transition-all duration-300 ${
+                        isScanning 
+                        ? "bg-primary-start/20 text-blue-400" 
+                        : isDone 
+                        ? "bg-green-500/20 text-green-400" 
+                        : isScanEnabled 
                         ? "hover:bg-white/10 text-secondary-start" 
                         : "text-gray-600 cursor-not-allowed opacity-50"
                     }`}
-                    title={isScanEnabled ? t('documentsPanel.deepScan') : t('documentsPanel.statusPending')}
+                    title={isDone ? t('general.saveSuccess') : t('documentsPanel.deepScan')}
                 >
-                    {(scanningId === doc.id || isUploadingState) ? <Loader2 size={14} className="animate-spin" /> : <ScanEye size={14} />}
+                    {isScanning ? <Loader2 size={14} className="animate-spin" /> : isDone ? <CheckCircle size={14} /> : <ScanEye size={14} />}
                 </button>
 
                 {canView && (

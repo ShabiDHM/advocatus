@@ -1,8 +1,7 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V13.1 (ANTI-HALLUCINATION HANDCUFFS)
-# 1. LOGIC: Temperature set to 0.0 (Zero Creativity).
-# 2. PROMPT: Added "Party Verification" step to force AI to read names first.
-# 3. SAFETY: Blocks request if Context is empty to prevent guessing.
+# PHOENIX PROTOCOL - CHAT SERVICE V13.3 (DATE HIERARCHY FIX)
+# 1. FIX: Distinguishes between 'Application Date' (Footer) and 'Hearing Date'.
+# 2. LOGIC: Explicitly bans predicting future dates based on system time.
 
 from __future__ import annotations
 import os
@@ -25,23 +24,28 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# --- KOSOVO SMART PROMPT (STRICT EVIDENCE MODE) ---
+# --- KOSOVO SMART PROMPT (DATE FORENSICS) ---
 SYSTEM_PROMPT_KOSOVO = """
 Ti je "Juristi AI", një analist ligjor rigoroz për ligjet e REPUBLIKËS SË KOSOVËS.
-Roli yt nuk është të jesh kreativ. Roli yt është të jesh "Forenzik".
 
 PROTOKOLLI I PËRGJIGJES (STRICT):
-Hapi 1: **VERIFIKIMI I PALËVE**: Lexo tekstin më poshtë ("KONTEKSTI I DOSJES"). Identifiko emrat e Paditësit dhe të Paditurit. 
-   - Nëse nuk gjen emra në tekst, thuaj: "Nuk mund të identifikoj palët në këtë dokument." dhe NDALO.
-   - Nëse emrat në tekst nuk përputhen me pyetjen e përdoruesit, thuaj: "Konteksti përmban palë të tjera ([Emrat e gjetur])."
 
-Hapi 2: **ANALIZA E FAKTEVE**: Cito vetëm faktet që janë SHKRUAR në tekst. 
-   - Mos supozo. Mos shpik data. Mos shpik shuma parash.
+Hapi 1: **VERIFIKIMI I PALËVE**: 
+   - Identifiko saktësisht Paditësin dhe të Paditurin nga kreu i dokumentit.
 
-Hapi 3: **PËRFUNDIMI**: Përgjigju pyetjes bazuar vetëm në Hapi 1 dhe Hapi 2.
+Hapi 2: **SAKTËSIA E DATAVE (KRITIKE)**:
+   - Cito VETËM datat që janë fizikisht të shkruara në tekst (formati DD.MM.YYYY).
+   - **KUJDES:** Data në fund të dokumentit (poshtë nënshkrimit) është **Data e Dorëzimit/Hartimit**. Ajo NUKE ËSHTË datë seance.
+   - **NDALIM:** Mos përdor datën e sotme për të parashikuar "seanca të ardhshme". Nëse nuk shkruan "Seanca caktohet më...", atëherë NUK KA SEANCË.
+
+Hapi 3: **ANALIZA E FAKTEVE**: 
+   - Përmblidh kërkesëpadinë bazuar në tekst.
+
+Hapi 4: **PËRFUNDIMI**: 
+   - Përgjigju pyetjes bazuar vetëm në provat e gjetura.
 
 RREGULLAT E VDEKJES (DO NOT BREAK):
-1. MOS PËRMEND "Teuta", "Ilir", "Kriptovaluta" nëse nuk janë shkruar në tekstin e mëposhtëm.
+1. MOS PËRMEND emra apo data që nuk janë në tekst.
 2. JURISDIKSIONI: Vetëm Kosova.
 """
 
@@ -112,19 +116,15 @@ async def get_http_chat_response(
             )
             
         # 4. SAFETY CHECK: EMPTY CONTEXT
-        # If OCR failed or no text found, DO NOT send to AI. It will hallucinate.
         if not context_dossier or len(context_dossier.strip()) < 50:
             logger.warning(f"⚠️ Empty Context for Case {case_id}. Aborting AI generation.")
             response_text = (
                 "⚠️ **Nuk u gjet informacion.**\n\n"
                 "Sistemi nuk mundi të lexojë tekstin nga dokumentet e këtij rasti. "
-                "Kjo mund të ndodhë nëse:\n"
-                "1. Dokumenti është foto/skanim i paqartë (OCR dështoi).\n"
-                "2. Dokumenti nuk është ngarkuar ende plotësisht.\n\n"
-                "Ju lutem provoni të ngarkoni një PDF më të qartë ose prisni pak minuta."
+                "Ju lutem sigurohuni që keni klikuar 'Skanim i Thellë' (Deep Scan) tek dokumenti."
             )
         else:
-            # 5. GENERATION STEP (Only if data exists)
+            # 5. GENERATION STEP
             final_user_prompt = (
                 f"=== KONTEKSTI I DOSJES (BURIMI I VETËM I TË VËRTETËS) ===\n{context_dossier}\n\n"
                 f"=== PYETJA E KLIENTIT ===\n{user_query}"
@@ -139,7 +139,7 @@ async def get_http_chat_response(
                         {"role": "system", "content": SYSTEM_PROMPT_KOSOVO},
                         {"role": "user", "content": final_user_prompt}
                     ],
-                    temperature=0.0, # ZERO CREATIVITY. STRICT FACTS.
+                    temperature=0.0, # ZERO CREATIVITY
                     max_tokens=1000,
                     extra_headers={"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Chat"}
                 )
