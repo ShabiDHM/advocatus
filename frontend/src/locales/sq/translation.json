@@ -25,8 +25,8 @@
     "general": "Të Përgjithshme"
   },
   "auth": {
-    "loginTitle": "Hyni",
-    "loginSubtitle": "Menaxhoni çështjet me inteligjencë.",
+    "loginTitle": "Hyni në Juristi AI",
+    "loginSubtitle": "Menaxhoni çështjet ligjore me inteligjencë.",
     "usernameOrEmail": "Përdoruesi ose Email",
     "usernameOrEmailPlaceholder": "psh: blerim ose blerim@example.com",
     "password": "Fjalëkalimi",
@@ -56,11 +56,11 @@
     "heroSubtitle": "Analizoni kontrata, menaxhoni raste dhe gjeneroni dokumente me fuqinë e AI.",
     "getStarted": "Fillo Falas",
     "feature1Title": "Analizë e Sigurt",
-    "feature1Desc": "Skanoni dokumente për rreziqe ligjore dhe shkelje të kodeve ligjore.",
+    "feature1Desc": "Skanoni dokumente për rreziqe ligjore dhe shkelje të kodit civil/penal.",
     "feature2Title": "AI Sokratike",
     "feature2Desc": "Bisedoni me dokumentet tuaja. Bëni pyetje dhe merrni përgjigje me citime.",
     "feature3Title": "Hartim Inteligjent",
-    "feature3Desc": "Krijoni kontrata dhe padi të personalizuara."
+    "feature3Desc": "Krijoni kontrata dhe padi të personalizuara bazuar në shabllone të verifikuara."
   },
   "sidebar": {
     "dashboard": "Paneli",
@@ -114,7 +114,7 @@
     "title": "Dokumentet",
     "uploadDocument": "Ngarko Dokument",
     "uploadFolder": "Ngarko Folder",
-    "uploadFolderTooltip": "Ngarko një skader të tërë me dokumente",
+    "uploadFolderTooltip": "Ngarko një folder të tërë me dokumente",
     "noDocuments": "Asnjë dokument i ngarkuar.",
     "statusPending": "Në proces...",
     "statusCompleted": "Përfunduar",
@@ -129,7 +129,7 @@
     "uploadFailed": "Ngarkimi dështoi",
     "deleteFailed": "Fshirja dështoi.",
     "uploaded": "Ngarkuar",
-    "deepScan": "Skanim i Thellë",
+    "deepScan": "Skanim i Thellë (Vision AI)",
     "scanStarted": "Skanimi i Thellë filloi! Kontrolloni gjetjet pas pak.",
     "rename": "Emërto",
     "renameTitle": "Emërto Dokumentin",
@@ -162,15 +162,7 @@
     "title": "Hartimi Inteligjent",
     "subtitle": "Krijoni dokumente ligjore automatikisht.",
     "configuration": "Konfigurimi",
-    "caseLabel": "Rasti",
     "selectCaseLabel": "Zgjidhni Rastin",
-    "templateLabel": "Lloji i Dokumentit",
-    "templateGeneric": "I lirë (Pa shabllon)",
-    "templatePadi": "Padi",
-    "templatePergjigje": "Përgjigje në Padi",
-    "templateKunderpadi": "Kundërpadi",
-    "templateKontrate": "Kontratë",
-    "confirmTemplateSwitch": "Ndryshimi i shabllonit do të zëvendësojë tekstin aktual. A jeni të sigurt?",
     "generalDraft": "Hartim i Përgjithshëm",
     "instructionsLabel": "Udhëzimet",
     "promptPlaceholder": "Psh: Krijo një kontratë qiraje për një apartament...",
@@ -187,11 +179,7 @@
     "errorJobFailed": "Puna e hartimit dështoi",
     "errorConnectionLost": "Lidhja me serverin u humb",
     "errorStartJob": "Dështoi fillimi i punës së hartimit",
-    "regenerate": "Rigjenero",
-    "noCaseSelected": "Pa Kontekst (Gjenerik)",
-    "noCasesFound": "Asnjë rast i gjetur",
-    "clearTitle": "Pastro",
-    "confirmClear": "A jeni i sigurt?"
+    "regenerate": "Rigjenero"
   },
   "business": {
     "title": "Qendra e Biznesit",
@@ -277,7 +265,18 @@
       "operationalExpenses": "Shpenzimet Operacionale",
       "noTaxEffect": "Pa efekt tatimor",
       "rate9": "9% (Biznes i Vogël / Shërbime)",
-      "rate18": "18% (TVSH Standarde)"
+      "rate18": "18% (TVSH Standarde)",
+      "atk": {
+        "openEdi": "Hap EDI (ATK)",
+        "copyInstruction": "Kopjoni vlerat e mëposhtme dhe vendosini në formularin përkatës në EDI:",
+        "box9": "Të ardhura bruto (Shërbime)",
+        "box11": "Tatimi (9%)",
+        "box10": "Furnizimet (Shitjet)",
+        "box23": "Blerjet Totale",
+        "box48": "TVSH për pagesë",
+        "copy": "Kopjo",
+        "copied": "U Kopjua"
+      }
     }
   },
   "archive": {
