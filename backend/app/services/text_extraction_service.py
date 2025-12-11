@@ -1,8 +1,8 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V5.0 (TURBO PARALLEL - COMPLETE)
-# 1. PARALLELISM: Uses ThreadPoolExecutor to OCR multiple pages simultaneously.
-# 2. HYBRID: Checks for digital text first, falls back to Tesseract OCR if needed.
-# 3. SAFETY: Includes timeouts and null-byte sanitization.
+# PHOENIX PROTOCOL - OCR ENGINE V6.0 (PAGINATION AWARE)
+# 1. FEATURE: Injects "--- [FAQJA X] ---" markers into the text stream.
+# 2. PURPOSE: Enables the AI to provide accurate citations (e.g. "Found on Page 2").
+# 3. PERFORMANCE: Retained Turbo Parallelism.
 
 import fitz  # PyMuPDF
 import docx
@@ -10,7 +10,7 @@ import pytesseract
 from PIL import Image
 import pandas as pd
 import csv
-from typing import Dict, Callable, List
+from typing import Dict, Callable
 import logging
 import cv2
 import numpy as np
@@ -33,6 +33,9 @@ def _process_single_page(args) -> str:
     Args: (doc_path, page_num)
     """
     doc_path, page_num = args
+    # Human-readable page number (1-based)
+    page_marker = f"\n--- [FAQJA {page_num + 1}] ---\n"
+    
     try:
         # Open document strictly for this thread to avoid PyMuPDF threading issues
         with fitz.open(doc_path) as doc:
@@ -43,7 +46,7 @@ def _process_single_page(args) -> str:
             
             # 2. Heuristic: If we found valid text (>50 chars), return it immediately
             if len(text.strip()) > 50:
-                return _sanitize_text(text)
+                return page_marker + _sanitize_text(text)
             
             # 3. Fallback: Optical Character Recognition (OCR) (Slow but necessary for scans)
             # Render page to image
@@ -72,11 +75,11 @@ def _process_single_page(args) -> str:
             # --psm 1: Automatic page segmentation with OSD
             # Timeout set to 60s per page to prevent hanging
             ocr_text = pytesseract.image_to_string(denoised, lang='sqi+eng', config='--psm 1', timeout=60)
-            return _sanitize_text(ocr_text)
+            return page_marker + _sanitize_text(ocr_text)
 
     except Exception as e:
         logger.warning(f"Page {page_num} processing failed: {e}")
-        return ""
+        return page_marker + "[Gabim gjatë leximit të kësaj faqeje]"
 
 def _extract_text_from_pdf(file_path: str) -> str:
     logger.info(f"🚀 Turbo PDF Processing Started: {file_path}")
@@ -94,7 +97,7 @@ def _extract_text_from_pdf(file_path: str) -> str:
             # Map returns results in the correct order (Page 1, Page 2, etc.)
             results = list(executor.map(_process_single_page, page_args))
             
-        final_text = "\n".join(results)
+        final_text = "".join(results) # Join without extra newlines as marker has them
         logger.info(f"✅ Turbo Extraction Complete. Extracted {len(final_text)} chars from {total_pages} pages.")
         return final_text
 
