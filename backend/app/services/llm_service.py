@@ -1,7 +1,9 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - ENCODING REPAIR V5.4
-# 1. FIX: Added 'repair_albanian_text' to fix 'Paditésja' -> 'Paditësja'.
-# 2. LOGIC: Forces UTF-8 compliance on all AI outputs.
+# PHOENIX PROTOCOL - ECO-MODE INTELLIGENCE V6.0
+# 1. CLEANUP: Removed Groq completely.
+# 2. ECO-MODE: 'Summary' and 'Graph' now prioritize LOCAL LLM to save money.
+# 3. QUALITY: 'Analysis' and 'Findings' prioritize DEEPSEEK for accuracy.
+# 4. REPAIR: Retained 'Paditësja' encoding fixes.
 
 import os
 import json
@@ -10,7 +12,6 @@ import httpx
 import re
 from typing import List, Dict, Any, Optional
 from openai import OpenAI 
-from groq import Groq
 
 logger = logging.getLogger(__name__)
 
@@ -19,15 +20,12 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat"
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL_NAME = "llama-3.3-70b-versatile" 
-
+# Local LLM (Ollama) - The "Eco" Engine
 OLLAMA_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/generate")
 LOCAL_MODEL_NAME = "llama3"
 
 # --- CLIENT INITIALIZATION ---
 _deepseek_client: Optional[OpenAI] = None
-_groq_client: Optional[Groq] = None
 
 def get_deepseek_client() -> Optional[OpenAI]:
     global _deepseek_client
@@ -40,44 +38,21 @@ def get_deepseek_client() -> Optional[OpenAI]:
             logger.error(f"DeepSeek Init Failed: {e}")
     return None
 
-def get_groq_client() -> Optional[Groq]:
-    global _groq_client
-    if _groq_client: return _groq_client
-    if GROQ_API_KEY:
-        try:
-            _groq_client = Groq(api_key=GROQ_API_KEY)
-            return _groq_client
-        except Exception as e:
-            logger.error(f"Groq Init Failed: {e}")
-    return None
-
 # --- HELPER: ALBANIAN TEXT REPAIR ---
 def repair_albanian_text(text: str) -> str:
-    """
-    Fixes common encoding hallucinations where 'ë' becomes 'é' or other symbols.
-    """
+    """Fixes common encoding hallucinations."""
     if not text: return ""
-    
-    # Specific fixes for the issue you reported
     replacements = {
-        "Paditésja": "Paditësja",
-        "paditésja": "paditësja",
-        "Përshéndetje": "Përshëndetje",
-        "përshéndetje": "përshëndetje",
-        "çështje": "çështje", 
-        "Çështje": "Çështje"
+        "Paditésja": "Paditësja", "paditésja": "paditësja",
+        "Përshéndetje": "Përshëndetje", "përshéndetje": "përshëndetje",
+        "çështje": "çështje", "Çështje": "Çështje"
     }
-    
     for bad, good in replacements.items():
         text = text.replace(bad, good)
-        
-    # Generic fallback: if word ends in 'ésja', it's likely 'ësja'
     text = re.sub(r'ésja\b', 'ësja', text)
-    
     return text
 
 def _parse_json_safely(content: str) -> Dict[str, Any]:
-    # PHOENIX FIX: Apply repair BEFORE parsing
     content = repair_albanian_text(content)
     try:
         return json.loads(content)
@@ -95,6 +70,7 @@ def _parse_json_safely(content: str) -> Dict[str, Any]:
 # --- EXECUTION ENGINES ---
 
 def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False) -> Optional[str]:
+    """Cloud Engine: High Intelligence, Costs Money."""
     client = get_deepseek_client()
     if not client: return None
     try:
@@ -111,23 +87,8 @@ def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False
         logger.warning(f"⚠️ DeepSeek Call Failed: {e}")
         return None
 
-def _call_groq(system_prompt: str, user_prompt: str, json_mode: bool = False) -> Optional[str]:
-    client = get_groq_client()
-    if not client: return None
-    try:
-        kwargs = {
-            "model": GROQ_MODEL_NAME,
-            "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            "temperature": 0.1,
-        }
-        if json_mode: kwargs["response_format"] = {"type": "json_object"}
-        response = client.chat.completions.create(**kwargs)
-        return response.choices[0].message.content
-    except Exception as e:
-        logger.warning(f"⚠️ Groq Call Failed: {e}")
-        return None
-
 def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
+    """Local Engine: Medium Intelligence, FREE (Eco-Mode)."""
     try:
         payload = {
             "model": LOCAL_MODEL_NAME,
@@ -136,64 +97,115 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
             "options": {"temperature": 0.1, "num_ctx": 4096},
             "format": "json" if json_mode else None
         }
-        with httpx.Client(timeout=60.0) as client:
+        with httpx.Client(timeout=30.0) as client:
             response = client.post(OLLAMA_URL, json=payload)
             return response.json().get("response", "")
     except Exception:
         return ""
 
-# --- UNIVERSAL EVIDENCE ENGINE ---
+# --- STRATEGIC TASKS ---
 
 def generate_summary(text: str) -> str:
+    """
+    ECO-MODE: ON
+    Strategy: Try Local LLM first. If it fails, pay for DeepSeek.
+    """
     truncated_text = text[:20000] 
     system_prompt = (
         "Ti je Analist Gjyqësor për Republikën e Kosovës. "
-        "Detyra: Krijoni një përmbledhje. "
-        "RREGULL: Përdor 'ë' dhe 'ç' saktë (jo 'e' ose 'c'). "
-        "Shembull: Paditësja (jo Paditesja/Paditésja)."
+        "Detyra: Krijoni një përmbledhje të qartë dhe koncize. "
+        "RREGULL: Përdor 'ë' dhe 'ç' saktë. "
+        "Fokuso te: KUSH (Palët), ÇFARË (Konflikti), KUR (Datat), STATUSI."
     )
     user_prompt = f"DOKUMENTI:\n{truncated_text}"
     
-    res = _call_deepseek(system_prompt, user_prompt) or _call_groq(system_prompt, user_prompt)
+    # 1. Try Local (Free)
+    res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
+    
+    # 2. If Local failed or returned garbage, use Cloud (Paid)
+    if not res or len(res) < 50:
+        res = _call_deepseek(system_prompt, user_prompt)
+        
     return repair_albanian_text(res or "Përmbledhja e padisponueshme.")
 
-def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
-    truncated_text = text[:25000]
+def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
+    """
+    ECO-MODE: ON
+    Strategy: Try Local LLM first.
+    """
+    truncated_text = text[:15000]
+    system_prompt = """
+    Ti je Inxhinier i Grafit Ligjor për Rastet e Kosovës.
+    Detyra: Krijo hartën e marrëdhënieve mes entiteteve.
+    RELACIONET: ACCUSES, OWES, CLAIMS, WITNESSED, OCCURRED_ON, CONTRADICTS.
+    FORMATI JSON STRIKT:
+    {"entities": [{"id": "...", "name": "...", "group": "PERSON/EVENT"}], "relations": [{"source": "...", "target": "...", "label": "..."}]}
+    """
+    user_prompt = f"TEKSTI:\n{truncated_text}"
     
+    # 1. Try Local
+    content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
+    
+    # 2. Fallback to Cloud
+    if not content:
+        content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
+
+    if content: return _parse_json_safely(content)
+    return {"entities": [], "relations": []}
+
+def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
+    """
+    ECO-MODE: OFF (Quality Priority)
+    Strategy: Complex JSON requires DeepSeek first. Local is fallback.
+    """
+    truncated_text = text[:25000]
     system_prompt = """
     Ti je Motor i Nxjerrjes së Provave për Sistemin e Drejtësisë në Kosovë.
-    DETYRA: Identifiko elementet kyçe.
-    
-    RREGULL GJUHËSOR: Përdor alfabetin e plotë shqip (ë, ç).
-    KORRIGJO GABIMET: Shkruaj "Paditësja" (jo Paditésja).
-    
+    DETYRA: Identifiko elementet kyçe ligjore dhe ktheji në format JSON.
     KATEGORITË: EVENT, EVIDENCE, CLAIM, CONTRADICTION, QUANTITY, DEADLINE.
+    RREGULL GJUHËSOR: Korrigjo gabimet e encoding (psh. shkruaj 'Paditësja').
+    FORMATI JSON (STRIKT):
+    { "findings": [ { "finding_text": "...", "source_text": "...", "category": "..." } ] }
+    """
+    user_prompt = f"DOSJA:\n{truncated_text}"
+
+    # 1. Try Cloud (High Intelligence)
+    content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
+    
+    # 2. Fallback to Local
+    if not content:
+        content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
+    
+    if content:
+        data = _parse_json_safely(content)
+        return data.get("findings", [])
+    return []
+
+def analyze_case_contradictions(text: str) -> Dict[str, Any]:
+    """
+    ECO-MODE: OFF (Quality Priority)
+    Strategy: Complex Reasoning (Debate Judge) requires DeepSeek.
+    """
+    truncated_text = text[:25000]
+    system_prompt = """
+    Ti je Gjyqtar i Debatit Ligjor në Gjykatën e Prishtinës.
+    DETYRA: Analizo përplasjen ligjore në këtë dosje dhe kthe përgjigjen në JSON.
+    PROCESI KOGNITIV: Identifiko Palët, Pretendimet, Kontradiktat, Provat, dhe Mungesat.
+    FORMATI JSON (STRIKT):
+    {
+        "summary_analysis": "...",
+        "conflicting_parties": [ {"party_name": "...", "core_claim": "..."} ],
+        "contradictions": ["..."],
+        "key_evidence": ["..."],
+        "missing_info": ["..."]
+    }
     """
     user_prompt = f"DOSJA:\n{truncated_text}"
 
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
-    if not content: content = _call_groq(system_prompt, user_prompt, json_mode=True)
-    
-    if content:
-        # Check parsing safely
-        data = _parse_json_safely(content)
-        return data.get("findings", [])
-    
-    return []
+    if not content:
+        content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
 
-def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
-    truncated_text = text[:15000]
-    system_prompt = "Ti je Inxhinier i Grafit Ligjor. Krijo hartën e marrëdhënieve."
-    user_prompt = f"TEKSTI:\n{truncated_text}"
-    content = _call_deepseek(system_prompt, user_prompt, json_mode=True) or _call_groq(system_prompt, user_prompt, json_mode=True)
-    if content: return _parse_json_safely(content)
-    return {"entities": [], "relations": []}
-
-def analyze_case_contradictions(text: str) -> Dict[str, Any]:
-    truncated_text = text[:25000]
-    system_prompt = "Ti je Gjyqtar i Debatit Ligjor. Analizo konfliktin."
-    user_prompt = f"DOSJA:\n{truncated_text}"
-    content = _call_deepseek(system_prompt, user_prompt, json_mode=True) or _call_groq(system_prompt, user_prompt, json_mode=True)
     if content: return _parse_json_safely(content)
     return {}
 

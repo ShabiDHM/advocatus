@@ -1,7 +1,7 @@
-# FILE: backend/requirements.txt (UNIFIED & PINNED - V4.7)
-# PHOENIX PROTOCOL - PDF GENERATION SUPPORT
-# 1. VERIFIED: reportlab==4.4.3 is present (Required for Finance PDF Reports).
-# 2. STATUS: Ready for deployment.
+# FILE: backend/requirements.txt (UNIFIED & PINNED - V4.8)
+# PHOENIX PROTOCOL - CLEANUP
+# 1. REMOVED: groq dependency (System is now DeepSeek + Local LLM only).
+# 2. STATUS: Optimized for Eco-Mode.
 
 # --- Core Web Framework & Async ---
 fastapi==0.109.2
@@ -59,7 +59,6 @@ openpyxl
 opencv-python-headless==4.9.0.80
 
 # --- AI & ML Dependencies (UNIFIED) ---
-groq==0.31.1
 chromadb-client==1.1.0
 langchain
 langchain-community

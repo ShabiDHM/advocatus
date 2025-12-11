@@ -1,9 +1,8 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - CONFIGURATION FINAL
-# 1. ADDED: The 'ENVIRONMENT' variable to distinguish between development and production for cookie security.
-# 2. Handles comma-separated CORS strings (for Docker/Production).
-# 3. Handles JSON strings.
-# 4. Satisfies Pylance strict typing.
+# PHOENIX PROTOCOL - CONFIGURATION V6.1 (CLEANUP)
+# 1. CLEANUP: Removed dead 'GROQ_API_KEY' and 'GROQ_MODEL' fields.
+# 2. UPDATE: Added 'DEEPSEEK_API_KEY' and 'LOCAL_LLM_URL' to the schema.
+# 3. TYPE SAFETY: Maintains Pydantic strict validation.
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Union
@@ -15,7 +14,6 @@ class Settings(BaseSettings):
 
     # --- API Setup ---
     API_V1_STR: str = "/api/v1"
-    # PHOENIX FIX: Added environment setting for secure cookie configuration.
     ENVIRONMENT: str = "production" 
     
     # --- Auth ---
@@ -40,16 +38,18 @@ class Settings(BaseSettings):
     DATABASE_URI: str = ""
     REDIS_URL: str = "redis://redis:6379/0"
 
-    # --- External Services ---
+    # --- External Services (Storage) ---
     B2_KEY_ID: str = ""
     B2_APPLICATION_KEY: str = ""
     B2_ENDPOINT_URL: str = ""
     B2_BUCKET_NAME: str = ""
-    GROQ_API_KEY: str = ""
-    HF_TOKEN: str = ""
-    GROQ_MODEL: str = "mixtral-8x7b-32768"
 
-    # --- Internal AI Services ---
+    # --- AI Engines (Hybrid Architecture) ---
+    DEEPSEEK_API_KEY: str = ""
+    LOCAL_LLM_URL: str = "http://host.docker.internal:11434/api/generate"
+    HF_TOKEN: str = ""
+
+    # --- Internal AI Microservices ---
     EMBEDDING_MODEL: str = "sentence-transformers/distiluse-base-multilingual-cased-v2"
     CHROMA_HOST: str = "chroma"
     CHROMA_PORT: int = 8000
