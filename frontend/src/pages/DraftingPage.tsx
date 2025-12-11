@@ -1,8 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V5.2 (TYPE SAFETY FIX)
-// 1. FIX: Removed invalid 'case_type' reference.
-// 2. LOGIC: Correctly mapped 'client.name' and 'opposing_party.name' from Case interface.
-// 3. UX: Retained intelligent template injection.
+// PHOENIX PROTOCOL - DRAFTING PAGE V5.7 (KOSOVO STRICT MODE)
+// 1. SCOPE: Hardcoded Jurisdiction to "REPUBLIKA E KOSOVËS".
+// 2. SAFETY: Explicit instruction to IGNORE Albanian legislation to prevent hallucinations.
+// 3. LOGIC: Simplifies city detection to only map Kosovo cities (defaulting to Prishtina).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -25,10 +25,22 @@ interface DraftingJobState {
   error: string | null;
 }
 
-// --- TEMPLATE PROMPTS (Base Skeletons) ---
+// --- KOSOVO STRICT CONSTRAINTS ---
+const LEGAL_CONSTRAINTS = `
+*** UDHËZIME STRIKTE (SISTEMI I KOSOVËS): ***
+1. JURISDIKSIONI: VETËM REPUBLIKA E KOSOVËS. 
+2. NDALIM: MOS përdor kurrë ligje, gjykata apo referenca nga Republika e Shqipërisë (psh. Tiranë, Kodi Civil i Shqipërisë).
+3. LIGJI: Referoju vetëm legjislacionit të Kosovës (psh. Ligji për Familjen i Kosovës, Ligji për Procedurën Kontestimore i Kosovës).
+4. Nëse nuk e di nenin specifik të Kosovës, shkruaj: "Sipas dispozitave ligjore në fuqi në Kosovë".
+**********************************************************************
+`;
+
 const TEMPLATE_PROMPTS: Record<TemplateType, string> = {
     generic: "",
-    padi: `**Lloji:** Padi (Lawsuit)
+    padi: `${LEGAL_CONSTRAINTS}
+**Lloji:** Padi (Lawsuit)
+**Gjykata:** {{COURT_NAME}}
+
 **Palët:**
 - Paditësi: {{CLIENT_NAME}}
 - I Padituri: {{OPPOSING_PARTY}}
@@ -36,26 +48,33 @@ const TEMPLATE_PROMPTS: Record<TemplateType, string> = {
 **Objekti i Mosmarrëveshjes:**
 {{CASE_CONTEXT}}
 
-**Baza Ligjore (Opsionale):**
-[P.sh., Ligji për Detyrimet, Neni X]
+**Baza Ligjore:**
+[Cito saktë ligjin përkatës të Kosovës]
 
 **Kërkesëpadia (Petitiumi):**
-Kërkoj nga gjykata që të aprovojë këtë kërkesë dhe të detyrojë të paditurin të...`,
+Kërkoj nga gjykata që të aprovojë këtë kërkesë dhe të detyrojë të paditurin të...
+
+{{CITY}}, [Data]`,
     
-    pergjigje: `**Lloji:** Përgjigje në Padi (Response to Lawsuit)
+    pergjigje: `${LEGAL_CONSTRAINTS}
+**Lloji:** Përgjigje në Padi
+**Gjykata:** {{COURT_NAME}}
 **Numri i Lëndës:** {{CASE_NUMBER}}
 
 **Deklarim:**
 I padituri {{CLIENT_NAME}} kundërshton në tërësi pretendimet e palës tjetër...
 
-**Arsyetimi:**
-1. Padia nuk ka bazë ligjore sepse...
-2. Faktet e paraqitura nuk janë të sakta sepse...
+**Arsyetimi Ligjor:**
+Padia nuk ka bazë ligjore sipas ligjeve të Republikës së Kosovës.
 
 **Kërkesa:**
-Kërkojmë nga gjykata që të refuzojë padinë si të pabazuar.`,
+Kërkojmë nga gjykata që të refuzojë padinë si të pabazuar.
+
+{{CITY}}, [Data]`,
     
-    kunderpadi: `**Lloji:** Kundërpadi (Counter-claim)
+    kunderpadi: `${LEGAL_CONSTRAINTS}
+**Lloji:** Kundërpadi
+**Gjykata:** {{COURT_NAME}}
 **Në lidhje me rastin:** {{CASE_NUMBER}}
 
 **Palët:**
@@ -66,23 +85,25 @@ Kërkojmë nga gjykata që të refuzojë padinë si të pabazuar.`,
 Përveç që kundërshtojmë padinë, ne kërkojmë...
 
 **Faktet Kryesore:**
-[Shpjego faktet që mbështesin kundërpadinë]`,
+[Shpjego faktet]
+
+{{CITY}}, [Data]`,
     
-    kontrate: `**Lloji:** Kontratë (Contract)
-**Lloji i Kontratës:** [P.sh. Qira, Shitblerje, Punësim]
+    kontrate: `${LEGAL_CONSTRAINTS}
+**Lloji:** Kontratë
+**Jurisdiksioni:** Republika e Kosovës
 
 **Palët:**
 1. {{CLIENT_NAME}} (Palë A)
 2. {{OPPOSING_PARTY}} (Palë B)
 
 **Nenet Kryesore:**
-- Objekti i kontratës: ...
-- Çmimi / Pagesa: ...
+- Objekti: ...
+- Çmimi: ...
 - Kohëzgjatja: ...
-- Të drejtat dhe detyrimet: ...
 
 **Zgjidhja e Mosmarrëveshjeve:**
-[Gjykata kompetente ose Arbitrazhi]`
+[Gjykata Themelore në {{CITY}}]`
 };
 
 // --- STREAMING COMPONENT ---
@@ -187,11 +208,32 @@ const DraftingPage: React.FC = () => {
     };
   }, []);
 
+  // --- KOSOVO CITY DETECTOR ---
+  const detectKosovoContext = (c: Case) => {
+    const kosovoKeywords = ['prizren', 'pej', 'gjakov', 'gjilan', 'ferizaj', 'mitrovic', 'podujev', 'vushtrri', 'suharek', 'rahovec', 'drenas', 'lipjan', 'malishev', 'kamenic', 'viti', 'decan', 'istog', 'kline', 'skenderaj', 'dragash', 'fushe kosov', 'kacanik', 'shtime'];
+    
+    const searchString = `${c.court_info?.name || ''} ${c.client?.name || ''} ${c.description || ''} ${c.title || ''}`.toLowerCase();
+
+    let city = 'Prishtinë'; // Default capital
+
+    // Extract specific city if found
+    for (const kw of kosovoKeywords) {
+        if (searchString.includes(kw)) {
+            // Capitalize first letter
+            city = kw.charAt(0).toUpperCase() + kw.slice(1);
+            // Handle special casing for cities like Pejë/Gjakovë if needed, but basic cap is fine for now
+            if (city === 'Pej') city = 'Pejë';
+            if (city === 'Gjakov') city = 'Gjakovë';
+            break;
+        }
+    }
+
+    return { city };
+  };
+
   // --- INTELLIGENT TEMPLATE ENGINE ---
   const applyTemplate = (templateKey: TemplateType, caseId?: string) => {
-      if (templateKey === 'generic') {
-          return; 
-      }
+      if (templateKey === 'generic') return;
 
       let templateText = TEMPLATE_PROMPTS[templateKey];
       
@@ -199,26 +241,33 @@ const DraftingPage: React.FC = () => {
       if (caseId) {
           const activeCase = cases.find(c => String(c.id) === caseId);
           if (activeCase) {
+              const { city } = detectKosovoContext(activeCase);
+              
               const clientName = activeCase.client?.name || '[Emri i Klientit]';
               const opposingName = activeCase.opposing_party?.name || '[Emri i Kundërshtarit]';
               const caseNum = activeCase.case_number || '[Numri i Lëndës]';
-              // Use Title or Description if Type isn't available
-              const caseCtx = activeCase.title || activeCase.case_name || '[Përshkruaj natyrën e çështjes]';
+              // Use detected city for Court Name
+              const courtName = activeCase.court_info?.name || `Gjykata Themelore në ${city}`;
+              const caseCtx = activeCase.title || activeCase.case_name || activeCase.description || '[Përshkruaj natyrën e çështjes]';
 
               templateText = templateText
+                  .replace(/{{CITY}}/g, city)
+                  .replace(/{{COURT_NAME}}/g, courtName)
                   .replace(/{{CLIENT_NAME}}/g, clientName)
                   .replace(/{{OPPOSING_PARTY}}/g, opposingName)
                   .replace(/{{CASE_NUMBER}}/g, caseNum)
                   .replace(/{{CASE_CONTEXT}}/g, caseCtx);
           }
-      } 
-      
-      // Fallback cleanups if no case selected
-      templateText = templateText
-          .replace(/{{CLIENT_NAME}}/g, '[Emri dhe Mbiemri / Kompania]')
-          .replace(/{{OPPOSING_PARTY}}/g, '[Emri i Kundërshtarit]')
-          .replace(/{{CASE_NUMBER}}/g, '[Numri i Lëndës]')
-          .replace(/{{CASE_CONTEXT}}/g, '[Përshkruaj shkurtimisht natyrën e çështjes]');
+      } else {
+          // Fallbacks
+          templateText = templateText
+              .replace(/{{CITY}}/g, 'Prishtinë')
+              .replace(/{{COURT_NAME}}/g, '[Emri i Gjykatës]')
+              .replace(/{{CLIENT_NAME}}/g, '[Emri dhe Mbiemri / Kompania]')
+              .replace(/{{OPPOSING_PARTY}}/g, '[Emri i Kundërshtarit]')
+              .replace(/{{CASE_NUMBER}}/g, '[Numri i Lëndës]')
+              .replace(/{{CASE_CONTEXT}}/g, '[Përshkruaj shkurtimisht natyrën e çështjes]');
+      }
 
       setContext(templateText);
   };
@@ -231,9 +280,6 @@ const DraftingPage: React.FC = () => {
 
       if (isDirty && !isCleanSwitch) {
           if (!window.confirm(t('drafting.confirmTemplateSwitch', 'Ndryshimi i shabllonit do të zëvendësojë tekstin aktual. Vazhdo?'))) {
-              // Revert logic handled by react state not changing
-              // But strictly speaking, the Select 'value' prop controls it, so just returning does nothing if event fired.
-              // In React controlled components, we just don't set state.
               return; 
           }
       }
@@ -243,13 +289,11 @@ const DraftingPage: React.FC = () => {
       else applyTemplate(newTemplate, selectedCaseId);
   };
 
-  // If Case changes, re-apply the CURRENT template if it's not generic
   const handleCaseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       const newCaseId = e.target.value || undefined;
       setSelectedCaseId(newCaseId);
       
       if (selectedTemplate !== 'generic') {
-          // Auto-update template data with new case data
           applyTemplate(selectedTemplate, newCaseId);
       }
   };
