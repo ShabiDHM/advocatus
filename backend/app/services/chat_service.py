@@ -1,7 +1,7 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V13.3 (DATE HIERARCHY FIX)
-# 1. FIX: Distinguishes between 'Application Date' (Footer) and 'Hearing Date'.
-# 2. LOGIC: Explicitly bans predicting future dates based on system time.
+# PHOENIX PROTOCOL - CHAT SERVICE V13.4 (LOGIC REFINEMENT)
+# 1. FIX: Added specific rule to distinguish "Proposed Judgment" inside a Lawsuit vs Real Judgment.
+# 2. FIX: OCR Correction rule for numbers (250 vs 280).
 
 from __future__ import annotations
 import os
@@ -24,29 +24,34 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# --- KOSOVO SMART PROMPT (DATE FORENSICS) ---
+# --- KOSOVO SMART PROMPT (LOGIC & STRUCTURE) ---
 SYSTEM_PROMPT_KOSOVO = """
-Ti je "Juristi AI", një analist ligjor rigoroz për ligjet e REPUBLIKËS SË KOSOVËS.
+Ti je "Juristi AI", analist ligjor për Kosovën.
 
-PROTOKOLLI I PËRGJIGJES (STRICT):
+PROTOKOLLI I ANALIZËS (LEXO ME KUJDES):
 
-Hapi 1: **VERIFIKIMI I PALËVE**: 
-   - Identifiko saktësisht Paditësin dhe të Paditurin nga kreu i dokumentit.
+1. **IDENTIFIKIMI I DOKUMENTIT (KRITIKE):**
+   - Nëse dokumenti fillon me "PADI", atëherë çdo gjë e shkruar në fund (nën "AKTGJYKIM" ose "PROPOZIM") është **KËRKESË E PADITËSIT**, NUK është vendim i Gjykatës.
+   - **GABIMI PËR TË SHMANGUR:** Mos thuaj "Gjykata ka vendosur". Thuaj "Paditësi KËRKON që Gjykata të vendosë".
 
-Hapi 2: **SAKTËSIA E DATAVE (KRITIKE)**:
-   - Cito VETËM datat që janë fizikisht të shkruara në tekst (formati DD.MM.YYYY).
-   - **KUJDES:** Data në fund të dokumentit (poshtë nënshkrimit) është **Data e Dorëzimit/Hartimit**. Ajo NUKE ËSHTË datë seance.
-   - **NDALIM:** Mos përdor datën e sotme për të parashikuar "seanca të ardhshme". Nëse nuk shkruan "Seanca caktohet më...", atëherë NUK KA SEANCË.
+2. **SAKTËSIA E NUMRAVE (OCR):**
+   - Nëse teksti është i paqartë midis 250 dhe 280, shiko kontekstin. Nëse kërkohet rritje nga 200, zakonisht hapi logjik është 250. 
+   - Cito vetëm numrat që shihen qartë.
 
-Hapi 3: **ANALIZA E FAKTEVE**: 
-   - Përmblidh kërkesëpadinë bazuar në tekst.
+3. **VERIFIKIMI I PALËVE:**
+   - Paditësi dhe I Padituri janë zakonisht në krye të faqes së parë.
 
-Hapi 4: **PËRFUNDIMI**: 
-   - Përgjigju pyetjes bazuar vetëm në provat e gjetura.
+4. **DATAT:**
+   - Data në fund të faqes së fundit është data e hartimit të padisë.
 
-RREGULLAT E VDEKJES (DO NOT BREAK):
-1. MOS PËRMEND emra apo data që nuk janë në tekst.
-2. JURISDIKSIONI: Vetëm Kosova.
+HAPAT E PËRGJIGJES:
+Hapi 1: Kush janë palët? (Nëse nuk i gjen, thuaj "Nuk u gjetën në tekstin e skanuar").
+Hapi 2: Çfarë kërkon paditësi? (Përmblidh kërkesëpadinë).
+Hapi 3: Cilat janë faktet kryesore? (Alimentacioni, kontaktet, etj).
+Hapi 4: Konkluzion (Kjo është Padi, jo Aktgjykim).
+
+STILI:
+Ji i saktë, i shkurtër dhe profesional.
 """
 
 def _get_rag_service_instance(db: Any) -> Any:
@@ -80,7 +85,7 @@ async def get_http_chat_response(
     jurisdiction: Optional[str] = 'ks'
 ) -> str:
     """
-    Orchestrates the Socratic Chat with Anti-Hallucination Guardrails.
+    Orchestrates the Socratic Chat.
     """
     try:
         oid = ObjectId(case_id)
@@ -115,19 +120,14 @@ async def get_http_chat_response(
                 document_ids=[document_id] if document_id else None
             )
             
-        # 4. SAFETY CHECK: EMPTY CONTEXT
         if not context_dossier or len(context_dossier.strip()) < 50:
-            logger.warning(f"⚠️ Empty Context for Case {case_id}. Aborting AI generation.")
-            response_text = (
-                "⚠️ **Nuk u gjet informacion.**\n\n"
-                "Sistemi nuk mundi të lexojë tekstin nga dokumentet e këtij rasti. "
-                "Ju lutem sigurohuni që keni klikuar 'Skanim i Thellë' (Deep Scan) tek dokumenti."
-            )
+            logger.warning(f"⚠️ Empty Context for Case {case_id}")
+            response_text = "⚠️ Nuk u gjet informacion i mjaftueshëm në tekstin e skanuar. Ju lutem provoni 'Skanim i Thellë' përsëri."
         else:
             # 5. GENERATION STEP
             final_user_prompt = (
-                f"=== KONTEKSTI I DOSJES (BURIMI I VETËM I TË VËRTETËS) ===\n{context_dossier}\n\n"
-                f"=== PYETJA E KLIENTIT ===\n{user_query}"
+                f"=== KONTEKSTI I DOKUMENTIT ===\n{context_dossier}\n\n"
+                f"=== PYETJA ===\n{user_query}"
             )
 
             if DEEPSEEK_API_KEY:
@@ -139,7 +139,7 @@ async def get_http_chat_response(
                         {"role": "system", "content": SYSTEM_PROMPT_KOSOVO},
                         {"role": "user", "content": final_user_prompt}
                     ],
-                    temperature=0.0, # ZERO CREATIVITY
+                    temperature=0.0, 
                     max_tokens=1000,
                     extra_headers={"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Chat"}
                 )
@@ -151,7 +151,7 @@ async def get_http_chat_response(
 
     except Exception as e:
         logger.error(f"AI Error: {e}", exc_info=True)
-        response_text = "Problem teknik gjatë analizës."
+        response_text = "Problem teknik."
 
     # 6. Save AI Response
     try:
