@@ -1,8 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V5.7 (KOSOVO STRICT MODE)
-// 1. SCOPE: Hardcoded Jurisdiction to "REPUBLIKA E KOSOVËS".
-// 2. SAFETY: Explicit instruction to IGNORE Albanian legislation to prevent hallucinations.
-// 3. LOGIC: Simplifies city detection to only map Kosovo cities (defaulting to Prishtina).
+// PHOENIX PROTOCOL - DRAFTING PAGE V6.0 (UX ENHANCED)
+// 1. UX: Replaced static textarea with 'AutoResizeTextarea' for better editing.
+// 2. LOGIC: Textarea expands with content and shrinks on generation.
+// 3. LAYOUT: Maintained responsive grid while allowing input flexibility.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -52,7 +52,7 @@ const TEMPLATE_PROMPTS: Record<TemplateType, string> = {
 [Cito saktë ligjin përkatës të Kosovës]
 
 **Kërkesëpadia (Petitiumi):**
-Kërkoj nga gjykata që të aprovojë këtë kërkesë dhe të detyrojë të paditurin të...
+Kërkoj nga gjykata që të aprovojë kërkesën dhe të detyrojë të paditurin të...
 
 {{CITY}}, [Data]`,
     
@@ -104,6 +104,58 @@ Përveç që kundërshtojmë padinë, ne kërkojmë...
 
 **Zgjidhja e Mosmarrëveshjeve:**
 [Gjykata Themelore në {{CITY}}]`
+};
+
+// --- AUTO RESIZE TEXTAREA COMPONENT ---
+interface AutoResizeTextareaProps {
+    value: string;
+    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+    placeholder?: string;
+    disabled?: boolean;
+    className?: string;
+    minHeight?: number;
+    maxHeight?: number;
+}
+
+const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({ 
+    value, onChange, placeholder, disabled, className, minHeight = 150, maxHeight = 500 
+}) => {
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Auto-resize logic
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto'; // Reset to calculate true scrollHeight
+            const scrollHeight = textareaRef.current.scrollHeight;
+            
+            // Clamp height between min and max
+            const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
+            textareaRef.current.style.height = `${newHeight}px`;
+            
+            // If content exceeds maxHeight, show scrollbar
+            textareaRef.current.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+        }
+    }, [value, minHeight, maxHeight]);
+
+    // Reset logic: If disabled (submitting), shrink to minHeight
+    useEffect(() => {
+        if (disabled && textareaRef.current) {
+             textareaRef.current.style.height = `${minHeight}px`;
+             textareaRef.current.scrollTop = 0;
+        }
+    }, [disabled, minHeight]);
+
+    return (
+        <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            disabled={disabled}
+            className={`${className} transition-all duration-200 ease-in-out`}
+            style={{ minHeight: `${minHeight}px` }}
+        />
+    );
 };
 
 // --- STREAMING COMPONENT ---
@@ -178,7 +230,6 @@ const DraftingPage: React.FC = () => {
 
   const [isResultNew, setIsResultNew] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pollingIntervalRef = useRef<number | null>(null);
 
   // SAVE TO LOCAL STORAGE
@@ -219,9 +270,7 @@ const DraftingPage: React.FC = () => {
     // Extract specific city if found
     for (const kw of kosovoKeywords) {
         if (searchString.includes(kw)) {
-            // Capitalize first letter
             city = kw.charAt(0).toUpperCase() + kw.slice(1);
-            // Handle special casing for cities like Pejë/Gjakovë if needed, but basic cap is fine for now
             if (city === 'Pej') city = 'Pejë';
             if (city === 'Gjakov') city = 'Gjakovë';
             break;
@@ -246,7 +295,6 @@ const DraftingPage: React.FC = () => {
               const clientName = activeCase.client?.name || '[Emri i Klientit]';
               const opposingName = activeCase.opposing_party?.name || '[Emri i Kundërshtarit]';
               const caseNum = activeCase.case_number || '[Numri i Lëndës]';
-              // Use detected city for Court Name
               const courtName = activeCase.court_info?.name || `Gjykata Themelore në ${city}`;
               const caseCtx = activeCase.title || activeCase.case_name || activeCase.description || '[Përshkruaj natyrën e çështjes]';
 
@@ -390,10 +438,8 @@ const DraftingPage: React.FC = () => {
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-400" size={20} />{t('drafting.configuration')}</h3>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4 min-h-0">
                 
-                {/* PHOENIX: ROW LAYOUT FOR SELECTORS */}
+                {/* SELECTORS ROW */}
                 <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
-                    
-                    {/* CASE SELECTOR */}
                     <div className='flex-1 min-w-0'>
                         <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.caseLabel', 'Rasti')}</label>
                         <div className="relative">
@@ -420,8 +466,6 @@ const DraftingPage: React.FC = () => {
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
                     </div>
-
-                    {/* TEMPLATE SELECTOR */}
                     <div className='flex-1 min-w-0'>
                         <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.templateLabel', 'Lloji i Dokumentit')}</label>
                         <div className="relative">
@@ -441,20 +485,24 @@ const DraftingPage: React.FC = () => {
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
                     </div>
-
                 </div>
 
-                <div className="flex-1 flex flex-col min-h-0">
+                {/* SMART EXPANDING TEXTAREA */}
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider flex-shrink-0">{t('drafting.instructionsLabel')}</label>
-                    <textarea
-                        ref={textareaRef}
-                        value={context}
-                        onChange={(e) => setContext(e.target.value)}
-                        placeholder={t('drafting.promptPlaceholder')}
-                        className="flex-1 w-full p-4 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none resize-none text-sm leading-relaxed custom-scrollbar transition-colors"
-                        disabled={isSubmitting}
-                    />
+                    <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+                        <AutoResizeTextarea
+                            value={context}
+                            onChange={(e) => setContext(e.target.value)}
+                            placeholder={t('drafting.promptPlaceholder')}
+                            className="w-full p-4 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none resize-none text-sm leading-relaxed"
+                            disabled={isSubmitting}
+                            minHeight={150}
+                            maxHeight={500}
+                        />
+                    </div>
                 </div>
+
                 <button type="submit" disabled={isSubmitting || !context.trim()} className="w-full py-3 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-500 hover:to-primary-400 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex-shrink-0">
                   {isSubmitting ? <RefreshCw className="animate-spin" /> : <Send size={18} />}
                   {t('drafting.generateBtn')}
