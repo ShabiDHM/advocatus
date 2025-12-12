@@ -1,8 +1,8 @@
 # FILE: backend/app/services/findings_service.py
-# PHOENIX PROTOCOL - FINDINGS SERVICE V6.1 (TYPE SAFE RAG)
-# 1. FIX: Sanitizes ObjectId -> String before sending to Vector Store (Prevents ChromaDB Crash).
-# 2. SAFETY: Wraps Vector Sync in try/except to protect MongoDB extraction data.
-# 3. LOGIC: Ensures Findings are available for both UI (Mongo) and Chat (RAG).
+# PHOENIX PROTOCOL - FINDINGS SERVICE V7.0 (QUALITY CONTROL)
+# 1. UPGRADE: Added 'Quality Gate' to filter out low-value/noise findings before saving.
+# 2. FIX: Type-safe serialization for ChromaDB (ObjectId -> str).
+# 3. LOGIC: Ensures 'Garbage In' does not lead to 'Hallucination Out'.
 
 import structlog
 from bson import ObjectId
@@ -14,6 +14,30 @@ from app.services.llm_service import extract_findings_from_text
 from app.services import vector_store_service
 
 logger = structlog.get_logger(__name__)
+
+def _is_high_quality_finding(finding: Dict[str, Any]) -> bool:
+    """
+    Quality Gate: Filters out noise, hallucinations, or empty data.
+    """
+    text = finding.get("finding_text") or finding.get("finding")
+    if not text or not isinstance(text, str):
+        return False
+    
+    clean_text = text.strip()
+    
+    # Rule 1: Too short (likely noise)
+    if len(clean_text) < 15:
+        return False
+        
+    # Rule 2: Generic LLM refusals or descriptions
+    noise_triggers = [
+        "cannot extract", "nuk mund të", "unknown document", 
+        "this document is", "ky dokument është", "nuk ka informacion"
+    ]
+    if any(trigger in clean_text.lower() for trigger in noise_triggers):
+        return False
+
+    return True
 
 def extract_and_save_findings(db: Database, document_id: str, full_text: str):
     log = logger.bind(document_id=document_id)
@@ -29,7 +53,9 @@ def extract_and_save_findings(db: Database, document_id: str, full_text: str):
         return
 
     if not document: return
-    if not full_text or len(full_text.strip()) < 10: return
+    # Optimization: Don't process tiny snippets
+    if not full_text or len(full_text.strip()) < 50: 
+        return
     
     # 2. EXTRACT FINDINGS (AI)
     try:
@@ -47,28 +73,30 @@ def extract_and_save_findings(db: Database, document_id: str, full_text: str):
     
     findings_to_insert = []
     
-    # 3. PREPARE DATA
+    # 3. PREPARE DATA (With Quality Control)
     for finding in extracted_findings:
+        if not _is_high_quality_finding(finding):
+            continue
+
         f_text = finding.get("finding_text") or finding.get("finding")
         s_text = finding.get("source_text") or finding.get("quote") or "N/A"
-        category = finding.get("category", "GENERAL")
+        category = finding.get("category", "FAKT").upper()
         
-        if f_text:
-            findings_to_insert.append({
-                "case_id": case_id, # Keep as ObjectId for MongoDB
-                "document_id": doc_oid,
-                "document_name": file_name,
-                "finding_text": f_text,
-                "source_text": s_text,
-                "category": category,
-                "page_number": finding.get("page_number", 1),
-                "confidence_score": 1.0, 
-                "created_at": datetime.now(timezone.utc)
-            })
+        findings_to_insert.append({
+            "case_id": case_id, # Keep as ObjectId for MongoDB
+            "document_id": doc_oid,
+            "document_name": file_name,
+            "finding_text": f_text,
+            "source_text": s_text,
+            "category": category,
+            "page_number": finding.get("page_number", 1),
+            "confidence_score": 1.0, 
+            "created_at": datetime.now(timezone.utc)
+        })
     
     if findings_to_insert:
         # 4. SAVE TO MONGODB (UI Layer)
-        # Clear old findings for this doc first to prevent duplicates
+        # Clear old findings for this doc first to prevent duplicates/ghosts
         db.findings.delete_many({"document_id": doc_oid})
         db.findings.insert_many(findings_to_insert)
         log.info("findings.saved_to_mongo", count=len(findings_to_insert))
@@ -78,21 +106,23 @@ def extract_and_save_findings(db: Database, document_id: str, full_text: str):
         try:
             vector_payload = []
             for f in findings_to_insert:
-                # Create a copy to avoid modifying the MongoDB objects in memory if referenced elsewhere
                 clean_f = f.copy()
                 clean_f["case_id"] = str(f["case_id"])
                 clean_f["document_id"] = str(f["document_id"])
-                # Remove datetime objects if vector store doesn't support them, or convert to isoformat
+                
+                # Sanitize Datetime for JSON/Vector serialization
                 if isinstance(clean_f.get("created_at"), datetime):
                     clean_f["created_at"] = clean_f["created_at"].isoformat()
+                
                 vector_payload.append(clean_f)
 
             vector_store_service.store_structured_findings(vector_payload)
             log.info("findings.synced_to_vector_store")
         except Exception as e:
             # Critical: Don't crash the task if Vector DB is down, just log it.
-            # The UI will still show the findings.
             log.error("findings.vector_sync_failed", error=str(e))
+    else:
+        log.info("findings.quality_filter_rejected_all")
 
 def get_findings_for_case(db: Database, case_id: str) -> List[Dict[str, Any]]:
     try: 

@@ -1,7 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V13.4 (LOGIC REFINEMENT)
-# 1. FIX: Added specific rule to distinguish "Proposed Judgment" inside a Lawsuit vs Real Judgment.
-# 2. FIX: OCR Correction rule for numbers (250 vs 280).
+# PHOENIX PROTOCOL - CHAT SERVICE V14.0 (GRAPH-AWARE ORCHESTRATION)
+# 1. UPGRADE: System Prompt now explicitly understands Graph vs Vector context structure.
+# 2. LOGIC: Enforces "Hierarchy of Truth" (Graph > Text > General Knowledge).
+# 3. SAFETY: Strict "No Data = No Answer" policy.
 
 from __future__ import annotations
 import os
@@ -24,37 +25,33 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# --- KOSOVO SMART PROMPT (LOGIC & STRUCTURE) ---
+# --- KOSOVO SMART PROMPT (CONTEXT-AWARE) ---
 SYSTEM_PROMPT_KOSOVO = """
-Ti je "Juristi AI", analist ligjor për Kosovën.
+Ti je "Juristi AI", një Asistent Ligjor i Avancuar për sistemin e Kosovës.
+Ti ke akses në një "DOSJE KONTEKSTI" të strukturuar me burime të ndryshme (Graf, Dokumente, Ligje).
 
-PROTOKOLLI I ANALIZËS (LEXO ME KUJDES):
+HIERARKIA E TË VËRTETËS (STRIKTE):
+1. **EVIDENCA NGA GRAFI:** Kjo është e vërteta absolute për lidhjet (Kush njeh kë, rolet, datat kyçe). Besoji kësaj mbi tekstin e lirë.
+2. **FRAGMENTE DOKUMENTESH:** Përdori këto për citime specifike dhe nuanca gjuhësore.
+3. **BAZA LIGJORE:** Përdore vetëm për interpretim ligjor, jo për fakte të çështjes.
 
-1. **IDENTIFIKIMI I DOKUMENTIT (KRITIKE):**
-   - Nëse dokumenti fillon me "PADI", atëherë çdo gjë e shkruar në fund (nën "AKTGJYKIM" ose "PROPOZIM") është **KËRKESË E PADITËSIT**, NUK është vendim i Gjykatës.
-   - **GABIMI PËR TË SHMANGUR:** Mos thuaj "Gjykata ka vendosur". Thuaj "Paditësi KËRKON që Gjykata të vendosë".
+PROTOKOLLI I ANALIZËS:
+1. **Verifikimi:** A ka dosja informacion për pyetjen? Nëse jo, thuaj: "Nuk kam informacion të mjaftueshëm në dokumentet e skanuara."
+2. **Identifikimi:** Dalloni qartë midis 'Pretendimit të Palës' (Padi) dhe 'Vendimit të Gjykatës' (Aktgjykim). 
+   - KUJDES: Shumë padi përfundojnë me "PROPOZIM: AKTGJYKIM". Kjo NUK është vendim, është dëshira e paditësit.
+3. **Saktësia:** Mos shpik numra. Nëse OCR është i paqartë, thuaj "Teksti është i palexueshëm".
 
-2. **SAKTËSIA E NUMRAVE (OCR):**
-   - Nëse teksti është i paqartë midis 250 dhe 280, shiko kontekstin. Nëse kërkohet rritje nga 200, zakonisht hapi logjik është 250. 
-   - Cito vetëm numrat që shihen qartë.
-
-3. **VERIFIKIMI I PALËVE:**
-   - Paditësi dhe I Padituri janë zakonisht në krye të faqes së parë.
-
-4. **DATAT:**
-   - Data në fund të faqes së fundit është data e hartimit të padisë.
-
-HAPAT E PËRGJIGJES:
-Hapi 1: Kush janë palët? (Nëse nuk i gjen, thuaj "Nuk u gjetën në tekstin e skanuar").
-Hapi 2: Çfarë kërkon paditësi? (Përmblidh kërkesëpadinë).
-Hapi 3: Cilat janë faktet kryesore? (Alimentacioni, kontaktet, etj).
-Hapi 4: Konkluzion (Kjo është Padi, jo Aktgjykim).
-
-STILI:
-Ji i saktë, i shkurtër dhe profesional.
+FORMATI I PËRGJIGJES:
+- Përdor **Markdown** (Bold për emra/data).
+- Cito burimin ku është e mundur (p.sh., "Sipas grafit...", "Në dokumentin X...").
 """
 
 def _get_rag_service_instance(db: Any) -> Any:
+    """
+    Factory for RAG Service. 
+    Note: We pass a dummy client because ChatService handles the generation 
+    (the 'Brain'), while RAG Service handles the retrieval (the 'Eyes').
+    """
     try:
         from app.services.albanian_rag_service import AlbanianRAGService
         from app.services.albanian_language_detector import AlbanianLanguageDetector
@@ -64,11 +61,12 @@ def _get_rag_service_instance(db: Any) -> Any:
 
     try:
         detector = AlbanianLanguageDetector()
+        # We don't need a real client inside RAG service for retrieval-only mode
         dummy_client = AsyncOpenAI(api_key="dummy") 
         
         return AlbanianRAGService(
             vector_store=vector_store_service,
-            llm_client=dummy_client,
+            llm_client=dummy_client, 
             language_detector=detector,
             db=db
         )
@@ -85,7 +83,7 @@ async def get_http_chat_response(
     jurisdiction: Optional[str] = 'ks'
 ) -> str:
     """
-    Orchestrates the Socratic Chat.
+    Orchestrates the Socratic Chat with Graph-Enhanced Retrieval.
     """
     try:
         oid = ObjectId(case_id)
@@ -109,25 +107,28 @@ async def get_http_chat_response(
     
     response_text: str = "" 
     try:
-        # 3. RETRIEVAL STEP
+        # 3. RETRIEVAL STEP (The "Eyes")
         rag_service = _get_rag_service_instance(db)
         
         context_dossier = ""
         if rag_service:
+            # Retrieves Graph + Vector + Findings
             context_dossier = await rag_service.retrieve_context(
                 query=user_query, 
                 case_id=case_id, 
                 document_ids=[document_id] if document_id else None
             )
             
+        # 4. SAFETY CHECK
         if not context_dossier or len(context_dossier.strip()) < 50:
             logger.warning(f"⚠️ Empty Context for Case {case_id}")
-            response_text = "⚠️ Nuk u gjet informacion i mjaftueshëm në tekstin e skanuar. Ju lutem provoni 'Skanim i Thellë' përsëri."
+            response_text = "⚠️ Nuk gjeta informacion relevant në dosje për këtë pyetje. Ju lutem provoni të formuloni pyetjen ndryshe ose bëni 'Skanim të Thellë' të dokumenteve."
         else:
-            # 5. GENERATION STEP
+            # 5. GENERATION STEP (The "Brain")
+            # We explicitly label the dossier for the System Prompt to understand
             final_user_prompt = (
-                f"=== KONTEKSTI I DOKUMENTIT ===\n{context_dossier}\n\n"
-                f"=== PYETJA ===\n{user_query}"
+                f"=== DOSJA E KONTEKSTIT (BURIMET) ===\n{context_dossier}\n\n"
+                f"=== PYETJA E PËRDORUESIT ===\n{user_query}"
             )
 
             if DEEPSEEK_API_KEY:
@@ -139,19 +140,19 @@ async def get_http_chat_response(
                         {"role": "system", "content": SYSTEM_PROMPT_KOSOVO},
                         {"role": "user", "content": final_user_prompt}
                     ],
-                    temperature=0.0, 
+                    temperature=0.0, # Zero temp to reduce hallucination
                     max_tokens=1000,
                     extra_headers={"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Chat"}
                 )
                 
                 content = completion.choices[0].message.content
-                response_text = content if content is not None else "Gabim në gjenerim."
+                response_text = content if content is not None else "Gabim në gjenerim nga AI."
             else:
-                response_text = "⚠️ Konfigurimi i AI mungon."
+                response_text = "⚠️ Konfigurimi i AI mungon (API Key missing)."
 
     except Exception as e:
         logger.error(f"AI Error: {e}", exc_info=True)
-        response_text = "Problem teknik."
+        response_text = "Ndodhi një problem teknik gjatë procesimit."
 
     # 6. Save AI Response
     try:

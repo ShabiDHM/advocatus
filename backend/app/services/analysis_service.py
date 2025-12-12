@@ -1,15 +1,17 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V8.5 (DATA FALLBACK)
-# 1. LOGIC: Added 'extracted_text' fallback. If AI findings aren't ready, we use raw OCR text.
-# 2. SAFETY: Ensures the LLM always gets data if the document exists.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V9.0 (GRAPH-ENHANCED)
+# 1. INTEGRATION: Now fetches 'Graph Contradictions' to ground the LLM.
+# 2. LOGIC: Merges Textual Evidence (MongoDB) with Structural Evidence (Neo4j).
+# 3. SAFETY: Fallback logic retained.
 
 import structlog
-from typing import Dict, Any
+from typing import Dict, Any, List
 from pymongo.database import Database
 from bson import ObjectId
 
-# Import the central intelligence engine
+# Import central intelligence & graph engine
 from . import llm_service
+from .graph_service import graph_service
 
 logger = structlog.get_logger(__name__)
 
@@ -26,10 +28,13 @@ def _get_full_case_text(db: Database, case_id: str) -> str:
         context_buffer = []
         for doc in documents:
             name = doc.get("file_name", "Unknown Document")
-            doc_id = doc["_id"]
+            doc_id = str(doc["_id"])
             
             # STRATEGY 1: Look for Verified Findings (High Quality)
             findings = list(db.findings.find({"document_id": doc_id}))
+            # Also support finding by ObjectId if stored that way
+            if not findings:
+                findings = list(db.findings.find({"document_id": doc["_id"]}))
             
             if findings:
                 findings_text = "\n".join([f"- {f.get('finding_text', '')}" for f in findings])
@@ -55,13 +60,28 @@ def _get_full_case_text(db: Database, case_id: str) -> str:
         return ""
 
 def cross_examine_case(db: Database, case_id: str) -> Dict[str, Any]:
+    """
+    Performs a deep analysis of the case, checking for contradictions
+    between the Text (Documents) and the Structure (Graph).
+    """
     log = logger.bind(case_id=case_id)
     
-    # 1. Gather Data
+    # 1. Gather Textual Data (MongoDB)
     full_case_text = _get_full_case_text(db, case_id)
     
-    # 2. Safety Check
-    if not full_case_text or len(full_case_text) < 50:
+    # 2. Gather Structural Data (Neo4j)
+    # This is the "Phoenix" upgrade: Grounding the analysis in the Graph.
+    graph_evidence = ""
+    try:
+        graph_contradictions = graph_service.find_contradictions(case_id)
+        if graph_contradictions and "No direct" not in graph_contradictions:
+            graph_evidence = f"--- INTELIGJENCA NGA GRAFI (Logjike/Kontradikta) ---\n{graph_contradictions}\n\n"
+    except Exception as e:
+        log.warning("analysis.graph_fetch_failed", error=str(e))
+
+    # 3. Safety Check
+    total_context = graph_evidence + full_case_text
+    if not total_context or len(total_context) < 50:
         return {
             "summary": "Nuk ka të dhëna.",
             "risks": [],
@@ -70,9 +90,10 @@ def cross_examine_case(db: Database, case_id: str) -> Dict[str, Any]:
             "error": "Nuk ka mjaftueshëm të dhëna për analizë. Ju lutem prisni që OCR të përfundojë."
         }
     
-    # 3. DELEGATE to the "Debate Judge" in llm_service
+    # 4. DELEGATE to the "Debate Judge" in llm_service
     try:
-        analysis_result = llm_service.analyze_case_contradictions(full_case_text)
+        # We pass the combined context (Graph + Text) to the LLM
+        analysis_result = llm_service.analyze_case_contradictions(total_context)
     except Exception as e:
         log.error("analysis.llm_call_failed", error=str(e))
         return {"error": "Analiza dështoi për shkaqe teknike."}
