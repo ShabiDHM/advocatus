@@ -1,8 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V6.0 (UX ENHANCED)
-// 1. UX: Replaced static textarea with 'AutoResizeTextarea' for better editing.
-// 2. LOGIC: Textarea expands with content and shrinks on generation.
-// 3. LAYOUT: Maintained responsive grid while allowing input flexibility.
+// PHOENIX PROTOCOL - DRAFTING PAGE V6.1 (UI POLISH)
+// 1. UI: Fixed scrollbar styling on Input Textarea to match Dark Theme.
+// 2. CSS: Injected scoped styles for ::-webkit-scrollbar on textarea.
+// 3. UX: Preserved auto-resize logic while ensuring visual consistency.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -429,6 +429,23 @@ const DraftingPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-[calc(100vh-theme(spacing.20))] flex flex-col">
+      <style>{`
+        /* CUSTOM SCROLLBAR FOR TEXTAREA */
+        .custom-textarea-scroll::-webkit-scrollbar {
+          width: 8px;
+        }
+        .custom-textarea-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-textarea-scroll::-webkit-scrollbar-thumb {
+          background-color: rgba(255, 255, 255, 0.2);
+          border-radius: 4px;
+        }
+        .custom-textarea-scroll::-webkit-scrollbar-thumb:hover {
+          background-color: rgba(255, 255, 255, 0.3);
+        }
+      `}</style>
+      
       <div className="text-center mb-6 flex-shrink-0">
         <h1 className="text-3xl font-bold text-white mb-1 flex items-center justify-center gap-3"><PenTool className="text-primary-500" />{t('drafting.title')}</h1>
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
@@ -495,7 +512,7 @@ const DraftingPage: React.FC = () => {
                             value={context}
                             onChange={(e) => setContext(e.target.value)}
                             placeholder={t('drafting.promptPlaceholder')}
-                            className="w-full p-4 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none resize-none text-sm leading-relaxed"
+                            className="w-full p-4 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none resize-none text-sm leading-relaxed custom-textarea-scroll custom-scrollbar"
                             disabled={isSubmitting}
                             minHeight={150}
                             maxHeight={500}

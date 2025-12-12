@@ -1,7 +1,8 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - DOCUMENT PIPELINE V7.1 (FINAL GRAPH FIX)
-# 1. FIX: The 'task_graph' function now correctly passes 'extracted_metadata' to the graph service.
-# 2. STATUS: All "Smart" data is now guaranteed to be ingested into Neo4j.
+# PHOENIX PROTOCOL - DOCUMENT PIPELINE V8.0 (STERILIZATION AT SOURCE)
+# 1. FIX: Injected 'sterilize_legal_text' immediately after OCR.
+# 2. LOGIC: Ensures the Vector Store, Graph, and Findings NEVER see the "Poisoned" phrase.
+# 3. SAFETY: This guarantees that "Gjykata ka vendosur" in a Lawsuit is rewritten to "Paditësi Kërkon" globally.
 
 import os
 import tempfile
@@ -96,10 +97,17 @@ def orchestrate_document_processing_mongo(
             logger.warning(f"Preview generation failed: {e}")
 
         _emit_progress(redis_client, user_id, document_id_str, "Ekstraktimi i tekstit (OCR)...", 25)
-        extracted_text = text_extraction_service.extract_text(temp_original_file_path, document.get("mime_type", ""))
+        raw_text = text_extraction_service.extract_text(temp_original_file_path, document.get("mime_type", ""))
         
-        if not extracted_text or not extracted_text.strip():
+        if not raw_text or not raw_text.strip():
             raise ValueError("OCR dështoi: Dokumenti duket bosh.")
+
+        # --- PHOENIX STERILIZATION PROTOCOL (SOURCE FILTER) ---
+        _emit_progress(redis_client, user_id, document_id_str, "Sterilizimi Ligjor...", 28)
+        # We apply the filter HERE, so no downstream service ever sees the "bad" text.
+        extracted_text = llm_service.sterilize_legal_text(raw_text)
+        logger.info(f"✅ Document {document_id_str} sterilized. (Length: {len(raw_text)} -> {len(extracted_text)})")
+        # -----------------------------------------------------
 
         _emit_progress(redis_client, user_id, document_id_str, "Klasifikimi...", 30)
         is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
@@ -125,6 +133,7 @@ def orchestrate_document_processing_mongo(
                 if extracted_metadata:
                     base_doc_metadata.update({k: v for k, v in extracted_metadata.items() if v})
                 
+                # IMPORTANT: Using 'extracted_text' (Sterilized) not 'raw_text'
                 enriched_chunks = EnhancedDocumentProcessor.process_document(text_content=extracted_text, document_metadata=base_doc_metadata, is_albanian=is_albanian)
                 
                 vector_store_service.create_and_store_embeddings_from_chunks(
@@ -138,6 +147,7 @@ def orchestrate_document_processing_mongo(
                 return False
 
         def task_storage() -> Optional[str]:
+            # Storing STERILIZED text for future reference/download
             try: return storage_service.upload_processed_text(extracted_text, user_id=user_id, case_id=case_id_str, original_doc_id=document_id_str)
             except Exception: return None
 
@@ -161,7 +171,6 @@ def orchestrate_document_processing_mongo(
                 deadline_service.extract_and_save_deadlines(db, document_id_str, extracted_text)
             except Exception as e: logger.error(f"Deadline Extraction Error: {e}")
 
-        # FINAL PHOENIX FIX: This is the critical link
         def task_graph() -> None:
             try:
                 _emit_progress(redis_client, user_id, document_id_str, "Ndërtimi i Grafit...", 90)
@@ -172,12 +181,13 @@ def orchestrate_document_processing_mongo(
                     graph_service.ingest_entities_and_relations(
                         case_id=case_id_str, document_id=document_id_str, doc_name=doc_name,
                         entities=entities, relations=relations,
-                        doc_metadata=extracted_metadata # <-- PASS THE RICH METADATA HERE
+                        doc_metadata=extracted_metadata 
                     )
             except Exception as e: logger.error(f"Graph Ingestion Error: {e}")
 
         summary_result, text_storage_key = None, None
         with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+            # All tasks now use the sanitized 'extracted_text'
             futures_list = [executor.submit(task) for task in [task_embeddings, task_storage, task_summary, task_findings, task_deadlines, task_graph]]
             summary_result = futures_list[2].result()
             text_storage_key = futures_list[1].result()
