@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V8.2 (ANTI-HALLUCINATION NUCLEAR MODE)
-# 1. LOGIC: Explicit "Padi vs Aktgjykim" classifier.
-# 2. RULE: If document contains "Paditës" at the top, ignore "Aktgjykim" at the bottom.
-# 3. SAFETY: Forces 0.0 temperature for maximum robotic strictness.
+# PHOENIX PROTOCOL - INTELLIGENCE V9.0 (LEGAL STERILIZATION MODE)
+# 1. NEW: 'sterilize_legal_text' function. explicitly renames "Proposed Judgment" to "Plaintiff Request".
+# 2. LOGIC: Mechanically prevents the AI from seeing "Gjykata vendos" in a proposal section.
+# 3. SAFETY: Enforces JSON strictness for findings.
 
 import os
 import json
@@ -34,18 +34,49 @@ def get_deepseek_client() -> Optional[OpenAI]:
             logger.error(f"DeepSeek Init Failed: {e}")
     return None
 
-def repair_albanian_text(text: str) -> str:
+def sterilize_legal_text(text: str) -> str:
+    """
+    CRITICAL FUNCTION:
+    Modifies the text BEFORE the AI sees it to prevent 'Proposed Judgment' hallucinations.
+    """
     if not text: return ""
+    
+    # 1. OCR Corrections
     replacements = {
         "Paditésja": "Paditësja", "paditésja": "paditësja",
         "Paditési": "Paditësi", "paditési": "paditësi"
     }
     for bad, good in replacements.items():
         text = text.replace(bad, good)
-    return text
+
+    # 2. THE "TRAP" REMOVER
+    # Detects: PROPOZIM ... (some text) ... AKTGJYKIM
+    # This pattern means it's a REQUEST, not a RULING.
+    
+    # Regex explanation:
+    # (?i) -> Case insensitive
+    # (propozoj|propozim) -> Trigger words
+    # [\s\S]{0,500}? -> Scans next 500 chars (non-greedy)
+    # (aktgjykim) -> The dangerous word
+    
+    pattern = r"(?i)(propozoj|propozim)([\s\S]{0,500}?)(aktgjykim)"
+    
+    def replacer(match):
+        # Keep the 'Propozim', keep the middle text, but CHANGE 'Aktgjykim'
+        return f"{match.group(1)}{match.group(2)}DRAFT-PROPOZIM (KËRKESË E PALËS)"
+
+    # Apply sterilization
+    clean_text = re.sub(pattern, replacer, text)
+    
+    # Also explicitly label the "Decided" verb in proposals
+    # Common phrase: "Gjykata... të vendosë" or "Gjykata ka vendosur" (in draft)
+    if "DRAFT-PROPOZIM" in clean_text:
+        clean_text = clean_text.replace("Gjykata ka vendosur", "Paditësi kërkon që Gjykata të vendosë")
+        clean_text = clean_text.replace("Gjykata vendos", "Paditësi propozon që Gjykata të vendosë")
+
+    return clean_text
 
 def _parse_json_safely(content: str) -> Dict[str, Any]:
-    content = repair_albanian_text(content)
     try:
         return json.loads(content)
     except json.JSONDecodeError:
@@ -91,42 +122,43 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
     except Exception: return ""
 
 def generate_summary(text: str) -> str:
-    truncated_text = text[:20000] 
+    # PHOENIX: Sterilize text first
+    clean_text = sterilize_legal_text(text[:20000])
+    
     system_prompt = "Ti je Analist Ligjor. Krijo një përmbledhje të shkurtër faktike."
-    user_prompt = f"DOKUMENTI:\n{truncated_text}"
+    user_prompt = f"DOKUMENTI:\n{clean_text}"
+    
     res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
     if not res or len(res) < 50: res = _call_deepseek(system_prompt, user_prompt)
-    return repair_albanian_text(res or "N/A")
+    return res or "N/A"
 
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
-    truncated_text = text[:25000]
+    # PHOENIX: Sterilize text first (Crucial for Findings)
+    clean_text = sterilize_legal_text(text[:25000])
     
-    # --- NUCLEAR OPTION PROMPT ---
     system_prompt = """
     Ti je Motor i Nxjerrjes së Provave.
     
-    RREGULLI KRYESOR (SHUMË E RËNDËSISHME):
-    1. **Identifiko Llojin e Dokumentit:**
-       - Nëse dokumenti ka fjalën "PADI" në fillim -> Ky dokument është KËRKESË.
-       - Nëse dokumenti ka "AKTGJYKIM" në fund (pas tekstit "Propozoj"), kjo është vetëm çfarë kërkon paditësi, NUK është vendim i gjykatës.
+    DETYRA:
+    Identifiko faktet dhe kërkesat.
     
-    2. **Logjika e Nxjerrjes:**
-       - Nëse është PADI: Çdo fjali si "Gjykata të vendosë..." duhet të regjistrohet si "Paditësi KËRKON...".
-       - MOS thuaj "Gjykata ka vendosur" nëse dokumenti është Padi.
+    RREGULL I HEKURT:
+    - Nëse teksti thotë "DRAFT-PROPOZIM" ose "Paditësi kërkon", kjo është KËRKESË (Request), JO FAKT (Fact).
+    - Kategorizo: "KËRKESË" për çdo gjë që palët duan, "VENDIM" vetëm nëse është Vulë Gjykate.
     
     FORMATI JSON:
     {
       "findings": [
         {
-          "finding_text": "Paditësi kërkon rritjen e alimentacionit në 250 Euro.",
-          "source_text": "Kërkojmë që shuma... të rritet në 250 euro.",
+          "finding_text": "Paditësi kërkon kontakt çdo të mërkurë.",
+          "source_text": "Propozojmë kontakt... çdo të mërkurë.",
           "category": "KËRKESË", 
           "page_number": 1
         }
       ]
     }
     """
-    user_prompt = f"ANALIZO KËTË DOKUMENT:\n{truncated_text}"
+    user_prompt = f"ANALIZO KËTË DOKUMENT:\n{clean_text}"
 
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
@@ -141,28 +173,30 @@ def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
     return {"entities": [], "relations": []}
 
 def analyze_case_contradictions(text: str) -> Dict[str, Any]:
-    truncated_text = text[:25000]
+    # PHOENIX: Sterilize text first
+    clean_text = sterilize_legal_text(text[:25000])
     
-    # --- NUCLEAR ANALYST PROMPT ---
     system_prompt = """
     Ti je Gjyqtar i Debatit Ligjor (Audit Mode).
     
-    DETYRA KRITIKE:
-    1. Lexo fillimin e dokumentit. Nëse shkruan "PADI", atëherë i gjithë dokumenti është njëanshëm (vetëm pretendimet e Paditësit).
-    2. **KUJDES:** Në fund të Padisë shpesh shkruhet "AKTGJYKIM" si propozim. MOS E KONSIDERO SI VENDIM.
-    3. Kur analizon, thuaj qartë: "Paditësi pretendon..." ose "Paditësi kërkon...". MOS thuaj "Gjykata vendosi".
+    DETYRA:
+    Analizo dokumentin. Dallo qartë midis PRETENDIMIT dhe VENDIMIT.
     
-    FORMATI JSON (STRIKT):
+    RREGULL:
+    - Teksti përmban shënime si "DRAFT-PROPOZIM". Kjo tregon se është kërkesë e palës, jo vendim.
+    - Nëse gjen kontradikta (p.sh. Palët thonë gjëra të ndryshme), shënoji.
+    
+    FORMATI JSON:
     {
         "document_type": "PADI (Kërkesë) apo AKTGJYKIM (Vendim)?",
-        "summary_analysis": "Përmbledhje e saktë duke dalluar kërkesën nga vendimi.",
+        "summary_analysis": "Analizë objektive.",
         "conflicting_parties": [{"party_name": "...", "core_claim": "..."}],
         "contradictions": ["..."],
         "key_evidence": ["..."],
         "missing_info": ["..."]
     }
     """
-    user_prompt = f"DOSJA:\n{truncated_text}"
+    user_prompt = f"DOSJA:\n{clean_text}"
 
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
