@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V9.0 (LEGAL STERILIZATION MODE)
-# 1. NEW: 'sterilize_legal_text' function. explicitly renames "Proposed Judgment" to "Plaintiff Request".
-# 2. LOGIC: Mechanically prevents the AI from seeing "Gjykata vendos" in a proposal section.
-# 3. SAFETY: Enforces JSON strictness for findings.
+# PHOENIX PROTOCOL - INTELLIGENCE V9.5 (AGGRESSIVE STERILIZATION)
+# 1. LOGIC: Decoupled the "Proposed Judgment" fix from the regex.
+# 2. FEATURE: Global "Plaintiff Mode". If document starts with PADI, "Court Decided" becomes "Plaintiff Requests".
+# 3. SAFETY: This prevents the AI from ever reading the phrase "Gjykata ka vendosur" in a lawsuit.
 
 import os
 import json
@@ -41,38 +41,43 @@ def sterilize_legal_text(text: str) -> str:
     """
     if not text: return ""
     
-    # 1. OCR Corrections
+    # 1. OCR Corrections (Standard)
     replacements = {
         "Paditésja": "Paditësja", "paditésja": "paditësja",
-        "Paditési": "Paditësi", "paditési": "paditësi"
+        "Paditési": "Paditësi", "paditési": "paditësi",
+        "Gjykatés": "Gjykatës", "gjykatés": "gjykatës"
     }
     for bad, good in replacements.items():
         text = text.replace(bad, good)
 
-    # 2. THE "TRAP" REMOVER
+    # 2. DETECT DOCUMENT TYPE (THE "PLAINTIFF MODE" SWITCH)
+    # Check the first 1000 chars for indicators that this is a Request/Lawsuit, not a Ruling.
+    header_section = text[:1000].lower()
+    is_lawsuit = "padi" in header_section or "paditës" in header_section
+    
+    clean_text = text
+
+    # 3. THE "TRAP" REMOVER (Contextual)
     # Detects: PROPOZIM ... (some text) ... AKTGJYKIM
     # This pattern means it's a REQUEST, not a RULING.
-    
-    # Regex explanation:
-    # (?i) -> Case insensitive
-    # (propozoj|propozim) -> Trigger words
-    # [\s\S]{0,500}? -> Scans next 500 chars (non-greedy)
-    # (aktgjykim) -> The dangerous word
-    
-    pattern = r"(?i)(propozoj|propozim)([\s\S]{0,500}?)(aktgjykim)"
+    pattern = r"(?i)(propozoj|propozim)([\s\S]{0,1500}?)(aktgjykim)" # Increased range to 1500 chars
     
     def replacer(match):
-        # Keep the 'Propozim', keep the middle text, but CHANGE 'Aktgjykim'
         return f"{match.group(1)}{match.group(2)}DRAFT-PROPOZIM (KËRKESË E PALËS)"
 
-    # Apply sterilization
-    clean_text = re.sub(pattern, replacer, text)
+    clean_text = re.sub(pattern, replacer, clean_text)
     
-    # Also explicitly label the "Decided" verb in proposals
-    # Common phrase: "Gjykata... të vendosë" or "Gjykata ka vendosur" (in draft)
-    if "DRAFT-PROPOZIM" in clean_text:
-        clean_text = clean_text.replace("Gjykata ka vendosur", "Paditësi kërkon që Gjykata të vendosë")
-        clean_text = clean_text.replace("Gjykata vendos", "Paditësi propozon që Gjykata të vendosë")
+    # 4. AGGRESSIVE REWRITING (The "Nuclear" Option)
+    # If we know this is a Padi, "Gjykata ka vendosur" is almost certainly the proposed text.
+    if is_lawsuit or "DRAFT-PROPOZIM" in clean_text:
+        # Replace definitive past tense with requested future tense
+        clean_text = clean_text.replace("Gjykata ka vendosur", "Paditësi KËRKON që Gjykata të vendosë")
+        clean_text = clean_text.replace("Gjykata vendos", "Paditësi KËRKON që Gjykata të vendosë")
+        clean_text = clean_text.replace("vërtetohet se", "pretendohet se")
+        
+        # Specific fix for your example: "Gjykata ka vendosur që kontakti..."
+        # Regex to catch variations like "Gjykata ka vendosur qe" (missing ë)
+        clean_text = re.sub(r"(?i)gjykata\s+ka\s+vendosur\s+q[ëe]", "Paditësi kërkon që", clean_text)
 
     return clean_text
 
@@ -126,7 +131,7 @@ def generate_summary(text: str) -> str:
     clean_text = sterilize_legal_text(text[:20000])
     
     system_prompt = "Ti je Analist Ligjor. Krijo një përmbledhje të shkurtër faktike."
-    user_prompt = f"DOKUMENTI:\n{clean_text}"
+    user_prompt = f"DOKUMENTI (Kujdes: Kjo mund të jetë Padi/Kërkesë):\n{clean_text}"
     
     res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
     if not res or len(res) < 50: res = _call_deepseek(system_prompt, user_prompt)
@@ -143,15 +148,16 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     Identifiko faktet dhe kërkesat.
     
     RREGULL I HEKURT:
-    - Nëse teksti thotë "DRAFT-PROPOZIM" ose "Paditësi kërkon", kjo është KËRKESË (Request), JO FAKT (Fact).
-    - Kategorizo: "KËRKESË" për çdo gjë që palët duan, "VENDIM" vetëm nëse është Vulë Gjykate.
+    1. Nëse teksti thotë "Paditësi KËRKON" (edhe nëse më parë ishte 'Gjykata vendosi'), kjo është KËRKESË.
+    2. Kujdes nga 'Proposed Judgment' (Draft-Propozim). Këto nuk janë fakte të vërtetuara.
+    3. Kategorizo saktë: "KËRKESË" vs "VENDIM".
     
     FORMATI JSON:
     {
       "findings": [
         {
-          "finding_text": "Paditësi kërkon kontakt çdo të mërkurë.",
-          "source_text": "Propozojmë kontakt... çdo të mërkurë.",
+          "finding_text": "Paditësi kërkon rregullimin e kontaktit.",
+          "source_text": "Paditësi KËRKON që Gjykata të vendosë...",
           "category": "KËRKESË", 
           "page_number": 1
         }
@@ -177,14 +183,13 @@ def analyze_case_contradictions(text: str) -> Dict[str, Any]:
     clean_text = sterilize_legal_text(text[:25000])
     
     system_prompt = """
-    Ti je Gjyqtar i Debatit Ligjor (Audit Mode).
+    Ti je Gjyqtar i Debatit Ligjor.
     
     DETYRA:
-    Analizo dokumentin. Dallo qartë midis PRETENDIMIT dhe VENDIMIT.
+    Analizo dokumentin. Dallo qartë midis PRETENDIMIT (Padi) dhe VENDIMIT (Aktgjykim).
     
-    RREGULL:
-    - Teksti përmban shënime si "DRAFT-PROPOZIM". Kjo tregon se është kërkesë e palës, jo vendim.
-    - Nëse gjen kontradikta (p.sh. Palët thonë gjëra të ndryshme), shënoji.
+    KUJDES:
+    Teksti është përpunuar. Nëse lexon "Paditësi KËRKON", atëherë nuk ka vendim ende.
     
     FORMATI JSON:
     {

@@ -1,7 +1,8 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V7.2 (WRITE SUPPORT FOR FINDINGS)
-# 1. NEW: Added 'store_structured_findings' to bridge the gap between MongoDB and RAG.
-# 2. LOGIC: Embeds finding text so the Chat can search for facts like "1000 Euro" or "Bitcoin".
+# PHOENIX PROTOCOL - VECTOR STORE V8.0 (TOTAL RECALL DELETE)
+# 1. FIX: 'delete_document_embeddings' now wipes data from BOTH User Chunks and Findings Collections.
+# 2. LOGIC: Ensures zero residue remains in ChromaDB after document deletion.
+# 3. SAFETY: Wrapped in robust try-catch blocks to prevent crashes during cleanup.
 
 from __future__ import annotations
 import os
@@ -69,7 +70,7 @@ def get_findings_collection() -> Collection:
     if _findings_collection is None: connect_chroma_db()
     return _findings_collection # type: ignore
 
-# --- FINDINGS OPERATIONS (THE MISSING LINK) ---
+# --- FINDINGS OPERATIONS ---
 
 def store_structured_findings(findings: List[Dict[str, Any]]) -> bool:
     """
@@ -197,6 +198,26 @@ def query_by_vector(embedding: List[float], case_id: str, n_results: int = 15, d
         return [{"text": d, "document_name": (m or {}).get("file_name"), "type": "DOKUMENT"} for d, m in zip(docs, metas)]
     except Exception: return []
 
+# --- CLEANUP OPERATIONS (V8.0 Upgrade) ---
+
 def delete_document_embeddings(document_id: str):
-    try: get_user_collection().delete(where={"source_document_id": str(document_id)})
-    except: pass
+    """
+    Deletes ALL traces of a document from the Vector Store:
+    1. The raw text chunks (User Collection).
+    2. The extracted findings/facts (Findings Collection).
+    """
+    doc_id_str = str(document_id)
+    
+    # 1. Delete Raw Text Chunks
+    try: 
+        get_user_collection().delete(where={"source_document_id": doc_id_str})
+        logger.info(f"🗑️ Deleted Vector Chunks for Doc: {doc_id_str}")
+    except Exception as e: 
+        logger.warning(f"Failed to delete user chunks for {doc_id_str}: {e}")
+
+    # 2. Delete Extracted Findings (PHOENIX UPGRADE)
+    try:
+        get_findings_collection().delete(where={"document_id": doc_id_str})
+        logger.info(f"🗑️ Deleted Vector Findings for Doc: {doc_id_str}")
+    except Exception as e:
+        logger.warning(f"Failed to delete findings chunks for {doc_id_str}: {e}")
