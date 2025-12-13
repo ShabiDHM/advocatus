@@ -1,7 +1,7 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V2.1
-// 1. FEATURE: Added '/finance/wizard' route.
-// 2. LAYOUT: Wizard is placed outside MainLayout for full-screen immersive mode.
+// PHOENIX PROTOCOL - ROUTING V2.2 (CLIENT PORTAL ENABLED)
+// 1. FEATURE: Added public route '/portal/:caseId'.
+// 2. LOGIC: Allows external clients to access the portal without login.
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -20,7 +20,8 @@ import LandingPage from './pages/LandingPage';
 import BusinessPage from './pages/BusinessPage';
 import AccountPage from './pages/AccountPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
-import FinanceWizardPage from './pages/FinanceWizardPage'; // PHOENIX: Imported Wizard
+import FinanceWizardPage from './pages/FinanceWizardPage';
+import ClientPortalPage from './pages/ClientPortalPage'; // PHOENIX: Imported Portal
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -59,10 +60,13 @@ const AppRoutes: React.FC = () => {
 
   return (
     <Routes>
-      {/* Public Routes */}
+      {/* Public Routes (No Auth Required) */}
       <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LandingPage />} />
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
+      
+      {/* PHOENIX: Client Portal Route (Public Access via Link) */}
+      <Route path="/portal/:caseId" element={<ClientPortalPage />} />
 
       {/* Standalone Protected Routes (No Sidebar) */}
       <Route path="/finance/wizard" element={<ProtectedRoute><FinanceWizardPage /></ProtectedRoute>} />

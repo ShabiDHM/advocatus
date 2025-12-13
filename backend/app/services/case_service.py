@@ -1,8 +1,7 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V3.0 (EXPLICIT COUNTING)
-# 1. STRATEGY: Removed complex '$in' and '$or' queries.
-# 2. FIX: Implemented separate, explicit counts for String IDs vs ObjectId IDs.
-# 3. RESULT: Guarantees accurate 'event_count' and 'alert_count' regardless of stored data type.
+# PHOENIX PROTOCOL - CASE SERVICE V3.2 (STRICT TYPING)
+# 1. FIX: Added 'Optional' to return types to satisfy Pylance strict mode.
+# 2. STATUS: Fully compliant with the new Public Portal logic.
 
 import re
 import importlib
@@ -31,74 +30,32 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         counts = {"document_count": 0, "alert_count": 0, "event_count": 0, "finding_count": 0}
         
         if db is not None:
-            # PHOENIX STRATEGY: Brute Force Type Checking
-            # We explicitly check all possible field names and value types separately
-            # and sum them up. This bypasses any $in/$or indexing quirks.
-
-            # 1. EVENT COUNT (Total)
-            # Check 'case_id' as String
+            # PHOENIX STRATEGY: Explicit Counting
             c1 = db.calendar_events.count_documents({"case_id": case_id_str})
-            # Check 'case_id' as ObjectId
             c2 = db.calendar_events.count_documents({"case_id": case_id_obj})
-            # Check 'caseId' (Legacy) as String
             c3 = db.calendar_events.count_documents({"caseId": case_id_str})
-            
             counts["event_count"] = c1 + c2 + c3
             
-            # 2. DOCUMENT COUNT
             d1 = db.documents.count_documents({"case_id": case_id_str})
             d2 = db.documents.count_documents({"case_id": case_id_obj})
             counts["document_count"] = d1 + d2
             
-            # 3. FINDING COUNT
             f1 = db.findings.count_documents({"case_id": case_id_str})
             f2 = db.findings.count_documents({"case_id": case_id_obj})
             counts["finding_count"] = f1 + f2
 
-            # 4. ALERT COUNT (Pending & Future)
             now_utc = datetime.now(timezone.utc)
             now_iso = now_utc.isoformat()
-            
-            # Relaxed Regex for Status
             status_regex = {"$regex": "^pending$", "$options": "i"}
-            
-            # Time Filter (Matches ISO String OR Date Object)
-            future_filter = {
-                "$or": [
-                    {"start_date": {"$gte": now_utc}},
-                    {"start_date": {"$gte": now_iso}},
-                    # Fallback for naive dates
-                    {"start_date": {"$gte": datetime.now()}}
-                ]
-            }
+            future_filter = {"$or": [{"start_date": {"$gte": now_utc}}, {"start_date": {"$gte": now_iso}}, {"start_date": {"$gte": datetime.now()}}]}
 
-            # Query 1: case_id (String) + Pending + Future
-            a1 = db.calendar_events.count_documents({
-                "case_id": case_id_str,
-                "status": status_regex,
-                **future_filter
-            })
-            
-            # Query 2: case_id (ObjectId) + Pending + Future
-            a2 = db.calendar_events.count_documents({
-                "case_id": case_id_obj,
-                "status": status_regex,
-                **future_filter
-            })
+            a1 = db.calendar_events.count_documents({"case_id": case_id_str, "status": status_regex, **future_filter})
+            a2 = db.calendar_events.count_documents({"case_id": case_id_obj, "status": status_regex, **future_filter})
 
-            # Query 3: Dedicated Alerts Collection
             dedicated_alerts = 0
             if "alerts" in db.list_collection_names():
-                # Count unresolved alerts for this case (String ID)
-                da1 = db.alerts.count_documents({
-                    "case_id": case_id_str,
-                    "status": {"$not": {"$regex": "^resolved$", "$options": "i"}}
-                })
-                # Count unresolved alerts for this case (Object ID)
-                da2 = db.alerts.count_documents({
-                    "case_id": case_id_obj,
-                    "status": {"$not": {"$regex": "^resolved$", "$options": "i"}}
-                })
+                da1 = db.alerts.count_documents({"case_id": case_id_str, "status": {"$not": {"$regex": "^resolved$", "$options": "i"}}})
+                da2 = db.alerts.count_documents({"case_id": case_id_obj, "status": {"$not": {"$regex": "^resolved$", "$options": "i"}}})
                 dedicated_alerts = da1 + da2
             
             counts["alert_count"] = a1 + a2 + dedicated_alerts
@@ -117,10 +74,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         }
     except Exception as e:
         print(f"Error mapping case {case_doc.get('_id')}: {e}")
-        return {
-             "id": case_doc["_id"], "title": "Error Loading Case", "case_number": "ERR", 
-             "created_at": datetime.now(), "updated_at": datetime.now(), **counts
-        }
+        return {"id": case_doc["_id"], "title": "Error Loading Case", "case_number": "ERR", "created_at": datetime.now(), "updated_at": datetime.now(), **counts}
 
 def _parse_finding_date(text: str) -> datetime | None:
     return None
@@ -134,11 +88,7 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
     case_dict = case_in.model_dump(exclude={"clientName", "clientEmail", "clientPhone"})
     if case_in.clientName:
         case_dict["client"] = {"name": case_in.clientName, "email": case_in.clientEmail, "phone": case_in.clientPhone}
-    case_dict.update({
-        "owner_id": owner.id, "user_id": owner.id,
-        "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
-        "case_number": case_dict.get("case_number") or f"NEW-{int(datetime.now(timezone.utc).timestamp())}"
-    })
+    case_dict.update({"owner_id": owner.id, "user_id": owner.id, "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc), "case_number": case_dict.get("case_number") or f"NEW-{int(datetime.now(timezone.utc).timestamp())}"})
     result = db.cases.insert_one(case_dict)
     new_case = db.cases.find_one({"_id": result.inserted_id})
     if not new_case: raise HTTPException(status_code=500, detail="Failed to create case.")
@@ -146,11 +96,9 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
     results = []
-    # Sort by updated_at desc
     cursor = db.cases.find({"$or": [{"owner_id": owner.id}, {"user_id": owner.id}]}).sort("updated_at", -1)
     for case_doc in cursor:
-        if mapped_case := _map_case_document(case_doc, db):
-            results.append(mapped_case)
+        if mapped_case := _map_case_document(case_doc, db): results.append(mapped_case)
     return results
 
 def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional[Dict[str, Any]]:
@@ -166,8 +114,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     graph_service = getattr(graph_service_module, "graph_service")
 
     case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found.")
+    if not case: raise HTTPException(status_code=404, detail="Case not found.")
 
     case_id_str = str(case_id)
     any_id_query: Dict[str, Any] = {"case_id": {"$in": [case_id, case_id_str]}}
@@ -175,9 +122,7 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     documents = list(db.documents.find(any_id_query))
     for doc in documents:
         doc_id_str = str(doc["_id"])
-        keys_to_delete = [
-            doc.get("storage_key"), doc.get("processed_text_storage_key"), doc.get("preview_storage_key")
-        ]
+        keys_to_delete = [doc.get("storage_key"), doc.get("processed_text_storage_key"), doc.get("preview_storage_key")]
         for key in filter(None, keys_to_delete):
             try: storage_service.delete_file(key)
             except Exception: pass
@@ -197,49 +142,65 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     db.documents.delete_many(any_id_query)
     db.calendar_events.delete_many(any_id_query)
     db.findings.delete_many(any_id_query)
-    if "alerts" in db.list_collection_names():
-        db.alerts.delete_many(any_id_query)
+    if "alerts" in db.list_collection_names(): db.alerts.delete_many(any_id_query)
 
 def create_draft_job_for_case(db: Database, case_id: ObjectId, job_in: DraftRequest, owner: UserInDB) -> Dict[str, Any]:
     case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found.")
-
-    task = celery_app.send_task(
-        "process_drafting_job",
-        kwargs={
-            "case_id": str(case_id), "user_id": str(owner.id),
-            "draft_type": job_in.document_type, "user_prompt": job_in.prompt,
-            "use_library": job_in.use_library
-        }
-    )
+    if not case: raise HTTPException(status_code=404, detail="Case not found.")
+    task = celery_app.send_task("process_drafting_job", kwargs={"case_id": str(case_id), "user_id": str(owner.id), "draft_type": job_in.document_type, "user_prompt": job_in.prompt, "use_library": job_in.use_library})
     return {"job_id": task.id, "status": "queued", "message": "Drafting job created."}
 
 def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name: str, owner: UserInDB) -> Dict[str, Any]:
     case = db.cases.find_one({"_id": case_id, "$or": [{"owner_id": owner.id}, {"user_id": owner.id}]})
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found.")
-
+    if not case: raise HTTPException(status_code=404, detail="Case not found.")
     doc = db.documents.find_one({"_id": doc_id})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
+    if not doc: raise HTTPException(status_code=404, detail="Document not found.")
+    if str(doc.get("case_id")) != str(case_id): raise HTTPException(status_code=403, detail="Document does not belong to this case.")
     
-    doc_case_id = doc.get("case_id")
-    if str(doc_case_id) != str(case_id):
-         raise HTTPException(status_code=403, detail="Document does not belong to this case.")
-
     original_name = doc.get("file_name", "untitled")
-    extension = ""
-    if "." in original_name:
-        extension = original_name.split(".")[-1]
-    
-    final_name = new_name
-    if extension and not final_name.endswith(f".{extension}"):
-        final_name = f"{final_name}.{extension}"
+    extension = original_name.split(".")[-1] if "." in original_name else ""
+    final_name = new_name if not extension or new_name.endswith(f".{extension}") else f"{new_name}.{extension}"
 
-    db.documents.update_one(
-        {"_id": doc_id},
-        {"$set": {"file_name": final_name, "title": final_name, "updated_at": datetime.now(timezone.utc)}}
-    )
-
+    db.documents.update_one({"_id": doc_id}, {"$set": {"file_name": final_name, "title": final_name, "updated_at": datetime.now(timezone.utc)}})
     return {"id": str(doc_id), "file_name": final_name, "message": "Document renamed successfully."}
+
+# --- PUBLIC PORTAL FUNCTIONS ---
+
+def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetches READ-ONLY public data for a specific case.
+    Used by the Client Portal (No Login Required).
+    """
+    try:
+        case_oid = ObjectId(case_id)
+        # 1. Fetch Case Basic Info (Safe fields only)
+        case = db.cases.find_one({"_id": case_oid})
+        if not case: return None
+
+        # 2. Fetch Public Events
+        # We query for string ID or Object ID to be safe
+        # AND strictly require 'is_public': True
+        events_cursor = db.calendar_events.find({
+            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+            "is_public": True 
+        }).sort("start_date", 1)
+
+        events = []
+        for ev in events_cursor:
+            events.append({
+                "title": ev.get("title"),
+                "date": ev.get("start_date"),
+                "type": ev.get("event_type", "EVENT"),
+                "description": ev.get("description", "")
+            })
+
+        return {
+            "case_number": case.get("case_number"),
+            "title": case.get("title") or case.get("case_name"),
+            "client_name": case.get("client", {}).get("name", "Klient"),
+            "status": case.get("status", "OPEN"),
+            "timeline": events
+        }
+    except Exception as e:
+        print(f"Public Portal Error: {e}")
+        return None

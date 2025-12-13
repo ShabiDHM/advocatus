@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V3.1 (BRANDING INTEGRATION)
-# 1. UPGRADE: 'upload_document_for_case' now calls 'process_and_brand_pdf'.
-# 2. RESULT: All uploaded documents automatically get headers, footers, and watermarks.
-# 3. STATUS: Final system link established.
+# PHOENIX PROTOCOL - CASES ROUTER V3.2 (PUBLIC PORTAL ENABLED)
+# 1. FEATURE: Added 'get_public_case_timeline' endpoint.
+# 2. SECURITY: Public endpoint is Read-Only and Sanitize by 'get_public_case_events'.
+# 3. STATUS: Ready for Frontend integration.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Dict
@@ -122,7 +122,6 @@ async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, 
 async def get_documents_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     return await asyncio.to_thread(document_service.get_documents_by_case_id, db, case_id, current_user)
 
-# PHOENIX FIX: Updated to use 'process_and_brand_pdf'
 @router.post("/{case_id}/documents/upload", status_code=status.HTTP_202_ACCEPTED, tags=["Documents"])
 async def upload_document_for_case(
     case_id: str, 
@@ -311,3 +310,22 @@ async def deep_scan_document(
         return {"status": "success", "findings_count": len(findings)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Deep Scan failed: {str(e)}")
+
+# --- PUBLIC PORTAL ENDPOINTS ---
+
+@router.get("/public/{case_id}/timeline", tags=["Public Portal"])
+async def get_public_case_timeline(case_id: str, db: Database = Depends(get_db)):
+    """
+    Open endpoint for Client Portal. Returns limited, sanitized case data.
+    Does NOT require authentication (Access is controlled by Case ID).
+    """
+    try:
+        validate_object_id(case_id)
+        data = await asyncio.to_thread(case_service.get_public_case_events, db=db, case_id=case_id)
+        if not data:
+            # We return 404 to avoid leaking that a case ID exists if access is denied/empty
+            raise HTTPException(status_code=404, detail="Case not found or no public data available.")
+        return data
+    except Exception as e:
+        logger.error(f"Public Timeline Access Error: {e}")
+        raise HTTPException(status_code=404, detail="Portal not available.")
