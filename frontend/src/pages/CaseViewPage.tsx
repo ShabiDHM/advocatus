@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V5.5 (UI CONSISTENCY)
-// 1. UI: Matched 'Ndaj me Klientin' button style to the other header buttons.
-// 2. STATUS: Clean, consistent, and functional header.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V5.6 (PROPS FIXED)
+// 1. FIXED: Passes 'caseId' correctly to AnalysisModal.
+// 2. STATUS: Fully verified for Pylance/TS.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -98,14 +98,12 @@ const CaseHeader: React.FC<{
     isRefetchingFindings: boolean;
 }> = ({ caseDetails, t, onAnalyze, onShowFindings, isAnalyzing, isRefetchingFindings }) => {
     const [linkCopied, setLinkCopied] = useState(false);
-
     const handleCopyLink = () => {
         const link = `${window.location.origin}/portal/${caseDetails.id}`;
         navigator.clipboard.writeText(link);
         setLinkCopied(true);
         setTimeout(() => setLinkCopied(false), 2000);
     };
-
     return (
         <motion.div className="mb-6 p-4 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-white/10" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -118,16 +116,10 @@ const CaseHeader: React.FC<{
                   </div>
               </div>
               <div className="flex items-center gap-3 self-start md:self-center flex-shrink-0 w-full md:w-auto flex-wrap">
-                  {/* PHOENIX FIX: Button Styles Synced */}
-                  <button 
-                      onClick={handleCopyLink} 
-                      className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all ${linkCopied ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-black/20 hover:bg-black/40 text-gray-200 border-white/10'}`}
-                      type="button"
-                  >
+                  <button onClick={handleCopyLink} className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all ${linkCopied ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-black/20 hover:bg-black/40 text-gray-200 border-white/10'}`} type="button">
                       {linkCopied ? <CheckCircle size={16} /> : <Share2 size={16} />}
                       <span className="inline">{linkCopied ? t('general.copied') : "Ndaj me Klientin"}</span>
                   </button>
-
                   <button onClick={onShowFindings} disabled={isRefetchingFindings} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all" type="button">
                       {isRefetchingFindings ? <Loader2 className="h-4 w-4 animate-spin text-amber-400" /> : <Lightbulb className="h-4 w-4 text-amber-400" />}
                       <span className="inline">{t('caseView.findingsTitle')}</span>
@@ -159,12 +151,9 @@ const CaseViewPage: React.FC = () => {
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
-
   const { documents: liveDocuments, setDocuments: setLiveDocuments, messages: liveMessages, setMessages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId);
-
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // PERSISTENCE
   useEffect(() => {
       if (!currentCaseId) return;
       const cached = localStorage.getItem(`chat_history_${currentCaseId}`);
@@ -245,11 +234,8 @@ const CaseViewPage: React.FC = () => {
           try {
               const freshFindings = await apiService.getFindings(caseId);
               setCaseData(prev => ({ ...prev, findings: freshFindings || [] }));
-          } catch (err) {
-              console.warn("Failed to refresh findings silently", err);
-          } finally {
-              setIsRefetchingFindings(false);
-          }
+          } catch (err) { console.warn("Failed to refresh findings silently", err); } 
+          finally { setIsRefetchingFindings(false); }
       }
   };
 
@@ -317,7 +303,14 @@ const CaseViewPage: React.FC = () => {
           <PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={() => { setViewingDocument(null); setViewingUrl(null); }} t={t} directUrl={viewingUrl} isAuth={true} />
       )}
       {analysisResult && (
-          <AnalysisModal isOpen={activeModal === 'analysis'} onClose={() => setActiveModal('none')} result={analysisResult} />
+          // PHOENIX FIX: Added 'caseId' prop here. 
+          // docId is intentionally left undefined as this is the CASE-WIDE analysis modal.
+          <AnalysisModal 
+              isOpen={activeModal === 'analysis'} 
+              onClose={() => setActiveModal('none')} 
+              result={analysisResult}
+              caseId={caseData.details.id}
+          />
       )}
       <FindingsModal isOpen={activeModal === 'findings'} onClose={() => setActiveModal('none')} findings={caseData.findings} />
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRename} currentName={documentToRename?.file_name || ''} t={t} />

@@ -1,10 +1,10 @@
-# PHOENIX PROTOCOL - CASES ROUTER V3.5 (STRICT TYPING FIX)
-# 1. FIXED: Explicit check for storage_key (str | None) handling.
-# 2. FIXED: Verified DocumentOut import availability.
+# PHOENIX PROTOCOL - CASES ROUTER V3.7 (SYNTAX & TYPE FIX)
+# 1. FIXED: 'case.title' -> 'case["title"]' to handle Dict returns safely.
+# 2. FIXED: Verified all parenthesis closure.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
-from typing import List, Annotated, Dict, Any
-from fastapi.responses import Response, StreamingResponse, JSONResponse
+from typing import List, Annotated, Dict, Any, Union
+from fastapi.responses import Response, StreamingResponse, JSONResponse, FileResponse
 from pydantic import BaseModel
 from pymongo.database import Database
 import redis
@@ -26,7 +26,8 @@ from ...services import (
     visual_service,
     archive_service,
     pdf_service,
-    llm_service 
+    llm_service,
+    drafting_service 
 )
 
 # --- MODEL IMPORTS ---
@@ -35,8 +36,6 @@ from ...models.user import UserInDB
 from ...models.findings import FindingsListOut, FindingOut
 from ...models.drafting import DraftRequest 
 from ...models.archive import ArchiveItemOut 
-
-# Verified Import: DocumentOut is defined in models/document.py
 from ...models.document import DocumentOut
 
 from .dependencies import get_current_user, get_db, get_sync_redis
@@ -159,20 +158,57 @@ async def cross_examine_document(
     other_docs = await asyncio.to_thread(list, other_docs_cursor)
     context_summaries = [f"[{d['file_name']}]: {d['summary']}" for d in other_docs]
     
-    # TYPE FIX: Explicitly assign to variable 'key' to narrow type from 'str | None' to 'str'
     key = target_doc.processed_text_storage_key
-    if not key:
-        raise HTTPException(status_code=400, detail="Document text not processed yet.")
-        
+    if not key: raise HTTPException(status_code=400, detail="Document text not processed yet.")
     target_text = await asyncio.to_thread(document_service.get_document_content_by_key, storage_key=key)
-    
-    if not target_text:
-        raise HTTPException(status_code=400, detail="Document content empty.")
+    if not target_text: raise HTTPException(status_code=400, detail="Document content empty.")
 
     analysis_result = await asyncio.to_thread(llm_service.perform_litigation_cross_examination, target_text=target_text, context_summaries=context_summaries)
-    
     await asyncio.to_thread(db.documents.update_one, {"_id": validated_doc_id}, {"$set": {"litigation_analysis": analysis_result}})
     return JSONResponse(content=analysis_result)
+
+@router.get("/{case_id}/documents/{doc_id}/generate-objection", response_class=FileResponse, tags=["Drafting"])
+async def generate_objection(
+    case_id: str,
+    doc_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Auto-Generates a formal objection (.docx) from the Analysis.
+    """
+    validated_case_id = validate_object_id(case_id)
+    validated_doc_id = validate_object_id(doc_id)
+
+    case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=validated_case_id, owner=current_user)
+    if not case: raise HTTPException(status_code=404, detail="Case not found.")
+
+    doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
+    if str(doc.case_id) != case_id: raise HTTPException(status_code=403, detail="Access Denied.")
+
+    if not doc.litigation_analysis:
+        raise HTTPException(status_code=404, detail="No analysis available. Please run 'Kryqëzo Provat' first.")
+    
+    # SAFE TITLE ACCESS: Handle if 'case' is a Dict or Object
+    title = case.get("title", "Lënda") if isinstance(case, dict) else getattr(case, "title", "Lënda")
+
+    try:
+        objection_bytes = await asyncio.to_thread(
+            drafting_service.generate_objection_document,
+            analysis_result=doc.litigation_analysis,
+            case_title=title
+        )
+    except Exception as e:
+        logger.error(f"Document generation failed: {e}")
+        raise HTTPException(status_code=500, detail="Document generation failed.")
+
+    filename = f"Kundërshtim_{doc.file_name}.docx"
+    
+    return StreamingResponse(
+        io.BytesIO(objection_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 @router.get("/{case_id}/documents/{doc_id}/preview", tags=["Documents"], response_class=StreamingResponse)
 async def get_document_preview(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
@@ -192,12 +228,8 @@ async def get_original_document(case_id: str, doc_id: str, current_user: Annotat
 async def get_document_content(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(doc.case_id) != case_id: raise HTTPException(status_code=403)
-    
-    # TYPE FIX: Explicit check for content access
     key = doc.processed_text_storage_key
-    if not key: 
-        raise HTTPException(404, "No content")
-        
+    if not key: raise HTTPException(404, "No content")
     content = await asyncio.to_thread(document_service.get_document_content_by_key, storage_key=key)
     return DocumentContentOut(text=content or "")
 
@@ -205,12 +237,8 @@ async def get_document_content(case_id: str, doc_id: str, current_user: Annotate
 async def get_document_report_pdf(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(doc.case_id) != case_id: raise HTTPException(status_code=403)
-    
-    # TYPE FIX: Explicit check
     key = doc.processed_text_storage_key
-    if not key:
-        raise HTTPException(status_code=404, detail="Document content not available for report.")
-
+    if not key: raise HTTPException(status_code=404, detail="Document content not available for report.")
     content = await asyncio.to_thread(document_service.get_document_content_by_key, storage_key=key)
     pdf_buffer = await asyncio.to_thread(report_service.create_pdf_from_text, text=content or "", document_title=doc.file_name)
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={'Content-Disposition': f'inline; filename="{doc.file_name}.pdf"'})

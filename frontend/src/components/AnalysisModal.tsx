@@ -1,12 +1,14 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - WAR ROOM UI V1.1 (CLEANED)
+// PHOENIX PROTOCOL - WAR ROOM UI V2.1 (OPTIONAL DOC ID)
+// 1. FIXED: docId is now optional to support Case-Wide vs Document-Specific analysis.
+// 2. LOGIC: Download button is hidden if docId is missing (Case-Wide mode).
+
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Scale, FileText, User, ShieldAlert, Swords, Target, MessageCircleQuestion, Gavel } from 'lucide-react';
+import { X, Scale, FileText, User, ShieldAlert, Swords, Target, MessageCircleQuestion, Gavel, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-// Define the interface locally to match the backend JSON structure exactly
 interface LitigationAnalysis {
   summary_analysis?: string;
   conflicting_parties?: Array<{ party_name: string; core_claim: string }>;
@@ -22,6 +24,8 @@ interface AnalysisModalProps {
   onClose: () => void;
   result: LitigationAnalysis;
   isLoading?: boolean;
+  caseId: string;
+  docId?: string; // Optional: Only needed for Draft Generation
 }
 
 const scrollbarStyles = `
@@ -31,15 +35,43 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 `;
 
-const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, isLoading }) => {
+const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, isLoading, caseId, docId }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'analysis' | 'strategy'>('analysis');
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (isOpen) { document.body.style.overflow = 'hidden'; } 
     else { document.body.style.overflow = 'unset'; }
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
+
+  const handleGenerateObjection = async () => {
+      if (!docId) return; // Guard clause
+      try {
+          setIsGenerating(true);
+          const token = localStorage.getItem('token'); 
+          const response = await fetch(`${import.meta.env.VITE_API_URL}/cases/${caseId}/documents/${docId}/generate-objection`, {
+              method: 'GET',
+              headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (!response.ok) throw new Error('Download failed');
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `Objection_Draft.docx`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+      } catch (error) {
+          console.error("Draft generation failed:", error);
+          alert("Dështoi gjenerimi i dokumentit.");
+      } finally {
+          setIsGenerating(false);
+      }
+  };
 
   if (!isOpen) return null;
 
@@ -79,16 +111,10 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
              <>
                 {/* Tabs */}
                 <div className="flex border-b border-white/10 px-6 bg-black/20">
-                    <button 
-                        onClick={() => setActiveTab('analysis')}
-                        className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'analysis' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
-                    >
+                    <button onClick={() => setActiveTab('analysis')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'analysis' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}>
                         <Scale size={16}/> Analiza Faktike
                     </button>
-                    <button 
-                        onClick={() => setActiveTab('strategy')}
-                        className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'strategy' ? 'border-orange-500 text-orange-400' : 'border-transparent text-gray-400 hover:text-white'}`}
-                    >
+                    <button onClick={() => setActiveTab('strategy')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'strategy' ? 'border-orange-500 text-orange-400' : 'border-transparent text-gray-400 hover:text-white'}`}>
                         <Swords size={16}/> Strategjia Sulmuese
                     </button>
                 </div>
@@ -100,43 +126,24 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     {/* TAB 1: ANALYSIS */}
                     {activeTab === 'analysis' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                             {/* Executive Summary */}
                             <div className="bg-blue-900/10 p-5 rounded-xl border border-blue-500/20">
-                                <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                                    <FileText size={16}/> {t('analysis.summary', 'Analiza e Besueshmërisë')}
-                                </h3>
+                                <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-2"><FileText size={16}/> {t('analysis.summary', 'Analiza e Besueshmërisë')}</h3>
                                 <p className="text-gray-200 text-sm leading-relaxed">{result.summary_analysis || "Nuk ka analizë të disponueshme."}</p>
                             </div>
-                            
-                            {/* Conflicting Parties */}
-                             {result.conflicting_parties && result.conflicting_parties.length > 0 && (
+                            {result.conflicting_parties && result.conflicting_parties.length > 0 && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {result.conflicting_parties.map((party, idx) => (
                                         <div key={idx} className="p-4 rounded-xl border bg-white/5 border-white/10">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <User size={16} className="text-gray-400" />
-                                                <h4 className="font-bold text-sm text-gray-200">{party.party_name}</h4>
-                                            </div>
+                                            <div className="flex items-center gap-2 mb-2"><User size={16} className="text-gray-400" /><h4 className="font-bold text-sm text-gray-200">{party.party_name}</h4></div>
                                             <p className="text-gray-400 text-xs italic">"{party.core_claim}"</p>
                                         </div>
                                     ))}
                                 </div>
                             )}
-
-                             {/* Contradictions */}
                             {result.contradictions && result.contradictions.length > 0 && (
                                 <div className="bg-orange-900/10 p-5 rounded-xl border border-orange-500/20">
-                                    <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                        <ShieldAlert size={16}/> Kontradikta të Gjetura
-                                    </h3>
-                                    <ul className="space-y-2">
-                                        {result.contradictions.map((c, i) => (
-                                            <li key={i} className="flex gap-3 text-sm text-gray-300 bg-black/20 p-3 rounded-lg border border-white/5">
-                                                <span className="text-orange-500 font-bold">•</span>
-                                                <span className="leading-relaxed">{c}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                    <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wider mb-3 flex items-center gap-2"><ShieldAlert size={16}/> Kontradikta të Gjetura</h3>
+                                    <ul className="space-y-2">{result.contradictions.map((c, i) => (<li key={i} className="flex gap-3 text-sm text-gray-300 bg-black/20 p-3 rounded-lg border border-white/5"><span className="text-orange-500 font-bold">•</span><span className="leading-relaxed">{c}</span></li>))}</ul>
                                 </div>
                             )}
                         </div>
@@ -145,42 +152,26 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     {/* TAB 2: STRATEGY */}
                     {activeTab === 'strategy' && (
                          <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
-                             {/* Suggested Questions */}
-                            <div className="bg-purple-900/10 p-5 rounded-xl border border-purple-500/20">
-                                <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                    <MessageCircleQuestion size={16}/> Pyetje për Dëshmitarin (Cross-Examination)
-                                </h3>
-                                {result.suggested_questions && result.suggested_questions.length > 0 ? (
-                                    <ul className="space-y-3">
-                                        {result.suggested_questions.map((q, i) => (
-                                            <li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-purple-500/10 hover:border-purple-500/30 transition-colors">
-                                                <span className="text-purple-400 font-bold">Q{i+1}:</span>
-                                                <span className="leading-relaxed font-medium">{q}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : <p className="text-gray-500 text-sm italic">Nuk u gjeneruan pyetje specifike.</p>}
-                            </div>
+                             
+                             {/* CONDITIONAL RENDER: Only show if docId is present */}
+                             {docId && (
+                                 <div className="mb-6 flex justify-end">
+                                    <button onClick={handleGenerateObjection} disabled={isGenerating} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${isGenerating ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white'}`}>
+                                        {isGenerating ? (<><div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"/>Duke Gjeneruar...</>) : (<><Download size={18} /> Gjenero Kundërshtimin (.docx)</>)}
+                                    </button>
+                                 </div>
+                             )}
 
-                             {/* Discovery Targets */}
+                            <div className="bg-purple-900/10 p-5 rounded-xl border border-purple-500/20">
+                                <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-2"><MessageCircleQuestion size={16}/> Pyetje për Dëshmitarin (Cross-Examination)</h3>
+                                {result.suggested_questions && result.suggested_questions.length > 0 ? (<ul className="space-y-3">{result.suggested_questions.map((q, i) => (<li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-purple-500/10 hover:border-purple-500/30 transition-colors"><span className="text-purple-400 font-bold">Q{i+1}:</span><span className="leading-relaxed font-medium">{q}</span></li>))}</ul>) : <p className="text-gray-500 text-sm italic">Nuk u gjeneruan pyetje specifike.</p>}
+                            </div>
                              <div className="bg-emerald-900/10 p-5 rounded-xl border border-emerald-500/20">
-                                <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                    <Target size={16}/> Kërkesa për Prova (Discovery)
-                                </h3>
-                                {result.discovery_targets && result.discovery_targets.length > 0 ? (
-                                    <ul className="space-y-3">
-                                        {result.discovery_targets.map((d, i) => (
-                                            <li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-emerald-500/10">
-                                                <span className="text-emerald-400 font-bold">➢</span>
-                                                <span className="leading-relaxed">{d}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : <p className="text-gray-500 text-sm italic">Nuk u identifikuan prova të reja për t'u kërkuar.</p>}
+                                <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Target size={16}/> Kërkesa për Prova (Discovery)</h3>
+                                {result.discovery_targets && result.discovery_targets.length > 0 ? (<ul className="space-y-3">{result.discovery_targets.map((d, i) => (<li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-emerald-500/10"><span className="text-emerald-400 font-bold">➢</span><span className="leading-relaxed">{d}</span></li>))}</ul>) : <p className="text-gray-500 text-sm italic">Nuk u identifikuan prova të reja për t'u kërkuar.</p>}
                             </div>
                          </div>
                     )}
-
                 </div>
              </>
           )}
@@ -198,5 +189,4 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   return ReactDOM.createPortal(modalContent, document.body);
 };
-
 export default AnalysisModal;
