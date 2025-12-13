@@ -1,7 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.4 (CROSS-EXAM ENABLED)
-// 1. UI: Added 'Swords' button for Litigation Engine trigger.
-// 2. LOGIC: Propagates 'onCrossExamine' event to parent.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.5 (I18N FIX)
+// 1. FIXED: Removed hardcoded text ("Kryqëzo Provat", "Archive", "Uploading...").
+// 2. STATUS: Fully localized.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -23,7 +23,7 @@ interface DocumentsPanelProps {
   onDocumentUploaded: (newDocument: Document) => void;
   onViewOriginal: (document: Document) => void;
   onRename?: (document: Document) => void; 
-  onCrossExamine?: (document: Document) => void; // NEW PROP
+  onCrossExamine?: (document: Document) => void;
   connectionStatus: ConnectionStatus;
   reconnect: () => void; 
   className?: string;
@@ -65,7 +65,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           id: responseData.id || rawData._id, 
           status: 'PENDING',
           progress_percent: 0, 
-          progress_message: t('documentsPanel.statusPending')
+          progress_message: t('documentsPanel.statusPending', 'Duke pritur...')
       } as any;
       onDocumentUploaded(newDoc);
     } catch (error: any) {
@@ -199,7 +199,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const isReady = status === 'READY' || status === 'COMPLETED';
           const progressPercent = (doc as any).progress_percent || 0;
           const barColor = isUploadingState ? "bg-primary-start" : "bg-blue-500";
-          const statusText = isUploadingState ? "Uploading..." : "Processing...";
+          
+          // PHOENIX FIX: Localized Status Text
+          const statusText = isUploadingState 
+            ? t('documentsPanel.statusUploading', 'Duke ngarkuar...') 
+            : t('documentsPanel.statusProcessing', 'Duke procesuar...');
+            
           const statusTextColor = isUploadingState ? "text-primary-start" : "text-blue-400";
           
           const canInteract = !isUploadingState && !isProcessingState;
@@ -225,14 +230,14 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     <button onClick={() => onRename && onRename(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
                 )}
                 
-                {/* NEW CROSS-EXAMINE BUTTON */}
+                {/* CROSS-EXAMINE BUTTON - LOCALIZED TOOLTIP */}
                 {canInteract && onCrossExamine && (
-                    <button onClick={() => onCrossExamine(doc)} className="p-1.5 hover:bg-orange-500/20 rounded-lg text-orange-400/80 hover:text-orange-400 transition-colors" title="Kryqëzo Provat (Cross-Examine)">
+                    <button onClick={() => onCrossExamine(doc)} className="p-1.5 hover:bg-orange-500/20 rounded-lg text-orange-400/80 hover:text-orange-400 transition-colors" title={t('documentsPanel.crossExamine', 'Kryqëzo Provat')}>
                         <Swords size={14} />
                     </button>
                 )}
 
-                {/* EXISTING DEEP SCAN */}
+                {/* DEEP SCAN */}
                 <button onClick={() => isReady && handleDeepScan(doc.id)} disabled={!isReady || isScanning} className={`p-1.5 rounded-lg transition-all duration-300 ${isScanning ? "bg-primary-start/20 text-blue-400" : isDone ? "bg-green-500/20 text-green-400" : isReady ? "hover:bg-white/10 text-secondary-start" : "text-gray-600 cursor-not-allowed opacity-50"}`} title={isDone ? t('general.saveSuccess') : t('documentsPanel.deepScan')}>
                     {isScanning ? <Loader2 size={14} className="animate-spin" /> : isDone ? <CheckCircle size={14} /> : <ScanEye size={14} />}
                 </button>
@@ -241,7 +246,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     <button onClick={() => onViewOriginal(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-blue-400 transition-colors" title={t('documentsPanel.viewOriginal')}><Eye size={14} /></button>
                 )}
                 {canInteract && (
-                    <button onClick={() => handleArchiveDocument(doc.id)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Archive">{archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}</button>
+                    <button onClick={() => handleArchiveDocument(doc.id)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.archive', 'Arkivo')}>{archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}</button>
                 )}
                 {canInteract && (
                     <button onClick={() => handleDeleteDocument(doc.id)} className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-500/70 hover:text-red-500 transition-colors" title={t('documentsPanel.delete')}><Trash size={14} /></button>
