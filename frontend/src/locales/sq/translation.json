@@ -387,6 +387,12 @@
     "hearing": "Seancë",
     "meeting": "Takim",
     "filing": "Dorëzim",
+    "conflictWarning": "Kujdes: Keni ngjarje të tjera të planifikuara për këtë datë.",
+    "visibilityPublic": "Publike për Klientin",
+    "visibilityPrivate": "Private (Vetëm Zyra)",
+    "visibilityPublicDesc": "Klienti do ta shohë këtë në portal.",
+    "visibilityPrivateDesc": "Kjo ngjarje është e fshehur nga klienti.",
+    "clientLabel": "Klienti",
     "eventTypes": "Llojet e Ngjarjeve",
     "types": {
       "DEADLINE": "Afati",
