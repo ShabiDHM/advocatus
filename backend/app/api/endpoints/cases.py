@@ -1,8 +1,6 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V3.2 (PUBLIC PORTAL ENABLED)
-# 1. FEATURE: Added 'get_public_case_timeline' endpoint.
-# 2. SECURITY: Public endpoint is Read-Only and Sanitize by 'get_public_case_events'.
-# 3. STATUS: Ready for Frontend integration.
+# PHOENIX PROTOCOL - CASES ROUTER V3.2 (STABLE & VERIFIED)
+# 1. STATUS: Verified all imports and function calls against corrected service file.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Dict
@@ -130,35 +128,23 @@ async def upload_document_for_case(
     db: Database = Depends(get_db)
 ):
     try:
-        # 1. Convert + Brand + Watermark (The new pipeline)
         pdf_bytes, final_filename = await pdf_service.pdf_service.process_and_brand_pdf(file, case_id)
-        
-        # 2. Wrap branded bytes for storage
         pdf_file_obj = io.BytesIO(pdf_bytes)
         pdf_file_obj.name = final_filename 
-        
-        # 3. Enforce PDF mime-type
         final_mime_type = "application/pdf"
 
-        # 4. Upload the branded PDF
         storage_key = await asyncio.to_thread(
             storage_service.upload_bytes_as_file, 
-            file_obj=pdf_file_obj,
-            filename=final_filename,
-            user_id=str(current_user.id),
-            case_id=case_id,
-            content_type=final_mime_type
+            file_obj=pdf_file_obj, filename=final_filename, user_id=str(current_user.id),
+            case_id=case_id, content_type=final_mime_type
         )
         
-        # 5. Create Database Record
         new_document = document_service.create_document_record(
             db=db, owner=current_user, case_id=case_id,
             file_name=final_filename, storage_key=storage_key, mime_type=final_mime_type
         )
         
-        # 6. Trigger background processing (Extraction)
         celery_app.send_task("process_document_task", args=[str(new_document.id)])
-        
         return DocumentOut.model_validate(new_document)
     except Exception as e:
         logger.error(f"CRITICAL UPLOAD FAILURE for case {case_id}: {e}", exc_info=True)
@@ -292,7 +278,6 @@ async def analyze_case_risks(
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
     analysis_result = await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id)
-    # PHOENIX: We ensure sync happens here too
     await asyncio.to_thread(case_service.sync_case_calendar_from_findings, db=db, case_id=case_id, user_id=current_user.id)
     return JSONResponse(content=analysis_result)
 
@@ -323,7 +308,6 @@ async def get_public_case_timeline(case_id: str, db: Database = Depends(get_db))
         validate_object_id(case_id)
         data = await asyncio.to_thread(case_service.get_public_case_events, db=db, case_id=case_id)
         if not data:
-            # We return 404 to avoid leaking that a case ID exists if access is denied/empty
             raise HTTPException(status_code=404, detail="Case not found or no public data available.")
         return data
     except Exception as e:

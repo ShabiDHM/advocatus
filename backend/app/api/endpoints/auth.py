@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/auth.py
-# PHOENIX PROTOCOL - AUTHENTICATION V2 (PERSISTENCE FIX)
-# 1. COOKIE POLICY: Changed SameSite from 'strict' to 'lax' to fix "Logout on Refresh".
-# 2. FEATURE: Added /logout endpoint to properly clear the HttpOnly cookie.
-# 3. SECURITY: Maintains HttpOnly and Secure flags for production safety.
+# PHOENIX PROTOCOL - AUTHENTICATION V2.1 (CASE INSENSITIVE)
+# 1. FIX: Normalizes username/email to lowercase during login and registration.
+# 2. LOGIC: Ensures 'Shaban' and 'shaban' are treated as the same user.
 
 from datetime import timedelta
 from typing import Any
@@ -21,62 +20,31 @@ from app.api.endpoints.dependencies import get_current_user
 
 router = APIRouter()
 
-# --- Local Schemas ---
 class ChangePasswordSchema(BaseModel):
     old_password: str
     new_password: str
 
-# --- Revised Dependencies ---
-async def get_user_from_refresh_token(
-    request: Request, 
-    db: Database = Depends(get_db)
-) -> UserInDB:
-    """
-    Dependency to validate the refresh_token from cookies and return the user.
-    """
+async def get_user_from_refresh_token(request: Request, db: Database = Depends(get_db)) -> UserInDB:
     refresh_token = request.cookies.get("refresh_token")
-    
     if not refresh_token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token not found")
     try:
         payload = security.decode_token(refresh_token)
-        if payload.get("type") != "refresh":
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
-        
+        if payload.get("type") != "refresh": raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
         user_id_str = payload.get("sub")
-        if user_id_str is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
-        
+        if user_id_str is None: raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
         user = user_service.get_user_by_id(db, ObjectId(user_id_str))
-        if user is None:
-            raise HTTPException(status_code=404, detail="User not found")
-        
+        if user is None: raise HTTPException(status_code=404, detail="User not found")
         return user
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Could not validate credentials: {e}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Could not validate credentials: {e}")
 
 @router.post("/login", response_model=Token)
-async def login_access_token(
-    response: Response,
-    form_data: UserLogin,
-    db: Database = Depends(get_db)
-) -> Any:
-    """
-    Login user, return access token in body and set refresh token in HttpOnly cookie.
-    """
-    user = user_service.authenticate(
-        db, username=form_data.username, password=form_data.password
-    )
+async def login_access_token(response: Response, form_data: UserLogin, db: Database = Depends(get_db)) -> Any:
+    # PHOENIX FIX: Normalize username/email to lowercase
+    normalized_username = form_data.username.lower()
+    
+    user = user_service.authenticate(db, username=normalized_username, password=form_data.password)
     if not user:
         raise HTTPException(status_code=401, detail="Incorrect username or password")
     
@@ -85,43 +53,28 @@ async def login_access_token(
     
     user_service.update_last_login(db, str(user.id))
 
-    # Use existing security functions for consistency
-    access_token = security.create_access_token(
-        data={"id": str(user.id), "role": user.role}
-    )
-    
+    access_token = security.create_access_token(data={"id": str(user.id), "role": user.role})
     refresh_token_expires = timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
-    refresh_token = security.create_refresh_token(
-        data={"id": str(user.id)},
-        expires_delta=refresh_token_expires
-    )
+    refresh_token = security.create_refresh_token(data={"id": str(user.id)}, expires_delta=refresh_token_expires)
 
-    # PHOENIX FIX: 'lax' allows cookie sending across same-site navigations/subrequests
     response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=settings.ENVIRONMENT != "development",
-        samesite="lax", 
+        key="refresh_token", value=refresh_token, httponly=True,
+        secure=settings.ENVIRONMENT != "development", samesite="lax", 
         max_age=int(refresh_token_expires.total_seconds())
     )
     
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-    }
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-async def register_user(
-    user_in: UserCreate,
-    db: Database = Depends(get_db)
-) -> Any:
-    user = user_service.get_user_by_email(db, email=user_in.email)
-    if user:
+async def register_user(user_in: UserCreate, db: Database = Depends(get_db)) -> Any:
+    # PHOENIX FIX: Normalize inputs to lowercase
+    user_in.username = user_in.username.lower()
+    user_in.email = user_in.email.lower()
+
+    if user_service.get_user_by_email(db, email=user_in.email):
         raise HTTPException(status_code=409, detail="A user with this email already exists.")
     
-    user_by_username = user_service.get_user_by_username(db, username=user_in.username)
-    if user_by_username:
+    if user_service.get_user_by_username(db, username=user_in.username):
         raise HTTPException(status_code=409, detail="A user with this username already exists.")
     
     user_in.subscription_status = "INACTIVE" 
@@ -130,42 +83,18 @@ async def register_user(
     return user
 
 @router.post("/refresh", response_model=Token)
-async def refresh_token(
-    current_user: UserInDB = Depends(get_user_from_refresh_token)
-) -> Any:
-    """
-    Create a new access token from a valid refresh token cookie.
-    """
+async def refresh_token(current_user: UserInDB = Depends(get_user_from_refresh_token)) -> Any:
     if current_user.subscription_status == "INACTIVE":
         raise HTTPException(status_code=403, detail="ACCOUNT_PENDING")
-
-    new_access_token = security.create_access_token(
-        data={"id": str(current_user.id), "role": current_user.role}
-    )
-    
-    return {
-        "access_token": new_access_token,
-        "token_type": "bearer",
-    }
+    new_access_token = security.create_access_token(data={"id": str(current_user.id), "role": current_user.role})
+    return {"access_token": new_access_token, "token_type": "bearer"}
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(response: Response):
-    """
-    Clear the refresh token cookie.
-    """
-    response.delete_cookie(
-        key="refresh_token",
-        httponly=True,
-        secure=settings.ENVIRONMENT != "development",
-        samesite="lax"
-    )
+    response.delete_cookie(key="refresh_token", httponly=True, secure=settings.ENVIRONMENT != "development", samesite="lax")
     return {"message": "Logged out successfully"}
 
 @router.post("/change-password", status_code=status.HTTP_200_OK)
-async def change_password(
-    password_data: ChangePasswordSchema, 
-    current_user: UserInDB = Depends(get_current_user),
-    db: Database = Depends(get_db)
-):
+async def change_password(password_data: ChangePasswordSchema, current_user: UserInDB = Depends(get_current_user), db: Database = Depends(get_db)):
     user_service.change_password(db, str(current_user.id), password_data.old_password, password_data.new_password)
     return {"message": "Password updated successfully"}
