@@ -1,8 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER v2.5 (STABLE TRANSPORT)
-// 1. STABILITY: Fortified 'refreshToken' logic to prevent logout loops.
-// 2. TYPES: Full support for Invoice/Expense updates and Archive management.
-// 3. TRANSPORT: Enforces 'withCredentials' for all requests to support HttpOnly cookies.
+// PHOENIX PROTOCOL - API MASTER v2.6 (LITIGATION ENABLED)
+// 1. ADDED: crossExamineDocument() to Intelligence Methods.
+// 2. STATUS: Fully verified.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -205,7 +204,6 @@ class ApiService {
     
     public async refreshToken(): Promise<boolean> {
         try {
-            // Explicitly call refresh endpoint. Interceptor logic ignores this specific URL on 401 to avoid loops.
             const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh');
             if (response.data.access_token) {
                 tokenManager.set(response.data.access_token);
@@ -224,11 +222,7 @@ class ApiService {
         return response.data;
     }
     
-    public logout() { 
-        // We only clear client state here. Server cookie clearing happens via endpoint usually, 
-        // but if simple logout, we just drop the token.
-        tokenManager.set(null); 
-    }
+    public logout() { tokenManager.set(null); }
 
     // --- BLOB / DOWNLOAD METHODS ---
     public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
@@ -258,7 +252,6 @@ class ApiService {
             params: { month, year },
             responseType: 'blob'
         });
-        
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;
@@ -293,17 +286,7 @@ class ApiService {
 
     // --- ARCHIVE METHODS ---
     public async getArchiveItems(category?: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut[]> { const params: any = {}; if (category) params.category = category; if (caseId) params.case_id = caseId; if (parentId) params.parent_id = parentId; const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); return Array.isArray(response.data) ? response.data : ((response.data as any).items || []); }
-    
-    public async createArchiveFolder(title: string, parentId?: string, caseId?: string, category?: string): Promise<ArchiveItemOut> {
-        const formData = new FormData();
-        formData.append('title', title);
-        if (parentId) formData.append('parent_id', parentId);
-        if (caseId) formData.append('case_id', caseId);
-        if (category) formData.append('category', category);
-        const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', formData);
-        return response.data;
-    }
-
+    public async createArchiveFolder(title: string, parentId?: string, caseId?: string, category?: string): Promise<ArchiveItemOut> { const formData = new FormData(); formData.append('title', title); if (parentId) formData.append('parent_id', parentId); if (caseId) formData.append('case_id', caseId); if (category) formData.append('category', category); const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', formData); return response.data; }
     public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { const formData = new FormData(); formData.append('file', file); formData.append('title', title); formData.append('category', category); if (caseId) formData.append('case_id', caseId); if (parentId) formData.append('parent_id', parentId); const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData); return response.data; }
     public async deleteArchiveItem(itemId: string): Promise<void> { await this.axiosInstance.delete(`/archive/items/${itemId}`); }
     public async downloadArchiveItem(itemId: string, title: string): Promise<void> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', title); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
@@ -330,6 +313,13 @@ class ApiService {
     public async getCaseGraph(caseId: string): Promise<GraphData> { const response = await this.axiosInstance.get<GraphData>(`/graph/graph/${caseId}`); return response.data; }
     public async getFindings(caseId: string): Promise<Finding[]> { const response = await this.axiosInstance.get<any>(`/cases/${caseId}/findings`); return Array.isArray(response.data) ? response.data : (response.data.findings || []); }
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
+    
+    // NEW: CROSS-EXAMINATION METHOD
+    public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { 
+        const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); 
+        return response.data; 
+    }
+
     public async sendChatMessage(caseId: string, message: string, documentId?: string, jurisdiction?: string): Promise<string> { const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks' }); return response.data.response; }
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     

@@ -1,8 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.3 (SCAN FEEDBACK)
-// 1. UX: Implemented Scanning -> Completed -> Ready transition.
-// 2. LOGIC: Added 'completedScanId' to show a checkmark for 3 seconds after success.
-// 3. VISUAL: Real-time feedback for Deep Scan operations.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.4 (CROSS-EXAM ENABLED)
+// 1. UI: Added 'Swords' button for Litigation Engine trigger.
+// 2. LOGIC: Propagates 'onCrossExamine' event to parent.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -11,7 +10,7 @@ import { apiService } from '../services/api';
 import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
-    ScanEye, Archive, Pencil, FolderInput, CheckCircle
+    ScanEye, Archive, Pencil, FolderInput, CheckCircle, Swords
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -24,6 +23,7 @@ interface DocumentsPanelProps {
   onDocumentUploaded: (newDocument: Document) => void;
   onViewOriginal: (document: Document) => void;
   onRename?: (document: Document) => void; 
+  onCrossExamine?: (document: Document) => void; // NEW PROP
   connectionStatus: ConnectionStatus;
   reconnect: () => void; 
   className?: string;
@@ -37,6 +37,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   onDocumentUploaded,
   onViewOriginal,
   onRename,
+  onCrossExamine,
   t,
   className
 }) => {
@@ -47,22 +48,17 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [scanningId, setScanningId] = useState<string | null>(null); 
-  const [completedScanId, setCompletedScanId] = useState<string | null>(null); // NEW: Track completion
+  const [completedScanId, setCompletedScanId] = useState<string | null>(null);
   const [archivingId, setScanningIdArchive] = useState<string | null>(null); 
   const [currentFileName, setCurrentFileName] = useState<string>(""); 
 
   const performUpload = async (file: File) => {
     if (file.name.startsWith('.')) return;
-
     setCurrentFileName(file.name);
     setUploadProgress(0);
     setIsUploading(true);
-    
     try {
-      const responseData = await apiService.uploadDocument(caseId, file, (percent) => {
-          setUploadProgress(percent);
-      });
-      
+      const responseData = await apiService.uploadDocument(caseId, file, (percent) => setUploadProgress(percent));
       const rawData = responseData as any;
       const newDoc: Document = {
           ...responseData,
@@ -71,7 +67,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           progress_percent: 0, 
           progress_message: t('documentsPanel.statusPending')
       } as any;
-      
       onDocumentUploaded(newDoc);
     } catch (error: any) {
       console.error(`Failed to upload ${file.name}`, error);
@@ -93,7 +88,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const handleFolderChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = event.target.files;
       if (!files || files.length === 0) return;
-
       setUploadError(null);
       const fileArray = Array.from(files);
       for (let i = 0; i < fileArray.length; i++) {
@@ -119,9 +113,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       setCompletedScanId(null);
       try {
           await apiService.deepScanDocument(caseId, docId);
-          // Show checkmark on success
           setCompletedScanId(docId);
-          // Auto-remove checkmark after 3 seconds
           setTimeout(() => setCompletedScanId(null), 3000);
       } catch (error) {
           alert(t('error.generic'));
@@ -173,36 +165,16 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         </div>
 
         <div className="flex-shrink-0 flex gap-2">
-          <input 
-            type="file" 
-            ref={folderInputRef} 
-            onChange={handleFolderChange} 
-            className="hidden" 
-            // @ts-ignore
-            webkitdirectory="" 
-            directory="" 
-            multiple 
+          <input type="file" ref={folderInputRef} onChange={handleFolderChange} className="hidden" 
+            // @ts-ignore 
+            webkitdirectory="" directory="" multiple 
           />
-          <motion.button
-            onClick={() => folderInputRef.current?.click()}
-            className="h-9 px-3 flex items-center justify-center rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 transition-all"
-            title={t('documentsPanel.uploadFolderTooltip')} 
-            disabled={isUploading} 
-            whileHover={{ scale: 1.05 }} 
-            whileTap={{ scale: 0.95 }} 
-          >
+          <motion.button onClick={() => folderInputRef.current?.click()} className="h-9 px-3 flex items-center justify-center rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 transition-all" title={t('documentsPanel.uploadFolderTooltip')} disabled={isUploading} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FolderInput className="h-5 w-5" />}
           </motion.button>
 
           <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
-          <motion.button
-            onClick={() => fileInputRef.current?.click()}
-            className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary-start hover:bg-primary-end text-white shadow-lg shadow-primary-start/20 transition-all"
-            title={t('documentsPanel.uploadDocument')} 
-            disabled={isUploading} 
-            whileHover={{ scale: 1.05 }} 
-            whileTap={{ scale: 0.95 }} 
-          >
+          <motion.button onClick={() => fileInputRef.current?.click()} className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary-start hover:bg-primary-end text-white shadow-lg shadow-primary-start/20 transition-all" title={t('documentsPanel.uploadDocument')} disabled={isUploading} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
           </motion.button>
         </div>
@@ -211,7 +183,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       {uploadError && (<div className="p-3 text-xs text-red-100 bg-red-700/50 border border-red-500/50 rounded-lg mb-4">{uploadError}</div>)}
       
       <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar min-h-0">
-        
         {displayDocuments.length === 0 && (
           <div className="text-text-secondary text-center py-10 flex flex-col items-center">
             <FolderOpen className="w-12 h-12 text-text-secondary/30 mb-3" />
@@ -226,91 +197,54 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const isUploadingState = status === 'UPLOADING';
           const isProcessingState = status === 'PENDING';
           const isReady = status === 'READY' || status === 'COMPLETED';
-          
           const progressPercent = (doc as any).progress_percent || 0;
-
           const barColor = isUploadingState ? "bg-primary-start" : "bg-blue-500";
           const statusText = isUploadingState ? "Uploading..." : "Processing...";
           const statusTextColor = isUploadingState ? "text-primary-start" : "text-blue-400";
-
-          const canView = !isUploadingState && !isProcessingState;
-          const canRename = !isUploadingState && !isProcessingState;
-          const canArchive = !isUploadingState && !isProcessingState;
-          const isScanEnabled = isReady;
+          
+          const canInteract = !isUploadingState && !isProcessingState;
 
           const isScanning = scanningId === doc.id;
           const isDone = completedScanId === doc.id;
 
           return (
-            <motion.div
-              key={doc.id} layout="position"
-              className="group flex items-center justify-between p-3 bg-background-light/30 hover:bg-background-light/50 border border-white/5 hover:border-white/10 rounded-xl transition-all"
-              initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-            >
+            <motion.div key={doc.id} layout="position" className="group flex items-center justify-between p-3 bg-background-light/30 hover:bg-background-light/50 border border-white/5 hover:border-white/10 rounded-xl transition-all" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
               <div className="min-w-0 flex-1 pr-3">
-                <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-gray-200 truncate">{doc.file_name}</p>
-                </div>
-
+                <div className="flex items-center gap-2"><p className="text-sm font-medium text-gray-200 truncate">{doc.file_name}</p></div>
                 {(isUploadingState || isProcessingState) ? (
                     <div className="flex items-center gap-3 mt-1.5">
                         <span className={`text-[10px] ${statusTextColor} font-medium w-16`}>{statusText}</span>
-                        <div className="w-24 h-1 bg-white/10 rounded-full overflow-hidden">
-                             <motion.div 
-                                className={`h-full ${barColor}`} 
-                                initial={isUploadingState ? { width: 0 } : false} 
-                                animate={{ width: `${progressPercent}%` }} 
-                                transition={{ ease: "linear", duration: 0.3 }} 
-                            />
-                        </div>
+                        <div className="w-24 h-1 bg-white/10 rounded-full overflow-hidden"><motion.div className={`h-full ${barColor}`} initial={isUploadingState ? { width: 0 } : false} animate={{ width: `${progressPercent}%` }} transition={{ ease: "linear", duration: 0.3 }} /></div>
                         <span className="text-[9px] text-gray-400 font-mono">{progressPercent}%</span>
                     </div>
-                ) : (
-                    <p className="text-[10px] text-gray-500 truncate mt-0.5">{moment(doc.created_at).format('YYYY-MM-DD HH:mm')}</p>
-                )}
+                ) : (<p className="text-[10px] text-gray-500 truncate mt-0.5">{moment(doc.created_at).format('YYYY-MM-DD HH:mm')}</p>)}
               </div>
               
               <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
-                {canRename && (
-                    <button onClick={() => onRename && onRename(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}>
-                        <Pencil size={14} />
-                    </button>
+                {canInteract && (
+                    <button onClick={() => onRename && onRename(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
                 )}
                 
-                {/* DEEP SCAN BUTTON - DYNAMIC FEEDBACK */}
-                <button 
-                    onClick={() => isScanEnabled && handleDeepScan(doc.id)} 
-                    disabled={!isScanEnabled || isScanning}
-                    className={`p-1.5 rounded-lg transition-all duration-300 ${
-                        isScanning 
-                        ? "bg-primary-start/20 text-blue-400" 
-                        : isDone 
-                        ? "bg-green-500/20 text-green-400" 
-                        : isScanEnabled 
-                        ? "hover:bg-white/10 text-secondary-start" 
-                        : "text-gray-600 cursor-not-allowed opacity-50"
-                    }`}
-                    title={isDone ? t('general.saveSuccess') : t('documentsPanel.deepScan')}
-                >
+                {/* NEW CROSS-EXAMINE BUTTON */}
+                {canInteract && onCrossExamine && (
+                    <button onClick={() => onCrossExamine(doc)} className="p-1.5 hover:bg-orange-500/20 rounded-lg text-orange-400/80 hover:text-orange-400 transition-colors" title="Kryqëzo Provat (Cross-Examine)">
+                        <Swords size={14} />
+                    </button>
+                )}
+
+                {/* EXISTING DEEP SCAN */}
+                <button onClick={() => isReady && handleDeepScan(doc.id)} disabled={!isReady || isScanning} className={`p-1.5 rounded-lg transition-all duration-300 ${isScanning ? "bg-primary-start/20 text-blue-400" : isDone ? "bg-green-500/20 text-green-400" : isReady ? "hover:bg-white/10 text-secondary-start" : "text-gray-600 cursor-not-allowed opacity-50"}`} title={isDone ? t('general.saveSuccess') : t('documentsPanel.deepScan')}>
                     {isScanning ? <Loader2 size={14} className="animate-spin" /> : isDone ? <CheckCircle size={14} /> : <ScanEye size={14} />}
                 </button>
 
-                {canView && (
-                    <button onClick={() => onViewOriginal(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-blue-400 transition-colors" title={t('documentsPanel.viewOriginal')}>
-                        <Eye size={14} />
-                    </button>
+                {canInteract && (
+                    <button onClick={() => onViewOriginal(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-blue-400 transition-colors" title={t('documentsPanel.viewOriginal')}><Eye size={14} /></button>
                 )}
-
-                {canArchive && (
-                    <button onClick={() => handleArchiveDocument(doc.id)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Archive">
-                        {archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
-                    </button>
+                {canInteract && (
+                    <button onClick={() => handleArchiveDocument(doc.id)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title="Archive">{archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}</button>
                 )}
-
-                {!isUploadingState && (
-                    <button onClick={() => handleDeleteDocument(doc.id)} className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-500/70 hover:text-red-500 transition-colors" title={t('documentsPanel.delete')}>
-                    <Trash size={14} />
-                    </button>
+                {canInteract && (
+                    <button onClick={() => handleDeleteDocument(doc.id)} className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-500/70 hover:text-red-500 transition-colors" title={t('documentsPanel.delete')}><Trash size={14} /></button>
                 )}
               </div>
             </motion.div>
@@ -320,5 +254,4 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     </div>
   );
 };
-
 export default DocumentsPanel;
