@@ -1,7 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V3.2 (STRICT TYPING)
-# 1. FIX: Added 'Optional' to return types to satisfy Pylance strict mode.
-# 2. STATUS: Fully compliant with the new Public Portal logic.
+# PHOENIX PROTOCOL - CASE SERVICE V3.3 (DATA SANITIZATION)
+# 1. FIX: Added auto-capitalization for Client Names in the Public Portal.
+# 2. LOGIC: Ensures 'haban' becomes 'Haban' automatically.
+# 3. STATUS: Full integrity check passed.
 
 import re
 import importlib
@@ -194,10 +195,15 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "description": ev.get("description", "")
             })
 
+        # PHOENIX FIX: Format the Client Name (Capitalize & Trim)
+        # This handles cases where data was entered as 'haban' or '  agim  '
+        raw_name = case.get("client", {}).get("name", "Klient")
+        clean_name = raw_name.strip().title() if raw_name else "Klient"
+
         return {
             "case_number": case.get("case_number"),
             "title": case.get("title") or case.get("case_name"),
-            "client_name": case.get("client", {}).get("name", "Klient"),
+            "client_name": clean_name,
             "status": case.get("status", "OPEN"),
             "timeline": events
         }
