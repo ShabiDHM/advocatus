@@ -1,8 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V6.1 (UI POLISH)
-// 1. UI: Fixed scrollbar styling on Input Textarea to match Dark Theme.
-// 2. CSS: Injected scoped styles for ::-webkit-scrollbar on textarea.
-// 3. UX: Preserved auto-resize logic while ensuring visual consistency.
+// PHOENIX PROTOCOL - DRAFTING PAGE V6.3 (MOBILE APP MODE)
+// 1. MOBILE: Panels now have FIXED height (500px) with internal scrolling.
+// 2. BEHAVIOR: Prevents "Endless Page Growth" when generating long documents.
+// 3. UX: Mimics Chat Panel architecture on small screens.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -122,22 +122,16 @@ const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({
 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    // Auto-resize logic
     useEffect(() => {
         if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto'; // Reset to calculate true scrollHeight
+            textareaRef.current.style.height = 'auto'; 
             const scrollHeight = textareaRef.current.scrollHeight;
-            
-            // Clamp height between min and max
             const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
             textareaRef.current.style.height = `${newHeight}px`;
-            
-            // If content exceeds maxHeight, show scrollbar
             textareaRef.current.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
         }
     }, [value, minHeight, maxHeight]);
 
-    // Reset logic: If disabled (submitting), shrink to minHeight
     useEffect(() => {
         if (disabled && textareaRef.current) {
              textareaRef.current.style.height = `${minHeight}px`;
@@ -232,106 +226,55 @@ const DraftingPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const pollingIntervalRef = useRef<number | null>(null);
 
-  // SAVE TO LOCAL STORAGE
   useEffect(() => { localStorage.setItem('drafting_context', context); }, [context]);
   useEffect(() => { localStorage.setItem('drafting_job', JSON.stringify(currentJob)); }, [currentJob]);
 
-  // FETCH CASES ON MOUNT
   useEffect(() => {
     const fetchCases = async () => {
         try {
             const userCases = await apiService.getCases();
-            if (Array.isArray(userCases)) {
-                setCases(userCases);
-            } else {
-                setCases([]);
-            }
-        } catch (error) {
-            console.error("DraftingPage: Failed to fetch cases:", error);
-        }
+            if (Array.isArray(userCases)) setCases(userCases);
+            else setCases([]);
+        } catch (error) { console.error("DraftingPage: Failed to fetch cases:", error); }
     };
     fetchCases();
   }, []);
 
-  useEffect(() => {
-    return () => {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-    };
-  }, []);
+  useEffect(() => { return () => { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); }; }, []);
 
-  // --- KOSOVO CITY DETECTOR ---
   const detectKosovoContext = (c: Case) => {
     const kosovoKeywords = ['prizren', 'pej', 'gjakov', 'gjilan', 'ferizaj', 'mitrovic', 'podujev', 'vushtrri', 'suharek', 'rahovec', 'drenas', 'lipjan', 'malishev', 'kamenic', 'viti', 'decan', 'istog', 'kline', 'skenderaj', 'dragash', 'fushe kosov', 'kacanik', 'shtime'];
-    
     const searchString = `${c.court_info?.name || ''} ${c.client?.name || ''} ${c.description || ''} ${c.title || ''}`.toLowerCase();
-
-    let city = 'Prishtinë'; // Default capital
-
-    // Extract specific city if found
-    for (const kw of kosovoKeywords) {
-        if (searchString.includes(kw)) {
-            city = kw.charAt(0).toUpperCase() + kw.slice(1);
-            if (city === 'Pej') city = 'Pejë';
-            if (city === 'Gjakov') city = 'Gjakovë';
-            break;
-        }
-    }
-
+    let city = 'Prishtinë';
+    for (const kw of kosovoKeywords) { if (searchString.includes(kw)) { city = kw.charAt(0).toUpperCase() + kw.slice(1); if (city === 'Pej') city = 'Pejë'; if (city === 'Gjakov') city = 'Gjakovë'; break; } }
     return { city };
   };
 
-  // --- INTELLIGENT TEMPLATE ENGINE ---
   const applyTemplate = (templateKey: TemplateType, caseId?: string) => {
       if (templateKey === 'generic') return;
-
       let templateText = TEMPLATE_PROMPTS[templateKey];
-      
-      // HYDRATE WITH CASE DATA
       if (caseId) {
           const activeCase = cases.find(c => String(c.id) === caseId);
           if (activeCase) {
               const { city } = detectKosovoContext(activeCase);
-              
               const clientName = activeCase.client?.name || '[Emri i Klientit]';
               const opposingName = activeCase.opposing_party?.name || '[Emri i Kundërshtarit]';
               const caseNum = activeCase.case_number || '[Numri i Lëndës]';
               const courtName = activeCase.court_info?.name || `Gjykata Themelore në ${city}`;
               const caseCtx = activeCase.title || activeCase.case_name || activeCase.description || '[Përshkruaj natyrën e çështjes]';
-
-              templateText = templateText
-                  .replace(/{{CITY}}/g, city)
-                  .replace(/{{COURT_NAME}}/g, courtName)
-                  .replace(/{{CLIENT_NAME}}/g, clientName)
-                  .replace(/{{OPPOSING_PARTY}}/g, opposingName)
-                  .replace(/{{CASE_NUMBER}}/g, caseNum)
-                  .replace(/{{CASE_CONTEXT}}/g, caseCtx);
+              templateText = templateText.replace(/{{CITY}}/g, city).replace(/{{COURT_NAME}}/g, courtName).replace(/{{CLIENT_NAME}}/g, clientName).replace(/{{OPPOSING_PARTY}}/g, opposingName).replace(/{{CASE_NUMBER}}/g, caseNum).replace(/{{CASE_CONTEXT}}/g, caseCtx);
           }
       } else {
-          // Fallbacks
-          templateText = templateText
-              .replace(/{{CITY}}/g, 'Prishtinë')
-              .replace(/{{COURT_NAME}}/g, '[Emri i Gjykatës]')
-              .replace(/{{CLIENT_NAME}}/g, '[Emri dhe Mbiemri / Kompania]')
-              .replace(/{{OPPOSING_PARTY}}/g, '[Emri i Kundërshtarit]')
-              .replace(/{{CASE_NUMBER}}/g, '[Numri i Lëndës]')
-              .replace(/{{CASE_CONTEXT}}/g, '[Përshkruaj shkurtimisht natyrën e çështjes]');
+          templateText = templateText.replace(/{{CITY}}/g, 'Prishtinë').replace(/{{COURT_NAME}}/g, '[Emri i Gjykatës]').replace(/{{CLIENT_NAME}}/g, '[Emri dhe Mbiemri / Kompania]').replace(/{{OPPOSING_PARTY}}/g, '[Emri i Kundërshtarit]').replace(/{{CASE_NUMBER}}/g, '[Numri i Lëndës]').replace(/{{CASE_CONTEXT}}/g, '[Përshkruaj shkurtimisht natyrën e çështjes]');
       }
-
       setContext(templateText);
   };
 
   const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       const newTemplate = e.target.value as TemplateType;
-      
       const isDirty = context.trim().length > 0;
       const isCleanSwitch = !isDirty || Object.values(TEMPLATE_PROMPTS).some(t => context.includes(t.substring(0, 20))); 
-
-      if (isDirty && !isCleanSwitch) {
-          if (!window.confirm(t('drafting.confirmTemplateSwitch', 'Ndryshimi i shabllonit do të zëvendësojë tekstin aktual. Vazhdo?'))) {
-              return; 
-          }
-      }
-
+      if (isDirty && !isCleanSwitch) { if (!window.confirm(t('drafting.confirmTemplateSwitch'))) return; }
       setSelectedTemplate(newTemplate);
       if (newTemplate === 'generic') setContext('');
       else applyTemplate(newTemplate, selectedCaseId);
@@ -340,10 +283,7 @@ const DraftingPage: React.FC = () => {
   const handleCaseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       const newCaseId = e.target.value || undefined;
       setSelectedCaseId(newCaseId);
-      
-      if (selectedTemplate !== 'generic') {
-          applyTemplate(selectedTemplate, newCaseId);
-      }
+      if (selectedTemplate !== 'generic') applyTemplate(selectedTemplate, newCaseId);
   };
 
   const getCaseDisplayName = (c: Case) => {
@@ -355,14 +295,11 @@ const DraftingPage: React.FC = () => {
 
   const startPolling = (jobId: string) => {
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-
     pollingIntervalRef.current = window.setInterval(async () => {
       try {
         const statusResponse = await apiService.getDraftingJobStatus(jobId);
         const newStatus = statusResponse.status as JobStatus; 
-        
         setCurrentJob(prev => ({ ...prev, status: newStatus }));
-
         if (newStatus === 'COMPLETED' || newStatus === 'SUCCESS') {
           try {
             const resultResponse = await apiService.getDraftingJobResult(jobId);
@@ -390,21 +327,11 @@ const DraftingPage: React.FC = () => {
     setIsSubmitting(true);
     setCurrentJob({ jobId: null, status: 'PENDING', result: null, error: null });
     setIsResultNew(false);
-
     try {
-      const jobResponse = await apiService.initiateDraftingJob({
-        user_prompt: context.trim(),
-        context: context.trim(),
-        case_id: selectedCaseId, 
-        use_library: !!selectedCaseId
-      });
-
-      const jobId = jobResponse.job_id;
-      setCurrentJob({ jobId, status: 'PENDING', result: null, error: null });
-      startPolling(jobId);
-
+      const jobResponse = await apiService.initiateDraftingJob({ user_prompt: context.trim(), context: context.trim(), case_id: selectedCaseId, use_library: !!selectedCaseId });
+      setCurrentJob({ jobId: jobResponse.job_id, status: 'PENDING', result: null, error: null });
+      startPolling(jobResponse.job_id);
     } catch (error: any) {
-      console.error("Submit Error:", error);
       const errorMessage = error.response?.data?.detail || error.message || t('drafting.errorStartJob');
       setCurrentJob(prev => ({ ...prev, error: errorMessage, status: 'FAILED' }));
       setIsSubmitting(false);
@@ -414,7 +341,7 @@ const DraftingPage: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); runDraftingJob(); };
   const handleCopyResult = async () => { if (currentJob.result) { await navigator.clipboard.writeText(currentJob.result); alert(t('general.copied')); } };
   const handleDownloadResult = () => { if (currentJob.result) { const blob = new Blob([currentJob.result], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `draft-${new Date().getTime()}.txt`; document.body.appendChild(a); a.click(); document.body.removeChild(a); } };
-  const handleClearResult = () => { if (window.confirm(t('drafting.confirmClear', 'A jeni i sigurt?'))) { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); setCurrentJob({ jobId: null, status: null, result: null, error: null }); setIsResultNew(false); } };
+  const handleClearResult = () => { if (window.confirm(t('drafting.confirmClear'))) { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); setCurrentJob({ jobId: null, status: null, result: null, error: null }); setIsResultNew(false); } };
 
   const getStatusDisplay = () => {
     switch(currentJob.status) {
@@ -428,95 +355,62 @@ const DraftingPage: React.FC = () => {
   const statusDisplay = getStatusDisplay();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-[calc(100vh-theme(spacing.20))] flex flex-col">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-[calc(100vh-theme(spacing.20))] h-auto flex flex-col">
       <style>{`
-        /* CUSTOM SCROLLBAR FOR TEXTAREA */
-        .custom-textarea-scroll::-webkit-scrollbar {
-          width: 8px;
-        }
-        .custom-textarea-scroll::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-textarea-scroll::-webkit-scrollbar-thumb {
-          background-color: rgba(255, 255, 255, 0.2);
-          border-radius: 4px;
-        }
-        .custom-textarea-scroll::-webkit-scrollbar-thumb:hover {
-          background-color: rgba(255, 255, 255, 0.3);
-        }
+        .custom-textarea-scroll::-webkit-scrollbar { width: 8px; }
+        .custom-textarea-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-textarea-scroll::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        .custom-textarea-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.3); }
       `}</style>
       
       <div className="text-center mb-6 flex-shrink-0">
         <h1 className="text-3xl font-bold text-white mb-1 flex items-center justify-center gap-3"><PenTool className="text-primary-500" />{t('drafting.title')}</h1>
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[600px]">
-        <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
+
+      {/* PHOENIX: FIXED HEIGHT PANELS FOR MOBILE & DESKTOP */}
+      {/* Used h-[500px] on mobile to prevent endless scrolling */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px] flex-1">
+        
+        {/* INPUT PANEL */}
+        <div className="flex flex-col h-[500px] lg:h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-400" size={20} />{t('drafting.configuration')}</h3>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4 min-h-0">
                 
-                {/* SELECTORS ROW */}
+                {/* SELECTORS */}
                 <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
                     <div className='flex-1 min-w-0'>
-                        <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.caseLabel', 'Rasti')}</label>
+                        <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.caseLabel')}</label>
                         <div className="relative">
                             <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                            <select
-                                value={selectedCaseId || ''}
-                                onChange={handleCaseChange}
-                                className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer truncate"
-                                disabled={isSubmitting}
-                            >
-                                <option value="" className="bg-gray-900 text-gray-400">{t('drafting.noCaseSelected', 'Pa Kontekst (Gjenerik)')}</option>
-                                {cases.length > 0 ? (
-                                    cases.map(c => (
-                                        <option key={c.id} value={String(c.id)} className="bg-gray-900 text-white">
-                                            {getCaseDisplayName(c)}
-                                        </option>
-                                    ))
-                                ) : (
-                                    <option value="" disabled className="bg-gray-900 text-gray-500 italic">
-                                        {t('drafting.noCasesFound', 'Asnjë rast i gjetur')}
-                                    </option>
-                                )}
+                            <select value={selectedCaseId || ''} onChange={handleCaseChange} disabled={isSubmitting} className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer truncate">
+                                <option value="" className="bg-gray-900 text-gray-400">{t('drafting.noCaseSelected')}</option>
+                                {cases.length > 0 ? ( cases.map(c => (<option key={c.id} value={String(c.id)} className="bg-gray-900 text-white">{getCaseDisplayName(c)}</option>)) ) : ( <option value="" disabled className="bg-gray-900 text-gray-500 italic">{t('drafting.noCasesFound')}</option> )}
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
                     </div>
                     <div className='flex-1 min-w-0'>
-                        <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.templateLabel', 'Lloji i Dokumentit')}</label>
+                        <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.templateLabel')}</label>
                         <div className="relative">
                             <LayoutTemplate className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                            <select
-                                value={selectedTemplate}
-                                onChange={handleTemplateChange}
-                                className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer"
-                                disabled={isSubmitting}
-                            >
-                                <option value="generic" className="bg-gray-900 text-gray-400">{t('drafting.templateGeneric', 'I lirë (Pa shabllon)')}</option>
-                                <option value="padi" className="bg-gray-900 text-white">{t('drafting.templatePadi', 'Padi')}</option>
-                                <option value="pergjigje" className="bg-gray-900 text-white">{t('drafting.templatePergjigje', 'Përgjigje në Padi')}</option>
-                                <option value="kunderpadi" className="bg-gray-900 text-white">{t('drafting.templateKunderpadi', 'Kundërpadi')}</option>
-                                <option value="kontrate" className="bg-gray-900 text-white">{t('drafting.templateKontrate', 'Kontratë')}</option>
+                            <select value={selectedTemplate} onChange={handleTemplateChange} disabled={isSubmitting} className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer">
+                                <option value="generic" className="bg-gray-900 text-gray-400">{t('drafting.templateGeneric')}</option>
+                                <option value="padi" className="bg-gray-900 text-white">{t('drafting.templatePadi')}</option>
+                                <option value="pergjigje" className="bg-gray-900 text-white">{t('drafting.templatePergjigje')}</option>
+                                <option value="kunderpadi" className="bg-gray-900 text-white">{t('drafting.templateKunderpadi')}</option>
+                                <option value="kontrate" className="bg-gray-900 text-white">{t('drafting.templateKontrate')}</option>
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
                     </div>
                 </div>
 
-                {/* SMART EXPANDING TEXTAREA */}
+                {/* SCROLLABLE INPUT AREA */}
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider flex-shrink-0">{t('drafting.instructionsLabel')}</label>
                     <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-                        <AutoResizeTextarea
-                            value={context}
-                            onChange={(e) => setContext(e.target.value)}
-                            placeholder={t('drafting.promptPlaceholder')}
-                            className="w-full p-4 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none resize-none text-sm leading-relaxed custom-textarea-scroll custom-scrollbar"
-                            disabled={isSubmitting}
-                            minHeight={150}
-                            maxHeight={500}
-                        />
+                        <AutoResizeTextarea value={context} onChange={(e) => setContext(e.target.value)} placeholder={t('drafting.promptPlaceholder')} className="w-full p-4 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none resize-none text-sm leading-relaxed custom-textarea-scroll custom-scrollbar" disabled={isSubmitting} minHeight={150} maxHeight={500} />
                     </div>
                 </div>
 
@@ -526,14 +420,16 @@ const DraftingPage: React.FC = () => {
                 </button>
             </form>
         </div>
-        <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
+
+        {/* RESULT PANEL */}
+        <div className="flex flex-col h-[500px] lg:h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5 flex-shrink-0">
                 <h3 className="text-white font-semibold flex items-center gap-2">{statusDisplay.icon}<span className={statusDisplay.color}>{statusDisplay.text}</span></h3>
                 <div className="flex gap-2">
-                    <button onClick={runDraftingJob} disabled={!currentJob.result || isSubmitting} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.regenerate', 'Rigjenero')}><RotateCcw size={18}/></button>
+                    <button onClick={runDraftingJob} disabled={!currentJob.result || isSubmitting} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.regenerate')}><RotateCcw size={18}/></button>
                     <button onClick={handleCopyResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.copyTitle')}><Copy size={18}/></button>
                     <button onClick={handleDownloadResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.downloadTitle')}><Download size={18}/></button>
-                    <button onClick={handleClearResult} disabled={!currentJob.result && !currentJob.error} className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-lg disabled:opacity-30 transition-colors border border-red-500/20" title={t('drafting.clearTitle', 'Pastro')}><Trash2 size={18}/></button>
+                    <button onClick={handleClearResult} disabled={!currentJob.result && !currentJob.error} className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-lg disabled:opacity-30 transition-colors border border-red-500/20" title={t('drafting.clearTitle')}><Trash2 size={18}/></button>
                 </div>
             </div>
             {currentJob.error && (<div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-4 text-sm text-red-300 flex items-center gap-2 flex-shrink-0"><AlertCircle size={16} />{currentJob.error}</div>)}
