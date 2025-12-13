@@ -1,7 +1,7 @@
-# PHOENIX PROTOCOL - INTELLIGENCE V10.0 (LITIGATION ENGINE)
-# 1. LOGIC: Implements "Cross-Examination" (One vs Many).
-# 2. SAFETY: Inherits "Plaintiff Mode" sterilization.
-# 3. OUTPUT: Generates specific Questions and Discovery targets.
+# FILE: backend/app/services/llm_service.py
+# PHOENIX PROTOCOL - INTELLIGENCE V11.0 (LANGUAGE: ALBANIAN STRICT)
+# 1. FIX: Enforced "OUTPUT LANGUAGE: ALBANIAN" in all System Prompts.
+# 2. LOGIC: Keeps JSON keys in English (for code safety) but Values are Albanian.
 
 import os
 import json
@@ -119,8 +119,9 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
 
 def generate_summary(text: str) -> str:
     clean_text = sterilize_legal_text(text[:20000])
-    system_prompt = "Ti je Analist Ligjor. Krijo një përmbledhje të shkurtër faktike."
-    user_prompt = f"DOKUMENTI:\n{clean_text}"
+    # FORCE ALBANIAN
+    system_prompt = "Ti je Analist Ligjor. Krijo një përmbledhje të shkurtër faktike. GJUHA: SHQIP."
+    user_prompt = f"DOKUMENTI (Përgjigju vetëm SHQIP):\n{clean_text}"
     res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
     if not res or len(res) < 50: res = _call_deepseek(system_prompt, user_prompt)
     return res or "N/A"
@@ -130,9 +131,11 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     system_prompt = """
     Ti je Motor i Nxjerrjes së Provave.
     DETYRA: Identifiko faktet dhe kërkesat.
+    GJUHA: Të gjitha vlerat 'finding_text' dhe 'source_text' DUHET TË JENË NË SHQIP.
+    
     FORMATI JSON: {"findings": [{"finding_text": "...", "source_text": "...", "category": "KËRKESË", "page_number": 1}]}
     """
-    user_prompt = f"ANALIZO KËTË DOKUMENT:\n{clean_text}"
+    user_prompt = f"ANALIZO KËTË DOKUMENT (Përgjigju SHQIP):\n{clean_text}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     if content:
@@ -141,13 +144,16 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     return []
 
 def analyze_case_contradictions(text: str) -> Dict[str, Any]:
+    # This is the whole-case analysis
     clean_text = sterilize_legal_text(text[:25000])
     system_prompt = """
     Ti je Gjyqtar i Debatit Ligjor.
-    DETYRA: Analizo dokumentin për kontradikta të brendshme.
+    DETYRA: Analizo dokumentin për kontradikta.
+    GJUHA E PËRGJIGJES: SHQIP (Strictly Albanian).
+    
     FORMATI JSON: {
         "document_type": "...",
-        "summary_analysis": "...",
+        "summary_analysis": "Analizë në SHQIP...",
         "conflicting_parties": [{"party_name": "...", "core_claim": "..."}],
         "contradictions": ["..."],
         "key_evidence": ["..."],
@@ -159,48 +165,53 @@ def analyze_case_contradictions(text: str) -> Dict[str, Any]:
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
 
-# --- NEW: PHOENIX LITIGATION ENGINE (PHASE 1 & 2) ---
+# --- PHOENIX LITIGATION ENGINE (PHASE 1 & 2) ---
 
 def perform_litigation_cross_examination(target_text: str, context_summaries: List[str]) -> Dict[str, Any]:
     """
     Compares ONE document (Target) against ALL other summaries (Context).
     Generates: Contradictions, Questions, Discovery Targets.
+    LANGUAGE: FORCED ALBANIAN.
     """
-    # 1. Sterilize the Target (The "Suspect")
+    # 1. Sterilize
     clean_target = sterilize_legal_text(target_text[:25000])
     
-    # 2. Format Context (The "Truth")
+    # 2. Format Context
     formatted_context = "\n".join([f"- {s}" for s in context_summaries if s])
     
     system_prompt = """
-    Ti je 'Phoenix' - Një Avokat Strategjik Mbrojtës (Litigator).
+    Ti je 'Phoenix' - Një Avokat Strategjik Mbrojtës (Litigator) për tregun e Kosovës.
     
     DETYRA:
     Kryqëzo 'DËSHMINË E RE' (Target) me 'FAKTET E DOSJES' (Context).
     
+    RREGULL I PANIGOCIUESHËM GJUHËSOR:
+    DËSHMO DHE SHKRUAJ VETËM NË GJUHËN SHQIPE. Mos përdor anglisht.
+    Edhe nëse dokumentet janë anglisht, përgjigja duhet të jetë SHQIP.
+
     OBJEKTIVAT:
     1. Gjej çdo kontradiktë midis Targetit dhe Kontekstit.
     2. Gjej pretendime në Target që nuk mbështeten nga Konteksti.
     3. Përpilo Pyetje Strategjike për të sulmuar dëshmitarin/palën.
-    4. Sugjero Dokumente (Discovery) që duhen kërkuar për të vërtetuar/rrëzuar pretendimet.
+    4. Sugjero Dokumente (Discovery) që duhen kërkuar.
 
-    FORMATI STRIKT JSON:
+    FORMATI STRIKT JSON (Çelësat Anglisht, Vlerat SHQIP):
     {
-        "summary_analysis": "Një paragraf i fuqishëm mbi besueshmërinë e këtij dokumenti.",
+        "summary_analysis": "Një paragraf i fuqishëm mbi besueshmërinë e këtij dokumenti (SHQIP).",
         "contradictions": [
-            "Dokumenti thotë X, por Faktet thonë Y."
+            "Dokumenti thotë X, por Faktet thonë Y (SHQIP)."
         ],
         "suggested_questions": [
-            "Z. Dëshmitar, ju deklaruat X, por banka tregon Y. Si e shpjegoni?"
+            "Z. Dëshmitar, ju deklaruat X, por banka tregon Y. Si e shpjegoni? (SHQIP)"
         ],
         "discovery_targets": [
-            "Kërkohen pasqyrat bankare të vitit 2023 për të verifikuar pagesën."
+            "Kërkohen pasqyrat bankare të vitit 2023... (SHQIP)"
         ],
         "key_evidence": [
-            "Fakti i pranuar në paragrafin 3."
+            "Fakti i pranuar në paragrafin 3 (SHQIP)."
         ],
          "conflicting_parties": [
-             {"party_name": "Autori i Dokumentit", "core_claim": "Pretendimi Kryesor"}
+             {"party_name": "Emri", "core_claim": "Pretendimi (SHQIP)"}
          ]
     }
     """
@@ -215,7 +226,7 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
 
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     
-    # Fallback to local if API fails
+    # Fallback to local
     if not content: 
         content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
 
