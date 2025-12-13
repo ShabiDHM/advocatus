@@ -1,192 +1,349 @@
-// FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - WAR ROOM UI V2.1 (OPTIONAL DOC ID)
-// 1. FIXED: docId is now optional to support Case-Wide vs Document-Specific analysis.
-// 2. LOGIC: Download button is hidden if docId is missing (Case-Wide mode).
+// FILE: src/services/api.ts
+// PHOENIX PROTOCOL - API MASTER v2.6 (LITIGATION ENABLED)
+// 1. ADDED: crossExamineDocument() to Intelligence Methods.
+// 2. STATUS: Fully verified.
 
-import React, { useEffect, useState } from 'react';
-import ReactDOM from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Scale, FileText, User, ShieldAlert, Swords, Target, MessageCircleQuestion, Gavel, Download } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
+import type {
+    LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, User, UpdateUserRequest,
+    DeletedDocumentResponse, CalendarEvent, CalendarEventCreateRequest, CreateDraftingJobRequest,
+    DraftingJobStatus, DraftingJobResult, ChangePasswordRequest, Finding, CaseAnalysisResult,
+    BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest, InvoiceItem,
+    GraphData, ArchiveItemOut
+} from '../data/types';
 
-interface LitigationAnalysis {
-  summary_analysis?: string;
-  conflicting_parties?: Array<{ party_name: string; core_claim: string }>;
-  contradictions?: string[];
-  suggested_questions?: string[];
-  discovery_targets?: string[];
-  key_evidence?: string[];
-  missing_info?: string[];
+// --- FINANCE TYPES ---
+export interface AuditIssue {
+    id: string;
+    severity: 'CRITICAL' | 'WARNING';
+    message: string;
+    related_item_id?: string;
+    item_type?: 'INVOICE' | 'EXPENSE';
 }
 
-interface AnalysisModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  result: LitigationAnalysis;
-  isLoading?: boolean;
-  caseId: string;
-  docId?: string; // Optional: Only needed for Draft Generation
+export interface TaxCalculation {
+    period_month: number;
+    period_year: number;
+    total_sales_gross: number;
+    total_purchases_gross: number;
+    vat_collected: number;
+    vat_deductible: number;
+    net_obligation: number;
+    currency: string;
+    status: string;
+    regime: string;
+    tax_rate_applied: string;
+    description: string;
 }
 
-const scrollbarStyles = `
-  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-  .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 4px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
-`;
+export interface WizardState {
+    calculation: TaxCalculation;
+    issues: AuditIssue[];
+    ready_to_close: boolean;
+}
 
-const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, isLoading, caseId, docId }) => {
-  const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<'analysis' | 'strategy'>('analysis');
-  const [isGenerating, setIsGenerating] = useState(false);
+export interface Expense {
+    id: string;
+    category: string;
+    amount: number;
+    description?: string;
+    date: string;
+    currency: string;
+    receipt_url?: string;
+}
 
-  useEffect(() => {
-    if (isOpen) { document.body.style.overflow = 'hidden'; } 
-    else { document.body.style.overflow = 'unset'; }
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isOpen]);
+export interface ExpenseCreateRequest {
+    category: string;
+    amount: number;
+    description?: string;
+    date?: string; 
+}
 
-  const handleGenerateObjection = async () => {
-      if (!docId) return; // Guard clause
-      try {
-          setIsGenerating(true);
-          const token = localStorage.getItem('token'); 
-          const response = await fetch(`${import.meta.env.VITE_API_URL}/cases/${caseId}/documents/${docId}/generate-objection`, {
-              method: 'GET',
-              headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (!response.ok) throw new Error('Download failed');
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `Objection_Draft.docx`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-      } catch (error) {
-          console.error("Draft generation failed:", error);
-          alert("Dështoi gjenerimi i dokumentit.");
-      } finally {
-          setIsGenerating(false);
-      }
-  };
+// UPDATE INTERFACES
+export interface InvoiceUpdate {
+    client_name?: string;
+    client_email?: string;
+    client_address?: string;
+    items?: InvoiceItem[];
+    tax_rate?: number;
+    due_date?: string;
+    status?: string;
+    notes?: string;
+}
 
-  if (!isOpen) return null;
+export interface ExpenseUpdate {
+    category?: string;
+    amount?: number;
+    description?: string;
+    date?: string;
+}
 
-  const modalContent = (
-    <AnimatePresence>
-      <motion.div 
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[9999] p-0 sm:p-4"
-        onClick={onClose}
-      >
-        <motion.div 
-          initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }}
-          className="bg-background-dark w-full h-full sm:h-auto sm:max-h-[95vh] sm:max-w-6xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-glass-edge sm:border-opacity-50"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="p-4 sm:p-6 border-b border-glass-edge flex justify-between items-center bg-background-light/90 backdrop-blur-md flex-shrink-0 gap-4">
-            <h2 className="text-lg sm:text-2xl font-bold text-text-primary flex items-center gap-2 min-w-0">
-              <div className="p-1.5 bg-primary-start/10 rounded-lg flex-shrink-0">
-                 <Gavel className="text-primary-start h-5 w-5 sm:h-6 sm:w-6" />
-              </div>
-              <span className="truncate">{t('analysis.modalTitle', 'Salla e Strategjisë (War Room)')}</span>
-            </h2>
-            <button onClick={onClose} className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors flex-shrink-0">
-                <X size={24} />
-            </button>
-          </div>
+interface LoginResponse { access_token: string; }
+interface DocumentContentResponse { text: string; }
 
-          {/* Loading State */}
-          {isLoading ? (
-             <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-                <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6"></div>
-                <h3 className="text-xl font-bold text-white mb-2">Duke Kryqëzuar Provat...</h3>
-                <p className="text-gray-400">Inteligjenca Artificiale po krahason këtë dokument me të gjithë dosjen.</p>
-             </div>
-          ) : (
-             <>
-                {/* Tabs */}
-                <div className="flex border-b border-white/10 px-6 bg-black/20">
-                    <button onClick={() => setActiveTab('analysis')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'analysis' ? 'border-primary-start text-white' : 'border-transparent text-gray-400 hover:text-white'}`}>
-                        <Scale size={16}/> Analiza Faktike
-                    </button>
-                    <button onClick={() => setActiveTab('strategy')} className={`px-4 py-3 text-sm font-bold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'strategy' ? 'border-orange-500 text-orange-400' : 'border-transparent text-gray-400 hover:text-white'}`}>
-                        <Swords size={16}/> Strategjia Sulmuese
-                    </button>
-                </div>
+// --- BASE URL CONFIGURATION ---
+const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
+let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
+if (typeof window !== 'undefined' && window.location.protocol === 'https:' && normalizedUrl.startsWith('http:')) {
+    normalizedUrl = normalizedUrl.replace('http:', 'https:');
+}
 
-                {/* Content */}
-                <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar relative bg-background-dark/50">
-                    <style>{scrollbarStyles}</style>
+export const API_BASE_URL = normalizedUrl;
+export const API_V1_URL = `${API_BASE_URL}/api/v1`;
+export const API_V2_URL = `${API_BASE_URL}/api/v2`;
 
-                    {/* TAB 1: ANALYSIS */}
-                    {activeTab === 'analysis' && (
-                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            <div className="bg-blue-900/10 p-5 rounded-xl border border-blue-500/20">
-                                <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-2"><FileText size={16}/> {t('analysis.summary', 'Analiza e Besueshmërisë')}</h3>
-                                <p className="text-gray-200 text-sm leading-relaxed">{result.summary_analysis || "Nuk ka analizë të disponueshme."}</p>
-                            </div>
-                            {result.conflicting_parties && result.conflicting_parties.length > 0 && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {result.conflicting_parties.map((party, idx) => (
-                                        <div key={idx} className="p-4 rounded-xl border bg-white/5 border-white/10">
-                                            <div className="flex items-center gap-2 mb-2"><User size={16} className="text-gray-400" /><h4 className="font-bold text-sm text-gray-200">{party.party_name}</h4></div>
-                                            <p className="text-gray-400 text-xs italic">"{party.core_claim}"</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            {result.contradictions && result.contradictions.length > 0 && (
-                                <div className="bg-orange-900/10 p-5 rounded-xl border border-orange-500/20">
-                                    <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wider mb-3 flex items-center gap-2"><ShieldAlert size={16}/> Kontradikta të Gjetura</h3>
-                                    <ul className="space-y-2">{result.contradictions.map((c, i) => (<li key={i} className="flex gap-3 text-sm text-gray-300 bg-black/20 p-3 rounded-lg border border-white/5"><span className="text-orange-500 font-bold">•</span><span className="leading-relaxed">{c}</span></li>))}</ul>
-                                </div>
-                            )}
-                        </div>
-                    )}
+// --- TOKEN MANAGER ---
+class TokenManager {
+    private accessToken: string | null = null;
+    get(): string | null { return this.accessToken; }
+    set(token: string | null): void { this.accessToken = token; }
+}
+const tokenManager = new TokenManager();
 
-                    {/* TAB 2: STRATEGY */}
-                    {activeTab === 'strategy' && (
-                         <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
-                             
-                             {/* CONDITIONAL RENDER: Only show if docId is present */}
-                             {docId && (
-                                 <div className="mb-6 flex justify-end">
-                                    <button onClick={handleGenerateObjection} disabled={isGenerating} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${isGenerating ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white'}`}>
-                                        {isGenerating ? (<><div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"/>Duke Gjeneruar...</>) : (<><Download size={18} /> Gjenero Kundërshtimin (.docx)</>)}
-                                    </button>
-                                 </div>
-                             )}
+// --- API SERVICE ---
+class ApiService {
+    public axiosInstance: AxiosInstance;
+    public onUnauthorized: (() => void) | null = null;
+    private isRefreshing = false;
+    private failedQueue: { resolve: (value: any) => void; reject: (reason?: any) => void; }[] = [];
 
-                            <div className="bg-purple-900/10 p-5 rounded-xl border border-purple-500/20">
-                                <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-2"><MessageCircleQuestion size={16}/> Pyetje për Dëshmitarin (Cross-Examination)</h3>
-                                {result.suggested_questions && result.suggested_questions.length > 0 ? (<ul className="space-y-3">{result.suggested_questions.map((q, i) => (<li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-purple-500/10 hover:border-purple-500/30 transition-colors"><span className="text-purple-400 font-bold">Q{i+1}:</span><span className="leading-relaxed font-medium">{q}</span></li>))}</ul>) : <p className="text-gray-500 text-sm italic">Nuk u gjeneruan pyetje specifike.</p>}
-                            </div>
-                             <div className="bg-emerald-900/10 p-5 rounded-xl border border-emerald-500/20">
-                                <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Target size={16}/> Kërkesa për Prova (Discovery)</h3>
-                                {result.discovery_targets && result.discovery_targets.length > 0 ? (<ul className="space-y-3">{result.discovery_targets.map((d, i) => (<li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-emerald-500/10"><span className="text-emerald-400 font-bold">➢</span><span className="leading-relaxed">{d}</span></li>))}</ul>) : <p className="text-gray-500 text-sm italic">Nuk u identifikuan prova të reja për t'u kërkuar.</p>}
-                            </div>
-                         </div>
-                    )}
-                </div>
-             </>
-          )}
+    constructor() {
+        this.axiosInstance = axios.create({ 
+            baseURL: API_V1_URL, 
+            withCredentials: true // CRITICAL: Enables HttpOnly Cookies
+        });
+        this.setupInterceptors();
+    }
 
-          {/* Footer */}
-          <div className="p-4 border-t border-glass-edge bg-background-dark/80 text-center flex-shrink-0">
-              <button onClick={onClose} className="w-full sm:w-auto px-8 py-2.5 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold transition-all shadow-lg glow-primary">
-                  {t('general.close', 'Mbyll Sallen')}
-              </button>
-          </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
-  );
+    public setLogoutHandler(handler: () => void) { this.onUnauthorized = handler; }
 
-  return ReactDOM.createPortal(modalContent, document.body);
-};
-export default AnalysisModal;
+    private processQueue(error: Error | null) {
+        this.failedQueue.forEach(prom => {
+            if (error) {
+                prom.reject(error);
+            } else {
+                prom.resolve(tokenManager.get());
+            }
+        });
+        this.failedQueue = [];
+    }
+
+    private setupInterceptors() {
+        // REQUEST INTERCEPTOR: Attaches Access Token
+        this.axiosInstance.interceptors.request.use(
+            (config) => {
+                const token = tokenManager.get();
+                if (!config.headers) config.headers = new AxiosHeaders();
+
+                if (token) {
+                    if (config.headers instanceof AxiosHeaders) config.headers.set('Authorization', `Bearer ${token}`);
+                    else (config.headers as any).Authorization = `Bearer ${token}`;
+                }
+                return config;
+            },
+            (error) => Promise.reject(error)
+        );
+
+        // RESPONSE INTERCEPTOR: Handles 401 & Refresh
+        this.axiosInstance.interceptors.response.use(
+            (response) => response,
+            async (error: AxiosError) => {
+                const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
+
+                // IF 401 AND NOT ALREADY RETRYING AND NOT REFRESH ENDPOINT
+                if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/refresh') {
+                    if (this.isRefreshing) {
+                        return new Promise((resolve, reject) => {
+                            this.failedQueue.push({ resolve, reject });
+                        }).then((token) => {
+                            if (originalRequest.headers instanceof AxiosHeaders) {
+                                originalRequest.headers.set('Authorization', `Bearer ${token}`);
+                            } else {
+                                (originalRequest.headers as any).Authorization = `Bearer ${token}`;
+                            }
+                            return this.axiosInstance(originalRequest);
+                        });
+                    }
+                    
+                    originalRequest._retry = true;
+                    this.isRefreshing = true;
+
+                    try {
+                        // ATTEMPT REFRESH (Uses HttpOnly Cookie)
+                        const { data } = await this.axiosInstance.post<LoginResponse>('/auth/refresh');
+                        
+                        tokenManager.set(data.access_token);
+                        
+                        // Update header for retry
+                        if (originalRequest.headers instanceof AxiosHeaders) {
+                            originalRequest.headers.set('Authorization', `Bearer ${data.access_token}`);
+                        } else {
+                            (originalRequest.headers as any).Authorization = `Bearer ${data.access_token}`;
+                        }
+                        
+                        this.processQueue(null);
+                        return this.axiosInstance(originalRequest);
+                        
+                    } catch (refreshError) {
+                        // REFRESH FAILED -> LOGOUT
+                        tokenManager.set(null);
+                        this.processQueue(refreshError as Error);
+                        if (this.onUnauthorized) this.onUnauthorized();
+                        return Promise.reject(refreshError);
+                    } finally {
+                        this.isRefreshing = false;
+                    }
+                }
+                return Promise.reject(error);
+            }
+        );
+    }
+    
+    // --- AUTH METHODS ---
+    public getToken(): string | null { return tokenManager.get(); }
+    
+    public async refreshToken(): Promise<boolean> {
+        try {
+            const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh');
+            if (response.data.access_token) {
+                tokenManager.set(response.data.access_token);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.warn("[API] Session Refresh Failed (Normal if logged out):", error);
+            return false; 
+        }
+    }
+    
+    public async login(data: LoginRequest): Promise<LoginResponse> {
+        const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data);
+        if (response.data.access_token) tokenManager.set(response.data.access_token);
+        return response.data;
+    }
+    
+    public logout() { tokenManager.set(null); }
+
+    // --- BLOB / DOWNLOAD METHODS ---
+    public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
+    
+    public async getExpenseReceiptBlob(expenseId: string): Promise<{ blob: Blob, filename: string }> {
+        const response = await this.axiosInstance.get(`/finance/expenses/${expenseId}/receipt`, { 
+            responseType: 'blob' 
+        });
+        const disposition = response.headers['content-disposition'];
+        let filename = `receipt-${expenseId}.pdf`;
+        if (disposition && disposition.indexOf('filename=') !== -1) {
+            const matches = /filename="([^"]*)"/.exec(disposition);
+            if (matches != null && matches[1]) filename = matches[1]; 
+        }
+        return { blob: response.data, filename };
+    }
+
+    public async getWizardState(month: number, year: number): Promise<WizardState> {
+        const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', {
+            params: { month, year }
+        });
+        return response.data;
+    }
+
+    public async downloadMonthlyReport(month: number, year: number): Promise<void> {
+        const response = await this.axiosInstance.get('/finance/wizard/report/pdf', {
+            params: { month, year },
+            responseType: 'blob'
+        });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Raporti_${month}_${year}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    }
+
+    // --- FINANCE / INVOICE METHODS ---
+    public async getInvoices(): Promise<Invoice[]> { const response = await this.axiosInstance.get<any>('/finance/invoices'); return Array.isArray(response.data) ? response.data : (response.data.invoices || []); }
+    public async createInvoice(data: InvoiceCreateRequest): Promise<Invoice> { const response = await this.axiosInstance.post<Invoice>('/finance/invoices', data); return response.data; }
+    public async updateInvoice(invoiceId: string, data: InvoiceUpdate): Promise<Invoice> { const response = await this.axiosInstance.put<Invoice>(`/finance/invoices/${invoiceId}`, data); return response.data; }
+    public async updateInvoiceStatus(invoiceId: string, status: string): Promise<Invoice> { const response = await this.axiosInstance.put<Invoice>(`/finance/invoices/${invoiceId}/status`, { status }); return response.data; }
+    public async deleteInvoice(invoiceId: string): Promise<void> { await this.axiosInstance.delete(`/finance/invoices/${invoiceId}`); }
+    public async downloadInvoicePdf(invoiceId: string, lang: string = 'sq'): Promise<void> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Invoice_${invoiceId}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
+    public async getInvoicePdfBlob(invoiceId: string, lang: string = 'sq'): Promise<Blob> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); return response.data; }
+    public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> { const params = caseId ? { case_id: caseId } : {}; const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/invoices/${invoiceId}/archive`, null, { params }); return response.data; }
+
+    // --- EXPENSES METHODS ---
+    public async getExpenses(): Promise<Expense[]> { const response = await this.axiosInstance.get<any>('/finance/expenses'); return Array.isArray(response.data) ? response.data : (response.data.expenses || []); }
+    public async createExpense(data: ExpenseCreateRequest): Promise<Expense> { const response = await this.axiosInstance.post<Expense>('/finance/expenses', data); return response.data; }
+    public async updateExpense(expenseId: string, data: ExpenseUpdate): Promise<Expense> { const response = await this.axiosInstance.put<Expense>(`/finance/expenses/${expenseId}`, data); return response.data; }
+    public async deleteExpense(expenseId: string): Promise<void> { await this.axiosInstance.delete(`/finance/expenses/${expenseId}`); }
+    public async uploadExpenseReceipt(expenseId: string, file: File): Promise<void> { const formData = new FormData(); formData.append('file', file); await this.axiosInstance.put(`/finance/expenses/${expenseId}/receipt`, formData); }
+
+    // --- BUSINESS PROFILE ---
+    public async getBusinessProfile(): Promise<BusinessProfile> { const response = await this.axiosInstance.get<BusinessProfile>('/business/profile'); return response.data; }
+    public async updateBusinessProfile(data: BusinessProfileUpdate): Promise<BusinessProfile> { const response = await this.axiosInstance.put<BusinessProfile>('/business/profile', data); return response.data; }
+    public async uploadBusinessLogo(file: File): Promise<BusinessProfile> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.put<BusinessProfile>('/business/logo', formData); return response.data; }
+
+    // --- ARCHIVE METHODS ---
+    public async getArchiveItems(category?: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut[]> { const params: any = {}; if (category) params.category = category; if (caseId) params.case_id = caseId; if (parentId) params.parent_id = parentId; const response = await this.axiosInstance.get<ArchiveItemOut[]>('/archive/items', { params }); return Array.isArray(response.data) ? response.data : ((response.data as any).items || []); }
+    public async createArchiveFolder(title: string, parentId?: string, caseId?: string, category?: string): Promise<ArchiveItemOut> { const formData = new FormData(); formData.append('title', title); if (parentId) formData.append('parent_id', parentId); if (caseId) formData.append('case_id', caseId); if (category) formData.append('category', category); const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', formData); return response.data; }
+    public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { const formData = new FormData(); formData.append('file', file); formData.append('title', title); formData.append('category', category); if (caseId) formData.append('case_id', caseId); if (parentId) formData.append('parent_id', parentId); const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData); return response.data; }
+    public async deleteArchiveItem(itemId: string): Promise<void> { await this.axiosInstance.delete(`/archive/items/${itemId}`); }
+    public async downloadArchiveItem(itemId: string, title: string): Promise<void> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', title); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
+    public async getArchiveFileBlob(itemId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { params: { preview: true }, responseType: 'blob' }); return response.data; }
+
+    // --- CASE & DOCUMENT METHODS ---
+    public async getCases(): Promise<Case[]> { const response = await this.axiosInstance.get<any>('/cases'); return Array.isArray(response.data) ? response.data : (response.data.cases || []); }
+    public async createCase(data: CreateCaseRequest): Promise<Case> { const response = await this.axiosInstance.post<Case>('/cases', data); return response.data; }
+    public async getCaseDetails(caseId: string): Promise<Case> { const response = await this.axiosInstance.get<Case>(`/cases/${caseId}`); return response.data; }
+    public async deleteCase(caseId: string): Promise<void> { await this.axiosInstance.delete(`/cases/${caseId}`); }
+    public async getDocuments(caseId: string): Promise<Document[]> { const response = await this.axiosInstance.get<any>(`/cases/${caseId}/documents`); return Array.isArray(response.data) ? response.data : (response.data.documents || []); }
+    public async uploadDocument(caseId: string, file: File, onProgress?: (percent: number) => void): Promise<Document> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<Document>(`/cases/${caseId}/documents/upload`, formData, { onUploadProgress: (progressEvent) => { if (onProgress && progressEvent.total) { const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total); onProgress(percent); } } }); return response.data; }
+    public async getDocument(caseId: string, documentId: string): Promise<Document> { const response = await this.axiosInstance.get<Document>(`/cases/${caseId}/documents/${documentId}`); return response.data; }
+    public async deleteDocument(caseId: string, documentId: string): Promise<DeletedDocumentResponse> { const response = await this.axiosInstance.delete<DeletedDocumentResponse>(`/cases/${caseId}/documents/${documentId}`); return response.data; }
+    public async deepScanDocument(caseId: string, documentId: string): Promise<void> { await this.axiosInstance.post(`/cases/${caseId}/documents/${documentId}/deep-scan`); }
+    public async getDocumentContent(caseId: string, documentId: string): Promise<DocumentContentResponse> { const response = await this.axiosInstance.get<DocumentContentResponse>(`/cases/${caseId}/documents/${documentId}/content`); return response.data; }
+    public async getOriginalDocument(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/original`, { responseType: 'blob' }); return response.data; }
+    public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' }); return response.data; }
+    public async downloadDocumentReport(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/report`, { responseType: 'blob' }); return response.data; }
+    public async archiveCaseDocument(caseId: string, documentId: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/cases/${caseId}/documents/${documentId}/archive`); return response.data; }
+    public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); }
+    
+    // --- INTELLIGENCE METHODS ---
+    public async getCaseGraph(caseId: string): Promise<GraphData> { const response = await this.axiosInstance.get<GraphData>(`/graph/graph/${caseId}`); return response.data; }
+    public async getFindings(caseId: string): Promise<Finding[]> { const response = await this.axiosInstance.get<any>(`/cases/${caseId}/findings`); return Array.isArray(response.data) ? response.data : (response.data.findings || []); }
+    public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
+    
+    // NEW: CROSS-EXAMINATION METHOD
+    public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { 
+        const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); 
+        return response.data; 
+    }
+
+    public async sendChatMessage(caseId: string, message: string, documentId?: string, jurisdiction?: string): Promise<string> { const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks' }); return response.data.response; }
+    public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
+    
+    // --- CALENDAR & SUPPORT ---
+    public async getCalendarEvents(): Promise<CalendarEvent[]> { const response = await this.axiosInstance.get<any>('/calendar/events'); return Array.isArray(response.data) ? response.data : (response.data.events || []); }
+    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); return response.data; }
+    public async deleteCalendarEvent(eventId: string): Promise<void> { await this.axiosInstance.delete(`/calendar/events/${eventId}`); }
+    public async getAlertsCount(): Promise<{ count: number }> { const response = await this.axiosInstance.get<{ count: number }>('/calendar/alerts'); return response.data; }
+    public async sendContactForm(data: { firstName: string; lastName: string; email: string; phone: string; message: string }): Promise<void> { await this.axiosInstance.post('/support/contact', { first_name: data.firstName, last_name: data.lastName, email: data.email, phone: data.phone, message: data.message }); }
+    public async getWebSocketUrl(_caseId: string): Promise<string> { return ""; }
+
+    // --- USER MANAGEMENT ---
+    public async register(data: RegisterRequest): Promise<void> { await this.axiosInstance.post('/auth/register', data); }
+    public async fetchUserProfile(): Promise<User> { const response = await this.axiosInstance.get<User>('/users/me'); return response.data; }
+    public async changePassword(data: ChangePasswordRequest): Promise<void> { await this.axiosInstance.post('/auth/change-password', data); }
+    public async deleteAccount(): Promise<void> { await this.axiosInstance.delete('/users/me'); }
+    public async getAllUsers(): Promise<User[]> { const response = await this.axiosInstance.get<any>('/admin/users'); return Array.isArray(response.data) ? response.data : (response.data.users || []); }
+    public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> { const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data); return response.data; }
+    public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
+
+    // --- DRAFTING ---
+    public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> { const response = await this.axiosInstance.post<DraftingJobStatus>(`${API_V2_URL}/drafting/jobs`, data); return response.data; }
+    public async getDraftingJobStatus(jobId: string): Promise<DraftingJobStatus> { const response = await this.axiosInstance.get<DraftingJobStatus>(`${API_V2_URL}/drafting/jobs/${jobId}/status`); return response.data; }
+    public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> { const response = await this.axiosInstance.get<DraftingJobResult>(`${API_V2_URL}/drafting/jobs/${jobId}/result`); return response.data; }
+}
+
+export const apiService = new ApiService();
