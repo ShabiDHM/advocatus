@@ -1,7 +1,5 @@
-# FILE: backend/app/models/document.py
-
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from typing import Optional, Dict, List, Any
 from datetime import datetime
 from enum import Enum
 
@@ -11,7 +9,6 @@ class DocumentStatus(str, Enum):
     PENDING = "PENDING"
     READY = "READY"
     FAILED = "FAILED"
-
 
 class DocumentBase(BaseModel):
     file_name: str
@@ -26,10 +23,12 @@ class DocumentInDB(DocumentBase):
     owner_id: PyObjectId
     storage_key: str
     processed_text_storage_key: Optional[str] = None
-    # PHOENIX PROTOCOL CURE: Added the new field to store the location of the generated PDF preview.
     preview_storage_key: Optional[str] = None
     error_message: Optional[str] = None
     category: Optional[str] = None
+    
+    # PHOENIX ENGINE: Persisted Strategic Analysis
+    litigation_analysis: Optional[Dict[str, Any]] = None
     
     model_config = ConfigDict(
         populate_by_name=True,
@@ -41,6 +40,6 @@ class DocumentInDB(DocumentBase):
         }
     )
 
+# Explicitly defining Output model to satisfy imports
 class DocumentOut(DocumentInDB):
-    # This model inherits the new `preview_storage_key` field, making it available in the API response.
     pass
