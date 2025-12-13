@@ -179,7 +179,18 @@
     "errorJobFailed": "Puna e hartimit dështoi",
     "errorConnectionLost": "Lidhja me serverin u humb",
     "errorStartJob": "Dështoi fillimi i punës së hartimit",
-    "regenerate": "Rigjenero"
+    "templateLabel": "Lloji i Dokumentit",
+    "templateGeneric": "I lirë (Pa shabllon)",
+    "templatePadi": "Padi",
+    "templatePergjigje": "Përgjigje në Padi",
+    "templateKunderpadi": "Kundërpadi",
+    "templateKontrate": "Kontratë",
+    "caseLabel": "Rasti",
+    "noCaseSelected": "Pa Kontekst (Gjenerik)",
+    "noCasesFound": "Asnjë rast i gjetur",
+    "confirmTemplateSwitch": "Ndryshimi i shabllonit do të zëvendësojë tekstin aktual. Vazhdo?",
+    "regenerate": "Rigjenero",
+    "clearTitle": "Pastro"
   },
   "business": {
     "title": "Qendra e Biznesit",
@@ -216,8 +227,13 @@
     "invoicesTitle": "Faturat e Lëshuara",
     "accountantAI": "Kontabilisti AI",
     "createInvoice": "Krijo Faturë",
+    "editInvoice": "Ndrysho Faturën",
+    "editExpense": "Ndrysho Shpenzimin",
     "monthlyClose": "Mbyllja Mujore",
+    "recentInvoices": "Faturat e Fundit",
+    "recentExpenses": "Shpenzimet e Fundit",
     "noInvoices": "Nuk keni asnjë faturë të krijuar.",
+    "noExpenses": "Nuk ka shpenzime.",
     "viewPdf": "Shiko PDF",
     "downloadPdf": "Shkarko PDF",
     "archiveInvoice": "Arkivo Faturën",
@@ -230,6 +246,11 @@
     "amount": "Shuma (€)",
     "date": "Data",
     "description": "Përshkrimi",
+    "services": "Shërbimet",
+    "qty": "Sasia",
+    "price": "Çmimi",
+    "addLine": "Shto Rresht",
+    "statusLabel": "Statusi i Faturës",
     "status": {
       "draft": "Draft (E pa lëshuar)",
       "sent": "E Dërguar",
@@ -287,6 +308,9 @@
     "emptyFolder": "Kjo dosje është e zbrazët",
     "emptyHint": "Filloni duke ngarkuar dokumente ose krijoni nën-dosje për të organizuar punën tuaj.",
     "createFolder": "Krijo Dosje",
+    "newFolderTitle": "Krijo Dosje të Re",
+    "folderNamePlaceholder": "Emëro dosjen...",
+    "newFolderDefault": "Dosje e Re",
     "upload": "Ngarko",
     "uploadFolder": "Ngarko Skader",
     "uploadFolderTooltip": "Ngarko Skader",
@@ -296,9 +320,14 @@
     "openFolder": "Hap Dosjen",
     "view": "Shiko",
     "download": "Shkarko",
-    "delete": "Fshi",
-    "newFolderTitle": "Krijo Dosje të Re",
-    "folderNamePlaceholder": "Emëro dosjen..."
+    "delete": "Fshi"
+  },
+  "category": {
+    "general": "Të Përgjithshme",
+    "evidence": "Dëshmi",
+    "legalDocs": "Dokumente Ligjore",
+    "invoices": "Fatura",
+    "contracts": "Kontrata"
   },
   "caseCard": {
     "createdOn": "Krijuar më",
