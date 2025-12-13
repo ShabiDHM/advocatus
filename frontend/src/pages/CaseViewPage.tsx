@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V5.4 (CLIENT PORTAL BUTTON)
-// 1. FEATURE: Added 'Kopjo Linkun e Klientit' button to Case Header.
-// 2. UX: Shows 'Copied!' feedback for 2 seconds after clicking.
-// 3. LOGIC: Generates the correct '/portal/{id}' URL dynamically.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V5.5 (UI CONSISTENCY)
+// 1. UI: Matched 'Ndaj me Klientin' button style to the other header buttons.
+// 2. STATUS: Clean, consistent, and functional header.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -19,7 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { 
     AlertCircle, User, Briefcase, Info, 
-    ShieldCheck, Loader2, Lightbulb, X, Save, Share2, CheckCircle
+    ShieldCheck, Loader2, Lightbulb, X, Save, Share2, CheckCircle 
 } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
@@ -118,24 +117,21 @@ const CaseHeader: React.FC<{
                       <div className="flex items-center"><Info className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div>
                   </div>
               </div>
-              <div className="flex items-center gap-3 self-start md:self-center flex-shrink-0 w-full md:w-auto mt-2 md:mt-0 flex-wrap">
-                  {/* Share Button (New) */}
+              <div className="flex items-center gap-3 self-start md:self-center flex-shrink-0 w-full md:w-auto flex-wrap">
+                  {/* PHOENIX FIX: Button Styles Synced */}
                   <button 
                       onClick={handleCopyLink} 
-                      className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all ${linkCopied ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-300 border-indigo-500/30'}`}
+                      className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all ${linkCopied ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-black/20 hover:bg-black/40 text-gray-200 border-white/10'}`}
                       type="button"
-                      title="Kopjo Linkun e Portalit për Klientin"
                   >
                       {linkCopied ? <CheckCircle size={16} /> : <Share2 size={16} />}
-                      <span className="inline">{linkCopied ? "U Kopjua!" : "Ndaj me Klientin"}</span>
+                      <span className="inline">{linkCopied ? t('general.copied') : "Ndaj me Klientin"}</span>
                   </button>
 
-                  {/* Findings Button */}
                   <button onClick={onShowFindings} disabled={isRefetchingFindings} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all" type="button">
                       {isRefetchingFindings ? <Loader2 className="h-4 w-4 animate-spin text-amber-400" /> : <Lightbulb className="h-4 w-4 text-amber-400" />}
                       <span className="inline">{t('caseView.findingsTitle')}</span>
                   </button>
-                  {/* Analyze Button */}
                   <button onClick={onAnalyze} disabled={isAnalyzing} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all disabled:opacity-50" type="button">
                       {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin text-primary-start" /> : <ShieldCheck className="h-4 w-4 text-primary-start" />}
                       <span className="inline">{isAnalyzing ? t('analysis.analyzing') : t('analysis.analyzeButton')}</span>
