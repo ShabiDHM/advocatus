@@ -1,7 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.6 (CLEAN UI)
-// 1. REMOVED: Manual 'Cross-Examine' button (Now handled by Auto-Pilot).
-// 2. STATUS: Clean & Minimalist.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.7 (PERSISTENT SCAN STATUS)
+// 1. UX FIX: Deep Scan success state (Green Check) now stays visible permanently for the session.
+// 2. LOGIC: Changed 'completedScanId' string to 'scannedDocIds' Set for multiple persistent statuses.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -45,8 +45,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  
+  // Scanning States
   const [scanningId, setScanningId] = useState<string | null>(null); 
-  const [completedScanId, setCompletedScanId] = useState<string | null>(null);
+  // PHOENIX FIX: Use a Set to track ALL scanned documents persistently
+  const [scannedDocIds, setScannedDocIds] = useState<Set<string>>(new Set());
+  
   const [archivingId, setScanningIdArchive] = useState<string | null>(null); 
   const [currentFileName, setCurrentFileName] = useState<string>(""); 
 
@@ -108,11 +112,14 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
   const handleDeepScan = async (docId: string) => {
       setScanningId(docId);
-      setCompletedScanId(null);
       try {
           await apiService.deepScanDocument(caseId, docId);
-          setCompletedScanId(docId);
-          setTimeout(() => setCompletedScanId(null), 3000);
+          // PHOENIX FIX: Add to persistent set instead of temporary state
+          setScannedDocIds(prev => {
+              const newSet = new Set(prev);
+              newSet.add(docId);
+              return newSet;
+          });
       } catch (error) {
           alert(t('error.generic'));
       } finally {
@@ -198,7 +205,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const progressPercent = (doc as any).progress_percent || 0;
           const barColor = isUploadingState ? "bg-primary-start" : "bg-blue-500";
           
-          // Localized Status
           const statusText = isUploadingState 
             ? t('documentsPanel.statusUploading', 'Duke ngarkuar...') 
             : t('documentsPanel.statusProcessing', 'Duke procesuar...');
@@ -207,7 +213,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const canInteract = !isUploadingState && !isProcessingState;
           
           const isScanning = scanningId === doc.id;
-          const isDone = completedScanId === doc.id;
+          // PHOENIX FIX: Check set instead of single variable
+          const isDone = scannedDocIds.has(doc.id);
 
           return (
             <motion.div key={doc.id} layout="position" className="group flex items-center justify-between p-3 bg-background-light/30 hover:bg-background-light/50 border border-white/5 hover:border-white/10 rounded-xl transition-all" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
@@ -227,8 +234,21 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     <button onClick={() => onRename && onRename(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
                 )}
                 
-                {/* DEEP SCAN (Only available action now besides view/delete) */}
-                <button onClick={() => isReady && handleDeepScan(doc.id)} disabled={!isReady || isScanning} className={`p-1.5 rounded-lg transition-all duration-300 ${isScanning ? "bg-primary-start/20 text-blue-400" : isDone ? "bg-green-500/20 text-green-400" : isReady ? "hover:bg-white/10 text-secondary-start" : "text-gray-600 cursor-not-allowed opacity-50"}`} title={isDone ? t('general.saveSuccess') : t('documentsPanel.deepScan')}>
+                {/* DEEP SCAN - PERSISTENT GREEN STATUS */}
+                <button 
+                    onClick={() => isReady && handleDeepScan(doc.id)} 
+                    disabled={!isReady || isScanning} 
+                    className={`p-1.5 rounded-lg transition-all duration-300 ${
+                        isScanning 
+                        ? "bg-primary-start/20 text-blue-400" 
+                        : isDone 
+                        ? "bg-green-500/20 text-green-400" 
+                        : isReady 
+                        ? "hover:bg-white/10 text-secondary-start" 
+                        : "text-gray-600 cursor-not-allowed opacity-50"
+                    }`} 
+                    title={isDone ? t('general.saveSuccess') : t('documentsPanel.deepScan')}
+                >
                     {isScanning ? <Loader2 size={14} className="animate-spin" /> : isDone ? <CheckCircle size={14} /> : <ScanEye size={14} />}
                 </button>
 
