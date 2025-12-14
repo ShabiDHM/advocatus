@@ -1,8 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES REFACTOR V5.5 (INTELLIGENCE UPDATE)
-// 1. FIX: Added 'ConflictingParty' interface.
-// 2. FIX: Updated 'CaseAnalysisResult' to include 'conflicting_parties' and 'key_evidence'.
-// 3. COMPATIBILITY: Marked 'risks' as optional to support legacy data without breaking strict typing.
+// PHOENIX PROTOCOL - TYPES REFACTOR V5.6 (DRAFTING FIX)
+// 1. ADDED: 'document_type' to CreateDraftingJobRequest.
+// 2. STATUS: Fixes strict TS error in DraftingPage.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -183,7 +182,11 @@ export interface CreateDraftingJobRequest {
     template_id?: string; 
     case_id?: string; 
     context?: string;
-    draft_type?: string;
+    
+    // PHOENIX FIX: Added document_type field
+    draft_type?: string; 
+    document_type?: string; 
+    
     use_library?: boolean; 
 }
 

@@ -1,8 +1,7 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V6.3 (MOBILE APP MODE)
-// 1. MOBILE: Panels now have FIXED height (500px) with internal scrolling.
-// 2. BEHAVIOR: Prevents "Endless Page Growth" when generating long documents.
-// 3. UX: Mimics Chat Panel architecture on small screens.
+// PHOENIX PROTOCOL - DRAFTING PAGE V6.4 (CLEAN UI)
+// 1. CLEANUP: Removed all visible prompts/constraints. Input box starts empty.
+// 2. LOGIC: Sends 'document_type' to backend so the brain handles the rules.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -25,88 +24,7 @@ interface DraftingJobState {
   error: string | null;
 }
 
-// --- KOSOVO STRICT CONSTRAINTS ---
-const LEGAL_CONSTRAINTS = `
-*** UDHËZIME STRIKTE (SISTEMI I KOSOVËS): ***
-1. JURISDIKSIONI: VETËM REPUBLIKA E KOSOVËS. 
-2. NDALIM: MOS përdor kurrë ligje, gjykata apo referenca nga Republika e Shqipërisë (psh. Tiranë, Kodi Civil i Shqipërisë).
-3. LIGJI: Referoju vetëm legjislacionit të Kosovës (psh. Ligji për Familjen i Kosovës, Ligji për Procedurën Kontestimore i Kosovës).
-4. Nëse nuk e di nenin specifik të Kosovës, shkruaj: "Sipas dispozitave ligjore në fuqi në Kosovë".
-**********************************************************************
-`;
-
-const TEMPLATE_PROMPTS: Record<TemplateType, string> = {
-    generic: "",
-    padi: `${LEGAL_CONSTRAINTS}
-**Lloji:** Padi (Lawsuit)
-**Gjykata:** {{COURT_NAME}}
-
-**Palët:**
-- Paditësi: {{CLIENT_NAME}}
-- I Padituri: {{OPPOSING_PARTY}}
-
-**Objekti i Mosmarrëveshjes:**
-{{CASE_CONTEXT}}
-
-**Baza Ligjore:**
-[Cito saktë ligjin përkatës të Kosovës]
-
-**Kërkesëpadia (Petitiumi):**
-Kërkoj nga gjykata që të aprovojë kërkesën dhe të detyrojë të paditurin të...
-
-{{CITY}}, [Data]`,
-    
-    pergjigje: `${LEGAL_CONSTRAINTS}
-**Lloji:** Përgjigje në Padi
-**Gjykata:** {{COURT_NAME}}
-**Numri i Lëndës:** {{CASE_NUMBER}}
-
-**Deklarim:**
-I padituri {{CLIENT_NAME}} kundërshton në tërësi pretendimet e palës tjetër...
-
-**Arsyetimi Ligjor:**
-Padia nuk ka bazë ligjore sipas ligjeve të Republikës së Kosovës.
-
-**Kërkesa:**
-Kërkojmë nga gjykata që të refuzojë padinë si të pabazuar.
-
-{{CITY}}, [Data]`,
-    
-    kunderpadi: `${LEGAL_CONSTRAINTS}
-**Lloji:** Kundërpadi
-**Gjykata:** {{COURT_NAME}}
-**Në lidhje me rastin:** {{CASE_NUMBER}}
-
-**Palët:**
-- Kundërpaditësi: {{CLIENT_NAME}}
-- I Kundërpadituri: {{OPPOSING_PARTY}}
-
-**Baza e Kundërpadisë:**
-Përveç që kundërshtojmë padinë, ne kërkojmë...
-
-**Faktet Kryesore:**
-[Shpjego faktet]
-
-{{CITY}}, [Data]`,
-    
-    kontrate: `${LEGAL_CONSTRAINTS}
-**Lloji:** Kontratë
-**Jurisdiksioni:** Republika e Kosovës
-
-**Palët:**
-1. {{CLIENT_NAME}} (Palë A)
-2. {{OPPOSING_PARTY}} (Palë B)
-
-**Nenet Kryesore:**
-- Objekti: ...
-- Çmimi: ...
-- Kohëzgjatja: ...
-
-**Zgjidhja e Mosmarrëveshjeve:**
-[Gjykata Themelore në {{CITY}}]`
-};
-
-// --- AUTO RESIZE TEXTAREA COMPONENT ---
+// --- AUTO RESIZE TEXTAREA ---
 interface AutoResizeTextareaProps {
     value: string;
     onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -121,7 +39,6 @@ const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({
     value, onChange, placeholder, disabled, className, minHeight = 150, maxHeight = 500 
 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-
     useEffect(() => {
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto'; 
@@ -131,62 +48,30 @@ const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({
             textareaRef.current.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
         }
     }, [value, minHeight, maxHeight]);
-
-    useEffect(() => {
-        if (disabled && textareaRef.current) {
-             textareaRef.current.style.height = `${minHeight}px`;
-             textareaRef.current.scrollTop = 0;
-        }
-    }, [disabled, minHeight]);
-
     return (
-        <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={onChange}
-            placeholder={placeholder}
-            disabled={disabled}
-            className={`${className} transition-all duration-200 ease-in-out`}
-            style={{ minHeight: `${minHeight}px` }}
-        />
+        <textarea ref={textareaRef} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} className={`${className} transition-all duration-200 ease-in-out`} style={{ minHeight: `${minHeight}px` }} />
     );
 };
 
-// --- STREAMING COMPONENT ---
+// --- STREAMING MARKDOWN ---
 const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () => void }> = ({ text, isNew, onComplete }) => {
     const [displayedText, setDisplayedText] = useState(isNew ? "" : text);
-    
     useEffect(() => {
-        if (!isNew) {
-            setDisplayedText(text);
-            return;
-        }
-
+        if (!isNew) { setDisplayedText(text); return; }
         setDisplayedText(""); 
-        let index = 0;
-        const speed = 5; 
-
+        let index = 0; const speed = 5; 
         const intervalId = setInterval(() => {
             setDisplayedText((prev) => {
-                if (index >= text.length) {
-                    clearInterval(intervalId);
-                    onComplete(); 
-                    return text;
-                }
-                const nextChar = text.charAt(index);
-                index++;
-                return prev + nextChar;
+                if (index >= text.length) { clearInterval(intervalId); onComplete(); return text; }
+                const nextChar = text.charAt(index); index++; return prev + nextChar;
             });
         }, speed);
-
         return () => clearInterval(intervalId);
     }, [text, isNew, onComplete]);
 
     return (
         <div className="markdown-content text-gray-300 text-sm leading-relaxed">
-             <ReactMarkdown 
-                remarkPlugins={[remarkGfm]}
-                components={{
+             <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
                     p: ({node, ...props}) => <p className="mb-4 last:mb-0 text-justify" {...props} />,
                     strong: ({node, ...props}) => <span className="font-bold text-amber-100" {...props} />,
                     em: ({node, ...props}) => <span className="italic text-gray-400" {...props} />,
@@ -201,90 +86,29 @@ const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () 
                     table: ({node, ...props}) => <div className="overflow-x-auto my-4"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>,
                     th: ({node, ...props}) => <th className="border border-white/10 px-3 py-2 bg-white/5 font-bold text-left" {...props} />,
                     td: ({node, ...props}) => <td className="border border-white/10 px-3 py-2" {...props} />,
-                }}
-            >
-                {displayedText}
-            </ReactMarkdown>
+                }} >{displayedText}</ReactMarkdown>
         </div>
     );
 };
 
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
-  
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
   const [currentJob, setCurrentJob] = useState<DraftingJobState>(() => {
       const savedJob = localStorage.getItem('drafting_job');
       return savedJob ? JSON.parse(savedJob) : { jobId: null, status: null, result: null, error: null };
   });
-
   const [cases, setCases] = useState<Case[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('generic');
-
   const [isResultNew, setIsResultNew] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const pollingIntervalRef = useRef<number | null>(null);
 
   useEffect(() => { localStorage.setItem('drafting_context', context); }, [context]);
   useEffect(() => { localStorage.setItem('drafting_job', JSON.stringify(currentJob)); }, [currentJob]);
-
-  useEffect(() => {
-    const fetchCases = async () => {
-        try {
-            const userCases = await apiService.getCases();
-            if (Array.isArray(userCases)) setCases(userCases);
-            else setCases([]);
-        } catch (error) { console.error("DraftingPage: Failed to fetch cases:", error); }
-    };
-    fetchCases();
-  }, []);
-
+  useEffect(() => { const fetchCases = async () => { try { const userCases = await apiService.getCases(); if (Array.isArray(userCases)) setCases(userCases); else setCases([]); } catch (error) { console.error("DraftingPage: Failed to fetch cases:", error); } }; fetchCases(); }, []);
   useEffect(() => { return () => { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); }; }, []);
-
-  const detectKosovoContext = (c: Case) => {
-    const kosovoKeywords = ['prizren', 'pej', 'gjakov', 'gjilan', 'ferizaj', 'mitrovic', 'podujev', 'vushtrri', 'suharek', 'rahovec', 'drenas', 'lipjan', 'malishev', 'kamenic', 'viti', 'decan', 'istog', 'kline', 'skenderaj', 'dragash', 'fushe kosov', 'kacanik', 'shtime'];
-    const searchString = `${c.court_info?.name || ''} ${c.client?.name || ''} ${c.description || ''} ${c.title || ''}`.toLowerCase();
-    let city = 'Prishtinë';
-    for (const kw of kosovoKeywords) { if (searchString.includes(kw)) { city = kw.charAt(0).toUpperCase() + kw.slice(1); if (city === 'Pej') city = 'Pejë'; if (city === 'Gjakov') city = 'Gjakovë'; break; } }
-    return { city };
-  };
-
-  const applyTemplate = (templateKey: TemplateType, caseId?: string) => {
-      if (templateKey === 'generic') return;
-      let templateText = TEMPLATE_PROMPTS[templateKey];
-      if (caseId) {
-          const activeCase = cases.find(c => String(c.id) === caseId);
-          if (activeCase) {
-              const { city } = detectKosovoContext(activeCase);
-              const clientName = activeCase.client?.name || '[Emri i Klientit]';
-              const opposingName = activeCase.opposing_party?.name || '[Emri i Kundërshtarit]';
-              const caseNum = activeCase.case_number || '[Numri i Lëndës]';
-              const courtName = activeCase.court_info?.name || `Gjykata Themelore në ${city}`;
-              const caseCtx = activeCase.title || activeCase.case_name || activeCase.description || '[Përshkruaj natyrën e çështjes]';
-              templateText = templateText.replace(/{{CITY}}/g, city).replace(/{{COURT_NAME}}/g, courtName).replace(/{{CLIENT_NAME}}/g, clientName).replace(/{{OPPOSING_PARTY}}/g, opposingName).replace(/{{CASE_NUMBER}}/g, caseNum).replace(/{{CASE_CONTEXT}}/g, caseCtx);
-          }
-      } else {
-          templateText = templateText.replace(/{{CITY}}/g, 'Prishtinë').replace(/{{COURT_NAME}}/g, '[Emri i Gjykatës]').replace(/{{CLIENT_NAME}}/g, '[Emri dhe Mbiemri / Kompania]').replace(/{{OPPOSING_PARTY}}/g, '[Emri i Kundërshtarit]').replace(/{{CASE_NUMBER}}/g, '[Numri i Lëndës]').replace(/{{CASE_CONTEXT}}/g, '[Përshkruaj shkurtimisht natyrën e çështjes]');
-      }
-      setContext(templateText);
-  };
-
-  const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const newTemplate = e.target.value as TemplateType;
-      const isDirty = context.trim().length > 0;
-      const isCleanSwitch = !isDirty || Object.values(TEMPLATE_PROMPTS).some(t => context.includes(t.substring(0, 20))); 
-      if (isDirty && !isCleanSwitch) { if (!window.confirm(t('drafting.confirmTemplateSwitch'))) return; }
-      setSelectedTemplate(newTemplate);
-      if (newTemplate === 'generic') setContext('');
-      else applyTemplate(newTemplate, selectedCaseId);
-  };
-
-  const handleCaseChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const newCaseId = e.target.value || undefined;
-      setSelectedCaseId(newCaseId);
-      if (selectedTemplate !== 'generic') applyTemplate(selectedTemplate, newCaseId);
-  };
 
   const getCaseDisplayName = (c: Case) => {
     if (c.title && c.title.trim().length > 0) return c.title;
@@ -328,7 +152,14 @@ const DraftingPage: React.FC = () => {
     setCurrentJob({ jobId: null, status: 'PENDING', result: null, error: null });
     setIsResultNew(false);
     try {
-      const jobResponse = await apiService.initiateDraftingJob({ user_prompt: context.trim(), context: context.trim(), case_id: selectedCaseId, use_library: !!selectedCaseId });
+      // PHOENIX FIX: Passing 'document_type' to backend so it knows which hidden template to use
+      const jobResponse = await apiService.initiateDraftingJob({ 
+          user_prompt: context.trim(), 
+          context: context.trim(), 
+          case_id: selectedCaseId, 
+          use_library: !!selectedCaseId,
+          document_type: selectedTemplate // <-- CRITICAL: Sends 'padi', 'kontrate', etc.
+      });
       setCurrentJob({ jobId: jobResponse.job_id, status: 'PENDING', result: null, error: null });
       startPolling(jobResponse.job_id);
     } catch (error: any) {
@@ -351,39 +182,29 @@ const DraftingPage: React.FC = () => {
       default: return { text: t('drafting.statusResult'), color: 'text-white', icon: <Sparkles className="h-5 w-5 text-gray-500" /> };
     }
   };
-  
   const statusDisplay = getStatusDisplay();
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-[calc(100vh-theme(spacing.20))] h-auto flex flex-col">
-      <style>{`
-        .custom-textarea-scroll::-webkit-scrollbar { width: 8px; }
-        .custom-textarea-scroll::-webkit-scrollbar-track { background: transparent; }
-        .custom-textarea-scroll::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.2); border-radius: 4px; }
-        .custom-textarea-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.3); }
-      `}</style>
+      <style>{` .custom-textarea-scroll::-webkit-scrollbar { width: 8px; } .custom-textarea-scroll::-webkit-scrollbar-track { background: transparent; } .custom-textarea-scroll::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.2); border-radius: 4px; } .custom-textarea-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.3); } `}</style>
       
       <div className="text-center mb-6 flex-shrink-0">
         <h1 className="text-3xl font-bold text-white mb-1 flex items-center justify-center gap-3"><PenTool className="text-primary-500" />{t('drafting.title')}</h1>
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
 
-      {/* PHOENIX: FIXED HEIGHT PANELS FOR MOBILE & DESKTOP */}
-      {/* Used h-[500px] on mobile to prevent endless scrolling */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px] flex-1">
         
         {/* INPUT PANEL */}
         <div className="flex flex-col h-[500px] lg:h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-400" size={20} />{t('drafting.configuration')}</h3>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4 min-h-0">
-                
-                {/* SELECTORS */}
                 <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
                     <div className='flex-1 min-w-0'>
                         <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.caseLabel')}</label>
                         <div className="relative">
                             <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                            <select value={selectedCaseId || ''} onChange={handleCaseChange} disabled={isSubmitting} className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer truncate">
+                            <select value={selectedCaseId || ''} onChange={(e) => setSelectedCaseId(e.target.value || undefined)} disabled={isSubmitting} className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer truncate">
                                 <option value="" className="bg-gray-900 text-gray-400">{t('drafting.noCaseSelected')}</option>
                                 {cases.length > 0 ? ( cases.map(c => (<option key={c.id} value={String(c.id)} className="bg-gray-900 text-white">{getCaseDisplayName(c)}</option>)) ) : ( <option value="" disabled className="bg-gray-900 text-gray-500 italic">{t('drafting.noCasesFound')}</option> )}
                             </select>
@@ -394,7 +215,7 @@ const DraftingPage: React.FC = () => {
                         <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.templateLabel')}</label>
                         <div className="relative">
                             <LayoutTemplate className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                            <select value={selectedTemplate} onChange={handleTemplateChange} disabled={isSubmitting} className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer">
+                            <select value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value as TemplateType)} disabled={isSubmitting} className="w-full bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-600 focus:ring-1 focus:ring-primary-500 outline-none text-sm pl-10 pr-10 py-3 appearance-none transition-colors cursor-pointer">
                                 <option value="generic" className="bg-gray-900 text-gray-400">{t('drafting.templateGeneric')}</option>
                                 <option value="padi" className="bg-gray-900 text-white">{t('drafting.templatePadi')}</option>
                                 <option value="pergjigje" className="bg-gray-900 text-white">{t('drafting.templatePergjigje')}</option>
@@ -406,7 +227,6 @@ const DraftingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* SCROLLABLE INPUT AREA */}
                 <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider flex-shrink-0">{t('drafting.instructionsLabel')}</label>
                     <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">

@@ -1,7 +1,7 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING SERVICE V15.2 (FINAL FIX)
-# 1. FIXED: Pymongo boolean logic.
-# 2. STATUS: Production Ready.
+# PHOENIX PROTOCOL - DRAFTING SERVICE V16.1 (TYPE SAFETY)
+# 1. FIXED: Sanitized 'draft_type' to ensure it is always a string before dictionary lookup.
+# 2. STATUS: Passing strict static analysis.
 
 import os
 import asyncio
@@ -27,15 +27,55 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-TEMPLATE_STRUCTURE = """
-STRUKTURA E KËRKUAR E DOKUMENTIT:
-1. TITULLI
-2. HYRJA
-3. PALËT
-4. PREAMBULA
-5. NENET
-6. NËNSHKRIMET
+# --- INVISIBLE INTELLIGENCE LAYER ---
+STRICT_KOSOVO_CONSTRAINTS = """
+*** UDHËZIME STRIKTE (SISTEMI I KOSOVËS): ***
+1. JURISDIKSIONI: VETËM REPUBLIKA E KOSOVËS.
+2. NDALIM: MOS përdor kurrë ligje, gjykata apo referenca nga Republika e Shqipërisë (psh. Tiranë, Kodi Civil i Shqipërisë).
+3. LIGJI: Referoju vetëm legjislacionit të Kosovës (psh. Ligji për Familjen i Kosovës, Ligji për Procedurën Kontestimore, LPK).
+4. Nëse nuk e di nenin specifik të Kosovës, shkruaj: "Sipas dispozitave ligjore në fuqi në Kosovë".
+5. FORMATIMI: Përdor stil formal, juridik dhe profesional.
 """
+
+TEMPLATE_MAP = {
+    "generic": "Strukturoje si dokument juridik standard.",
+    "padi": """
+    STRUKTURA E PADISË:
+    1. Gjykata Themelore në [Qyteti]
+    2. Paditësi: [Emri] vs I Padituri: [Emri]
+    3. Baza Juridike: [Nenet]
+    4. Vlera e Kontestit: [Shuma]
+    5. Pjesa Historike (Faktet)
+    6. Pjesa Arsyetuese (Pse kemi të drejtë)
+    7. PETITUMI (Kërkesëpadia): "I propozoj Gjykatës të aprovojë..."
+    """,
+    "pergjigje": """
+    STRUKTURA E PËRGJIGJES NË PADI:
+    1. Gjykata Themelore në [Qyteti]
+    2. Nr. i Lëndës: [Numri]
+    3. DEKLARIM: Kundërshtim në tërësi i padisë.
+    4. ARSYETIMI: Pse padia nuk ka bazë ligjore ose faktike.
+    5. PROPOZIMI: "Të refuzohet padia si e pabazuar."
+    """,
+    "kunderpadi": """
+    STRUKTURA E KUNDËRPADISË:
+    1. Gjykata...
+    2. Palët...
+    3. BAZA E KUNDËRPADISË: Pse paditësi fillestar është fajtor/borxhli.
+    4. KËRKESA: Dëmshkërblim ose veprim specifik.
+    """,
+    "kontrate": """
+    STRUKTURA E KONTRATËS:
+    1. TITULLI (psh. KONTRATË QIRAJE)
+    2. PALËT (Emri, Nr. Personal, Adresa)
+    3. Neni 1: Objekti i Kontratës
+    4. Neni 2: Çmimi / Pagesa
+    5. Neni 3: Kohëzgjatja
+    6. Neni 4: Të Drejtat dhe Detyrimet
+    7. Neni 5: Zgjidhja e Konflikteve (Gjykata Themelore [Qyteti])
+    8. Nënshkrimet
+    """
+}
 
 def _build_case_context_hybrid_sync(db: Database, case_id: str, user_prompt: str) -> str:
     try:
@@ -79,15 +119,32 @@ def _format_business_identity_sync(db: Database, user: UserInDB) -> str:
     return f"=== HARTUESI ===\nEmri: {user.username}\n"
 
 async def generate_draft_stream(
-    context: str, prompt_text: str, user: UserInDB, draft_type: Optional[str] = None,
+    context: str, prompt_text: str, user: UserInDB, draft_type: Optional[str] = "generic",
     case_id: Optional[str] = None, jurisdiction: Optional[str] = "ks",
     use_library: bool = False, db: Optional[Database] = None
 ) -> AsyncGenerator[str, None]:
+    
     sanitized_prompt = sterilize_text_for_llm(prompt_text)
+    
+    # PHOENIX FIX: Type Safety for Dictionary Key
+    # draft_type is Optional[str], so we default to "generic" if it's None
+    key = draft_type if draft_type else "generic"
+    template_instruction = TEMPLATE_MAP.get(key, TEMPLATE_MAP["generic"])
+    
+    system_prompt = f"""
+    Ti je "Juristi AI", Avokat Ekspert për legjislacionin e KOSOVËS.
+    
+    {STRICT_KOSOVO_CONSTRAINTS}
+    
+    DETYRA: Harto dokumentin e kërkuar duke ndjekur këtë strukturë:
+    {template_instruction}
+    """
+
+    # 2. BUILD CONTEXT
     db_context = ""
     if case_id and db is not None:
          db_context = await asyncio.to_thread(_build_case_context_hybrid_sync, db, case_id, sanitized_prompt)
-    
+         
     final_context = f"{context}\n\n{db_context}"
     rag_search_query = f"{sanitized_prompt} {final_context[:500]}" 
     
@@ -96,8 +153,18 @@ async def generate_draft_stream(
         asyncio.to_thread(_format_business_identity_sync, cast(Database, db), user)
     )
     
-    system_prompt = f"Ti je 'Juristi AI', Avokat Ekspert.\nDETYRA: Harto dokumentin.\n{TEMPLATE_STRUCTURE}"
-    full_prompt = f"{identity}\n{laws}\n\n=== KONTEKSTI ===\n{final_context}\n\n=== KËRKESA ===\n'{sanitized_prompt}'"
+    full_prompt = f"""
+    {identity}
+    {laws}
+
+    === KONTEKSTI I RASTIT ===
+    {final_context}
+
+    === UDHËZIMI I PËRDORUESIT ===
+    "{sanitized_prompt}"
+    
+    KËRKESA: Fillo hartimin e dokumentit tani.
+    """
 
     if DEEPSEEK_API_KEY:
         try:
@@ -113,6 +180,7 @@ async def generate_draft_stream(
     yield "**[Draftimi dështoi.]**"
 
 def generate_objection_document(analysis_result: Dict[str, Any], case_title: str) -> bytes:
+    # (Same as previous - keeping existing logic)
     document = Document()
     style = document.styles['Normal']
     font = style.font # type: ignore
