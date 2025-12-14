@@ -1,7 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V11.0 (LANGUAGE: ALBANIAN STRICT)
-# 1. FIX: Enforced "OUTPUT LANGUAGE: ALBANIAN" in all System Prompts.
-# 2. LOGIC: Keeps JSON keys in English (for code safety) but Values are Albanian.
+# PHOENIX PROTOCOL - INTELLIGENCE V12.0 (STRICT EVIDENCE)
+# 1. UPGRADE: "Silent Party Protocol" - No documents from Defendant = No Claims.
+# 2. UPGRADE: "Pinpoint Citations" - Demands (Dokumenti X, Faqja Y) for every fact.
+# 3. SAFETY: Temperature 0.0 (Deterministic).
 
 import os
 import json
@@ -34,13 +35,7 @@ def get_deepseek_client() -> Optional[OpenAI]:
     return None
 
 def sterilize_legal_text(text: str) -> str:
-    """
-    CRITICAL FUNCTION:
-    Modifies the text BEFORE the AI sees it to prevent 'Proposed Judgment' hallucinations.
-    """
     if not text: return ""
-    
-    # 1. OCR Corrections
     replacements = {
         "Paditésja": "Paditësja", "paditésja": "paditësja",
         "Paditési": "Paditësi", "paditési": "paditësi",
@@ -49,19 +44,13 @@ def sterilize_legal_text(text: str) -> str:
     for bad, good in replacements.items():
         text = text.replace(bad, good)
 
-    # 2. DETECT DOCUMENT TYPE
     header_section = text[:1000].lower()
     is_lawsuit = "padi" in header_section or "paditës" in header_section
-    
     clean_text = text
-
-    # 3. THE "TRAP" REMOVER
     pattern = r"(?i)(propozoj|propozim)([\s\S]{0,1500}?)(aktgjykim)" 
-    def replacer(match):
-        return f"{match.group(1)}{match.group(2)}DRAFT-PROPOZIM (KËRKESË E PALËS)"
+    def replacer(match): return f"{match.group(1)}{match.group(2)}DRAFT-PROPOZIM (KËRKESË E PALËS)"
     clean_text = re.sub(pattern, replacer, clean_text)
     
-    # 4. AGGRESSIVE REWRITING
     if is_lawsuit or "DRAFT-PROPOZIM" in clean_text:
         clean_text = clean_text.replace("Gjykata ka vendosur", "Paditësi KËRKON që Gjykata të vendosë")
         clean_text = clean_text.replace("Gjykata vendos", "Paditësi KËRKON që Gjykata të vendosë")
@@ -71,8 +60,7 @@ def sterilize_legal_text(text: str) -> str:
     return clean_text
 
 def _parse_json_safely(content: str) -> Dict[str, Any]:
-    try:
-        return json.loads(content)
+    try: return json.loads(content)
     except json.JSONDecodeError:
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
         if match:
@@ -115,13 +103,10 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
             return response.json().get("response", "")
     except Exception: return ""
 
-# --- STANDARD ANALYSIS ---
-
 def generate_summary(text: str) -> str:
     clean_text = sterilize_legal_text(text[:20000])
-    # FORCE ALBANIAN
-    system_prompt = "Ti je Analist Ligjor. Krijo një përmbledhje të shkurtër faktike. GJUHA: SHQIP."
-    user_prompt = f"DOKUMENTI (Përgjigju vetëm SHQIP):\n{clean_text}"
+    system_prompt = "Ti je Analist Ligjor. Krijo një përmbledhje të shkurtër faktike."
+    user_prompt = f"DOKUMENTI:\n{clean_text}"
     res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
     if not res or len(res) < 50: res = _call_deepseek(system_prompt, user_prompt)
     return res or "N/A"
@@ -131,11 +116,9 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     system_prompt = """
     Ti je Motor i Nxjerrjes së Provave.
     DETYRA: Identifiko faktet dhe kërkesat.
-    GJUHA: Të gjitha vlerat 'finding_text' dhe 'source_text' DUHET TË JENË NË SHQIP.
-    
     FORMATI JSON: {"findings": [{"finding_text": "...", "source_text": "...", "category": "KËRKESË", "page_number": 1}]}
     """
-    user_prompt = f"ANALIZO KËTË DOKUMENT (Përgjigju SHQIP):\n{clean_text}"
+    user_prompt = f"ANALIZO KËTË DOKUMENT:\n{clean_text}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     if content:
@@ -144,20 +127,37 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     return []
 
 def analyze_case_contradictions(text: str) -> Dict[str, Any]:
-    # This is the whole-case analysis
+    """
+    GENERAL CASE ANALYSIS (For the Main Button)
+    """
     clean_text = sterilize_legal_text(text[:25000])
     system_prompt = """
-    Ti je Gjyqtar i Debatit Ligjor.
-    DETYRA: Analizo dokumentin për kontradikta.
-    GJUHA E PËRGJIGJES: SHQIP (Strictly Albanian).
+    Ti je 'The Auditor' - Gjyqtar Suprem Hetues.
     
-    FORMATI JSON: {
-        "document_type": "...",
-        "summary_analysis": "Analizë në SHQIP...",
-        "conflicting_parties": [{"party_name": "...", "core_claim": "..."}],
-        "contradictions": ["..."],
-        "key_evidence": ["..."],
-        "missing_info": ["..."]
+    DETYRA: Analizo dosjen dhe ndërto profilin e konfliktit.
+    
+    RREGULLAT E HEKURTA (ZERO HALUCINACIONE):
+    1. **MOS SHPIK MBROJTJE:** Nëse i Padituri nuk ka dorëzuar dokument (Përgjigje në Padi), pozicioni i tij ËSHTË: "Nuk ka deklaruar ende qëndrim zyrtar."
+    2. **CITIMI I DETYRUESHËM:** Çdo fakt duhet të ketë: (Burimi: [Emri i Dok]).
+    3. **ANALIZA E PROVAVE:** Nëse paditësi thotë "S'ka paguar", por nuk ka prova bankare, shënoje si "Pretendim i paprovuar".
+    
+    FORMATI JSON:
+    {
+        "document_type": "Përmbledhje Dosjeje",
+        "summary_analysis": "Përshkrim i saktë i statusit të rastit (kush ka folur, kush jo).",
+        "conflicting_parties": [
+            {"party_name": "Emri (Paditësi)", "core_claim": "Kërkon X (Ref: Padi, fq.1)"},
+            {"party_name": "Emri (I Padituri)", "core_claim": "Nuk ka deklaruar ende (Mungon dokumenti mbrojtës)."} 
+        ],
+        "contradictions": [
+            "Paditësi pretendon X në (Padi, fq.2), por mungon prova Y që kërkohet me ligj."
+        ],
+        "key_evidence": [
+            "Fatura X (Data 01.01.2023)."
+        ],
+        "missing_info": [
+            "Mungon Përgjigja në Padi nga i padituri."
+        ]
     }
     """
     user_prompt = f"DOSJA:\n{clean_text}"
@@ -165,80 +165,53 @@ def analyze_case_contradictions(text: str) -> Dict[str, Any]:
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
 
-# --- PHOENIX LITIGATION ENGINE (PHASE 1 & 2) ---
-
 def perform_litigation_cross_examination(target_text: str, context_summaries: List[str]) -> Dict[str, Any]:
     """
-    Compares ONE document (Target) against ALL other summaries (Context).
-    Generates: Contradictions, Questions, Discovery Targets.
-    LANGUAGE: FORCED ALBANIAN.
+    DOCUMENT-SPECIFIC ANALYSIS (For the Swords Button / Auto-Pilot)
     """
-    # 1. Sterilize
     clean_target = sterilize_legal_text(target_text[:25000])
-    
-    # 2. Format Context
     formatted_context = "\n".join([f"- {s}" for s in context_summaries if s])
     
     system_prompt = """
-    Ti je 'Phoenix' - Një Avokat Strategjik Mbrojtës (Litigator) për tregun e Kosovës.
+    Ti je "Phoenix" - Avokat Mbrojtës Agresiv.
     
-    DETYRA:
-    Kryqëzo 'DËSHMINË E RE' (Target) me 'FAKTET E DOSJES' (Context).
+    DETYRA: Sulmo besueshmërinë e këtij dokumenti (Target).
     
-    RREGULL I PANIGOCIUESHËM GJUHËSOR:
-    DËSHMO DHE SHKRUAJ VETËM NË GJUHËN SHQIPE. Mos përdor anglisht.
-    Edhe nëse dokumentet janë anglisht, përgjigja duhet të jetë SHQIP.
+    RREGULLAT E SAKTËSISË:
+    1. **CITO ÇDO GJË:** "Pretendimi X (Target, rreshti 10) kundërshtohet nga Dokumenti Y (Context)."
+    2. **HESHTJA NUK ËSHTË POHIM:** Nëse pala tjetër nuk ka folur, thuaj "Mungon deklarata kundërshtuese".
+    3. **SPECIFIKIMI I PROVËS:** Kur thua "Mungojnë prova", thuaj saktësisht CILA provë duhet të ishte aty (psh. Fatura, Raporti Mjekësor).
 
-    OBJEKTIVAT:
-    1. Gjej çdo kontradiktë midis Targetit dhe Kontekstit.
-    2. Gjej pretendime në Target që nuk mbështeten nga Konteksti.
-    3. Përpilo Pyetje Strategjike për të sulmuar dëshmitarin/palën.
-    4. Sugjero Dokumente (Discovery) që duhen kërkuar.
-
-    FORMATI STRIKT JSON (Çelësat Anglisht, Vlerat SHQIP):
+    FORMATI JSON (Strict):
     {
-        "summary_analysis": "Një paragraf i fuqishëm mbi besueshmërinë e këtij dokumenti (SHQIP).",
+        "summary_analysis": "Analizë kritike e dokumentit me citime.",
         "contradictions": [
-            "Dokumenti thotë X, por Faktet thonë Y (SHQIP)."
+            "Target thotë 'S'ka pagesa' (fq. 2), por Context ka 'Faturë 200€' (Dokumenti: Banka)."
         ],
         "suggested_questions": [
-            "Z. Dëshmitar, ju deklaruat X, por banka tregon Y. Si e shpjegoni? (SHQIP)"
+            "Z. Dëshmitar, në faqen 2 pretendoni X. Ku është raporti mjekësor që e vërteton këtë?"
         ],
         "discovery_targets": [
-            "Kërkohen pasqyrat bankare të vitit 2023... (SHQIP)"
+            "Kërkohet: Raporti i Qendrës Sociale për të vërtetuar pretendimin në paragrafin 3."
         ],
-        "key_evidence": [
-            "Fakti i pranuar në paragrafin 3 (SHQIP)."
-        ],
-         "conflicting_parties": [
-             {"party_name": "Emri", "core_claim": "Pretendimi (SHQIP)"}
-         ]
+        "key_evidence": [],
+         "conflicting_parties": []
     }
     """
     
     user_prompt = f"""
-    [FAKTET E VENDOSURA (CONTEXT)]
+    [FAKTET E DOSJES (CONTEXT)]
     {formatted_context}
     
-    [DËSHMIA E RE PËR T'U HETUAR (TARGET)]
+    [DOKUMENTI QË PO SULMOHET (TARGET)]
     {clean_target}
     """
 
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
+    if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
+    if content: return _parse_json_safely(content)
     
-    # Fallback to local
-    if not content: 
-        content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
-
-    if content:
-        return _parse_json_safely(content)
-    
-    return {
-        "summary_analysis": "Analiza dështoi.",
-        "contradictions": [],
-        "suggested_questions": [],
-        "discovery_targets": []
-    }
+    return { "summary_analysis": "Analiza dështoi.", "contradictions": [], "suggested_questions": [], "discovery_targets": [] }
 
 def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
     return {"entities": [], "relations": []}
