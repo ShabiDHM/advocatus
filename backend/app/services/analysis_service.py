@@ -1,8 +1,8 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V10.1 (STORAGE API FIX)
-# 1. FIXED: Replaced 'get_file_content' with 'download_processed_text'.
-# 2. FIXED: Added .decode('utf-8') for byte content handling.
-# 3. STATUS: Crash resolved.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V10.2 (SMART FALLBACK)
+# 1. NEW: Validates text quality before sending to AI.
+# 2. LOGIC: If full text is corrupt/empty, falls back to 'summary' or 'extracted_text'.
+# 3. STATUS: Prevents "Unintelligible Document" errors.
 
 import structlog
 from typing import Dict, Any, List, Optional
@@ -12,7 +12,7 @@ from bson import ObjectId
 # Import central intelligence & services
 from . import llm_service
 from .graph_service import graph_service
-from . import storage_service # Required to fetch full text of the target
+from . import storage_service 
 
 logger = structlog.get_logger(__name__)
 
@@ -88,13 +88,26 @@ def cross_examine_case(db: Database, case_id: str) -> Dict[str, Any]:
             key = target_doc.get("processed_text_storage_key")
             target_text = ""
             
-            # PHOENIX FIX: Correct Storage API Call
+            # Attempt 1: Full Processed Text from Storage
             if key:
-                raw_bytes = storage_service.download_processed_text(key)
-                if raw_bytes:
-                    target_text = raw_bytes.decode('utf-8', errors='ignore')
+                try:
+                    raw_bytes = storage_service.download_processed_text(key)
+                    if raw_bytes:
+                        target_text = raw_bytes.decode('utf-8', errors='ignore')
+                except Exception as e:
+                    log.warning("analysis.storage_fetch_failed", error=str(e))
+
+            # Attempt 2: Fallback to Database Raw Text or Summary (If Attempt 1 failed or is garbage)
+            # Logic: If text is empty OR very short OR contains "Error"
+            if not target_text or len(target_text) < 100 or "error" in target_text.lower()[:50]:
+                log.info("analysis.using_fallback_text")
+                # Try Summary first (it's cleaner), then extracted_text
+                target_text = target_doc.get("summary", "") 
+                if not target_text:
+                    target_text = target_doc.get("extracted_text", "")
             
-            if target_text and len(target_text) > 100:
+            # Check again
+            if target_text and len(target_text) > 50:
                 # Prepare Context (Summaries of OTHER docs)
                 other_docs = [d for d in documents if str(d["_id"]) != str(target_doc["_id"])]
                 context_summaries = [f"[{d.get('file_name')}]: {d.get('summary', 'Ska përmbledhje')}" for d in other_docs]
@@ -102,9 +115,11 @@ def cross_examine_case(db: Database, case_id: str) -> Dict[str, Any]:
                 # Run The Engine
                 result = llm_service.perform_litigation_cross_examination(target_text, context_summaries)
                 
-                # CRITICAL: Attach the ID so Frontend enables the "Draft" button
+                # Attach the ID so Frontend enables the "Draft" button
                 result["target_document_id"] = str(target_doc["_id"])
                 return result
+            else:
+                log.warning("analysis.target_text_empty_after_fallbacks")
 
         # 2. Fallback: GENERAL SUMMARY MODE
         log.info("analysis.general_mode")
@@ -119,7 +134,10 @@ def cross_examine_case(db: Database, case_id: str) -> Dict[str, Any]:
 
         total_context = graph_evidence + full_case_text
         if not total_context or len(total_context) < 50:
-            return {"summary_analysis": "Nuk ka mjaftueshëm të dhëna për analizë."}
+            return {
+                "summary_analysis": "Sistemi nuk mundi të lexojë tekst të mjaftueshëm nga dokumentet. Ju lutem kontrolloni nëse dokumentet janë ngarkuar saktë.",
+                "missing_info": ["Teksti i dokumenteve nuk është procesuar ende."]
+            }
         
         return llm_service.analyze_case_contradictions(total_context)
 
