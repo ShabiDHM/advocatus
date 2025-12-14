@@ -1,7 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.5 (I18N FIX)
-// 1. FIXED: Removed hardcoded text ("Kryqëzo Provat", "Archive", "Uploading...").
-// 2. STATUS: Fully localized.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.6 (CLEAN UI)
+// 1. REMOVED: Manual 'Cross-Examine' button (Now handled by Auto-Pilot).
+// 2. STATUS: Clean & Minimalist.
 
 import React, { useState, useRef } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -10,7 +10,7 @@ import { apiService } from '../services/api';
 import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
-    ScanEye, Archive, Pencil, FolderInput, CheckCircle, Swords
+    ScanEye, Archive, Pencil, FolderInput, CheckCircle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -23,7 +23,6 @@ interface DocumentsPanelProps {
   onDocumentUploaded: (newDocument: Document) => void;
   onViewOriginal: (document: Document) => void;
   onRename?: (document: Document) => void; 
-  onCrossExamine?: (document: Document) => void;
   connectionStatus: ConnectionStatus;
   reconnect: () => void; 
   className?: string;
@@ -37,7 +36,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   onDocumentUploaded,
   onViewOriginal,
   onRename,
-  onCrossExamine,
   t,
   className
 }) => {
@@ -200,15 +198,14 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const progressPercent = (doc as any).progress_percent || 0;
           const barColor = isUploadingState ? "bg-primary-start" : "bg-blue-500";
           
-          // PHOENIX FIX: Localized Status Text
+          // Localized Status
           const statusText = isUploadingState 
             ? t('documentsPanel.statusUploading', 'Duke ngarkuar...') 
             : t('documentsPanel.statusProcessing', 'Duke procesuar...');
             
           const statusTextColor = isUploadingState ? "text-primary-start" : "text-blue-400";
-          
           const canInteract = !isUploadingState && !isProcessingState;
-
+          
           const isScanning = scanningId === doc.id;
           const isDone = completedScanId === doc.id;
 
@@ -230,14 +227,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     <button onClick={() => onRename && onRename(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
                 )}
                 
-                {/* CROSS-EXAMINE BUTTON - LOCALIZED TOOLTIP */}
-                {canInteract && onCrossExamine && (
-                    <button onClick={() => onCrossExamine(doc)} className="p-1.5 hover:bg-orange-500/20 rounded-lg text-orange-400/80 hover:text-orange-400 transition-colors" title={t('documentsPanel.crossExamine', 'Kryqëzo Provat')}>
-                        <Swords size={14} />
-                    </button>
-                )}
-
-                {/* DEEP SCAN */}
+                {/* DEEP SCAN (Only available action now besides view/delete) */}
                 <button onClick={() => isReady && handleDeepScan(doc.id)} disabled={!isReady || isScanning} className={`p-1.5 rounded-lg transition-all duration-300 ${isScanning ? "bg-primary-start/20 text-blue-400" : isDone ? "bg-green-500/20 text-green-400" : isReady ? "hover:bg-white/10 text-secondary-start" : "text-gray-600 cursor-not-allowed opacity-50"}`} title={isDone ? t('general.saveSuccess') : t('documentsPanel.deepScan')}>
                     {isScanning ? <Loader2 size={14} className="animate-spin" /> : isDone ? <CheckCircle size={14} /> : <ScanEye size={14} />}
                 </button>

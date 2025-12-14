@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V5.7 (FINAL LINKAGE)
-// 1. ADDED: handleCrossExamine logic.
-// 2. CONNECTED: DocumentsPanel -> API -> Modal.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V5.8 (AUTO-PILOT ENABLED)
+// 1. UPGRADE: handleAnalyzeCase now detects 'target_document_id' from backend.
+// 2. RESULT: "Generate Objection" button appears automatically if Padi is found.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -93,7 +93,7 @@ const CaseViewPage: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isRefetchingFindings, setIsRefetchingFindings] = useState(false); 
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
-  const [activeAnalysisDocId, setActiveAnalysisDocId] = useState<string | undefined>(undefined); // NEW STATE
+  const [activeAnalysisDocId, setActiveAnalysisDocId] = useState<string | undefined>(undefined);
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
 
@@ -126,33 +126,41 @@ const CaseViewPage: React.FC = () => {
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => { setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(response.documentId))); setCaseData(prev => ({ ...prev, findings: prev.findings.filter(f => String(f.document_id) !== String(response.documentId)) })); };
   const handleClearChat = async () => { if (!caseId || !window.confirm(t('chatPanel.confirmClear'))) return; try { await apiService.clearChatHistory(caseId); setMessages([]); localStorage.removeItem(`chat_history_${caseId}`); } catch (err) { alert(t('error.generic')); } };
 
+  // --- UPDATED ANALYZE LOGIC (AUTO-PILOT) ---
   const handleAnalyzeCase = async (e?: React.MouseEvent) => {
-    e?.preventDefault(); e?.stopPropagation(); if (!caseId) return;
-    setIsAnalyzing(true); setActiveModal('none'); setActiveAnalysisDocId(undefined); // Reset doc ID
-    try { const result = await apiService.analyzeCase(caseId); if (result.error) alert(result.error); else { setAnalysisResult(result); setActiveModal('analysis'); } } catch (err) { alert(t('error.generic')); } finally { setIsAnalyzing(false); }
+    e?.preventDefault(); 
+    e?.stopPropagation(); 
+    if (!caseId) return;
+    
+    setIsAnalyzing(true);
+    setActiveModal('none');
+    setActiveAnalysisDocId(undefined); // Reset before new analysis
+
+    try {
+        const result = await apiService.analyzeCase(caseId);
+        
+        if (result.error) {
+            alert(result.error);
+        } else {
+            setAnalysisResult(result);
+            // PHOENIX FIX: Automatically check if backend identified a target document
+            // If yes, save it to state so the 'Generate Objection' button appears.
+            if ((result as any).target_document_id) {
+                setActiveAnalysisDocId((result as any).target_document_id);
+            }
+            setActiveModal('analysis');
+        }
+    } catch (err) {
+        alert(t('error.generic'));
+    } finally {
+        setIsAnalyzing(false);
+    }
   };
 
   const handleShowFindings = async (e?: React.MouseEvent) => { e?.preventDefault(); e?.stopPropagation(); setActiveModal('findings'); if (caseId) { setIsRefetchingFindings(true); try { const freshFindings = await apiService.getFindings(caseId); setCaseData(prev => ({ ...prev, findings: freshFindings || [] })); } catch (err) { console.warn("Failed to refresh findings silently", err); } finally { setIsRefetchingFindings(false); } } };
   const handleChatSubmit = (text: string, _mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => { sendChatMessage(text, documentId, jurisdiction); };
   const handleViewOriginal = (doc: Document) => { const url = `${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`; setViewingUrl(url); setViewingDocument(doc); };
   const handleRename = async (newName: string) => { if (!caseId || !documentToRename) return; try { await apiService.renameDocument(caseId, documentToRename.id, newName); setLiveDocuments(prev => prev.map(d => d.id === documentToRename.id ? { ...d, file_name: newName } : d)); } catch (error) { alert(t('error.generic')); } };
-
-  // --- NEW: CROSS EXAMINE TRIGGER ---
-  const handleCrossExamine = async (doc: Document) => {
-      if (!caseId) return;
-      setIsAnalyzing(true); // Re-use loading state
-      try {
-          // This will take a few seconds
-          const result = await apiService.crossExamineDocument(caseId, doc.id);
-          setAnalysisResult(result);
-          setActiveAnalysisDocId(doc.id); // Set the Doc ID to enable the "Draft" button
-          setActiveModal('analysis');
-      } catch (error) {
-          alert("Dështoi analiza e dokumentit. Ju lutem provoni përsëri.");
-      } finally {
-          setIsAnalyzing(false);
-      }
-  };
 
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
   if (error || !caseData.details) return <div className="p-8 text-center text-red-400 border border-red-600 rounded-md bg-red-900/50"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p>{error}</p></div>;
@@ -173,7 +181,7 @@ const CaseViewPage: React.FC = () => {
                 onDocumentDeleted={handleDocumentDeleted}
                 onViewOriginal={handleViewOriginal}
                 onRename={(doc) => setDocumentToRename(doc)}
-                onCrossExamine={handleCrossExamine} // CONNECTED HERE
+                // Removed onCrossExamine prop
                 className="h-[500px] lg:h-full" 
             />
             <ChatPanel messages={liveMessages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} caseId={caseData.details.id} onClearChat={handleClearChat} t={t} documents={liveDocuments} className="!h-[600px] lg:!h-full w-full" />
@@ -186,7 +194,7 @@ const CaseViewPage: React.FC = () => {
             onClose={() => setActiveModal('none')} 
             result={analysisResult} 
             caseId={caseData.details.id}
-            docId={activeAnalysisDocId} // Passed down to enable button
+            docId={activeAnalysisDocId} // Passed down automatically if found
           />
       )}
       <FindingsModal isOpen={activeModal === 'findings'} onClose={() => setActiveModal('none')} findings={caseData.findings} />
