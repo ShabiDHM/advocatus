@@ -1,9 +1,10 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.7 (PERSISTENT SCAN STATUS)
-// 1. UX FIX: Deep Scan success state (Green Check) now stays visible permanently for the session.
-// 2. LOGIC: Changed 'completedScanId' string to 'scannedDocIds' Set for multiple persistent statuses.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V5.8 (LOCAL STORAGE PERSISTENCE)
+// 1. FIX: 'scannedDocIds' now loads from and saves to localStorage.
+// 2. LOGIC: Green checkmarks survive page refreshes.
+// 3. BONUS: Also checks 'findings' prop to mark documents that have findings as scanned automatically.
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
@@ -31,6 +32,7 @@ interface DocumentsPanelProps {
 const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   caseId,
   documents,
+  findings, // Used to auto-mark scanned docs
   connectionStatus,
   onDocumentDeleted,
   onDocumentUploaded,
@@ -46,13 +48,50 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   
-  // Scanning States
   const [scanningId, setScanningId] = useState<string | null>(null); 
-  // PHOENIX FIX: Use a Set to track ALL scanned documents persistently
   const [scannedDocIds, setScannedDocIds] = useState<Set<string>>(new Set());
   
   const [archivingId, setScanningIdArchive] = useState<string | null>(null); 
   const [currentFileName, setCurrentFileName] = useState<string>(""); 
+
+  // --- PERSISTENCE LOGIC START ---
+  
+  // 1. Load from LocalStorage on Mount
+  useEffect(() => {
+      const storageKey = `scanned_docs_${caseId}`;
+      const saved = localStorage.getItem(storageKey);
+      let initialSet = new Set<string>();
+      
+      if (saved) {
+          try {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) {
+                  initialSet = new Set(parsed);
+              }
+          } catch (e) { console.error("Failed to parse scanned docs", e); }
+      }
+
+      // 2. Also auto-mark documents that already have findings (Server Source of Truth)
+      if (findings && findings.length > 0) {
+          findings.forEach(f => {
+              if (f.document_id) initialSet.add(f.document_id);
+          });
+      }
+
+      setScannedDocIds(initialSet);
+  }, [caseId, findings]); // Re-run if caseId changes or new findings arrive
+
+  // 3. Helper to save to LocalStorage
+  const markAsScanned = (docId: string) => {
+      setScannedDocIds(prev => {
+          const newSet = new Set(prev);
+          newSet.add(docId);
+          // Save to LocalStorage
+          localStorage.setItem(`scanned_docs_${caseId}`, JSON.stringify(Array.from(newSet)));
+          return newSet;
+      });
+  };
+  // --- PERSISTENCE LOGIC END ---
 
   const performUpload = async (file: File) => {
     if (file.name.startsWith('.')) return;
@@ -114,12 +153,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       setScanningId(docId);
       try {
           await apiService.deepScanDocument(caseId, docId);
-          // PHOENIX FIX: Add to persistent set instead of temporary state
-          setScannedDocIds(prev => {
-              const newSet = new Set(prev);
-              newSet.add(docId);
-              return newSet;
-          });
+          // Use helper to save state
+          markAsScanned(docId);
       } catch (error) {
           alert(t('error.generic'));
       } finally {
@@ -213,7 +248,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const canInteract = !isUploadingState && !isProcessingState;
           
           const isScanning = scanningId === doc.id;
-          // PHOENIX FIX: Check set instead of single variable
           const isDone = scannedDocIds.has(doc.id);
 
           return (
@@ -234,7 +268,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     <button onClick={() => onRename && onRename(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
                 )}
                 
-                {/* DEEP SCAN - PERSISTENT GREEN STATUS */}
+                {/* DEEP SCAN - PERSISTENT */}
                 <button 
                     onClick={() => isReady && handleDeepScan(doc.id)} 
                     disabled={!isReady || isScanning} 

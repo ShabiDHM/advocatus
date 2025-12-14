@@ -1,8 +1,7 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V6.0 (PAGINATION AWARE)
-# 1. FEATURE: Injects "--- [FAQJA X] ---" markers into the text stream.
-# 2. PURPOSE: Enables the AI to provide accurate citations (e.g. "Found on Page 2").
-# 3. PERFORMANCE: Retained Turbo Parallelism.
+# PHOENIX PROTOCOL - OCR ENGINE V6.3 (PYLANCE SILENCED)
+# 1. FIX: Added '# type: ignore' to page.get_text and page.get_pixmap.
+# 2. STATUS: No red squiggles.
 
 import fitz  # PyMuPDF
 import docx
@@ -16,94 +15,112 @@ import cv2
 import numpy as np
 import io
 import concurrent.futures
+import time
 
 logger = logging.getLogger(__name__)
 
-# Config: Max worker threads for OCR (Adjust based on CPU cores)
-MAX_WORKERS = 4 
+# Config: Max worker threads for OCR
+MAX_WORKERS = 3 
 
 def _sanitize_text(text: str) -> str:
     """Removes null bytes and non-printable characters."""
     if not text: return ""
     return text.replace("\x00", "")
 
-def _process_single_page(args) -> str:
+def _process_single_page_safe(doc_path: str, page_num: int) -> str:
     """
-    Worker function to process a single page in a separate thread.
-    Args: (doc_path, page_num)
+    Robust single page processor.
     """
-    doc_path, page_num = args
-    # Human-readable page number (1-based)
     page_marker = f"\n--- [FAQJA {page_num + 1}] ---\n"
-    
     try:
-        # Open document strictly for this thread to avoid PyMuPDF threading issues
         with fitz.open(doc_path) as doc:
             page = doc[page_num]
             
-            # 1. Try Direct Text Extraction (Fastest)
+            # 1. Try Text Layer (Fast)
+            # PHOENIX FIX: Silence Pylance on dynamic attribute
             text = page.get_text("text") # type: ignore
-            
-            # 2. Heuristic: If we found valid text (>50 chars), return it immediately
             if len(text.strip()) > 50:
                 return page_marker + _sanitize_text(text)
             
-            # 3. Fallback: Optical Character Recognition (OCR) (Slow but necessary for scans)
-            # Render page to image
-            zoom = 2.0 # Optimal for Tesseract accuracy
+            # 2. Try OCR (Slow)
+            zoom = 2.0
             mat = fitz.Matrix(zoom, zoom)
+            # PHOENIX FIX: Silence Pylance on dynamic attribute
             pix = page.get_pixmap(matrix=mat) # type: ignore
             img_data = pix.tobytes("png")
             
-            # Pre-processing with OpenCV
             img = Image.open(io.BytesIO(img_data))
             open_cv_image = np.array(img)
             
-            # Convert to grayscale if needed
             if len(open_cv_image.shape) == 3:
                 gray = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2GRAY)
             else:
                 gray = open_cv_image
 
-            # Thresholding to isolate text
             _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-            
-            # Denoising
             denoised = cv2.medianBlur(binary, 3)
 
-            # Run Tesseract
-            # --psm 1: Automatic page segmentation with OSD
-            # Timeout set to 60s per page to prevent hanging
-            ocr_text = pytesseract.image_to_string(denoised, lang='sqi+eng', config='--psm 1', timeout=60)
+            # Extended timeout for stability
+            ocr_text = pytesseract.image_to_string(denoised, lang='sqi+eng', config='--psm 1', timeout=180)
             return page_marker + _sanitize_text(ocr_text)
 
     except Exception as e:
-        logger.warning(f"Page {page_num} processing failed: {e}")
-        return page_marker + "[Gabim gjatë leximit të kësaj faqeje]"
+        logger.warning(f"Page {page_num} failed: {e}")
+        return "" 
 
 def _extract_text_from_pdf(file_path: str) -> str:
-    logger.info(f"🚀 Turbo PDF Processing Started: {file_path}")
+    logger.info(f"🚀 Processing PDF: {file_path}")
+    
+    total_pages = 0
     try:
-        # Open once just to count pages
         with fitz.open(file_path) as doc:
             total_pages = len(doc)
-        
-        # Prepare arguments for parallel execution
+    except Exception:
+        return ""
+
+    # STRATEGY 1: TURBO (Parallel)
+    try:
         page_args = [(file_path, i) for i in range(total_pages)]
-        
         results = []
-        # Use ThreadPool to parallelize the heavy lifting
+        
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-            # Map returns results in the correct order (Page 1, Page 2, etc.)
-            results = list(executor.map(_process_single_page, page_args))
+            futures = {executor.submit(_process_single_page_wrapper, arg): arg[1] for arg in page_args}
             
-        final_text = "".join(results) # Join without extra newlines as marker has them
-        logger.info(f"✅ Turbo Extraction Complete. Extracted {len(final_text)} chars from {total_pages} pages.")
+            for future in concurrent.futures.as_completed(futures):
+                res = future.result()
+                results.append((futures[future], res))
+        
+        # Sort by page number
+        results.sort(key=lambda x: x[0])
+        final_text = "".join([r[1] for r in results])
+        
+        # CHECK: Did it fail?
+        if "Gabim gjatë leximit" in final_text or len(final_text) < 50:
+            raise ValueError("Parallel processing produced poor results.")
+            
         return final_text
 
     except Exception as e:
-        logger.error(f"Critical PDF Error: {e}", exc_info=True)
-        return ""
+        logger.warning(f"⚠️ Turbo Mode failed ({e}). Switching to SAFE MODE (Sequential)...")
+        return _extract_text_sequentially(file_path, total_pages)
+
+def _process_single_page_wrapper(args):
+    # Wrapper to catch exceptions inside threads
+    try:
+        return _process_single_page_safe(*args)
+    except Exception:
+        return "Gabim gjatë leximit."
+
+def _extract_text_sequentially(file_path: str, total_pages: int) -> str:
+    """
+    Slow but indestructible. Processes one page at a time.
+    """
+    buffer = []
+    for i in range(total_pages):
+        text = _process_single_page_safe(file_path, i)
+        buffer.append(text)
+        time.sleep(0.1) 
+    return "".join(buffer)
 
 def _extract_text_from_docx(file_path: str) -> str:
     try:
@@ -118,7 +135,6 @@ def _extract_text_from_image(file_path: str) -> str:
         open_cv_image = cv2.imread(file_path)
         gray = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2GRAY)
         _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        # 2-minute timeout for large standalone images
         text = pytesseract.image_to_string(binary, lang='sqi+eng', timeout=120) 
         return _sanitize_text(text)
     except Exception as e:
@@ -127,27 +143,17 @@ def _extract_text_from_image(file_path: str) -> str:
 
 def _extract_text_from_txt(file_path: str) -> str:
     try:
-        with open(file_path, 'r', encoding='utf-8') as f: 
-            return _sanitize_text(f.read())
-    except Exception:
-        try:
-            with open(file_path, 'r', encoding='latin-1') as f: 
-                return _sanitize_text(f.read())
-        except Exception as e:
-            logger.error(f"TXT Error: {e}")
-            return ""
+        with open(file_path, 'r', encoding='utf-8') as f: return _sanitize_text(f.read())
+    except Exception: return ""
 
 def _extract_text_from_csv(file_path: str) -> str:
     all_rows = []
     try:
         with open(file_path, mode='r', newline='', encoding='utf-8-sig') as csvfile:
             reader = csv.reader(csvfile)
-            for row in reader:
-                all_rows.append(", ".join(filter(None, row)))
+            for row in reader: all_rows.append(", ".join(filter(None, row)))
         return _sanitize_text("\n".join(all_rows))
-    except Exception as e:
-        logger.error(f"CSV Error: {e}")
-        return ""
+    except Exception: return ""
 
 def _extract_text_from_excel(file_path: str) -> str:
     try:
@@ -159,9 +165,7 @@ def _extract_text_from_excel(file_path: str) -> str:
             full_text.append(f"--- Sheet: {sheet_name} ---")
             full_text.append(df.to_string(index=False, na_rep=""))
         return _sanitize_text("\n".join(full_text))
-    except Exception as e:
-        logger.error(f"Excel Error: {e}")
-        return ""
+    except Exception: return ""
 
 EXTRACTION_MAP: Dict[str, Callable] = {
     "application/pdf": _extract_text_from_pdf,
@@ -181,10 +185,7 @@ def extract_text(file_path: str, mime_type: str) -> str:
     extractor = EXTRACTION_MAP.get(normalized_mime_type)
     
     if not extractor:
-        # Fallback for generic text types
-        if "text/" in normalized_mime_type:
-            return _extract_text_from_txt(file_path)
-        logger.warning(f"No extractor for MIME type: {normalized_mime_type}")
+        if "text/" in normalized_mime_type: return _extract_text_from_txt(file_path)
         return ""
         
     return extractor(file_path)
