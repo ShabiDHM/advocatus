@@ -116,12 +116,16 @@
     "uploadFolder": "Ngarko Folder",
     "uploadFolderTooltip": "Ngarko një folder të tërë me dokumente",
     "noDocuments": "Asnjë dokument i ngarkuar.",
-    "statusPending": "Në proces...",
+    "statusPending": "Duke pritur...",
+    "statusUploading": "Duke ngarkuar...",
+    "statusProcessing": "Duke procesuar...",
     "statusCompleted": "Përfunduar",
     "statusConnected": "Lidhur",
     "statusConnecting": "Duke u lidhur...",
     "statusDisconnected": "Shkëputur",
     "statusError": "Gabim",
+    "crossExamine": "Kryqëzo Provat",
+    "archive": "Arkivo",
     "reconnect": "Rilidhu",
     "viewOriginal": "Shiko Origjinalin",
     "delete": "Fshi",
@@ -133,7 +137,9 @@
     "scanStarted": "Skanimi i Thellë filloi! Kontrolloni gjetjet pas pak.",
     "rename": "Emërto",
     "renameTitle": "Emërto Dokumentin",
-    "newName": "Emri i ri"
+    "newName": "Emri i ri",
+    "archiveSuccess": "Dokumenti u arkivua me sukses!",
+    "archiveFailed": "Arkivimi dështoi."
   },
   "chatPanel": {
     "title": "Asistenti Sokratik",
@@ -144,19 +150,15 @@
     "confirmClear": "Pastro bisedën?",
     "contextGeneral": "E gjithë Dosja"
   },
-  "jurisdiction": {
-    "kosovo": "Kosovë",
-    "albania": "Shqipëri",
-    "international": "Ndërkombëtare"
-  },
   "analysis": {
     "analyzeButton": "Analizo Rastin",
     "analyzing": "Duke Analizuar...",
-    "modalTitle": "Analiza e Rastit",
-    "summary": "Përmbledhje",
+    "modalTitle": "Salla e Strategjisë (War Room)",
+    "summary": "Analiza e Besueshmërisë",
     "risks": "Rreziqe Ligjore",
-    "contradictions": "Kontradikta",
-    "missing": "Informacion i Munguar"
+    "contradictions": "Kontradikta të Gjetura",
+    "missing": "Informacion i Munguar",
+    "evidence": "Provat Kyçe"
   },
   "drafting": {
     "title": "Hartimi Inteligjent",
