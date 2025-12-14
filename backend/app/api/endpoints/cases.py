@@ -1,6 +1,7 @@
-# PHOENIX PROTOCOL - CASES ROUTER V3.7 (SYNTAX & TYPE FIX)
-# 1. FIXED: 'case.title' -> 'case["title"]' to handle Dict returns safely.
-# 2. FIXED: Verified all parenthesis closure.
+# FILE: backend/app/api/endpoints/cases.py
+# PHOENIX PROTOCOL - CASES ROUTER V3.8 (JANITOR TRIGGER)
+# 1. FIXED: Added 'consolidate_case_findings' call before analysis.
+# 2. STATUS: Fully integrated.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Dict, Any, Union
@@ -174,9 +175,6 @@ async def generate_objection(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Auto-Generates a formal objection (.docx) from the Analysis.
-    """
     validated_case_id = validate_object_id(case_id)
     validated_doc_id = validate_object_id(doc_id)
 
@@ -189,7 +187,6 @@ async def generate_objection(
     if not doc.litigation_analysis:
         raise HTTPException(status_code=404, detail="No analysis available. Please run 'Kryqëzo Provat' first.")
     
-    # SAFE TITLE ACCESS: Handle if 'case' is a Dict or Object
     title = case.get("title", "Lënda") if isinstance(case, dict) else getattr(case, "title", "Lënda")
 
     try:
@@ -264,6 +261,10 @@ async def rename_document_endpoint(case_id: str, doc_id: str, body: RenameDocume
 @router.post("/{case_id}/analyze", tags=["Analysis"])
 async def analyze_case_risks(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
+    
+    # PHOENIX FIX: Clean/Deduplicate findings BEFORE analysis
+    await asyncio.to_thread(findings_service.consolidate_case_findings, db=db, case_id=case_id)
+    
     return JSONResponse(content=await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id))
 
 @router.post("/{case_id}/documents/{doc_id}/deep-scan", tags=["Documents"])
