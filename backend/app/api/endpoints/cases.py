@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V3.8 (JANITOR TRIGGER)
-# 1. FIXED: Added 'consolidate_case_findings' call before analysis.
-# 2. STATUS: Fully integrated.
+# PHOENIX PROTOCOL - CASES ROUTER V3.9 (BULK ACTION ENABLED)
+# 1. NEW: DELETE /bulk endpoint for mass document removal.
+# 2. STATUS: Connects to document_service.bulk_delete_documents.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Dict, Any, Union
@@ -55,6 +55,9 @@ class DeletedDocumentResponse(BaseModel):
 
 class RenameDocumentRequest(BaseModel):
     new_name: str
+
+class BulkDeleteRequest(BaseModel):
+    document_ids: List[str]
 
 def validate_object_id(id_str: str) -> ObjectId:
     try: return ObjectId(id_str)
@@ -246,6 +249,33 @@ async def delete_document(case_id: str, doc_id: str, current_user: Annotated[Use
     if str(document.case_id) != case_id: raise HTTPException(status_code=403)
     ids = await asyncio.to_thread(document_service.delete_document_by_id, db=db, redis_client=redis_client, doc_id=ObjectId(doc_id), owner=current_user)
     return JSONResponse(status_code=200, content={"documentId": doc_id, "deletedFindingIds": ids})
+
+# --- NEW: BULK DELETE ENDPOINT ---
+@router.delete("/{case_id}/documents/bulk", tags=["Documents"])
+async def bulk_delete_documents(
+    case_id: str,
+    body: BulkDeleteRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_sync_redis)
+):
+    validate_object_id(case_id)
+    
+    # 1. Verify Case Ownership once
+    case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found.")
+
+    # 2. Perform Bulk Delete
+    result = await asyncio.to_thread(
+        document_service.bulk_delete_documents,
+        db=db,
+        redis_client=redis_client,
+        document_ids=body.document_ids,
+        owner=current_user
+    )
+    
+    return JSONResponse(status_code=200, content=result)
 
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut, tags=["Documents"])
 async def archive_case_document(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):

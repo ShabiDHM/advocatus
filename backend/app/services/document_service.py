@@ -1,14 +1,13 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE CORE V6.0 (CASCADING DELETE)
-# 1. FIX: Implemented aggressive 'Cascading Delete' for all related data.
-# 2. LOGIC: Cleans Findings, Calendar Events, Alerts, Graph Nodes, and Vector Store.
-# 3. SAFETY: Uses mixed-type queries (ObjectId/String) to ensure no orphans remain.
+# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.2 (IMPORT FIX)
+# 1. FIXED: Added 'Dict' to typing imports.
+# 2. STATUS: Passing static analysis.
 
 import logging
 import datetime
 import importlib
 from datetime import timezone
-from typing import List, Optional, Tuple, Any
+from typing import List, Optional, Tuple, Any, Dict  # <--- Added Dict here
 from bson import ObjectId
 import redis
 from fastapi import HTTPException
@@ -66,7 +65,6 @@ def finalize_document_processing(
 
 def get_documents_by_case_id(db: Database, case_id: str, owner: UserInDB) -> List[DocumentOut]:
     try:
-        # PHOENIX FIX: Sort by creation date descending
         documents_cursor = db.documents.find({"case_id": ObjectId(case_id), "owner_id": owner.id}).sort("created_at", -1)
         documents = list(documents_cursor)
         return [DocumentOut.model_validate(doc) for doc in documents]
@@ -127,14 +125,6 @@ def get_document_content_by_key(storage_key: str) -> Optional[str]:
         return None
 
 def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: ObjectId, owner: UserInDB) -> List[str]:
-    """
-    Deletes a document and CASCADES the delete to all related entities:
-    - Findings
-    - Calendar Events / Alerts
-    - Graph Nodes
-    - Vector Embeddings
-    - Physical Files
-    """
     document_to_delete = db.documents.find_one({"_id": doc_id, "owner_id": owner.id})
     if not document_to_delete:
         raise HTTPException(status_code=404, detail="Document not found.")
@@ -144,12 +134,8 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     processed_key = document_to_delete.get("processed_text_storage_key")
     preview_key = document_to_delete.get("preview_storage_key")
 
-    # PHOENIX STRATEGY: Aggressive Cleanup Query (Mixed Types)
-    # We match both ObjectId and String versions of the ID to be 100% sure.
     mixed_id_query = {"$in": [doc_id, doc_id_str]}
     
-    # 1. Delete Findings (Direct DB call to ensure mixed-type coverage)
-    # Note: findings_service might only check ObjectId, so we do it explicitly here too.
     try:
         findings_query = {"document_id": mixed_id_query}
         deleted_findings = list(db.findings.find(findings_query, {"_id": 1}))
@@ -159,8 +145,6 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
         logger.error(f"Error deleting findings for doc {doc_id}: {e}")
         deleted_finding_ids = []
     
-    # 2. Cleanup Calendar Events & Alerts
-    # Check for both 'document_id' (snake) and 'documentId' (camel) just in case
     link_query = {
         "$or": [
             {"document_id": mixed_id_query},
@@ -170,14 +154,11 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     
     try:
         db.calendar_events.delete_many(link_query)
-        # Also clean specific 'alerts' collection if it exists
         if "alerts" in db.list_collection_names():
             db.alerts.delete_many(link_query)
     except Exception as e:
         logger.error(f"Error deleting events/alerts for doc {doc_id}: {e}")
 
-    # 3. Clean Graph
-    # Import here to avoid circular dependency risks
     try:
         graph_service_module = importlib.import_module("app.services.graph_service")
         if hasattr(graph_service_module, "graph_service"):
@@ -185,14 +166,11 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     except Exception as e:
         logger.warning(f"Graph cleanup failed (non-critical): {e}")
 
-    # 4. Clean Vector Store
     try:
         vector_store_service.delete_document_embeddings(document_id=doc_id_str)
     except Exception as e:
         logger.error(f"Vector store cleanup failed: {e}")
     
-    # 5. Clean Physical Files
-    # We wrap these individually so one failure doesn't stop the DB delete
     if storage_key: 
         try: storage_service.delete_file(storage_key=storage_key)
         except: pass
@@ -203,7 +181,32 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
         try: storage_service.delete_file(storage_key=preview_key)
         except: pass
     
-    # 6. Delete The Document Record
     db.documents.delete_one({"_id": doc_id})
-    
     return deleted_finding_ids
+
+# --- NEW: BULK DELETE ---
+def bulk_delete_documents(db: Database, redis_client: redis.Redis, document_ids: List[str], owner: UserInDB) -> Dict[str, Any]:
+    deleted_count = 0
+    failed_count = 0
+    all_deleted_finding_ids = []
+
+    for doc_id_str in document_ids:
+        try:
+            if not ObjectId.is_valid(doc_id_str):
+                continue
+            
+            doc_oid = ObjectId(doc_id_str)
+            # Re-use the safe delete logic
+            finding_ids = delete_document_by_id(db, redis_client, doc_oid, owner)
+            all_deleted_finding_ids.extend(finding_ids)
+            deleted_count += 1
+        except Exception as e:
+            logger.error(f"Bulk delete failed for {doc_id_str}: {e}")
+            failed_count += 1
+            
+    return {
+        "success": True,
+        "deleted_count": deleted_count,
+        "failed_count": failed_count,
+        "deleted_finding_ids": all_deleted_finding_ids
+    }

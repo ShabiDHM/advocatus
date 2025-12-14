@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER v2.7 (DOWNLOAD FIX)
-// 1. ADDED: downloadObjection() uses the correct axios instance base URL.
-// 2. STATUS: Fixes the "HTML inside DOCX" bug.
+// PHOENIX PROTOCOL - API MASTER v2.8 (BULK DELETE SUPPORT)
+// 1. ADDED: bulkDeleteDocuments() to handle mass deletion requests.
+// 2. STATUS: Fully verified.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -301,26 +301,32 @@ class ApiService {
     public async uploadDocument(caseId: string, file: File, onProgress?: (percent: number) => void): Promise<Document> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<Document>(`/cases/${caseId}/documents/upload`, formData, { onUploadProgress: (progressEvent) => { if (onProgress && progressEvent.total) { const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total); onProgress(percent); } } }); return response.data; }
     public async getDocument(caseId: string, documentId: string): Promise<Document> { const response = await this.axiosInstance.get<Document>(`/cases/${caseId}/documents/${documentId}`); return response.data; }
     public async deleteDocument(caseId: string, documentId: string): Promise<DeletedDocumentResponse> { const response = await this.axiosInstance.delete<DeletedDocumentResponse>(`/cases/${caseId}/documents/${documentId}`); return response.data; }
+    
+    // NEW: BULK DELETE
+    public async bulkDeleteDocuments(caseId: string, documentIds: string[]): Promise<any> {
+        const response = await this.axiosInstance.delete(`/cases/${caseId}/documents/bulk`, {
+            data: { document_ids: documentIds }
+        });
+        return response.data;
+    }
+
     public async deepScanDocument(caseId: string, documentId: string): Promise<void> { await this.axiosInstance.post(`/cases/${caseId}/documents/${documentId}/deep-scan`); }
     public async getDocumentContent(caseId: string, documentId: string): Promise<DocumentContentResponse> { const response = await this.axiosInstance.get<DocumentContentResponse>(`/cases/${caseId}/documents/${documentId}/content`); return response.data; }
     public async getOriginalDocument(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/original`, { responseType: 'blob' }); return response.data; }
     public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' }); return response.data; }
     public async downloadDocumentReport(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/report`, { responseType: 'blob' }); return response.data; }
     
-    // NEW: DOWNLOAD OBJECTION (Correctly implemented with axiosInstance)
+    // DOWNLOAD OBJECTION
     public async downloadObjection(caseId: string, docId: string): Promise<void> {
         const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${docId}/generate-objection`, {
             responseType: 'blob'
         });
-        
-        // Handle Filename
         let filename = 'Kundërshtim.docx';
         const disposition = response.headers['content-disposition'];
         if (disposition && disposition.indexOf('filename=') !== -1) {
             const matches = /filename="?([^"]+)"?/.exec(disposition);
             if (matches && matches[1]) filename = matches[1];
         }
-
         const url = window.URL.createObjectURL(new Blob([response.data]));
         const link = document.createElement('a');
         link.href = url;
