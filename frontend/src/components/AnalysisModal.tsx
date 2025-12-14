@@ -1,13 +1,14 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - WAR ROOM UI V2.2 (EXPORT FIX)
-// 1. VERIFIED: 'export default AnalysisModal' is present at the end.
-// 2. STATUS: Build-Ready.
+// PHOENIX PROTOCOL - WAR ROOM UI V2.4 (FINAL CLEANUP)
+// 1. FIXED: Removed '(Cross-Examination)' text.
+// 2. STATUS: Pure Albanian UI.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Scale, FileText, User, ShieldAlert, Swords, Target, MessageCircleQuestion, Gavel, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { apiService } from '../services/api';
 
 interface LitigationAnalysis {
   summary_analysis?: string;
@@ -50,28 +51,10 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       if (!docId) return; // Guard clause
       try {
           setIsGenerating(true);
-          const token = localStorage.getItem('token'); 
-          // Using Vite env var for URL, fallback to relative path if proxy configured
-          const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
-          const response = await fetch(`${apiUrl}/cases/${caseId}/documents/${docId}/generate-objection`, {
-              method: 'GET',
-              headers: { 'Authorization': `Bearer ${token}` }
-          });
-
-          if (!response.ok) throw new Error('Download failed');
-
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `Objection_Draft.docx`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
+          await apiService.downloadObjection(caseId, docId);
       } catch (error) {
           console.error("Draft generation failed:", error);
-          alert("Dështoi gjenerimi i dokumentit.");
+          alert("Dështoi gjenerimi i dokumentit. Ju lutem provoni përsëri.");
       } finally {
           setIsGenerating(false);
       }
@@ -167,11 +150,13 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                              )}
 
                             <div className="bg-purple-900/10 p-5 rounded-xl border border-purple-500/20">
-                                <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-2"><MessageCircleQuestion size={16}/> Pyetje për Dëshmitarin (Cross-Examination)</h3>
+                                {/* PHOENIX FIX: Removed '(Cross-Examination)' */}
+                                <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-2"><MessageCircleQuestion size={16}/> Pyetje për Dëshmitarin</h3>
                                 {result.suggested_questions && result.suggested_questions.length > 0 ? (<ul className="space-y-3">{result.suggested_questions.map((q, i) => (<li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-purple-500/10 hover:border-purple-500/30 transition-colors"><span className="text-purple-400 font-bold">Q{i+1}:</span><span className="leading-relaxed font-medium">{q}</span></li>))}</ul>) : <p className="text-gray-500 text-sm italic">Nuk u gjeneruan pyetje specifike.</p>}
                             </div>
                              <div className="bg-emerald-900/10 p-5 rounded-xl border border-emerald-500/20">
-                                <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Target size={16}/> Kërkesa për Prova (Discovery)</h3>
+                                {/* PHOENIX FIX: Removed '(Discovery)' */}
+                                <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Target size={16}/> Kërkesa për Prova</h3>
                                 {result.discovery_targets && result.discovery_targets.length > 0 ? (<ul className="space-y-3">{result.discovery_targets.map((d, i) => (<li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-emerald-500/10"><span className="text-emerald-400 font-bold">➢</span><span className="leading-relaxed">{d}</span></li>))}</ul>) : <p className="text-gray-500 text-sm italic">Nuk u identifikuan prova të reja për t'u kërkuar.</p>}
                             </div>
                          </div>

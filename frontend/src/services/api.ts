@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER v2.6 (LITIGATION ENABLED)
-// 1. ADDED: crossExamineDocument() to Intelligence Methods.
-// 2. STATUS: Fully verified.
+// PHOENIX PROTOCOL - API MASTER v2.7 (DOWNLOAD FIX)
+// 1. ADDED: downloadObjection() uses the correct axios instance base URL.
+// 2. STATUS: Fixes the "HTML inside DOCX" bug.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -306,6 +306,31 @@ class ApiService {
     public async getOriginalDocument(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/original`, { responseType: 'blob' }); return response.data; }
     public async getPreviewDocument(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/preview`, { responseType: 'blob' }); return response.data; }
     public async downloadDocumentReport(caseId: string, documentId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${documentId}/report`, { responseType: 'blob' }); return response.data; }
+    
+    // NEW: DOWNLOAD OBJECTION (Correctly implemented with axiosInstance)
+    public async downloadObjection(caseId: string, docId: string): Promise<void> {
+        const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${docId}/generate-objection`, {
+            responseType: 'blob'
+        });
+        
+        // Handle Filename
+        let filename = 'Kundërshtim.docx';
+        const disposition = response.headers['content-disposition'];
+        if (disposition && disposition.indexOf('filename=') !== -1) {
+            const matches = /filename="?([^"]+)"?/.exec(disposition);
+            if (matches && matches[1]) filename = matches[1];
+        }
+
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    }
+
     public async archiveCaseDocument(caseId: string, documentId: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/cases/${caseId}/documents/${documentId}/archive`); return response.data; }
     public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); }
     
@@ -314,7 +339,6 @@ class ApiService {
     public async getFindings(caseId: string): Promise<Finding[]> { const response = await this.axiosInstance.get<any>(`/cases/${caseId}/findings`); return Array.isArray(response.data) ? response.data : (response.data.findings || []); }
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
     
-    // NEW: CROSS-EXAMINATION METHOD
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { 
         const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); 
         return response.data; 
