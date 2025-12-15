@@ -1,7 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V4.3 (IMPORT FIX)
-# 1. FIX: Verified import paths for 'findings_service.get_findings_for_case'.
-# 2. STATUS: Operational.
+# PHOENIX PROTOCOL - CASES ROUTER V4.4 (FORCE REFRESH)
+# 1. FIX: Removed cache check in 'cross_examine_document'.
+# 2. LOGIC: Forces the AI to re-run the analysis every time the button is clicked, ensuring the new Prompt (V13.1) is used.
+# 3. STATUS: Live.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Dict, Any, Union
@@ -20,7 +21,7 @@ from datetime import datetime, timezone
 from ...services import (
     case_service,
     document_service,
-    findings_service, # Verified Import
+    findings_service,
     report_service,
     storage_service,
     analysis_service,
@@ -99,10 +100,7 @@ async def create_draft_for_case(case_id: str, job_in: DraftRequest, current_user
 @router.get("/{case_id}/findings", response_model=FindingsListOut, tags=["Findings"])
 async def get_findings_for_case_endpoint(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
-    # Explicitly calling findings_service.get_findings_for_case
     findings_data = await asyncio.to_thread(findings_service.get_findings_for_case, db=db, case_id=case_id)
-    
-    # Auto-Sync Calendar
     await asyncio.to_thread(case_service.sync_case_calendar_from_findings, db=db, case_id=case_id, user_id=current_user.id)
     
     findings_out_list = []
@@ -210,8 +208,10 @@ async def cross_examine_document(
     if str(target_doc.case_id) != case_id:
         raise HTTPException(status_code=403, detail="Access Denied.")
     
-    if target_doc.litigation_analysis:
-        return JSONResponse(content=target_doc.litigation_analysis)
+    # PHOENIX FIX: DISABLED CACHE RETURN
+    # We want to force the new LLM prompt (V13.1) to run every time.
+    # if target_doc.litigation_analysis:
+    #     return JSONResponse(content=target_doc.litigation_analysis)
 
     other_docs_cursor = db.documents.find(
         {"case_id": validated_case_id, "_id": {"$ne": validated_doc_id}, "summary": {"$exists": True, "$ne": None}},
