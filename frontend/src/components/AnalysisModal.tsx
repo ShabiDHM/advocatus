@@ -1,7 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - WAR ROOM UI V2.4 (FINAL CLEANUP)
-// 1. FIXED: Removed '(Cross-Examination)' text.
-// 2. STATUS: Pure Albanian UI.
+// PHOENIX PROTOCOL - WAR ROOM UI V2.6 (LABEL FIX)
+// 1. FIX: Changed "Q1:" label to "Pyetje 1:".
+// 2. STATUS: Pure Albanian UI verified.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -26,7 +26,7 @@ interface AnalysisModalProps {
   result: LitigationAnalysis;
   isLoading?: boolean;
   caseId: string;
-  docId?: string; // Optional: Only needed for Draft Generation
+  docId?: string; 
 }
 
 const scrollbarStyles = `
@@ -35,6 +35,18 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 `;
+
+// Helper to clean AI output on the fly
+const sanitizeText = (text: string): string => {
+    if (!text) return "";
+    return text
+        .replace(/Target thotë/gi, "Dokumenti thotë")
+        .replace(/Target says/gi, "Dokumenti thotë")
+        .replace(/Target/g, "Dokumenti")
+        .replace(/Context ka/gi, "Dosja përmban")
+        .replace(/Context has/gi, "Dosja përmban")
+        .replace(/Context/g, "Dosja");
+};
 
 const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, isLoading, caseId, docId }) => {
   const { t } = useTranslation();
@@ -48,7 +60,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   }, [isOpen]);
 
   const handleGenerateObjection = async () => {
-      if (!docId) return; // Guard clause
+      if (!docId) return; 
       try {
           setIsGenerating(true);
           await apiService.downloadObjection(caseId, docId);
@@ -115,14 +127,14 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                             <div className="bg-blue-900/10 p-5 rounded-xl border border-blue-500/20">
                                 <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-2"><FileText size={16}/> {t('analysis.summary', 'Analiza e Besueshmërisë')}</h3>
-                                <p className="text-gray-200 text-sm leading-relaxed">{result.summary_analysis || "Nuk ka analizë të disponueshme."}</p>
+                                <p className="text-gray-200 text-sm leading-relaxed">{sanitizeText(result.summary_analysis || "") || "Nuk ka analizë të disponueshme."}</p>
                             </div>
                             {result.conflicting_parties && result.conflicting_parties.length > 0 && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {result.conflicting_parties.map((party, idx) => (
                                         <div key={idx} className="p-4 rounded-xl border bg-white/5 border-white/10">
                                             <div className="flex items-center gap-2 mb-2"><User size={16} className="text-gray-400" /><h4 className="font-bold text-sm text-gray-200">{party.party_name}</h4></div>
-                                            <p className="text-gray-400 text-xs italic">"{party.core_claim}"</p>
+                                            <p className="text-gray-400 text-xs italic">"{sanitizeText(party.core_claim)}"</p>
                                         </div>
                                     ))}
                                 </div>
@@ -130,7 +142,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                             {result.contradictions && result.contradictions.length > 0 && (
                                 <div className="bg-orange-900/10 p-5 rounded-xl border border-orange-500/20">
                                     <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wider mb-3 flex items-center gap-2"><ShieldAlert size={16}/> Kontradikta të Gjetura</h3>
-                                    <ul className="space-y-2">{result.contradictions.map((c, i) => (<li key={i} className="flex gap-3 text-sm text-gray-300 bg-black/20 p-3 rounded-lg border border-white/5"><span className="text-orange-500 font-bold">•</span><span className="leading-relaxed">{c}</span></li>))}</ul>
+                                    <ul className="space-y-2">{result.contradictions.map((c, i) => (<li key={i} className="flex gap-3 text-sm text-gray-300 bg-black/20 p-3 rounded-lg border border-white/5"><span className="text-orange-500 font-bold">•</span><span className="leading-relaxed">{sanitizeText(c)}</span></li>))}</ul>
                                 </div>
                             )}
                         </div>
@@ -150,14 +162,24 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                              )}
 
                             <div className="bg-purple-900/10 p-5 rounded-xl border border-purple-500/20">
-                                {/* PHOENIX FIX: Removed '(Cross-Examination)' */}
                                 <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-2"><MessageCircleQuestion size={16}/> Pyetje për Dëshmitarin</h3>
-                                {result.suggested_questions && result.suggested_questions.length > 0 ? (<ul className="space-y-3">{result.suggested_questions.map((q, i) => (<li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-purple-500/10 hover:border-purple-500/30 transition-colors"><span className="text-purple-400 font-bold">Q{i+1}:</span><span className="leading-relaxed font-medium">{q}</span></li>))}</ul>) : <p className="text-gray-500 text-sm italic">Nuk u gjeneruan pyetje specifike.</p>}
+                                {result.suggested_questions && result.suggested_questions.length > 0 ? (
+                                    <ul className="space-y-3">
+                                        {result.suggested_questions.map((q, i) => (
+                                            <li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-purple-500/10 hover:border-purple-500/30 transition-colors">
+                                                {/* PHOENIX FIX: Changed Q{i+1} to Pyetje {i+1} */}
+                                                <span className="text-purple-400 font-bold whitespace-nowrap">Pyetje {i+1}:</span>
+                                                <span className="leading-relaxed font-medium">{sanitizeText(q)}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-gray-500 text-sm italic">Nuk u gjeneruan pyetje specifike.</p>
+                                )}
                             </div>
                              <div className="bg-emerald-900/10 p-5 rounded-xl border border-emerald-500/20">
-                                {/* PHOENIX FIX: Removed '(Discovery)' */}
                                 <h3 className="text-sm font-bold text-emerald-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Target size={16}/> Kërkesa për Prova</h3>
-                                {result.discovery_targets && result.discovery_targets.length > 0 ? (<ul className="space-y-3">{result.discovery_targets.map((d, i) => (<li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-emerald-500/10"><span className="text-emerald-400 font-bold">➢</span><span className="leading-relaxed">{d}</span></li>))}</ul>) : <p className="text-gray-500 text-sm italic">Nuk u identifikuan prova të reja për t'u kërkuar.</p>}
+                                {result.discovery_targets && result.discovery_targets.length > 0 ? (<ul className="space-y-3">{result.discovery_targets.map((d, i) => (<li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-emerald-500/10"><span className="text-emerald-400 font-bold">➢</span><span className="leading-relaxed">{sanitizeText(d)}</span></li>))}</ul>) : <p className="text-gray-500 text-sm italic">Nuk u identifikuan prova të reja për t'u kërkuar.</p>}
                             </div>
                          </div>
                     )}
