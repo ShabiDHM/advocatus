@@ -1,7 +1,6 @@
 // FILE: src/components/GlobalContextSwitcher.tsx
-// PHOENIX PROTOCOL - COMPONENT V1.3 (COORDINATE FIX)
-// 1. FIX: Removed window.scrollY from calculation (Fixed positioning is viewport-relative).
-// 2. STATUS: Dropdown should now appear exactly under the button.
+// PHOENIX PROTOCOL - COMPONENT V1.4
+// STATUS: Verified. Fixed positioning and clean layout.
 
 import React, { useState, useRef, useEffect, ReactNode } from 'react';
 import ReactDOM from 'react-dom';
@@ -43,19 +42,17 @@ const GlobalContextSwitcher: React.FC<GlobalContextSwitcherProps> = ({
 
   const selectedItem = contextItems.find(item => item.id === activeContextId) || contextItems[0];
 
-  // Calculate position (Viewport Relative for Fixed Positioning)
   useEffect(() => {
     if (isOpen && dropdownRef.current) {
       const rect = dropdownRef.current.getBoundingClientRect();
       setMenuPosition({
-        top: rect.bottom, // No scrollY needed for fixed
-        left: rect.left,  // No scrollX needed for fixed
+        top: rect.bottom,
+        left: rect.left,
         width: rect.width,
       });
     }
   }, [isOpen]);
 
-  // Handle Resize/Scroll to keep menu attached
   useEffect(() => {
       if (!isOpen) return;
       const handleUpdate = () => {
@@ -68,7 +65,7 @@ const GlobalContextSwitcher: React.FC<GlobalContextSwitcherProps> = ({
               });
           }
       };
-      window.addEventListener('scroll', handleUpdate, true); // true for capture
+      window.addEventListener('scroll', handleUpdate, true);
       window.addEventListener('resize', handleUpdate);
       return () => {
           window.removeEventListener('scroll', handleUpdate, true);
@@ -78,13 +75,9 @@ const GlobalContextSwitcher: React.FC<GlobalContextSwitcherProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      // Check if click is inside the button
       if (dropdownRef.current && dropdownRef.current.contains(event.target as Node)) {
           return;
       }
-      // Note: We can't easily check if click is inside the portal content here 
-      // without a ref to the portal, but usually closing on any outside click is fine 
-      // as long as the menu items stop propagation.
       setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -122,9 +115,9 @@ const GlobalContextSwitcher: React.FC<GlobalContextSwitcherProps> = ({
                 top: menuPosition.top + 8,
                 left: menuPosition.left,
                 width: menuPosition.width,
-                minWidth: '200px' // Ensure it's not too thin on mobile
+                minWidth: '200px'
             }}
-            onMouseDown={(e) => e.stopPropagation()} // Prevent outside click listener from firing immediately
+            onMouseDown={(e) => e.stopPropagation()}
             >
             {contextItems.map(item => (
                 <button

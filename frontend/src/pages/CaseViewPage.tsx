@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V6.6 (MOBILE RESPONSIVE)
-// 1. UI FIX: CaseHeader now stacks vertically on small screens.
-// 2. LOGIC: All buttons are full-width on mobile for easy tapping.
-// 3. STATUS: Clean, responsive, and production-ready.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V6.8
+// 1. UI FIX: Share button converted to Icon-Only (Square, p-2.5) to match adjacent button heights.
+// 2. STATUS: Production-ready.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -84,20 +83,30 @@ const CaseHeader: React.FC<{
 
     return (
         <motion.div className="mb-6 p-4 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-white/10" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          {/* PHOENIX FIX: flex-col on mobile, md:flex-row on desktop */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex-1 min-w-0 w-full">
                   <h1 className="text-xl sm:text-2xl font-bold text-text-primary break-words mb-3 leading-tight">{caseDetails.case_name}</h1>
                   <div className="flex flex-row flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm text-text-secondary"><div className="flex items-center"><User className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{caseDetails.client?.name || 'N/A'}</span></div><div className="flex items-center"><Briefcase className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`)}</span></div><div className="flex items-center"><Info className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div></div>
               </div>
               
-              {/* PHOENIX FIX: Buttons stack vertically on mobile (w-full), row on desktop (w-auto) */}
               <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
                   <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full md:w-auto" />
                   
-                  <div className="grid grid-cols-2 md:flex md:items-center gap-3 w-full md:w-auto">
-                    <button onClick={handleCopyLink} className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all ${linkCopied ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-black/20 hover:bg-black/40 text-gray-200 border-white/10'}`} type="button">{linkCopied ? <CheckCircle size={16} /> : <Share2 size={16} />}<span className="inline">{linkCopied ? t('general.copied') : "Ndaj"}</span></button>
-                    <button onClick={onShowFindings} disabled={isRefetchingFindings} className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all" type="button">{isRefetchingFindings ? <Loader2 className="h-4 w-4 animate-spin text-amber-400" /> : <Lightbulb className="h-4 w-4 text-amber-400" />}<span className="inline">{t('caseView.findingsTitle')}</span></button>
+                  <div className="flex items-center gap-3 w-full md:w-auto">
+                    {/* Share Button: Icon Only, p-2.5 for ~36px height matching peers */}
+                    <button 
+                        onClick={handleCopyLink} 
+                        title={linkCopied ? t('general.copied', 'E kopjuar!') : t('general.share', 'Ndaj')}
+                        className={`flex items-center justify-center p-2.5 rounded-xl border transition-all flex-shrink-0 ${linkCopied ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-black/20 hover:bg-black/40 text-gray-200 border-white/10'}`} 
+                        type="button"
+                    >
+                        {linkCopied ? <CheckCircle size={16} /> : <Share2 size={16} />}
+                    </button>
+
+                    <button onClick={onShowFindings} disabled={isRefetchingFindings} className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all" type="button">
+                        {isRefetchingFindings ? <Loader2 className="h-4 w-4 animate-spin text-amber-400" /> : <Lightbulb className="h-4 w-4 text-amber-400" />}
+                        <span className="inline">{t('caseView.findingsTitle')}</span>
+                    </button>
                   </div>
                   
                   <button onClick={onAnalyze} disabled={isAnalyzing} className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all disabled:opacity-50" type="button">{isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin text-primary-start" /> : <ShieldCheck className="h-4 w-4 text-primary-start" />}<span className="inline">{isAnalyzing ? t('analysis.analyzing') : analyzeButtonText}</span></button>
