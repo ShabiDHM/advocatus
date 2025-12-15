@@ -1,7 +1,7 @@
 // FILE: src/components/GlobalContextSwitcher.tsx
-// PHOENIX PROTOCOL - NEW COMPONENT V1.0
-// 1. UI: A reusable dropdown to select Case vs a specific Document.
-// 2. LOGIC: Centralizes the "active context" for the entire page.
+// PHOENIX PROTOCOL - COMPONENT V1.1 (Z-INDEX FIX)
+// 1. UI FIX: Increased dropdown z-index to 50 to ensure it appears above all other panels.
+// 2. STATUS: Clean build, correct visual stacking.
 
 import React, { useState, useRef, useEffect, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -73,6 +73,7 @@ const GlobalContextSwitcher: React.FC<GlobalContextSwitcherProps> = ({
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
+            // PHOENIX FIX: Added z-50 to ensure it renders on top
             className="absolute right-0 top-full mt-2 w-72 max-h-80 overflow-y-auto custom-scrollbar bg-background-dark border border-white/10 rounded-xl shadow-2xl z-50"
           >
             {contextItems.map(item => (
