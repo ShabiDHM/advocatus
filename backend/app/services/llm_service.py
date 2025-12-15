@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V13.2 (ENTITY RECOGNITION)
-# 1. FIX: Updated 'perform_litigation_cross_examination' prompt.
-# 2. LOGIC: Explicitly commands AI to extract mentioned names (Sanije, Nazlie, etc.) and their role/claims.
-# 3. STATUS: Full Entity Extraction enabled.
+# PHOENIX PROTOCOL - INTELLIGENCE V13.3 (DRAGNET MODE)
+# 1. FIX: Updated 'conflicting_parties' definition to capture ALL names (Witnesses, Relatives), not just opponents.
+# 2. LOGIC: Forces AI to list 'Nazlie Bala' and other third parties mentioned in the narrative.
+# 3. STATUS: Maximum Entity Extraction.
 
 import os
 import json
@@ -175,13 +175,13 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
     1. **IDENTIFIKO AUTORIN:** Identifiko kush po flet në [TARGET] (psh. "Shaban Bala", "Prokurori").
     2. **PËRDOR EMRAT REALE:** Shkruaj "Shaban Bala deklaron..." në vend të "Target thotë...".
     3. **DOSJA VS DOKUMENTI:** Në vend të "Context", përdor "Dosja" ose emrin specifik të dokumentit.
-    4. **PERSONAT E PËRMENDUR:** Identifiko çdo person tjetër të përmendur në [TARGET] (psh. Palë kundërshtare, Dëshmitarë, Bashkëpunëtorë) dhe shpjego çfarë thuhet për ta.
+    4. **DRAGNET I PERSONAVE (E RËNDËSISHME):** Listoni ÇDO emër të përveçëm të përmendur në [TARGET] (psh. "Sanije Bala", "Nazlie Bala", "Dëshmitarët", "Bashkëpunëtorët") në fushën 'conflicting_parties'. Nuk ka rëndësi nëse janë palë apo vetëm dëshmitarë.
 
     FORMATI JSON (Strict):
     {
         "summary_analysis": "Analizë kritike e besueshmërisë së dokumentit.",
         "conflicting_parties": [
-            {"party_name": "Emri i Personit të përmendur", "core_claim": "Çfarë thotë Autori për këtë person? (psh. 'Akuzohet për fabrikim provash')"}
+            {"party_name": "Emri (psh. Nazlie Bala)", "core_claim": "Roli i saj ose çfarë thuhet për të në dokument."}
         ],
         "contradictions": [
             "Autori (Emri) deklaron 'X' (fq. 2), por kjo kundërshtohet nga Dokumenti Y (Dosja)."
