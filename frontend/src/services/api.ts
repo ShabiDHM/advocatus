@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER v2.9 (ARCHIVE IMPORT SUPPORT)
-// 1. ADDED: importArchiveDocuments() method.
-// 2. STATUS: Verified.
+// PHOENIX PROTOCOL - API MASTER v3.0 (POST BULK DELETE)
+// 1. FIXED: Switched bulkDeleteDocuments to POST to avoid proxy 400 Bad Request.
+// 2. STATUS: Fully verified.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -124,9 +124,9 @@ class ApiService {
     public async getDocument(caseId: string, documentId: string): Promise<Document> { const response = await this.axiosInstance.get<Document>(`/cases/${caseId}/documents/${documentId}`); return response.data; }
     public async deleteDocument(caseId: string, documentId: string): Promise<DeletedDocumentResponse> { const response = await this.axiosInstance.delete<DeletedDocumentResponse>(`/cases/${caseId}/documents/${documentId}`); return response.data; }
     
-    // NEW: BULK DELETE
+    // PHOENIX FIX: Switched to POST for Bulk Delete
     public async bulkDeleteDocuments(caseId: string, documentIds: string[]): Promise<any> {
-        const response = await this.axiosInstance.delete(`/cases/${caseId}/documents/bulk`, { data: { document_ids: documentIds } });
+        const response = await this.axiosInstance.post(`/cases/${caseId}/documents/bulk-delete`, { document_ids: documentIds });
         return response.data;
     }
 

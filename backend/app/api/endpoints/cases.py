@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V4.0 (ARCHIVE IMPORT)
-# 1. NEW: /documents/import-archive endpoint.
-# 2. LOGIC: Performs soft-copy from Archive to Case Docs.
+# PHOENIX PROTOCOL - CASES ROUTER V4.1 (BULK DELETE FIX)
+# 1. FIXED: Changed 'bulk_delete_documents' to POST.
+# 2. REASON: Ensures request body is transmitted reliably through proxies.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Dict, Any, Union
@@ -135,7 +135,6 @@ async def upload_document_for_case(case_id: str, current_user: Annotated[UserInD
         logger.error(f"Upload failed: {e}")
         raise HTTPException(status_code=500, detail="Document upload failed.")
 
-# --- NEW: ARCHIVE IMPORT ENDPOINT ---
 @router.post("/{case_id}/documents/import-archive", status_code=status.HTTP_201_CREATED, tags=["Documents"])
 async def import_archive_documents(
     case_id: str,
@@ -143,12 +142,7 @@ async def import_archive_documents(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Imports documents from the Global Archive into the specific Case.
-    Performs a 'Soft Copy' (S3 Copy Object) so it's instant.
-    """
     validate_object_id(case_id)
-    
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
@@ -157,7 +151,6 @@ async def import_archive_documents(
     
     for item_id in body.archive_item_ids:
         try:
-            # Fetch Archive Item (Ensure it belongs to user)
             archive_item = await asyncio.to_thread(
                 db.archives.find_one,
                 {"_id": ObjectId(item_id), "user_id": current_user.id, "item_type": "FILE"}
@@ -169,14 +162,12 @@ async def import_archive_documents(
             original_key = archive_item["storage_key"]
             filename = archive_item["title"]
             
-            # Generate new key for the case context (S3 Copy)
             new_key = await asyncio.to_thread(
                 storage_service.copy_s3_object,
                 source_key=original_key,
                 dest_folder=f"{current_user.id}/{case_id}"
             )
             
-            # Create Document Record
             new_doc = document_service.create_document_record(
                 db=db,
                 owner=current_user,
@@ -186,7 +177,6 @@ async def import_archive_documents(
                 mime_type="application/pdf"
             )
             
-            # Trigger Deep Scan automatically
             celery_app.send_task("process_document_task", args=[str(new_doc.id)])
             
             imported_docs.append(DocumentOut.model_validate(new_doc))
@@ -315,7 +305,8 @@ async def delete_document(case_id: str, doc_id: str, current_user: Annotated[Use
     ids = await asyncio.to_thread(document_service.delete_document_by_id, db=db, redis_client=redis_client, doc_id=ObjectId(doc_id), owner=current_user)
     return JSONResponse(status_code=200, content={"documentId": doc_id, "deletedFindingIds": ids})
 
-@router.delete("/{case_id}/documents/bulk", tags=["Documents"])
+# --- PHOENIX FIX: Changed DELETE to POST to support body payload ---
+@router.post("/{case_id}/documents/bulk-delete", tags=["Documents"])
 async def bulk_delete_documents(
     case_id: str,
     body: BulkDeleteRequest,
@@ -326,7 +317,14 @@ async def bulk_delete_documents(
     validate_object_id(case_id)
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case: raise HTTPException(status_code=404, detail="Case not found.")
-    result = await asyncio.to_thread(document_service.bulk_delete_documents, db=db, redis_client=redis_client, document_ids=body.document_ids, owner=current_user)
+    
+    result = await asyncio.to_thread(
+        document_service.bulk_delete_documents, 
+        db=db, 
+        redis_client=redis_client, 
+        document_ids=body.document_ids, 
+        owner=current_user
+    )
     return JSONResponse(status_code=200, content=result)
 
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut, tags=["Documents"])
