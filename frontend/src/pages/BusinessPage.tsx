@@ -1,14 +1,14 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V9.0 (MODULARIZED SHELL)
-// 1. ARCHITECTURE: Split into Profile, Finance, and Archive components.
-// 2. LOGIC: Minimal state, pure routing logic.
+// PHOENIX PROTOCOL - BUSINESS PAGE V9.1 (IMPORT FIX)
+// 1. FIXED: Correctly imports 'ArchiveTab' as a named export.
+// 2. STATUS: Clean build.
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ProfileTab } from '../components/business/ProfileTab';
 import { FinanceTab } from '../components/business/FinanceTab';
-import { ArchiveTab } from '../components/business/ArchiveTab';
+import { ArchiveTab } from '../components/business/ArchiveTab'; // Correct Named Import
 
 type ActiveTab = 'profile' | 'finance' | 'archive';
 
