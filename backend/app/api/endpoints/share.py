@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/share.py
-# PHOENIX PROTOCOL - SHARE ENDPOINT V2.1 (VIBER/INSTA SUPPORT)
-# 1. FIX: Added 'viber' and 'instagram' to bot detection.
-# 2. RESULT: Rich cards now appear on Viber and Instagram DMs.
+# PHOENIX PROTOCOL - SHARE ENDPOINT V2.2 (JPEG COMPRESSION)
+# 1. FIX: Changed media_type to 'image/jpeg' to match the optimized service output.
+# 2. LOGIC: Ensures browsers and social bots render the compressed image correctly.
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, RedirectResponse, HTMLResponse
@@ -23,7 +23,8 @@ async def get_landing_image():
     """
     try:
         img_bytes = generate_landing_card()
-        return Response(content=img_bytes, media_type="image/png")
+        # PHOENIX FIX: Serving JPEG
+        return Response(content=img_bytes, media_type="image/jpeg")
     except Exception:
         return Response(status_code=404)
 
@@ -41,7 +42,8 @@ async def get_case_social_image(
         status = "Hapur" 
         
         img_bytes = generate_social_card(title, client, status)
-        return Response(content=img_bytes, media_type="image/png")
+        # PHOENIX FIX: Serving JPEG
+        return Response(content=img_bytes, media_type="image/jpeg")
     except Exception:
         return Response(status_code=404)
 
@@ -56,15 +58,15 @@ async def share_case_link(
     """
     user_agent = request.headers.get("user-agent", "").lower()
     
-    # PHOENIX FIX: Expanded Bot List for Viber & Instagram
+    # Expanded Bot List for Viber & Instagram
     bots = [
         'facebookexternalhit', 
         'whatsapp', 
         'twitterbot', 
         'telegrambot', 
         'linkedinbot',
-        'viber',      # <--- Added for Viber
-        'instagram',  # <--- Added for Instagram DMs
+        'viber',
+        'instagram',
         'discordbot',
         'slackbot'
     ]
