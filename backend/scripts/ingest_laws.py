@@ -1,8 +1,8 @@
 # FILE: backend/scripts/ingest_laws.py
-# PHOENIX PROTOCOL - INGESTION SCRIPT V2 (KOSOVO EXCLUSIVE)
-# 1. JURISDICTION: Removed CLI argument. STRICTLY hardcoded to 'ks'.
-# 2. TYPE SAFETY: Preserved Metadata typing fix from previous version.
-# 3. LOGIC: Tags all ingested documents as Kosovo Law.
+# PHOENIX PROTOCOL - INGESTION SCRIPT V2.1 (CASE INSENSITIVE)
+# 1. FIX: Added support for .PDF, .DOCX, .TXT (Uppercase extensions).
+# 2. DEBUG: Prints absolute path to confirm Docker volume mapping.
+# 3. STATUS: Capable of seeing all files.
 
 import os
 import sys
@@ -32,7 +32,6 @@ except ImportError as e:
 CHROMA_HOST = os.getenv("CHROMA_HOST", "chroma")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8000))
 COLLECTION_NAME = "legal_knowledge_base"
-# PHOENIX: STRICT ENFORCEMENT
 TARGET_JURISDICTION = 'ks'
 
 print(f"⚙️  CONFIG: Chroma={CHROMA_HOST}:{CHROMA_PORT}")
@@ -50,6 +49,14 @@ def calculate_file_hash(filepath: str) -> str:
         return ""
 
 def ingest_legal_docs(directory_path: str):
+    abs_path = os.path.abspath(directory_path)
+    print(f"📂 Scanning Directory: {abs_path}")
+    
+    if not os.path.isdir(directory_path):
+        print(f"❌ Directory not found: {directory_path}")
+        print("   -> Did you mount the volume correctly in Docker?")
+        return
+
     print(f"🔌 Connecting to ChromaDB (Target: {TARGET_JURISDICTION.upper()})...")
     
     try:
@@ -63,21 +70,23 @@ def ingest_legal_docs(directory_path: str):
         print(f"❌ DB Connection Failed: {e}")
         return
 
-    supported_extensions = ['*.pdf', '*.docx', '*.txt']
+    # PHOENIX FIX: Added Uppercase Extensions
+    supported_extensions = ['*.pdf', '*.PDF', '*.docx', '*.DOCX', '*.txt', '*.TXT']
     all_files = []
     
-    if os.path.isdir(directory_path):
-        for ext in supported_extensions:
-            all_files.extend(glob.glob(os.path.join(directory_path, "**", ext), recursive=True))
-    else:
-        print(f"❌ Directory not found: {directory_path}")
-        return
+    for ext in supported_extensions:
+        found = glob.glob(os.path.join(directory_path, "**", ext), recursive=True)
+        all_files.extend(found)
+
+    # Deduplicate list just in case of weird OS behavior
+    all_files = sorted(list(set(all_files)))
 
     if not all_files:
         print(f"⚠️ No documents found in {directory_path}")
+        print(f"   -> Searched for: {supported_extensions}")
         return
 
-    print(f"📚 Scanning {len(all_files)} files in library for Jurisdiction: {TARGET_JURISDICTION.upper()}...")
+    print(f"📚 Found {len(all_files)} files. Starting processing...")
     
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     stats = {"skipped": 0, "added": 0, "updated": 0, "failed": 0}
@@ -99,7 +108,7 @@ def ingest_legal_docs(directory_path: str):
             
             # Check for hash match AND strict jurisdiction match
             if ids and metas and metas[0].get("file_hash") == current_hash and metas[0].get("jurisdiction") == TARGET_JURISDICTION:
-                print(f"⏭️  Skipped: {filename}")
+                print(f"⏭️  Skipped (Unchanged): {filename}")
                 stats["skipped"] += 1
                 continue
             
@@ -119,7 +128,9 @@ def ingest_legal_docs(directory_path: str):
 
             docs = loader.load()
             chunks = text_splitter.split_documents(docs)
-            if not chunks: continue
+            if not chunks: 
+                print(" -> ⚠️ Empty Content")
+                continue
 
             BATCH_SIZE = 20
             for i in range(0, len(chunks), BATCH_SIZE):
@@ -156,7 +167,6 @@ def ingest_legal_docs(directory_path: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Ingest laws into ChromaDB (KOSOVO EXCLUSIVE).")
     parser.add_argument("path", nargs="?", default="/app/data/laws", help="Path to documents folder")
-    # PHOENIX: Removed --jurisdiction argument
     
     args = parser.parse_args()
     ingest_legal_docs(args.path)
