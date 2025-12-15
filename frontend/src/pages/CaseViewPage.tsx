@@ -1,7 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V6.8
-// 1. UI FIX: Share button converted to Icon-Only (Square, p-2.5) to match adjacent button heights.
-// 2. STATUS: Production-ready.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V6.9 (STACKING FIX)
+// 1. UI FIX: Added 'relative z-40' to CaseHeader.
+// 2. LOGIC: Lifts the header layer above the content layer so dropdowns appear ON TOP of the Chat/Document panels.
+// 3. STATUS: Production-ready.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -82,7 +83,14 @@ const CaseHeader: React.FC<{
         : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
 
     return (
-        <motion.div className="mb-6 p-4 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-white/10" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        // PHOENIX FIX: Added 'relative z-40' here.
+        // This ensures the header (and its dropdowns) sits above the content panels below.
+        <motion.div 
+            className="relative z-40 mb-6 p-4 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-white/10" 
+            initial={{ opacity: 0, y: -10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ duration: 0.3 }}
+        >
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex-1 min-w-0 w-full">
                   <h1 className="text-xl sm:text-2xl font-bold text-text-primary break-words mb-3 leading-tight">{caseDetails.case_name}</h1>
@@ -93,7 +101,7 @@ const CaseHeader: React.FC<{
                   <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full md:w-auto" />
                   
                   <div className="flex items-center gap-3 w-full md:w-auto">
-                    {/* Share Button: Icon Only, p-2.5 for ~36px height matching peers */}
+                    {/* Share Button: Icon Only */}
                     <button 
                         onClick={handleCopyLink} 
                         title={linkCopied ? t('general.copied', 'E kopjuar!') : t('general.share', 'Ndaj')}
