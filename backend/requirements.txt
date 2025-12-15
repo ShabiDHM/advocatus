@@ -1,7 +1,7 @@
-# FILE: backend/requirements.txt (UNIFIED & PINNED - V4.8)
-# PHOENIX PROTOCOL - CLEANUP
-# 1. REMOVED: groq dependency (System is now DeepSeek + Local LLM only).
-# 2. STATUS: Optimized for Eco-Mode.
+# FILE: backend/requirements.txt (UNIFIED & PINNED - V4.9)
+# PHOENIX PROTOCOL - DEPENDENCY UPDATE
+# 1. ADDED: python-pptx (Required for 'dock ppp' / PowerPoint extraction).
+# 2. STATUS: Full Office Suite Support (Word, Excel, PowerPoint, PDF).
 
 # --- Core Web Framework & Async ---
 fastapi==0.109.2
@@ -51,6 +51,7 @@ pdfminer.six==20250506
 PyMuPDF==1.26.4
 pypdf==6.0.0
 python-docx==1.2.0
+python-pptx==0.6.23
 pytesseract==0.3.13
 pillow==11.3.0
 reportlab==4.4.3
