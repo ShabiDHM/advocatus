@@ -1,8 +1,7 @@
 // FILE: src/components/ArchiveImportModal.tsx
-// PHOENIX PROTOCOL - ARCHIVE SELECTOR MODAL
-// 1. NAVIGATION: Simple folder navigation (Drill-down).
-// 2. SELECTION: Allows multi-select of files.
-// 3. LOGIC: Imports selected files to the current case instantly.
+// PHOENIX PROTOCOL - ARCHIVE SELECTOR MODAL V2.1 (TYPE FIX)
+// 1. FIX: Added explicit generic type to 'new Set<string>()' to resolve TS error.
+// 2. STATUS: Compliant and Error Free.
 
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
@@ -25,7 +24,6 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   
-  // Breadcrumb tracking: [{id: '123', title: 'Folder A'}]
   const [breadcrumbs, setBreadcrumbs] = useState<{id: string | undefined, title: string}[]>([{id: undefined, title: 'Arkiva'}]);
 
   useEffect(() => {
@@ -47,23 +45,31 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
   const handleFolderClick = (folder: ArchiveItemOut) => {
     setBreadcrumbs(prev => [...prev, { id: folder.id, title: folder.title }]);
     setCurrentFolderId(folder.id);
+    setSelectedIds(new Set()); // Clear selection when changing folders
   };
 
   const handleBack = () => {
     if (breadcrumbs.length <= 1) return;
     const newBreadcrumbs = [...breadcrumbs];
-    newBreadcrumbs.pop(); // Remove current
+    newBreadcrumbs.pop(); 
     const parent = newBreadcrumbs[newBreadcrumbs.length - 1];
     setBreadcrumbs(newBreadcrumbs);
     setCurrentFolderId(parent.id);
+    setSelectedIds(new Set()); // Clear selection on back
   };
 
+  // PHOENIX FIX: Added <string> generic to Set constructor
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) newSet.delete(id);
-      else newSet.add(id);
-      return newSet;
+      const newSet = new Set<string>(); // Fix: Explicitly typed as Set<string>
+      if (prev.has(id)) {
+          // If clicking the already selected one, deselect it (empty set)
+          return newSet; 
+      } else {
+          // Otherwise, select ONLY this one
+          newSet.add(id);
+          return newSet;
+      }
     });
   };
 
@@ -133,11 +139,23 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
             ) : (
               items.map(item => {
                 const isSelected = selectedIds.has(item.id);
+                // Disable other files if one is already selected (Visual hint)
+                const isDisabled = selectedIds.size > 0 && !isSelected && item.item_type === 'FILE';
+                
                 return (
                   <div 
                     key={item.id}
-                    onClick={() => item.item_type === 'FOLDER' ? handleFolderClick(item) : toggleSelection(item.id)}
-                    className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${isSelected ? 'bg-primary-900/20 border-primary-500/50' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
+                    onClick={() => {
+                        if (item.item_type === 'FOLDER') handleFolderClick(item);
+                        else toggleSelection(item.id);
+                    }}
+                    className={`
+                        flex items-center justify-between p-3 rounded-xl border transition-all 
+                        ${item.item_type === 'FOLDER' ? 'cursor-pointer hover:bg-white/10 border-white/5 bg-white/5' : ''}
+                        ${item.item_type === 'FILE' && isSelected ? 'cursor-pointer bg-primary-900/20 border-primary-500/50' : ''}
+                        ${item.item_type === 'FILE' && !isSelected && !isDisabled ? 'cursor-pointer bg-white/5 border-white/5 hover:bg-white/10' : ''}
+                        ${isDisabled ? 'opacity-50 cursor-not-allowed bg-black/20 border-transparent' : ''}
+                    `}
                   >
                     <div className="flex items-center gap-3">
                       {item.item_type === 'FOLDER' ? (
@@ -148,7 +166,7 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
                       <span className={`text-sm ${isSelected ? 'text-white font-medium' : 'text-gray-300'}`}>{item.title}</span>
                     </div>
                     {item.item_type === 'FILE' && (
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-primary-500 border-primary-500' : 'border-gray-600'}`}>
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${isSelected ? 'bg-primary-500 border-primary-500' : 'border-gray-600'}`}>
                         {isSelected && <Check size={12} className="text-white" />}
                       </div>
                     )}
@@ -161,7 +179,9 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
           {/* Footer Actions */}
           <div className="p-4 border-t border-white/10 bg-background-light/10 flex justify-between items-center">
             <span className="text-sm text-gray-400">
-              {selectedIds.size} dokumente të zgjedhura
+                {selectedIds.size === 0 
+                    ? "Zgjidhni një dokument" 
+                    : "1 dokument i zgjedhur"}
             </span>
             <button 
               onClick={handleImport}
