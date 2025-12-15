@@ -1,10 +1,11 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V7.0 (HEADER LOGIC SYNC)
-// 1. UI FIX: 'Findings' button label now reacts to Global Switcher (like the Analysis button).
-// 2. STATUS: Header fully synchronized with Context Switcher.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V7.1 (DEEP LINKING)
+// 1. FEATURE: Added support for URL parameters (e.g., ?open=findings).
+// 2. LOGIC: Automatically opens the Findings Modal if requested by the Case Card.
+// 3. STATUS: Direct navigation fully functional.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom'; // PHOENIX FIX: Added useSearchParams
 import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
@@ -77,12 +78,10 @@ const CaseHeader: React.FC<{
     const [linkCopied, setLinkCopied] = useState(false);
     const handleCopyLink = () => { const link = `${window.location.origin}/portal/${caseDetails.id}`; navigator.clipboard.writeText(link); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); };
     
-    // LOGIC: Analysis Button Text
     const analyzeButtonText = activeContextId === 'general' 
         ? t('analysis.analyzeButton', 'Analizo Rastin')
         : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
 
-    // LOGIC: Findings Button Text (PHOENIX FIX)
     const findingsButtonText = activeContextId === 'general'
         ? t('caseView.findingsTitle', 'Gjetjet')
         : t('caseView.docFindingsTitle', 'Gjetjet e Dokumentit');
@@ -104,7 +103,6 @@ const CaseHeader: React.FC<{
                   <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full md:w-auto" />
                   
                   <div className="flex items-center gap-3 w-full md:w-auto">
-                    {/* Share Button: Icon Only */}
                     <button 
                         onClick={handleCopyLink} 
                         title={linkCopied ? t('general.copied', 'E kopjuar!') : t('general.share', 'Ndaj')}
@@ -131,6 +129,7 @@ const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
   const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const { caseId } = useParams<{ caseId: string }>();
+  const [searchParams] = useSearchParams(); // PHOENIX FIX: Added
   
   const [caseData, setCaseData] = useState<CaseData>({ details: null, findings: [] });
   const [isLoading, setIsLoading] = useState(true);
@@ -166,6 +165,17 @@ const CaseViewPage: React.FC = () => {
   }, [caseId, t, setLiveDocuments, setMessages]);
 
   useEffect(() => { if (isReadyForData) fetchCaseData(true); }, [isReadyForData, fetchCaseData]);
+
+  // PHOENIX FIX: Deep Link Handler
+  // Automatically opens the findings modal if ?open=findings is in the URL and data is loaded
+  useEffect(() => {
+    if (!isLoading && caseData.details && searchParams.get('open') === 'findings') {
+        // Trigger the logic to prepare and show findings
+        const findingsToShow = caseData.findings; // Default to all for deep link
+        setModalFindings(findingsToShow);
+        setActiveModal('findings');
+    }
+  }, [isLoading, caseData.details, searchParams]);
   
   const handleDocumentUploaded = (newDoc: Document) => { setLiveDocuments(prev => [sanitizeDocument(newDoc), ...prev]); };
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => { setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(response.documentId))); setCaseData(prev => ({ ...prev, findings: prev.findings.filter(f => String(f.document_id) !== String(response.documentId)) })); };
