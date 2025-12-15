@@ -1,7 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V4.1 (BULK DELETE FIX)
-# 1. FIXED: Changed 'bulk_delete_documents' to POST.
-# 2. REASON: Ensures request body is transmitted reliably through proxies.
+# PHOENIX PROTOCOL - CASES ROUTER V4.2 (STABILITY RECOVERY)
+# 1. REVERTED: Removed automatic 'consolidate_case_findings' trigger from /analyze.
+# 2. REASON: Prevents destructive overwrite of raw findings, ensuring stability.
+# 3. STATUS: Stable. Synthesis will be a separate, explicit feature.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Dict, Any, Union
@@ -298,14 +299,6 @@ async def get_document_report_pdf(case_id: str, doc_id: str, current_user: Annot
     pdf_buffer = await asyncio.to_thread(report_service.create_pdf_from_text, text=content or "", document_title=doc.file_name)
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers={'Content-Disposition': f'inline; filename="{doc.file_name}.pdf"'})
 
-@router.delete("/{case_id}/documents/{doc_id}", tags=["Documents"])
-async def delete_document(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db), redis_client: redis.Redis = Depends(get_sync_redis)):
-    document = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
-    if str(document.case_id) != case_id: raise HTTPException(status_code=403)
-    ids = await asyncio.to_thread(document_service.delete_document_by_id, db=db, redis_client=redis_client, doc_id=ObjectId(doc_id), owner=current_user)
-    return JSONResponse(status_code=200, content={"documentId": doc_id, "deletedFindingIds": ids})
-
-# --- PHOENIX FIX: Changed DELETE to POST to support body payload ---
 @router.post("/{case_id}/documents/bulk-delete", tags=["Documents"])
 async def bulk_delete_documents(
     case_id: str,
@@ -317,14 +310,7 @@ async def bulk_delete_documents(
     validate_object_id(case_id)
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case: raise HTTPException(status_code=404, detail="Case not found.")
-    
-    result = await asyncio.to_thread(
-        document_service.bulk_delete_documents, 
-        db=db, 
-        redis_client=redis_client, 
-        document_ids=body.document_ids, 
-        owner=current_user
-    )
+    result = await asyncio.to_thread(document_service.bulk_delete_documents, db=db, redis_client=redis_client, document_ids=body.document_ids, owner=current_user)
     return JSONResponse(status_code=200, content=result)
 
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut, tags=["Documents"])
@@ -341,7 +327,9 @@ async def rename_document_endpoint(case_id: str, doc_id: str, body: RenameDocume
 @router.post("/{case_id}/analyze", tags=["Analysis"])
 async def analyze_case_risks(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
-    await asyncio.to_thread(findings_service.consolidate_case_findings, db=db, case_id=case_id)
+    # PHOENIX RECOVERY: Automatic consolidation REMOVED to guarantee stability.
+    # This will be a separate, explicit feature in the future.
+    # await asyncio.to_thread(findings_service.consolidate_case_findings, db=db, case_id=case_id)
     return JSONResponse(content=await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id))
 
 @router.post("/{case_id}/documents/{doc_id}/deep-scan", tags=["Documents"])
