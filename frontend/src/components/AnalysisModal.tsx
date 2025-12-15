@@ -1,7 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - WAR ROOM UI V2.7 (TERMINOLOGY REFINEMENT)
-// 1. FIX: Updated sanitization to use "Dokumenti deklaron" instead of "Dokumenti thotë" for professional legal tone.
-// 2. STATUS: Polished Albanian UI.
+// PHOENIX PROTOCOL - WAR ROOM UI V2.8 (UI POLISH)
+// 1. FIX: Added 'validParties' filter to hide empty/ghost boxes (the "-" symbol issue).
+// 2. STATUS: Cleanest UI yet.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -75,6 +75,15 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       }
   };
 
+  // PHOENIX FIX: Ghost Filter
+  // Filters out parties that are null, empty, or just symbols like "-" or "."
+  const validParties = (result.conflicting_parties || []).filter(p => {
+      const name = p.party_name?.trim();
+      const claim = p.core_claim?.trim();
+      return name && name.length > 1 && !/^[-.]+$/.test(name) &&
+             claim && claim.length > 1 && !/^[-.]+$/.test(claim);
+  });
+
   if (!isOpen) return null;
 
   const modalContent = (
@@ -132,9 +141,11 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                 <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-2"><FileText size={16}/> {t('analysis.summary', 'Analiza e Besueshmërisë')}</h3>
                                 <p className="text-gray-200 text-sm leading-relaxed">{sanitizeText(result.summary_analysis || "") || "Nuk ka analizë të disponueshme."}</p>
                             </div>
-                            {result.conflicting_parties && result.conflicting_parties.length > 0 && (
+                            
+                            {/* PHOENIX FIX: Only render if we have VALID parties (no ghosts) */}
+                            {validParties.length > 0 && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {result.conflicting_parties.map((party, idx) => (
+                                    {validParties.map((party, idx) => (
                                         <div key={idx} className="p-4 rounded-xl border bg-white/5 border-white/10">
                                             <div className="flex items-center gap-2 mb-2"><User size={16} className="text-gray-400" /><h4 className="font-bold text-sm text-gray-200">{party.party_name}</h4></div>
                                             <p className="text-gray-400 text-xs italic">"{sanitizeText(party.core_claim)}"</p>
@@ -142,6 +153,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     ))}
                                 </div>
                             )}
+
                             {result.contradictions && result.contradictions.length > 0 && (
                                 <div className="bg-orange-900/10 p-5 rounded-xl border border-orange-500/20">
                                     <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wider mb-3 flex items-center gap-2"><ShieldAlert size={16}/> Kontradikta të Gjetura</h3>

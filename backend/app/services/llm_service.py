@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V13.1 (IDENTITY AWARENESS)
-# 1. FIX: Updated 'perform_litigation_cross_examination' prompt to identifying speakers by NAME.
-# 2. LOGIC: Replaced generic "Target/Context" instructions with "Author/Source" identification rules.
-# 3. STATUS: Professional Legal Attribution enabled.
+# PHOENIX PROTOCOL - INTELLIGENCE V13.2 (ENTITY RECOGNITION)
+# 1. FIX: Updated 'perform_litigation_cross_examination' prompt.
+# 2. LOGIC: Explicitly commands AI to extract mentioned names (Sanije, Nazlie, etc.) and their role/claims.
+# 3. STATUS: Full Entity Extraction enabled.
 
 import os
 import json
@@ -172,19 +172,17 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
     DETYRA: Kryqëzo dokumentin [TARGET] me pjesën tjetër të dosjes [CONTEXT].
     
     UDHËZIMET PËR IDENTITETIN DHE SAKTËSINË:
-    1. **IDENTIFIKO AUTORIN:** Mos përdor kurrë fjalën "Target". Identifiko kush po flet në [TARGET] (psh. "Shaban Bala", "Prokurori", "Qendra Sociale", "Mjeku").
-    2. **PËRDOR EMRAT REALE:** Në vend të "Target thotë...", shkruaj "Shaban Bala deklaron..." ose "Raporti Mjekësor vërteton...".
-    3. **DOSJA VS DOKUMENTI:** Në vend të "Context", përdor "Dosja" ose emrin specifik të dokumentit që kundërshton (psh. "Raporti Policor").
-
-    SHEMBULL I MIRË:
-    "Shaban Bala deklaron se marrëdhëniet janë të mira (faqe 2), por Raporti i QPS (Dosja) thekson se ka konflikte të vazhdueshme."
-
-    SHEMBULL I KEQ (NDALOHET):
-    "Target thotë se marrëdhëniet janë të mira, por Context tregon të kundërtën."
+    1. **IDENTIFIKO AUTORIN:** Identifiko kush po flet në [TARGET] (psh. "Shaban Bala", "Prokurori").
+    2. **PËRDOR EMRAT REALE:** Shkruaj "Shaban Bala deklaron..." në vend të "Target thotë...".
+    3. **DOSJA VS DOKUMENTI:** Në vend të "Context", përdor "Dosja" ose emrin specifik të dokumentit.
+    4. **PERSONAT E PËRMENDUR:** Identifiko çdo person tjetër të përmendur në [TARGET] (psh. Palë kundërshtare, Dëshmitarë, Bashkëpunëtorë) dhe shpjego çfarë thuhet për ta.
 
     FORMATI JSON (Strict):
     {
         "summary_analysis": "Analizë kritike e besueshmërisë së dokumentit.",
+        "conflicting_parties": [
+            {"party_name": "Emri i Personit të përmendur", "core_claim": "Çfarë thotë Autori për këtë person? (psh. 'Akuzohet për fabrikim provash')"}
+        ],
         "contradictions": [
             "Autori (Emri) deklaron 'X' (fq. 2), por kjo kundërshtohet nga Dokumenti Y (Dosja)."
         ],
@@ -194,8 +192,7 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
         "discovery_targets": [
             "Kërkohet: [Emri i Provës] për të vërtetuar pretendimin në paragrafin 3."
         ],
-        "key_evidence": [],
-         "conflicting_parties": []
+        "key_evidence": []
     }
     """
     user_prompt = f"[CONTEXT] (Përmbledhje e Dosjes):\n{formatted_context}\n\n[TARGET] (Dokumenti që po analizohet):\n{clean_target}"
