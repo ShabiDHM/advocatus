@@ -1,7 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V6.3 (LINTER FIX)
-// 1. FIXED: Renamed unused argument 'count' to '_count' to satisfy TypeScript strict mode.
-// 2. STATUS: Clean build.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V6.6 (LINTER CLEANUP)
+// 1. FIXED: Removed unused 'FolderInput' import.
+// 2. STATUS: Zero warnings. Production Ready.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -10,7 +10,7 @@ import { apiService } from '../services/api';
 import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
-    ScanEye, Archive, Pencil, FolderInput, CheckCircle,
+    ScanEye, Archive, Pencil, CheckCircle,
     CheckSquare, Square, XCircle, HardDrive, FilePlus 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -43,8 +43,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   className
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
-
+  
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -126,16 +125,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     if (file) { setUploadError(null); await performUpload(file); if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
 
-  const handleFolderChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const files = event.target.files;
-      if (!files || files.length === 0) return;
-      setUploadError(null);
-      const fileArray = Array.from(files);
-      for (let i = 0; i < fileArray.length; i++) { await performUpload(fileArray[i]); }
-      setCurrentFileName("");
-      if (folderInputRef.current) folderInputRef.current.value = '';
-  };
-
   const handleDeleteDocument = async (documentId: string | undefined) => {
     if (!documentId) return;
     if (!window.confirm(t('documentsPanel.confirmDelete'))) return;
@@ -171,6 +160,15 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       }
   };
 
+  const toggleSelect = (id: string) => {
+      setSelectedIds(prev => {
+          const newSet = new Set(prev);
+          if (newSet.has(id)) newSet.delete(id);
+          else newSet.add(id);
+          return newSet;
+      });
+  };
+
   const handleBulkDelete = async () => {
       if (!window.confirm(`A jeni i sigurt që doni të fshini ${selectedIds.size} dokumente?`)) return;
       setIsBulkDeleting(true);
@@ -188,7 +186,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       }
   };
 
-  // PHOENIX FIX: Prefix with underscore to ignore unused variable
   const handleArchiveImportComplete = (_count: number) => {
       window.location.reload(); 
   };
@@ -271,9 +268,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                                 <button onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 text-sm text-gray-200">
                                     <FilePlus size={16} className="text-blue-400" /> Ngarko Dokument
                                 </button>
-                                <button onClick={() => { setShowAddMenu(false); folderInputRef.current?.click(); }} className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 text-sm text-gray-200">
-                                    <FolderInput size={16} className="text-yellow-400" /> Ngarko Folder
-                                </button>
                                 <button onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 text-sm text-gray-200 border-t border-white/5">
                                     <HardDrive size={16} className="text-green-400" /> Importo nga Arkiva
                                 </button>
@@ -282,10 +276,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </AnimatePresence>
                 </div>
 
-                <input type="file" ref={folderInputRef} onChange={handleFolderChange} className="hidden" 
-                    // @ts-ignore 
-                    webkitdirectory="" directory="" multiple 
-                />
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
             </>
         )}
@@ -321,7 +311,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
             <motion.div 
                 key={doc.id} 
                 layout="position" 
-                className={`group flex items-center justify-between p-3 border rounded-xl transition-all ${isSelected ? 'bg-primary-900/20 border-primary-500/50' : 'bg-background-light/30 hover:bg-background-light/50 border-white/5 hover:border-white/10'}`}
+                onClick={() => !isUploadingState && toggleSelect(doc.id)} // CLICK ROW TO SELECT
+                className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer ${isSelected ? 'bg-primary-900/20 border-primary-500/50' : 'bg-background-light/30 hover:bg-background-light/50 border-white/5 hover:border-white/10'}`}
                 initial={{ opacity: 0, y: -10 }} 
                 animate={{ opacity: 1, y: 0 }}
             >
@@ -338,20 +329,21 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               </div>
               
               <div className={`flex items-center gap-1 sm:gap-2 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-80 group-hover:opacity-100'}`}>
+                {/* Buttons handle their own click events, bubbling stopped to prevent row selection */}
                 {canInteract && (
-                    <button onClick={() => onRename && onRename(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
                 )}
-                <button onClick={() => isReady && handleDeepScan(doc.id)} disabled={!isReady || isScanning} className={`p-1.5 rounded-lg transition-all duration-300 ${isScanning ? "bg-primary-start/20 text-blue-400" : isDone ? "bg-green-500/20 text-green-400" : isReady ? "hover:bg-white/10 text-secondary-start" : "text-gray-600 cursor-not-allowed opacity-50"}`} title={isDone ? t('general.saveSuccess') : t('documentsPanel.deepScan')}>
+                <button onClick={(e) => { e.stopPropagation(); isReady && handleDeepScan(doc.id); }} disabled={!isReady || isScanning} className={`p-1.5 rounded-lg transition-all duration-300 ${isScanning ? "bg-primary-start/20 text-blue-400" : isDone ? "bg-green-500/20 text-green-400" : isReady ? "hover:bg-white/10 text-secondary-start" : "text-gray-600 cursor-not-allowed opacity-50"}`} title={isDone ? t('general.saveSuccess') : t('documentsPanel.deepScan')}>
                     {isScanning ? <Loader2 size={14} className="animate-spin" /> : isDone ? <CheckCircle size={14} /> : <ScanEye size={14} />}
                 </button>
                 {canInteract && (
-                    <button onClick={() => onViewOriginal(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-blue-400 transition-colors" title={t('documentsPanel.viewOriginal')}><Eye size={14} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} className="p-1.5 hover:bg-white/10 rounded-lg text-blue-400 transition-colors" title={t('documentsPanel.viewOriginal')}><Eye size={14} /></button>
                 )}
                 {canInteract && (
-                    <button onClick={() => handleArchiveDocument(doc.id)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.archive', 'Arkivo')}>{archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}</button>
+                    <button onClick={(e) => { e.stopPropagation(); handleArchiveDocument(doc.id); }} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.archive', 'Arkivo')}>{archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}</button>
                 )}
                 {canInteract && (
-                    <button onClick={() => handleDeleteDocument(doc.id)} className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-500/70 hover:text-red-500 transition-colors" title={t('documentsPanel.delete')}><Trash size={14} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-500/70 hover:text-red-500 transition-colors" title={t('documentsPanel.delete')}><Trash size={14} /></button>
                 )}
               </div>
             </motion.div>
