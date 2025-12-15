@@ -1,10 +1,10 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - ARCHITECTURAL CORRECTION
-// 1. REMOVED: The incorrect desktop-only footer that caused the UI duplication has been removed.
-// 2. RESTORED: The component now correctly only displays the user profile section on mobile viewports.
-// 3. STATUS: The UI is now clean, correct, and architecturally sound.
+// PHOENIX PROTOCOL - SIDEBAR V3.0 (SAFE ALERTS)
+// 1. FEATURE: Added Notification Badge for Calendar Alerts.
+// 2. SECURITY: Fetches alerts ONLY when 'user' is authenticated (Prevents 401 Race Condition).
+// 3. UI: Added count badge to the Calendar navigation item.
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
     LayoutDashboard, Calendar, FileText, MessageSquare, 
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
+import { apiService } from '../services/api'; // Import API
 import BrandLogo from './BrandLogo';
 
 interface SidebarProps {
@@ -21,13 +22,40 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const { t } = useTranslation();
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const location = useLocation();
+  const [alertCount, setAlertCount] = useState(0);
+
+  // PHOENIX FIX: Safe Fetch Logic
+  // Prevents 401 errors by waiting for Authentication before requesting data.
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchAlerts = async () => {
+        if (!isAuthenticated || !user) return; // The Guard Clause
+        
+        try {
+            const data = await apiService.getAlertsCount();
+            if (mounted) setAlertCount(data.count);
+        } catch (error) {
+            console.error("Failed to fetch sidebar alerts", error);
+        }
+    };
+
+    fetchAlerts();
+
+    // Optional: Refresh alerts every minute if sidebar is open/visible
+    const interval = setInterval(fetchAlerts, 60000);
+    return () => { 
+        mounted = false; 
+        clearInterval(interval); 
+    };
+  }, [isAuthenticated, user]); // Re-run when auth state changes
 
   const getNavItems = () => {
     const baseItems = [
       { icon: LayoutDashboard, label: t('sidebar.dashboard'), path: '/dashboard' },
-      { icon: Calendar, label: t('sidebar.calendar'), path: '/calendar' },
+      { icon: Calendar, label: t('sidebar.calendar'), path: '/calendar', badge: alertCount }, // Attach Badge
       { icon: FileText, label: t('sidebar.drafting'), path: '/drafting' },
       { icon: Building2, label: t('sidebar.business'), path: '/business' },
       { icon: MessageSquare, label: t('sidebar.support'), path: '/support' },
@@ -81,17 +109,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                   to={item.path}
                   onClick={() => setIsOpen(false)}
                   className={`
-                    flex items-center px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden
+                    flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group relative overflow-hidden
                     ${isActive 
                       ? 'bg-secondary-start/10 text-secondary-start shadow-lg shadow-secondary-start/5' 
                       : 'text-text-secondary hover:text-white hover:bg-white/5'}
                   `}
                 >
-                  {isActive && (
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-secondary-start rounded-r-full" />
-                  )}
-                  <Icon className={`h-5 w-5 mr-3 transition-colors ${isActive ? 'text-secondary-start' : 'group-hover:text-white'}`} />
-                  <span className="font-medium">{item.label}</span>
+                  <div className="flex items-center">
+                      {isActive && (
+                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-secondary-start rounded-r-full" />
+                      )}
+                      <Icon className={`h-5 w-5 mr-3 transition-colors ${isActive ? 'text-secondary-start' : 'group-hover:text-white'}`} />
+                      <span className="font-medium">{item.label}</span>
+                  </div>
+                  
+                  {/* BADGE RENDERER */}
+                  {item.badge && item.badge > 0 ? (
+                      <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md shadow-red-500/20">
+                          {item.badge}
+                      </span>
+                  ) : null}
                 </NavLink>
               );
             })}

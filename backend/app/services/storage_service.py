@@ -1,12 +1,12 @@
 # FILE: backend/app/services/storage_service.py
-# PHOENIX PROTOCOL - STORAGE SERVICE v5.0 (BYTES SUPPORT)
-# 1. ADDED: 'upload_bytes_as_file' to support in-memory PDF uploads.
-# 2. METADATA: Enforces 'ContentType' for consistent browser rendering.
-# 3. STATUS: Fully compatible with Universal PDF Converter.
+# PHOENIX PROTOCOL - STORAGE SERVICE v5.1 (S3 COPY SUPPORT)
+# 1. NEW: 'copy_s3_object' allows cloning files within the bucket instantly.
+# 2. STATUS: Fully compatible with Archive Import logic.
 
 import os
 import boto3
 import uuid
+import datetime
 from botocore.client import Config
 from boto3.s3.transfer import TransferConfig
 from botocore.exceptions import BotoCoreError, ClientError
@@ -61,7 +61,6 @@ def get_s3_client():
 def generate_presigned_url(storage_key: str, expiration: int = 3600) -> Optional[str]:
     """
     Generates a temporary direct link to the file.
-    Greatly reduces server load for viewing PDFs/Images.
     """
     s3 = get_s3_client()
     try:
@@ -84,7 +83,6 @@ def upload_file_raw(file: UploadFile, folder: str) -> str:
     unique_filename = f"{uuid.uuid4()}{file_extension}"
     storage_key = f"{folder}/{unique_filename}"
     
-    # Auto-detect content type
     content_type = file.content_type or 'application/octet-stream'
     
     try:
@@ -115,7 +113,6 @@ def get_file_stream(storage_key: str) -> Any:
 
 # --- DOCUMENT SPECIFIC FUNCTIONS ---
 
-# PHOENIX NEW: Uploads BytesIO objects directly (Used by PDF Converter)
 def upload_bytes_as_file(file_obj: IO, filename: str, user_id: str, case_id: str, content_type: str = "application/pdf") -> str:
     s3_client = get_s3_client()
     storage_key = f"{user_id}/{case_id}/{filename}"
@@ -191,7 +188,7 @@ def upload_document_preview(file_path: str, user_id: str, case_id: str, original
             file_path, 
             B2_BUCKET_NAME, 
             storage_key,
-            ExtraArgs={'ContentType': 'application/pdf'} # Critical for browser viewing
+            ExtraArgs={'ContentType': 'application/pdf'} 
         )
         return storage_key
     except Exception as e:
@@ -223,3 +220,24 @@ def delete_file(storage_key: str):
     except Exception as e:
         logger.error(f"!!! ERROR: Delete failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete file.")
+
+# PHOENIX NEW: COPY FUNCTION
+def copy_s3_object(source_key: str, dest_folder: str) -> str:
+    """
+    Copies an object within the same bucket (Server-Side Copy).
+    Returns the new storage key.
+    """
+    s3_client = get_s3_client()
+    filename = os.path.basename(source_key)
+    # Ensure unique filename to prevent overwrite
+    timestamp = int(datetime.datetime.now().timestamp())
+    dest_key = f"{dest_folder}/{timestamp}_{filename}"
+    
+    try:
+        copy_source = {'Bucket': B2_BUCKET_NAME, 'Key': source_key}
+        s3_client.copy(copy_source, B2_BUCKET_NAME, dest_key)
+        logger.info(f"--- [Storage] Copied {source_key} -> {dest_key} ---")
+        return dest_key
+    except Exception as e:
+        logger.error(f"!!! ERROR: S3 Copy failed: {e}")
+        raise HTTPException(status_code=500, detail="Storage copy failed.")

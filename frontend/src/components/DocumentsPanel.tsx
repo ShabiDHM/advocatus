@@ -1,8 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V6.0 (HYBRID BULK ACTIONS)
-// 1. ADDED: Checkbox column + Select All functionality.
-// 2. UI: Header toggles between "Upload Mode" and "Action Mode".
-// 3. LOGIC: Allows bulk deletion of 20+ documents instantly.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V6.3 (LINTER FIX)
+// 1. FIXED: Renamed unused argument 'count' to '_count' to satisfy TypeScript strict mode.
+// 2. STATUS: Clean build.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -12,9 +11,10 @@ import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
     ScanEye, Archive, Pencil, FolderInput, CheckCircle,
-    CheckSquare, Square, XCircle
+    CheckSquare, Square, XCircle, HardDrive, FilePlus 
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import ArchiveImportModal from './ArchiveImportModal';
 
 interface DocumentsPanelProps {
   caseId: string;
@@ -51,20 +51,31 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   
   const [scanningId, setScanningId] = useState<string | null>(null); 
   const [scannedDocIds, setScannedDocIds] = useState<Set<string>>(new Set());
-  
   const [archivingId, setScanningIdArchive] = useState<string | null>(null); 
   const [currentFileName, setCurrentFileName] = useState<string>(""); 
 
-  // --- BULK SELECTION STATE ---
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showArchiveImport, setShowArchiveImport] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+              setShowAddMenu(false);
+          }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Persistence Logic
   useEffect(() => {
       const storageKey = `scanned_docs_${caseId}`;
       const saved = localStorage.getItem(storageKey);
       let initialSet = new Set<string>();
-      
       if (saved) {
           try {
               const parsed = JSON.parse(saved);
@@ -151,15 +162,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   };
 
   // --- BULK ACTIONS LOGIC ---
-  const toggleSelect = (id: string) => {
-      setSelectedIds(prev => {
-          const newSet = new Set(prev);
-          if (newSet.has(id)) newSet.delete(id);
-          else newSet.add(id);
-          return newSet;
-      });
-  };
-
   const toggleSelectAll = () => {
       if (selectedIds.size === displayDocuments.length) {
           setSelectedIds(new Set()); // Deselect all
@@ -175,10 +177,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       try {
           const idsToDelete = Array.from(selectedIds);
           await apiService.bulkDeleteDocuments(caseId, idsToDelete);
-          
-          // Optimistically update UI
           idsToDelete.forEach(id => {
-              // We construct a fake response to reuse existing handler
               onDocumentDeleted({ documentId: id, deletedFindingIds: [] });
           });
           setSelectedIds(new Set());
@@ -187,6 +186,11 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       } finally {
           setIsBulkDeleting(false);
       }
+  };
+
+  // PHOENIX FIX: Prefix with underscore to ignore unused variable
+  const handleArchiveImportComplete = (_count: number) => {
+      window.location.reload(); 
   };
 
   const statusDotColor = (status: ConnectionStatus) => {
@@ -212,13 +216,13 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const isSelectionMode = selectedIds.size > 0;
 
   return (
+    <>
     <div className={`documents-panel bg-background-dark/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl flex flex-col h-full overflow-hidden ${className}`}>
       
-      {/* HEADER: DYNAMIC SWITCHING */}
+      {/* HEADER */}
       <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${isSelectionMode ? 'border-red-500/30 bg-red-900/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-2xl' : 'border-white/10'}`}>
         
         {isSelectionMode ? (
-            // BULK ACTION MODE HEADER
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-3">
                     <button onClick={() => setSelectedIds(new Set())} className="text-gray-400 hover:text-white">
@@ -236,10 +240,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 </button>
             </div>
         ) : (
-            // NORMAL MODE HEADER
             <>
                 <div className="flex items-center gap-3 min-w-0">
-                    {/* MASTER CHECKBOX */}
                     <button onClick={toggleSelectAll} className="text-gray-500 hover:text-white transition-colors" title="Select All">
                         {displayDocuments.length > 0 && selectedIds.size === displayDocuments.length ? <CheckSquare size={20} className="text-primary-start" /> : <Square size={20} />}
                     </button>
@@ -249,20 +251,42 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </div>
                 </div>
 
-                <div className="flex-shrink-0 flex gap-2">
-                    <input type="file" ref={folderInputRef} onChange={handleFolderChange} className="hidden" 
-                        // @ts-ignore 
-                        webkitdirectory="" directory="" multiple 
-                    />
-                    <motion.button onClick={() => folderInputRef.current?.click()} className="h-9 px-3 flex items-center justify-center rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 transition-all" title={t('documentsPanel.uploadFolderTooltip')} disabled={isUploading} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                        {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <FolderInput className="h-5 w-5" />}
-                    </motion.button>
-
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
-                    <motion.button onClick={() => fileInputRef.current?.click()} className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary-start hover:bg-primary-end text-white shadow-lg shadow-primary-start/20 transition-all" title={t('documentsPanel.uploadDocument')} disabled={isUploading} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                {/* DROPDOWN MENU */}
+                <div className="relative" ref={dropdownRef}>
+                    <motion.button 
+                        onClick={() => setShowAddMenu(!showAddMenu)}
+                        className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary-start hover:bg-primary-end text-white shadow-lg shadow-primary-start/20 transition-all"
+                    >
                         {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
                     </motion.button>
+
+                    <AnimatePresence>
+                        {showAddMenu && (
+                            <motion.div 
+                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                className="absolute right-0 top-12 w-56 bg-background-dark border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden"
+                            >
+                                <button onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 text-sm text-gray-200">
+                                    <FilePlus size={16} className="text-blue-400" /> Ngarko Dokument
+                                </button>
+                                <button onClick={() => { setShowAddMenu(false); folderInputRef.current?.click(); }} className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 text-sm text-gray-200">
+                                    <FolderInput size={16} className="text-yellow-400" /> Ngarko Folder
+                                </button>
+                                <button onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} className="w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 text-sm text-gray-200 border-t border-white/5">
+                                    <HardDrive size={16} className="text-green-400" /> Importo nga Arkiva
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
+
+                <input type="file" ref={folderInputRef} onChange={handleFolderChange} className="hidden" 
+                    // @ts-ignore 
+                    webkitdirectory="" directory="" multiple 
+                />
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
             </>
         )}
       </div>
@@ -302,15 +326,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 animate={{ opacity: 1, y: 0 }}
             >
               
-              {/* CHECKBOX COLUMN */}
-              {!isUploadingState && (
-                  <div className="mr-3 flex-shrink-0">
-                      <button onClick={() => toggleSelect(doc.id)} className="text-gray-500 hover:text-white transition-colors">
-                          {isSelected ? <CheckSquare size={18} className="text-primary-start" /> : <Square size={18} />}
-                      </button>
-                  </div>
-              )}
-
               <div className="min-w-0 flex-1 pr-3">
                 <div className="flex items-center gap-2"><p className={`text-sm font-medium truncate ${isSelected ? 'text-white' : 'text-gray-200'}`}>{doc.file_name}</p></div>
                 {(isUploadingState || isProcessingState) ? (
@@ -322,7 +337,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 ) : (<p className="text-[10px] text-gray-500 truncate mt-0.5">{moment(doc.created_at).format('YYYY-MM-DD HH:mm')}</p>)}
               </div>
               
-              {/* ACTION BUTTONS (Preserved, but hidden if Bulk Mode is active to reduce clutter? No, user said keep them) */}
               <div className={`flex items-center gap-1 sm:gap-2 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-80 group-hover:opacity-100'}`}>
                 {canInteract && (
                     <button onClick={() => onRename && onRename(doc)} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
@@ -345,6 +359,15 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         })}
       </div>
     </div>
+
+    {/* IMPORT MODAL */}
+    <ArchiveImportModal 
+        isOpen={showArchiveImport} 
+        onClose={() => setShowArchiveImport(false)} 
+        caseId={caseId}
+        onImportComplete={handleArchiveImportComplete}
+    />
+    </>
   );
 };
 export default DocumentsPanel;
