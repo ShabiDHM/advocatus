@@ -1,6 +1,6 @@
 # FILE: backend/app/services/__init__.py
-# PHOENIX PROTOCOL - SERVICE REGISTRY
-# 1. UPDATE: Registered 'pdf_service' to resolve import errors.
+# PHOENIX PROTOCOL - SERVICE REGISTRY V2.0
+# 1. UPDATE: Registered 'social_service' for Open Graph image generation.
 # 2. STATUS: All services linked.
 
 from . import (
@@ -32,7 +32,8 @@ from . import (
     archive_service,
     finance_service,
     graph_service,
-    pdf_service, # <--- REGISTERED
+    pdf_service,
+    social_service, # <--- REGISTERED
     
     # Albanian Specific Services (Active Only)
     albanian_document_processor,
