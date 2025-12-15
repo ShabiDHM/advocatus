@@ -1,7 +1,8 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING PAGE CLEANUP
-// 1. CONTENT: Removed Testimonials section as requested.
-// 2. LAYOUT: Maintained Hero, Features (Bento Grid), and CTA flow.
+// PHOENIX PROTOCOL - LANDING PAGE V2.0 (SHOWCASE INTEGRATED)
+// 1. FEATURE: Added 'ProductShowcase' interactive demo section.
+// 2. LAYOUT: Re-balanced spacing to accommodate the new visual weight.
+// 3. STATUS: High-Conversion Design ready for launch.
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -13,9 +14,9 @@ import {
     ChevronRight, 
     TrendingUp, 
     MessageSquare,
-    // Removed unused Briefcase import
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import ProductShowcase from '../components/landing/ProductShowcase'; // NEW IMPORT
 
 const LandingPage: React.FC = () => {
   return (
@@ -28,10 +29,10 @@ const LandingPage: React.FC = () => {
         <div className="absolute top-[40%] left-[20%] w-[300px] h-[300px] bg-blue-600/10 rounded-full blur-[80px]" />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10">
         
         {/* --- HERO SECTION --- */}
-        <section className="pt-32 pb-24 text-center">
+        <section className="pt-32 pb-20 text-center max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div 
             initial={{ opacity: 0, y: 20 }} 
             animate={{ opacity: 1, y: 0 }} 
@@ -68,7 +69,7 @@ const LandingPage: React.FC = () => {
 
         {/* --- STATS / PAIN POINTS --- */}
         <section className="py-12 border-y border-white/5 bg-white/5 backdrop-blur-sm">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
                 <div className="p-6">
                     <h3 className="text-4xl font-bold text-primary-start mb-2">60%</h3>
                     <p className="text-gray-400">Kursim në kohë administrative.</p>
@@ -84,8 +85,12 @@ const LandingPage: React.FC = () => {
             </div>
         </section>
 
+        {/* --- INTERACTIVE SHOWCASE --- */}
+        {/* PHOENIX: The centerpiece of the landing page */}
+        <ProductShowcase />
+
         {/* --- FEATURES (BENTO GRID) --- */}
-        <section className="py-24">
+        <section className="py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-5xl font-bold mb-4">Nga Kaosi në Strategji</h2>
             <p className="text-gray-400">Një platformë e vetme për të gjitha nevojat e zyrës suaj.</p>
@@ -151,7 +156,7 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* --- CTA --- */}
-        <section className="py-24 text-center">
+        <section className="py-24 text-center max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-white/10 rounded-3xl p-12 relative overflow-hidden">
                 <div className="relative z-10">
                     <h2 className="text-4xl font-bold mb-6">Gati për të modernizuar zyrën tuaj?</h2>
