@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V4.2 (STABILITY RECOVERY)
-# 1. REVERTED: Removed automatic 'consolidate_case_findings' trigger from /analyze.
-# 2. REASON: Prevents destructive overwrite of raw findings, ensuring stability.
-# 3. STATUS: Stable. Synthesis will be a separate, explicit feature.
+# PHOENIX PROTOCOL - CASES ROUTER V4.3 (IMPORT FIX)
+# 1. FIX: Verified import paths for 'findings_service.get_findings_for_case'.
+# 2. STATUS: Operational.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Dict, Any, Union
@@ -21,7 +20,7 @@ from datetime import datetime, timezone
 from ...services import (
     case_service,
     document_service,
-    findings_service,
+    findings_service, # Verified Import
     report_service,
     storage_service,
     analysis_service,
@@ -98,9 +97,12 @@ async def create_draft_for_case(case_id: str, job_in: DraftRequest, current_user
     return await asyncio.to_thread(case_service.create_draft_job_for_case, db=db, case_id=validated_case_id, job_in=job_in, owner=current_user)
 
 @router.get("/{case_id}/findings", response_model=FindingsListOut, tags=["Findings"])
-async def get_findings_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
+async def get_findings_for_case_endpoint(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
+    # Explicitly calling findings_service.get_findings_for_case
     findings_data = await asyncio.to_thread(findings_service.get_findings_for_case, db=db, case_id=case_id)
+    
+    # Auto-Sync Calendar
     await asyncio.to_thread(case_service.sync_case_calendar_from_findings, db=db, case_id=case_id, user_id=current_user.id)
     
     findings_out_list = []

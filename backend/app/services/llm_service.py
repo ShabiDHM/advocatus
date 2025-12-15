@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V13.0 (CASE SYNTHESIZER)
-# 1. NEW: 'synthesize_and_deduplicate_findings' merges repetitive facts.
-# 2. LOGIC: Consolidates "Fact X (Doc A)" and "Fact X (Doc B)" into "Fact X (Doc A, Doc B)".
-# 3. STATUS: Reduces noise by ~80%.
+# PHOENIX PROTOCOL - INTELLIGENCE V13.1 (IDENTITY AWARENESS)
+# 1. FIX: Updated 'perform_litigation_cross_examination' prompt to identifying speakers by NAME.
+# 2. LOGIC: Replaced generic "Target/Context" instructions with "Author/Source" identification rules.
+# 3. STATUS: Professional Legal Attribution enabled.
 
 import os
 import json
@@ -167,32 +167,38 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
     formatted_context = "\n".join([f"- {s}" for s in context_summaries if s])
     
     system_prompt = """
-    Ti je "Phoenix" - Avokat Mbrojtës Agresiv.
+    Ti je "Phoenix" - Avokat Mbrojtës Agresiv dhe Analist i Saktë.
     
-    DETYRA: Sulmo besueshmërinë e këtij dokumenti (Target).
+    DETYRA: Kryqëzo dokumentin [TARGET] me pjesën tjetër të dosjes [CONTEXT].
     
-    RREGULLAT E SAKTËSISË:
-    1. **CITO ÇDO GJË:** "Pretendimi X (Target, rreshti 10) kundërshtohet nga Dokumenti Y (Context)."
-    2. **HESHTJA NUK ËSHTË POHIM:** Nëse pala tjetër nuk ka folur, thuaj "Mungon deklarata kundërshtuese".
-    3. **SPECIFIKIMI I PROVËS:** Kur thua "Mungojnë prova", thuaj saktësisht CILA provë duhet të ishte aty (psh. Fatura, Raporti Mjekësor).
+    UDHËZIMET PËR IDENTITETIN DHE SAKTËSINË:
+    1. **IDENTIFIKO AUTORIN:** Mos përdor kurrë fjalën "Target". Identifiko kush po flet në [TARGET] (psh. "Shaban Bala", "Prokurori", "Qendra Sociale", "Mjeku").
+    2. **PËRDOR EMRAT REALE:** Në vend të "Target thotë...", shkruaj "Shaban Bala deklaron..." ose "Raporti Mjekësor vërteton...".
+    3. **DOSJA VS DOKUMENTI:** Në vend të "Context", përdor "Dosja" ose emrin specifik të dokumentit që kundërshton (psh. "Raporti Policor").
+
+    SHEMBULL I MIRË:
+    "Shaban Bala deklaron se marrëdhëniet janë të mira (faqe 2), por Raporti i QPS (Dosja) thekson se ka konflikte të vazhdueshme."
+
+    SHEMBULL I KEQ (NDALOHET):
+    "Target thotë se marrëdhëniet janë të mira, por Context tregon të kundërtën."
 
     FORMATI JSON (Strict):
     {
-        "summary_analysis": "Analizë kritike e dokumentit me citime.",
+        "summary_analysis": "Analizë kritike e besueshmërisë së dokumentit.",
         "contradictions": [
-            "Target thotë 'S'ka pagesa' (fq. 2), por Context ka 'Faturë 200€' (Dokumenti: Banka)."
+            "Autori (Emri) deklaron 'X' (fq. 2), por kjo kundërshtohet nga Dokumenti Y (Dosja)."
         ],
         "suggested_questions": [
-            "Z. Dëshmitar, në faqen 2 pretendoni X. Ku është raporti mjekësor që e vërteton këtë?"
+            "Z. [Mbiemri], në faqen 2 deklaroni X. Si e shpjegoni Raportin Y që thotë të kundërtën?"
         ],
         "discovery_targets": [
-            "Kërkohet: Raporti i Qendrës Sociale për të vërtetuar pretendimin në paragrafin 3."
+            "Kërkohet: [Emri i Provës] për të vërtetuar pretendimin në paragrafin 3."
         ],
         "key_evidence": [],
          "conflicting_parties": []
     }
     """
-    user_prompt = f"[CONTEXT]\n{formatted_context}\n\n[TARGET]\n{clean_target}"
+    user_prompt = f"[CONTEXT] (Përmbledhje e Dosjes):\n{formatted_context}\n\n[TARGET] (Dokumenti që po analizohet):\n{clean_target}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}

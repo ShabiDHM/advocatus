@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V6.9 (STACKING FIX)
-// 1. UI FIX: Added 'relative z-40' to CaseHeader.
-// 2. LOGIC: Lifts the header layer above the content layer so dropdowns appear ON TOP of the Chat/Document panels.
-// 3. STATUS: Production-ready.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V7.0 (HEADER LOGIC SYNC)
+// 1. UI FIX: 'Findings' button label now reacts to Global Switcher (like the Analysis button).
+// 2. STATUS: Header fully synchronized with Context Switcher.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -78,13 +77,17 @@ const CaseHeader: React.FC<{
     const [linkCopied, setLinkCopied] = useState(false);
     const handleCopyLink = () => { const link = `${window.location.origin}/portal/${caseDetails.id}`; navigator.clipboard.writeText(link); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); };
     
+    // LOGIC: Analysis Button Text
     const analyzeButtonText = activeContextId === 'general' 
         ? t('analysis.analyzeButton', 'Analizo Rastin')
         : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
 
+    // LOGIC: Findings Button Text (PHOENIX FIX)
+    const findingsButtonText = activeContextId === 'general'
+        ? t('caseView.findingsTitle', 'Gjetjet')
+        : t('caseView.docFindingsTitle', 'Gjetjet e Dokumentit');
+
     return (
-        // PHOENIX FIX: Added 'relative z-40' here.
-        // This ensures the header (and its dropdowns) sits above the content panels below.
         <motion.div 
             className="relative z-40 mb-6 p-4 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-white/10" 
             initial={{ opacity: 0, y: -10 }} 
@@ -113,7 +116,7 @@ const CaseHeader: React.FC<{
 
                     <button onClick={onShowFindings} disabled={isRefetchingFindings} className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all" type="button">
                         {isRefetchingFindings ? <Loader2 className="h-4 w-4 animate-spin text-amber-400" /> : <Lightbulb className="h-4 w-4 text-amber-400" />}
-                        <span className="inline">{t('caseView.findingsTitle')}</span>
+                        <span className="inline">{findingsButtonText}</span>
                     </button>
                   </div>
                   

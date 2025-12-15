@@ -1,8 +1,8 @@
 # FILE: backend/app/services/findings_service.py
-# PHOENIX PROTOCOL - FINDINGS SERVICE V8.0 (JANITOR & SYNTHESIS)
-# 1. NEW: 'consolidate_case_findings' triggers the LLM Synthesizer.
-# 2. LOGIC: Replaces messy findings with clean, synthesized ones.
-# 3. STATUS: Full deduplication enabled.
+# PHOENIX PROTOCOL - FINDINGS SERVICE V8.1 (TRACEABILITY GUARD)
+# 1. FIX: Disabled destructive 'consolidate_case_findings' to preserve clickable Document links.
+# 2. LOGIC: Lawyers need to click a finding and jump to the Document. Merging them breaks this link.
+# 3. STATUS: High-Fidelity Data Preservation.
 
 import structlog
 from bson import ObjectId
@@ -149,64 +149,28 @@ def extract_and_save_findings(db: Database, document_id: str, full_text: str) ->
     else:
         log.info("findings.quality_filter_rejected_all")
 
-# --- NEW: THE SYNTHESIZER ---
+# --- MODIFIED: THE SYNTHESIZER (SAFE MODE) ---
 def consolidate_case_findings(db: Database, case_id: str) -> None:
     """
     The Janitor Function.
-    1. Grabs ALL findings for a case.
-    2. Sends them to LLM for merging/deduplication.
-    3. Replaces the DB records with the clean list.
+    PHOENIX UPDATE: We disabled the destructive delete.
+    Legal traceability is more important than a shorter list.
+    We will strictly rely on per-document extraction for now.
     """
-    try:
-        case_oid = ObjectId(case_id)
-        raw_findings = list(db.findings.find({"case_id": case_oid}))
-        
-        # Only run if we have enough data to be messy (e.g., > 5 findings)
-        if len(raw_findings) < 5:
-            return
-
-        # Prepare text for LLM
-        findings_text_list = []
-        for f in raw_findings:
-            doc_name = f.get("document_name", "Unknown")
-            text = f.get("finding_text", "")
-            findings_text_list.append(f"Fakti: {text} (Burimi: {doc_name})")
-
-        # Run Synthesis
-        clean_data = synthesize_and_deduplicate_findings(findings_text_list)
-        
-        if not clean_data:
-            return
-
-        # Convert to DB objects
-        new_findings = []
-        for item in clean_data:
-            sources = ", ".join(item.get("source_documents", []))
-            # Type safety for values
-            finding_text = item.get("finding_text") or "N/A"
-            category = item.get("category", "SINTEZË")
-            
-            new_findings.append({
-                "case_id": case_oid,
-                "document_id": None, # Consolidated -> No single doc ID
-                "document_name": sources, # Multiple sources
-                "finding_text": finding_text,
-                "source_text": "Sintezë nga Inteligjenca Artificiale",
-                "category": category,
-                "page_number": 1,
-                "confidence_score": 1.0,
-                "created_at": datetime.now(timezone.utc)
-            })
-
-        # ATOMIC SWAP: Delete old -> Insert New
-        # Warning: This removes per-document granularity in the "All Findings" view,
-        # but provides the clean "Case View" the user demands.
-        db.findings.delete_many({"case_id": case_oid})
-        db.findings.insert_many(new_findings)
-        logger.info("findings.consolidated", case_id=case_id, old_count=len(raw_findings), new_count=len(new_findings))
-
-    except Exception as e:
-        logger.error("findings.consolidation_failed", error=str(e))
+    pass # DISABLED FOR DATA SAFETY
+    
+    # ORIGINAL DANGEROUS LOGIC (COMMENTED OUT):
+    # try:
+    #     case_oid = ObjectId(case_id)
+    #     raw_findings = list(db.findings.find({"case_id": case_oid}))
+    #     if len(raw_findings) < 5: return
+    #     
+    #     # ... synthesis logic ...
+    #
+    #     # DANGER ZONE: This wipes the granular links
+    #     db.findings.delete_many({"case_id": case_oid}) 
+    #     db.findings.insert_many(new_findings)
+    # except Exception: pass
 
 def get_findings_for_case(db: Database, case_id: str) -> List[Dict[str, Any]]:
     try: 
