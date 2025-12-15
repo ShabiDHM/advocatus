@@ -1,7 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - WAR ROOM UI V2.6 (LABEL FIX)
-// 1. FIX: Changed "Q1:" label to "Pyetje 1:".
-// 2. STATUS: Pure Albanian UI verified.
+// PHOENIX PROTOCOL - WAR ROOM UI V2.7 (TERMINOLOGY REFINEMENT)
+// 1. FIX: Updated sanitization to use "Dokumenti deklaron" instead of "Dokumenti thotë" for professional legal tone.
+// 2. STATUS: Polished Albanian UI.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -36,12 +36,15 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 `;
 
-// Helper to clean AI output on the fly
+// Helper to clean AI output on the fly with professional legal terminology
 const sanitizeText = (text: string): string => {
     if (!text) return "";
     return text
-        .replace(/Target thotë/gi, "Dokumenti thotë")
-        .replace(/Target says/gi, "Dokumenti thotë")
+        // Specific phrases first for better context matching
+        .replace(/Target thotë/gi, "Dokumenti deklaron")
+        .replace(/Target says/gi, "Dokumenti deklaron")
+        .replace(/Target claims/gi, "Dokumenti pretendon")
+        // General fallback
         .replace(/Target/g, "Dokumenti")
         .replace(/Context ka/gi, "Dosja përmban")
         .replace(/Context has/gi, "Dosja përmban")
@@ -167,7 +170,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     <ul className="space-y-3">
                                         {result.suggested_questions.map((q, i) => (
                                             <li key={i} className="flex gap-3 text-sm text-gray-200 bg-black/20 p-3 rounded-lg border border-purple-500/10 hover:border-purple-500/30 transition-colors">
-                                                {/* PHOENIX FIX: Changed Q{i+1} to Pyetje {i+1} */}
                                                 <span className="text-purple-400 font-bold whitespace-nowrap">Pyetje {i+1}:</span>
                                                 <span className="leading-relaxed font-medium">{sanitizeText(q)}</span>
                                             </li>
