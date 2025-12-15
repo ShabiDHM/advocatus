@@ -1,6 +1,6 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER v3.0 (POST BULK DELETE)
-// 1. FIXED: Switched bulkDeleteDocuments to POST to avoid proxy 400 Bad Request.
+// PHOENIX PROTOCOL - API MASTER v3.1 (ARCHIVE RENAME)
+// 1. ADDED: renameArchiveItem() to support file renaming.
 // 2. STATUS: Fully verified.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
@@ -112,6 +112,12 @@ class ApiService {
     public async createArchiveFolder(title: string, parentId?: string, caseId?: string, category?: string): Promise<ArchiveItemOut> { const formData = new FormData(); formData.append('title', title); if (parentId) formData.append('parent_id', parentId); if (caseId) formData.append('case_id', caseId); if (category) formData.append('category', category); const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/folder', formData); return response.data; }
     public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { const formData = new FormData(); formData.append('file', file); formData.append('title', title); formData.append('category', category); if (caseId) formData.append('case_id', caseId); if (parentId) formData.append('parent_id', parentId); const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData); return response.data; }
     public async deleteArchiveItem(itemId: string): Promise<void> { await this.axiosInstance.delete(`/archive/items/${itemId}`); }
+    
+    // NEW: RENAME ARCHIVE ITEM
+    public async renameArchiveItem(itemId: string, newTitle: string): Promise<void> { 
+        await this.axiosInstance.put(`/archive/items/${itemId}/rename`, { new_title: newTitle }); 
+    }
+
     public async downloadArchiveItem(itemId: string, title: string): Promise<void> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', title); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
     public async getArchiveFileBlob(itemId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { params: { preview: true }, responseType: 'blob' }); return response.data; }
 
@@ -124,13 +130,10 @@ class ApiService {
     public async getDocument(caseId: string, documentId: string): Promise<Document> { const response = await this.axiosInstance.get<Document>(`/cases/${caseId}/documents/${documentId}`); return response.data; }
     public async deleteDocument(caseId: string, documentId: string): Promise<DeletedDocumentResponse> { const response = await this.axiosInstance.delete<DeletedDocumentResponse>(`/cases/${caseId}/documents/${documentId}`); return response.data; }
     
-    // PHOENIX FIX: Switched to POST for Bulk Delete
     public async bulkDeleteDocuments(caseId: string, documentIds: string[]): Promise<any> {
         const response = await this.axiosInstance.post(`/cases/${caseId}/documents/bulk-delete`, { document_ids: documentIds });
         return response.data;
     }
-
-    // NEW: IMPORT ARCHIVE
     public async importArchiveDocuments(caseId: string, archiveItemIds: string[]): Promise<Document[]> {
         const response = await this.axiosInstance.post<Document[]>(`/cases/${caseId}/documents/import-archive`, { archive_item_ids: archiveItemIds });
         return response.data;

@@ -1,8 +1,8 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE V2.1 (CASCADE DELETE)
-# 1. UPDATE: 'delete_archive_item' now performs recursive deletion for folders.
-# 2. LOGIC: Ensures all children (files/subfolders) are wiped from DB and Storage.
-# 3. SAFETY: Prevents orphaned data.
+# PHOENIX PROTOCOL - ARCHIVE V2.2 (RENAME SUPPORT)
+# 1. NEW: 'rename_item' allows updating file/folder titles.
+# 2. LOGIC: Updates MongoDB record (metadata only, does not rename S3 key).
+# 3. STATUS: Essential for organizing imported files.
 
 import os
 import logging
@@ -39,7 +39,6 @@ class ArchiveService:
         parent_id: Optional[str] = None,
         case_id: Optional[str] = None
     ) -> ArchiveItemInDB:
-        """Creates a logical folder structure."""
         folder_data = {
             "user_id": self._to_oid(user_id),
             "title": title,
@@ -47,13 +46,12 @@ class ArchiveService:
             "file_type": "FOLDER",
             "category": "FOLDER",
             "created_at": datetime.now(timezone.utc),
-            "storage_key": None, # Folders are virtual
+            "storage_key": None,
             "file_size": 0,
             "description": ""
         }
         
         if parent_id and parent_id.strip() and parent_id != "null":
-            # Verify parent exists and is a folder
             parent = self.db.archives.find_one({"_id": self._to_oid(parent_id)})
             if not parent or parent.get("item_type") != "FOLDER":
                 raise HTTPException(status_code=400, detail="Invalid parent folder")
@@ -74,14 +72,12 @@ class ArchiveService:
         category: str, 
         title: str,
         case_id: Optional[str] = None,
-        parent_id: Optional[str] = None # Added support for uploading directly into a folder
+        parent_id: Optional[str] = None 
     ) -> ArchiveItemInDB:
         s3_client = get_s3_client()
-        
         filename = file.filename or "untitled"
         file_ext = filename.split('.')[-1] if '.' in filename else "BIN"
         timestamp = int(datetime.now().timestamp())
-        
         storage_key = f"archive/{user_id}/{timestamp}_{filename}"
         
         try:
@@ -92,12 +88,7 @@ class ArchiveService:
             file_size = 0
             
         try:
-            s3_client.upload_fileobj(
-                file.file, 
-                B2_BUCKET_NAME, 
-                storage_key,
-                Config=transfer_config
-            )
+            s3_client.upload_fileobj(file.file, B2_BUCKET_NAME, storage_key, Config=transfer_config)
         except Exception as e:
             logger.error(f"!!! UPLOAD FAILED in ArchiveService: {e}")
             raise HTTPException(status_code=500, detail=f"Storage Upload Failed: {str(e)}")
@@ -116,7 +107,6 @@ class ArchiveService:
         
         if case_id and case_id.strip() and case_id != "null": 
             doc_data["case_id"] = self._to_oid(case_id)
-            
         if parent_id and parent_id.strip() and parent_id != "null":
             doc_data["parent_id"] = self._to_oid(parent_id)
         
@@ -131,63 +121,57 @@ class ArchiveService:
         case_id: Optional[str] = None,
         parent_id: Optional[str] = None
     ) -> List[ArchiveItemInDB]:
-        """
-        Fetches items. If 'parent_id' is provided, fetches only children of that folder.
-        If 'parent_id' is NOT provided, fetches only ROOT items (parent_id is null).
-        """
         query: Dict[str, Any] = {"user_id": self._to_oid(user_id)}
         
-        # PHOENIX: Hierarchy Logic
         if parent_id and parent_id.strip() and parent_id != "null":
             query["parent_id"] = self._to_oid(parent_id)
         else:
-            # If navigating structure, only show root items (parent_id is null)
-            # Exception: If filtering by category (e.g. "INVOICE"), show all flat
             if not category or category == "ALL":
                 query["parent_id"] = None
 
-        if category and category != "ALL": 
-            query["category"] = category
+        if category and category != "ALL": query["category"] = category
+        if case_id and case_id.strip() and case_id != "null": query["case_id"] = self._to_oid(case_id)
             
-        if case_id and case_id.strip() and case_id != "null": 
-            query["case_id"] = self._to_oid(case_id)
-            
-        # Sort: Folders first, then Files, then by date
         cursor = self.db.archives.find(query).sort([("item_type", -1), ("created_at", -1)])
         return [ArchiveItemInDB(**doc) for doc in cursor]
 
     # --- CASCADE DELETION ---
     def delete_archive_item(self, user_id: str, item_id: str):
-        """
-        Deletes an archive item.
-        If item is a FOLDER, recursively deletes all children (files and subfolders).
-        """
         oid_user = self._to_oid(user_id)
         oid_item = self._to_oid(item_id)
         
         item = self.db.archives.find_one({"_id": oid_item, "user_id": oid_user})
-        if not item: 
-            raise HTTPException(status_code=404, detail="Item not found")
+        if not item: raise HTTPException(status_code=404, detail="Item not found")
         
-        # 1. Recursive Delete for Folders
         if item.get("item_type") == "FOLDER":
-            # Find children where parent_id == current folder id
             children = self.db.archives.find({"parent_id": oid_item, "user_id": oid_user})
             for child in children:
-                # Recurse using string ID
                 self.delete_archive_item(user_id, str(child["_id"]))
         
-        # 2. File Cleanup (Storage)
         if item.get("item_type") == "FILE" and item.get("storage_key"):
             try:
                 s3_client = get_s3_client()
                 s3_client.delete_object(Bucket=B2_BUCKET_NAME, Key=item["storage_key"])
             except Exception as e:
                 logger.error(f"Failed to delete S3 file {item['storage_key']}: {e}")
-                # Proceed to delete DB record regardless to prevent ghosts
         
-        # 3. DB Record Cleanup
         self.db.archives.delete_one({"_id": oid_item})
+
+    # --- PHOENIX NEW: RENAME ---
+    def rename_item(self, user_id: str, item_id: str, new_title: str) -> None:
+        """
+        Renames a file or folder in the Archive.
+        """
+        oid_user = self._to_oid(user_id)
+        oid_item = self._to_oid(item_id)
+
+        result = self.db.archives.update_one(
+            {"_id": oid_item, "user_id": oid_user},
+            {"$set": {"title": new_title}}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Item not found or access denied.")
 
     def get_file_stream(self, user_id: str, item_id: str) -> Tuple[Any, str]:
         query: Dict[str, Any] = {"_id": self._to_oid(item_id), "user_id": self._to_oid(user_id)}
@@ -197,15 +181,12 @@ class ArchiveService:
         try:
             s3_client = get_s3_client()
             response = s3_client.get_object(Bucket=B2_BUCKET_NAME, Key=item["storage_key"])
-            
             title = item["title"]
             file_type = item.get("file_type", "").lower()
-            
             if not title.lower().endswith(f".{file_type}") and file_type:
                 filename = f"{title}.{file_type}"
             else:
                 filename = title
-                
             return response['Body'], filename
         except Exception as e:
             logger.error(f"!!! STREAM FAILED: {e}")
