@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V13.3 (DRAGNET MODE)
-# 1. FIX: Updated 'conflicting_parties' definition to capture ALL names (Witnesses, Relatives), not just opponents.
-# 2. LOGIC: Forces AI to list 'Nazlie Bala' and other third parties mentioned in the narrative.
-# 3. STATUS: Maximum Entity Extraction.
+# PHOENIX PROTOCOL - INTELLIGENCE V13.4 (PRIVACY SHIELD ACTIVATED)
+# 1. SECURITY: Integrated 'sterilize_text_for_llm' into the pipeline.
+# 2. LOGIC: IDs/Phones are redacted. Names are KEPT (redact_names=False) to allow legal analysis.
+# 3. STATUS: Secure & Intelligent.
 
 import os
 import json
@@ -11,6 +11,9 @@ import httpx
 import re
 from typing import List, Dict, Any, Optional
 from openai import OpenAI 
+
+# PHOENIX IMPORT: Connect the Privacy Shield
+from .text_sterilization_service import sterilize_text_for_llm
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +38,16 @@ def get_deepseek_client() -> Optional[OpenAI]:
     return None
 
 def sterilize_legal_text(text: str) -> str:
+    """
+    Step 1: Fix Typos and formatting (Does not handle Privacy).
+    """
     if not text: return ""
+    
+    # 1. PHOENIX PRIVACY SHIELD
+    # We run the privacy sanitizer FIRST to strip IDs/Phones/Emails.
+    # We keep names (False) so the AI can distinguish parties.
+    text = sterilize_text_for_llm(text, redact_names=False)
+
     replacements = {
         "Paditésja": "Paditësja", "paditésja": "paditësja",
         "Paditési": "Paditësi", "paditési": "paditësi",

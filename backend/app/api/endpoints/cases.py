@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V4.4 (FORCE REFRESH)
-# 1. FIX: Removed cache check in 'cross_examine_document'.
-# 2. LOGIC: Forces the AI to re-run the analysis every time the button is clicked, ensuring the new Prompt (V13.1) is used.
-# 3. STATUS: Live.
+# PHOENIX PROTOCOL - CASES ROUTER V4.5 (MISSING ENDPOINT)
+# 1. FIX: Added DELETE /{case_id}/documents/{doc_id} endpoint.
+# 2. LOGIC: Allows deleting single documents (fixing the 405 error).
+# 3. STATUS: Complete.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Dict, Any, Union
@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from ...services import (
     case_service,
     document_service,
-    findings_service,
+    findings_service, 
     report_service,
     storage_service,
     analysis_service,
@@ -149,43 +149,22 @@ async def import_archive_documents(
         raise HTTPException(status_code=404, detail="Case not found.")
 
     imported_docs = []
-    
     for item_id in body.archive_item_ids:
         try:
             archive_item = await asyncio.to_thread(
                 db.archives.find_one,
                 {"_id": ObjectId(item_id), "user_id": current_user.id, "item_type": "FILE"}
             )
-            
-            if not archive_item or not archive_item.get("storage_key"):
-                continue
-
+            if not archive_item or not archive_item.get("storage_key"): continue
             original_key = archive_item["storage_key"]
             filename = archive_item["title"]
-            
-            new_key = await asyncio.to_thread(
-                storage_service.copy_s3_object,
-                source_key=original_key,
-                dest_folder=f"{current_user.id}/{case_id}"
-            )
-            
-            new_doc = document_service.create_document_record(
-                db=db,
-                owner=current_user,
-                case_id=case_id,
-                file_name=filename,
-                storage_key=new_key,
-                mime_type="application/pdf"
-            )
-            
+            new_key = await asyncio.to_thread(storage_service.copy_s3_object, source_key=original_key, dest_folder=f"{current_user.id}/{case_id}")
+            new_doc = document_service.create_document_record(db=db, owner=current_user, case_id=case_id, file_name=filename, storage_key=new_key, mime_type="application/pdf")
             celery_app.send_task("process_document_task", args=[str(new_doc.id)])
-            
             imported_docs.append(DocumentOut.model_validate(new_doc))
-            
         except Exception as e:
             logger.error(f"Failed to import archive item {item_id}: {e}")
             continue
-
     return imported_docs
 
 @router.get("/{case_id}/documents/{doc_id}", response_model=DocumentOut, tags=["Documents"])
@@ -193,6 +172,39 @@ async def get_document_by_id(case_id: str, doc_id: str, current_user: Annotated[
     doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(doc.case_id) != case_id: raise HTTPException(status_code=403)
     return doc
+
+# PHOENIX FIX: Added missing DELETE endpoint for single document
+@router.delete("/{case_id}/documents/{doc_id}", response_model=DeletedDocumentResponse, tags=["Documents"])
+async def delete_document(
+    case_id: str, 
+    doc_id: str, 
+    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    db: Database = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_sync_redis)
+):
+    validate_object_id(case_id)
+    doc_oid = validate_object_id(doc_id)
+    
+    # 1. Verify ownership and existence
+    doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
+    if str(doc.case_id) != case_id: raise HTTPException(status_code=403, detail="Document does not belong to this case.")
+
+    # 2. Use existing bulk_delete logic for consistency (list of 1)
+    result = await asyncio.to_thread(
+        document_service.bulk_delete_documents, 
+        db=db, 
+        redis_client=redis_client, 
+        document_ids=[doc_id], 
+        owner=current_user
+    )
+    
+    # 3. Format response for frontend
+    if result.get("deleted_count", 0) > 0:
+        return DeletedDocumentResponse(
+            documentId=doc_id, 
+            deletedFindingIds=result.get("deleted_finding_ids", [])
+        )
+    raise HTTPException(status_code=500, detail="Failed to delete document.")
 
 @router.post("/{case_id}/documents/{doc_id}/cross-examine", tags=["Analysis"])
 async def cross_examine_document(
@@ -203,16 +215,9 @@ async def cross_examine_document(
 ):
     validated_case_id = validate_object_id(case_id)
     validated_doc_id = validate_object_id(doc_id)
-    
     target_doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
-    if str(target_doc.case_id) != case_id:
-        raise HTTPException(status_code=403, detail="Access Denied.")
+    if str(target_doc.case_id) != case_id: raise HTTPException(status_code=403, detail="Access Denied.")
     
-    # PHOENIX FIX: DISABLED CACHE RETURN
-    # We want to force the new LLM prompt (V13.1) to run every time.
-    # if target_doc.litigation_analysis:
-    #     return JSONResponse(content=target_doc.litigation_analysis)
-
     other_docs_cursor = db.documents.find(
         {"case_id": validated_case_id, "_id": {"$ne": validated_doc_id}, "summary": {"$exists": True, "$ne": None}},
         {"summary": 1, "file_name": 1}
@@ -238,35 +243,20 @@ async def generate_objection(
 ):
     validated_case_id = validate_object_id(case_id)
     validated_doc_id = validate_object_id(doc_id)
-
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=validated_case_id, owner=current_user)
     if not case: raise HTTPException(status_code=404, detail="Case not found.")
-
     doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(doc.case_id) != case_id: raise HTTPException(status_code=403, detail="Access Denied.")
-
-    if not doc.litigation_analysis:
-        raise HTTPException(status_code=404, detail="No analysis available. Please run 'Kryqëzo Provat' first.")
+    if not doc.litigation_analysis: raise HTTPException(status_code=404, detail="No analysis available.")
     
     title = case.get("title", "Lënda") if isinstance(case, dict) else getattr(case, "title", "Lënda")
-
     try:
-        objection_bytes = await asyncio.to_thread(
-            drafting_service.generate_objection_document,
-            analysis_result=doc.litigation_analysis,
-            case_title=title
-        )
+        objection_bytes = await asyncio.to_thread(drafting_service.generate_objection_document, analysis_result=doc.litigation_analysis, case_title=title)
     except Exception as e:
         logger.error(f"Document generation failed: {e}")
         raise HTTPException(status_code=500, detail="Document generation failed.")
-
     filename = f"Kundërshtim_{doc.file_name}.docx"
-    
-    return StreamingResponse(
-        io.BytesIO(objection_bytes),
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
-    )
+    return StreamingResponse(io.BytesIO(objection_bytes), media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={"Content-Disposition": f"attachment; filename={filename}"})
 
 @router.get("/{case_id}/documents/{doc_id}/preview", tags=["Documents"], response_class=StreamingResponse)
 async def get_document_preview(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
@@ -329,9 +319,6 @@ async def rename_document_endpoint(case_id: str, doc_id: str, body: RenameDocume
 @router.post("/{case_id}/analyze", tags=["Analysis"])
 async def analyze_case_risks(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
-    # PHOENIX RECOVERY: Automatic consolidation REMOVED to guarantee stability.
-    # This will be a separate, explicit feature in the future.
-    # await asyncio.to_thread(findings_service.consolidate_case_findings, db=db, case_id=case_id)
     return JSONResponse(content=await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id))
 
 @router.post("/{case_id}/documents/{doc_id}/deep-scan", tags=["Documents"])

@@ -1,8 +1,8 @@
 # FILE: backend/app/services/visual_service.py
-# PHOENIX PROTOCOL - VISION SAFETY V4.2 (IMAGE SUPPORT)
-# 1. FIX: Added direct support for JPG/PNG (bypassing PDF logic).
-# 2. LOGIC: If input is image, analyze directly. If PDF, extract page 1.
-# 3. STATUS: Vision enabled by default for immediate testing.
+# PHOENIX PROTOCOL - VISION SAFETY V4.3 (MODEL RECOVERY)
+# 1. FIX: Switched to 'openai/gpt-4o-mini' because 'google/gemini-flash-1.5' was 404ing.
+# 2. LOGIC: GPT-4o-mini is reliable, cheap, and has excellent Vision capabilities.
+# 3. STATUS: Deep Scan restored.
 
 import os
 import fitz  # PyMuPDF
@@ -25,14 +25,15 @@ from .ocr_service import extract_text_from_image
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
-# PHOENIX FIX: Default to TRUE for testing
 VISION_ENABLED = os.getenv("VISION_ENABLED", "true").lower() == "true"
 VISION_PROVIDER = os.getenv("VISION_PROVIDER", "openrouter") 
 
 # OpenRouter 
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY") 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_VISION_MODEL = "google/gemini-flash-1.5" 
+
+# PHOENIX FIX: Switched to GPT-4o-Mini (Reliable Vision)
+OPENROUTER_VISION_MODEL = "openai/gpt-4o-mini"
 
 # Local
 OLLAMA_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
@@ -89,7 +90,7 @@ def _analyze_image_openrouter(base64_img: str, context_hint: str) -> str:
                     ]
                 }
             ],
-            max_tokens=1000 # Increased for text extraction
+            max_tokens=1000 
         )
         return response.choices[0].message.content or ""
     except Exception as e:
