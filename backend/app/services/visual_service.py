@@ -1,8 +1,8 @@
 # FILE: backend/app/services/visual_service.py
-# PHOENIX PROTOCOL - VISION SAFETY V4.3 (MODEL RECOVERY)
-# 1. FIX: Switched to 'openai/gpt-4o-mini' because 'google/gemini-flash-1.5' was 404ing.
-# 2. LOGIC: GPT-4o-mini is reliable, cheap, and has excellent Vision capabilities.
-# 3. STATUS: Deep Scan restored.
+# PHOENIX PROTOCOL - VISION SAFETY V4.4 (ALBANIAN LOCALIZATION)
+# 1. FIX: Prompt now enforces ALBANIAN output.
+# 2. UI: Removed hardcoded '[Analizë Vizuale]' prefix.
+# 3. CLEANUP: AI instructed to avoid English headers like '### Main Text'.
 
 import os
 import fitz  # PyMuPDF
@@ -74,13 +74,21 @@ def _analyze_image_openrouter(base64_img: str, context_hint: str) -> str:
             base_url=OPENROUTER_BASE_URL
         )
         
+        # PHOENIX FIX: Strict Albanian Prompt
+        prompt_text = (
+            f"Analizo këtë dokument ligjor ({context_hint}). "
+            "1. Ekstrakto tekstin kryesor në gjuhën SHQIPE. "
+            "2. Përshkruaj çdo vulë, nënshkrim ose shënim me dorë që sheh. "
+            "MOS përdor tituj në Anglisht. Përgjigju vetëm në Shqip."
+        )
+
         response = client.chat.completions.create(
             model=OPENROUTER_VISION_MODEL,
             messages=[
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": f"Analyze this legal document ({context_hint}). 1. Extract the main text clearly. 2. Describe any stamps, signatures, or handwritten notes visible."},
+                        {"type": "text", "text": prompt_text},
                         {
                             "type": "image_url",
                             "image_url": {
@@ -105,7 +113,7 @@ def _analyze_image_local(base64_img: str, context_hint: str) -> str:
         "model": LOCAL_VISION_MODEL,
         "messages": [{
             "role": "user",
-            "content": f"Describe this legal document ({context_hint}). Extract visible text and identify stamps/signatures.",
+            "content": f"Përshkruaj këtë dokument ({context_hint}) në gjuhën Shqipe. Lexo tekstin dhe vulat.",
             "images": [base64_img]
         }],
         "stream": False
@@ -171,9 +179,9 @@ def perform_deep_scan(db: Database, document_id: str) -> List[Dict[str, Any]]:
                     # Scan First Page
                     b64_img = _pdf_page_to_base64(pdf_doc[0])
                     if VISION_PROVIDER == "openrouter":
-                        analysis = _analyze_image_openrouter(b64_img, "Page 1")
+                        analysis = _analyze_image_openrouter(b64_img, "Faqja 1")
                     else:
-                        analysis = _analyze_image_local(b64_img, "Page 1")
+                        analysis = _analyze_image_local(b64_img, "Faqja 1")
 
         # RESULT PROCESSING
         if analysis:
@@ -181,8 +189,9 @@ def perform_deep_scan(db: Database, document_id: str) -> List[Dict[str, Any]]:
                 "case_id": document.get("case_id"),
                 "document_id": doc_oid,
                 "document_name": document.get("file_name"),
-                "finding_text": f"[👁️ Analizë Vizuale]: {analysis}",
-                "source_text": "AI Vision Scan",
+                # PHOENIX FIX: Clean text output without hardcoded tags
+                "finding_text": analysis, 
+                "source_text": "Skanim Vizual (AI)",
                 "category": "OCR_VISION",
                 "page_number": 1,
                 "confidence_score": 0.95,
