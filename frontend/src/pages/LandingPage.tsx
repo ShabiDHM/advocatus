@@ -1,8 +1,7 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING PAGE V2.0 (SHOWCASE INTEGRATED)
-// 1. FEATURE: Added 'ProductShowcase' interactive demo section.
-// 2. LAYOUT: Re-balanced spacing to accommodate the new visual weight.
-// 3. STATUS: High-Conversion Design ready for launch.
+// PHOENIX PROTOCOL - LANDING PAGE V2.1 (REBRANDING)
+// 1. UPDATE: Changed Copyright to 'Data And Human Management'.
+// 2. STATUS: Production Ready.
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -16,7 +15,7 @@ import {
     MessageSquare,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import ProductShowcase from '../components/landing/ProductShowcase'; // NEW IMPORT
+import ProductShowcase from '../components/landing/ProductShowcase';
 
 const LandingPage: React.FC = () => {
   return (
@@ -86,7 +85,6 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* --- INTERACTIVE SHOWCASE --- */}
-        {/* PHOENIX: The centerpiece of the landing page */}
         <ProductShowcase />
 
         {/* --- FEATURES (BENTO GRID) --- */}
@@ -175,7 +173,8 @@ const LandingPage: React.FC = () => {
 
         {/* --- FOOTER --- */}
         <footer className="py-8 border-t border-white/10 text-center text-gray-500 text-sm">
-            <p>&copy; {new Date().getFullYear()} Juristi.tech. Të gjitha të drejtat e rezervuara.</p>
+            {/* PHOENIX FIX: Updated Copyright Name */}
+            <p>&copy; {new Date().getFullYear()} Data And Human Management. Të gjitha të drejtat e rezervuara.</p>
         </footer>
 
       </div>
