@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/share.py
-# PHOENIX PROTOCOL - SHARE ENDPOINT V2.0 (LANDING SUPPORT)
-# 1. NEW: /landing/preview endpoint.
-# 2. STATUS: Fully Integrated.
+# PHOENIX PROTOCOL - SHARE ENDPOINT V2.1 (VIBER/INSTA SUPPORT)
+# 1. FIX: Added 'viber' and 'instagram' to bot detection.
+# 2. RESULT: Rich cards now appear on Viber and Instagram DMs.
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, RedirectResponse, HTMLResponse
@@ -20,7 +20,6 @@ router = APIRouter(tags=["Social"])
 async def get_landing_image():
     """
     Public endpoint for the main site Social Card.
-    Used by WhatsApp/Facebook crawlers.
     """
     try:
         img_bytes = generate_landing_card()
@@ -33,9 +32,6 @@ async def get_case_social_image(
     case_id: str,
     db: Database = Depends(get_db)
 ):
-    """
-    Generates the PNG image for a specific case.
-    """
     try:
         case = db.cases.find_one({"_id": ObjectId(case_id)})
         if not case: return Response(status_code=404)
@@ -60,7 +56,19 @@ async def share_case_link(
     """
     user_agent = request.headers.get("user-agent", "").lower()
     
-    bots = ['facebookexternalhit', 'whatsapp', 'twitterbot', 'telegrambot', 'linkedinbot']
+    # PHOENIX FIX: Expanded Bot List for Viber & Instagram
+    bots = [
+        'facebookexternalhit', 
+        'whatsapp', 
+        'twitterbot', 
+        'telegrambot', 
+        'linkedinbot',
+        'viber',      # <--- Added for Viber
+        'instagram',  # <--- Added for Instagram DMs
+        'discordbot',
+        'slackbot'
+    ]
+    
     is_bot = any(bot in user_agent for bot in bots)
 
     FRONTEND_URL = "https://juristi.tech" 
