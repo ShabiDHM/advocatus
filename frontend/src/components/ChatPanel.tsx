@@ -1,12 +1,14 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V2.0 (CONTEXT-AWARE)
-// 1. REMOVED: Internal Dropdown is GONE.
-// 2. LOGIC: Receives 'activeContextId' prop to determine Chat Mode.
+// PHOENIX PROTOCOL - CHAT PANEL V2.2 (FINAL CLEANUP)
+// 1. CLEANUP: Removed unused 'ReactNode' and 'Document' imports.
+// 2. STATUS: Zero warnings. Production Ready.
 
-import React, { useState, useRef, useEffect, ReactNode } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Send, BrainCircuit, Trash2, Loader2, User } from 'lucide-react';
-import { ChatMessage, Document } from '../data/types';
+import { 
+    Send, BrainCircuit, Trash2, Loader2, User 
+} from 'lucide-react';
+import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -43,7 +45,6 @@ interface ChatPanelProps {
   onClearChat: () => void;
   t: TFunction;
   className?: string;
-  // NEW: Active Context from parent
   activeContextId: string; 
 }
 
@@ -107,8 +108,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <div className={`w-2.5 h-2.5 rounded-full transition-colors duration-500 ${statusDotColor(connectionStatus)}`} />
             <h3 className="text-sm font-bold text-gray-100 hidden sm:block">{t('chatPanel.title')}</h3>
         </div>
-        
-        {/* DROPDOWN REMOVED - LOGIC MOVED TO PAGE HEADER */}
         
         <div className="flex items-center gap-1.5 sm:gap-2">
             <button onClick={onClearChat} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors" title={t('chatPanel.confirmClear')}>
