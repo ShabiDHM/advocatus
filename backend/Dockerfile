@@ -1,11 +1,16 @@
 # FILE: backend/Dockerfile
+# PHOENIX PROTOCOL - INFRASTRUCTURE V4.0 (ALBANIAN VISION)
+# 1. FIX: Added 'tesseract-ocr-sqi' to enable Albanian OCR.
+# 2. RESULT: The system can now correctly read "ë" and "ç".
 
 FROM python:3.11
 
-# 1. Install system dependencies, now including LibreOffice for document conversion.
+# 1. Install system dependencies
+# PHOENIX FIX: Added 'tesseract-ocr-sqi' (Albanian Language Pack)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     tesseract-ocr \
+    tesseract-ocr-sqi \
     libreoffice \
     dnsutils \
     iputils-ping \
@@ -23,12 +28,12 @@ ENV PYTHONPATH /app
 # 4. Copy ONLY the requirements file first to leverage Docker cache.
 COPY requirements.txt .
 
-# 5. Install Python dependencies. This step will only re-run if requirements.txt changes.
+# 5. Install Python dependencies.
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 6. Copy the application source code AND utility scripts.
 COPY ./app ./app
 COPY ./scripts ./scripts
 
-# 7. Expose the port that the Uvicorn server will run on.
+# 7. Expose the port.
 EXPOSE 8000
