@@ -1,8 +1,8 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - DATA PERSISTENCE FIX
-# 1. DIAGNOSIS: The 'chroma' service was not persisting data because its volume was mapped to the wrong internal directory.
-# 2. FIX: Corrected the volume mapping for the 'chroma_data' volume to point to the correct internal path: '/chroma/chroma'.
-# 3. BEHAVIOR: ChromaDB will now write all its data to the persistent Docker volume, ensuring that the knowledge base survives restarts.
+# PHOENIX PROTOCOL - DEPLOYMENT STABILITY FIX
+# 1. DIAGNOSIS: The 'ai-core-service' loads several large ML models on startup, which can take over 30 seconds. The healthcheck was failing prematurely.
+# 2. FIX: Increased 'start_period' for the 'ai-core-service' healthcheck from 30s to 120s.
+# 3. BEHAVIOR: Docker will now wait up to 2 minutes for the AI models to load before starting health checks, ensuring a stable startup.
 
 services:
   # -------------------------------------------------------
@@ -22,7 +22,8 @@ services:
       interval: 10s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      # PHOENIX FIX: Increased startup grace period to 120s
+      start_period: 120s
 
   # -------------------------------------------------------
   # LOCAL LLM ENGINE (The Free Brain)
@@ -112,9 +113,8 @@ services:
     networks: [phoenix_net]
     environment:
       - IS_PERSISTENT=TRUE
-      - PERSIST_DIRECTORY=/chroma/chroma # This tells Chroma WHERE to save inside the container.
+      - PERSIST_DIRECTORY=/chroma/chroma
     volumes:
-      # PHOENIX FIX: This maps the persistent Docker volume to the correct internal path specified above.
       - chroma_data:/chroma/chroma
     depends_on: [backend]
 
@@ -123,8 +123,8 @@ services:
     image: neo4j:5
     restart: unless-stopped
     ports:
-      - "7474:7474" # HTTP Interface (Browser)
-      - "7687:7687" # Bolt Protocol (App connection)
+      - "7474:7474"
+      - "7687:7687"
     environment:
       - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-password}
       - NEO4J_PLUGINS=["apoc"]
