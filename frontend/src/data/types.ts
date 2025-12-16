@@ -1,7 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES REFACTOR V5.6 (DRAFTING FIX)
-// 1. ADDED: 'document_type' to CreateDraftingJobRequest.
-// 2. STATUS: Fixes strict TS error in DraftingPage.
+// PHOENIX PROTOCOL - TYPES REFACTOR V5.8 (FINAL ANALYSIS FIX)
+// 1. RE-APPLIED: 'suggested_questions' and 'discovery_targets' to CaseAnalysisResult.
+// 2. STATUS: Resolves all outstanding TS errors in AnalysisModal.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -182,11 +182,8 @@ export interface CreateDraftingJobRequest {
     template_id?: string; 
     case_id?: string; 
     context?: string;
-    
-    // PHOENIX FIX: Added document_type field
     draft_type?: string; 
     document_type?: string; 
-    
     use_library?: boolean; 
 }
 
@@ -221,6 +218,10 @@ export interface CaseAnalysisResult {
     // New Fields for V5.2 Intelligence
     conflicting_parties?: ConflictingParty[];
     key_evidence?: string[];
+
+    // PHOENIX FIX: Added these two missing fields (Re-applied and verified)
+    suggested_questions?: string[];
+    discovery_targets?: string[];
     
     // Legacy support (optional)
     risks?: string[]; 

@@ -1,7 +1,8 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - WAR ROOM UI V2.8 (UI POLISH)
-// 1. FIX: Added 'validParties' filter to hide empty/ghost boxes (the "-" symbol issue).
-// 2. STATUS: Cleanest UI yet.
+// PHOENIX PROTOCOL - WAR ROOM UI V2.9 (TYPE SAFETY)
+// 1. REFACTOR: Replaced local interface with global 'CaseAnalysisResult' from types.ts.
+// 2. STYLE: Aligned Z-Index (100) with other application modals for consistency.
+// 3. LOGIC: Preserved Ghost Filter and Sanitization logic.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -9,21 +10,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Scale, FileText, User, ShieldAlert, Swords, Target, MessageCircleQuestion, Gavel, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
-
-interface LitigationAnalysis {
-  summary_analysis?: string;
-  conflicting_parties?: Array<{ party_name: string; core_claim: string }>;
-  contradictions?: string[];
-  suggested_questions?: string[];
-  discovery_targets?: string[];
-  key_evidence?: string[];
-  missing_info?: string[];
-}
+import { CaseAnalysisResult } from '../data/types'; // PHOENIX FIX: Import global type
 
 interface AnalysisModalProps {
   isOpen: boolean;
   onClose: () => void;
-  result: LitigationAnalysis;
+  result: CaseAnalysisResult; // PHOENIX FIX: Use global type
   isLoading?: boolean;
   caseId: string;
   docId?: string; 
@@ -90,7 +82,8 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
     <AnimatePresence>
       <motion.div 
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[9999] p-0 sm:p-4"
+        // PHOENIX FIX: Adjusted z-index to 100 to match standard modal stacking
+        className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[100] p-0 sm:p-4"
         onClick={onClose}
       >
         <motion.div 
