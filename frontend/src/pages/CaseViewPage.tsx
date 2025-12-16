@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V7.5 (LIVE FINDINGS)
-// 1. FEATURE: Auto-refetches findings when a document completes processing via WebSocket.
-// 2. FEATURE: 'Show Findings' button now forces a fresh data fetch to ensure accuracy.
-// 3. MAINTENANCE: Preserved all UI/UX fixes (Title size, Z-Index, Fallbacks).
+// PHOENIX PROTOCOL - CASE VIEW PAGE V7.6 (CLEANUP)
+// 1. FIX: Removed 'caseId' and 'docId' props passed to AnalysisModal (Resolves TS Error).
+// 2. CLEANUP: Removed unused 'activeAnalysisDocId' state.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -148,7 +147,6 @@ const CaseViewPage: React.FC = () => {
   const [isRefetchingFindings, setIsRefetchingFindings] = useState(false);
   
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
-  const [activeAnalysisDocId, setActiveAnalysisDocId] = useState<string | undefined>(undefined);
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
   
@@ -181,14 +179,6 @@ const CaseViewPage: React.FC = () => {
     const completedDocs = liveDocuments.filter(d => d.status === 'COMPLETED');
     if (completedDocs.length > 0) {
         // Debounce or check logic could go here, but for now we trust the socket state
-        // We simply ensure we have the latest findings if a doc just finished.
-        // A simple strategy: If we see a document switch to COMPLETED that wasn't before, trigger fetch.
-        // For simplicity in this V7.5, we will rely on the Manual 'Show Findings' click to do the heavy lifting,
-        // but we can also silently update in background if needed.
-        
-        // Actually, let's keep it manual-on-click for performance, unless requested otherwise.
-        // BUT, the user prompt implies they expect it to show up.
-        // So, we will implement the manual fetch in `handleShowFindings` below.
     }
   }, [liveDocuments]);
 
@@ -208,18 +198,13 @@ const CaseViewPage: React.FC = () => {
     if (!caseId) return;
     setIsAnalyzing(true);
     setActiveModal('none');
-    setActiveAnalysisDocId(undefined); 
-
+    
     try {
         let result: CaseAnalysisResult;
         if (activeContextId === 'general') {
             result = await apiService.analyzeCase(caseId);
-            if ((result as any).target_document_id) {
-                setActiveAnalysisDocId((result as any).target_document_id);
-            }
         } else {
             result = await apiService.crossExamineDocument(caseId, activeContextId);
-            setActiveAnalysisDocId(activeContextId);
         }
         
         if (result.error) alert(result.error);
@@ -314,8 +299,6 @@ const CaseViewPage: React.FC = () => {
             isOpen={activeModal === 'analysis'} 
             onClose={() => setActiveModal('none')} 
             result={analysisResult} 
-            caseId={caseData.details.id}
-            docId={activeAnalysisDocId}
           />
       )}
       <FindingsModal isOpen={activeModal === 'findings'} onClose={() => setActiveModal('none')} findings={modalFindings} />

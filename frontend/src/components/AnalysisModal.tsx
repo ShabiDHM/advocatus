@@ -1,24 +1,20 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - WAR ROOM UI V2.9 (TYPE SAFETY)
-// 1. REFACTOR: Replaced local interface with global 'CaseAnalysisResult' from types.ts.
-// 2. STYLE: Aligned Z-Index (100) with other application modals for consistency.
-// 3. LOGIC: Preserved Ghost Filter and Sanitization logic.
+// PHOENIX PROTOCOL - WAR ROOM UI V3.1 (STRICT CLEANUP)
+// 1. FIX: Removed unused 'caseId' and 'docId' props to resolve TS6133 errors.
+// 2. CLEANUP: Removed unused 'apiService' import.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Scale, FileText, User, ShieldAlert, Swords, Target, MessageCircleQuestion, Gavel, Download } from 'lucide-react';
+import { X, Scale, FileText, User, ShieldAlert, Swords, Target, MessageCircleQuestion, Gavel } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { apiService } from '../services/api';
-import { CaseAnalysisResult } from '../data/types'; // PHOENIX FIX: Import global type
+import { CaseAnalysisResult } from '../data/types'; 
 
 interface AnalysisModalProps {
   isOpen: boolean;
   onClose: () => void;
-  result: CaseAnalysisResult; // PHOENIX FIX: Use global type
+  result: CaseAnalysisResult; 
   isLoading?: boolean;
-  caseId: string;
-  docId?: string; 
 }
 
 const scrollbarStyles = `
@@ -43,29 +39,15 @@ const sanitizeText = (text: string): string => {
         .replace(/Context/g, "Dosja");
 };
 
-const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, isLoading, caseId, docId }) => {
+const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, isLoading }) => {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'analysis' | 'strategy'>('analysis');
-  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (isOpen) { document.body.style.overflow = 'hidden'; } 
     else { document.body.style.overflow = 'unset'; }
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
-
-  const handleGenerateObjection = async () => {
-      if (!docId) return; 
-      try {
-          setIsGenerating(true);
-          await apiService.downloadObjection(caseId, docId);
-      } catch (error) {
-          console.error("Draft generation failed:", error);
-          alert("Dështoi gjenerimi i dokumentit. Ju lutem provoni përsëri.");
-      } finally {
-          setIsGenerating(false);
-      }
-  };
 
   // PHOENIX FIX: Ghost Filter
   // Filters out parties that are null, empty, or just symbols like "-" or "."
@@ -159,16 +141,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     {/* TAB 2: STRATEGY */}
                     {activeTab === 'strategy' && (
                          <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-300">
-                             
-                             {/* CONDITIONAL RENDER: Only show if docId is present */}
-                             {docId && (
-                                 <div className="mb-6 flex justify-end">
-                                    <button onClick={handleGenerateObjection} disabled={isGenerating} className={`px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg ${isGenerating ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white'}`}>
-                                        {isGenerating ? (<><div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin"/>Duke Gjeneruar...</>) : (<><Download size={18} /> Gjenero Kundërshtimin (.docx)</>)}
-                                    </button>
-                                 </div>
-                             )}
-
                             <div className="bg-purple-900/10 p-5 rounded-xl border border-purple-500/20">
                                 <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider mb-3 flex items-center gap-2"><MessageCircleQuestion size={16}/> Pyetje për Dëshmitarin</h3>
                                 {result.suggested_questions && result.suggested_questions.length > 0 ? (
