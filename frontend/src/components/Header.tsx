@@ -1,10 +1,9 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V3.0 (Z-INDEX FIX)
-// 1. FIX: Increased Z-Index to 40 (Header) and 50 (Dropdown) to prevent hiding behind ChatPanel.
-// 2. UX: Added a high-priority invisible backdrop to handle 'Click Outside' reliably.
-// 3. MOBILE: Ensured layout remains responsive.
+// PHOENIX PROTOCOL - HEADER V3.1 (EVENT LISTENER FIX)
+// 1. FIX: Removed CSS-based backdrop in favor of Document Event Listener (useClickOutside).
+// 2. LOGIC: Solves z-index stacking issues caused by MainLayout's transforms.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, Menu, LogOut, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
@@ -21,6 +20,10 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   const { t } = useTranslation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
+
+  // Refs for click-outside detection
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   // Poll for alerts
   useEffect(() => {
@@ -39,8 +42,27 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
     return () => clearInterval(interval);
   }, [user]);
 
+  // PHOENIX FIX: Click Outside Event Listener
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        isProfileOpen &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
+        setIsProfileOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isProfileOpen]);
+
   return (
-    // PHOENIX FIX: Raised z-index to 40 to stay above standard page content
     <header className="h-16 bg-background-dark border-b border-glass-edge flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 sticky top-0 backdrop-blur-md bg-opacity-90">
       
       {/* Left: Mobile Menu & Search */}
@@ -80,6 +102,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
         {/* Profile Dropdown Container */}
         <div className="relative">
           <button 
+            ref={buttonRef}
             onClick={() => setIsProfileOpen(!isProfileOpen)}
             className="flex items-center gap-3 hover:bg-white/5 p-1.5 rounded-xl transition-colors border border-transparent hover:border-glass-edge"
           >
@@ -95,43 +118,37 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           </button>
 
           {isProfileOpen && (
-            <>
-              {/* PHOENIX FIX: Full-screen invisible backdrop to catch outside clicks. Z-Index 45 (Above Header, Below Menu) */}
-              <div 
-                className="fixed inset-0 z-45 cursor-default" 
-                onClick={() => setIsProfileOpen(false)}
-              />
-              
-              {/* PHOENIX FIX: Dropdown menu. Z-Index 50 (Highest Priority) */}
-              <div className="absolute right-0 mt-2 w-56 bg-background-dark border border-glass-edge rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2">
-                <div className="px-4 py-3 border-b border-glass-edge mb-1">
-                  <p className="text-sm text-white font-medium truncate">{user?.username}</p>
-                  <p className="text-xs text-text-secondary truncate">{user?.email}</p>
-                </div>
-
-                <Link 
-                  to="/account" 
-                  className="flex items-center px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
-                  onClick={() => setIsProfileOpen(false)}
-                >
-                  <UserIcon size={16} className="mr-3 text-blue-400" />
-                  {t('sidebar.account')}
-                </Link>
-
-                <div className="h-px bg-glass-edge my-1"></div>
-
-                <button
-                  onClick={() => {
-                    setIsProfileOpen(false);
-                    logout();
-                  }}
-                  className="w-full flex items-center px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-                >
-                  <LogOut size={16} className="mr-3" />
-                  {t('header.logout')}
-                </button>
+            <div 
+              ref={dropdownRef}
+              className="absolute right-0 mt-2 w-56 bg-background-dark border border-glass-edge rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2"
+            >
+              <div className="px-4 py-3 border-b border-glass-edge mb-1">
+                <p className="text-sm text-white font-medium truncate">{user?.username}</p>
+                <p className="text-xs text-text-secondary truncate">{user?.email}</p>
               </div>
-            </>
+
+              <Link 
+                to="/account" 
+                className="flex items-center px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                onClick={() => setIsProfileOpen(false)}
+              >
+                <UserIcon size={16} className="mr-3 text-blue-400" />
+                {t('sidebar.account')}
+              </Link>
+
+              <div className="h-px bg-glass-edge my-1"></div>
+
+              <button
+                onClick={() => {
+                  setIsProfileOpen(false);
+                  logout();
+                }}
+                className="w-full flex items-center px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+              >
+                <LogOut size={16} className="mr-3" />
+                {t('header.logout')}
+              </button>
+            </div>
           )}
         </div>
       </div>
