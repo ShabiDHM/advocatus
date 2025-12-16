@@ -1,10 +1,9 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - SIDEBAR V3.0 (SAFE ALERTS)
-// 1. FEATURE: Added Notification Badge for Calendar Alerts.
-// 2. SECURITY: Fetches alerts ONLY when 'user' is authenticated (Prevents 401 Race Condition).
-// 3. UI: Added count badge to the Calendar navigation item.
+// PHOENIX PROTOCOL - SIDEBAR V3.1 (CLEANUP)
+// 1. CHANGE: Removed Calendar Notification Badge (as requested).
+// 2. CLEANUP: Removed unused apiService and alert fetching logic.
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
     LayoutDashboard, Calendar, FileText, MessageSquare, 
@@ -12,7 +11,6 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import { apiService } from '../services/api'; // Import API
 import BrandLogo from './BrandLogo';
 
 interface SidebarProps {
@@ -22,40 +20,13 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const { t } = useTranslation();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
-  const [alertCount, setAlertCount] = useState(0);
-
-  // PHOENIX FIX: Safe Fetch Logic
-  // Prevents 401 errors by waiting for Authentication before requesting data.
-  useEffect(() => {
-    let mounted = true;
-
-    const fetchAlerts = async () => {
-        if (!isAuthenticated || !user) return; // The Guard Clause
-        
-        try {
-            const data = await apiService.getAlertsCount();
-            if (mounted) setAlertCount(data.count);
-        } catch (error) {
-            console.error("Failed to fetch sidebar alerts", error);
-        }
-    };
-
-    fetchAlerts();
-
-    // Optional: Refresh alerts every minute if sidebar is open/visible
-    const interval = setInterval(fetchAlerts, 60000);
-    return () => { 
-        mounted = false; 
-        clearInterval(interval); 
-    };
-  }, [isAuthenticated, user]); // Re-run when auth state changes
 
   const getNavItems = () => {
     const baseItems = [
       { icon: LayoutDashboard, label: t('sidebar.dashboard'), path: '/dashboard' },
-      { icon: Calendar, label: t('sidebar.calendar'), path: '/calendar', badge: alertCount }, // Attach Badge
+      { icon: Calendar, label: t('sidebar.calendar'), path: '/calendar' }, 
       { icon: FileText, label: t('sidebar.drafting'), path: '/drafting' },
       { icon: Building2, label: t('sidebar.business'), path: '/business' },
       { icon: MessageSquare, label: t('sidebar.support'), path: '/support' },
@@ -122,13 +93,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                       <Icon className={`h-5 w-5 mr-3 transition-colors ${isActive ? 'text-secondary-start' : 'group-hover:text-white'}`} />
                       <span className="font-medium">{item.label}</span>
                   </div>
-                  
-                  {/* BADGE RENDERER */}
-                  {item.badge && item.badge > 0 ? (
-                      <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md shadow-red-500/20">
-                          {item.badge}
-                      </span>
-                  ) : null}
                 </NavLink>
               );
             })}
