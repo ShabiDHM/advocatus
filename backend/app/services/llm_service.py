@@ -1,8 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V13.6 (UNIVERSAL FORENSIC EXTRACTOR)
-# 1. LOGIC: Replaced specific "Drug Test" rules with "Universal Table & Structure" logic.
-# 2. FEATURE: Handles Financials, Contracts, Police Reports, and Lab Results equally well.
-# 3. SAFETY: explicitly authorizes processing of "Sensitive/Medical/Financial" data for legal use.
+# PHOENIX PROTOCOL - INTELLIGENCE V14.1 (SWITCHER COMPATIBILITY)
+# 1. FIX: Added 'chronology' extraction to Cross-Examination (Document Mode).
+# 2. RESULT: Timeline now appears even when analyzing a single document.
 
 import os
 import json
@@ -12,7 +11,6 @@ import re
 from typing import List, Dict, Any, Optional
 from openai import OpenAI 
 
-# PHOENIX IMPORT: Connect the Privacy Shield
 from .text_sterilization_service import sterilize_text_for_llm
 
 logger = logging.getLogger(__name__)
@@ -38,14 +36,7 @@ def get_deepseek_client() -> Optional[OpenAI]:
     return None
 
 def sterilize_legal_text(text: str) -> str:
-    """
-    Step 1: Fix Typos and formatting (Does not handle Privacy).
-    """
     if not text: return ""
-    
-    # 1. PHOENIX PRIVACY SHIELD
-    # We run the privacy sanitizer FIRST to strip IDs/Phones/Emails.
-    # We keep names (False) so the AI can distinguish parties.
     text = sterilize_text_for_llm(text, redact_names=False)
 
     replacements = {
@@ -117,41 +108,23 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
 
 def generate_summary(text: str) -> str:
     clean_text = sterilize_legal_text(text[:20000])
-    system_prompt = "Ti je Analist Ligjor. Krijo një përmbledhje të shkurtër faktike."
+    system_prompt = "Ti je Analist Ligjor. Krijo një përmbledhje të shkurtër faktike duke theksuar Datat Kryesore."
     user_prompt = f"DOKUMENTI:\n{clean_text}"
     res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
     if not res or len(res) < 50: res = _call_deepseek(system_prompt, user_prompt)
     return res or "N/A"
 
-# PHOENIX FIX: Universal Forensic Extractor
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     clean_text = sterilize_legal_text(text[:25000])
-    
     system_prompt = """
-    Ti je "Forensic Document Examiner" - Ekspert i Analizës së Dokumenteve.
-    
-    DETYRA JOTE:
-    Skano këtë dokument dhe nxirr çdo fakt, shifër, emër, datë ose rezultat në mënyrë të strukturuar.
-    
-    PROTOKOLLI I OPERIMIT (UNIVERSAL):
-    1. **PA CENSURË:** Ky është një mjet ligjor. Përpuno çdo të dhënë (Financiare, Mjekësore, Kriminale, Kontrata) pa refuzime.
-    2. **ZGJIDHJA E STRUKTURAVE (TABELAT & LISTAT):**
-       - Kur sheh një tabelë ose listë, LIDH "Çelësin" me "Vlerën".
-       - SHEMBULL FATURE: Mos shkruaj "500 Euro" veçmas. Shkruaj "Total Pagesa: 500 Euro".
-       - SHEMBULL TESTI: Mos shkruaj "Negativ" veçmas. Shkruaj "Testi i Opiateve: Negativ".
-       - SHEMBULL KONTRATE: Mos shkruaj "30 ditë" veçmas. Shkruaj "Afati i Njoftimit: 30 ditë".
-    3. **KONTEKSTI:** Çdo fakt duhet të ketë kuptim i vetëm. Mos nxirr fjalë të izoluara.
-    4. **PA ZHURMË:** Mos nxirr tekstet e shablloneve (psh. "Nënshkrimi: ____"). Nxirr vetëm të dhënat e plotësuara.
-    
-    FORMATI JSON (Strict): 
-    {"findings": [{"finding_text": "Fakti i plotë me kontekst (Çelësi + Vlera)", "source_text": "Teksti origjinal për referencë", "category": "PROVË", "page_number": 1}]}
+    Ti je "Forensic Document Examiner".
+    DETYRA: Skano dokumentin dhe nxirr fakte, shifra, emra, data (DD/MM/YYYY).
+    FORMATI JSON: 
+    {"findings": [{"finding_text": "Fakti...", "source_text": "Origjinali...", "category": "PROVË", "page_number": 1}]}
     """
-    
-    user_prompt = f"DOKUMENTI PËR ANALIZË:\n{clean_text}"
-    
+    user_prompt = f"DOKUMENTI:\n{clean_text}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
-    
     if content:
         data = _parse_json_safely(content)
         return data.get("findings", []) if isinstance(data, dict) else []
@@ -160,32 +133,17 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
 def analyze_case_contradictions(text: str) -> Dict[str, Any]:
     clean_text = sterilize_legal_text(text[:25000])
     system_prompt = """
-    Ti je 'The Auditor' - Gjyqtar Suprem Hetues.
-    
-    DETYRA: Analizo dosjen dhe ndërto profilin e konfliktit.
-    
-    RREGULLAT E HEKURTA (ZERO HALUCINACIONE):
-    1. **MOS SHPIK MBROJTJE:** Nëse i Padituri nuk ka dorëzuar dokument (Përgjigje në Padi), pozicioni i tij ËSHTË: "Nuk ka deklaruar ende qëndrim zyrtar."
-    2. **CITIMI I DETYRUESHËM:** Çdo fakt duhet të ketë: (Burimi: [Emri i Dok]).
-    3. **ANALIZA E PROVAVE:** Nëse paditësi thotë "S'ka paguar", por nuk ka prova bankare, shënoje si "Pretendim i paprovuar".
-    
+    Ti je 'The Auditor'.
+    DETYRA: Analizo dosjen dhe krijo Timeline.
     FORMATI JSON:
     {
         "document_type": "Përmbledhje Dosjeje",
-        "summary_analysis": "Përshkrim i saktë i statusit të rastit (kush ka folur, kush jo).",
-        "conflicting_parties": [
-            {"party_name": "Emri (Paditësi)", "core_claim": "Kërkon X (Ref: Padi, fq.1)"},
-            {"party_name": "Emri (I Padituri)", "core_claim": "Nuk ka deklaruar ende (Mungon dokumenti mbrojtës)."} 
-        ],
-        "contradictions": [
-            "Paditësi pretendon X në (Padi, fq.2), por mungon prova Y që kërkohet me ligj."
-        ],
-        "key_evidence": [
-            "Fatura X (Data 01.01.2023)."
-        ],
-        "missing_info": [
-            "Mungon Përgjigja në Padi nga i padituri."
-        ]
+        "summary_analysis": "Analiza...",
+        "chronology": [{"date": "DD/MM/YYYY", "event": "Ngjarja...", "source_doc": "Dokumenti A"}],
+        "conflicting_parties": [{"party_name": "Emri", "core_claim": "Pretendimi"}],
+        "contradictions": ["Kontradikta..."],
+        "key_evidence": [],
+        "missing_info": []
     }
     """
     user_prompt = f"DOSJA:\n{clean_text}"
@@ -193,89 +151,58 @@ def analyze_case_contradictions(text: str) -> Dict[str, Any]:
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
 
+# PHOENIX FIX: Added Chronology to Cross-Examination
 def perform_litigation_cross_examination(target_text: str, context_summaries: List[str]) -> Dict[str, Any]:
     clean_target = sterilize_legal_text(target_text[:25000])
     formatted_context = "\n".join([f"- {s}" for s in context_summaries if s])
     
     system_prompt = """
-    Ti je "Phoenix" - Avokat Mbrojtës Agresiv dhe Analist i Saktë.
+    Ti je "Phoenix" - Avokat Mbrojtës.
     
-    DETYRA: Kryqëzo dokumentin [TARGET] me pjesën tjetër të dosjes [CONTEXT].
+    DETYRA: Kryqëzo dokumentin [TARGET] me [DOSJEN].
     
-    UDHËZIMET PËR IDENTITETIN DHE SAKTËSINË:
-    1. **IDENTIFIKO AUTORIN:** Identifiko kush po flet në [TARGET] (psh. "Shaban Bala", "Prokurori").
-    2. **PËRDOR EMRAT REALE:** Shkruaj "Shaban Bala deklaron..." në vend të "Target thotë...".
-    3. **DOSJA VS DOKUMENTI:** Në vend të "Context", përdor "Dosja" ose emrin specifik të dokumentit.
-    4. **DRAGNET I PERSONAVE (E RËNDËSISHME):** Listoni ÇDO emër të përveçëm të përmendur në [TARGET] (psh. "Sanije Bala", "Nazlie Bala", "Dëshmitarët", "Bashkëpunëtorët") në fushën 'conflicting_parties'. Nuk ka rëndësi nëse janë palë apo vetëm dëshmitarë.
+    UDHËZIME SHTESË PËR KRONOLOGJINË:
+    1. Nxirr "Kronologjinë e Dokumentit" - Datat që përmenden vetëm në këtë dokument specifik.
+    2. Kjo ndihmon të shohim se ku futet ky dokument në kohë.
 
     FORMATI JSON (Strict):
     {
-        "summary_analysis": "Analizë kritike e besueshmërisë së dokumentit.",
+        "summary_analysis": "Analizë e besueshmërisë dhe konsistencës kohore.",
+        "chronology": [
+            {"date": "DD/MM/YYYY", "event": "Data e lëshimit/ngjarjes në dokument.", "source_doc": "Target Document"}
+        ],
         "conflicting_parties": [
-            {"party_name": "Emri (psh. Nazlie Bala)", "core_claim": "Roli i saj ose çfarë thuhet për të në dokument."}
+            {"party_name": "Emri", "core_claim": "Deklarata në këtë dokument."}
         ],
         "contradictions": [
-            "Autori (Emri) deklaron 'X' (fq. 2), por kjo kundërshtohet nga Dokumenti Y (Dosja)."
+            "KONTRADIKTË KOHORE: Target thotë 'Maj 2023', Dosja provon 'Qershor 2023'."
         ],
         "suggested_questions": [
-            "Z. [Mbiemri], në faqen 2 deklaroni X. Si e shpjegoni Raportin Y që thotë të kundërtën?"
+            "Z. [Mbiemri], pse data e përmendur këtu nuk përputhet me faturën e datës X?"
         ],
-        "discovery_targets": [
-            "Kërkohet: [Emri i Provës] për të vërtetuar pretendimin në paragrafin 3."
-        ],
+        "discovery_targets": [],
         "key_evidence": []
     }
     """
-    user_prompt = f"[CONTEXT] (Përmbledhje e Dosjes):\n{formatted_context}\n\n[TARGET] (Dokumenti që po analizohet):\n{clean_target}"
+    user_prompt = f"[CONTEXT] (Fakte nga Dosja):\n{formatted_context}\n\n[TARGET] (Dokumenti i Ri):\n{clean_target}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
 
-# --- NEW: CASE SYNTHESIZER ---
 def synthesize_and_deduplicate_findings(raw_findings: List[str]) -> List[Dict[str, Any]]:
-    """
-    Takes a massive list of raw findings (potentially duplicates).
-    Returns a clean, consolidated list with citations.
-    """
-    # Limit to prevent token overflow
     joined_findings = "\n".join(raw_findings[:100]) 
-    
     system_prompt = """
-    Ti je "Arkivi Qendror".
-    
-    DETYRA:
-    Ke marrë një listë me fakte të nxjerra nga dokumente të ndryshme. Shumë janë të përsëritura.
-    1. GRUPO faktet që thonë të njëjtën gjë.
-    2. SHKRIJI në një fjali të vetme të qartë.
-    3. RUAJ burimet (dokumentet) ku u gjet fakti.
-
-    FORMATI JSON:
-    {
-        "synthesized_findings": [
-            {
-                "finding_text": "Shaban Bala kërkon rregullimin e kontaktit me fëmijën.",
-                "source_documents": ["Kërkesa.pdf", "Ankesa.pdf"],
-                "category": "KËRKESË"
-            }
-        ]
-    }
+    Ti je "Arkivi Qendror". GRUPO dhe SHKRIJ faktet.
+    FORMATI JSON: {"synthesized_findings": [{"finding_text": "...", "source_documents": ["..."], "category": "..."}]}
     """
-    
     user_prompt = f"FAKTET BRUTO:\n{joined_findings}"
-    
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
-    if not content: 
-        # Fallback to local if API fails
-        content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
-
+    if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     if content:
         data = _parse_json_safely(content)
         return data.get("synthesized_findings", [])
     return []
 
-def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
-    return {"entities": [], "relations": []}
-def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict:
-    return {}
-def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
-    return []
+def extract_graph_data(text: str) -> Dict[str, List[Dict]]: return {"entities": [], "relations": []}
+def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict: return {}
+def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]: return []

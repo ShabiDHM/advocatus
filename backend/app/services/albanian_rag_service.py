@@ -1,14 +1,15 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - CHAT RAG SYSTEM V10.0 (GRAPH-AWARE)
-# 1. NEW: Dynamic Entity Extraction to query Graph for specific nodes.
-# 2. UPGRADE: Strengthened System Prompt to prevent hallucinations.
-# 3. LOGIC: Merges Vector Context + Graph Relationships + Legal Knowledge.
+# PHOENIX PROTOCOL - CHAT RAG SYSTEM V11.0 (CONTEXT-AWARE & TIMELINE)
+# 1. UPGRADE: Injects 'Case Summary' & 'Description' as Global Context (The "Big Picture").
+# 2. LOGIC: Prioritizes Chronology by injecting Date-specific findings if detected.
+# 3. FIX: Ensures Entity Extraction doesn't miss key capitalized terms.
 
 import os
 import asyncio
 import logging
 import re
 from typing import List, Optional, Dict, Protocol, cast, Any, Set
+from bson import ObjectId
 from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,24 @@ class AlbanianRAGService:
              
         return list(set(potential_entities))
 
+    async def _get_case_summary(self, case_id: str) -> str:
+        """Fetches the high-level summary of the case to ground the AI."""
+        try:
+            if not self.db: return ""
+            case = await self.db.cases.find_one({"_id": ObjectId(case_id)}, {"case_name": 1, "description": 1, "summary": 1})
+            if not case: return ""
+            
+            summary_parts = [f"EMRI I RASTIT: {case.get('case_name', 'Pa Emër')}"]
+            if case.get('description'):
+                summary_parts.append(f"PËRSHKRIMI I PËRGJITHSHËM: {case.get('description')}")
+            if case.get('summary'): # Assuming an AI generated summary exists
+                summary_parts.append(f"PËRMBLEDHJA E RASTIT: {case.get('summary')}")
+                
+            return "\n".join(summary_parts)
+        except Exception as e:
+            logger.warning(f"Failed to fetch case summary: {e}")
+            return ""
+
     async def retrieve_context(
         self, 
         query: str, 
@@ -87,6 +106,7 @@ class AlbanianRAGService:
         
         user_docs, kb_docs, graph_contradictions, structured_findings = [], [], "", []
         graph_connections: List[str] = []
+        case_summary = ""
 
         async def fetch_graph_connections():
             """Fetch connections for each detected entity in the query"""
@@ -109,6 +129,7 @@ class AlbanianRAGService:
                 asyncio.to_thread(graph_service.find_contradictions, case_id),
                 asyncio.to_thread(self.vector_store.query_findings_by_similarity, case_id=case_id, embedding=query_embedding, n_results=8),
                 fetch_graph_connections(),
+                self._get_case_summary(case_id),
                 return_exceptions=True
             )
             
@@ -117,11 +138,16 @@ class AlbanianRAGService:
             graph_contradictions = results[2] if isinstance(results[2], str) and "No direct" not in results[2] else ""
             structured_findings = results[3] if isinstance(results[3], list) else []
             graph_connections = results[4] if isinstance(results[4], list) else []
+            case_summary = results[5] if isinstance(results[5], str) else ""
 
         except Exception as e:
             logger.error(f"RAG: Retrieval Phase Error: {e}")
 
         context_parts = []
+
+        # 0. Global Case Context (The Anchor)
+        if case_summary:
+            context_parts.append(f"### INFORMACIONI I PËRGJITHSHËM I RASTIT:\n{case_summary}")
         
         # 1. Direct Graph Evidence (Highest Trust)
         if graph_connections:

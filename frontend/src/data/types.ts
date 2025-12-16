@@ -1,7 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES REFACTOR V5.8 (FINAL ANALYSIS FIX)
-// 1. RE-APPLIED: 'suggested_questions' and 'discovery_targets' to CaseAnalysisResult.
-// 2. STATUS: Resolves all outstanding TS errors in AnalysisModal.
+// PHOENIX PROTOCOL - TYPES REFACTOR V5.9 (TIMELINE ENABLED)
+// 1. ADDED: 'chronology' to CaseAnalysisResult to support new Temporal Logic.
+// 2. DEFINED: 'ChronologyEvent' interface for structured timeline data.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -210,6 +210,13 @@ export interface ConflictingParty {
     core_claim: string;
 }
 
+// PHOENIX NEW: Timeline Event
+export interface ChronologyEvent {
+    date: string;
+    event: string;
+    source_doc?: string;
+}
+
 export interface CaseAnalysisResult { 
     summary_analysis: string; 
     contradictions: string[]; 
@@ -218,8 +225,11 @@ export interface CaseAnalysisResult {
     // New Fields for V5.2 Intelligence
     conflicting_parties?: ConflictingParty[];
     key_evidence?: string[];
+    
+    // PHOENIX NEW: The Timeline Field
+    chronology?: ChronologyEvent[];
 
-    // PHOENIX FIX: Added these two missing fields (Re-applied and verified)
+    // Re-applied and verified
     suggested_questions?: string[];
     discovery_targets?: string[];
     

@@ -1,12 +1,13 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - WAR ROOM UI V3.1 (STRICT CLEANUP)
-// 1. FIX: Removed unused 'caseId' and 'docId' props to resolve TS6133 errors.
-// 2. CLEANUP: Removed unused 'apiService' import.
+// PHOENIX PROTOCOL - WAR ROOM UI V3.2 (TIMELINE INTEGRATION)
+// 1. FEATURE: Added 'Kronologjia e Ngjarjeve' (Timeline) visualization.
+// 2. UI: Vertical timeline with connecting lines and glowing dots for events.
+// 3. LOGIC: Renders the new 'chronology' data from the backend.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Scale, FileText, User, ShieldAlert, Swords, Target, MessageCircleQuestion, Gavel } from 'lucide-react';
+import { X, Scale, FileText, User, ShieldAlert, Swords, Target, MessageCircleQuestion, Gavel, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CaseAnalysisResult } from '../data/types'; 
 
@@ -64,7 +65,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
     <AnimatePresence>
       <motion.div 
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        // PHOENIX FIX: Adjusted z-index to 100 to match standard modal stacking
         className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[100] p-0 sm:p-4"
         onClick={onClose}
       >
@@ -112,12 +112,45 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     {/* TAB 1: ANALYSIS */}
                     {activeTab === 'analysis' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            
+                            {/* SECTION: SUMMARY */}
                             <div className="bg-blue-900/10 p-5 rounded-xl border border-blue-500/20">
                                 <h3 className="text-sm font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-2"><FileText size={16}/> {t('analysis.summary', 'Analiza e Besueshmërisë')}</h3>
                                 <p className="text-gray-200 text-sm leading-relaxed">{sanitizeText(result.summary_analysis || "") || "Nuk ka analizë të disponueshme."}</p>
                             </div>
+
+                            {/* PHOENIX NEW: TIMELINE (CHRONOLOGY) */}
+                            {result.chronology && result.chronology.length > 0 && (
+                                <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50">
+                                    <h3 className="text-sm font-bold text-cyan-400 uppercase tracking-wider mb-5 flex items-center gap-2">
+                                        <Clock size={16}/> Kronologjia e Ngjarjeve
+                                    </h3>
+                                    <div className="relative pl-4 border-l-2 border-slate-700/50 space-y-8 ml-2">
+                                        {result.chronology.map((event, idx) => (
+                                            <div key={idx} className="relative">
+                                                {/* Glowing Dot */}
+                                                <div className="absolute -left-[23px] top-1 w-3.5 h-3.5 rounded-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.5)] border-2 border-background-dark" />
+                                                
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-cyan-300 font-bold text-xs tracking-wide bg-cyan-950/30 px-2 py-0.5 rounded-md w-fit border border-cyan-900/50">
+                                                        {event.date}
+                                                    </span>
+                                                    <p className="text-gray-200 text-sm leading-relaxed font-medium mt-1">
+                                                        {sanitizeText(event.event)}
+                                                    </p>
+                                                    {event.source_doc && (
+                                                        <span className="text-slate-500 text-[10px] uppercase tracking-wider font-semibold">
+                                                            Burimi: {event.source_doc}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             
-                            {/* PHOENIX FIX: Only render if we have VALID parties (no ghosts) */}
+                            {/* SECTION: PARTIES */}
                             {validParties.length > 0 && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {validParties.map((party, idx) => (
@@ -129,6 +162,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                 </div>
                             )}
 
+                            {/* SECTION: CONTRADICTIONS */}
                             {result.contradictions && result.contradictions.length > 0 && (
                                 <div className="bg-orange-900/10 p-5 rounded-xl border border-orange-500/20">
                                     <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wider mb-3 flex items-center gap-2"><ShieldAlert size={16}/> Kontradikta të Gjetura</h3>
