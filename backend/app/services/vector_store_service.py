@@ -2,7 +2,7 @@
 # PHOENIX PROTOCOL - VECTOR STORE V8.0 (TOTAL RECALL DELETE)
 # 1. FIX: 'delete_document_embeddings' now wipes data from BOTH User Chunks and Findings Collections.
 # 2. LOGIC: Ensures zero residue remains in ChromaDB after document deletion.
-# 3. SAFETY: Wrapped in robust try-catch blocks to prevent crashes during cleanup.
+
 
 from __future__ import annotations
 import os
