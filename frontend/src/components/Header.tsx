@@ -1,8 +1,8 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - UI MODIFICATION
-// 1. MODIFICATION: The LanguageSwitcher component has been wrapped in a div with the 'hidden' class.
-// 2. BEHAVIOR: This temporarily hides the language selection dropdown from the header to default to Albanian.
-// 3. STATUS: The change is non-destructive and can be easily reverted by removing the 'hidden' class.
+// PHOENIX PROTOCOL - HEADER V3.0 (Z-INDEX FIX)
+// 1. FIX: Increased Z-Index to 40 (Header) and 50 (Dropdown) to prevent hiding behind ChatPanel.
+// 2. UX: Added a high-priority invisible backdrop to handle 'Click Outside' reliably.
+// 3. MOBILE: Ensured layout remains responsive.
 
 import React, { useState, useEffect } from 'react';
 import { Bell, Search, Menu, LogOut, User as UserIcon } from 'lucide-react';
@@ -30,7 +30,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
         const data = await apiService.getAlertsCount();
         setAlertCount(data.count);
       } catch (err) {
-        // Silently fail if calendar service isn't ready
         console.warn("Alert check skipped");
       }
     };
@@ -41,7 +40,8 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   }, [user]);
 
   return (
-    <header className="h-16 bg-background-dark border-b border-glass-edge flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 sticky top-0 backdrop-blur-md bg-opacity-90">
+    // PHOENIX FIX: Raised z-index to 40 to stay above standard page content
+    <header className="h-16 bg-background-dark border-b border-glass-edge flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 sticky top-0 backdrop-blur-md bg-opacity-90">
       
       {/* Left: Mobile Menu & Search */}
       <div className="flex items-center gap-4">
@@ -64,14 +64,12 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
 
       {/* Right: Actions & Profile */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {/* PHOENIX FIX: Hide the language switcher temporarily */}
         <div className="hidden">
           <LanguageSwitcher />
         </div>
 
         <Link to="/calendar" className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors relative" title="Njoftimet">
           <Bell size={20} />
-          {/* PHOENIX LOGIC: Only show if alertCount > 0 */}
           {alertCount > 0 && (
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
           )}
@@ -79,6 +77,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
         
         <div className="h-6 w-px bg-glass-edge/50"></div>
 
+        {/* Profile Dropdown Container */}
         <div className="relative">
           <button 
             onClick={() => setIsProfileOpen(!isProfileOpen)}
@@ -97,11 +96,14 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
 
           {isProfileOpen && (
             <>
+              {/* PHOENIX FIX: Full-screen invisible backdrop to catch outside clicks. Z-Index 45 (Above Header, Below Menu) */}
               <div 
-                className="fixed inset-0 z-10" 
+                className="fixed inset-0 z-45 cursor-default" 
                 onClick={() => setIsProfileOpen(false)}
               />
-              <div className="absolute right-0 mt-2 w-56 bg-background-dark border border-glass-edge rounded-xl shadow-2xl py-2 z-20 animate-in fade-in slide-in-from-top-2">
+              
+              {/* PHOENIX FIX: Dropdown menu. Z-Index 50 (Highest Priority) */}
+              <div className="absolute right-0 mt-2 w-56 bg-background-dark border border-glass-edge rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2">
                 <div className="px-4 py-3 border-b border-glass-edge mb-1">
                   <p className="text-sm text-white font-medium truncate">{user?.username}</p>
                   <p className="text-xs text-text-secondary truncate">{user?.email}</p>
@@ -119,7 +121,10 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                 <div className="h-px bg-glass-edge my-1"></div>
 
                 <button
-                  onClick={logout}
+                  onClick={() => {
+                    setIsProfileOpen(false);
+                    logout();
+                  }}
                   className="w-full flex items-center px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
                 >
                   <LogOut size={16} className="mr-3" />
