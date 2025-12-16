@@ -1,8 +1,8 @@
 // FILE: src/components/FindingsModal.tsx
-// PHOENIX PROTOCOL - FINDINGS MODAL V2.2 (AUTO-CLEANUP)
-// 1. FEATURE: Added 'sanitizeFindingText' to remove OCR noise (like '////').
-// 2. FEATURE: Added 'Smart Filter' to hide findings that are just empty headers or 1-2 words (unless important).
-// 3. UI: Improved Markdown rendering for table-like data.
+// PHOENIX PROTOCOL - FINDINGS MODAL V2.3 (REFUSAL FILTER)
+// 1. FIX: Added Blacklist to hide AI refusal messages ("Më vjen keq", "I'm sorry").
+// 2. FIX: Lowered confidence threshold to 0.90 to show valid items like "Opiates (95%)".
+// 3. LOGIC: Enhanced sanitization to strip more artifacts.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -26,9 +26,22 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 `;
 
-// PHOENIX LOGIC: Clean up OCR artifacts
+// PHOENIX LOGIC: Clean up OCR artifacts and Detect Refusals
 const sanitizeFindingText = (text: string): string => {
     if (!text) return "";
+    
+    // Check for AI Refusals
+    const lower = text.toLowerCase();
+    if (
+        lower.includes("më vjen keq") || 
+        lower.includes("nuk kam mundësi") || 
+        lower.includes("i'm sorry") || 
+        lower.includes("cannot analyze") ||
+        lower.includes("as an ai")
+    ) {
+        return ""; // Return empty to signal removal
+    }
+
     return text
         .replace(/\/\/\/\//g, "") // Removes "////" artifacts
         .replace(/_{3,}/g, "")    // Removes long underscores
@@ -45,15 +58,16 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
 
-  // PHOENIX LOGIC: Smart Filtering
-  // 1. Always show findings with > 50 characters (likely summaries).
-  // 2. Always show findings with very high confidence (> 0.98).
-  // 3. Hide short fragments unless "Show All" is toggled.
+  // PHOENIX LOGIC: Smart Filtering V2
   const filteredFindings = findings.filter(f => {
-      if (showAll) return true;
       const text = sanitizeFindingText(f.finding_text);
-      // Keep if it's long (summary) OR if confidence is super high (crucial extract)
-      return text.length > 50 || f.confidence_score > 0.98;
+      if (!text) return false; // Hide refusals/empty
+      
+      if (showAll) return true;
+
+      // Keep if it's long (summary) OR if confidence is reasonable (> 0.90)
+      // Lowered from 0.98 to 0.90 to catch the "95%" Opiates finding
+      return text.length > 50 || f.confidence_score > 0.90;
   });
 
   // Sort: Summaries (long text) first, then high confidence items
@@ -78,7 +92,7 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
             <h2 className="text-xl sm:text-2xl font-bold text-text-primary flex items-center gap-3">
               <Lightbulb className="text-amber-400 h-6 w-6" />
               <span>{t('caseView.findingsTitle')}</span>
-              <span className="bg-white/10 text-gray-300 text-xs px-2.5 py-1 rounded-full font-mono">{findings.length}</span>
+              <span className="bg-white/10 text-gray-300 text-xs px-2.5 py-1 rounded-full font-mono">{filteredFindings.length}</span>
             </h2>
             <div className="flex items-center gap-2">
                 {findings.length !== filteredFindings.length && (
