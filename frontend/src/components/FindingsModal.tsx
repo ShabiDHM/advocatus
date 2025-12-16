@@ -1,13 +1,13 @@
 // FILE: src/components/FindingsModal.tsx
-// PHOENIX PROTOCOL - FINDINGS MODAL V2.0 (MARKDOWN RENDERER)
-// 1. UI: Replaced raw text output with <ReactMarkdown>.
-// 2. STYLE: Added specific Tailwind classes for headers, bold text, and lists.
-// 3. STATUS: Visuals are now professional and structured.
+// PHOENIX PROTOCOL - FINDINGS MODAL V2.2 (AUTO-CLEANUP)
+// 1. FEATURE: Added 'sanitizeFindingText' to remove OCR noise (like '////').
+// 2. FEATURE: Added 'Smart Filter' to hide findings that are just empty headers or 1-2 words (unless important).
+// 3. UI: Improved Markdown rendering for table-like data.
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Lightbulb, FileText, ExternalLink } from 'lucide-react';
+import { X, Lightbulb, FileText, ExternalLink, Filter } from 'lucide-react';
 import { Finding } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
@@ -19,7 +19,6 @@ interface FindingsModalProps {
   findings: Finding[];
 }
 
-// Custom Scrollbar for the modal content
 const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar { width: 6px; }
   .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 4px; }
@@ -27,15 +26,38 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
 `;
 
+// PHOENIX LOGIC: Clean up OCR artifacts
+const sanitizeFindingText = (text: string): string => {
+    if (!text) return "";
+    return text
+        .replace(/\/\/\/\//g, "") // Removes "////" artifacts
+        .replace(/_{3,}/g, "")    // Removes long underscores
+        .trim();
+};
+
 const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings }) => {
   const { t } = useTranslation();
+  const [showAll, setShowAll] = useState(false);
 
-  // Prevent background scrolling when modal is open
   useEffect(() => {
     if (isOpen) { document.body.style.overflow = 'hidden'; } 
     else { document.body.style.overflow = 'unset'; }
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
+
+  // PHOENIX LOGIC: Smart Filtering
+  // 1. Always show findings with > 50 characters (likely summaries).
+  // 2. Always show findings with very high confidence (> 0.98).
+  // 3. Hide short fragments unless "Show All" is toggled.
+  const filteredFindings = findings.filter(f => {
+      if (showAll) return true;
+      const text = sanitizeFindingText(f.finding_text);
+      // Keep if it's long (summary) OR if confidence is super high (crucial extract)
+      return text.length > 50 || f.confidence_score > 0.98;
+  });
+
+  // Sort: Summaries (long text) first, then high confidence items
+  const sortedFindings = [...filteredFindings].sort((a, b) => b.finding_text.length - a.finding_text.length);
 
   if (!isOpen) return null;
 
@@ -43,7 +65,7 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
     <AnimatePresence>
       <motion.div 
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[9999] p-0 sm:p-4"
+        className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[100] p-0 sm:p-4"
         onClick={onClose}
       >
         <motion.div 
@@ -58,21 +80,32 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
               <span>{t('caseView.findingsTitle')}</span>
               <span className="bg-white/10 text-gray-300 text-xs px-2.5 py-1 rounded-full font-mono">{findings.length}</span>
             </h2>
-            <button onClick={onClose} className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors">
-                <X size={24} />
-            </button>
+            <div className="flex items-center gap-2">
+                {findings.length !== filteredFindings.length && (
+                    <button 
+                        onClick={() => setShowAll(!showAll)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border flex items-center gap-2 transition-all ${showAll ? 'bg-amber-500/20 text-amber-400 border-amber-500/50' : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10'}`}
+                    >
+                        <Filter size={12} />
+                        {showAll ? "Fshih Detajet" : "Shiko Të Gjitha"}
+                    </button>
+                )}
+                <button onClick={onClose} className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-full transition-colors">
+                    <X size={24} />
+                </button>
+            </div>
           </div>
 
           {/* Content */}
           <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar bg-background-dark/50">
             <style>{scrollbarStyles}</style>
             
-            {findings.length === 0 ? (
+            {sortedFindings.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
                     <p>{t('caseView.noFindings')}</p>
                 </div>
             ) : (
-                findings.map((finding) => (
+                sortedFindings.map((finding) => (
                     <motion.div 
                         key={finding.id} 
                         initial={{ opacity: 0, y: 10 }}
@@ -89,27 +122,28 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
                                 <ReactMarkdown
                                     remarkPlugins={[remarkGfm]}
                                     components={{
-                                        // Headers (e.g. ### Main Text Extraction)
+                                        // Headers
                                         h1: ({node, ...props}) => <h1 className="text-lg font-bold text-primary-400 mt-3 mb-2 uppercase tracking-wide" {...props} />,
                                         h2: ({node, ...props}) => <h2 className="text-base font-bold text-primary-400 mt-3 mb-2" {...props} />,
-                                        h3: ({node, ...props}) => <h3 className="text-sm font-bold text-amber-400 mt-2 mb-1 uppercase tracking-wider" {...props} />,
                                         
+                                        // Tables (Important for Drug Tests)
+                                        table: ({node, ...props}) => <div className="overflow-x-auto my-3"><table className="w-full text-left border-collapse border border-white/10" {...props} /></div>,
+                                        thead: ({node, ...props}) => <thead className="bg-white/5 text-amber-500" {...props} />,
+                                        th: ({node, ...props}) => <th className="p-2 border border-white/10 text-xs font-bold uppercase" {...props} />,
+                                        td: ({node, ...props}) => <td className="p-2 border border-white/10 text-xs text-gray-300" {...props} />,
+
                                         // Paragraphs
                                         p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />,
                                         
-                                        // Bold Text (**text**)
+                                        // Bold Text
                                         strong: ({node, ...props}) => <span className="font-bold text-white bg-white/5 px-1 rounded" {...props} />,
                                         
                                         // Lists
                                         ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-1 my-2 text-gray-300" {...props} />,
-                                        ol: ({node, ...props}) => <ol className="list-decimal pl-5 space-y-1 my-2 text-gray-300" {...props} />,
                                         li: ({node, ...props}) => <li className="pl-1" {...props} />,
-                                        
-                                        // Blockquotes
-                                        blockquote: ({node, ...props}) => <blockquote className="border-l-2 border-gray-600 pl-3 italic text-gray-400 my-2" {...props} />
                                     }}
                                 >
-                                    {finding.finding_text}
+                                    {sanitizeFindingText(finding.finding_text)}
                                 </ReactMarkdown>
                             </div>
 
