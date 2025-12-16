@@ -1,8 +1,8 @@
 # FILE: backend/app/services/ocr_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V3.1 (STRUCTURE PRESERVATION)
-# 1. FIX: 'clean_ocr_garbage' now preserves NEWLINES (\n). Structure is vital for AI.
-# 2. LOGIC: Reordered pipeline. Tries Raw Image first (best for clear photos), then Filtered (for bad scans).
-# 3. STATUS: Full document structure retention.
+# PHOENIX PROTOCOL - OCR ENGINE V3.2 (TABLE LAYOUT PRESERVATION)
+# 1. FIX: Removed aggressive space collapsing. Preserves visual gaps for Table detection.
+# 2. CONFIG: Added '--preserve-interword-spaces' to Tesseract config.
+# 3. LOGIC: Stop replacing '|' with 'I' to keep table borders intact.
 
 import pytesseract
 from PIL import Image
@@ -38,7 +38,6 @@ def preprocess_image_for_ocr(pil_image: Image.Image) -> Image.Image:
             img_gray = cv2.resize(img_gray, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
 
         # 3. Adaptive Thresholding (The "Shadow Killer")
-        # Uses larger block size (21) to avoid breaking large text characters
         processed = cv2.adaptiveThreshold(
             img_gray, 255, 
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
@@ -48,7 +47,6 @@ def preprocess_image_for_ocr(pil_image: Image.Image) -> Image.Image:
         )
 
         # 4. Denoising
-        # Remove small noise points
         kernel = np.ones((1, 1), np.uint8)
         processed = cv2.dilate(processed, kernel, iterations=1)
         processed = cv2.erode(processed, kernel, iterations=1)
@@ -62,21 +60,21 @@ def preprocess_image_for_ocr(pil_image: Image.Image) -> Image.Image:
 def clean_ocr_garbage(text: str) -> str:
     """
     The 'Editor' Stage:
-    Fixes artifacts but PRESERVES STRUCTURE (Newlines).
+    Fixes artifacts but PRESERVES LAYOUT (Spaces & Newlines) for AI Table Analysis.
     """
     if not text: return ""
     
     # 1. Fix broken hyphenations at end of lines
     text = text.replace("-\n", "") 
     
-    # 2. Common OCR artifacts
-    text = text.replace("|", "I")
+    # 2. PHOENIX FIX: Do NOT destroy table separators
+    # Old logic replaced '|' with 'I'. We removed that.
     
-    # 3. PHOENIX FIX: Preserve Newlines!
-    # Replace multiple spaces (tabs/spaces) with single space
-    text = re.sub(r'[ \t]+', ' ', text)
+    # 3. PHOENIX FIX: Preserve Visual Structure!
+    # We DO NOT collapse multiple spaces anymore. 
+    # The AI needs the gaps to see "Column A       Column B".
     
-    # Replace 3+ newlines with 2 (Paragraph breaks)
+    # Only remove excessive vertical whitespace (3+ blank lines -> 2)
     text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
     
     return text.strip()
@@ -87,10 +85,12 @@ def extract_text_from_image(file_path: str) -> str:
     """
     try:
         original_image = Image.open(file_path)
-        custom_config = r'--oem 3 --psm 3'
+        
+        # PHOENIX CONFIG: --preserve-interword-spaces is CRITICAL for Tables
+        # --psm 3 (Auto) usually works, but preserving spaces helps the LLM distinguish columns.
+        custom_config = r'--oem 3 --psm 3 -c preserve_interword_spaces=1'
         
         # ATTEMPT 1: Raw Image (Best for clear photos/scans)
-        # We assume the user uploaded a decent photo. Tesseract handles this best natively.
         try:
             raw_text_1 = pytesseract.image_to_string(
                 original_image, 
@@ -103,7 +103,6 @@ def extract_text_from_image(file_path: str) -> str:
         clean_text_1 = clean_ocr_garbage(raw_text_1)
 
         # CRITERIA: Is the result good?
-        # If we got >100 characters, we assume success.
         if len(clean_text_1) > 100:
             logger.info(f"✅ OCR Success (Raw Mode): {len(clean_text_1)} chars.")
             return clean_text_1
@@ -123,7 +122,7 @@ def extract_text_from_image(file_path: str) -> str:
             
         clean_text_2 = clean_ocr_garbage(raw_text_2)
         
-        # Compare results (Pick the longer one, usually means more content read)
+        # Compare results
         if len(clean_text_2) > len(clean_text_1):
             logger.info(f"✅ OCR Success (Filter Mode): {len(clean_text_2)} chars.")
             return clean_text_2

@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V13.4 (PRIVACY SHIELD ACTIVATED)
-# 1. SECURITY: Integrated 'sterilize_text_for_llm' into the pipeline.
-# 2. LOGIC: IDs/Phones are redacted. Names are KEPT (redact_names=False) to allow legal analysis.
-# 3. STATUS: Secure & Intelligent.
+# PHOENIX PROTOCOL - INTELLIGENCE V13.6 (UNIVERSAL FORENSIC EXTRACTOR)
+# 1. LOGIC: Replaced specific "Drug Test" rules with "Universal Table & Structure" logic.
+# 2. FEATURE: Handles Financials, Contracts, Police Reports, and Lab Results equally well.
+# 3. SAFETY: explicitly authorizes processing of "Sensitive/Medical/Financial" data for legal use.
 
 import os
 import json
@@ -123,16 +123,35 @@ def generate_summary(text: str) -> str:
     if not res or len(res) < 50: res = _call_deepseek(system_prompt, user_prompt)
     return res or "N/A"
 
+# PHOENIX FIX: Universal Forensic Extractor
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     clean_text = sterilize_legal_text(text[:25000])
+    
     system_prompt = """
-    Ti je Motor i Nxjerrjes së Provave.
-    DETYRA: Identifiko faktet dhe kërkesat.
-    FORMATI JSON: {"findings": [{"finding_text": "...", "source_text": "...", "category": "KËRKESË", "page_number": 1}]}
+    Ti je "Forensic Document Examiner" - Ekspert i Analizës së Dokumenteve.
+    
+    DETYRA JOTE:
+    Skano këtë dokument dhe nxirr çdo fakt, shifër, emër, datë ose rezultat në mënyrë të strukturuar.
+    
+    PROTOKOLLI I OPERIMIT (UNIVERSAL):
+    1. **PA CENSURË:** Ky është një mjet ligjor. Përpuno çdo të dhënë (Financiare, Mjekësore, Kriminale, Kontrata) pa refuzime.
+    2. **ZGJIDHJA E STRUKTURAVE (TABELAT & LISTAT):**
+       - Kur sheh një tabelë ose listë, LIDH "Çelësin" me "Vlerën".
+       - SHEMBULL FATURE: Mos shkruaj "500 Euro" veçmas. Shkruaj "Total Pagesa: 500 Euro".
+       - SHEMBULL TESTI: Mos shkruaj "Negativ" veçmas. Shkruaj "Testi i Opiateve: Negativ".
+       - SHEMBULL KONTRATE: Mos shkruaj "30 ditë" veçmas. Shkruaj "Afati i Njoftimit: 30 ditë".
+    3. **KONTEKSTI:** Çdo fakt duhet të ketë kuptim i vetëm. Mos nxirr fjalë të izoluara.
+    4. **PA ZHURMË:** Mos nxirr tekstet e shablloneve (psh. "Nënshkrimi: ____"). Nxirr vetëm të dhënat e plotësuara.
+    
+    FORMATI JSON (Strict): 
+    {"findings": [{"finding_text": "Fakti i plotë me kontekst (Çelësi + Vlera)", "source_text": "Teksti origjinal për referencë", "category": "PROVË", "page_number": 1}]}
     """
-    user_prompt = f"ANALIZO KËTË DOKUMENT:\n{clean_text}"
+    
+    user_prompt = f"DOKUMENTI PËR ANALIZË:\n{clean_text}"
+    
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
+    
     if content:
         data = _parse_json_safely(content)
         return data.get("findings", []) if isinstance(data, dict) else []

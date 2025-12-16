@@ -1,7 +1,7 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V8.1 (RE-VERIFIED)
-# 1. FIX: Ensures 'extract_text' function is present and exported.
-# 2. LOGIC: Hybrid Optical-Digital extraction strategy.
+# PHOENIX PROTOCOL - OCR ENGINE V8.2 (LAYOUT PRESERVATION)
+# 1. FIX: Improved PDF extraction using 'blocks' mode to better preserve reading order and tables.
+# 2. LOGIC: Sorts text blocks by Y-coordinate then X-coordinate to reconstruct rows.
 # 3. SAFETY: Includes fallback handling for missing OCR dependencies.
 
 import fitz  # PyMuPDF
@@ -19,7 +19,6 @@ import time
 import os
 
 # Link to our advanced OCR engine
-# We use a try-import to prevent crashes if the OCR module isn't set up yet
 try:
     from .ocr_service import extract_text_from_image as advanced_image_ocr
 except ImportError:
@@ -34,22 +33,35 @@ def _sanitize_text(text: str) -> str:
     if not text: return ""
     return text.replace("\x00", "")
 
+def _sort_blocks(blocks):
+    """
+    Sorts blocks first by vertical position (Y0), then by horizontal (X0).
+    Tolerance of 3 pixels allows for slight misalignment in rows.
+    """
+    return sorted(blocks, key=lambda b: (int(b[1] / 3), int(b[0])))
+
 def _process_single_page_safe(doc_path: str, page_num: int) -> str:
     """
-    Extracts text from a single PDF page.
-    Falls back to Optical OCR (Vision) if digital text is empty/garbled.
+    Extracts text from a single PDF page with Layout Preservation.
     """
     page_marker = f"\n--- [FAQJA {page_num + 1}] ---\n"
     try:
         with fitz.open(doc_path) as doc:
-            # Cast to Any to silence Pylance error regarding 'get_text'
             page: Any = doc[page_num]
             
-            # 1. Try Direct Text Extraction (Fast)
-            text = page.get_text("text") 
+            # 1. Try Direct Text Extraction (BLOCK MODE)
+            # "blocks" returns a list of tuples: (x0, y0, x1, y1, "lines", block_no, block_type)
+            # This is vastly superior for tables than "text" mode.
+            blocks = page.get_text("blocks")
             
+            if blocks:
+                # Sort blocks to ensure reading order (Row by Row)
+                sorted_blocks = _sort_blocks(blocks)
+                text = "\n".join([b[4] for b in sorted_blocks])
+            else:
+                text = ""
+
             # If text is sufficient, return it.
-            # We use 50 chars as a threshold. Scanned docs usually return 0 or garbled metadata.
             if text and len(text.strip()) > 50:
                 return page_marker + _sanitize_text(text)
             
@@ -95,7 +107,6 @@ def _extract_text_sequentially(file_path: str, total_pages: int) -> str:
     buffer = []
     for i in range(total_pages):
         buffer.append(_process_single_page_safe(file_path, i))
-        # Small sleep to prevent CPU spiking on single core envs
         time.sleep(0.05) 
     return "".join(buffer)
 
@@ -107,26 +118,21 @@ def _extract_text_from_pdf(file_path: str) -> str:
             total_pages = len(doc)
     except Exception: return ""
 
-    # Sequential processing for small docs to save overhead
     if total_pages < 3:
          return _extract_text_sequentially(file_path, total_pages)
 
-    # Parallel processing for large docs
     try:
         page_args = [(file_path, i) for i in range(total_pages)]
         results = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {executor.submit(_process_single_page_wrapper, arg): arg[1] for arg in page_args}
             for future in concurrent.futures.as_completed(futures):
-                # We store (page_num, text) tuples to sort later
                 results.append((futures[future], future.result()))
         
-        # Sort by page number to maintain document order
         results.sort(key=lambda x: x[0])
         final_text = "".join([r[1] for r in results])
         
         if len(final_text.strip()) < 10: 
-            # If parallel failed, try sequential as last resort
             return _extract_text_sequentially(file_path, total_pages)
             
         return final_text
@@ -201,24 +207,19 @@ EXTRACTION_MAP: Dict[str, Callable[[str], str]] = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": _extract_text_from_excel
 }
 
-# --- PRIMARY EXPORTED FUNCTION ---
 def extract_text(file_path: str, mime_type: str) -> str:
     """
     Main entry point for text extraction.
     Determines the correct extractor based on mime_type.
     """
-    # Normalize mime type (handle cases like 'application/pdf; charset=utf-8')
     normalized_mime_type = mime_type.split(';')[0].strip().lower()
     extractor = EXTRACTION_MAP.get(normalized_mime_type)
     
     if not extractor:
-        # Fallback based on extension if mime type is generic/missing
         if file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.tiff')):
             return _extract_text_from_image(file_path)
         if "text/" in normalized_mime_type: 
             return _extract_text_from_txt(file_path)
-        
-        # Default fallback for unknown types is to try and read as text
         return _extract_text_from_txt(file_path)
         
     return extractor(file_path)
