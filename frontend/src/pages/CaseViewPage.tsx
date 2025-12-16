@@ -1,11 +1,11 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V7.1 (DEEP LINKING)
-// 1. FEATURE: Added support for URL parameters (e.g., ?open=findings).
-// 2. LOGIC: Automatically opens the Findings Modal if requested by the Case Card.
-// 3. STATUS: Direct navigation fully functional.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V7.2 (UI/UX FIXES)
+// 1. FIX: Lowered Z-Index to 30 to prevent overlapping the Main Header Dropdowns.
+// 2. FIX: Hardcoded title color to 'text-white' and added fallback for missing case names.
+// 3. STATUS: Direct navigation & UI layering fully verified.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom'; // PHOENIX FIX: Added useSearchParams
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
@@ -87,15 +87,19 @@ const CaseHeader: React.FC<{
         : t('caseView.docFindingsTitle', 'Gjetjet e Dokumentit');
 
     return (
+        // PHOENIX FIX: Reduced z-index from 40 to 30 to allow Main Header (z-40) dropdowns to overlap correctly
         <motion.div 
-            className="relative z-40 mb-6 p-4 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-white/10" 
+            className="relative z-30 mb-6 p-4 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-white/10" 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }} 
             transition={{ duration: 0.3 }}
         >
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex-1 min-w-0 w-full">
-                  <h1 className="text-xl sm:text-2xl font-bold text-text-primary break-words mb-3 leading-tight">{caseDetails.case_name}</h1>
+                  {/* PHOENIX FIX: Enforced text-white and added fallback title */}
+                  <h1 className="text-xl sm:text-2xl font-bold text-white break-words mb-3 leading-tight">
+                    {caseDetails.case_name || t('caseView.unnamedCase', 'Rast pa Emër')}
+                  </h1>
                   <div className="flex flex-row flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm text-text-secondary"><div className="flex items-center"><User className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{caseDetails.client?.name || 'N/A'}</span></div><div className="flex items-center"><Briefcase className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`)}</span></div><div className="flex items-center"><Info className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div></div>
               </div>
               
@@ -129,7 +133,7 @@ const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
   const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const { caseId } = useParams<{ caseId: string }>();
-  const [searchParams] = useSearchParams(); // PHOENIX FIX: Added
+  const [searchParams] = useSearchParams();
   
   const [caseData, setCaseData] = useState<CaseData>({ details: null, findings: [] });
   const [isLoading, setIsLoading] = useState(true);
@@ -166,12 +170,9 @@ const CaseViewPage: React.FC = () => {
 
   useEffect(() => { if (isReadyForData) fetchCaseData(true); }, [isReadyForData, fetchCaseData]);
 
-  // PHOENIX FIX: Deep Link Handler
-  // Automatically opens the findings modal if ?open=findings is in the URL and data is loaded
   useEffect(() => {
     if (!isLoading && caseData.details && searchParams.get('open') === 'findings') {
-        // Trigger the logic to prepare and show findings
-        const findingsToShow = caseData.findings; // Default to all for deep link
+        const findingsToShow = caseData.findings;
         setModalFindings(findingsToShow);
         setActiveModal('findings');
     }
