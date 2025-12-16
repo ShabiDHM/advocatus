@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V7.3 (DATA MAPPING FIX)
-// 1. FIX: Added fallback to 'title' property to resolve "Rast pa Emër" issue.
-// 2. MAINTENANCE: Preserved previous Z-Index fix (z-30).
+// PHOENIX PROTOCOL - CASE VIEW PAGE V7.4 (UI BALANCE)
+// 1. FIX: Adjusted Case Title typography (reduced size/spacing) for better visual consistency with metadata.
+// 2. MAINTENANCE: Includes all previous fixes (Z-Index, Title Fallback).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -94,11 +94,15 @@ const CaseHeader: React.FC<{
         >
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex-1 min-w-0 w-full">
-                  {/* PHOENIX FIX: Added fallback to caseDetails.title */}
-                  <h1 className="text-xl sm:text-2xl font-bold text-white break-words mb-3 leading-tight">
+                  {/* PHOENIX FIX: Reduced text size (text-lg sm:text-xl) and margin (mb-2) for better balance */}
+                  <h1 className="text-lg sm:text-xl font-bold text-white break-words mb-2 leading-snug">
                     {caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase', 'Rast pa Emër')}
                   </h1>
-                  <div className="flex flex-row flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm text-text-secondary"><div className="flex items-center"><User className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{caseDetails.client?.name || 'N/A'}</span></div><div className="flex items-center"><Briefcase className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`)}</span></div><div className="flex items-center"><Info className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div></div>
+                  <div className="flex flex-row flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm text-text-secondary">
+                      <div className="flex items-center"><User className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{caseDetails.client?.name || 'N/A'}</span></div>
+                      <div className="flex items-center"><Briefcase className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`)}</span></div>
+                      <div className="flex items-center"><Info className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div>
+                  </div>
               </div>
               
               <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
