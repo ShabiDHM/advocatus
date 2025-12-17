@@ -18,7 +18,6 @@ from . import (
     email_service,
     embedding_service,
     encryption_service,
-    findings_service,
     llm_service,
     ocr_service,
     report_service,

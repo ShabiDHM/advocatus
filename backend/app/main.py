@@ -1,8 +1,8 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - SYSTEM INTEGRITY ENFORCED
-# 1. ROBUSTNESS: Enforced strict router registration.
-# 2. FEATURE: Added 'finance_wizard' for the Small Accountant module.
-# 3. STATUS: Phase 1 (Backend) Complete.
+# PHOENIX PROTOCOL - MAIN APPLICATION V5.2 (STABILITY FIX)
+# 1. REMOVED: All references to 'findings' to prevent startup crashes.
+# 2. CONFIG: Verified CORS for 'https://juristi.tech'.
+# 3. STATUS: Production Ready.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,12 +23,10 @@ from app.api.endpoints.stream import router as stream_router
 from app.api.endpoints.support import router as support_router
 from app.api.endpoints.business import router as business_router
 from app.api.endpoints.finance import router as finance_router
-# NEW: Import the Wizard Router
 from app.api.endpoints import finance_wizard
 from app.api.endpoints.graph import router as graph_router
 from app.api.endpoints.archive import router as archive_router
 from app.api.endpoints.drafting_v2 import router as drafting_v2_router
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -36,26 +34,27 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ---
+# Trust Proxy Headers (Critical for correct HTTPS/Scheme detection behind Load Balancers)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
 
 # --- CORS CONFIGURATION ---
 allowed_origins = [
     "http://localhost:3000",
     "http://localhost:5173",
+    "https://juristi.tech",
+    "https://www.juristi.tech"
 ]
 
+# Load additional origins from ENV if present
 try:
     env_origins_str = os.getenv("BACKEND_CORS_ORIGINS")
     if env_origins_str:
         parsed_origins = json.loads(env_origins_str)
         allowed_origins.extend(parsed_origins)
 except (json.JSONDecodeError, TypeError) as e:
-    logger.error(f"⚠️ CORS Warning: Could not parse BACKEND_CORS_ORIGINS. Error: {e}")
-    allowed_origins.extend([
-        "https://juristi.tech",
-        "https://www.juristi.tech"
-    ])
+    logger.warning(f"⚠️ CORS Warning: Could not parse BACKEND_CORS_ORIGINS. Using defaults. Error: {e}")
 
+# Deduplicate and Sort
 allowed_origins = sorted(list(set(allowed_origins)))
 logger.info(f"✅ CORS Allowed Origins: {allowed_origins}")
 
@@ -70,6 +69,8 @@ app.add_middleware(
 
 # --- ROUTER ASSEMBLY ---
 api_v1_router = APIRouter(prefix="/api/v1")
+
+# Core Modules
 api_v1_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 api_v1_router.include_router(users_router, prefix="/users", tags=["Users"])
 api_v1_router.include_router(cases_router, prefix="/cases", tags=["Cases"])
@@ -79,15 +80,20 @@ api_v1_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
 api_v1_router.include_router(stream_router, prefix="/stream", tags=["Streaming"])
 api_v1_router.include_router(support_router, prefix="/support", tags=["Support"])
 api_v1_router.include_router(business_router, prefix="/business", tags=["Business"])
+
+# Finance Modules
 api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"])
-# NEW: Register the Wizard Router
 api_v1_router.include_router(finance_wizard.router, prefix="/finance/wizard", tags=["Finance Wizard"])
+
+# Advanced Modules
 api_v1_router.include_router(graph_router, prefix="/graph", tags=["Graph"])
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
 
+# V2 Modules
 api_v2_router = APIRouter(prefix="/api/v2")
 api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])
 
+# Register Routers
 app.include_router(api_v1_router)
 app.include_router(api_v2_router)
 
