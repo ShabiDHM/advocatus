@@ -1,8 +1,8 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR V7.1 (CLEAN & TRANSLATED)
-// 1. FIX: Removed invalid 'title' prop from Eye icon (used wrapper div instead).
-// 2. I18N: All hardcoded strings replaced with t() keys from 'calendar' namespace.
-// 3. CLEANUP: Removed unused imports like 'areIntervalsOverlapping'.
+// PHOENIX PROTOCOL - CALENDAR V7.2 (TIMEZONE FIX)
+// 1. FIX: Adjusted Date submission logic to prevent UTC rollback.
+// 2. LOGIC: Forces selected date to Noon UTC to ensure it stays on the correct day worldwide.
+// 3. STATUS: Production Ready.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -64,7 +64,6 @@ const EventDetailModal: React.FC<EventDetailModalProps> = ({ event, onClose, onU
     const handleDelete = async () => { if (!window.confirm(t('calendar.detailModal.deleteConfirm'))) return; const eventId = getEventId(event); if (!eventId) return; setIsDeleting(true); try { await apiService.deleteCalendarEvent(eventId); onUpdate(); onClose(); } catch (error: any) { alert(error.response?.data?.message || t('calendar.detailModal.deleteFailed')); } finally { setIsDeleting(false); } };
     const style = getEventStyle(event.event_type);
     
-    // PHOENIX: Visual Indicator for Shared Events
     const isShared = (event as any).is_public === true;
 
     return (
@@ -118,27 +117,22 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, existingEven
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [eventDate, setEventDate] = useState<Date | null>(null);
     const [conflictWarning, setConflictWarning] = useState<string | null>(null);
-    
-    // PHOENIX: Client Portal Visibility Toggle
     const [isPublic, setIsPublic] = useState(false);
 
     const [formData, setFormData] = useState<Omit<CalendarEventCreateRequest, 'attendees' | 'start_date' | 'end_date'> & { attendees: string }>({ 
         case_id: '', title: '', description: '', event_type: 'MEETING', location: '', attendees: '', is_all_day: true, priority: 'MEDIUM', notes: '' 
     });
     
-    // PHOENIX: Real-time Conflict Checker
     useEffect(() => {
         if (!eventDate) {
             setConflictWarning(null);
             return;
         }
-
         const checkStart = eventDate;
         const hasConflict = existingEvents.some(ev => {
             const start = parseISO(ev.start_date);
             return isSameDay(start, checkStart);
         });
-
         if (hasConflict) {
             setConflictWarning(t('calendar.conflictWarning', "Kujdes: Keni ngjarje të tjera..."));
         } else {
@@ -150,11 +144,17 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, existingEven
         e.preventDefault(); 
         if (!eventDate) { alert(t('calendar.createModal.dateTimePlaceholder')); return; } 
         setIsCreating(true); 
-        try { 
+        
+        try {
+            // PHOENIX FIX: Handle Timezone Shift
+            // Create a new date object, set to Noon UTC to avoid midnight rollovers
+            const cleanDate = new Date(Date.UTC(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate(), 12, 0, 0));
+            const isoDate = cleanDate.toISOString();
+
             const payload: any = { 
                 ...formData, 
-                start_date: eventDate.toISOString(), 
-                end_date: eventDate.toISOString(), 
+                start_date: isoDate, 
+                end_date: isoDate, 
                 attendees: formData.attendees ? formData.attendees.split(',').map(a => a.trim()) : [],
                 is_public: isPublic 
             }; 
@@ -212,7 +212,6 @@ const CreateEventModal: React.FC<CreateEventModalProps> = ({ cases, existingEven
                         </div>
                         <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">{t('calendar.createModal.eventDate')}</label><DatePicker selected={eventDate} onChange={(date: Date | null) => setEventDate(date)} locale={currentLocale} dateFormat="dd.MM.yyyy" placeholderText={t('calendar.createModal.dateTimePlaceholder')} className={formElementClasses} portalId="react-datepicker-portal" required /></div>
                         
-                        {/* PHOENIX: Client Portal Visibility Toggle */}
                         <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 flex items-center justify-between cursor-pointer" onClick={() => setIsPublic(!isPublic)}>
                             <div className="flex items-center gap-3">
                                 <div className={`p-2 rounded-lg ${isPublic ? 'bg-indigo-500 text-white' : 'bg-white/10 text-gray-400'}`}>
