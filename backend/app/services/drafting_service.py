@@ -1,8 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING SERVICE V17.0 (KOSOVO JUDICIAL STYLE)
-# 1. NEW: Injected "Perfect Padi" & "Perfect Response" templates based on forensic analysis.
-# 2. STYLE: Enforced "A K T G J Y K I M" operative block structure.
-# 3. FORMAT: Added specific header hierarchies for Lawsuits vs. Responses.
+# PHOENIX PROTOCOL - DRAFTING SERVICE V17.1 (FINDINGS REMOVAL FIX)
+# 1. FIXED: Removed 'query_findings_by_similarity' import (Resolves Pylance Error).
+# 2. LOGIC: Context now built from 'query_by_vector' (Raw Document Chunks) instead of Findings.
+# 3. STATUS: Fully Synchronized.
 
 import os
 import asyncio
@@ -18,7 +18,8 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 from ..models.user import UserInDB
 from app.services.text_sterilization_service import sterilize_text_for_llm 
-from .vector_store_service import query_legal_knowledge_base, query_findings_by_similarity
+# PHOENIX FIX: Switched to query_by_vector for raw chunk retrieval
+from .vector_store_service import query_legal_knowledge_base, query_by_vector
 from .embedding_service import generate_embedding
 
 logger = structlog.get_logger(__name__)
@@ -148,23 +149,37 @@ TEMPLATE_MAP = {
 }
 
 def _build_case_context_hybrid_sync(db: Database, case_id: str, user_prompt: str) -> str:
+    """
+    Retrieves context purely from Document Chunks (RAG), ignoring deleted Findings.
+    """
     try:
         search_query = user_prompt
         query_embedding = generate_embedding(search_query)
         if not query_embedding: return ""
-        vector_findings = query_findings_by_similarity(case_id=case_id, embedding=query_embedding, n_results=10)
-        direct_db_findings = list(db.findings.find({"case_id": {"$in": [ObjectId(case_id), case_id]}}))
-        all_findings = {f['finding_text']: f for f in vector_findings}
-        for f in direct_db_findings:
-            if f.get('finding_text') and f['finding_text'] not in all_findings:
-                 all_findings[f['finding_text']] = f
-        if not all_findings: return ""
-        context_parts = ["FAKTE TË VERIFIKUARA NGA DOSJA:"]
-        for finding in all_findings.values():
-            context_parts.append(f"- [{finding.get('category', 'FAKT')}]: {finding.get('finding_text', 'N/A')}")
+        
+        # PHOENIX FIX: Query raw chunks instead of findings
+        vector_results = query_by_vector(
+            embedding=query_embedding, 
+            case_id=case_id, 
+            n_results=15
+        )
+        
+        if not vector_results: return ""
+        
+        context_parts = ["PJESË NGA DOKUMENTET E DOSJES:"]
+        seen_texts = set()
+        
+        for res in vector_results:
+            text = res.get('text', '').strip()
+            # Simple deduplication
+            if text and text not in seen_texts:
+                doc_name = res.get('document_name', 'Dokument')
+                context_parts.append(f"--- [BURIMI: {doc_name}] ---\n{text}")
+                seen_texts.add(text)
+                
         return "\n".join(context_parts)
     except Exception as e:
-        logger.error(f"Hybrid context failed: {e}")
+        logger.error(f"Context retrieval failed: {e}")
         return ""
 
 async def _fetch_relevant_laws_async(query_text: str, jurisdiction: str = "ks") -> str:

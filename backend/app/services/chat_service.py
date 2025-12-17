@@ -1,8 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V17.0 (STRICT AUDITOR MODE)
-# 1. NEW: Injected "Strict Forensic Rules" into System Prompt.
-# 2. LOGIC: Enforces "Zero Hallucination" policy.
-# 3. SAFETY: Uses RAG Context strictly.
+# PHOENIX PROTOCOL - CHAT SERVICE V18.0 (SOURCE AWARE + FINDINGS REMOVED)
+# 1. REMOVED: All references to 'findings_service' and related queries.
+# 2. UPGRADE: System Prompt now understands [[BURIMI: ...]] tags.
+# 3. LOGIC: Enforces strict separation of conflicting documents (Padi vs. Response).
 
 from __future__ import annotations
 import os
@@ -34,18 +34,17 @@ Përdoruesi është Avokati. Qëllimi yt është saktësia absolute faktike.
 
 {STRICT_FORENSIC_RULES}
 
-UDHËZIME SHTESË PËR CHAT:
-1. PËRGJIGJU VETËM NGA KONTEKSTI: 
-   - Konteksti i dhënë më poshtë është e VETMJA e vërtetë që njeh.
-   - Nëse pyetja nuk ka përgjigje në kontekst, thuaj: "Më vjen keq, ky informacion nuk gjendet në dokumentet e analizuara."
-   - MOS SHPIK DATË/EMRA.
+UDHËZIME SHTESË PËR CHAT (SOURCE AWARENESS):
+1. LEXO BURIMET ME KUJDES:
+   - Konteksti përmban etiketa [[BURIMI: Emri_i_Dokumentit.pdf]].
+   - Kur citon një fakt, trego gjithmonë nga cili dokument vjen (Psh: "Sipas Padisë..." ose "Sipas Përgjigjes në Padi...").
+   - KUJDES: Dokumentet shpesh kundërshtojnë njëri-tjetrin. NUK duhet t'i shkriç ato. Raporto konfliktin: "Padia pretendon X, ndërsa Përgjigja pretendon Y".
 
 2. QARTËSO STATUSIN E DOKUMENTIT:
    - Nëse informacioni vjen nga një "DRAFT" ose "PROPOZIM", thuaj qartë: "Kjo është vetëm kërkesë e palës, jo vendim gjykate."
 
 3. MOS BËJ LIGJËRATA:
-   - Mos jep këshilla të përgjithshme ligjore (psh: "Sipas ligjit...").
-   - Përqendrohu tek FAKTET e dosjes specifike.
+   - Mos jep këshilla të përgjithshme ligjore. Përqendrohu tek FAKTET e dosjes.
 """
 
 def _get_rag_service_instance(db: Any) -> Any:
@@ -101,13 +100,11 @@ async def get_http_chat_response(
     
     if raw_history:
         try:
-            # Take last 6 for context window
             recent_history = raw_history[-6:] 
             for msg in recent_history:
                 raw_role = msg.get('role') if isinstance(msg, dict) else getattr(msg, 'role', 'user')
                 content = msg.get('content') if isinstance(msg, dict) else getattr(msg, 'content', '')
                 
-                # Role Mapping
                 api_role = "assistant" if raw_role == "ai" else raw_role
                 
                 if api_role == "user" and content:
@@ -116,7 +113,6 @@ async def get_http_chat_response(
                     memory_messages.append({"role": "assistant", "content": str(content)})
                 elif api_role == "system" and content:
                      memory_messages.append({"role": "system", "content": str(content)})
-                     
         except Exception as e:
             logger.warning(f"Failed to parse chat history: {e}")
 
@@ -136,6 +132,7 @@ async def get_http_chat_response(
         
         context_dossier = ""
         if rag_service:
+            # Retrieves context which now includes [[BURIMI: ...]] tags
             context_dossier = await rag_service.retrieve_context(
                 query=user_query, 
                 case_id=case_id, 
@@ -164,7 +161,7 @@ async def get_http_chat_response(
             completion = await client.chat.completions.create(
                 model=OPENROUTER_MODEL,
                 messages=messages_payload,
-                temperature=0.0, # ZERO TEMP = ZERO HALLUCINATION
+                temperature=0.0,
                 max_tokens=1500, 
                 extra_headers={"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Chat"}
             )
