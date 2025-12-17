@@ -1,13 +1,14 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.2 (IMPORT FIX)
-# 1. FIXED: Added 'Dict' to typing imports.
-# 2. STATUS: Passing static analysis.
+# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.3 (FINDINGS REMOVAL)
+# 1. FIXED: Removed 'findings_service' import (Resolves Crash).
+# 2. CLEANUP: Removed findings deletion logic (Collection is deprecated).
+# 3. STATUS: Crash-proof.
 
 import logging
 import datetime
 import importlib
 from datetime import timezone
-from typing import List, Optional, Tuple, Any, Dict  # <--- Added Dict here
+from typing import List, Optional, Tuple, Any, Dict
 from bson import ObjectId
 import redis
 from fastapi import HTTPException
@@ -16,7 +17,7 @@ from pymongo.database import Database
 from ..models.document import DocumentOut, DocumentStatus
 from ..models.user import UserInDB
 
-from . import vector_store_service, storage_service, findings_service
+from . import vector_store_service, storage_service
 
 logger = logging.getLogger(__name__)
 
@@ -136,14 +137,8 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
 
     mixed_id_query = {"$in": [doc_id, doc_id_str]}
     
-    try:
-        findings_query = {"document_id": mixed_id_query}
-        deleted_findings = list(db.findings.find(findings_query, {"_id": 1}))
-        db.findings.delete_many(findings_query)
-        deleted_finding_ids = [str(f["_id"]) for f in deleted_findings]
-    except Exception as e:
-        logger.error(f"Error deleting findings for doc {doc_id}: {e}")
-        deleted_finding_ids = []
+    # REMOVED: db.findings.delete_many (Module deleted)
+    deleted_finding_ids = []
     
     link_query = {
         "$or": [
@@ -184,7 +179,6 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     db.documents.delete_one({"_id": doc_id})
     return deleted_finding_ids
 
-# --- NEW: BULK DELETE ---
 def bulk_delete_documents(db: Database, redis_client: redis.Redis, document_ids: List[str], owner: UserInDB) -> Dict[str, Any]:
     deleted_count = 0
     failed_count = 0
@@ -196,7 +190,6 @@ def bulk_delete_documents(db: Database, redis_client: redis.Redis, document_ids:
                 continue
             
             doc_oid = ObjectId(doc_id_str)
-            # Re-use the safe delete logic
             finding_ids = delete_document_by_id(db, redis_client, doc_oid, owner)
             all_deleted_finding_ids.extend(finding_ids)
             deleted_count += 1

@@ -1,7 +1,7 @@
 # FILE: backend/app/services/__init__.py
-# PHOENIX PROTOCOL - SERVICE REGISTRY V2.0
-# 1. UPDATE: Registered 'social_service' for Open Graph image generation.
-# 2. STATUS: All services linked.
+# PHOENIX PROTOCOL - SERVICE REGISTRY V3.0 (FINDINGS EXCISED)
+# 1. REMOVED: findings_service.
+# 2. STATUS: All active services linked.
 
 from . import (
     admin_service,
@@ -32,9 +32,9 @@ from . import (
     finance_service,
     graph_service,
     pdf_service,
-    social_service, # <--- REGISTERED
+    social_service,
     
-    # Albanian Specific Services (Active Only)
+    # Albanian Specific Services
     albanian_document_processor,
     albanian_language_detector,
     albanian_metadata_extractor,
