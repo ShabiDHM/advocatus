@@ -167,7 +167,7 @@ const ClientPortalPage: React.FC = () => {
                 </div>
                 
                 <div className="text-center text-gray-600 text-xs mt-12 pt-8 border-t border-white/5">
-                    &copy; {new Date().getFullYear()} Juristi AI. Të gjitha të drejtat e rezervuara.
+                    &copy; {new Date().getFullYear()} Data And Human Management. Të gjitha të drejtat e rezervuara.
                 </div>
             </main>
         </div>
