@@ -1,8 +1,8 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V6.7 (FINDINGS REMOVAL)
-// 1. REMOVED: Findings prop and usage.
-// 2. REMOVED: Deep scan (ScanEye) functionality.
-// 3. STATUS: Clean.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V6.8 (ONE-DOC-POLICY ENFORCED)
+// 1. FEATURE: Enforced 'One Document at a Time' policy.
+// 2. LOGIC: Blocks upload if ANY document is in PENDING/PROCESSING state.
+// 3. UX: 'Plus' button turns gray and shows a spinner if system is busy.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -12,7 +12,7 @@ import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
     Archive, Pencil, CheckSquare, Square, XCircle, 
-    HardDrive, FilePlus 
+    HardDrive, FilePlus, Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ArchiveImportModal from './ArchiveImportModal';
@@ -56,6 +56,10 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showArchiveImport, setShowArchiveImport] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // PHOENIX LOGIC: Check if system is busy processing ANY document
+  const isProcessing = documents.some(d => d.status === 'PENDING' || d.status === 'PROCESSING' || d.status === 'UPLOADING');
+  const isSystemBusy = isUploading || isProcessing;
 
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -113,10 +117,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       } catch (error) { alert(t('documentsPanel.archiveFailed', 'Arkivimi dështoi.')); } finally { setScanningIdArchive(null); }
   };
 
-  // --- BULK ACTIONS LOGIC ---
   const toggleSelectAll = () => {
       if (selectedIds.size === displayDocuments.length) {
-          setSelectedIds(new Set()); // Deselect all
+          setSelectedIds(new Set()); 
       } else {
           const allIds = displayDocuments.map(d => d.id).filter(id => id !== 'ghost-upload');
           setSelectedIds(new Set(allIds));
@@ -214,14 +217,16 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 {/* DROPDOWN MENU */}
                 <div className="relative" ref={dropdownRef}>
                     <motion.button 
-                        onClick={() => setShowAddMenu(!showAddMenu)}
-                        className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary-start hover:bg-primary-end text-white shadow-lg shadow-primary-start/20 transition-all"
+                        onClick={() => !isSystemBusy && setShowAddMenu(!showAddMenu)}
+                        disabled={isSystemBusy}
+                        className={`h-9 w-9 flex items-center justify-center rounded-xl shadow-lg transition-all ${isSystemBusy ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed border border-white/5' : 'bg-primary-start hover:bg-primary-end text-white shadow-primary-start/20'}`}
+                        title={isSystemBusy ? "Prisni që dokumenti aktual të procesohet..." : "Shto Dokument"}
                     >
-                        {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
+                        {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
                     </motion.button>
 
                     <AnimatePresence>
-                        {showAddMenu && (
+                        {showAddMenu && !isSystemBusy && (
                             <motion.div 
                                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -239,7 +244,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </AnimatePresence>
                 </div>
 
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isUploading} />
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" disabled={isSystemBusy} />
             </>
         )}
       </div>
@@ -259,7 +264,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           if ((doc as any).status === 'UPLOADING') status = 'UPLOADING';
 
           const isUploadingState = status === 'UPLOADING';
-          const isProcessingState = status === 'PENDING';
+          const isProcessingState = status === 'PENDING' || status === 'PROCESSING';
+          const isReady = status === 'READY' || status === 'COMPLETED';
           const progressPercent = (doc as any).progress_percent || 0;
           const barColor = isUploadingState ? "bg-primary-start" : "bg-blue-500";
           const statusText = isUploadingState ? t('documentsPanel.statusUploading', 'Duke ngarkuar...') : t('documentsPanel.statusProcessing', 'Duke procesuar...');
@@ -271,7 +277,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
             <motion.div 
                 key={doc.id} 
                 layout="position" 
-                onClick={() => !isUploadingState && toggleSelect(doc.id)} // CLICK ROW TO SELECT
+                onClick={() => !isUploadingState && toggleSelect(doc.id)} 
                 className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer ${isSelected ? 'bg-primary-900/20 border-primary-500/50' : 'bg-background-light/30 hover:bg-background-light/50 border-white/5 hover:border-white/10'}`}
                 initial={{ opacity: 0, y: -10 }} 
                 animate={{ opacity: 1, y: 0 }}
@@ -289,13 +295,10 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               </div>
               
               <div className={`flex items-center gap-1 sm:gap-2 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-80 group-hover:opacity-100'}`}>
-                {/* Buttons handle their own click events, bubbling stopped to prevent row selection */}
                 {canInteract && (
                     <button onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
                 )}
                 
-                {/* DEEP SCAN BUTTON REMOVED HERE */}
-
                 {canInteract && (
                     <button onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} className="p-1.5 hover:bg-white/10 rounded-lg text-blue-400 transition-colors" title={t('documentsPanel.viewOriginal')}><Eye size={14} /></button>
                 )}
@@ -304,6 +307,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 )}
                 {canInteract && (
                     <button onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-500/70 hover:text-red-500 transition-colors" title={t('documentsPanel.delete')}><Trash size={14} /></button>
+                )}
+                {!canInteract && (
+                    <Lock size={14} className="text-gray-600" />
                 )}
               </div>
             </motion.div>
