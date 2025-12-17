@@ -1,15 +1,15 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - DATA REPAIR & UI POLISH
-// 1. FIX: Changed 'case_name' to 'title' to match API response.
-// 2. UI: Added persistent Case Number display (even when Title exists).
-// 3. UX: Ensured 'Titulli i Rastit' (Case Title) is the primary header.
+// PHOENIX PROTOCOL - CASE CARD V4.2 (FINDINGS REMOVAL)
+// 1. REMOVED: finding_count display and logic.
+// 2. REMOVED: Navigation to deleted findings view.
+// 3. STATUS: Clean build.
 
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Case } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Trash2, FileText, AlertTriangle, CalendarDays, User, Mail, Phone, Lightbulb, Hash } from 'lucide-react';
+import { Trash2, FileText, AlertTriangle, CalendarDays, User, Mail, Phone, Hash } from 'lucide-react';
 
 const MotionLink = motion(Link);
 
@@ -34,17 +34,10 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
     navigate('/calendar');
   };
 
-  const handleFindingsNav = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    navigate(`/cases/${caseData.id}?open=findings`);
-  };
-
   const formattedDate = new Date(caseData.created_at).toLocaleDateString(undefined, {
     year: 'numeric', month: '2-digit', day: '2-digit'
   });
 
-  // PHOENIX FIX: Use 'title' instead of 'case_name'
   const hasTitle = caseData.title && caseData.title.trim() !== '';
   const displayTitle = hasTitle ? caseData.title : t('caseCard.untitled');
 
@@ -66,13 +59,11 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         <div className="flex flex-col mb-4 relative z-10">
           <div className="flex justify-between items-start gap-2">
             <div className="flex flex-col">
-                {/* PHOENIX: Always show Case Number (Subtitle) */}
                 <span className="text-[10px] font-mono text-indigo-400 font-bold tracking-wider mb-1 uppercase flex items-center gap-1">
                     <Hash className="w-3 h-3" />
                     {caseData.case_number || 'N/A'}
                 </span>
                 
-                {/* PHOENIX: Main Title (Corrected Field) */}
                 <h2 className={`text-lg font-bold line-clamp-2 leading-tight tracking-tight ${!hasTitle ? 'text-gray-500 italic' : 'text-gray-100'}`}>
                     {displayTitle}
                 </h2>
@@ -132,16 +123,6 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
                 <FileText className="h-4 w-4 text-blue-400/80" />
                 <span className="text-sm font-medium text-gray-400">{caseData.document_count || 0}</span>
               </div>
-
-              {/* Findings */}
-              <button
-                onClick={handleFindingsNav}
-                className="flex items-center gap-1.5 group/icon cursor-pointer hover:bg-white/5 rounded px-1.5 py-1 -ml-1.5 transition-all"
-                title={`${caseData.finding_count || 0} ${t('caseView.findingsTitle')}`}
-              >
-                <Lightbulb className="h-4 w-4 text-yellow-500/80 group-hover/icon:text-yellow-400 transition-colors" />
-                <span className="text-sm font-medium text-gray-400 group-hover/icon:text-gray-200">{caseData.finding_count || 0}</span>
-              </button>
 
               {/* Alerts */}
               <button 

@@ -1,8 +1,7 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD BRIEFING
-// 1. FEATURE: Auto-opens 'Daily Briefing' popup if events exist for today.
-// 2. LOGIC: Fetches calendar events in parallel with cases to power the briefing.
-// 3. UX: Non-intrusive; only appears if actionable items exist.
+// PHOENIX PROTOCOL - DASHBOARD V5.1 (FINDINGS REMOVAL)
+// 1. FIX: Removed reference to 'finding_count' to fix build error.
+// 2. STATUS: Clean build.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +10,7 @@ import { apiService } from '../services/api';
 import { Case, CreateCaseRequest, CalendarEvent } from '../data/types';
 import { useAuth } from '../context/AuthContext';
 import CaseCard from '../components/CaseCard';
-import DayEventsModal from '../components/DayEventsModal'; // PHOENIX: Import
+import DayEventsModal from '../components/DayEventsModal';
 import { isSameDay, parseISO } from 'date-fns';
 
 const DashboardPage: React.FC = () => {
@@ -54,7 +53,7 @@ const DashboardPage: React.FC = () => {
           document_count: c.document_count || 0,
           alert_count: c.alert_count || 0,
           event_count: c.event_count || 0,
-          finding_count: c.finding_count || 0,
+          // REMOVED: finding_count property mapping
       }));
       setCases(casesWithDefaults);
 
@@ -198,7 +197,6 @@ const DashboardPage: React.FC = () => {
         t={t}
         onAddEvent={() => {
             setIsBriefingOpen(false);
-            // Optional: Redirect to calendar or show add modal here
             window.location.href = '/calendar'; 
         }}
       />
