@@ -1,7 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V14.1 (SWITCHER COMPATIBILITY)
-# 1. FIX: Added 'chronology' extraction to Cross-Examination (Document Mode).
-# 2. RESULT: Timeline now appears even when analyzing a single document.
+# PHOENIX PROTOCOL - INTELLIGENCE V14.2 (FORENSIC AUDITOR)
+# 1. NEW: Strict "Silent Party" Logic (Anti-Hallucination).
+# 2. NEW: Mandatory Citation Protocol ([Burimi: ..., Fq. ...]).
+# 3. MOD: "analyze_case_contradictions" upgraded to "analyze_case_integrity".
 
 import os
 import json
@@ -24,6 +25,20 @@ LOCAL_MODEL_NAME = "llama3"
 
 _deepseek_client: Optional[OpenAI] = None
 
+# --- THE FORENSIC CONSTITUTION ---
+# This prompt is injected into every major analysis call to prevent hallucinations.
+STRICT_FORENSIC_RULES = """
+RREGULLAT E AUDITIMIT (STRICT LIABILITY):
+1. ZERO HALUCINACIONE: Nëse fakti nuk ekziston në tekst, shkruaj "NUK KA TË DHËNA". Mos hamendëso asgjë.
+2. RREGULLI I HESHTJES (THE SILENT PARTY RULE): 
+   - Mos krijo "simetri artificiale". 
+   - Nëse kemi vetëm Padinë, I Padituri "NUK KA PARAQITUR PËRGJIGJE". Mos shpik mbrojtje për të.
+3. CITIM I DETYRUESHËM:
+   - Çdo pretendim faktik duhet të ketë referencën: [Fq. X].
+   - Përdor shënuesit "--- [FAQJA X] ---" nga teksti për të gjetur numrin.
+4. JURIDIKSIONI: Republika e Kosovës.
+"""
+
 def get_deepseek_client() -> Optional[OpenAI]:
     global _deepseek_client
     if _deepseek_client: return _deepseek_client
@@ -36,8 +51,16 @@ def get_deepseek_client() -> Optional[OpenAI]:
     return None
 
 def sterilize_legal_text(text: str) -> str:
+    """
+    Cleans text but PRESERVES Pagination markers for citations.
+    """
     if not text: return ""
+    
+    # Basic sterilization (PII redaction logic from service)
     text = sterilize_text_for_llm(text, redact_names=False)
+
+    # Standardize Pagination Markers if they vary
+    text = re.sub(r'--- \[Page (\d+)\] ---', r'--- [FAQJA \1] ---', text)
 
     replacements = {
         "Paditésja": "Paditësja", "paditésja": "paditësja",
@@ -47,28 +70,23 @@ def sterilize_legal_text(text: str) -> str:
     for bad, good in replacements.items():
         text = text.replace(bad, good)
 
-    header_section = text[:1000].lower()
-    is_lawsuit = "padi" in header_section or "paditës" in header_section
+    # Identify context to prevent misinterpreting a Draft as a Judgement
     clean_text = text
     pattern = r"(?i)(propozoj|propozim)([\s\S]{0,1500}?)(aktgjykim)" 
-    def replacer(match): return f"{match.group(1)}{match.group(2)}DRAFT-PROPOZIM (KËRKESË E PALËS)"
+    def replacer(match): return f"{match.group(1)}{match.group(2)}DRAFT-PROPOZIM (KËRKESË E PALËS - JO VENDIM)"
     clean_text = re.sub(pattern, replacer, clean_text)
     
-    if is_lawsuit or "DRAFT-PROPOZIM" in clean_text:
-        clean_text = clean_text.replace("Gjykata ka vendosur", "Paditësi KËRKON që Gjykata të vendosë")
-        clean_text = clean_text.replace("Gjykata vendos", "Paditësi KËRKON që Gjykata të vendosë")
-        clean_text = clean_text.replace("vërtetohet se", "pretendohet se")
-        clean_text = re.sub(r"(?i)gjykata\s+ka\s+vendosur\s+q[ëe]", "Paditësi kërkon që", clean_text)
-
     return clean_text
 
 def _parse_json_safely(content: str) -> Dict[str, Any]:
     try: return json.loads(content)
     except json.JSONDecodeError:
+        # Fallback: Extract JSON block from Markdown ```json ... ```
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
         if match:
             try: return json.loads(match.group(1))
             except: pass
+        # Fallback: Find outer braces
         start, end = content.find('{'), content.rfind('}')
         if start != -1 and end != -1:
             try: return json.loads(content[start:end+1])
@@ -79,10 +97,13 @@ def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False
     client = get_deepseek_client()
     if not client: return None
     try:
+        # Inject the Constitution into the System Prompt
+        full_system_prompt = f"{system_prompt}\n\n{STRICT_FORENSIC_RULES}"
+        
         kwargs = {
             "model": OPENROUTER_MODEL,
-            "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-            "temperature": 0.0, 
+            "messages": [{"role": "system", "content": full_system_prompt}, {"role": "user", "content": user_prompt}],
+            "temperature": 0.0,  # Zero temperature for maximum determinism
             "extra_headers": {"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI"}
         }
         if json_mode: kwargs["response_format"] = {"type": "json_object"}
@@ -94,9 +115,12 @@ def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False
 
 def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
     try:
+        # Inject Constitution for Local LLM too
+        full_prompt = f"{STRICT_FORENSIC_RULES}\n\n{prompt}"
+        
         payload = {
             "model": LOCAL_MODEL_NAME,
-            "prompt": prompt,
+            "prompt": full_prompt,
             "stream": False,
             "options": {"temperature": 0.0, "num_ctx": 4096},
             "format": "json" if json_mode else None
@@ -106,21 +130,28 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
             return response.json().get("response", "")
     except Exception: return ""
 
+# --- PUBLIC SERVICES ---
+
 def generate_summary(text: str) -> str:
     clean_text = sterilize_legal_text(text[:20000])
-    system_prompt = "Ti je Analist Ligjor. Krijo një përmbledhje të shkurtër faktike duke theksuar Datat Kryesore."
+    system_prompt = "Ti je Analist Ligjor Forensik. Krijo një përmbledhje të shkurtër, objektive. Përmend statusin procedural (psh: 'Padi e dorëzuar', 'Aktgjykim i plotfuqishëm')."
     user_prompt = f"DOKUMENTI:\n{clean_text}"
+    
     res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
-    if not res or len(res) < 50: res = _call_deepseek(system_prompt, user_prompt)
-    return res or "N/A"
+    if not res or len(res) < 50: 
+        res = _call_deepseek(system_prompt, user_prompt)
+    return res or "Nuk u gjenerua përmbledhje."
 
 def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
     clean_text = sterilize_legal_text(text[:25000])
     system_prompt = """
     Ti je "Forensic Document Examiner".
-    DETYRA: Skano dokumentin dhe nxirr fakte, shifra, emra, data (DD/MM/YYYY).
+    DETYRA: Skano dokumentin dhe nxirr fakte (Datat, Shumat, Emrat).
+    
+    RREGULL: Çdo 'finding_text' duhet të përfundojë me [Fq. X] nëse shënuesi ekziston.
+    
     FORMATI JSON: 
-    {"findings": [{"finding_text": "Fakti...", "source_text": "Origjinali...", "category": "PROVË", "page_number": 1}]}
+    {"findings": [{"finding_text": "Më datë 12.01.2023 u nënshkrua kontrata [Fq. 2]", "category": "PROVË", "page_number": 2}]}
     """
     user_prompt = f"DOKUMENTI:\n{clean_text}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
@@ -130,61 +161,75 @@ def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
         return data.get("findings", []) if isinstance(data, dict) else []
     return []
 
-def analyze_case_contradictions(text: str) -> Dict[str, Any]:
+def analyze_case_integrity(text: str) -> Dict[str, Any]:
+    """
+    FORMERLY: analyze_case_contradictions
+    UPGRADED: Handles 'Silent Party Rule' and enforces strict citation.
+    """
     clean_text = sterilize_legal_text(text[:25000])
     system_prompt = """
-    Ti je 'The Auditor'.
-    DETYRA: Analizo dosjen dhe krijo Timeline.
-    FORMATI JSON:
+    Ti je "Auditori Ligjor Suprem".
+    
+    DETYRA 1: Identifiko cilat palë kanë folur.
+    - Nëse kemi vetëm dokumente nga Paditësi -> I Padituri është 'PASIV/HESHTUR'.
+    
+    DETYRA 2: Krijo Kronologjinë e Verifikuar.
+    - Çdo datë duhet të ketë burimin [Fq. X].
+    
+    FORMATI JSON (Strict):
     {
-        "document_type": "Përmbledhje Dosjeje",
-        "summary_analysis": "Analiza...",
-        "chronology": [{"date": "DD/MM/YYYY", "event": "Ngjarja...", "source_doc": "Dokumenti A"}],
-        "conflicting_parties": [{"party_name": "Emri", "core_claim": "Pretendimi"}],
-        "contradictions": ["Kontradikta..."],
+        "document_type": "Përcakto llojin (Padi, Përgjigje në Padi, Aktgjykim, etj)",
+        "active_parties": ["Lista e palëve që kanë dorëzuar dokumente"],
+        "silent_parties": ["Lista e palëve që NUK kanë dokumente në tekst"],
+        "summary_analysis": "Përmbledhje e statusit procedural.",
+        "chronology": [{"date": "DD/MM/YYYY", "event": "Ngjarja...", "source_doc": "Fq. X"}],
+        "contradictions": [
+            "Vetëm nëse të dy palët kanë deklaruar fakte të kundërta. Nëse një palë hesht, shkruaj: 'Nuk ka kontradikta - Mungon deklarimi i palës së kundërt'."
+        ],
         "key_evidence": [],
-        "missing_info": []
+        "missing_info": ["Cilat dokumente procedurale mungojnë (psh: Përgjigja në Padi)?"]
     }
     """
-    user_prompt = f"DOSJA:\n{clean_text}"
+    user_prompt = f"DOSJA E PLOTË (TEXT):\n{clean_text}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
 
-# PHOENIX FIX: Added Chronology to Cross-Examination
+# --- INTELLIGENCE MODULES (PHOENIX ENGINE) ---
+
 def perform_litigation_cross_examination(target_text: str, context_summaries: List[str]) -> Dict[str, Any]:
     clean_target = sterilize_legal_text(target_text[:25000])
     formatted_context = "\n".join([f"- {s}" for s in context_summaries if s])
     
     system_prompt = """
-    Ti je "Phoenix" - Avokat Mbrojtës.
+    Ti je "Phoenix Litigation Engine" - Sistemi i Auditimit.
     
-    DETYRA: Kryqëzo dokumentin [TARGET] me [DOSJEN].
+    DETYRA: Kryqëzo dokumentin e ri [TARGET] me historikun [CONTEXT].
     
-    UDHËZIME SHTESË PËR KRONOLOGJINË:
-    1. Nxirr "Kronologjinë e Dokumentit" - Datat që përmenden vetëm në këtë dokument specifik.
-    2. Kjo ndihmon të shohim se ku futet ky dokument në kohë.
-
+    RREGULLI I SIMETRISË:
+    - Verifiko nëse ky dokument është Përgjigje ndaj Padisë.
+    - Nëse Target është Padi dhe Context është bosh -> "Fillimi i Çështjes".
+    
     FORMATI JSON (Strict):
     {
-        "summary_analysis": "Analizë e besueshmërisë dhe konsistencës kohore.",
+        "summary_analysis": "Analizë koherencës. A përputhet ky dokument me provat e mëparshme?",
         "chronology": [
-            {"date": "DD/MM/YYYY", "event": "Data e lëshimit/ngjarjes në dokument.", "source_doc": "Target Document"}
+            {"date": "DD/MM/YYYY", "event": "Ngjarja brenda dokumentit", "source_doc": "Target Doc [Fq. X]"}
         ],
         "conflicting_parties": [
-            {"party_name": "Emri", "core_claim": "Deklarata në këtë dokument."}
+            {"party_name": "Emri", "core_claim": "Çfarë pretendon specifikisht në këtë dokument?"}
         ],
         "contradictions": [
-            "KONTRADIKTË KOHORE: Target thotë 'Maj 2023', Dosja provon 'Qershor 2023'."
+            "Identifiko mospërputhje faktuale strikte (psh: Data ndryshe, Shuma ndryshe)."
         ],
         "suggested_questions": [
-            "Z. [Mbiemri], pse data e përmendur këtu nuk përputhet me faturën e datës X?"
+            "Pyetje për të qartësuar paqartësitë ose mungesat në këtë dokument."
         ],
-        "discovery_targets": [],
+        "discovery_targets": ["Çfarë dokumenti tjetër duhet kërkuar bazuar në këtë tekst?"],
         "key_evidence": []
     }
     """
-    user_prompt = f"[CONTEXT] (Fakte nga Dosja):\n{formatted_context}\n\n[TARGET] (Dokumenti i Ri):\n{clean_target}"
+    user_prompt = f"[CONTEXT - DOSJA EKZISTUESE]:\n{formatted_context}\n\n[TARGET - DOKUMENTI I RI]:\n{clean_target}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
@@ -192,7 +237,9 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
 def synthesize_and_deduplicate_findings(raw_findings: List[str]) -> List[Dict[str, Any]]:
     joined_findings = "\n".join(raw_findings[:100]) 
     system_prompt = """
-    Ti je "Arkivi Qendror". GRUPO dhe SHKRIJ faktet.
+    Ti je "Arkivi Qendror". 
+    DETYRA: Grupo dhe shkri faktet e ngjashme.
+    RREGULL: Ruaj referencat [Fq. X]. Nëse ka shumë referenca për një fakt, bashkoj ato (psh: [Fq. 2, Fq. 5]).
     FORMATI JSON: {"synthesized_findings": [{"finding_text": "...", "source_documents": ["..."], "category": "..."}]}
     """
     user_prompt = f"FAKTET BRUTO:\n{joined_findings}"
@@ -203,6 +250,7 @@ def synthesize_and_deduplicate_findings(raw_findings: List[str]) -> List[Dict[st
         return data.get("synthesized_findings", [])
     return []
 
+# Placeholder stubs for interface compatibility
 def extract_graph_data(text: str) -> Dict[str, List[Dict]]: return {"entities": [], "relations": []}
 def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict: return {}
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]: return []

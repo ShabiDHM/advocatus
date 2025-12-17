@@ -1,8 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V16.1 (TYPE SAFE & COMPLIANT)
-# 1. FIX: Resolves Pylance type errors for OpenAI 'messages' parameter.
-# 2. FIX: Maps internal role 'ai' to OpenAI specific 'assistant' role.
-# 3. LOGIC: Maintains 6-message memory window for smart context.
+# PHOENIX PROTOCOL - CHAT SERVICE V17.0 (STRICT AUDITOR MODE)
+# 1. NEW: Injected "Strict Forensic Rules" into System Prompt.
+# 2. LOGIC: Enforces "Zero Hallucination" policy.
+# 3. SAFETY: Uses RAG Context strictly.
 
 from __future__ import annotations
 import os
@@ -18,32 +18,34 @@ from openai.types.chat import ChatCompletionMessageParam
 
 from app.models.case import ChatMessage
 import app.services.vector_store_service as vector_store_service
+from app.services.llm_service import STRICT_FORENSIC_RULES
 
 logger = logging.getLogger(__name__)
 
 # --- CONFIG ---
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY") 
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# --- KOSOVO SMART PROMPT (STRATEGY-ALIGNED) ---
-SYSTEM_PROMPT_KOSOVO = """
-Ti je "Juristi AI", një Asistent Ligjor i Avancuar për sistemin e Kosovës.
-Ti punon PËR përdoruesin. Përdoruesi është Avokati Kryesor (Eprori yt).
+# --- THE FORENSIC CHAT CONSTITUTION ---
+SYSTEM_PROMPT_FORENSIC = f"""
+Ti je "Juristi AI - Auditori Forensik".
+Përdoruesi është Avokati. Qëllimi yt është saktësia absolute faktike.
 
-RREGULLAT E ARTË (NON-NEGOTIABLE):
-1. **AUTORITETI:** Ti zbaton strategjinë e përdoruesit. Nëse përdoruesi thotë "Kundërshto këtë fakt", ti gjen prova në dosje për ta mbështetur kundërshtimin. Ti NUK e kundërshton përdoruesin.
-2. **MEMORJA:** Mbaj mend çfarë është thënë në mesazhet e mëparshme. Nëse përdoruesi të ka korrigjuar një datë, përdor datën e korrigjuar.
-3. **VERIFIKIMI FAKTIK:** 
-   - Beso vetëm çfarë sheh në tekstin e dhënë (Dokumentet).
-   - Nëse data nuk është e qartë, shkruaj "Data e panjohur" - MOS shpik data.
-   - Përdor formatin DD/MM/VITI (p.sh., 16/12/2025).
-4. **BURIMET:**
-   - E vërteta Absolute = Çfarë shkruhet në dokumentet e gjykatës (Aktgjykimet).
-   - Pretendime = Çfarë shkruhet në Padi ose Deklarata palësh.
+{STRICT_FORENSIC_RULES}
 
-QËLLIMI YT:
-Të ndihmosh përdoruesin të fitojë rastin.
+UDHËZIME SHTESË PËR CHAT:
+1. PËRGJIGJU VETËM NGA KONTEKSTI: 
+   - Konteksti i dhënë më poshtë është e VETMJA e vërtetë që njeh.
+   - Nëse pyetja nuk ka përgjigje në kontekst, thuaj: "Më vjen keq, ky informacion nuk gjendet në dokumentet e analizuara."
+   - MOS SHPIK DATË/EMRA.
+
+2. QARTËSO STATUSIN E DOKUMENTIT:
+   - Nëse informacioni vjen nga një "DRAFT" ose "PROPOZIM", thuaj qartë: "Kjo është vetëm kërkesë e palës, jo vendim gjykate."
+
+3. MOS BËJ LIGJËRATA:
+   - Mos jep këshilla të përgjithshme ligjore (psh: "Sipas ligjit...").
+   - Përqendrohu tek FAKTET e dosjes specifike.
 """
 
 def _get_rag_service_instance(db: Any) -> Any:
@@ -80,7 +82,7 @@ async def get_http_chat_response(
     jurisdiction: Optional[str] = 'ks'
 ) -> str:
     """
-    Orchestrates the Socratic Chat with Memory and Graph-Enhanced Retrieval.
+    Orchestrates the Strict Forensic Chat.
     """
     try:
         oid = ObjectId(case_id)
@@ -88,29 +90,26 @@ async def get_http_chat_response(
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid ID format")
 
-    # 1. Verify access and fetch Case
+    # 1. Verify access
     case = await db.cases.find_one({"_id": oid, "owner_id": user_oid})
     if not case:
         raise HTTPException(status_code=404, detail="Case not found.")
 
-    # 2. Get Chat History (The Memory)
-    # We take the last 6 messages (approx 3 conversation turns) to maintain context
+    # 2. Get Chat History (Memory)
     raw_history = case.get("chat_history", [])
     memory_messages: List[ChatCompletionMessageParam] = []
     
     if raw_history:
         try:
-            # Take last 6
+            # Take last 6 for context window
             recent_history = raw_history[-6:] 
             for msg in recent_history:
-                # Handle both Dict and Pydantic object
                 raw_role = msg.get('role') if isinstance(msg, dict) else getattr(msg, 'role', 'user')
                 content = msg.get('content') if isinstance(msg, dict) else getattr(msg, 'content', '')
                 
-                # PHOENIX FIX: Map internal 'ai' role to OpenAI 'assistant'
+                # Role Mapping
                 api_role = "assistant" if raw_role == "ai" else raw_role
                 
-                # Strict Filtering for OpenAI Allowed Roles
                 if api_role == "user" and content:
                     memory_messages.append({"role": "user", "content": str(content)})
                 elif api_role == "assistant" and content:
@@ -121,7 +120,7 @@ async def get_http_chat_response(
         except Exception as e:
             logger.warning(f"Failed to parse chat history: {e}")
 
-    # 3. Save CURRENT User Message to DB (As 'user')
+    # 3. Save User Message
     try:
         await db.cases.update_one(
             {"_id": oid},
@@ -132,7 +131,7 @@ async def get_http_chat_response(
     
     response_text: str = "" 
     try:
-        # 4. RETRIEVAL STEP (The "Eyes")
+        # 4. RETRIEVAL STEP (RAG)
         rag_service = _get_rag_service_instance(db)
         
         context_dossier = ""
@@ -143,20 +142,20 @@ async def get_http_chat_response(
                 document_ids=[document_id] if document_id else None
             )
             
-        # 5. GENERATION STEP (The "Brain")
+        # 5. GENERATION STEP (Strict LLM)
+        if not context_dossier:
+            context_dossier = "NUK U GJET ASNJË DOKUMENT OSE FAKT PËRKATËS NË DOSJE PËR KËTË ÇËSHTJE."
+
         final_user_prompt = (
-            f"=== KONTEKSTI I RI NGA DOSJA ===\n{context_dossier}\n\n"
-            f"=== PYETJA AKTUALE E AVOKATIT ===\n{user_query}"
+            f"=== E VËRTETA FAKTIKE (KONTEKSTI NGA DOSJA) ===\n{context_dossier}\n\n"
+            f"=== PYETJA E AUDITORIT ===\n{user_query}"
         )
 
-        # Initialize explicit list type
-        messages_payload: List[ChatCompletionMessageParam] = [{"role": "system", "content": SYSTEM_PROMPT_KOSOVO}]
+        messages_payload: List[ChatCompletionMessageParam] = [{"role": "system", "content": SYSTEM_PROMPT_FORENSIC}]
         
-        # Inject Memory (History)
         if memory_messages:
             messages_payload.extend(memory_messages)
             
-        # Inject Current Query with RAG Context
         messages_payload.append({"role": "user", "content": final_user_prompt})
 
         if DEEPSEEK_API_KEY:
@@ -165,7 +164,7 @@ async def get_http_chat_response(
             completion = await client.chat.completions.create(
                 model=OPENROUTER_MODEL,
                 messages=messages_payload,
-                temperature=0.0, # Zero temp for accuracy
+                temperature=0.0, # ZERO TEMP = ZERO HALLUCINATION
                 max_tokens=1500, 
                 extra_headers={"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI Chat"}
             )
@@ -177,9 +176,9 @@ async def get_http_chat_response(
 
     except Exception as e:
         logger.error(f"AI Error: {e}", exc_info=True)
-        response_text = "Kërkoj ndjesë, ndodhi një problem teknik gjatë analizës."
+        response_text = "Kërkoj ndjesë, ndodhi një problem teknik gjatë auditimit."
 
-    # 6. Save AI Response to DB (As 'ai')
+    # 6. Save AI Response
     try:
         await db.cases.update_one(
             {"_id": oid},

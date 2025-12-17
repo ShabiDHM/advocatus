@@ -1,7 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES REFACTOR V5.9 (TIMELINE ENABLED)
-// 1. ADDED: 'chronology' to CaseAnalysisResult to support new Temporal Logic.
-// 2. DEFINED: 'ChronologyEvent' interface for structured timeline data.
+// PHOENIX PROTOCOL - TYPES REFACTOR V6.0 (FORENSIC COMPATIBILITY)
+// 1. FIX: Added 'silent_parties' and 'analysis_mode' to CaseAnalysisResult.
+// 2. PURPOSE: Resolves TS errors in AnalysisModal.tsx.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -202,38 +202,41 @@ export type DraftingJobResult = {
     status?: string;
 };
 
-// --- INTELLIGENCE & ANALYSIS (UPDATED) ---
+// --- INTELLIGENCE & ANALYSIS (FORENSIC AUDIT) ---
 
-// New Interface for the Debate Judge
 export interface ConflictingParty {
     party_name: string;
     core_claim: string;
 }
 
-// PHOENIX NEW: Timeline Event
 export interface ChronologyEvent {
     date: string;
     event: string;
     source_doc?: string;
 }
 
+// THE FIXED INTERFACE
 export interface CaseAnalysisResult { 
     summary_analysis: string; 
     contradictions: string[]; 
     missing_info: string[]; 
     
-    // New Fields for V5.2 Intelligence
+    // Core Forensic Data
     conflicting_parties?: ConflictingParty[];
     key_evidence?: string[];
-    
-    // PHOENIX NEW: The Timeline Field
     chronology?: ChronologyEvent[];
 
-    // Re-applied and verified
+    // PHOENIX FIX: Added missing fields for Forensic Audit Mode
+    silent_parties?: string[];  // For "Silent Party Rule"
+    active_parties?: string[];
+    analysis_mode?: string;     // 'FULL_CASE_AUDIT' | 'CROSS_EXAMINATION'
+    target_document_id?: string;
+
+    // Strategy
     suggested_questions?: string[];
     discovery_targets?: string[];
     
-    // Legacy support (optional)
+    // Legacy support
     risks?: string[]; 
     error?: string; 
 }

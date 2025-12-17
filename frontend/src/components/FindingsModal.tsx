@@ -1,8 +1,8 @@
 // FILE: src/components/FindingsModal.tsx
-// PHOENIX PROTOCOL - FINDINGS MODAL V2.3 (REFUSAL FILTER)
-// 1. FIX: Added Blacklist to hide AI refusal messages ("Më vjen keq", "I'm sorry").
-// 2. FIX: Lowered confidence threshold to 0.90 to show valid items like "Opiates (95%)".
-// 3. LOGIC: Enhanced sanitization to strip more artifacts.
+// PHOENIX PROTOCOL - FINDINGS MODAL V2.4 (CITATION ENABLED)
+// 1. NEW: Added Page Number Badge ([Fq. X]) next to document name.
+// 2. LOGIC: Helps lawyers verify facts against the physical page.
+// 3. SAFETY: Includes Refusal Filter to hide AI apologies.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -66,7 +66,6 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
       if (showAll) return true;
 
       // Keep if it's long (summary) OR if confidence is reasonable (> 0.90)
-      // Lowered from 0.98 to 0.90 to catch the "95%" Opiates finding
       return text.length > 50 || f.confidence_score > 0.90;
   });
 
@@ -91,7 +90,7 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
           <div className="p-4 sm:p-6 border-b border-glass-edge flex justify-between items-center bg-background-light/90 backdrop-blur-md flex-shrink-0">
             <h2 className="text-xl sm:text-2xl font-bold text-text-primary flex items-center gap-3">
               <Lightbulb className="text-amber-400 h-6 w-6" />
-              <span>{t('caseView.findingsTitle')}</span>
+              <span>{t('caseView.findingsTitle', 'Gjetjet Kryesore')}</span>
               <span className="bg-white/10 text-gray-300 text-xs px-2.5 py-1 rounded-full font-mono">{filteredFindings.length}</span>
             </h2>
             <div className="flex items-center gap-2">
@@ -116,7 +115,7 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
             
             {sortedFindings.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
-                    <p>{t('caseView.noFindings')}</p>
+                    <p>{t('caseView.noFindings', 'Nuk u gjetën të dhëna.')}</p>
                 </div>
             ) : (
                 sortedFindings.map((finding) => (
@@ -140,7 +139,7 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
                                         h1: ({node, ...props}) => <h1 className="text-lg font-bold text-primary-400 mt-3 mb-2 uppercase tracking-wide" {...props} />,
                                         h2: ({node, ...props}) => <h2 className="text-base font-bold text-primary-400 mt-3 mb-2" {...props} />,
                                         
-                                        // Tables (Important for Drug Tests)
+                                        // Tables (Important for Drug Tests / Finance)
                                         table: ({node, ...props}) => <div className="overflow-x-auto my-3"><table className="w-full text-left border-collapse border border-white/10" {...props} /></div>,
                                         thead: ({node, ...props}) => <thead className="bg-white/5 text-amber-500" {...props} />,
                                         th: ({node, ...props}) => <th className="p-2 border border-white/10 text-xs font-bold uppercase" {...props} />,
@@ -161,12 +160,19 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
                                 </ReactMarkdown>
                             </div>
 
-                            {/* Meta Info */}
+                            {/* Meta Info with Page Number */}
                             <div className="flex flex-wrap items-center gap-4 mt-3 pt-3 border-t border-white/5 text-xs text-gray-500">
                                 <div className="flex items-center gap-1.5 text-amber-500/80">
                                     <FileText size={12} />
                                     <span className="font-medium">{t('caseView.findingSource')}: </span>
                                     <span className="text-gray-400 italic truncate max-w-[200px]">{finding.document_name || 'N/A'}</span>
+                                    
+                                    {/* PHOENIX ADDITION: Page Number Badge */}
+                                    {finding.page_number && (
+                                        <span className="ml-2 px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-gray-300 font-mono border border-white/10">
+                                            Fq. {finding.page_number}
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-1.5 ml-auto">
                                     <ExternalLink size={12} className="text-gray-600" />
@@ -182,7 +188,7 @@ const FindingsModal: React.FC<FindingsModalProps> = ({ isOpen, onClose, findings
           {/* Footer */}
           <div className="p-4 border-t border-glass-edge bg-background-dark/80 text-center flex-shrink-0">
               <button onClick={onClose} className="w-full sm:w-auto px-8 py-2.5 bg-secondary-start hover:bg-secondary-end text-white rounded-xl font-bold transition-all shadow-lg glow-secondary">
-                  {t('general.close')}
+                  {t('general.close', 'Mbyll')}
               </button>
           </div>
         </motion.div>
