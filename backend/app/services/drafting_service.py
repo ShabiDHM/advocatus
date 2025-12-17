@@ -1,7 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING SERVICE V16.1 (TYPE SAFETY)
-# 1. FIXED: Sanitized 'draft_type' to ensure it is always a string before dictionary lookup.
-# 2. STATUS: Passing strict static analysis.
+# PHOENIX PROTOCOL - DRAFTING SERVICE V17.0 (KOSOVO JUDICIAL STYLE)
+# 1. NEW: Injected "Perfect Padi" & "Perfect Response" templates based on forensic analysis.
+# 2. STYLE: Enforced "A K T G J Y K I M" operative block structure.
+# 3. FORMAT: Added specific header hierarchies for Lawsuits vs. Responses.
 
 import os
 import asyncio
@@ -9,7 +10,6 @@ import io
 import structlog
 from typing import AsyncGenerator, Optional, List, Any, cast, Dict
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletionMessageParam 
 from pymongo.database import Database
 from bson import ObjectId
 from docx import Document
@@ -29,34 +29,104 @@ OPENROUTER_MODEL = "deepseek/deepseek-chat"
 
 # --- INVISIBLE INTELLIGENCE LAYER ---
 STRICT_KOSOVO_CONSTRAINTS = """
-*** UDHËZIME STRIKTE (SISTEMI I KOSOVËS): ***
+*** UDHËZIME STRIKTE (STILI GJYQËSOR I KOSOVËS): ***
 1. JURISDIKSIONI: VETËM REPUBLIKA E KOSOVËS.
-2. NDALIM: MOS përdor kurrë ligje, gjykata apo referenca nga Republika e Shqipërisë (psh. Tiranë, Kodi Civil i Shqipërisë).
-3. LIGJI: Referoju vetëm legjislacionit të Kosovës (psh. Ligji për Familjen i Kosovës, Ligji për Procedurën Kontestimore, LPK).
-4. Nëse nuk e di nenin specifik të Kosovës, shkruaj: "Sipas dispozitave ligjore në fuqi në Kosovë".
-5. FORMATIMI: Përdor stil formal, juridik dhe profesional.
+2. STILI I SHKRIMIT: Formal, autoritativ, argumentues.
+3. CITIMI I PROVAVE: Përdor formatin "Provë: [Emri i Dokumentit]" me bold, në rresht të ri ose pas paragrafit përkatës.
+4. TITULLI FINAL: Çdo dokument duhet të përfundojë me dispozitivin e propozuar (Petitumin) nën titullin e ndarë me hapësira: "A K T G J Y K I M".
+5. FOLJET E DISPOZITIVIT: Përdor terma urdhërorë me bold: I) APROVOHET, II) DETYROHET, III) REFUZOHET.
 """
 
 TEMPLATE_MAP = {
     "generic": "Strukturoje si dokument juridik standard.",
+    
     "padi": """
-    STRUKTURA E PADISË:
-    1. Gjykata Themelore në [Qyteti]
-    2. Paditësi: [Emri] vs I Padituri: [Emri]
-    3. Baza Juridike: [Nenet]
-    4. Vlera e Kontestit: [Shuma]
-    5. Pjesa Historike (Faktet)
-    6. Pjesa Arsyetuese (Pse kemi të drejtë)
-    7. PETITUMI (Kërkesëpadia): "I propozoj Gjykatës të aprovojë..."
+    STRUKTURA E PADISË (STRICT):
+    
+    1. KOKA E DOKUMENTIT (Center):
+       Republika e Kosovës
+       Republika Kosova-Republic of Kosovo
+       Qeveria -Vlada-Government
+       Ministria e Drejtësisë
+       GJYKATA THEMELORE PRISHTINË (ose qyteti përkatës)
+       Departamenti i Përgjithshëm – Divizioni Civil
+
+    2. PALËT (Left Align):
+       Paditëse: [Emri, Adresa e plotë]
+       I padituri: [Emri, Adresa e plotë]
+
+    3. HYRJA LIGJORE:
+       "Në mbështetje të nenit [X] të [Ligjit], paditësja paraqet këtë:"
+       
+       P A D I  (Center, Bold, Spaced)
+
+    4. BAZA LIGJORE: [Psh. Zgjidhja e martesës, Borxhi, etj]
+
+    5. NARRATIVA (Faktet):
+       - Shpjego rrjedhojën e ngjarjes.
+       - Pas çdo fakti kyç, shto rresht: "Provë: [Dokumenti]"
+
+    6. ARSYETIMI LIGJOR:
+       - Cito nenet specifike të ligjeve të Kosovës (LPK, LPF, LMD).
+       - Argumento pse kërkesa është e bazuar.
+
+    7. DISPOZITIVI I PROPOZUAR (Center, Bold):
+       A K T G J Y K I M
+
+       I) APROVOHET kërkesë padia e paditëses [Emri].
+       II) DETYROHET i padituri [Emri] që të... (psh. paguajë, lirojë pronën).
+       III) OBLIGOHET i padituri t'i paguajë shpenzimet e procedurës.
+
+    8. FUNDI:
+       Vendi, Data
+       Paditëse: [Emri]
     """,
+
     "pergjigje": """
-    STRUKTURA E PËRGJIGJES NË PADI:
-    1. Gjykata Themelore në [Qyteti]
-    2. Nr. i Lëndës: [Numri]
-    3. DEKLARIM: Kundërshtim në tërësi i padisë.
-    4. ARSYETIMI: Pse padia nuk ka bazë ligjore ose faktike.
-    5. PROPOZIMI: "Të refuzohet padia si e pabazuar."
+    STRUKTURA E PËRGJIGJES NË PADI (STRICT):
+
+    1. KOKA E AVOKATIT (Top Right/Center):
+       AVOKAT – LAWYER
+       [Emri i Avokatit/Firmës]
+       [Adresa, Tel, Email]
+       C.nr.[Numri i Lëndës]
+
+    2. ADRESIMI:
+       Për: Gjykatën Themelore në [Qyteti] - Departamenti...
+
+    3. PALËT:
+       Paditësja: [Emri, Adresa]
+       I Padituri: [Emri, Adresa], të cilin e përfaqëson me autorizim av. [Emri]
+
+    4. REFERENCA:
+       Baza Juridike: [Objekti i kontestit]
+
+    5. HYRJA PROCEDURALE:
+       "Duke vepruar sipas... ushtrojmë këtë:"
+       
+       PËRGJIGJE NË PADI (Bold, Center)
+
+    6. TRUPI I KUNDËRSHTIMIT:
+       - "Kundërshtojmë në tërësi padinë..."
+       - Argumento faktet e pasakta të paditësit.
+       - Shto prova: "Provë: [Emri]".
+
+    7. DISPOZITIVI I PROPOZUAR (Center, Bold):
+       A K T G J Y K I M
+
+       - REFUZOHET në tërësi si e pa bazuar në ligj padia e paditëses.
+       - MBETET NË FUQI [Nëse ka vendim paraprak].
+       - DETYROHET paditësja t'i bartë shpenzimet e procedurës.
+
+    8. REZERVIMI:
+       "Rezervojmë të drejtën e paraqitjes së provave në seancë..."
+
+    9. FUNDI:
+       Vendi, Data
+       Për të paditurin, sipas autorizimit:
+       Av. [Emri]
     """,
+
     "kunderpadi": """
     STRUKTURA E KUNDËRPADISË:
     1. Gjykata...
@@ -125,9 +195,6 @@ async def generate_draft_stream(
 ) -> AsyncGenerator[str, None]:
     
     sanitized_prompt = sterilize_text_for_llm(prompt_text)
-    
-    # PHOENIX FIX: Type Safety for Dictionary Key
-    # draft_type is Optional[str], so we default to "generic" if it's None
     key = draft_type if draft_type else "generic"
     template_instruction = TEMPLATE_MAP.get(key, TEMPLATE_MAP["generic"])
     
@@ -136,11 +203,10 @@ async def generate_draft_stream(
     
     {STRICT_KOSOVO_CONSTRAINTS}
     
-    DETYRA: Harto dokumentin e kërkuar duke ndjekur këtë strukturë:
+    DETYRA: Harto dokumentin juridik '{key.upper()}' duke ndjekur me përpikmëri këtë strukturë:
     {template_instruction}
     """
 
-    # 2. BUILD CONTEXT
     db_context = ""
     if case_id and db is not None:
          db_context = await asyncio.to_thread(_build_case_context_hybrid_sync, db, case_id, sanitized_prompt)
@@ -157,13 +223,13 @@ async def generate_draft_stream(
     {identity}
     {laws}
 
-    === KONTEKSTI I RASTIT ===
+    === KONTEKSTI I RASTIT (FAKTE & PROVA) ===
     {final_context}
 
-    === UDHËZIMI I PËRDORUESIT ===
+    === UDHËZIMI SPECIFIK I PËRDORUESIT ===
     "{sanitized_prompt}"
     
-    KËRKESA: Fillo hartimin e dokumentit tani.
+    KËRKESA: Fillo hartimin e dokumentit tani. Përdor formatimin e saktë (Bold, Center) siç u kërkua.
     """
 
     if DEEPSEEK_API_KEY:
@@ -177,10 +243,9 @@ async def generate_draft_stream(
                 if chunk.choices[0].delta.content: yield chunk.choices[0].delta.content
             return
         except Exception: pass
-    yield "**[Draftimi dështoi.]**"
+    yield "**[Draftimi dështoi. Provoni përsëri.]**"
 
 def generate_objection_document(analysis_result: Dict[str, Any], case_title: str) -> bytes:
-    # (Same as previous - keeping existing logic)
     document = Document()
     style = document.styles['Normal']
     font = style.font # type: ignore
