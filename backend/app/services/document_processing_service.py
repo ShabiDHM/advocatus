@@ -1,8 +1,8 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - DOCUMENT PIPELINE V8.0 (STERILIZATION AT SOURCE)
-# 1. FIX: Injected 'sterilize_legal_text' immediately after OCR.
-# 2. LOGIC: Ensures the Vector Store, Graph, and Findings NEVER see the "Poisoned" phrase.
-# 3. SAFETY: This guarantees that "Gjykata ka vendosur" in a Lawsuit is rewritten to "Paditësi Kërkon" globally.
+# PHOENIX PROTOCOL - DOCUMENT PIPELINE V8.1 (FINDINGS REMOVAL)
+# 1. REMOVED: findings_service import.
+# 2. REMOVED: task_findings (Dead Logic).
+# 3. STATUS: Crash-proof and Optimized.
 
 import os
 import tempfile
@@ -24,8 +24,7 @@ from . import (
     llm_service, 
     text_extraction_service, 
     conversion_service,
-    deadline_service,
-    findings_service
+    deadline_service
 )
 from .graph_service import graph_service 
 from .categorization_service import CATEGORIZATION_SERVICE
@@ -102,26 +101,20 @@ def orchestrate_document_processing_mongo(
         if not raw_text or not raw_text.strip():
             raise ValueError("OCR dështoi: Dokumenti duket bosh.")
 
-        # --- PHOENIX STERILIZATION PROTOCOL (SOURCE FILTER) ---
+        # --- PHOENIX STERILIZATION PROTOCOL ---
         _emit_progress(redis_client, user_id, document_id_str, "Sterilizimi Ligjor...", 28)
-        # We apply the filter HERE, so no downstream service ever sees the "bad" text.
         extracted_text = llm_service.sterilize_legal_text(raw_text)
         logger.info(f"✅ Document {document_id_str} sterilized. (Length: {len(raw_text)} -> {len(extracted_text)})")
-        # -----------------------------------------------------
-
+        
         _emit_progress(redis_client, user_id, document_id_str, "Klasifikimi...", 30)
         is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
-        
         extracted_metadata = albanian_metadata_extractor.extract(extracted_text, document_id_str)
-        
         update_payload = {"detected_language": "sq" if is_albanian else "en", "metadata": extracted_metadata}
-        
         try:
             detected_category = CATEGORIZATION_SERVICE.categorize_document(extracted_text)
             update_payload["category"] = detected_category
         except Exception:
             detected_category = "Unknown"
-            
         db.documents.update_one({"_id": doc_id}, {"$set": update_payload})
 
         _emit_progress(redis_client, user_id, document_id_str, "Analizë e Thellë...", 40)
@@ -133,7 +126,6 @@ def orchestrate_document_processing_mongo(
                 if extracted_metadata:
                     base_doc_metadata.update({k: v for k, v in extracted_metadata.items() if v})
                 
-                # IMPORTANT: Using 'extracted_text' (Sterilized) not 'raw_text'
                 enriched_chunks = EnhancedDocumentProcessor.process_document(text_content=extracted_text, document_metadata=base_doc_metadata, is_albanian=is_albanian)
                 
                 vector_store_service.create_and_store_embeddings_from_chunks(
@@ -147,7 +139,6 @@ def orchestrate_document_processing_mongo(
                 return False
 
         def task_storage() -> Optional[str]:
-            # Storing STERILIZED text for future reference/download
             try: return storage_service.upload_processed_text(extracted_text, user_id=user_id, case_id=case_id_str, original_doc_id=document_id_str)
             except Exception: return None
 
@@ -159,11 +150,7 @@ def orchestrate_document_processing_mongo(
                 return llm_service.generate_summary(optimized)
             except Exception: return "Përmbledhja nuk është e disponueshme."
 
-        def task_findings() -> None:
-            try:
-                _emit_progress(redis_client, user_id, document_id_str, "Analiza e Gjetjeve...", 70)
-                findings_service.extract_and_save_findings(db, document_id_str, extracted_text)
-            except Exception as e: logger.error(f"Findings Extraction Error: {e}")
+        # REMOVED: task_findings
 
         def task_deadlines() -> None:
             try:
@@ -186,9 +173,9 @@ def orchestrate_document_processing_mongo(
             except Exception as e: logger.error(f"Graph Ingestion Error: {e}")
 
         summary_result, text_storage_key = None, None
-        with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-            # All tasks now use the sanitized 'extracted_text'
-            futures_list = [executor.submit(task) for task in [task_embeddings, task_storage, task_summary, task_findings, task_deadlines, task_graph]]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor: # Reduced workers by 1
+            # REMOVED: task_findings from this list
+            futures_list = [executor.submit(task) for task in [task_embeddings, task_storage, task_summary, task_deadlines, task_graph]]
             summary_result = futures_list[2].result()
             text_storage_key = futures_list[1].result()
 

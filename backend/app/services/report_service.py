@@ -1,7 +1,8 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT SERVICE V4.0 (CURRENCY SAFETY)
-# 1. FIX: Replaced '€' symbol with 'EUR' to prevent encoding crashes on standard Helvetica fonts.
-# 2. STATUS: Ensures safe PDF generation for all financial documents.
+# PHOENIX PROTOCOL - REPORT SERVICE V4.1 (FINDINGS REMOVAL)
+# 1. REMOVED: findings_service import (Resolves Import Crash).
+# 2. REMOVED: generate_findings_report_pdf (Dead Logic).
+# 3. STATUS: Clean and Safe.
 
 import io
 import os
@@ -24,7 +25,7 @@ from xml.sax.saxutils import escape
 from PIL import Image as PILImage
 
 from app.models.finance import InvoiceInDB
-from app.services import storage_service, findings_service
+from app.services import storage_service
 
 logger = structlog.get_logger(__name__)
 
@@ -55,8 +56,7 @@ TRANSLATIONS = {
         "invoice_title": "FATURA", "invoice_num": "Fatura #", "date_issue": "Data e Lëshimit", "date_due": "Afati i Pagesës",
         "status": "Statusi", "from": "Nga", "to": "Për", "desc": "Përshkrimi", "qty": "Sasia", "price": "Çmimi",
         "total": "Totali", "subtotal": "Nëntotali", "tax": "TVSH (18%)", "notes": "Shënime",
-        "footer_gen": "Dokument i gjeneruar elektronikisht nga", "page": "Faqe", "report_title": "Raport i Gjetjeve",
-        "finding": "Gjetja", "no_findings": "Nuk u gjetën asnjë gjetje për këtë rast.", "case": "Rasti", "generated_for": "Gjeneruar për",
+        "footer_gen": "Dokument i gjeneruar elektronikisht nga", "page": "Faqe", 
         "lbl_address": "Adresa:", "lbl_tel": "Tel:", "lbl_email": "Email:", "lbl_web": "Web:", "lbl_nui": "NUI:"
     }
 }
@@ -256,7 +256,6 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     headers = [_get_text('desc', lang), _get_text('qty', lang), _get_text('price', lang), _get_text('total', lang)]
     data = [[Paragraph(h, STYLES['TableHeader']) for h in headers]]
     for item in invoice.items:
-        # PHOENIX FIX: Switched '€' to 'EUR'
         data.append([
             Paragraph(item.description, STYLES['TableCell']),
             Paragraph(str(item.quantity), STYLES['TableCellRight']),
@@ -290,34 +289,6 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     doc.build(Story)
     buffer.seek(0)
     return buffer
-
-def generate_findings_report_pdf(db: Database, case_id: str, case_title: str, user_id: str, lang: str = "sq") -> io.BytesIO:
-    branding = _get_branding(db, user_id)
-    buffer = io.BytesIO()
-    doc = _build_doc(buffer, 'report', branding, lang, _get_text('report_title', lang))
-    Story = [Spacer(1, 10*mm), Paragraph(_get_text('report_title', lang), STYLES['h1'])]
-    
-    t = Table([[Paragraph(f"<b>{_get_text('case', lang)}:</b>", STYLES['Normal']), Paragraph(case_title, STYLES['Normal'])]], colWidths=[40*mm, 120*mm])
-    t.setStyle(TableStyle([('GRID', (0,0), (-1,-1), 0.5, HexColor("#CCCCCC")), ('BACKGROUND', (0,0), (0,-1), HexColor("#F5F5F5"))]))
-    Story.append(t); Story.append(Spacer(1, 10 * mm))
-    
-    findings = findings_service.get_findings_for_case(db=db, case_id=case_id)
-    if not findings: Story.append(Paragraph(_get_text('no_findings', lang), STYLES['Normal']))
-    else:
-        for i, f in enumerate(findings, 1):
-            Story.append(Paragraph(f"{_get_text('finding', lang)} #{i}: {escape(f.get('document_name', ''))}", STYLES['h3']))
-            # Ensure text is encoded properly for ReportLab default fonts
-            text = f.get('finding_text', '')
-            try:
-                # Basic check to prevent encoding crash, though Helvetica handles most latin-1 chars
-                text.encode('latin-1')
-            except UnicodeEncodeError:
-                # Fallback: Replace unknown chars if they exist
-                text = text.encode('ascii', 'xmlcharrefreplace').decode('ascii')
-                
-            Story.append(Paragraph(escape(text).replace('\n', '<br/>'), STYLES['Normal']))
-            Story.append(Spacer(1, 5 * mm))
-    doc.build(Story); buffer.seek(0); return buffer
 
 def create_pdf_from_text(text: str, document_title: str) -> io.BytesIO:
     buffer = io.BytesIO()
