@@ -1,17 +1,18 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V6.6 (LINTER CLEANUP)
-// 1. FIXED: Removed unused 'FolderInput' import.
-// 2. STATUS: Zero warnings. Production Ready.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V6.7 (FINDINGS REMOVAL)
+// 1. REMOVED: Findings prop and usage.
+// 2. REMOVED: Deep scan (ScanEye) functionality.
+// 3. STATUS: Clean.
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Document, Finding, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
+import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
 import { TFunction } from 'i18next';
 import { apiService } from '../services/api';
 import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
-    ScanEye, Archive, Pencil, CheckCircle,
-    CheckSquare, Square, XCircle, HardDrive, FilePlus 
+    Archive, Pencil, CheckSquare, Square, XCircle, 
+    HardDrive, FilePlus 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ArchiveImportModal from './ArchiveImportModal';
@@ -19,7 +20,6 @@ import ArchiveImportModal from './ArchiveImportModal';
 interface DocumentsPanelProps {
   caseId: string;
   documents: Document[];
-  findings: Finding[];
   t: TFunction;
   onDocumentDeleted: (response: DeletedDocumentResponse) => void;
   onDocumentUploaded: (newDocument: Document) => void;
@@ -33,7 +33,6 @@ interface DocumentsPanelProps {
 const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   caseId,
   documents,
-  findings, 
   connectionStatus,
   onDocumentDeleted,
   onDocumentUploaded,
@@ -48,8 +47,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   
-  const [scanningId, setScanningId] = useState<string | null>(null); 
-  const [scannedDocIds, setScannedDocIds] = useState<Set<string>>(new Set());
   const [archivingId, setScanningIdArchive] = useState<string | null>(null); 
   const [currentFileName, setCurrentFileName] = useState<string>(""); 
 
@@ -69,32 +66,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  // Persistence Logic
-  useEffect(() => {
-      const storageKey = `scanned_docs_${caseId}`;
-      const saved = localStorage.getItem(storageKey);
-      let initialSet = new Set<string>();
-      if (saved) {
-          try {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed)) initialSet = new Set(parsed);
-          } catch (e) { console.error("Failed to parse scanned docs", e); }
-      }
-      if (findings && findings.length > 0) {
-          findings.forEach(f => { if (f.document_id) initialSet.add(f.document_id); });
-      }
-      setScannedDocIds(initialSet);
-  }, [caseId, findings]); 
-
-  const markAsScanned = (docId: string) => {
-      setScannedDocIds(prev => {
-          const newSet = new Set(prev);
-          newSet.add(docId);
-          localStorage.setItem(`scanned_docs_${caseId}`, JSON.stringify(Array.from(newSet)));
-          return newSet;
-      });
-  };
 
   const performUpload = async (file: File) => {
     if (file.name.startsWith('.')) return;
@@ -132,14 +103,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       const response = await apiService.deleteDocument(caseId, documentId);
       onDocumentDeleted(response);
     } catch (error) { alert(t('documentsPanel.deleteFailed')); }
-  };
-
-  const handleDeepScan = async (docId: string) => {
-      setScanningId(docId);
-      try {
-          await apiService.deepScanDocument(caseId, docId);
-          markAsScanned(docId);
-      } catch (error) { alert(t('error.generic')); } finally { setScanningId(null); }
   };
 
   const handleArchiveDocument = async (docId: string) => {
@@ -297,14 +260,11 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
           const isUploadingState = status === 'UPLOADING';
           const isProcessingState = status === 'PENDING';
-          const isReady = status === 'READY' || status === 'COMPLETED';
           const progressPercent = (doc as any).progress_percent || 0;
           const barColor = isUploadingState ? "bg-primary-start" : "bg-blue-500";
           const statusText = isUploadingState ? t('documentsPanel.statusUploading', 'Duke ngarkuar...') : t('documentsPanel.statusProcessing', 'Duke procesuar...');
           const statusTextColor = isUploadingState ? "text-primary-start" : "text-blue-400";
           const canInteract = !isUploadingState && !isProcessingState;
-          const isScanning = scanningId === doc.id;
-          const isDone = scannedDocIds.has(doc.id);
           const isSelected = selectedIds.has(doc.id);
 
           return (
@@ -333,9 +293,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 {canInteract && (
                     <button onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
                 )}
-                <button onClick={(e) => { e.stopPropagation(); isReady && handleDeepScan(doc.id); }} disabled={!isReady || isScanning} className={`p-1.5 rounded-lg transition-all duration-300 ${isScanning ? "bg-primary-start/20 text-blue-400" : isDone ? "bg-green-500/20 text-green-400" : isReady ? "hover:bg-white/10 text-secondary-start" : "text-gray-600 cursor-not-allowed opacity-50"}`} title={isDone ? t('general.saveSuccess') : t('documentsPanel.deepScan')}>
-                    {isScanning ? <Loader2 size={14} className="animate-spin" /> : isDone ? <CheckCircle size={14} /> : <ScanEye size={14} />}
-                </button>
+                
+                {/* DEEP SCAN BUTTON REMOVED HERE */}
+
                 {canInteract && (
                     <button onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} className="p-1.5 hover:bg-white/10 rounded-lg text-blue-400 transition-colors" title={t('documentsPanel.viewOriginal')}><Eye size={14} /></button>
                 )}

@@ -1,11 +1,11 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V4.5 (MISSING ENDPOINT)
-# 1. FIX: Added DELETE /{case_id}/documents/{doc_id} endpoint.
-# 2. LOGIC: Allows deleting single documents (fixing the 405 error).
-# 3. STATUS: Complete.
+# PHOENIX PROTOCOL - CASES ROUTER V4.6 (FINDINGS REMOVAL)
+# 1. REMOVED: get_findings_for_case endpoint.
+# 2. REMOVED: deep_scan_document endpoint.
+# 3. CLEANUP: Removed findings_service and visual_service imports.
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
-from typing import List, Annotated, Dict, Any, Union
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from typing import List, Annotated
 from fastapi.responses import Response, StreamingResponse, JSONResponse, FileResponse
 from pydantic import BaseModel
 from pymongo.database import Database
@@ -15,17 +15,14 @@ from bson.errors import InvalidId
 import asyncio
 import logging
 import io
-from datetime import datetime, timezone
 
 # --- SERVICE IMPORTS ---
 from ...services import (
     case_service,
     document_service,
-    findings_service, 
     report_service,
     storage_service,
     analysis_service,
-    visual_service,
     archive_service,
     pdf_service,
     llm_service,
@@ -35,7 +32,6 @@ from ...services import (
 # --- MODEL IMPORTS ---
 from ...models.case import CaseCreate, CaseOut
 from ...models.user import UserInDB
-from ...models.findings import FindingsListOut, FindingOut
 from ...models.drafting import DraftRequest 
 from ...models.archive import ArchiveItemOut 
 from ...models.document import DocumentOut
@@ -97,27 +93,6 @@ async def create_draft_for_case(case_id: str, job_in: DraftRequest, current_user
     validated_case_id = validate_object_id(case_id)
     return await asyncio.to_thread(case_service.create_draft_job_for_case, db=db, case_id=validated_case_id, job_in=job_in, owner=current_user)
 
-@router.get("/{case_id}/findings", response_model=FindingsListOut, tags=["Findings"])
-async def get_findings_for_case_endpoint(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
-    validate_object_id(case_id)
-    findings_data = await asyncio.to_thread(findings_service.get_findings_for_case, db=db, case_id=case_id)
-    await asyncio.to_thread(case_service.sync_case_calendar_from_findings, db=db, case_id=case_id, user_id=current_user.id)
-    
-    findings_out_list = []
-    for finding in findings_data:
-        findings_out_list.append(FindingOut.model_validate({
-            'id': str(finding.get('_id')),
-            'case_id': str(finding.get('case_id')),
-            'document_id': str(finding.get('document_id')) if finding.get('document_id') else None,
-            'finding_text': finding.get('finding_text', 'N/A'),
-            'source_text': finding.get('source_text', 'N/A'),
-            'page_number': finding.get('page_number'),
-            'document_name': finding.get('document_name'),
-            'confidence_score': finding.get('confidence_score', 0.0),
-            'created_at': finding.get('created_at') or datetime.now(timezone.utc)
-        }))
-    return FindingsListOut(findings=findings_out_list, count=len(findings_out_list))
-
 @router.get("/{case_id}/documents", response_model=List[DocumentOut], tags=["Documents"])
 async def get_documents_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     return await asyncio.to_thread(document_service.get_documents_by_case_id, db, case_id, current_user)
@@ -173,7 +148,6 @@ async def get_document_by_id(case_id: str, doc_id: str, current_user: Annotated[
     if str(doc.case_id) != case_id: raise HTTPException(status_code=403)
     return doc
 
-# PHOENIX FIX: Added missing DELETE endpoint for single document
 @router.delete("/{case_id}/documents/{doc_id}", response_model=DeletedDocumentResponse, tags=["Documents"])
 async def delete_document(
     case_id: str, 
@@ -185,11 +159,9 @@ async def delete_document(
     validate_object_id(case_id)
     doc_oid = validate_object_id(doc_id)
     
-    # 1. Verify ownership and existence
     doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(doc.case_id) != case_id: raise HTTPException(status_code=403, detail="Document does not belong to this case.")
 
-    # 2. Use existing bulk_delete logic for consistency (list of 1)
     result = await asyncio.to_thread(
         document_service.bulk_delete_documents, 
         db=db, 
@@ -198,7 +170,6 @@ async def delete_document(
         owner=current_user
     )
     
-    # 3. Format response for frontend
     if result.get("deleted_count", 0) > 0:
         return DeletedDocumentResponse(
             documentId=doc_id, 
@@ -320,13 +291,6 @@ async def rename_document_endpoint(case_id: str, doc_id: str, body: RenameDocume
 async def analyze_case_risks(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
     return JSONResponse(content=await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id))
-
-@router.post("/{case_id}/documents/{doc_id}/deep-scan", tags=["Documents"])
-async def deep_scan_document(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
-    try:
-        findings = await asyncio.to_thread(visual_service.perform_deep_scan, db, doc_id)
-        return {"status": "success", "findings_count": len(findings)}
-    except Exception as e: raise HTTPException(500, str(e))
 
 @router.get("/public/{case_id}/timeline", tags=["Public Portal"])
 async def get_public_case_timeline(case_id: str, db: Database = Depends(get_db)):

@@ -1,7 +1,8 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES REFACTOR V6.0 (FORENSIC COMPATIBILITY)
-// 1. FIX: Added 'silent_parties' and 'analysis_mode' to CaseAnalysisResult.
-// 2. PURPOSE: Resolves TS errors in AnalysisModal.tsx.
+// PHOENIX PROTOCOL - TYPES REFACTOR V6.1 (FINDINGS REMOVAL)
+// 1. REMOVED: Finding interface.
+// 2. REMOVED: finding_count from Case interface.
+// 3. STATUS: Clean.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -35,7 +36,6 @@ export interface Case {
     document_count?: number;
     alert_count?: number;
     event_count?: number;
-    finding_count?: number;
 }
 
 export interface Document {
@@ -55,19 +55,6 @@ export interface Document {
     error_message?: string;
     progress_percent?: number;
     progress_message?: string;
-}
-
-export interface Finding {
-    id: string;
-    case_id: string;
-    document_id?: string;
-    document_name?: string;
-    finding_text: string;
-    source_text: string;
-    category?: string;
-    page_number?: number;
-    confidence_score: number;
-    created_at: string;
 }
 
 export interface ChatMessage {
@@ -215,7 +202,6 @@ export interface ChronologyEvent {
     source_doc?: string;
 }
 
-// THE FIXED INTERFACE
 export interface CaseAnalysisResult { 
     summary_analysis: string; 
     contradictions: string[]; 
@@ -226,10 +212,9 @@ export interface CaseAnalysisResult {
     key_evidence?: string[];
     chronology?: ChronologyEvent[];
 
-    // PHOENIX FIX: Added missing fields for Forensic Audit Mode
-    silent_parties?: string[];  // For "Silent Party Rule"
+    silent_parties?: string[]; 
     active_parties?: string[];
-    analysis_mode?: string;     // 'FULL_CASE_AUDIT' | 'CROSS_EXAMINATION'
+    analysis_mode?: string;
     target_document_id?: string;
 
     // Strategy

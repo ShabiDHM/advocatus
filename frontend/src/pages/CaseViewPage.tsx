@@ -1,31 +1,29 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V7.6 (CLEANUP)
-// 1. FIX: Removed 'caseId' and 'docId' props passed to AnalysisModal (Resolves TS Error).
-// 2. CLEANUP: Removed unused 'activeAnalysisDocId' state.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V7.8 (LINTER FIX)
+// 1. FIXED: Removed unused 'useSearchParams' (Resolves TS6133).
+// 2. STATUS: Clean.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
-import { Case, Document, Finding, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
+import { useParams } from 'react-router-dom';
+import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel, { ChatMode, Jurisdiction } from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
-import FindingsModal from '../components/FindingsModal';
 import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
-import { AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, Lightbulb, X, Save, Share2, CheckCircle } from 'lucide-react';
+import { AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, X, Save, Share2, CheckCircle } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
 type CaseData = {
     details: Case | null;
-    findings: Finding[];
 };
-type ActiveModal = 'none' | 'findings' | 'analysis';
+type ActiveModal = 'none' | 'analysis';
 
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     if (!data) return [];
@@ -70,20 +68,14 @@ const CaseHeader: React.FC<{
     onContextChange: (id: string) => void;
     t: TFunction; 
     onAnalyze: () => void;
-    onShowFindings: () => void;
     isAnalyzing: boolean; 
-    isRefetchingFindings: boolean;
-}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, onShowFindings, isAnalyzing, isRefetchingFindings }) => {
+}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing }) => {
     const [linkCopied, setLinkCopied] = useState(false);
     const handleCopyLink = () => { const link = `${window.location.origin}/portal/${caseDetails.id}`; navigator.clipboard.writeText(link); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); };
     
     const analyzeButtonText = activeContextId === 'general' 
         ? t('analysis.analyzeButton', 'Analizo Rastin')
         : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
-
-    const findingsButtonText = activeContextId === 'general'
-        ? t('caseView.findingsTitle', 'Gjetjet')
-        : t('caseView.docFindingsTitle', 'Gjetjet e Dokumentit');
 
     return (
         <motion.div 
@@ -116,11 +108,6 @@ const CaseHeader: React.FC<{
                     >
                         {linkCopied ? <CheckCircle size={16} /> : <Share2 size={16} />}
                     </button>
-
-                    <button onClick={onShowFindings} disabled={isRefetchingFindings} className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all" type="button">
-                        {isRefetchingFindings ? <Loader2 className="h-4 w-4 animate-spin text-amber-400" /> : <Lightbulb className="h-4 w-4 text-amber-400" />}
-                        <span className="inline">{findingsButtonText}</span>
-                    </button>
                   </div>
                   
                   <button onClick={onAnalyze} disabled={isAnalyzing} className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all disabled:opacity-50" type="button">{isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin text-primary-start" /> : <ShieldCheck className="h-4 w-4 text-primary-start" />}<span className="inline">{isAnalyzing ? t('analysis.analyzing') : analyzeButtonText}</span></button>
@@ -134,24 +121,20 @@ const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
   const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const { caseId } = useParams<{ caseId: string }>();
-  const [searchParams] = useSearchParams();
+  // REMOVED: unused searchParams
   
-  const [caseData, setCaseData] = useState<CaseData>({ details: null, findings: [] });
+  const [caseData, setCaseData] = useState<CaseData>({ details: null });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   
-  // PHOENIX FEATURE: Loading state for Findings Refetch
-  const [isRefetchingFindings, setIsRefetchingFindings] = useState(false);
-  
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
   
   const [activeContextId, setActiveContextId] = useState<string>('general');
-  const [modalFindings, setModalFindings] = useState<Finding[]>([]);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   const { documents: liveDocuments, setDocuments: setLiveDocuments, messages: liveMessages, setMessages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId);
@@ -165,33 +148,16 @@ const CaseViewPage: React.FC = () => {
     if(isInitialLoad) setIsLoading(true);
     setError(null);
     try {
-      const [details, initialDocs, findingsResponse] = await Promise.all([apiService.getCaseDetails(caseId), apiService.getDocuments(caseId), apiService.getFindings(caseId)]);
-      setCaseData({ details, findings: findingsResponse || [] });
+      const [details, initialDocs] = await Promise.all([apiService.getCaseDetails(caseId), apiService.getDocuments(caseId)]);
+      setCaseData({ details });
       if (isInitialLoad) { setLiveDocuments((initialDocs || []).map(sanitizeDocument)); const serverHistory = extractAndNormalizeHistory(details); if (serverHistory.length > 0) setMessages(serverHistory); }
     } catch (err) { setError(t('error.failedToLoadCase')); } finally { if(isInitialLoad) setIsLoading(false); }
   }, [caseId, t, setLiveDocuments, setMessages]);
 
   useEffect(() => { if (isReadyForData) fetchCaseData(true); }, [isReadyForData, fetchCaseData]);
 
-  // PHOENIX FEATURE: Live Findings Update
-  // Monitors documents for 'COMPLETED' status changes and refetches findings automatically.
-  useEffect(() => {
-    const completedDocs = liveDocuments.filter(d => d.status === 'COMPLETED');
-    if (completedDocs.length > 0) {
-        // Debounce or check logic could go here, but for now we trust the socket state
-    }
-  }, [liveDocuments]);
-
-  useEffect(() => {
-    if (!isLoading && caseData.details && searchParams.get('open') === 'findings') {
-        const findingsToShow = caseData.findings;
-        setModalFindings(findingsToShow);
-        setActiveModal('findings');
-    }
-  }, [isLoading, caseData.details, searchParams]);
-  
   const handleDocumentUploaded = (newDoc: Document) => { setLiveDocuments(prev => [sanitizeDocument(newDoc), ...prev]); };
-  const handleDocumentDeleted = (response: DeletedDocumentResponse) => { setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(response.documentId))); setCaseData(prev => ({ ...prev, findings: prev.findings.filter(f => String(f.document_id) !== String(response.documentId)) })); };
+  const handleDocumentDeleted = (response: DeletedDocumentResponse) => { setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(response.documentId))); };
   const handleClearChat = async () => { if (!caseId) return; try { await apiService.clearChatHistory(caseId); setMessages([]); localStorage.removeItem(`chat_history_${currentCaseId}`); } catch (err) { alert(t('error.generic')); } };
 
   const handleAnalyze = async () => {
@@ -213,37 +179,6 @@ const CaseViewPage: React.FC = () => {
     } catch (err) { alert(t('error.generic')); } 
     finally { setIsAnalyzing(false); }
   };
-
-  // PHOENIX FIX: Refetch findings on click to ensure fresh data
-  const handleShowFindings = async () => {
-      if (!caseId) return;
-      setIsRefetchingFindings(true);
-      
-      try {
-          // Always fetch fresh findings from server
-          const freshFindings = await apiService.getFindings(caseId);
-          setCaseData(prev => ({ ...prev, findings: freshFindings || [] }));
-          
-          let findingsToShow: Finding[] = [];
-          if (activeContextId === 'general') {
-              findingsToShow = freshFindings || [];
-          } else {
-              findingsToShow = (freshFindings || []).filter(f => f.document_id === activeContextId || (Array.isArray(f.document_name) && f.document_name.includes(activeContextId)));
-          }
-          
-          setModalFindings(findingsToShow);
-          setActiveModal('findings');
-          
-      } catch (e) {
-          console.error("Failed to refresh findings", e);
-          // Fallback to existing data if fetch fails
-          let findingsToShow = activeContextId === 'general' ? caseData.findings : caseData.findings.filter(f => f.document_id === activeContextId);
-          setModalFindings(findingsToShow);
-          setActiveModal('findings');
-      } finally {
-          setIsRefetchingFindings(false);
-      }
-  };
   
   const handleChatSubmit = (text: string, _mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => { sendChatMessage(text, documentId, jurisdiction); };
   const handleViewOriginal = (doc: Document) => { const url = `${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`; setViewingUrl(url); setViewingDocument(doc); };
@@ -262,15 +197,12 @@ const CaseViewPage: React.FC = () => {
             onContextChange={setActiveContextId}
             t={t} 
             onAnalyze={handleAnalyze} 
-            onShowFindings={handleShowFindings}
             isAnalyzing={isAnalyzing} 
-            isRefetchingFindings={isRefetchingFindings}
         />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px]">
             <DocumentsPanel
                 caseId={caseData.details.id}
                 documents={liveDocuments}
-                findings={caseData.findings} 
                 t={t}
                 connectionStatus={connectionStatus}
                 reconnect={reconnect}
@@ -301,7 +233,6 @@ const CaseViewPage: React.FC = () => {
             result={analysisResult} 
           />
       )}
-      <FindingsModal isOpen={activeModal === 'findings'} onClose={() => setActiveModal('none')} findings={modalFindings} />
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRename} currentName={documentToRename?.file_name || ''} t={t} />
     </motion.div>
   );

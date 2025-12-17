@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V14.2 (FORENSIC AUDITOR)
-# 1. NEW: Strict "Silent Party" Logic (Anti-Hallucination).
-# 2. NEW: Mandatory Citation Protocol ([Burimi: ..., Fq. ...]).
-# 3. MOD: "analyze_case_contradictions" upgraded to "analyze_case_integrity".
+# PHOENIX PROTOCOL - INTELLIGENCE V14.3 (FINDINGS REMOVAL)
+# 1. REMOVED: extract_findings_from_text (Dead Logic).
+# 2. REMOVED: synthesize_and_deduplicate_findings (Dead Logic).
+# 3. STATUS: Optimized for Analysis & Forensics only.
 
 import os
 import json
@@ -142,25 +142,6 @@ def generate_summary(text: str) -> str:
         res = _call_deepseek(system_prompt, user_prompt)
     return res or "Nuk u gjenerua përmbledhje."
 
-def extract_findings_from_text(text: str) -> List[Dict[str, Any]]:
-    clean_text = sterilize_legal_text(text[:25000])
-    system_prompt = """
-    Ti je "Forensic Document Examiner".
-    DETYRA: Skano dokumentin dhe nxirr fakte (Datat, Shumat, Emrat).
-    
-    RREGULL: Çdo 'finding_text' duhet të përfundojë me [Fq. X] nëse shënuesi ekziston.
-    
-    FORMATI JSON: 
-    {"findings": [{"finding_text": "Më datë 12.01.2023 u nënshkrua kontrata [Fq. 2]", "category": "PROVË", "page_number": 2}]}
-    """
-    user_prompt = f"DOKUMENTI:\n{clean_text}"
-    content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
-    if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
-    if content:
-        data = _parse_json_safely(content)
-        return data.get("findings", []) if isinstance(data, dict) else []
-    return []
-
 def analyze_case_integrity(text: str) -> Dict[str, Any]:
     """
     FORMERLY: analyze_case_contradictions
@@ -233,22 +214,6 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
-
-def synthesize_and_deduplicate_findings(raw_findings: List[str]) -> List[Dict[str, Any]]:
-    joined_findings = "\n".join(raw_findings[:100]) 
-    system_prompt = """
-    Ti je "Arkivi Qendror". 
-    DETYRA: Grupo dhe shkri faktet e ngjashme.
-    RREGULL: Ruaj referencat [Fq. X]. Nëse ka shumë referenca për një fakt, bashkoj ato (psh: [Fq. 2, Fq. 5]).
-    FORMATI JSON: {"synthesized_findings": [{"finding_text": "...", "source_documents": ["..."], "category": "..."}]}
-    """
-    user_prompt = f"FAKTET BRUTO:\n{joined_findings}"
-    content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
-    if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
-    if content:
-        data = _parse_json_safely(content)
-        return data.get("synthesized_findings", [])
-    return []
 
 # Placeholder stubs for interface compatibility
 def extract_graph_data(text: str) -> Dict[str, List[Dict]]: return {"entities": [], "relations": []}
