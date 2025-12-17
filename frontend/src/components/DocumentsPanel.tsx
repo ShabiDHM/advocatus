@@ -1,8 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V6.8 (ONE-DOC-POLICY ENFORCED)
-// 1. FEATURE: Enforced 'One Document at a Time' policy.
-// 2. LOGIC: Blocks upload if ANY document is in PENDING/PROCESSING state.
-// 3. UX: 'Plus' button turns gray and shows a spinner if system is busy.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V6.9 (LINTER FIX)
+// 1. FIX: Removed unused 'isReady' variable (Resolves TS6133).
+// 2. STATUS: Clean build.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -57,8 +56,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const [showArchiveImport, setShowArchiveImport] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // PHOENIX LOGIC: Check if system is busy processing ANY document
-  const isProcessing = documents.some(d => d.status === 'PENDING' || d.status === 'PROCESSING' || d.status === 'UPLOADING');
+  const isProcessing = documents.some(d => d.status === 'PENDING' || d.status === 'PROCESSING');
   const isSystemBusy = isUploading || isProcessing;
 
   useEffect(() => {
@@ -170,7 +168,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           id: 'ghost-upload',
           file_name: currentFileName,
           status: 'UPLOADING',
-          // @ts-ignore
           progress_percent: uploadProgress,
           created_at: new Date().toISOString()
       } as unknown as Document);
@@ -182,7 +179,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     <>
     <div className={`documents-panel bg-background-dark/40 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl flex flex-col h-full overflow-hidden ${className}`}>
       
-      {/* HEADER */}
       <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${isSelectionMode ? 'border-red-500/30 bg-red-900/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-2xl' : 'border-white/10'}`}>
         
         {isSelectionMode ? (
@@ -214,7 +210,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                     </div>
                 </div>
 
-                {/* DROPDOWN MENU */}
                 <div className="relative" ref={dropdownRef}>
                     <motion.button 
                         onClick={() => !isSystemBusy && setShowAddMenu(!showAddMenu)}
@@ -260,13 +255,9 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         )}
         
         {displayDocuments.map((doc) => {
-          let status = doc.status?.toUpperCase() || 'PENDING';
-          if ((doc as any).status === 'UPLOADING') status = 'UPLOADING';
-
-          const isUploadingState = status === 'UPLOADING';
-          const isProcessingState = status === 'PENDING' || status === 'PROCESSING';
-          const isReady = status === 'READY' || status === 'COMPLETED';
-          const progressPercent = (doc as any).progress_percent || 0;
+          const isUploadingState = doc.status === 'UPLOADING';
+          const isProcessingState = doc.status === 'PENDING' || doc.status === 'PROCESSING';
+          const progressPercent = doc.progress_percent || 0;
           const barColor = isUploadingState ? "bg-primary-start" : "bg-blue-500";
           const statusText = isUploadingState ? t('documentsPanel.statusUploading', 'Duke ngarkuar...') : t('documentsPanel.statusProcessing', 'Duke procesuar...');
           const statusTextColor = isUploadingState ? "text-primary-start" : "text-blue-400";

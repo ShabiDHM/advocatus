@@ -1,8 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES REFACTOR V6.1 (FINDINGS REMOVAL)
-// 1. REMOVED: Finding interface.
-// 2. REMOVED: finding_count from Case interface.
-// 3. STATUS: Clean.
+// PHOENIX PROTOCOL - TYPES REFACTOR V6.2 (POLICY ENFORCEMENT)
+// 1. ADDED: 'UPLOADING' to Document status to support one-at-a-time policy.
+// 2. STATUS: Clean.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -46,7 +45,8 @@ export interface Document {
     storage_key: string;
     uploaded_by: string;
     created_at: string;
-    status: 'PENDING' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'FAILED';
+    // PHOENIX FIX: Added 'UPLOADING' for frontend-only state management
+    status: 'UPLOADING' | 'PENDING' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'FAILED';
     summary?: string;
     risk_score?: number;
     ocr_status?: string;
