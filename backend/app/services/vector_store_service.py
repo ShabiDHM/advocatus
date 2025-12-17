@@ -1,8 +1,8 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V9.0 (SOURCE AWARE + FINDINGS REMOVED)
-# 1. REMOVED: Findings Collection and all related logic.
-# 2. UPGRADE: Source Injection ([[BURIMI: ...]]) for better context distinction.
-# 3. STATUS: Optimized for Multi-Document RAG.
+# PHOENIX PROTOCOL - VECTOR STORE V9.1 (METADATA SERIALIZATION)
+# 1. FIX: Added a sanitization loop to convert list metadata into strings.
+# 2. LOGIC: Prevents ChromaDB from crashing on unsupported list types.
+# 3. STATUS: Crash-proof and Production Ready.
 
 from __future__ import annotations
 import os
@@ -88,36 +88,43 @@ def create_and_store_embeddings_from_chunks(document_id: str, case_id: str, file
     embeddings = []
     processed_chunks = []
     
-    # PHOENIX UPGRADE: Source Injection
-    # We prepend the filename to the chunk text so the LLM always knows the source.
     source_tag = f"[[BURIMI: {file_name}]] "
     
     for i, chunk in enumerate(chunks):
-        # Add tag to text content
         tagged_chunk = f"{source_tag}{chunk}"
         processed_chunks.append(tagged_chunk)
-        
-        # Generate embedding on the TAGGED chunk for better context separation
         emb = embedding_service.generate_embedding(tagged_chunk, language=metadatas[i].get('language'))
         if emb: embeddings.append(emb)
     
     if not embeddings: return False
     
     ids = [f"{document_id}_{int(time.time())}_{i}" for i in range(len(processed_chunks))]
-    final_metadatas = [{**meta, 'source_document_id': str(document_id), 'case_id': str(case_id), 'file_name': file_name} for meta in metadatas] # type: ignore
+    
+    # PHOENIX FIX: Sanitize metadata to prevent ChromaDB crash
+    sanitized_metadatas = []
+    for meta in metadatas:
+        sanitized_meta = {}
+        for key, value in meta.items():
+            if isinstance(value, list):
+                # Convert list to a comma-separated string
+                sanitized_meta[key] = ", ".join(map(str, value))
+            else:
+                sanitized_meta[key] = value
+        sanitized_metadatas.append(sanitized_meta)
+
+    final_metadatas = [{**meta, 'source_document_id': str(document_id), 'case_id': str(case_id), 'file_name': file_name} for meta in sanitized_metadatas] # type: ignore
     
     try:
         collection.add(embeddings=embeddings, documents=processed_chunks, metadatas=final_metadatas, ids=ids) # type: ignore
         return True
     except Exception as e:
-        logger.error(f"Batch Add Failed: {e}")
+        logger.error(f"Batch Add Failed: {e}", exc_info=True)
         return False
 
 def query_by_vector(embedding: List[float], case_id: str, n_results: int = 15, document_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     collection = get_user_collection()
     where_filter = {"case_id": {"$eq": str(case_id)}}
     
-    # Support for Specific Document Filtering
     if document_ids:
         if len(document_ids) == 1:
              where_filter = {"$and": [{"case_id": {"$eq": str(case_id)}}, {"source_document_id": {"$eq": str(document_ids[0])}}]} # type: ignore
