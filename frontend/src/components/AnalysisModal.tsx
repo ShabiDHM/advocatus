@@ -1,8 +1,8 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - WAR ROOM UI V4.4 (I18N & COMPACT UI)
-// 1. LOCALIZATION: Replaced all hardcoded English/Albanian mix with i18n keys.
-// 2. UI: Reduced font sizes and padding for a denser, professional "Dashboard" feel.
-// 3. MOBILE: Optimized layout for small screens (100% w/h, scrollable tabs).
+// PHOENIX PROTOCOL - WAR ROOM UI V4.5 (TEXT SANITIZATION FIX)
+// 1. FIX: Upgraded 'sanitizeText' to remove leaked AI placeholders (TARGET/CONTEXT).
+// 2. LOGIC: Ensures natural language output (e.g., "Dosja" instead of "CONTEXT").
+// 3. STATUS: Polished and ready.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -25,12 +25,20 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
 `;
 
+// PHOENIX FIX: Advanced Sanitizer
 const sanitizeText = (text: string): string => {
     if (!text) return "";
-    return text.replace(/Target/g, "Dokumenti").replace(/Context/g, "Dosja");
+    return text
+        // Fix specific redundant phrases first
+        .replace(/Dokumenti i ri TARGET/gi, "Dokumenti i ri")
+        .replace(/kontekstin ekzistues CONTEXT/gi, "dosjen ekzistuese")
+        // Fix standalone keywords
+        .replace(/\bTARGET\b/g, "Dokumenti")
+        .replace(/\bCONTEXT\b/g, "Dosja")
+        .replace(/\bTarget\b/g, "Dokumenti")
+        .replace(/\bContext\b/g, "Dosja");
 };
 
-// PHOENIX: Upgraded Citation Renderer (Compact)
 const renderTextWithCitations = (text: string) => {
     const parts = text.split(/(\[\[?[^\]]+\]?\])/g);
     return (
@@ -66,7 +74,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   const judicialObservation = (result as any).judicial_observation;
   const redFlags = (result as any).red_flags || [];
 
-  // PHOENIX: Backend Constant Translation Map
   const getModeLabel = (mode?: string) => {
       switch(mode) {
           case 'FULL_CASE_AUDIT': return t('analysis.modeAudit', 'AUDITIM I PLOTË');
@@ -80,10 +87,9 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   const modalContent = (
     <AnimatePresence>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center z-[100] p-0 sm:p-4" onClick={onClose}>
-        {/* PHOENIX: Adjusted max-width to 5xl for tighter desktop view, h-full for mobile */}
         <motion.div initial={{ scale: 0.98, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.98, opacity: 0, y: 10 }} className="bg-background-dark w-full h-full sm:h-[85vh] sm:max-w-5xl rounded-none sm:rounded-xl shadow-2xl overflow-hidden flex flex-col border border-glass-edge sm:border-opacity-50" onClick={(e) => e.stopPropagation()}>
           
-          {/* Header - Compact */}
+          {/* Header */}
           <div className="px-4 py-3 border-b border-glass-edge flex justify-between items-center bg-background-light/95 backdrop-blur-md shrink-0">
             <h2 className="text-base sm:text-lg font-bold text-text-primary flex items-center gap-2 min-w-0">
               <div className="p-1.5 bg-primary-start/10 rounded-lg shrink-0"><Gavel className="text-primary-start h-4 w-4 sm:h-5 sm:w-5" /></div>
@@ -107,7 +113,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
              </div>
           ) : (
              <>
-                {/* Tabs - Compact & Sticky */}
+                {/* Tabs */}
                 <div className="flex border-b border-white/10 px-4 bg-black/20 shrink-0 overflow-x-auto no-scrollbar">
                     <button onClick={() => setActiveTab('analysis')} className={`px-3 py-2.5 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${activeTab === 'analysis' ? 'border-primary-start text-white' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>
                         <Scale size={14}/> {t('analysis.tabFactual', 'Analiza Faktike')}
@@ -117,14 +123,13 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     </button>
                 </div>
 
-                {/* Content Area - Dense */}
+                {/* Content Area */}
                 <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar relative bg-background-dark/50">
                     <style>{scrollbarStyles}</style>
 
                     {activeTab === 'analysis' && (
                         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                             
-                            {/* JUDICIAL OBSERVATION */}
                             {judicialObservation && (
                                 <div className="bg-indigo-950/30 p-4 rounded-lg border border-indigo-500/20 shadow-sm relative overflow-hidden">
                                     <div className="absolute top-0 right-0 p-2 opacity-10"><Gavel size={64}/></div>
@@ -132,12 +137,11 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         <FileSearch size={14}/> {t('analysis.judicialObservation', 'Vlerësimi Gjyqësor')}
                                     </h3>
                                     <p className="text-gray-300 text-sm leading-relaxed font-medium italic relative z-10 border-l-2 border-indigo-500/50 pl-3">
-                                        "{judicialObservation}"
+                                        "{sanitizeText(judicialObservation)}"
                                     </p>
                                 </div>
                             )}
 
-                            {/* RED FLAGS */}
                             {redFlags.length > 0 && (
                                 <div className="bg-red-950/20 p-4 rounded-lg border border-red-500/20">
                                     <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Siren size={14} className="animate-pulse"/> {t('analysis.redFlags', 'Sinjale Rreziku')}</h3>
@@ -145,32 +149,29 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         {redFlags.map((flag: string, idx: number) => (
                                             <li key={idx} className="flex gap-2 text-xs sm:text-sm text-red-200/90 bg-red-900/10 p-2 rounded border border-red-500/10">
                                                 <span className="text-red-500 font-bold text-xs mt-0.5">⚠</span>
-                                                <span className="leading-snug">{flag}</span>
+                                                <span className="leading-snug">{sanitizeText(flag)}</span>
                                             </li>
                                         ))}
                                     </ul>
                                 </div>
                             )}
 
-                            {/* SILENT PARTY WARNING */}
                             {(silentParties.length > 0 || missingInfo.length > 0) && (
                                 <div className="bg-orange-950/20 p-3 rounded-lg border border-orange-500/20 flex flex-col sm:flex-row gap-3 items-start">
                                     <EyeOff className="text-orange-500/70 h-5 w-5 mt-0.5 shrink-0" />
                                     <div className="flex-1 min-w-0">
                                         <h3 className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-1">{t('analysis.warningMissingInfo', 'Kujdes: Mungesë Informacioni')}</h3>
                                         {silentParties.length > 0 && (<p className="text-gray-400 text-xs mb-1.5"><span className="font-bold text-orange-300/80">{t('analysis.silentParties', 'Palët në Heshtje')}:</span> {silentParties.join(", ")}</p>)}
-                                        {missingInfo.length > 0 && (<div className="flex flex-wrap gap-1.5">{missingInfo.map((info, idx) => (<span key={idx} className="bg-orange-900/30 text-orange-200/80 text-[10px] px-1.5 py-0.5 rounded border border-orange-500/10 flex items-center gap-1"><FileWarning size={10}/> {info}</span>))}</div>)}
+                                        {missingInfo.length > 0 && (<div className="flex flex-wrap gap-1.5">{missingInfo.map((info, idx) => (<span key={idx} className="bg-orange-900/30 text-orange-200/80 text-[10px] px-1.5 py-0.5 rounded border border-orange-500/10 flex items-center gap-1"><FileWarning size={10}/> {sanitizeText(info)}</span>))}</div>)}
                                     </div>
                                 </div>
                             )}
 
-                            {/* EXECUTIVE SUMMARY */}
                             <div className="bg-blue-950/10 p-4 rounded-lg border border-blue-500/10">
                                 <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><FileText size={14}/> {t('analysis.executiveSummary', 'Përmbledhje Ekzekutive')}</h3>
                                 <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-line">{renderTextWithCitations(sanitizeText(result.summary_analysis || ""))}</p>
                             </div>
 
-                            {/* TIMELINE */}
                             {result.chronology && result.chronology.length > 0 && (
                                 <div className="bg-slate-900/30 p-4 rounded-lg border border-slate-700/30">
                                     <h3 className="text-xs font-bold text-cyan-500/90 uppercase tracking-wider mb-4 flex items-center gap-1.5"><Clock size={14}/> {t('analysis.verifiedChronology', 'Kronologjia e Verifikuar')}</h3>
@@ -181,7 +182,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                 <div className="flex flex-col gap-0.5">
                                                     <span className="text-cyan-300/90 font-bold text-[10px] tracking-wide uppercase">{event.date}</span>
                                                     <p className="text-gray-300 text-xs sm:text-sm leading-snug font-medium">{renderTextWithCitations(sanitizeText(event.event))}</p>
-                                                    {event.source_doc && (<span className="text-slate-500 text-[9px] uppercase tracking-wider font-semibold flex items-center gap-1 mt-0.5"><FileText size={8} />{event.source_doc}</span>)}
+                                                    {event.source_doc && (<span className="text-slate-500 text-[9px] uppercase tracking-wider font-semibold flex items-center gap-1 mt-0.5"><FileText size={8} />{sanitizeText(event.source_doc)}</span>)}
                                                 </div>
                                             </div>
                                         ))}
@@ -189,7 +190,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                 </div>
                             )}
                             
-                            {/* CONTRADICTIONS */}
                             {result.contradictions && result.contradictions.length > 0 && (
                                 <div className="bg-orange-950/10 p-4 rounded-lg border border-orange-500/10">
                                     <h3 className="text-xs font-bold text-orange-400/90 uppercase tracking-wider mb-2 flex items-center gap-1.5"><ShieldAlert size={14}/> {t('analysis.contradictions', 'Kontradikta / Mospërputhje')}</h3>
@@ -201,7 +201,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                         </div>
                     )}
 
-                    {/* TAB 2: STRATEGY */}
                     {activeTab === 'strategy' && (
                          <div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-300">
                             <div className="bg-purple-950/10 p-4 rounded-lg border border-purple-500/20">
