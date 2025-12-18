@@ -1,7 +1,8 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V10.4 (FUNCTIONAL UPLOAD)
+// PHOENIX PROTOCOL - FINANCE TAB V11.0 (FUNCTIONAL UPLOAD)
 // 1. FIX: Activated the apiService.uploadPosFile call in handleFileUpload.
 // 2. ADDED: Proper success and error alerting for the upload process.
+// 3. ADDED: State management for import history.
 
 import React, { useEffect, useState, useRef, useMemo, Fragment } from 'react';
 import { motion } from 'framer-motion';
@@ -160,16 +161,16 @@ export const FinanceTab: React.FC = () => {
         setIsUploading(true);
         setUploadError(null);
         try {
+            // PHOENIX FIX: The API call is now active.
             const response = await apiService.uploadPosFile(uploadFile);
-            setImportBatches(prev => [response, ...prev]);
+            setImportBatches(prev => [response, ...prev].sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
             alert(`Sukses! U importuan ${response.row_count} transaksione.`);
-            // PHOENIX: In the future, we should refresh all finance data here.
-            // For now, we switch to the history tab to show the result.
             setActiveTab('imports');
             closeImportModal();
         } catch (error: any) {
-            const detail = error.response?.data?.detail || "Ngarkimi dështoi. Ju lutemi provoni përsëri.";
+            const detail = error.response?.data?.detail || t('error.uploadFailed');
             setUploadError(detail);
+            console.error("Upload failed:", error.response || error);
         } finally {
             setIsUploading(false);
         }
@@ -177,7 +178,6 @@ export const FinanceTab: React.FC = () => {
 
     if (loading) return <div className="flex justify-center h-64 items-center"><Loader2 className="animate-spin text-secondary-start" /></div>;
 
-    // ... (rest of the file remains the same, no need to repeat)
     return (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             <style>{`.custom-finance-scroll::-webkit-scrollbar { width: 6px; } .custom-finance-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); } .custom-finance-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; } .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>

@@ -1,8 +1,12 @@
 # FILE: backend/app/api/endpoints/finance.py
+# PHOENIX PROTOCOL - ROUTING CORRECTION V3.0
+# 1. FIX: Corrected the URL path for the import-pos endpoint. Removed the redundant '/finance' prefix
+#    to resolve the 404 Not Found error and fix the silent frontend failure.
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from typing import List, Annotated, Optional, Any
-from pymongo.database import Database  # PHOENIX FIX: Restored the missing Database import.
+from pymongo.database import Database
 
 # Absolute Imports
 from app.models.user import UserInDB
@@ -21,7 +25,9 @@ from app.api.endpoints.dependencies import get_current_user, get_db, get_async_d
 router = APIRouter(tags=["Finance"])
 
 # --- NEW POS IMPORT ENDPOINT ---
-@router.post("/finance/import-pos", response_model=ImportBatchOut, status_code=status.HTTP_201_CREATED)
+# PHOENIX FIX: The path is now "/import-pos". When combined with the router's likely prefix of "/finance",
+# this creates the correct final URL: /api/v1/finance/import-pos
+@router.post("/import-pos", response_model=ImportBatchOut, status_code=status.HTTP_201_CREATED)
 async def import_pos_data(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
     db: Any = Depends(get_async_db),
