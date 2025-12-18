@@ -1,27 +1,59 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ENDPOINTS V2 (EDIT SUPPORT)
-# 1. ADDED: PUT /invoices/{invoice_id} for full edits.
-# 2. ADDED: PUT /expenses/{expense_id} for editing expenses.
-# 3. FIX: Imported ExpenseUpdate model.
-
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
-from fastapi.responses import StreamingResponse, JSONResponse
-from typing import List, Annotated, Optional
-from pymongo.database import Database
+from fastapi.responses import StreamingResponse
+from typing import List, Annotated, Optional, Any
+from pymongo.database import Database  # PHOENIX FIX: Restored the missing Database import.
 
 # Absolute Imports
 from app.models.user import UserInDB
 from app.models.finance import (
     InvoiceCreate, InvoiceOut, InvoiceUpdate, 
-    ExpenseCreate, ExpenseOut, ExpenseUpdate
+    ExpenseCreate, ExpenseOut, ExpenseUpdate,
+    ImportBatchOut
 )
 from app.models.archive import ArchiveItemOut 
 from app.services.finance_service import FinanceService
 from app.services.archive_service import ArchiveService
-from app.services import report_service 
-from app.api.endpoints.dependencies import get_current_user, get_db
+from app.services import report_service
+from app.services.parsing_service import PosParsingService
+from app.api.endpoints.dependencies import get_current_user, get_db, get_async_db, get_current_active_user
 
 router = APIRouter(tags=["Finance"])
+
+# --- NEW POS IMPORT ENDPOINT ---
+@router.post("/finance/import-pos", response_model=ImportBatchOut, status_code=status.HTTP_201_CREATED)
+async def import_pos_data(
+    current_user: Annotated[UserInDB, Depends(get_current_active_user)],
+    db: Any = Depends(get_async_db),
+    file: UploadFile = File(...)
+):
+    """
+    Handles the upload and processing of a POS sales report file (CSV/Excel).
+    """
+    if not file.filename or not (file.filename.lower().endswith(('.csv', '.xlsx', '.xls'))):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file format. Please upload a CSV or Excel file."
+        )
+
+    try:
+        content = await file.read()
+        parser = PosParsingService(db)
+        result = await parser.process_file(
+            user_id=str(current_user.id),
+            file_content=content,
+            filename=file.filename
+        )
+        result['id'] = str(result['id'])
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(ve))
+    except Exception as e:
+        print(f"--- [IMPORT ERROR] An unexpected error occurred: {e} ---")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred while processing the file."
+        )
 
 # --- INVOICES ---
 @router.get("/invoices", response_model=List[InvoiceOut])
@@ -36,7 +68,6 @@ def create_invoice(invoice_in: InvoiceCreate, current_user: Annotated[UserInDB, 
 def get_invoice_details(invoice_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     return FinanceService(db).get_invoice(str(current_user.id), invoice_id)
 
-# NEW: Full Update Endpoint
 @router.put("/invoices/{invoice_id}", response_model=InvoiceOut)
 def update_invoice(
     invoice_id: str, 
@@ -107,7 +138,6 @@ def create_expense(expense_in: ExpenseCreate, current_user: Annotated[UserInDB, 
 def get_expenses(current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     return FinanceService(db).get_expenses(str(current_user.id))
 
-# NEW: Update Expense Endpoint
 @router.put("/expenses/{expense_id}", response_model=ExpenseOut)
 def update_expense(
     expense_id: str, 

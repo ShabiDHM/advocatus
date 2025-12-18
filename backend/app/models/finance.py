@@ -1,8 +1,4 @@
 # FILE: backend/app/models/finance.py
-# PHOENIX PROTOCOL - FINANCE MODELS V5 (EDIT SUPPORT)
-# 1. UPDATE: InvoiceUpdate now supports full editing (client, items, tax).
-# 2. ADDED: ExpenseUpdate model for editing expenses.
-
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime
@@ -47,15 +43,12 @@ class InvoiceCreate(BaseModel):
     notes: Optional[str] = None
 
 class InvoiceUpdate(BaseModel):
-    # Full Edit Fields
     client_name: Optional[str] = None
     client_email: Optional[str] = None
     client_address: Optional[str] = None
     items: Optional[List[InvoiceItem]] = None
     tax_rate: Optional[float] = None
     due_date: Optional[datetime] = None
-    
-    # Status/System Fields
     status: Optional[str] = None
     notes: Optional[str] = None
     is_locked: Optional[bool] = None
@@ -81,7 +74,6 @@ class ExpenseBase(BaseModel):
     description: Optional[str] = None
     date: datetime = Field(default_factory=datetime.utcnow)
     currency: str = "EUR"
-    
     receipt_url: Optional[str] = None
     related_case_id: Optional[str] = None
     is_locked: bool = False
@@ -111,7 +103,6 @@ class ExpenseOut(ExpenseInDB):
     id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
 
 # --- TAX ENGINE MODELS ---
-
 class TaxCalculation(BaseModel):
     period_month: int
     period_year: int
@@ -122,7 +113,6 @@ class TaxCalculation(BaseModel):
     net_obligation: float
     currency: str = "EUR"
     status: str
-    
     regime: str = "SMALL_BUSINESS"
     tax_rate_applied: str = "9%" 
     description: str = "Tatimi"
@@ -138,3 +128,52 @@ class WizardState(BaseModel):
     calculation: TaxCalculation
     issues: List[AuditIssue]
     ready_to_close: bool
+
+# --- TRANSACTION & IMPORT MODELS (NEW) ---
+class ImportBatchBase(BaseModel):
+    user_id: PyObjectId
+    filename: str
+    status: str # "PROCESSED", "FAILED"
+    row_count: int = 0
+    total_volume: float = 0.0
+    error_message: Optional[str] = None
+
+class ImportBatchInDB(ImportBatchBase):
+    id: PyObjectId = Field(alias="_id", default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
+
+class ImportBatchOut(BaseModel):
+    id: str
+    filename: str
+    status: str
+    row_count: int
+    total_volume: float
+    created_at: datetime
+
+class TransactionBase(BaseModel):
+    user_id: PyObjectId
+    batch_id: PyObjectId
+    transaction_ref: Optional[str] = None
+    date_time: datetime
+    product_name: str
+    quantity: float = 1.0
+    unit_price: float = 0.0
+    total_amount: float
+    currency: str = "EUR"
+    vat_rate: Optional[float] = None
+    category: Optional[str] = "Uncategorized"
+    source_raw_data: dict = {}
+
+class TransactionInDB(TransactionBase):
+    id: PyObjectId = Field(alias="_id", default=None)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+    )
