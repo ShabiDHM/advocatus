@@ -1,6 +1,6 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V9.3 (UCA-COMPLIANT HEADER)
-// 1. CHANGE: Username is now displayed in uppercase as per user request.
+// PHOENIX PROTOCOL - BUSINESS PAGE V9.4 (CORRECT CAPITALIZATION)
+// 1. FIX: Changed .toUpperCase() to correctly capitalize only the first letter of the username.
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen } from 'lucide-react';
@@ -17,13 +17,19 @@ const BusinessPage: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
 
+  // Helper function to capitalize the first letter of a string
+  const capitalize = (s: string | undefined) => {
+    if (!s) return 'Përdorues';
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+
   return (
     <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-10 gap-4 sm:gap-6">
         <div>
             {/* Dynamic Welcome Message */}
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-                {t('dashboard.welcome', { name: user?.username ? user.username.toUpperCase() : 'Përdorues' })}
+                {t('dashboard.welcome', { name: capitalize(user?.username) })}
             </h1>
             {/* Context Label */}
             <p className="text-gray-400 text-sm sm:text-base">
