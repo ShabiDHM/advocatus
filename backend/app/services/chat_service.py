@@ -1,7 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V18.3 (TYPE SAFETY FIX)
-# 1. FIX: Used `cast` to resolve Pylance's strict type checking for ChatCompletionMessageParam.
-# 2. STATUS: Clean build, zero warnings.
+# PHOENIX PROTOCOL - CHAT SERVICE V18.0 (SOURCE AWARE + FINDINGS REMOVED)
+# 1. REMOVED: All references to 'findings_service' and related queries.
+# 2. UPGRADE: System Prompt now understands [[BURIMI: ...]] tags.
+# 3. LOGIC: Enforces strict separation of conflicting documents (Padi vs. Response).
 
 from __future__ import annotations
 import os
@@ -26,17 +27,24 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# --- THE HYBRID (ACCURATE + CONVERSATIONAL) PROMPT ---
-SYSTEM_PROMPT_HYBRID = f"""
-Ti je "Asistenti Ligjor i Dosjes". Roli yt është t'i përgjigjesh pyetjeve të Avokatit shkurt, saktë dhe në mënyrë konverzacionale.
+# --- THE FORENSIC CHAT CONSTITUTION ---
+SYSTEM_PROMPT_FORENSIC = f"""
+Ti je "Juristi AI - Auditori Forensik".
+Përdoruesi është Avokati. Qëllimi yt është saktësia absolute faktike.
 
-RREGULLAT E TUA TË PANIGOCIUESHME JANË KËTO:
 {STRICT_FORENSIC_RULES}
 
-UDHËZIME SHTESË PËR Bisedë:
-1. PËRGJIGJU VETËM NGA KONTEKSTI: Konteksti i dhënë është e vetmja e vërtetë. Nëse përgjigja nuk gjendet aty, thuaj: "Ky informacion nuk gjendet në dokumentet e analizuara."
-2. LEXO BURIMET: Konteksti përmban etiketa [[BURIMI: ...]]. Përdori ato për të treguar nga cili dokument vjen informacioni (psh. "Sipas Padisë..."). Raporto konfliktet mes dokumenteve.
-3. BASHKËBISEDO, MOS RAPORTO: Përgjigju pyetjes direkt. Mos krijo lista të gjata apo raporte të pa kërkuara, përveç nëse avokati e kërkon specifikisht.
+UDHËZIME SHTESË PËR CHAT (SOURCE AWARENESS):
+1. LEXO BURIMET ME KUJDES:
+   - Konteksti përmban etiketa [[BURIMI: Emri_i_Dokumentit.pdf]].
+   - Kur citon një fakt, trego gjithmonë nga cili dokument vjen (Psh: "Sipas Padisë..." ose "Sipas Përgjigjes në Padi...").
+   - KUJDES: Dokumentet shpesh kundërshtojnë njëri-tjetrin. NUK duhet t'i shkriç ato. Raporto konfliktin: "Padia pretendon X, ndërsa Përgjigja pretendon Y".
+
+2. QARTËSO STATUSIN E DOKUMENTIT:
+   - Nëse informacioni vjen nga një "DRAFT" ose "PROPOZIM", thuaj qartë: "Kjo është vetëm kërkesë e palës, jo vendim gjykate."
+
+3. MOS BËJ LIGJËRATA:
+   - Mos jep këshilla të përgjithshme ligjore. Përqendrohu tek FAKTET e dosjes.
 """
 
 def _get_rag_service_instance(db: Any) -> Any:
@@ -97,12 +105,14 @@ async def get_http_chat_response(
                 raw_role = msg.get('role') if isinstance(msg, dict) else getattr(msg, 'role', 'user')
                 content = msg.get('content') if isinstance(msg, dict) else getattr(msg, 'content', '')
                 
-                api_role = "assistant" if raw_role == "ai" else "user"
+                api_role = "assistant" if raw_role == "ai" else raw_role
                 
-                if content:
-                    # PHOENIX FIX: Use 'cast' to satisfy strict type checker
-                    message = cast(ChatCompletionMessageParam, {"role": api_role, "content": str(content)})
-                    memory_messages.append(message)
+                if api_role == "user" and content:
+                    memory_messages.append({"role": "user", "content": str(content)})
+                elif api_role == "assistant" and content:
+                    memory_messages.append({"role": "assistant", "content": str(content)})
+                elif api_role == "system" and content:
+                     memory_messages.append({"role": "system", "content": str(content)})
         except Exception as e:
             logger.warning(f"Failed to parse chat history: {e}")
 
@@ -122,6 +132,7 @@ async def get_http_chat_response(
         
         context_dossier = ""
         if rag_service:
+            # Retrieves context which now includes [[BURIMI: ...]] tags
             context_dossier = await rag_service.retrieve_context(
                 query=user_query, 
                 case_id=case_id, 
@@ -133,18 +144,16 @@ async def get_http_chat_response(
             context_dossier = "NUK U GJET ASNJË DOKUMENT OSE FAKT PËRKATËS NË DOSJE PËR KËTË ÇËSHTJE."
 
         final_user_prompt = (
-            f"=== KONTEKSTI NGA DOSJA ===\n{context_dossier}\n\n"
-            f"=== PYETJA E AVOKATIT ===\n{user_query}"
+            f"=== E VËRTETA FAKTIKE (KONTEKSTI NGA DOSJA) ===\n{context_dossier}\n\n"
+            f"=== PYETJA E AUDITORIT ===\n{user_query}"
         )
 
-        messages_payload: List[ChatCompletionMessageParam] = [cast(ChatCompletionMessageParam, {"role": "system", "content": SYSTEM_PROMPT_HYBRID})]
+        messages_payload: List[ChatCompletionMessageParam] = [{"role": "system", "content": SYSTEM_PROMPT_FORENSIC}]
         
         if memory_messages:
             messages_payload.extend(memory_messages)
             
-        # PHOENIX FIX: Use 'cast' to satisfy strict type checker on the final user message
-        final_message = cast(ChatCompletionMessageParam, {"role": "user", "content": final_user_prompt})
-        messages_payload.append(final_message)
+        messages_payload.append({"role": "user", "content": final_user_prompt})
 
         if DEEPSEEK_API_KEY:
             client = AsyncOpenAI(api_key=DEEPSEEK_API_KEY, base_url=OPENROUTER_BASE_URL)
@@ -164,7 +173,7 @@ async def get_http_chat_response(
 
     except Exception as e:
         logger.error(f"AI Error: {e}", exc_info=True)
-        response_text = "Kërkoj ndjesë, ndodhi një problem teknik gjatë procesimit."
+        response_text = "Kërkoj ndjesë, ndodhi një problem teknik gjatë auditimit."
 
     # 6. Save AI Response
     try:
