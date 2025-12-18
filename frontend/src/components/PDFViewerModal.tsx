@@ -1,7 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - TYPE FIX
-// 1. FIX: Explicitly typed headers as Record<string, string> to satisfy TypeScript 'HeadersInit'.
-// 2. STATUS: Clean build.
+// PHOENIX PROTOCOL - PDF VIEWER V2.2 (MINIMIZE BUTTON)
+// 1. FIX: Added Minimize button next to Download button.
+// 2. UI: Uses 'Minus' icon for standard minimize visual.
+// 3. STATUS: Ready for integration with CaseViewPage.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -11,7 +12,7 @@ import { Document } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
-    Download, RefreshCw, ZoomIn, ZoomOut, Maximize 
+    Download, RefreshCw, ZoomIn, ZoomOut, Maximize, Minus 
 } from 'lucide-react';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { TFunction } from 'i18next';
@@ -22,12 +23,13 @@ interface PDFViewerModalProps {
   documentData: Document;
   caseId?: string; 
   onClose: () => void;
+  onMinimize?: () => void; // PHOENIX: Minimize handler
   t: TFunction; 
   directUrl?: string | null; 
   isAuth?: boolean;
 }
 
-const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, onClose, t, directUrl, isAuth = false }) => {
+const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, onClose, onMinimize, t, directUrl, isAuth = false }) => {
   const [pdfSource, setPdfSource] = useState<any>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [imageSource, setImageSource] = useState<string | null>(null);
@@ -86,7 +88,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
              try {
                  let blob: Blob;
                  if (isAuth && token) {
-                     // PHOENIX FIX: Explicit typing prevents TS overload error
                      const headers: Record<string, string> = {};
                      headers['Authorization'] = `Bearer ${token}`;
                      
@@ -186,7 +187,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       const token = apiService.getToken();
       
       if (directUrl) {
-          // PHOENIX FIX: Explicit typing
           const headers: Record<string, string> = {};
           if (isAuth && token) {
               headers['Authorization'] = `Bearer ${token}`;
@@ -324,6 +324,14 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button onClick={handleDownloadOriginal} className="p-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg transition-colors border border-primary-start/30" title={t('pdfViewer.downloadOriginal', { defaultValue: 'Shkarko Origjinalin' })}><Download size={20} /></button>
+              
+              {/* PHOENIX: Minimize button added here */}
+              {onMinimize && (
+                  <button onClick={onMinimize} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" title={t('pdfViewer.minimize', { defaultValue: 'Minimizo' })}>
+                      <Minus size={24} />
+                  </button>
+              )}
+
               <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
             </div>
           </header>
