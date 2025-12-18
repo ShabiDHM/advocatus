@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - CHAT RAG SYSTEM V12.0 (FORCED CONTEXT INJECTION)
-# 1. FIX: Implemented "Forced Context Injection" to prevent "Context Amnesia".
-# 2. LOGIC: RAG now ALWAYS fetches the case summary and injects it into the vector search query.
-# 3. BEHAVIOR: Ensures the AI always has core case facts available, regardless of the user's query.
+# PHOENIX PROTOCOL - RAG SERVICE V13.0 (ROLLBACK TO NARRATIVE)
+# 1. REVERT: Removed ID extraction for links.
+# 2. KEEP: Retained 'Case Summary' injection to prevent amnesia.
+# 3. FOCUS: Pure text context for rich descriptions.
 
 import os
 import asyncio
@@ -82,10 +82,7 @@ class AlbanianRAGService:
         from .graph_service import graph_service
         from .embedding_service import generate_embedding
 
-        # PHOENIX FIX: Step 1 - Always fetch the case summary first (Forced Context)
         case_summary = await self._get_case_summary(case_id)
-        
-        # PHOENIX FIX: Step 2 - Inject summary into the search query
         enriched_query = f"{case_summary}\n\nPyetja Specifike: {query}"
 
         try:
@@ -135,13 +132,15 @@ class AlbanianRAGService:
             context_parts.append(f"### EVIDENCA NGA GRAFI:\n{connections_text}")
 
         if user_docs:
-            doc_chunks_text = "\n".join([f"{chunk.get('text', '')}" for chunk in user_docs]) # Source tags are already inside
+            # PHOENIX FIX: Just raw text, no IDs
+            doc_chunks_text = "\n".join([f"{chunk.get('text', '')}" for chunk in user_docs])
             context_parts.append(f"### FRAGMENTE RELEVANTE NGA DOKUMENTET:\n{doc_chunks_text}")
 
         if graph_contradictions:
             context_parts.append(f"### KONTRADIKTAT E MUNDSHME:\n{graph_contradictions}")
 
         if kb_docs:
+            # PHOENIX FIX: Just raw text, no IDs
             kb_text = "\n".join([f"Nga '{chunk.get('document_name', 'Ligj')}':\n{chunk.get('text', '')}\n---" for chunk in kb_docs])
             context_parts.append(f"### BAZA LIGJORE RELEVANTE:\n{kb_text}")
         
@@ -159,24 +158,23 @@ class AlbanianRAGService:
         if not self.client: return "Klienti AI nuk është inicializuar."
 
         try:
+            # REVERTED TO NARRATIVE PROMPT
             system_prompt = """
-            Ti je 'Juristi AI', një asistent ligjor strikt dhe preciz.
+            Ti je 'Juristi AI', një Auditor Forensik i lartë.
             
-            UDHËZIME TË PANIGOCIUESHME:
-            1. Përgjigju VETËM duke u bazuar në KONTEKSTIN e dhënë më poshtë.
-            2. Nëse informacioni nuk gjendet në kontekst, thuaj: "Nuk kam informacion të mjaftueshëm në dokumente për t'ju përgjigjur kësaj pyetjeje."
-            3. MOS shpik fakte. MOS përdor njohuri të jashtme përveç termave ligjorë bazë.
-            4. Cito burimin (p.sh., "Sipas grafit...", "Sipas dokumentit X...").
-            5. Përdor Markdown për qartësi.
+            DETYRA: Analizo kontekstin dhe jep një përgjigje të detajuar, të strukturuar dhe profesionale.
+            1. Përdor pika (bullet points) për qartësi.
+            2. Cito burimet me saktësi nga teksti.
+            3. Mos shpik fakte.
             """
             
-            user_message = f"KONTEKSTI EKSKLUZIV:\n{context}\n\nPYETJA: {query}"
+            user_message = f"KONTEKSTI:\n{context}\n\nPYETJA: {query}"
             
             response = await self.client.chat.completions.create(
                 model=OPENROUTER_MODEL,
                 messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_message}],
                 temperature=0.0, 
-                max_tokens=1000
+                max_tokens=1500
             )
             return response.choices[0].message.content or "Gabim në gjenerim."
         except Exception as e:
