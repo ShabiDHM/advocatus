@@ -132,7 +132,7 @@ class AlbanianRAGService:
             context_parts.append(f"### EVIDENCA NGA GRAFI:\n{connections_text}")
 
         if user_docs:
-            # PHOENIX FIX: Just raw text, no IDs
+            # PHOENIX FIX: Removed ID from context string
             doc_chunks_text = "\n".join([f"{chunk.get('text', '')}" for chunk in user_docs])
             context_parts.append(f"### FRAGMENTE RELEVANTE NGA DOKUMENTET:\n{doc_chunks_text}")
 
@@ -140,7 +140,7 @@ class AlbanianRAGService:
             context_parts.append(f"### KONTRADIKTAT E MUNDSHME:\n{graph_contradictions}")
 
         if kb_docs:
-            # PHOENIX FIX: Just raw text, no IDs
+            # PHOENIX FIX: Removed ID from context string
             kb_text = "\n".join([f"Nga '{chunk.get('document_name', 'Ligj')}':\n{chunk.get('text', '')}\n---" for chunk in kb_docs])
             context_parts.append(f"### BAZA LIGJORE RELEVANTE:\n{kb_text}")
         
