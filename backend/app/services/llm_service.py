@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - INTELLIGENCE V14.3 (FINDINGS REMOVAL)
-# 1. REMOVED: extract_findings_from_text (Dead Logic).
-# 2. REMOVED: synthesize_and_deduplicate_findings (Dead Logic).
-# 3. STATUS: Optimized for Analysis & Forensics only.
+# PHOENIX PROTOCOL - INTELLIGENCE V20.0 (JUDICIAL LOGIC)
+# 1. UPGRADE: Added 'judicial_observation' and 'red_flags' to analysis output.
+# 2. PROMPT: Instructs AI to weigh evidence strength and identify hidden risks.
+# 3. STATUS: Transforms the system from a Summarizer to an Evaluator.
 
 import os
 import json
@@ -148,14 +148,13 @@ def analyze_case_integrity(text: str) -> Dict[str, Any]:
     UPGRADED: Handles 'Silent Party Rule' and enforces strict citation.
     """
     clean_text = sterilize_legal_text(text[:25000])
+    
+    # PHOENIX UPGRADE: JUDICIAL LOGIC INJECTED
     system_prompt = """
-    Ti je "Auditori Ligjor Suprem".
+    Ti je "Gjykatës Suprem & Detektiv Hetues".
     
-    DETYRA 1: Identifiko cilat palë kanë folur.
-    - Nëse kemi vetëm dokumente nga Paditësi -> I Padituri është 'PASIV/HESHTUR'.
-    
-    DETYRA 2: Krijo Kronologjinë e Verifikuar.
-    - Çdo datë duhet të ketë burimin [Fq. X].
+    DETYRA 1 (Detektivi): Gjej rreziqet e fshehura. A ka motive të padeklaruara? (psh. rrezik ikjeje, tjetërsim prindëror).
+    DETYRA 2 (Gjykatësi): Vlerëso forcën e provave. A mjafton SMS-i përballë Raportit Mjekësor?
     
     FORMATI JSON (Strict):
     {
@@ -163,12 +162,20 @@ def analyze_case_integrity(text: str) -> Dict[str, Any]:
         "active_parties": ["Lista e palëve që kanë dorëzuar dokumente"],
         "silent_parties": ["Lista e palëve që NUK kanë dokumente në tekst"],
         "summary_analysis": "Përmbledhje e statusit procedural.",
+        
+        "judicial_observation": "Opinion gjyqësor neutral. Cila palë ka barrën e provës? A janë provat bindëse për gjykatën?",
+        
+        "red_flags": [
+            "Rreziqe konkrete (psh. 'Tentim për të larguar fëmijën jashtë shtetit').",
+            "Mungesa të dyshimta (psh. 'I padituri nuk paraqiti vërtetim papunësie')."
+        ],
+
         "chronology": [{"date": "DD/MM/YYYY", "event": "Ngjarja...", "source_doc": "Fq. X"}],
         "contradictions": [
-            "Vetëm nëse të dy palët kanë deklaruar fakte të kundërta. Nëse një palë hesht, shkruaj: 'Nuk ka kontradikta - Mungon deklarimi i palës së kundërt'."
+            "Vetëm nëse të dy palët kanë deklaruar fakte të kundërta."
         ],
         "key_evidence": [],
-        "missing_info": ["Cilat dokumente procedurale mungojnë (psh: Përgjigja në Padi)?"]
+        "missing_info": ["Cilat dokumente procedurale mungojnë?"]
     }
     """
     user_prompt = f"DOSJA E PLOTË (TEXT):\n{clean_text}"
@@ -187,13 +194,13 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
     
     DETYRA: Kryqëzo dokumentin e ri [TARGET] me historikun [CONTEXT].
     
-    RREGULLI I SIMETRISË:
-    - Verifiko nëse ky dokument është Përgjigje ndaj Padisë.
-    - Nëse Target është Padi dhe Context është bosh -> "Fillimi i Çështjes".
-    
     FORMATI JSON (Strict):
     {
         "summary_analysis": "Analizë koherencës. A përputhet ky dokument me provat e mëparshme?",
+        
+        "judicial_observation": "Vlerësim mbi besueshmërinë e këtij dokumenti të ri në raport me dosjen.",
+        "red_flags": ["Rreziqe të reja që dalin nga ky dokument."],
+        
         "chronology": [
             {"date": "DD/MM/YYYY", "event": "Ngjarja brenda dokumentit", "source_doc": "Target Doc [Fq. X]"}
         ],
