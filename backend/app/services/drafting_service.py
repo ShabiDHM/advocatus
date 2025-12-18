@@ -1,8 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING SERVICE V17.1 (FINDINGS REMOVAL FIX)
-# 1. FIXED: Removed 'query_findings_by_similarity' import (Resolves Pylance Error).
-# 2. LOGIC: Context now built from 'query_by_vector' (Raw Document Chunks) instead of Findings.
-# 3. STATUS: Fully Synchronized.
+# PHOENIX PROTOCOL - DRAFTING SERVICE V17.2 (UNIFIED INTELLIGENCE)
+# 1. UPGRADE: Ported the "Legal Expander" logic from Chat Service.
+# 2. LOGIC: Enforces bold, descriptive legal citations in generated documents.
+# 3. CLEANUP: Optimized context building to use existing source tags.
 
 import os
 import asyncio
@@ -18,7 +18,6 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 from ..models.user import UserInDB
 from app.services.text_sterilization_service import sterilize_text_for_llm 
-# PHOENIX FIX: Switched to query_by_vector for raw chunk retrieval
 from .vector_store_service import query_legal_knowledge_base, query_by_vector
 from .embedding_service import generate_embedding
 
@@ -28,14 +27,24 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# --- INVISIBLE INTELLIGENCE LAYER ---
+# --- INVISIBLE INTELLIGENCE LAYER (SYNCHRONIZED WITH CHAT) ---
 STRICT_KOSOVO_CONSTRAINTS = """
-*** UDHËZIME STRIKTE (STILI GJYQËSOR I KOSOVËS): ***
+*** UDHËZIME STRIKTE (SISTEMI I KOSOVËS): ***
+
 1. JURISDIKSIONI: VETËM REPUBLIKA E KOSOVËS.
-2. STILI I SHKRIMIT: Formal, autoritativ, argumentues.
-3. CITIMI I PROVAVE: Përdor formatin "Provë: [Emri i Dokumentit]" me bold, në rresht të ri ose pas paragrafit përkatës.
-4. TITULLI FINAL: Çdo dokument duhet të përfundojë me dispozitivin e propozuar (Petitumin) nën titullin e ndarë me hapësira: "A K T G J Y K I M".
-5. FOLJET E DISPOZITIVIT: Përdor terma urdhërorë me bold: I) APROVOHET, II) DETYROHET, III) REFUZOHET.
+   - Ndalohet çdo referencë nga Shqipëria (Tiranë, Kodi Civil i Shqipërisë).
+
+2. PREZANTIMI I LIGJEVE (E DETYRUESHME):
+   - Është e NDALUAR të përmendësh një ligj apo nen vetëm me numër (psh. "Neni 331").
+   - Për çdo nen të përmendur në dokument, duhet të japësh shpjegimin ose përmbajtjen e tij.
+   - Përdor këtë format: **[Emri i Nenit/Ligjit]**: "[Përmbajtja e shkurtër e nenit ose shpjegimi se çfarë rregullon]".
+
+3. CITIMI I PROVAVE: 
+   - Përdor formatin "Provë: [[Burimi: Emri i Dokumentit, Fq. X]]" me bold.
+   - Referoju vetëm fakteve që gjenden në kontekst.
+
+4. STILI: Formal, autoritativ, argumentues.
+   - Përdor terma urdhërorë në dispozitiv: I) APROVOHET, II) DETYROHET, III) REFUZOHET.
 """
 
 TEMPLATE_MAP = {
@@ -65,11 +74,11 @@ TEMPLATE_MAP = {
 
     5. NARRATIVA (Faktet):
        - Shpjego rrjedhojën e ngjarjes.
-       - Pas çdo fakti kyç, shto rresht: "Provë: [Dokumenti]"
+       - Pas çdo fakti kyç, shto rresht: "Provë: [[Burimi...]]"
 
-    6. ARSYETIMI LIGJOR:
+    6. ARSYETIMI LIGJOR (E RËNDËSISHME):
        - Cito nenet specifike të ligjeve të Kosovës (LPK, LPF, LMD).
-       - Argumento pse kërkesa është e bazuar.
+       - Zbato rregullin e "Prezantimit të Ligjeve" (shpjegimin e nenit).
 
     7. DISPOZITIVI I PROPOZUAR (Center, Bold):
        A K T G J Y K I M
@@ -110,7 +119,8 @@ TEMPLATE_MAP = {
     6. TRUPI I KUNDËRSHTIMIT:
        - "Kundërshtojmë në tërësi padinë..."
        - Argumento faktet e pasakta të paditësit.
-       - Shto prova: "Provë: [Emri]".
+       - Shto prova: "Provë: [[Burimi...]]".
+       - Cito ligjet me shpjegim (Rregulli i Prezantimit).
 
     7. DISPOZITIVI I PROPOZUAR (Center, Bold):
        A K T G J Y K I M
@@ -173,8 +183,8 @@ def _build_case_context_hybrid_sync(db: Database, case_id: str, user_prompt: str
             text = res.get('text', '').strip()
             # Simple deduplication
             if text and text not in seen_texts:
-                doc_name = res.get('document_name', 'Dokument')
-                context_parts.append(f"--- [BURIMI: {doc_name}] ---\n{text}")
+                # Note: Vector store already adds [[BURIMI...]] tags to text
+                context_parts.append(f"{text}")
                 seen_texts.add(text)
                 
         return "\n".join(context_parts)
