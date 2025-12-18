@@ -1,8 +1,6 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V9.2 (PERSONALIZED HEADER)
-// 1. ADDED: useAuth hook for user personalization.
-// 2. CHANGED: Header now says "Mirësevini, [User]"
-// 3. CHANGED: Subtitle now says "Qendra e Biznesit"
+// PHOENIX PROTOCOL - BUSINESS PAGE V9.3 (UCA-COMPLIANT HEADER)
+// 1. CHANGE: Username is now displayed in uppercase as per user request.
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen } from 'lucide-react';
@@ -25,7 +23,7 @@ const BusinessPage: React.FC = () => {
         <div>
             {/* Dynamic Welcome Message */}
             <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-                {t('dashboard.welcome', { name: user?.username || 'Përdorues' })}
+                {t('dashboard.welcome', { name: user?.username ? user.username.toUpperCase() : 'Përdorues' })}
             </h1>
             {/* Context Label */}
             <p className="text-gray-400 text-sm sm:text-base">
