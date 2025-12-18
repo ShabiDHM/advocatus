@@ -1,7 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V13.1 (MORE LEGAL CONTEXT)
-# 1. TUNING: Increased legal document retrieval count (n_results) from 3 to 5.
-# 2. LOGIC: Increases probability of finding the specific Article text mentioned in user docs.
+# PHOENIX PROTOCOL - RAG SERVICE V13.1 (EXPLICIT SOURCE CONTEXT)
+# 1. FIX: Wraps every document chunk with an explicit "DOKUMENTI: [Name]" header.
+# 2. LOGIC: Guarantees the AI sees the source name for every fact it analyzes.
+# 3. STATUS: Restores accurate citations (Name + Page).
 
 import os
 import asyncio
@@ -107,7 +108,6 @@ class AlbanianRAGService:
         try:
             results = await asyncio.gather(
                 asyncio.to_thread(self.vector_store.query_by_vector, embedding=query_embedding, case_id=case_id, n_results=8, document_ids=document_ids),
-                # PHOENIX FIX: Increased results from 3 to 5 to capture more legal context
                 asyncio.to_thread(self.vector_store.query_legal_knowledge_base, embedding=query_embedding, n_results=5, jurisdiction='ks'),
                 asyncio.to_thread(graph_service.find_contradictions, case_id),
                 fetch_graph_connections(),
@@ -132,14 +132,22 @@ class AlbanianRAGService:
             context_parts.append(f"### EVIDENCA NGA GRAFI:\n{connections_text}")
 
         if user_docs:
-            doc_chunks_text = "\n".join([f"{chunk.get('text', '')}" for chunk in user_docs])
+            # PHOENIX FIX: Explicitly format Document Name + Text for the LLM
+            doc_chunks_list = []
+            for chunk in user_docs:
+                name = chunk.get('document_name', 'Dokument i Panjohur')
+                text = chunk.get('text', '')
+                doc_chunks_list.append(f"DOKUMENTI: '{name}'\nPËRMBAJTJA:\n{text}\n---")
+            
+            doc_chunks_text = "\n".join(doc_chunks_list)
             context_parts.append(f"### FRAGMENTE RELEVANTE NGA DOKUMENTET:\n{doc_chunks_text}")
 
         if graph_contradictions:
             context_parts.append(f"### KONTRADIKTAT E MUNDSHME:\n{graph_contradictions}")
 
         if kb_docs:
-            kb_text = "\n".join([f"Nga '{chunk.get('document_name', 'Ligj')}':\n{chunk.get('text', '')}\n---" for chunk in kb_docs])
+            # PHOENIX FIX: Explicitly format Laws
+            kb_text = "\n".join([f"LIGJI/DOKUMENTI: '{chunk.get('document_name', 'Ligj')}'\nNENI/TEKSTI:\n{chunk.get('text', '')}\n---" for chunk in kb_docs])
             context_parts.append(f"### BAZA LIGJORE RELEVANTE:\n{kb_text}")
         
         if not context_parts: return ""
@@ -162,7 +170,7 @@ class AlbanianRAGService:
             
             DETYRA: Analizo kontekstin dhe jep një përgjigje të detajuar, të strukturuar dhe profesionale.
             1. Përdor pika (bullet points) për qartësi.
-            2. Cito burimet me saktësi nga teksti.
+            2. Cito burimet me saktësi: "Sipas [Emri i Dokumentit]...".
             3. Mos shpik fakte.
             """
             
