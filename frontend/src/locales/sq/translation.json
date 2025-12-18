@@ -94,8 +94,9 @@
     "logout": "Dilni"
   },
   "dashboard": {
+    "mainTitle": "Asistenti Juridik",
     "welcome": "Mirësevini, {{name}}",
-    "subtitle": "Pasqyra e rasteve tuaja aktive.",
+    "subtitle": "Pasqyra e rasteve tuaja.",
     "newCase": "Rast i Ri",
     "activeCases": "Raste Aktive",
     "pendingDocs": "Dokumente në Pritje",
@@ -142,7 +143,7 @@
     "crossExamine": "Kryqëzo Provat",
     "archive": "Arkivo",
     "reconnect": "Rilidhu",
-    "viewOriginal": "Shiko Origjinalin",
+    "viewOriginal": "Shiko Originalin",
     "delete": "Fshi",
     "confirmDelete": "A jeni të sigurt?",
     "uploadFailed": "Ngarkimi dështoi",
@@ -222,7 +223,7 @@
   },
   "business": {
     "title": "Qendra e Biznesit",
-    "subtitle": "Menaxhoni identitetin e zyrës suaj ligjore.",
+    "subtitle": "Menaxhoni zyrën tuaj.",
     "dashboard": "Pasqyra",
     "profile": "Profili",
     "finance": "Financat",
