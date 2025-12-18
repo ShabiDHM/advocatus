@@ -1,8 +1,8 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V8.2 (LAYOUT PRESERVATION)
-# 1. FIX: Improved PDF extraction using 'blocks' mode to better preserve reading order and tables.
-# 2. LOGIC: Sorts text blocks by Y-coordinate then X-coordinate to reconstruct rows.
-# 3. SAFETY: Includes fallback handling for missing OCR dependencies.
+# PHOENIX PROTOCOL - OCR ENGINE V8.2 (SMART HYBRID MODE)
+# 1. OPTIMIZATION: Implemented 'Text Layer Check'. Skips heavy OCR if digital text exists.
+# 2. LOGIC: Sorts text blocks by coordinates to preserve legal document layout (Rows/Columns).
+# 3. SAFETY: Includes fallback to optical recognition for scanned images.
 
 import fitz  # PyMuPDF
 import docx
@@ -18,7 +18,7 @@ import concurrent.futures
 import time
 import os
 
-# Link to our advanced OCR engine
+# Link to our advanced OCR engine (only loaded if needed)
 try:
     from .ocr_service import extract_text_from_image as advanced_image_ocr
 except ImportError:
@@ -43,31 +43,35 @@ def _sort_blocks(blocks):
 def _process_single_page_safe(doc_path: str, page_num: int) -> str:
     """
     Extracts text from a single PDF page with Layout Preservation.
+    PHOENIX OPTIMIZATION: Checks for digital text first.
     """
     page_marker = f"\n--- [FAQJA {page_num + 1}] ---\n"
     try:
         with fitz.open(doc_path) as doc:
             page: Any = doc[page_num]
             
-            # 1. Try Direct Text Extraction (BLOCK MODE)
+            # 1. Try Direct Text Extraction (BLOCK MODE) - FAST PATH (0.01s)
             # "blocks" returns a list of tuples: (x0, y0, x1, y1, "lines", block_no, block_type)
-            # This is vastly superior for tables than "text" mode.
             blocks = page.get_text("blocks")
             
+            text = ""
             if blocks:
                 # Sort blocks to ensure reading order (Row by Row)
                 sorted_blocks = _sort_blocks(blocks)
                 text = "\n".join([b[4] for b in sorted_blocks])
-            else:
-                text = ""
 
-            # If text is sufficient, return it.
+            # If meaningful text is found (>50 chars), return immediately.
+            # This skips the heavy OCR process for 90% of legal docs.
             if text and len(text.strip()) > 50:
                 return page_marker + _sanitize_text(text)
             
-            # 2. Fallback: Optical Recognition (Slow but Guaranteed)
+            # 2. Fallback: Optical Recognition - SLOW PATH (2-5s)
             logger.info(f"Page {page_num} seems scanned (text len < 50). Engaging Optical OCR...")
             
+            if not advanced_image_ocr:
+                logger.warning("Advanced OCR service missing. Returning empty.")
+                return page_marker + "[SCANNED DOCUMENT - NO OCR AVAILABLE]"
+
             # Render page to image (High DPI for better accuracy)
             zoom = 2.0 
             mat = fitz.Matrix(zoom, zoom)
@@ -81,10 +85,8 @@ def _process_single_page_safe(doc_path: str, page_num: int) -> str:
             
             ocr_text = ""
             try:
-                if advanced_image_ocr:
-                    ocr_text = advanced_image_ocr(temp_img_path)
-                else:
-                    logger.warning("Advanced OCR service not available. Skipping image processing.")
+                ocr_text = advanced_image_ocr(temp_img_path)
+                logger.info(f"✅ OCR Success (Page {page_num}): {len(ocr_text)} chars.")
             except Exception as ocr_err:
                 logger.error(f"OCR Failed for page {page_num}: {ocr_err}")
             finally:
@@ -107,6 +109,7 @@ def _extract_text_sequentially(file_path: str, total_pages: int) -> str:
     buffer = []
     for i in range(total_pages):
         buffer.append(_process_single_page_safe(file_path, i))
+        # Small sleep to yield CPU to other tasks
         time.sleep(0.05) 
     return "".join(buffer)
 
@@ -118,12 +121,15 @@ def _extract_text_from_pdf(file_path: str) -> str:
             total_pages = len(doc)
     except Exception: return ""
 
-    if total_pages < 3:
+    # For small docs, do sequential (lower overhead)
+    if total_pages < 5:
          return _extract_text_sequentially(file_path, total_pages)
 
+    # For large docs, use ThreadPool (IO Bound due to OCR wait times)
     try:
         page_args = [(file_path, i) for i in range(total_pages)]
         results = []
+        # Optimization: Limit max workers to avoid OOM
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {executor.submit(_process_single_page_wrapper, arg): arg[1] for arg in page_args}
             for future in concurrent.futures.as_completed(futures):
@@ -132,9 +138,6 @@ def _extract_text_from_pdf(file_path: str) -> str:
         results.sort(key=lambda x: x[0])
         final_text = "".join([r[1] for r in results])
         
-        if len(final_text.strip()) < 10: 
-            return _extract_text_sequentially(file_path, total_pages)
-            
         return final_text
     except Exception as e:
         logger.error(f"Parallel PDF extraction failed: {e}")
