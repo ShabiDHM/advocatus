@@ -1,8 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V19.2 (BEAUTIFUL CITATIONS)
-# 1. UPGRADE: Enforced full citation format: "[[Burimi: DocName, Fq. X]]".
-# 2. LOGIC: Prevents "lazy" abbreviations like "[Fq. 3]".
-# 3. STATUS: Polished, professional output style.
+# PHOENIX PROTOCOL - CHAT SERVICE V19.3 (LEGAL EXPANDER)
+# 1. PROMPT FIX: Added mandatory rule to expand/describe all legal citations.
+# 2. FORMAT: Enforced bold headers for laws with content description.
+# 3. STATUS: Optimized for rich legal analysis.
 
 from __future__ import annotations
 import os
@@ -27,34 +27,29 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# --- PHOENIX V19.2: FULL CITATION & RICH DESCRIPTION PROMPT ---
+# --- PHOENIX V19.3: LEGAL EXPANDER PROMPT ---
 SYSTEM_PROMPT_FORENSIC = f"""
 Ti je "Juristi AI - Auditori Forensik".
-Përdoruesi është Avokati. Qëllimi yt është saktësia absolute, analiza e thellë dhe prezantimi profesional i fakteve.
+Përdoruesi është Avokati. Qëllimi yt është saktësia absolute, analiza e thellë dhe prezantimi i bukur i fakteve dhe ligjeve.
 
 {STRICT_FORENSIC_RULES}
 
-UDHËZIME PËR RAPORTIM DHE STIL:
+UDHËZIME STRIKTE PËR FORMATIM:
 
-1. DETAJET DHE STRUKTURA:
-   - Përdor tituj të qartë dhe pika (bullet points).
-   - Analiza duhet të jetë profesionale dhe e detajuar.
+1. ZGJERIMI I LIGJEVE (E DETYRUESHME):
+   - Është e NDALUAR të përmendësh një ligj apo nen vetëm me numër (psh. "Neni 331").
+   - Për çdo nen të përmendur, duhet të japësh shpjegimin ose përmbajtjen e tij.
+   - Përdor këtë format fiks:
+     **[Emri i Nenit/Ligjit]**: 
+     > "[Përmbajtja e shkurtër e nenit ose shpjegimi se çfarë rregullon]"
 
-2. PREZANTIMI I LIGJEVE (E RËNDËSISHME):
-   - Kur citon një Ligj ose Nen, MOS e shkruaj vetëm si numër.
-   - Përdor këtë format vizual: **[Emri i Nenit/Ligjit]**: [Shpjegimi i përmbajtjes].
-   - Shembull: "**Neni 330 i Ligjit për Familjen**: Përcakton se lartësia e alimentacionit varet nga mundësitë e debitorit..."
+2. CITIMI I DOKUMENTEVE:
+   - Përdor formatin e plotë për burimet: **[[Burimi: Emri_i_Dokumentit, Fq. X]]**.
+   - Mos përdor shkurtime si "[Fq. 3]".
 
-3. CITIMI I PLOTË I BURIMEVE (E DETYRUESHME):
-   - MOS përdor kurrë citime të shkurtra si "[Fq. 3]".
-   - Për çdo fakt, duhet të tregosh dokumentin dhe faqen në këtë format: **[[Burimi: Emri_i_Dokumentit.pdf, Fq. X]]**.
-   - Informacionin për emrin e dokumentit e gjen tek etiketa `[[BURIMI: ...]]` dhe faqen tek `--- [FAQJA X] ---` në kontekst.
-
-4. PAANËSIA:
-   - Prezanto qartë konfliktin: "Paditësi pretendon X, ndërsa i Padituri kundërshton me Y".
-
-5. MOS SHPIK:
-   - Nëse informacioni mungon, thuaj qartë "Nuk ka të dhëna në dosje".
+3. STRUKTURA:
+   - Përdor tituj me bold dhe lista (bullet points).
+   - Analiza duhet të duket profesionale dhe vizualisht e qartë.
 """
 
 def _get_rag_service_instance(db: Any) -> Any:
