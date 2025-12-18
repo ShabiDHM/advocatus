@@ -22,7 +22,11 @@
     "copied": "U kopjua në kujtesë!",
     "error": "Gabim",
     "confirmDelete": "A jeni i sigurt që doni ta fshini këtë element?",
-    "general": "Të Përgjithshme"
+    "general": "Të Përgjithshme",
+    "edit": "Ndrysho",
+    "view": "Shiko",
+    "archive": "Arkivo",
+    "delete": "Fshi"
   },
   "auth": {
     "loginTitle": "Hyni në Juristi AI",
@@ -263,12 +267,14 @@
     "recentExpenses": "Shpenzimet e Fundit",
     "noInvoices": "Nuk keni asnjë faturë të krijuar.",
     "noExpenses": "Nuk ka shpenzime.",
+    "noTransactions": "Nuk ka transaksione të regjistruara.",
     "viewPdf": "Shiko PDF",
     "downloadPdf": "Shkarko PDF",
     "archiveInvoice": "Arkivo Faturën",
     "archiveExpenseTitle": "Arkivo Shpenzimin",
     "deleteInvoice": "Fshi Faturën",
     "addExpense": "Shto Shpenzim",
+    "importTransactions": "Importo Transaksionet",
     "attachReceipt": "Bashkangjit Faturën (Opsionale)",
     "expenseCategory": "Kategoria",
     "expenseCategoryPlaceholder": "psh. Qira, Rrogat",
@@ -285,6 +291,24 @@
       "sent": "E Dërguar",
       "paid": "E Paguar",
       "cancelled": "E Anuluar"
+    },
+    "overview": "Pasqyra Financiare",
+    "quickActions": "Veprimet e Shpejta",
+    "activityAndReports": "Aktiviteti & Raportet",
+    "tabTransactions": "Transaksionet",
+    "tabReports": "Raportet",
+    "tabHistory": "Historiku",
+    "reportsComingSoon": "Analiza dhe vizualizime të detajuara do të jenë së shpejti këtu.",
+    "reportsTitle": "Raportet Financiare",
+    "historyDescription": "Këtu do të shfaqet historiku i të gjitha importeve tuaja nga sistemet POS.",
+    "importModal": {
+      "title": "Importo Transaksionet",
+      "description": "Ngarkoni raportin ditor të shitjeve (CSV ose Excel) nga sistemi juaj POS për të automatizuar financat tuaja.",
+      "selectFile": "Zgjidhni një fajll ose tërhiqeni këtu",
+      "changeFile": "Kliko për të ndryshuar fajllin",
+      "fileTypes": "CSV, XLS, XLSX",
+      "importing": "Duke importuar...",
+      "import": "Importo"
     },
     "wizard": {
       "back": "Kthehu te Financat",
