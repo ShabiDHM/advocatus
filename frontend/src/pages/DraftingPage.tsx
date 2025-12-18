@@ -1,8 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V6.8 (LAYOUT CONSISTENCY FIX)
-// 1. FIX: Enforced a fixed 600px height on the main grid for layout consistency.
-// 2. LAYOUT: Page now matches the height of the CaseViewPage panels.
-// 3. STATUS: Mobile and Desktop views are vertically constrained and consistent.
+// PHOENIX PROTOCOL - DRAFTING PAGE V6.9 (LAYOUT CONSISTENCY)
+// 1. FIX: Replicated the exact stacking and fixed-height behavior from CaseViewPage.
+// 2. LAYOUT: Input panel is now h-[500px], Result panel is h-[600px] on mobile.
+// 3. STATUS: Consistent with application design patterns.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -185,7 +185,7 @@ const DraftingPage: React.FC = () => {
   const statusDisplay = getStatusDisplay();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-full flex flex-col">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col h-full">
       <style>{` .custom-textarea-scroll::-webkit-scrollbar { width: 8px; } .custom-textarea-scroll::-webkit-scrollbar-track { background: transparent; } .custom-textarea-scroll::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.2); border-radius: 4px; } .custom-textarea-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.3); } `}</style>
       
       <div className="text-center mb-6 flex-shrink-0">
@@ -193,11 +193,11 @@ const DraftingPage: React.FC = () => {
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
 
-      {/* PHOENIX FIX: Set fixed height on grid and define responsive rows */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-1 gap-6 flex-1 h-[600px] lg:h-[700px]">
+      {/* PHOENIX FIX: Replicated CaseViewPage layout constraints */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[700px]">
         
-        {/* INPUT PANEL */}
-        <div className="flex flex-col min-h-0 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
+        {/* INPUT PANEL - 500px on mobile, full height on desktop */}
+        <div className="flex flex-col h-[500px] lg:h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-400" size={20} />{t('drafting.configuration')}</h3>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4 min-h-0">
                 <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
@@ -242,8 +242,8 @@ const DraftingPage: React.FC = () => {
             </form>
         </div>
 
-        {/* RESULT PANEL */}
-        <div className="flex flex-col min-h-0 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
+        {/* RESULT PANEL - 600px on mobile, full height on desktop */}
+        <div className="flex flex-col h-[600px] lg:h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5 flex-shrink-0">
                 <h3 className="text-white font-semibold flex items-center gap-2">{statusDisplay.icon}<span className={statusDisplay.color}>{statusDisplay.text}</span></h3>
                 <div className="flex gap-2">
