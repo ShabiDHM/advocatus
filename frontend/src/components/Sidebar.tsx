@@ -1,8 +1,4 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - SIDEBAR V3.1 (CLEANUP)
-// 1. CHANGE: Removed Calendar Notification Badge (as requested).
-// 2. CLEANUP: Removed unused apiService and alert fetching logic.
-
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
@@ -24,18 +20,41 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const location = useLocation();
 
   const getNavItems = () => {
+    // REORDERED LIST: Business (Zyra Ime) is now first.
+    // RENAMED: Dashboard is now "Juristi AI".
     const baseItems = [
-      { icon: LayoutDashboard, label: t('sidebar.dashboard'), path: '/dashboard' },
-      { icon: Calendar, label: t('sidebar.calendar'), path: '/calendar' }, 
-      { icon: FileText, label: t('sidebar.drafting'), path: '/drafting' },
-      { icon: Building2, label: t('sidebar.business'), path: '/business' },
-      { icon: MessageSquare, label: t('sidebar.support'), path: '/support' },
+      { 
+        icon: Building2, 
+        label: t('sidebar.business', 'Zyra Ime'), 
+        path: '/business' 
+      },
+      { 
+        icon: LayoutDashboard, 
+        label: t('sidebar.juristi_ai', 'Juristi AI'), 
+        path: '/dashboard' 
+      },
+      { 
+        icon: Calendar, 
+        label: t('sidebar.calendar', 'Kalendari'), 
+        path: '/calendar' 
+      }, 
+      { 
+        icon: FileText, 
+        label: t('sidebar.drafting', 'Hartimi'), 
+        path: '/drafting' 
+      },
+      { 
+        icon: MessageSquare, 
+        label: t('sidebar.support', 'Ndihma'), 
+        path: '/support' 
+      },
     ];
 
+    // Admin panel inserted at index 1 (Second position, right after Zyra Ime)
     if (user?.role === 'ADMIN') {
       baseItems.splice(1, 0, {
         icon: Shield,
-        label: t('sidebar.admin'),
+        label: t('sidebar.admin', 'Admin Panel'),
         path: '/admin',
       });
     }
