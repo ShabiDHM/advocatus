@@ -1,7 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V2.2 (FINAL CLEANUP)
-// 1. CLEANUP: Removed unused 'ReactNode' and 'Document' imports.
-// 2. STATUS: Zero warnings. Production Ready.
+// PHOENIX PROTOCOL - CHAT PANEL V2.3 (LAYOUT FIX)
+// 1. FIX: Added 'break-words' class to markdown container to prevent text overflow.
+// 2. STATUS: Clean build.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -130,7 +130,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 return (
                     <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex items-end gap-2 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         {isAi && <div className="w-8 h-8 rounded-full bg-black/40 border border-white/10 flex items-center justify-center flex-shrink-0"><BrainCircuit className="w-4 h-4 text-primary-start" /></div>}
-                        <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-primary-start text-white rounded-br-none' : 'bg-white/10 text-gray-200 rounded-bl-none border border-white/5'}`}>
+                        
+                        {/* PHOENIX FIX: Added break-words to prevent overflow */}
+                        <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm break-words ${msg.role === 'user' ? 'bg-primary-start text-white rounded-br-none' : 'bg-white/10 text-gray-200 rounded-bl-none border border-white/5'}`}>
                             {msg.role === 'user' ? (
                                 msg.content
                             ) : useTyping ? (
