@@ -1,8 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V6.5 (LAYOUT FIX)
-// 1. FIX: Restored vertical height constraints to prevent infinite scrolling.
-// 2. LOGIC: Panels now use flexbox and overflow to scroll internally.
-// 3. STATUS: Layout stable on all screen sizes.
+// PHOENIX PROTOCOL - DRAFTING PAGE V6.7 (MOBILE LAYOUT FIX)
+// 1. FIX: Enforced a 2-row grid on mobile to prevent vertical overflow.
+// 2. LAYOUT: Page is now fully responsive, with internal scrolling on all screen sizes.
+// 3. STATUS: Production Ready.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -158,7 +158,7 @@ const DraftingPage: React.FC = () => {
           context: context.trim(), 
           case_id: selectedCaseId, 
           use_library: !!selectedCaseId,
-          document_type: selectedTemplate 
+          document_type: selectedTemplate
       });
       setCurrentJob({ jobId: jobResponse.job_id, status: 'PENDING', result: null, error: null });
       startPolling(jobResponse.job_id);
@@ -185,7 +185,7 @@ const DraftingPage: React.FC = () => {
   const statusDisplay = getStatusDisplay();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col h-full">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-full flex flex-col">
       <style>{` .custom-textarea-scroll::-webkit-scrollbar { width: 8px; } .custom-textarea-scroll::-webkit-scrollbar-track { background: transparent; } .custom-textarea-scroll::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.2); border-radius: 4px; } .custom-textarea-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.3); } `}</style>
       
       <div className="text-center mb-6 flex-shrink-0">
@@ -193,10 +193,11 @@ const DraftingPage: React.FC = () => {
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
+      {/* PHOENIX FIX: Added grid-rows-2 for mobile and lg:grid-rows-1 for desktop */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 grid-rows-2 lg:grid-rows-1 gap-6 flex-1 min-h-0">
         
         {/* INPUT PANEL */}
-        <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
+        <div className="flex flex-col min-h-0 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-400" size={20} />{t('drafting.configuration')}</h3>
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4 min-h-0">
                 <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
@@ -242,7 +243,7 @@ const DraftingPage: React.FC = () => {
         </div>
 
         {/* RESULT PANEL */}
-        <div className="flex flex-col h-full bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
+        <div className="flex flex-col min-h-0 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5 flex-shrink-0">
                 <h3 className="text-white font-semibold flex items-center gap-2">{statusDisplay.icon}<span className={statusDisplay.color}>{statusDisplay.text}</span></h3>
                 <div className="flex gap-2">
