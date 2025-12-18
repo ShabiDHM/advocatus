@@ -1,8 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V6.7 (MOBILE LAYOUT FIX)
-// 1. FIX: Enforced a 2-row grid on mobile to prevent vertical overflow.
-// 2. LAYOUT: Page is now fully responsive, with internal scrolling on all screen sizes.
-// 3. STATUS: Production Ready.
+// PHOENIX PROTOCOL - DRAFTING PAGE V6.8 (LAYOUT CONSISTENCY FIX)
+// 1. FIX: Enforced a fixed 600px height on the main grid for layout consistency.
+// 2. LAYOUT: Page now matches the height of the CaseViewPage panels.
+// 3. STATUS: Mobile and Desktop views are vertically constrained and consistent.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -193,8 +193,8 @@ const DraftingPage: React.FC = () => {
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
 
-      {/* PHOENIX FIX: Added grid-rows-2 for mobile and lg:grid-rows-1 for desktop */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 grid-rows-2 lg:grid-rows-1 gap-6 flex-1 min-h-0">
+      {/* PHOENIX FIX: Set fixed height on grid and define responsive rows */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-rows-1 gap-6 flex-1 h-[600px] lg:h-[700px]">
         
         {/* INPUT PANEL */}
         <div className="flex flex-col min-h-0 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge p-6 shadow-xl overflow-hidden">
