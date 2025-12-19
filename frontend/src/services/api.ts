@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER v3.4 (INTEGRATION HUB)
-// 1. ADDED: New 'uploadPosFile' method to enable the POS import feature.
-// 2. ADDED: New 'ImportBatchOut' interface to handle the response from the import endpoint.
+// PHOENIX PROTOCOL - API MASTER v3.5 (HISTORY & DRILL-DOWN)
+// 1. ADDED: TransactionOut interface.
+// 2. ADDED: getImportHistory and getBatchTransactions methods.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -20,6 +20,20 @@ export interface InvoiceUpdate { client_name?: string; client_email?: string; cl
 
 // NEW: Interface for the backend response after a successful file import
 export interface ImportBatchOut { id: string; filename: string; status: string; row_count: number; total_volume: number; created_at: string; }
+
+// NEW: Interface for individual transactions within a batch
+export interface TransactionOut {
+    id: string;
+    transaction_ref?: string;
+    date_time: string;
+    product_name: string;
+    quantity: number;
+    unit_price: number;
+    total_amount: number;
+    currency: string;
+    category?: string;
+    batch_id: string;
+}
 
 // Restored Local Expense Interfaces
 export interface Expense { id: string; category: string; amount: number; description?: string; date: string; currency: string; receipt_url?: string; }
@@ -96,7 +110,7 @@ class ApiService {
     public async getWizardState(month: number, year: number): Promise<WizardState> { const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', { params: { month, year } }); return response.data; }
     public async downloadMonthlyReport(month: number, year: number): Promise<void> { const response = await this.axiosInstance.get('/finance/wizard/report/pdf', { params: { month, year }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_${month}_${year}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
 
-    // --- NEW POS IMPORT FUNCTION ---
+    // --- POS IMPORT METHODS ---
     public async uploadPosFile(file: File): Promise<ImportBatchOut> {
         const formData = new FormData();
         formData.append('file', file);
@@ -105,6 +119,17 @@ class ApiService {
         });
         return response.data;
     }
+
+    public async getImportHistory(): Promise<ImportBatchOut[]> {
+        const response = await this.axiosInstance.get<ImportBatchOut[]>('/finance/import-history');
+        return response.data;
+    }
+
+    public async getBatchTransactions(batchId: string): Promise<TransactionOut[]> {
+        const response = await this.axiosInstance.get<TransactionOut[]>(`/finance/import-history/${batchId}/transactions`);
+        return response.data;
+    }
+    // -------------------------
 
     public async getInvoices(): Promise<Invoice[]> { const response = await this.axiosInstance.get<any>('/finance/invoices'); return Array.isArray(response.data) ? response.data : (response.data.invoices || []); }
     public async createInvoice(data: InvoiceCreateRequest): Promise<Invoice> { const response = await this.axiosInstance.post<Invoice>('/finance/invoices', data); return response.data; }

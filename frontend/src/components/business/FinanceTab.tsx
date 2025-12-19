@@ -1,18 +1,16 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V11.0 (FUNCTIONAL UPLOAD)
-// 1. FIX: Activated the apiService.uploadPosFile call in handleFileUpload.
-// 2. ADDED: Proper success and error alerting for the upload process.
-// 3. ADDED: State management for import history.
+// PHOENIX PROTOCOL - FINANCE TAB V12.1 (CLEANUP)
+// 1. FIXED: Removed unused 'Search' import to resolve TypeScript warning.
 
 import React, { useEffect, useState, useRef, useMemo, Fragment } from 'react';
 import { motion } from 'framer-motion';
 import { Menu, Transition } from '@headlessui/react';
 import { 
     TrendingUp, TrendingDown, Wallet, Calculator, MinusCircle, Plus, FileText, 
-    Edit2, Eye, Download, Archive, Trash2, CheckCircle, Paperclip, X, User, Activity, Loader2, UploadCloud, BarChart2, History, FileUp, MoreVertical
+    Edit2, Eye, Download, Archive, Trash2, CheckCircle, Paperclip, X, User, Activity, Loader2, UploadCloud, BarChart2, History, FileUp, MoreVertical, ChevronRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { apiService, Expense, ExpenseCreateRequest, ImportBatchOut } from '../../services/api';
+import { apiService, Expense, ExpenseCreateRequest, ImportBatchOut, TransactionOut } from '../../services/api';
 import { Invoice, InvoiceItem, Case, Document } from '../../data/types';
 import { useTranslation } from 'react-i18next';
 import PDFViewerModal from '../PDFViewerModal';
@@ -76,6 +74,11 @@ export const FinanceTab: React.FC = () => {
     const [showArchiveInvoiceModal, setShowArchiveInvoiceModal] = useState(false);
     const [showArchiveExpenseModal, setShowArchiveExpenseModal] = useState(false);
     
+    // Drill-Down Modal State
+    const [selectedBatch, setSelectedBatch] = useState<ImportBatchOut | null>(null);
+    const [batchTransactions, setBatchTransactions] = useState<TransactionOut[]>([]);
+    const [loadingTransactions, setLoadingTransactions] = useState(false);
+
     // Selection / Edit States
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
@@ -103,17 +106,37 @@ export const FinanceTab: React.FC = () => {
     // --- DATA ---
     const loadInitialData = async () => {
         try {
-            // PHOENIX: In the future, this should also fetch import batches
-            const [inv, exp, cs] = await Promise.all([
+            const [inv, exp, cs, batches] = await Promise.all([
                 apiService.getInvoices().catch(() => []),
                 apiService.getExpenses().catch(() => []),
                 apiService.getCases().catch(() => []),
+                apiService.getImportHistory().catch(() => [])
             ]);
-            setInvoices(inv); setExpenses(exp); setCases(cs); 
+            setInvoices(inv); setExpenses(exp); setCases(cs); setImportBatches(batches);
         } catch (e) { console.error(e); } finally { setLoading(false); }
     };
 
     useEffect(() => { loadInitialData(); }, []);
+
+    // Handle Batch Drill-Down
+    const handleViewBatch = async (batch: ImportBatchOut) => {
+        setSelectedBatch(batch);
+        setLoadingTransactions(true);
+        try {
+            const txs = await apiService.getBatchTransactions(batch.id);
+            setBatchTransactions(txs);
+        } catch (e) {
+            console.error("Failed to fetch transactions", e);
+            alert("Could not load transactions.");
+        } finally {
+            setLoadingTransactions(false);
+        }
+    };
+
+    const closeBatchModal = () => {
+        setSelectedBatch(null);
+        setBatchTransactions([]);
+    };
 
     const totalIncome = invoices.reduce((sum, inv) => sum + inv.total_amount, 0);
     const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
@@ -161,7 +184,6 @@ export const FinanceTab: React.FC = () => {
         setIsUploading(true);
         setUploadError(null);
         try {
-            // PHOENIX FIX: The API call is now active.
             const response = await apiService.uploadPosFile(uploadFile);
             setImportBatches(prev => [response, ...prev].sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
             alert(`Sukses! U importuan ${response.row_count} transaksione.`);
@@ -199,17 +221,20 @@ export const FinanceTab: React.FC = () => {
                                     <p className="text-gray-500 italic text-sm text-center py-10">{t('finance.historyDescription')}</p>
                                 ) : (
                                     importBatches.map(batch => (
-                                        <div key={batch.id} className="bg-white/5 border border-white/10 rounded-xl p-3 flex justify-between items-center">
+                                        <div onClick={() => handleViewBatch(batch)} key={batch.id} className="bg-white/5 border border-white/10 rounded-xl p-3 flex justify-between items-center cursor-pointer hover:bg-white/10 transition-colors">
                                             <div className="flex items-center gap-3">
-                                                <CheckCircle size={18} className="text-emerald-400" />
+                                                <div className="p-2 bg-emerald-500/10 rounded-lg"><CheckCircle size={18} className="text-emerald-400" /></div>
                                                 <div>
                                                     <p className="font-medium text-white text-sm">{batch.filename}</p>
                                                     <p className="text-xs text-gray-500 font-mono">{new Date(batch.created_at).toLocaleString()}</p>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-sm font-medium text-white">{batch.row_count} Transaksione</p>
-                                                <p className="text-xs text-gray-500 font-mono">+€{batch.total_volume.toFixed(2)}</p>
+                                            <div className="flex items-center gap-3">
+                                                <div className="text-right">
+                                                    <p className="text-sm font-medium text-white">{batch.row_count} Transaksione</p>
+                                                    <p className="text-xs text-gray-500 font-mono">+€{batch.total_volume.toFixed(2)}</p>
+                                                </div>
+                                                <ChevronRight size={16} className="text-gray-500" />
                                             </div>
                                         </div>
                                     ))
@@ -220,7 +245,63 @@ export const FinanceTab: React.FC = () => {
                 </div>
             </div>
 
+            {/* --- MODALS --- */}
+            {/* 1. UPLOAD MODAL */}
             {showImportModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-lg p-6"><div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold text-white flex items-center gap-2"><FileUp size={20} className="text-indigo-400" /> {t('finance.importModal.title')}</h2><button onClick={closeImportModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><p className="text-sm text-gray-400 mb-6">{t('finance.importModal.description')}</p><div><label htmlFor="file-upload" className="w-full py-10 border-2 border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-white/5 hover:border-indigo-400">{uploadFile ? (<><FileText size={32} className="text-indigo-400" /><span className="font-medium text-white">{uploadFile.name}</span><span className="text-xs text-gray-400">{t('finance.importModal.changeFile')}</span></>) : (<><UploadCloud size={32} className="text-gray-500" /><span className="font-medium text-white">{t('finance.importModal.selectFile')}</span><span className="text-xs text-gray-500">{t('finance.importModal.fileTypes')}</span></>)}</label><input id="file-upload" type="file" className="hidden" accept=".csv,.xlsx,.xls" onChange={handleFileSelect} />{uploadError && <p className="text-rose-400 text-sm mt-2 text-center">{uploadError}</p>}</div><div className="flex justify-end gap-3 pt-6 mt-6 border-t border-white/10"><button type="button" onClick={closeImportModal} className="px-4 py-2 text-gray-400 rounded-lg hover:bg-white/5">{t('general.cancel')}</button><button type="button" onClick={handleFileUpload} disabled={!uploadFile || isUploading} className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold flex items-center gap-2 disabled:opacity-50 hover:bg-indigo-500">{isUploading ? <Loader2 className="animate-spin" size={18} /> : <FileUp size={18} />}{isUploading ? t('finance.importModal.importing') : t('finance.importModal.import')}</button></div></div></div>)}
+            
+            {/* 2. TRANSACTION DRILL-DOWN MODAL (NEW) */}
+            {selectedBatch && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col p-6">
+                        <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-4">
+                            <div>
+                                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                    <FileText size={20} className="text-indigo-400" /> 
+                                    {selectedBatch.filename}
+                                </h2>
+                                <p className="text-xs text-gray-400 mt-1">{new Date(selectedBatch.created_at).toLocaleString()}</p>
+                            </div>
+                            <button onClick={closeBatchModal} className="text-gray-400 hover:text-white"><X size={24} /></button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto custom-finance-scroll min-h-[300px]">
+                            {loadingTransactions ? (
+                                <div className="flex justify-center items-center h-full">
+                                    <Loader2 className="animate-spin text-indigo-400" size={32} />
+                                </div>
+                            ) : (
+                                <table className="w-full text-sm text-left text-gray-400">
+                                    <thead className="text-xs text-gray-500 uppercase bg-white/5 sticky top-0 backdrop-blur-md">
+                                        <tr>
+                                            <th className="px-4 py-3 rounded-tl-lg">Produkti</th>
+                                            <th className="px-4 py-3 text-right">Sasia</th>
+                                            <th className="px-4 py-3 text-right">Çmimi</th>
+                                            <th className="px-4 py-3 text-right rounded-tr-lg">Totali</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {batchTransactions.map((tx) => (
+                                            <tr key={tx.id} className="hover:bg-white/5 transition-colors">
+                                                <td className="px-4 py-3 font-medium text-white">{tx.product_name}</td>
+                                                <td className="px-4 py-3 text-right font-mono">{tx.quantity}</td>
+                                                <td className="px-4 py-3 text-right font-mono">€{tx.unit_price.toFixed(2)}</td>
+                                                <td className="px-4 py-3 text-right font-bold text-emerald-400">€{tx.total_amount.toFixed(2)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                        
+                        <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center text-sm">
+                            <span className="text-gray-400">Gjithsej {batchTransactions.length} rreshta</span>
+                            <span className="text-white font-bold text-lg">Total: €{selectedBatch.total_volume.toFixed(2)}</span>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 3. EXISTING MODALS (INVOICE, EXPENSE, ARCHIVE) */}
             {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 custom-finance-scroll"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{editingInvoiceId ? t('finance.editInvoice') : t('finance.createInvoice')}</h2><button onClick={closeInvoiceModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateOrUpdateInvoice} className="space-y-6"><div className="space-y-4">{editingInvoiceId && (<div className="bg-white/5 p-4 rounded-xl border-white/10 mb-4"><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2"><Activity size={14} /> {t('finance.statusLabel')}</label><select value={newInvoice.status} onChange={(e) => setNewInvoice({...newInvoice, status: e.target.value})} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white"><option value="DRAFT">{t('finance.status.draft')}</option><option value="SENT">{t('finance.status.sent')}</option><option value="PAID">{t('finance.status.paid')}</option><option value="CANCELLED">{t('finance.status.cancelled')}</option></select></div>)}<h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-sm text-gray-300 mb-1">{t('business.firmNameLabel')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.publicEmail')}</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.phone')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.address')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> {t('finance.services')}</h3>{lineItems.map((item, index) => (<div key={index} className="flex flex-col sm:flex-row gap-2 items-center"><input type="text" placeholder={t('finance.description')} className="flex-1 w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder={t('finance.qty')} className="w-full sm:w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder={t('finance.price')} className="w-full sm:w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg self-end sm:self-center"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> {t('finance.addLine')}</button></div><div className="flex justify-end gap-3"><button type="button" onClick={closeInvoiceModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
             {showExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-white flex items-center gap-2"><MinusCircle size={20} className="text-rose-500" /> {editingExpenseId ? t('finance.editExpense') : t('finance.addExpense')}</h2><button onClick={closeExpenseModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><div className="mb-6"><input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => setExpenseReceipt(e.target.files?.[0] || null)} /><button onClick={() => receiptInputRef.current?.click()} className={`w-full py-3 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all ${expenseReceipt ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>{expenseReceipt ? (<><CheckCircle size={18} /> {expenseReceipt.name}</>) : (<><Paperclip size={18} /> {t('finance.attachReceipt')}</>)}</button></div><form onSubmit={handleCreateOrUpdateExpense} className="space-y-5"><div><label className="block text-sm text-gray-300 mb-1">{t('finance.expenseCategory')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.category} onChange={e => setNewExpense({...newExpense, category: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.amount')}</label><input required type="number" step="0.01" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: parseFloat(e.target.value)})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.date')}</label><DatePicker selected={expenseDate} onChange={(date: Date | null) => setExpenseDate(date)} locale={currentLocale} dateFormat="dd/MM/yyyy" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" required /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.description')}</label><textarea rows={3} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})} /></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={closeExpenseModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
             {showArchiveInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6"><h2 className="text-xl font-bold text-white mb-4">{t('finance.archiveInvoice')}</h2><div className="mb-6"><label className="block text-sm text-gray-400 mb-1">{t('drafting.selectCaseLabel')}</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id}>{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-6 py-2 bg-blue-600 text-white rounded-lg">{t('general.save')}</button></div></div></div>)}
