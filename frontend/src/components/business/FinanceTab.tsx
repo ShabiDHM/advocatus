@@ -123,7 +123,7 @@ export const FinanceTab: React.FC = () => {
     const [newInvoice, setNewInvoice] = useState({ 
         client_name: '', client_email: '', client_phone: '', client_address: '', 
         client_city: '', client_tax_id: '', client_website: '', 
-        tax_rate: 18, notes: '', status: 'DRAFT' 
+        tax_rate: 18, notes: '', status: 'DRAFT', related_case_id: '' 
     });
     // Toggle for VAT
     const [includeVat, setIncludeVat] = useState(true);
@@ -180,17 +180,31 @@ export const FinanceTab: React.FC = () => {
 
     const historyByCase = useMemo(() => {
         return cases.map(c => {
+            // Get Expenses
             const caseExpenses = expenses.filter(e => e.related_case_id === c.id);
+            // Get Invoices (assuming related_case_id exists on invoice, falling back if not typed)
+            const caseInvoices = invoices.filter(i => (i as any).related_case_id === c.id);
+            
             const expenseTotal = caseExpenses.reduce((sum, e) => sum + e.amount, 0);
+            const invoiceTotal = caseInvoices.reduce((sum, i) => sum + i.total_amount, 0);
+            const balance = invoiceTotal - expenseTotal;
+
+            // Combine for Timeline
+            const activity = [
+                ...caseExpenses.map(e => ({ ...e, type: 'expense', date: e.date, amount: e.amount, label: e.category })),
+                ...caseInvoices.map(i => ({ ...i, type: 'invoice', date: i.issue_date, amount: i.total_amount, label: i.client_name }))
+            ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             
             return {
                 caseData: c,
                 expenseTotal,
-                expenses: caseExpenses,
-                hasActivity: caseExpenses.length > 0
+                invoiceTotal,
+                balance,
+                activity,
+                hasActivity: activity.length > 0
             };
-        }).filter(x => x.hasActivity).sort((a, b) => b.expenseTotal - a.expenseTotal);
-    }, [cases, expenses]);
+        }).filter(x => x.hasActivity).sort((a, b) => b.balance - a.balance); // Sort by balance? Or activity date? Let's default to balance magnitude or just most active? Kept default sort logic.
+    }, [cases, expenses, invoices]);
 
     // --- HELPER: Smart Icons for Expenses ---
     const getCategoryIcon = (category: string) => {
@@ -228,7 +242,6 @@ export const FinanceTab: React.FC = () => {
     // --- Invoice Handlers ---
     const handleEditInvoice = (invoice: Invoice) => { 
         setEditingInvoiceId(invoice.id); 
-        // FIX: Correctly mapping all client fields
         setNewInvoice({ 
             client_name: invoice.client_name, 
             client_email: invoice.client_email || '', 
@@ -239,7 +252,8 @@ export const FinanceTab: React.FC = () => {
             client_website: (invoice as any).client_website || '', 
             tax_rate: invoice.tax_rate, 
             notes: invoice.notes || '', 
-            status: invoice.status 
+            status: invoice.status,
+            related_case_id: (invoice as any).related_case_id || '' 
         }); 
         setIncludeVat(invoice.tax_rate > 0);
         setLineItems(invoice.items); 
@@ -249,7 +263,6 @@ export const FinanceTab: React.FC = () => {
     const handleCreateOrUpdateInvoice = async (e: React.FormEvent) => { 
         e.preventDefault(); 
         try { 
-            // FIX: Including all client fields in payload
             const payload = { 
                 client_name: newInvoice.client_name, 
                 client_email: newInvoice.client_email, 
@@ -258,6 +271,7 @@ export const FinanceTab: React.FC = () => {
                 client_city: newInvoice.client_city,
                 client_tax_id: newInvoice.client_tax_id,
                 client_website: newInvoice.client_website,
+                related_case_id: newInvoice.related_case_id, // Added Related Case
                 items: lineItems, 
                 tax_rate: includeVat ? newInvoice.tax_rate : 0, 
                 notes: newInvoice.notes, 
@@ -283,7 +297,7 @@ export const FinanceTab: React.FC = () => {
         setNewInvoice({ 
             client_name: '', client_email: '', client_phone: '', client_address: '', 
             client_city: '', client_tax_id: '', client_website: '', 
-            tax_rate: 18, notes: '', status: 'DRAFT' 
+            tax_rate: 18, notes: '', status: 'DRAFT', related_case_id: ''
         }); 
         setIncludeVat(true);
         setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); 
@@ -410,14 +424,13 @@ export const FinanceTab: React.FC = () => {
                             </div>
                         )}
                         
-                        {/* TAB: REPORTS - NOW SCROLLABLE TO MATCH CONSISTENCY */}
+                        {/* TAB: REPORTS */}
                         {activeTab === 'reports' && (
                             <div className="h-full overflow-y-auto custom-finance-scroll pr-2 space-y-6">
                                 {!analyticsData ? <div className="space-y-6"><SkeletonChart /><SkeletonGrid /></div> : (
                                     <>
                                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                                             <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-indigo-400"/> {t('finance.analytics.salesTrend')}</h4>
-                                            {/* FIX: Added min-h */}
                                             <div className="h-64 w-full min-h-[250px]">
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <AreaChart data={analyticsData.sales_trend}>
@@ -443,7 +456,6 @@ export const FinanceTab: React.FC = () => {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
                                             <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                                                 <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2"><BarChart2 size={16} className="text-emerald-400" /> {t('finance.analytics.topProducts')}</h4>
-                                                {/* FIX: Added min-h */}
                                                 <div className="h-64 w-full min-h-[250px]">
                                                     <ResponsiveContainer width="100%" height="100%">
                                                         <BarChart data={analyticsData.top_products} layout="vertical">
@@ -490,7 +502,7 @@ export const FinanceTab: React.FC = () => {
                             </div>
                         )}
 
-                        {/* TAB: HISTORY */}
+                        {/* TAB: HISTORY - MODIFIED TO SHOW INVOICES AND EXPENSES */}
                         {activeTab === 'history' && (
                             <div className="flex flex-col h-full space-y-4">
                                 <div className="space-y-4 flex-1 overflow-y-auto custom-finance-scroll pr-2">
@@ -498,7 +510,7 @@ export const FinanceTab: React.FC = () => {
                                         <div className="flex justify-center items-center h-full text-gray-500 text-center flex-col">
                                             <div className="bg-white/5 p-4 rounded-full mb-3"><Briefcase size={32} className="text-gray-600" /></div>
                                             <p className="font-bold text-gray-400">{t('finance.noHistoryData', "Nuk ka të dhëna historike")}</p>
-                                            <p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime të lidhura me lëndë për të parë pasqyrën këtu.")}</p>
+                                            <p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime ose fatura të lidhura me lëndë për të parë pasqyrën këtu.")}</p>
                                         </div>
                                     ) : (
                                         historyByCase.map((item) => (
@@ -518,8 +530,8 @@ export const FinanceTab: React.FC = () => {
                                                     </div>
                                                     <div className="flex items-center gap-4">
                                                         <div className="text-right">
-                                                            <p className="text-xs text-gray-400 uppercase">{t('finance.expense')}</p>
-                                                            <p className="font-bold text-rose-400">-€{item.expenseTotal.toFixed(2)}</p>
+                                                            <p className="text-xs text-gray-400 uppercase">{t('finance.balance', 'Bilanci')}</p>
+                                                            <p className={`font-bold ${item.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{item.balance >= 0 ? '+' : ''}€{item.balance.toFixed(2)}</p>
                                                         </div>
                                                         {expandedCaseId === item.caseData.id ? <ChevronDown size={18} className="text-gray-500"/> : <ChevronRight size={18} className="text-gray-500"/>}
                                                     </div>
@@ -528,13 +540,16 @@ export const FinanceTab: React.FC = () => {
                                                 {expandedCaseId === item.caseData.id && (
                                                     <div className="bg-black/20 p-4 border-t border-white/5 space-y-2">
                                                         <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>
-                                                        {item.expenses.map(exp => (
-                                                            <div key={exp.id} className="flex justify-between items-center text-sm py-1 border-b border-white/5 last:border-0">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-gray-400">{new Date(exp.date).toLocaleDateString('sq-AL')}</span>
-                                                                    <span className="text-white">{exp.category}</span>
+                                                        {item.activity.map((act, idx) => (
+                                                            <div key={`${act.type}-${idx}`} className="flex justify-between items-center text-sm py-1 border-b border-white/5 last:border-0">
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="text-gray-400 text-xs font-mono">{new Date(act.date).toLocaleDateString('sq-AL')}</span>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-white font-medium">{act.label || act.type}</span>
+                                                                        <span className={`text-[10px] uppercase ${act.type === 'invoice' ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>{act.type === 'invoice' ? t('finance.invoice') : t('finance.expense')}</span>
+                                                                    </div>
                                                                 </div>
-                                                                <span className="text-rose-400 font-mono">-€{exp.amount.toFixed(2)}</span>
+                                                                <span className={`${act.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'} font-mono`}>{act.type === 'invoice' ? '+' : '-'}€{act.amount.toFixed(2)}</span>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -550,7 +565,17 @@ export const FinanceTab: React.FC = () => {
             </div>
 
             {/* --- MODALS --- */}
-            {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 custom-finance-scroll"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{editingInvoiceId ? t('finance.editInvoice') : t('finance.createInvoice')}</h2><button onClick={closeInvoiceModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateOrUpdateInvoice} className="space-y-6"><div className="space-y-4">{editingInvoiceId && (<div className="bg-white/5 p-4 rounded-xl border-white/10 mb-4"><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2"><Activity size={14} /> {t('finance.statusLabel')}</label><select value={newInvoice.status} onChange={(e) => setNewInvoice({...newInvoice, status: e.target.value})} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white"><option value="DRAFT">{t('finance.status.draft')}</option><option value="SENT">{t('finance.status.sent')}</option><option value="PAID">{t('finance.status.paid')}</option><option value="CANCELLED">{t('finance.status.cancelled')}</option></select></div>)}<h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-sm text-gray-300 mb-1">{t('business.firmNameLabel')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.publicEmail')}</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.phone')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.address')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div><div className="flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/10"><input type="checkbox" id="vatToggle" checked={includeVat} onChange={(e) => setIncludeVat(e.target.checked)} className="w-4 h-4 text-primary-start rounded border-gray-300 focus:ring-primary-start" /><label htmlFor="vatToggle" className="text-sm text-gray-300 cursor-pointer select-none">Apliko TVSH (18%)</label></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> {t('finance.services')}</h3>{lineItems.map((item, index) => (<div key={index} className="flex flex-col sm:flex-row gap-2 items-center"><input type="text" placeholder={t('finance.description')} className="flex-1 w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder={t('finance.qty')} className="w-full sm:w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder={t('finance.price')} className="w-full sm:w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg self-end sm:self-center"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> {t('finance.addLine')}</button></div><div className="flex justify-end gap-3"><button type="button" onClick={closeInvoiceModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
+            {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 custom-finance-scroll"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{editingInvoiceId ? t('finance.editInvoice') : t('finance.createInvoice')}</h2><button onClick={closeInvoiceModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateOrUpdateInvoice} className="space-y-6"><div className="space-y-4">{editingInvoiceId && (<div className="bg-white/5 p-4 rounded-xl border-white/10 mb-4"><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2"><Activity size={14} /> {t('finance.statusLabel')}</label><select value={newInvoice.status} onChange={(e) => setNewInvoice({...newInvoice, status: e.target.value})} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white"><option value="DRAFT">{t('finance.status.draft')}</option><option value="SENT">{t('finance.status.sent')}</option><option value="PAID">{t('finance.status.paid')}</option><option value="CANCELLED">{t('finance.status.cancelled')}</option></select></div>)}<h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3>
+            {/* Added Case Selection for Invoice */}
+            <div>
+                <label className="block text-sm text-gray-300 mb-1">{t('drafting.selectCaseLabel', "Lënda e Lidhur (Opsionale)")}</label>
+                <select value={newInvoice.related_case_id} onChange={e => setNewInvoice({...newInvoice, related_case_id: e.target.value})} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white">
+                    <option value="">-- {t('finance.noCase', 'Pa Lëndë')} --</option>
+                    {cases.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                </select>
+            </div>
+            {/* Changed Label to "Emri" */}
+            <div><label className="block text-sm text-gray-300 mb-1">{t('business.clientName', 'Emri')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.publicEmail')}</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.phone')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.address')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div><div className="flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/10"><input type="checkbox" id="vatToggle" checked={includeVat} onChange={(e) => setIncludeVat(e.target.checked)} className="w-4 h-4 text-primary-start rounded border-gray-300 focus:ring-primary-start" /><label htmlFor="vatToggle" className="text-sm text-gray-300 cursor-pointer select-none">Apliko TVSH (18%)</label></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> {t('finance.services')}</h3>{lineItems.map((item, index) => (<div key={index} className="flex flex-col sm:flex-row gap-2 items-center"><input type="text" placeholder={t('finance.description')} className="flex-1 w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder={t('finance.qty')} className="w-full sm:w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder={t('finance.price')} className="w-full sm:w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg self-end sm:self-center"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> {t('finance.addLine')}</button></div><div className="flex justify-end gap-3"><button type="button" onClick={closeInvoiceModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
             {showExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-white flex items-center gap-2"><MinusCircle size={20} className="text-rose-500" /> {editingExpenseId ? t('finance.editExpense') : t('finance.addExpense')}</h2><button onClick={closeExpenseModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><div className="mb-6"><input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => setExpenseReceipt(e.target.files?.[0] || null)} /><button onClick={() => receiptInputRef.current?.click()} className={`w-full py-3 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all ${expenseReceipt ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>{expenseReceipt ? (<><CheckCircle size={18} /> {expenseReceipt.name}</>) : (<><Paperclip size={18} /> {t('finance.attachReceipt')}</>)}</button></div><form onSubmit={handleCreateOrUpdateExpense} className="space-y-5">
                 <div>
                     <label className="block text-sm text-gray-300 mb-1">{t('drafting.selectCaseLabel', "Lënda e Lidhur (Opsionale)")}</label>
