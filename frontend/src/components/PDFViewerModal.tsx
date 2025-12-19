@@ -1,8 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V2.2 (MINIMIZE BUTTON)
-// 1. FIX: Added Minimize button next to Download button.
-// 2. UI: Uses 'Minus' icon for standard minimize visual.
-// 3. STATUS: Ready for integration with CaseViewPage.
+// PHOENIX PROTOCOL - PDF VIEWER V2.3 (SCROLL & MOBILE FIX)
+// 1. FIX: Injected specific styles for dark-theme scrollbars (custom-pdf-scroll).
+// 2. UI: Mobile optimizations - hidden text labels on small screens, adjusted spacing.
+// 3. FEATURE: Supports Minimize button (visuals prepared, requires parent handler).
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -239,7 +239,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     switch (actualViewerMode) {
       case 'PDF':
         return (
-          <div className="flex flex-col items-center w-full min-h-full bg-[#2a2a2a] overflow-auto pt-4 pb-20" ref={containerRef}>
+          <div className="flex flex-col items-center w-full min-h-full bg-[#2a2a2a] overflow-auto pt-4 pb-20 custom-pdf-scroll" ref={containerRef}>
              <div className="flex justify-center w-full">
                  <PdfDocument 
                     file={pdfSource} 
@@ -281,7 +281,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       case 'IMAGE':
         if (isLoading) return <div className="flex justify-center items-center h-full"><Loader className="animate-spin text-primary-start" /></div>;
         return (
-            <div className="flex items-center justify-center h-full p-4 overflow-auto touch-pinch-zoom">
+            <div className="flex items-center justify-center h-full p-4 overflow-auto touch-pinch-zoom custom-pdf-scroll">
                 <img 
                     src={imageSource!} 
                     alt="Doc" 
@@ -310,6 +310,14 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             className="bg-[#1a1a1a] w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-glass-edge" 
             onClick={(e) => e.stopPropagation()}
         >
+          {/* FIX: Injected Custom Scrollbar Styles */}
+          <style>{`
+            .custom-pdf-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+            .custom-pdf-scroll::-webkit-scrollbar-track { background: #1a1a1a; }
+            .custom-pdf-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+            .custom-pdf-scroll::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+          `}</style>
+
           <header className="flex flex-wrap items-center justify-between p-3 sm:p-4 bg-background-light/95 border-b border-glass-edge backdrop-blur-xl z-20 gap-2 shrink-0">
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 <h2 className="text-sm sm:text-lg font-bold text-gray-200 truncate max-w-[150px] sm:max-w-md">{documentData.file_name}</h2>
@@ -323,9 +331,13 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                 )}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button onClick={handleDownloadOriginal} className="p-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg transition-colors border border-primary-start/30" title={t('pdfViewer.downloadOriginal', { defaultValue: 'Shkarko Origjinalin' })}><Download size={20} /></button>
+              {/* FIX: Hide text on mobile */}
+              <button onClick={handleDownloadOriginal} className="p-2 sm:px-4 sm:py-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg transition-colors border border-primary-start/30 flex items-center gap-2" title={t('pdfViewer.downloadOriginal', { defaultValue: 'Shkarko Origjinalin' })}>
+                  <Download size={20} />
+                  <span className="hidden sm:inline text-sm font-medium">{t('pdfViewer.downloadOriginalShort', { defaultValue: 'Shkarko' })}</span>
+              </button>
               
-              {/* PHOENIX: Minimize button added here */}
+              {/* Minimize Button */}
               {onMinimize && (
                   <button onClick={onMinimize} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" title={t('pdfViewer.minimize', { defaultValue: 'Minimizo' })}>
                       <Minus size={24} />
@@ -336,7 +348,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             </div>
           </header>
           
-          <div className="flex-grow relative bg-[#0f0f0f] overflow-auto flex flex-col custom-scrollbar touch-pan-y">
+          <div className="flex-grow relative bg-[#0f0f0f] overflow-auto flex flex-col custom-pdf-scroll touch-pan-y">
               {renderContent()}
           </div>
           
