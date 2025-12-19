@@ -1,8 +1,7 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - UI CONSISTENCY & TRANSLATION FIX
-// 1. FIX (TRANSLATION): All hardcoded text in the UI and edit modal has been replaced with 't' function keys.
-// 2. FIX (ROLES): The role dropdown now correctly uses 'STANDARD' as the value for regular users.
-// 3. CLEANUP: Removed the final unused 'XCircle' import to ensure a perfectly clean build.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V2.1 (STATUS SYNC)
+// 1. FIX: The 'Account Status' dropdown now updates BOTH 'status' (login) and 'subscription_status' (billing).
+// 2. LOGIC: Ensures that activating a user in the UI actually unlocks their login.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -48,15 +47,30 @@ const AdminDashboardPage: React.FC = () => {
             username: user.username,
             email: user.email,
             role: user.role || 'STANDARD',
+            // Default to subscription_status, but fallback to 'INACTIVE'
             subscription_status: user.subscription_status || 'INACTIVE',
+            // Also track the login status
+            status: (user as any).status || 'inactive'
         });
     };
 
     const handleUpdateUser = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUser?.id) return;
+        
         try {
-            await apiService.updateUser(editingUser.id, editForm);
+            // PHOENIX FIX: Synchronize the 'status' (Login) with 'subscription_status' (Billing)
+            // If the admin selects ACTIVE, both should become active.
+            const uiStatus = editForm.subscription_status; 
+            
+            const payload: UpdateUserRequest = {
+                ...editForm,
+                // Critical: Map UI selection (UPPERCASE) to Backend Login Status (lowercase)
+                status: uiStatus === 'ACTIVE' ? 'active' : 'inactive',
+                subscription_status: uiStatus // Keep as is for billing
+            };
+
+            await apiService.updateUser(editingUser.id, payload);
             setEditingUser(null);
             loadUsers(); 
         } catch (error) {
@@ -81,8 +95,13 @@ const AdminDashboardPage: React.FC = () => {
     );
 
     const renderStatusBadge = (user: User) => {
-        const status = user.subscription_status || 'INACTIVE';
-        if (status === 'ACTIVE') {
+        // Check BOTH statuses to be sure
+        const subStatus = user.subscription_status || 'INACTIVE';
+        const loginStatus = (user as any).status || 'inactive';
+        
+        const isActive = subStatus === 'ACTIVE' && loginStatus === 'active';
+
+        if (isActive) {
             return <span className="flex items-center text-green-400 bg-green-400/10 px-2 py-1 rounded-full text-xs font-medium w-fit"><CheckCircle className="w-3 h-3 mr-1" /> {t('admin.statuses.ACTIVE', 'Active')}</span>;
         }
         return <span className="flex items-center text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-full text-xs font-medium w-fit"><Clock className="w-3 h-3 mr-1" /> {t('admin.statuses.INACTIVE', 'Pending')}</span>;
