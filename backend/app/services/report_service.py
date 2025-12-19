@@ -1,8 +1,8 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT SERVICE V4.1 (FINDINGS REMOVAL)
-# 1. REMOVED: findings_service import (Resolves Import Crash).
-# 2. REMOVED: generate_findings_report_pdf (Dead Logic).
-# 3. STATUS: Clean and Safe.
+# PHOENIX PROTOCOL - REPORT SERVICE V4.2 (CLIENT DETAILS FIX)
+# 1. FIX: Updated PDF generation to explicitly render client_phone, client_city, client_tax_id, and client_website.
+# 2. LOGIC: Replaced legacy address regex parsing with structured field rendering.
+# 3. STATUS: Production Ready.
 
 import io
 import os
@@ -228,25 +228,40 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     Story.append(Table([[Paragraph(_get_text('invoice_title', lang), STYLES['H1']), Table(meta_data, colWidths=[80*mm], style=[('ALIGN', (0,0), (-1,-1), 'RIGHT')])]], colWidths=[100*mm, 80*mm], style=[('VALIGN', (0,0), (-1,-1), 'TOP')]))
     Story.append(Spacer(1, 15*mm))
 
+    # --- CLIENT DETAILS BLOCK FIX ---
     client_content: List[Flowable] = []
+    # 1. Client Name
     client_content.append(Paragraph(f"<b>{invoice.client_name}</b>", STYLES['AddressText']))
     
-    raw_addr = invoice.client_address or ""
-    lines = [l.strip() for l in raw_addr.split('\n') if l.strip()]
-    labeled_address = False
-    for line in lines:
-        if re.match(r'^(Tel|NUI|Email|Web|Adresa|Mob|Nr\.|Fiscal)[:.]', line, re.IGNORECASE):
-            formatted = line
-            if ':' in line: parts = line.split(':', 1); formatted = f"<b>{parts[0].strip()}:</b> {parts[1].strip()}"
-        else:
-            if '@' in line: formatted = f"<b>{_get_text('lbl_email', lang)}</b> {line}"
-            elif line.lower().startswith('www') or line.lower().startswith('http'): formatted = f"<b>{_get_text('lbl_web', lang)}</b> {line}"
-            elif not labeled_address: formatted = f"<b>{_get_text('lbl_address', lang)}</b> {line}"; labeled_address = True
-            else: formatted = line
-        client_content.append(Paragraph(formatted, STYLES['AddressText']))
+    # 2. Address & City
+    c_address = getattr(invoice, 'client_address', '')
+    c_city = getattr(invoice, 'client_city', '')
+    full_address = c_address
+    if c_city:
+        full_address = f"{c_address}, {c_city}" if c_address else c_city
+    
+    if full_address:
+        client_content.append(Paragraph(f"<b>{_get_text('lbl_address', lang)}</b> {full_address}", STYLES['AddressText']))
 
-    if invoice.client_email and '@' not in raw_addr:
-        client_content.append(Paragraph(f"<b>{_get_text('lbl_email', lang)}</b> {invoice.client_email}", STYLES['AddressText']))
+    # 3. Tax ID (NUI)
+    c_tax_id = getattr(invoice, 'client_tax_id', '')
+    if c_tax_id:
+        client_content.append(Paragraph(f"<b>{_get_text('lbl_nui', lang)}</b> {c_tax_id}", STYLES['AddressText']))
+
+    # 4. Email
+    c_email = getattr(invoice, 'client_email', '')
+    if c_email:
+        client_content.append(Paragraph(f"<b>{_get_text('lbl_email', lang)}</b> {c_email}", STYLES['AddressText']))
+
+    # 5. Phone
+    c_phone = getattr(invoice, 'client_phone', '')
+    if c_phone:
+        client_content.append(Paragraph(f"<b>{_get_text('lbl_tel', lang)}</b> {c_phone}", STYLES['AddressText']))
+
+    # 6. Website
+    c_website = getattr(invoice, 'client_website', '')
+    if c_website:
+        client_content.append(Paragraph(f"<b>{_get_text('lbl_web', lang)}</b> {c_website}", STYLES['AddressText']))
 
     t_addr = Table([[Paragraph(_get_text('to', lang), STYLES['AddressLabel']), client_content]], colWidths=[20*mm, 160*mm])
     t_addr.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
@@ -294,4 +309,5 @@ def create_pdf_from_text(text: str, document_title: str) -> io.BytesIO:
     buffer = io.BytesIO()
     doc = _build_doc(buffer, 'report', {"firm_name": "Juristi.tech", "branding_color": "#333333"}, "sq", document_title)
     doc.build([Spacer(1, 15*mm), Paragraph(escape(text).replace('\n', '<br/>'), STYLES['Normal'])])
-    buffer.seek(0); return buffer
+    buffer.seek(0)
+    return buffer
