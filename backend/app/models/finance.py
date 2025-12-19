@@ -1,6 +1,8 @@
 # FILE: backend/app/models/finance.py
-# PHOENIX PROTOCOL - FINANCE MODELS V7.0 (ANALYTICS RESTORED)
-# 1. RESTORED: AnalyticsDashboardData, SalesTrendPoint, TopProductItem, CaseFinancialSummary.
+# PHOENIX PROTOCOL - FINANCE MODELS V7.1 (FIELDS ALIGNMENT)
+# 1. FIX: Renamed 'case_id' to 'related_case_id' in Invoice models to match Expenses and Frontend.
+# 2. FEATURE: Added missing client fields (phone, city, tax_id, website) to Invoice models.
+# 3. STATUS: Production Ready.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
@@ -19,6 +21,13 @@ class InvoiceBase(BaseModel):
     client_name: str
     client_email: Optional[str] = None
     client_address: Optional[str] = None
+    
+    # PHOENIX: Added missing client details
+    client_phone: Optional[str] = None
+    client_city: Optional[str] = None
+    client_tax_id: Optional[str] = None
+    client_website: Optional[str] = None
+    
     issue_date: datetime = Field(default_factory=datetime.utcnow)
     due_date: datetime = Field(default_factory=datetime.utcnow)
     items: List[InvoiceItem] = []
@@ -30,30 +39,45 @@ class InvoiceBase(BaseModel):
     currency: str = "EUR"
     status: str = "DRAFT" 
     is_locked: bool = False
-    # PHOENIX: Added for Case Summary
-    case_id: Optional[str] = None
+    
+    # PHOENIX: Renamed from case_id to match Expense model and Frontend
+    related_case_id: Optional[str] = None
 
 class InvoiceCreate(BaseModel):
     client_name: str
     client_email: Optional[str] = None
     client_address: Optional[str] = None
+    
+    # PHOENIX: Added missing client details
+    client_phone: Optional[str] = None
+    client_city: Optional[str] = None
+    client_tax_id: Optional[str] = None
+    client_website: Optional[str] = None
+    
     items: List[InvoiceItem]
     tax_rate: float = 0.0
     due_date: Optional[datetime] = None
     notes: Optional[str] = None
-    case_id: Optional[str] = None
+    related_case_id: Optional[str] = None
 
 class InvoiceUpdate(BaseModel):
     client_name: Optional[str] = None
     client_email: Optional[str] = None
     client_address: Optional[str] = None
+    
+    # PHOENIX: Added missing client details
+    client_phone: Optional[str] = None
+    client_city: Optional[str] = None
+    client_tax_id: Optional[str] = None
+    client_website: Optional[str] = None
+    
     items: Optional[List[InvoiceItem]] = None
     tax_rate: Optional[float] = None
     due_date: Optional[datetime] = None
     status: Optional[str] = None
     notes: Optional[str] = None
     is_locked: Optional[bool] = None
-    case_id: Optional[str] = None
+    related_case_id: Optional[str] = None
 
 class InvoiceInDB(InvoiceBase):
     id: PyObjectId = Field(alias="_id", default=None)
@@ -145,4 +169,4 @@ class AuditIssue(BaseModel):
 class WizardState(BaseModel):
     calculation: TaxCalculation
     issues: List[AuditIssue]
-    ready_to_close: bool
+    ready_to_close: List[str] = [] # Placeholder for consistency

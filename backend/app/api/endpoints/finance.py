@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - V11.0 (DEFINITIVE CORRECTION)
-# 1. FIXED: All import errors for models and Database type.
-# 2. FIXED: Correctly implemented async logic for analytics.
-# 3. STATUS: Final, stable, and correct.
+# PHOENIX PROTOCOL - V11.1 (ANALYTICS FIELD ALIGNMENT)
+# 1. FIX: Updated invoice_pipeline to group by 'related_case_id' instead of 'case_id'.
+# 2. STATUS: Production Ready.
 
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
@@ -10,14 +9,14 @@ from fastapi.responses import StreamingResponse
 from typing import List, Annotated, Optional, Any, Dict
 from datetime import datetime, timedelta
 from bson import ObjectId
-from pymongo.database import Database # PHOENIX FIX: Restored this critical import
+from pymongo.database import Database 
 
 from app.models.user import UserInDB
 from app.models.finance import (
     InvoiceCreate, InvoiceOut, InvoiceUpdate, 
     ExpenseCreate, ExpenseOut, ExpenseUpdate,
     AnalyticsDashboardData, SalesTrendPoint, TopProductItem,
-    CaseFinancialSummary # PHOENIX FIX: Added missing model
+    CaseFinancialSummary 
 )
 from app.models.archive import ArchiveItemOut 
 from app.services.finance_service import FinanceService
@@ -37,9 +36,10 @@ async def get_case_financial_summaries(
 ):
     user_oid = ObjectId(current_user.id)
 
+    # PHOENIX FIX: Updated to use 'related_case_id' to match current data model
     invoice_pipeline = [
-        {"$match": {"user_id": user_oid, "status": {"$ne": "CANCELLED"}, "case_id": {"$exists": True, "$ne": None}}},
-        {"$group": {"_id": "$case_id", "total_billed": {"$sum": "$total_amount"}}}
+        {"$match": {"user_id": user_oid, "status": {"$ne": "CANCELLED"}, "related_case_id": {"$exists": True, "$ne": None}}},
+        {"$group": {"_id": "$related_case_id", "total_billed": {"$sum": "$total_amount"}}}
     ]
 
     expense_pipeline = [
