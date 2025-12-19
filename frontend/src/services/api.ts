@@ -1,6 +1,6 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER V6.1 (ANALYTICS RESTORED)
-// 1. RESTORED: 'getAnalyticsDashboard' method and 'AnalyticsDashboardData' interfaces.
+// PHOENIX PROTOCOL - API MASTER V6.3 (CASE-CENTRIC EXPENSE FIX)
+// 1. FIX: Added 'related_case_id' to Expense, ExpenseCreateRequest, and ExpenseUpdate interfaces.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -27,10 +27,31 @@ export interface AnalyticsDashboardData {
     top_products: TopProductItem[];
 }
 
-// Restored Local Expense Interfaces
-export interface Expense { id: string; category: string; amount: number; description?: string; date: string; currency: string; receipt_url?: string; }
-export interface ExpenseCreateRequest { category: string; amount: number; description?: string; date?: string; }
-export interface ExpenseUpdate { category?: string; amount?: number; description?: string; date?: string; }
+// --- EXPENSE INTERFACES (WITH FIX) ---
+export interface Expense { 
+    id: string; 
+    category: string; 
+    amount: number; 
+    description?: string; 
+    date: string; 
+    currency: string; 
+    receipt_url?: string; 
+    related_case_id?: string; // PHOENIX FIX
+}
+export interface ExpenseCreateRequest { 
+    category: string; 
+    amount: number; 
+    description?: string; 
+    date?: string; 
+    related_case_id?: string; // PHOENIX FIX
+}
+export interface ExpenseUpdate { 
+    category?: string; 
+    amount?: number; 
+    description?: string; 
+    date?: string;
+    related_case_id?: string; // PHOENIX FIX
+}
 
 interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
