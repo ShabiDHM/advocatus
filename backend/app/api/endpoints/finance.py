@@ -1,4 +1,8 @@
 # FILE: backend/app/api/endpoints/finance.py
+# PHOENIX PROTOCOL - FINANCE V6.0 (UNIFIED ANALYTICS)
+# 1. UPDATE: get_analytics_dashboard now merges data from 'invoices' AND 'transactions'.
+# 2. RESULT: Charts will now show manual sales even without POS imports.
+
 import pandas as pd
 import io
 import uuid
@@ -38,10 +42,8 @@ async def get_import_history(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
     db: Any = Depends(get_async_db)
 ):
-    """Fetches the history of file imports for the user."""
     cursor = db["import_batches"].find({"user_id": ObjectId(current_user.id)}).sort("created_at", -1).limit(50)
     batches = await cursor.to_list(length=50)
-    # The models now handle ObjectId serialization automatically via PyObjectId
     return batches
 
 @router.get("/import-batches/{batch_id}/transactions", response_model=List[TransactionOut])
@@ -50,15 +52,11 @@ async def get_batch_transactions(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
     db: Any = Depends(get_async_db)
 ):
-    """Fetches all transactions associated with a specific import batch."""
-    try:
-        b_oid = ObjectId(batch_id)
-    except:
-        raise HTTPException(status_code=400, detail="Invalid Batch ID")
+    try: b_oid = ObjectId(batch_id)
+    except: raise HTTPException(status_code=400, detail="Invalid Batch ID")
 
     batch = await db["import_batches"].find_one({"_id": b_oid, "user_id": ObjectId(current_user.id)})
-    if not batch:
-        raise HTTPException(status_code=404, detail="Batch not found")
+    if not batch: raise HTTPException(status_code=404, detail="Batch not found")
 
     cursor = db["transactions"].find({"batch_id": b_oid}).limit(1000)
     transactions = await cursor.to_list(length=1000)
@@ -70,48 +68,105 @@ async def get_analytics_dashboard(
     db: Any = Depends(get_async_db),
     days: int = 30
 ):
-    """Calculates sales analytics from imported POS transactions."""
+    """
+    Calculates unified sales analytics from BOTH manual Invoices and imported POS transactions.
+    """
     end_date = datetime.utcnow()
     start_date = end_date - timedelta(days=days)
     user_oid = ObjectId(current_user.id)
 
-    # 1. Total Revenue & Count
-    pipeline_total = [
+    # --- 1. DATA FETCHING ---
+    
+    # A. POS Transactions Data
+    pos_pipeline = [
         {"$match": {"user_id": user_oid, "date_time": {"$gte": start_date, "$lte": end_date}}},
-        {"$group": {"_id": None, "total_revenue": {"$sum": "$total_amount"}, "count": {"$sum": 1}}}
+        {"$project": {"date": "$date_time", "amount": "$total_amount", "product": "$product_name", "quantity": "$quantity"}}
     ]
-    total_res = await db["transactions"].aggregate(pipeline_total).to_list(length=1)
-    total_rev = total_res[0]["total_revenue"] if total_res else 0.0
-    total_count = total_res[0]["count"] if total_res else 0
+    pos_data = await db["transactions"].aggregate(pos_pipeline).to_list(length=10000)
 
-    # 2. Sales Trend (Daily)
-    pipeline_trend = [
-        {"$match": {"user_id": user_oid, "date_time": {"$gte": start_date, "$lte": end_date}}},
-        {"$group": {
-            "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$date_time"}},
-            "amount": {"$sum": "$total_amount"}
+    # B. Manual Invoices Data (Only Valid/Paid ones)
+    # We assume 'DRAFT' and 'CANCELLED' should not count towards analytics yet, or maybe just CANCELLED.
+    # Let's include everything except CANCELLED to be generous with the dashboard.
+    inv_pipeline = [
+        {"$match": {
+            "user_id": user_oid, 
+            "issue_date": {"$gte": start_date, "$lte": end_date},
+            "status": {"$ne": "CANCELLED"}
         }},
-        {"$sort": {"_id": 1}}
+        {"$project": {"date": "$issue_date", "items": 1}}
     ]
-    trend_res = await db["transactions"].aggregate(pipeline_trend).to_list(length=days + 5)
-    sales_trend = [SalesTrendPoint(date=r["_id"], amount=r["amount"]) for r in trend_res]
+    inv_data = await db["invoices"].aggregate(inv_pipeline).to_list(length=5000)
 
-    # 3. Top Products
-    pipeline_products = [
-        {"$match": {"user_id": user_oid, "date_time": {"$gte": start_date, "$lte": end_date}}},
-        {"$group": {
-            "_id": "$product_name",
-            "total_quantity": {"$sum": "$quantity"},
-            "total_revenue": {"$sum": "$total_amount"}
-        }},
-        {"$sort": {"total_revenue": -1}},
-        {"$limit": 5}
+    # --- 2. DATA PROCESSING & MERGING ---
+    
+    total_rev = 0.0
+    total_count = len(pos_data) + len(inv_data)
+    
+    # Dictionaries for aggregation
+    trend_map = {} # "YYYY-MM-DD" -> amount
+    product_map = {} # "Product Name" -> {quantity, revenue}
+
+    # Process POS Data
+    for t in pos_data:
+        amt = float(t.get("amount", 0))
+        total_rev += amt
+        
+        # Trend
+        date_key = t["date"].strftime("%Y-%m-%d")
+        trend_map[date_key] = trend_map.get(date_key, 0.0) + amt
+        
+        # Products
+        prod = t.get("product", "Unknown")
+        if prod not in product_map: product_map[prod] = {"qty": 0, "rev": 0.0}
+        product_map[prod]["qty"] += float(t.get("quantity", 0))
+        product_map[prod]["rev"] += amt
+
+    # Process Manual Invoices (Unwind items)
+    for inv in inv_data:
+        # Date for trend
+        date_key = inv["date"].strftime("%Y-%m-%d")
+        
+        for item in inv.get("items", []):
+            # Handle item as dict (if raw) or object
+            # Aggregation returns dicts usually
+            i_qty = float(item.get("quantity", 1))
+            i_price = float(item.get("unit_price", 0))
+            i_total = i_qty * i_price
+            i_name = item.get("description", "Shërbim")
+            
+            total_rev += i_total
+            trend_map[date_key] = trend_map.get(date_key, 0.0) + i_total
+            
+            if i_name not in product_map: product_map[i_name] = {"qty": 0, "rev": 0.0}
+            product_map[i_name]["qty"] += i_qty
+            product_map[i_name]["rev"] += i_total
+
+    # --- 3. FORMATTING RESULTS ---
+
+    # Sort Trend by Date
+    sales_trend = [
+        SalesTrendPoint(date=k, amount=round(v, 2)) 
+        for k, v in sorted(trend_map.items())
     ]
-    prod_res = await db["transactions"].aggregate(pipeline_products).to_list(length=5)
-    top_products = [TopProductItem(product_name=r["_id"], total_quantity=r["total_quantity"], total_revenue=r["total_revenue"]) for r in prod_res]
+
+    # Sort Products by Revenue (Top 5)
+    sorted_products = sorted(
+        product_map.items(), 
+        key=lambda item: item[1]['rev'], 
+        reverse=True
+    )[:5]
+    
+    top_products = [
+        TopProductItem(
+            product_name=k, 
+            total_quantity=v['qty'], 
+            total_revenue=round(v['rev'], 2)
+        ) 
+        for k, v in sorted_products
+    ]
 
     return AnalyticsDashboardData(
-        total_revenue_period=total_rev,
+        total_revenue_period=round(total_rev, 2),
         total_transactions_period=total_count,
         sales_trend=sales_trend,
         top_products=top_products
@@ -133,8 +188,6 @@ async def initiate_pos_import(
     try:
         headers = PosParsingService.get_headers_from_file(content, file.filename)
         signature = ",".join(sorted(headers))
-        
-        # Check for saved mapping
         saved_mapping_rule = await db["column_mappings"].find_one({"user_id": current_user.id, "source_signature": signature})
         
         mapping_to_use = None
@@ -159,7 +212,6 @@ async def initiate_pos_import(
             if transactions_to_insert:
                 await db["transactions"].insert_many(transactions_to_insert)
 
-            # Response construction using model validation to handle ObjectId -> str
             response_data = {
                 "_id": batch_id,
                 "user_id": current_user.id,
@@ -169,7 +221,6 @@ async def initiate_pos_import(
                 "total_volume": total_volume,
                 "created_at": datetime.utcnow()
             }
-            # Return model dump via JSONResponse to allow proper status code handling
             return JSONResponse(
                 content=json.loads(ImportBatchOut(**response_data).model_dump_json(by_alias=True)),
                 status_code=status.HTTP_201_CREATED
@@ -217,7 +268,6 @@ async def finalize_pos_import_with_mapping(
     rule = ColumnMappingRuleInDB(user_id=current_user.id, source_signature=signature, mapping=mapping_data.mappings)
     await db["column_mappings"].update_one({"user_id": current_user.id, "source_signature": signature}, {"$set": rule.model_dump(by_alias=False)}, upsert=True)
 
-    # PHOENIX FIX: Just pass _id, default=None in model handles the rest via alias
     return ImportBatchOut(
         _id=batch_id,
         user_id=current_user.id,

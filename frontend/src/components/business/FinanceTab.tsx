@@ -23,8 +23,6 @@ import {
 
 const DatePicker = (ReactDatePicker as any).default;
 
-// --- UI SUB-COMPONENTS ---
-
 const SmartStatCard = ({ title, amount, icon, color }: { title: string, amount: string, icon: React.ReactNode, color: string }) => (
     <div className="group relative overflow-hidden rounded-xl bg-white/5 border border-white/10 p-4 hover:bg-white/10 transition-all duration-300">
         <div className="flex items-center gap-4">
@@ -50,9 +48,6 @@ const TabButton = ({ label, icon, isActive, onClick }: { label: string, icon: Re
     </button>
 );
 
-
-// --- MAIN FINANCE TAB COMPONENT ---
-
 export const FinanceTab: React.FC = () => {
     type ActiveTab = 'transactions' | 'reports' | 'imports';
 
@@ -61,7 +56,6 @@ export const FinanceTab: React.FC = () => {
     const localeMap: { [key: string]: any } = { sq, al: sq, en: enUS };
     const currentLocale = localeMap[i18n.language] || enUS;
 
-    // --- STATE MANAGEMENT ---
     const [loading, setLoading] = useState(true);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -70,38 +64,31 @@ export const FinanceTab: React.FC = () => {
     const [activeTab, setActiveTab] = useState<ActiveTab>('transactions');
     const [openingDocId, setOpeningDocId] = useState<string | null>(null);
 
-    // Analytics State
     const [analyticsData, setAnalyticsData] = useState<AnalyticsDashboardData | null>(null);
 
-    // Modal States & Handlers
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
     const [showArchiveInvoiceModal, setShowArchiveInvoiceModal] = useState(false);
     const [showArchiveExpenseModal, setShowArchiveExpenseModal] = useState(false);
     
-    // Mapping Modal State
     const [showMappingModal, setShowMappingModal] = useState(false);
     const [mappingData, setMappingData] = useState<ImportMappingResponse | null>(null);
     const [userMappings, setUserMappings] = useState<Record<string, string>>({});
 
-    // Drill-Down Modal State
     const [selectedBatch, setSelectedBatch] = useState<ImportBatchOut | null>(null);
     const [batchTransactions, setBatchTransactions] = useState<TransactionOut[]>([]);
     const [loadingTransactions, setLoadingTransactions] = useState(false);
 
-    // Selection / Edit States
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
     const [selectedCaseForInvoice, setSelectedCaseForInvoice] = useState<string>("");
     const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
     const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
-    // Document Viewing
     const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
     const [viewingUrl, setViewingUrl] = useState<string | null>(null);
 
-    // Form States
     const [newInvoice, setNewInvoice] = useState({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '', status: 'DRAFT' });
     const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
     const [newExpense, setNewExpense] = useState<ExpenseCreateRequest>({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0] });
@@ -109,12 +96,10 @@ export const FinanceTab: React.FC = () => {
     const [expenseReceipt, setExpenseReceipt] = useState<File | null>(null);
     const receiptInputRef = useRef<HTMLInputElement>(null);
 
-    // Import Modal State
     const [isUploading, setIsUploading] = useState(false);
     const [uploadFile, setUploadFile] = useState<File | null>(null);
     const [uploadError, setUploadError] = useState<string | null>(null);
 
-    // --- DATA ---
     const loadInitialData = async () => {
         try {
             const [inv, exp, cs, batches, analytics] = await Promise.all([
@@ -134,7 +119,6 @@ export const FinanceTab: React.FC = () => {
 
     useEffect(() => { loadInitialData(); }, []);
 
-    // Handle Batch Drill-Down
     const handleViewBatch = async (batch: ImportBatchOut) => {
         setSelectedBatch(batch);
         setLoadingTransactions(true);
@@ -166,13 +150,11 @@ export const FinanceTab: React.FC = () => {
         return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [invoices, expenses]);
 
-    // --- HANDLERS ---
     const closePreview = () => { if (viewingUrl) window.URL.revokeObjectURL(viewingUrl); setViewingUrl(null); setViewingDoc(null); };
     const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
     const removeLineItem = (i: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, idx) => idx !== i));
     const updateLineItem = (i: number, f: keyof InvoiceItem, v: any) => { const n = [...lineItems]; n[i] = { ...n[i], [f]: v }; n[i].total = n[i].quantity * n[i].unit_price; setLineItems(n); };
     
-    // Invoice Handlers
     const handleEditInvoice = (invoice: Invoice) => { setEditingInvoiceId(invoice.id); setNewInvoice({ client_name: invoice.client_name, client_email: invoice.client_email || '', client_address: invoice.client_address || '', client_phone: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: invoice.tax_rate, notes: invoice.notes || '', status: invoice.status }); setLineItems(invoice.items); setShowInvoiceModal(true); };
     const handleCreateOrUpdateInvoice = async (e: React.FormEvent) => { e.preventDefault(); try { const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: newInvoice.client_address, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes, status: newInvoice.status }; if (editingInvoiceId) { const u = await apiService.updateInvoice(editingInvoiceId, payload); setInvoices(invoices.map(i => i.id === editingInvoiceId ? u : i)); } else { const n = await apiService.createInvoice(payload); setInvoices([n, ...invoices]); } closeInvoiceModal(); } catch { alert(t('error.generic')); } };
     const closeInvoiceModal = () => { setShowInvoiceModal(false); setEditingInvoiceId(null); setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '', status: 'DRAFT' }); setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); };
@@ -182,7 +164,6 @@ export const FinanceTab: React.FC = () => {
     const handleArchiveInvoiceClick = (id: string) => { setSelectedInvoiceId(id); setShowArchiveInvoiceModal(true); };
     const submitArchiveInvoice = async () => { if (!selectedInvoiceId) return; try { await apiService.archiveInvoice(selectedInvoiceId, selectedCaseForInvoice || undefined); alert(t('general.saveSuccess')); setShowArchiveInvoiceModal(false); setSelectedCaseForInvoice(""); } catch { alert(t('error.generic')); } };
 
-    // Expense Handlers
     const handleEditExpense = (expense: Expense) => { setEditingExpenseId(expense.id); setNewExpense({ category: expense.category, amount: expense.amount, description: expense.description || '', date: expense.date }); setExpenseDate(new Date(expense.date)); setShowExpenseModal(true); };
     const handleCreateOrUpdateExpense = async (e: React.FormEvent) => { e.preventDefault(); try { const payload = { ...newExpense, date: expenseDate ? expenseDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0] }; let s: Expense; if (editingExpenseId) { s = await apiService.updateExpense(editingExpenseId, payload); setExpenses(expenses.map(exp => exp.id === editingExpenseId ? s : exp)); } else { s = await apiService.createExpense(payload); setExpenses([s, ...expenses]); } if (expenseReceipt && s.id) { await apiService.uploadExpenseReceipt(s.id, expenseReceipt); const f = { ...s, receipt_url: "PENDING_REFRESH" }; setExpenses(prev => prev.map(exp => exp.id === f.id ? f : exp)); } closeExpenseModal(); } catch { alert(t('error.generic')); } };
     const closeExpenseModal = () => { setShowExpenseModal(false); setEditingExpenseId(null); setNewExpense({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0] }); setExpenseReceipt(null); };
@@ -192,11 +173,8 @@ export const FinanceTab: React.FC = () => {
     const handleArchiveExpenseClick = (id: string) => { const ex = expenses.find(e => e.id === id); if (!ex || !ex.receipt_url) { alert(t('error.noReceiptToArchive')); return; } setSelectedExpenseId(id); setShowArchiveExpenseModal(true); };
     const submitArchiveExpense = async () => { if (!selectedExpenseId) return; try { const ex = expenses.find(e => e.id === selectedExpenseId); if (!ex || !ex.receipt_url) return; const { blob, filename } = await apiService.getExpenseReceiptBlob(ex.id); const f = new File([blob], filename, { type: blob.type }); await apiService.uploadArchiveItem(f, filename, "EXPENSE", selectedCaseForInvoice || undefined, undefined); alert(t('general.saveSuccess')); setShowArchiveExpenseModal(false); setSelectedCaseForInvoice(""); } catch { alert(t('error.generic')); } };
 
-    // Import Handlers
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { setUploadError(null); setUploadFile(file); } };
     const closeImportModal = () => { setShowImportModal(false); setUploadFile(null); setUploadError(null); setIsUploading(false); };
-    
-    // --- SMART MAPPING HANDLERS ---
     
     const handleFileUpload = async () => {
         if (!uploadFile) return;
@@ -214,7 +192,6 @@ export const FinanceTab: React.FC = () => {
             } else {
                 const batch = response as ImportBatchOut;
                 setImportBatches(prev => [batch, ...prev].sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-                // Also refresh analytics to show new data immediately
                 const analytics = await apiService.getAnalyticsDashboard(30);
                 setAnalyticsData(analytics);
                 alert(`Sukses! U importuan ${batch.row_count} transaksione.`);
@@ -290,14 +267,14 @@ export const FinanceTab: React.FC = () => {
                         
                         {analyticsData && (
                             <div className="pt-4 border-t border-white/10 mt-4">
-                                <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">POS Analytics (30 Ditë)</h4>
+                                <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">{t('finance.analytics.periodTitle')}</h4>
                                 <div className="grid grid-cols-2 gap-2">
                                     <div className="bg-indigo-500/10 p-2 rounded-lg text-center">
-                                        <p className="text-xs text-indigo-300">Shitje POS</p>
+                                        <p className="text-xs text-indigo-300">{t('finance.analytics.totalSales')}</p>
                                         <p className="font-bold text-white">€{analyticsData.total_revenue_period.toFixed(2)}</p>
                                     </div>
                                     <div className="bg-indigo-500/10 p-2 rounded-lg text-center">
-                                        <p className="text-xs text-indigo-300">Nr. Faturave</p>
+                                        <p className="text-xs text-indigo-300">{t('finance.analytics.invoiceCount')}</p>
                                         <p className="font-bold text-white">{analyticsData.total_transactions_period}</p>
                                     </div>
                                 </div>
@@ -339,7 +316,7 @@ export const FinanceTab: React.FC = () => {
                                         {/* Chart 1: Sales Trend */}
                                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                                             <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                                <TrendingUp size={16} /> Ecuria e Shitjeve (30 Ditë)
+                                                <TrendingUp size={16} /> {t('finance.analytics.salesTrend')}
                                             </h4>
                                             <div className="h-64 w-full">
                                                 <ResponsiveContainer width="100%" height="100%">
@@ -355,7 +332,7 @@ export const FinanceTab: React.FC = () => {
                                                         <YAxis stroke="#9ca3af" fontSize={12} />
                                                         <Tooltip 
                                                             contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: 'white' }}
-                                                            formatter={(value: any) => [`€${Number(value).toFixed(2)}`, 'Shitje']}
+                                                            formatter={(value: any) => [`€${Number(value).toFixed(2)}`, t('finance.income')]}
                                                         />
                                                         <Area type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorSales)" />
                                                     </AreaChart>
@@ -367,7 +344,7 @@ export const FinanceTab: React.FC = () => {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                                                 <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                                    <BarChart2 size={16} /> Top 5 Produktet (Vlera)
+                                                    <BarChart2 size={16} /> {t('finance.analytics.topProducts')}
                                                 </h4>
                                                 <div className="h-64 w-full">
                                                     <ResponsiveContainer width="100%" height="100%">
@@ -377,7 +354,7 @@ export const FinanceTab: React.FC = () => {
                                                             <YAxis dataKey="product_name" type="category" stroke="#9ca3af" fontSize={11} width={100} />
                                                             <Tooltip 
                                                                 contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: 'white' }}
-                                                                formatter={(value: any) => [`€${Number(value).toFixed(2)}`, 'Vlera']}
+                                                                formatter={(value: any) => [`€${Number(value).toFixed(2)}`, t('finance.analytics.tableValue')]}
                                                             />
                                                             <Bar dataKey="total_revenue" fill="#10b981" radius={[0, 4, 4, 0]}>
                                                                 {analyticsData.top_products.map((_entry, index) => (
@@ -390,14 +367,14 @@ export const FinanceTab: React.FC = () => {
                                             </div>
 
                                             <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-                                                <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Detajet e Produkteve</h4>
+                                                <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">{t('finance.analytics.productDetails')}</h4>
                                                 <div className="overflow-y-auto max-h-64 custom-finance-scroll pr-2">
                                                     <table className="w-full text-sm text-left text-gray-400">
                                                         <thead className="text-xs text-gray-500 uppercase bg-white/5 sticky top-0">
                                                             <tr>
-                                                                <th className="px-2 py-2">Produkti</th>
-                                                                <th className="px-2 py-2 text-right">Sasia</th>
-                                                                <th className="px-2 py-2 text-right">Vlera</th>
+                                                                <th className="px-2 py-2">{t('finance.analytics.tableProduct')}</th>
+                                                                <th className="px-2 py-2 text-right">{t('finance.analytics.tableQty')}</th>
+                                                                <th className="px-2 py-2 text-right">{t('finance.analytics.tableValue')}</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-white/5">
@@ -448,7 +425,7 @@ export const FinanceTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* --- MODALS (Import, Drill-Down, Mapping, Invoices...) --- */}
+            {/* --- MODALS --- */}
             
             {showMappingModal && mappingData && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
