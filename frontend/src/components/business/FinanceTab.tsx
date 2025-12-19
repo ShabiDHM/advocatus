@@ -1,9 +1,4 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V13.0 (SMART MAPPER UI)
-// 1. ADDED: "Smart Mapping" Modal to handle unknown CSV headers.
-// 2. LOGIC: Intercepts 'mapping_required' response and opens the mapper instead of showing success.
-// 3. LOGIC: Submits the user's mapping to 'finalizePosImport'.
-
 import React, { useEffect, useState, useRef, useMemo, Fragment } from 'react';
 import { motion } from 'framer-motion';
 import { Menu, Transition } from '@headlessui/react';
@@ -12,13 +7,19 @@ import {
     Edit2, Eye, Download, Archive, Trash2, CheckCircle, Paperclip, X, User, Activity, Loader2, UploadCloud, BarChart2, History, FileUp, MoreVertical, ChevronRight, ArrowRight, Table
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { apiService, Expense, ExpenseCreateRequest, ImportBatchOut, TransactionOut, ImportMappingResponse } from '../../services/api';
+import { 
+    apiService, Expense, ExpenseCreateRequest, ImportBatchOut, TransactionOut, 
+    ImportMappingResponse, AnalyticsDashboardData 
+} from '../../services/api';
 import { Invoice, InvoiceItem, Case, Document } from '../../data/types';
 import { useTranslation } from 'react-i18next';
 import PDFViewerModal from '../PDFViewerModal';
 import * as ReactDatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { sq, enUS } from 'date-fns/locale';
+import { 
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell 
+} from 'recharts';
 
 const DatePicker = (ReactDatePicker as any).default;
 
@@ -69,6 +70,9 @@ export const FinanceTab: React.FC = () => {
     const [activeTab, setActiveTab] = useState<ActiveTab>('transactions');
     const [openingDocId, setOpeningDocId] = useState<string | null>(null);
 
+    // Analytics State
+    const [analyticsData, setAnalyticsData] = useState<AnalyticsDashboardData | null>(null);
+
     // Modal States & Handlers
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
     const [showExpenseModal, setShowExpenseModal] = useState(false);
@@ -76,7 +80,7 @@ export const FinanceTab: React.FC = () => {
     const [showArchiveInvoiceModal, setShowArchiveInvoiceModal] = useState(false);
     const [showArchiveExpenseModal, setShowArchiveExpenseModal] = useState(false);
     
-    // Mapping Modal State (Smart Mapper)
+    // Mapping Modal State
     const [showMappingModal, setShowMappingModal] = useState(false);
     const [mappingData, setMappingData] = useState<ImportMappingResponse | null>(null);
     const [userMappings, setUserMappings] = useState<Record<string, string>>({});
@@ -113,13 +117,18 @@ export const FinanceTab: React.FC = () => {
     // --- DATA ---
     const loadInitialData = async () => {
         try {
-            const [inv, exp, cs, batches] = await Promise.all([
+            const [inv, exp, cs, batches, analytics] = await Promise.all([
                 apiService.getInvoices().catch(() => []),
                 apiService.getExpenses().catch(() => []),
                 apiService.getCases().catch(() => []),
-                apiService.getImportHistory().catch(() => [])
+                apiService.getImportHistory().catch(() => []),
+                apiService.getAnalyticsDashboard(30).catch(() => null)
             ]);
-            setInvoices(inv); setExpenses(exp); setCases(cs); setImportBatches(batches);
+            setInvoices(inv); 
+            setExpenses(exp); 
+            setCases(cs); 
+            setImportBatches(batches);
+            setAnalyticsData(analytics);
         } catch (e) { console.error(e); } finally { setLoading(false); }
     };
 
@@ -194,25 +203,20 @@ export const FinanceTab: React.FC = () => {
         setIsUploading(true);
         setUploadError(null);
         try {
-            // This response might be an ImportBatchOut (Success) OR ImportMappingResponse (Need Mapping)
             const response = await apiService.uploadPosFile(uploadFile);
-            
-            // Type guard to check if mapping is required
             if ('mapping_required' in response && response.mapping_required) {
-                // Scenario: Mapping Required
                 setMappingData(response as ImportMappingResponse);
-                
-                // Initialize userMappings with empty strings for each detected header
                 const initialMappings: Record<string, string> = {};
                 (response as ImportMappingResponse).detected_headers?.forEach(h => initialMappings[h] = "");
                 setUserMappings(initialMappings);
-                
-                setShowImportModal(false); // Close upload modal
-                setShowMappingModal(true); // Open mapping modal
+                setShowImportModal(false); 
+                setShowMappingModal(true); 
             } else {
-                // Scenario: Immediate Success
                 const batch = response as ImportBatchOut;
                 setImportBatches(prev => [batch, ...prev].sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+                // Also refresh analytics to show new data immediately
+                const analytics = await apiService.getAnalyticsDashboard(30);
+                setAnalyticsData(analytics);
                 alert(`Sukses! U importuan ${batch.row_count} transaksione.`);
                 setActiveTab('imports');
                 closeImportModal();
@@ -228,8 +232,6 @@ export const FinanceTab: React.FC = () => {
 
     const handleMappingSubmit = async () => {
         if (!mappingData || !mappingData.upload_id) return;
-        
-        // Validate that 'product' and 'total' are mapped
         const mappedValues = Object.values(userMappings);
         if (!mappedValues.includes('product') || !mappedValues.includes('total')) {
             alert("Ju lutem caktoni fushat e detyrueshme: 'Produkti' dhe 'Totali'.");
@@ -240,6 +242,8 @@ export const FinanceTab: React.FC = () => {
         try {
             const batch = await apiService.finalizePosImport(mappingData.upload_id, userMappings);
             setImportBatches(prev => [batch, ...prev].sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+            const analytics = await apiService.getAnalyticsDashboard(30);
+            setAnalyticsData(analytics);
             alert(`Sukses! U importuan ${batch.row_count} transaksione.`);
             setActiveTab('imports');
             setShowMappingModal(false);
@@ -254,15 +258,11 @@ export const FinanceTab: React.FC = () => {
     };
 
     const handleMappingChange = (header: string, systemField: string) => {
-        setUserMappings(prev => ({
-            ...prev,
-            [header]: systemField
-        }));
+        setUserMappings(prev => ({ ...prev, [header]: systemField }));
     };
 
     if (loading) return <div className="flex justify-center h-64 items-center"><Loader2 className="animate-spin text-secondary-start" /></div>;
 
-    // Helper to translate system fields
     const translateSystemField = (field: string) => {
         const map: Record<string, string> = {
             'product': 'Produkti (E detyrueshme)',
@@ -281,15 +281,143 @@ export const FinanceTab: React.FC = () => {
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="lg:col-span-1 flex flex-col gap-6">
-                    <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-4"><h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">{t('finance.overview')}</h3><SmartStatCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp size={20} />} color="text-emerald-400" /><SmartStatCard title={t('finance.expense')} amount={`€${totalExpenses.toFixed(2)}`} icon={<TrendingDown size={20} />} color="text-rose-400" /><SmartStatCard title={t('finance.balance')} amount={`€${totalBalance.toFixed(2)}`} icon={<Wallet size={20} />} color="text-blue-400" /></div>
-                    <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-3"><h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">{t('finance.quickActions')}</h3><QuickActionButton icon={<Plus size={18} />} label={t('finance.createInvoice')} onClick={() => setShowInvoiceModal(true)} color="text-emerald-400" /><QuickActionButton icon={<MinusCircle size={18} />} label={t('finance.addExpense')} onClick={() => setShowExpenseModal(true)} color="text-rose-400" /><QuickActionButton icon={<FileUp size={18} />} label={t('finance.importTransactions')} onClick={() => setShowImportModal(true)} color="text-indigo-400" /><QuickActionButton icon={<Calculator size={18} />} label={t('finance.monthlyClose')} onClick={() => navigate('/finance/wizard')} color="text-gray-400" /></div>
+                    {/* STATS CARDS */}
+                    <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-4">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">{t('finance.overview')}</h3>
+                        <SmartStatCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp size={20} />} color="text-emerald-400" />
+                        <SmartStatCard title={t('finance.expense')} amount={`€${totalExpenses.toFixed(2)}`} icon={<TrendingDown size={20} />} color="text-rose-400" />
+                        <SmartStatCard title={t('finance.balance')} amount={`€${totalBalance.toFixed(2)}`} icon={<Wallet size={20} />} color="text-blue-400" />
+                        
+                        {analyticsData && (
+                            <div className="pt-4 border-t border-white/10 mt-4">
+                                <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-2">POS Analytics (30 Ditë)</h4>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className="bg-indigo-500/10 p-2 rounded-lg text-center">
+                                        <p className="text-xs text-indigo-300">Shitje POS</p>
+                                        <p className="font-bold text-white">€{analyticsData.total_revenue_period.toFixed(2)}</p>
+                                    </div>
+                                    <div className="bg-indigo-500/10 p-2 rounded-lg text-center">
+                                        <p className="text-xs text-indigo-300">Nr. Faturave</p>
+                                        <p className="font-bold text-white">{analyticsData.total_transactions_period}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-3">
+                        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">{t('finance.quickActions')}</h3>
+                        <QuickActionButton icon={<Plus size={18} />} label={t('finance.createInvoice')} onClick={() => setShowInvoiceModal(true)} color="text-emerald-400" />
+                        <QuickActionButton icon={<MinusCircle size={18} />} label={t('finance.addExpense')} onClick={() => setShowExpenseModal(true)} color="text-rose-400" />
+                        <QuickActionButton icon={<FileUp size={18} />} label={t('finance.importTransactions')} onClick={() => setShowImportModal(true)} color="text-indigo-400" />
+                        <QuickActionButton icon={<Calculator size={18} />} label={t('finance.monthlyClose')} onClick={() => navigate('/finance/wizard')} color="text-gray-400" />
+                    </div>
                 </div>
 
                 <div className="lg:col-span-2 bg-background-dark/50 border border-glass-edge rounded-3xl p-6 flex flex-col min-h-[600px]">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-4"><h2 className="text-lg font-bold text-white shrink-0">{t('finance.activityAndReports')}</h2><div className="w-full sm:w-auto flex items-center gap-2 bg-background-light p-1 rounded-xl border border-white/5 overflow-x-auto no-scrollbar"><TabButton label={t('finance.tabTransactions')} icon={<Activity size={16} />} isActive={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} /><TabButton label={t('finance.tabReports')} icon={<BarChart2 size={16} />} isActive={activeTab === 'reports'} onClick={() => setActiveTab('reports')} /><TabButton label={t('finance.tabHistory')} icon={<History size={16} />} isActive={activeTab === 'imports'} onClick={() => setActiveTab('imports')} /></div></div>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-4">
+                        <h2 className="text-lg font-bold text-white shrink-0">{t('finance.activityAndReports')}</h2>
+                        <div className="w-full sm:w-auto flex items-center gap-2 bg-background-light p-1 rounded-xl border border-white/5 overflow-x-auto no-scrollbar">
+                            <TabButton label={t('finance.tabTransactions')} icon={<Activity size={16} />} isActive={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} />
+                            <TabButton label={t('finance.tabReports')} icon={<BarChart2 size={16} />} isActive={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
+                            <TabButton label={t('finance.tabHistory')} icon={<History size={16} />} isActive={activeTab === 'imports'} onClick={() => setActiveTab('imports')} />
+                        </div>
+                    </div>
+                    
                     <div className="flex-1 overflow-y-auto custom-finance-scroll -mr-2 pr-2">
                         {activeTab === 'transactions' && (<div className="space-y-3">{sortedTransactions.length === 0 ? <p className="text-gray-500 italic text-sm text-center py-10">{t('finance.noTransactions')}</p> : sortedTransactions.map(tx => (<div key={`${tx.type}-${tx.id}`} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors"><div className="flex justify-between items-center"><div className="flex items-center gap-3 min-w-0"><div className={`p-2 rounded-lg flex-shrink-0 ${tx.type === 'invoice' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{tx.type === 'invoice' ? <FileText size={18} /> : <MinusCircle size={18} />}</div><div className="min-w-0"><h4 className="font-bold text-white text-sm truncate">{tx.type === 'invoice' ? tx.client_name : tx.category}</h4><p className="text-xs text-gray-400 font-mono">{tx.type === 'invoice' ? `#${tx.invoice_number}` : new Date(tx.date).toLocaleDateString()}</p></div></div><div className="flex items-center gap-4"><p className={`font-bold ${tx.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'}`}>{tx.type === 'invoice' ? `+€${tx.total_amount.toFixed(2)}` : `-€${tx.amount.toFixed(2)}`}</p><Menu as="div" className="relative"><Menu.Button className="p-1.5 hover:bg-white/10 rounded-full text-gray-400"><MoreVertical size={16} /></Menu.Button><Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95"><Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-white/10 rounded-md bg-background-light shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 border border-glass-edge"><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleEditInvoice(tx) : handleEditExpense(tx)} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Edit2 className="mr-2 h-4 w-4 text-amber-400" />{t('general.edit')}</button>)}</Menu.Item><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} disabled={(tx.type === 'expense' && !tx.receipt_url) || openingDocId === tx.id} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}>{openingDocId === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eye className="mr-2 h-4 w-4 text-blue-400" />}{t('general.view')}</button>)}</Menu.Item><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? downloadInvoice(tx.id) : handleDownloadExpense(tx)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Download className="mr-2 h-4 w-4 text-green-400" />{t('general.download')}</button>)}</Menu.Item></div><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleArchiveInvoiceClick(tx.id) : handleArchiveExpenseClick(tx.id)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Archive className="mr-2 h-4 w-4 text-indigo-400" />{t('general.archive')}</button>)}</Menu.Item></div><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? deleteInvoice(tx.id) : deleteExpense(tx.id)} className={`${active ? 'bg-red-500/20 text-red-400' : 'text-red-400'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Trash2 className="mr-2 h-4 w-4" />{t('general.delete')}</button>)}</Menu.Item></div></Menu.Items></Transition></Menu></div></div></div>))}</div>)}
-                        {activeTab === 'reports' && (<div className="flex items-center justify-center h-full text-center text-gray-500"><div className="space-y-2"><BarChart2 className="mx-auto" size={40} /><p className="font-bold text-lg">{t('finance.reportsTitle')}</p><p className="text-sm">{t('finance.reportsComingSoon')}</p></div></div>)}
+                        
+                        {/* --- ANALYTICS DASHBOARD --- */}
+                        {activeTab === 'reports' && (
+                            <div className="space-y-6">
+                                {!analyticsData ? (
+                                    <div className="flex justify-center items-center h-48 text-gray-500">
+                                        <p>Po ngarkohen të dhënat...</p>
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Chart 1: Sales Trend */}
+                                        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                            <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                                <TrendingUp size={16} /> Ecuria e Shitjeve (30 Ditë)
+                                            </h4>
+                                            <div className="h-64 w-full">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <AreaChart data={analyticsData.sales_trend}>
+                                                        <defs>
+                                                            <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                                                                <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                                                            </linearGradient>
+                                                        </defs>
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                                        <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} tickFormatter={(str) => str.slice(5)} />
+                                                        <YAxis stroke="#9ca3af" fontSize={12} />
+                                                        <Tooltip 
+                                                            contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: 'white' }}
+                                                            formatter={(value: any) => [`€${Number(value).toFixed(2)}`, 'Shitje']}
+                                                        />
+                                                        <Area type="monotone" dataKey="amount" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorSales)" />
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+
+                                        {/* Chart 2: Top Products */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                                <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                                    <BarChart2 size={16} /> Top 5 Produktet (Vlera)
+                                                </h4>
+                                                <div className="h-64 w-full">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <BarChart data={analyticsData.top_products} layout="vertical">
+                                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" horizontal={true} vertical={false} />
+                                                            <XAxis type="number" stroke="#9ca3af" fontSize={12} hide />
+                                                            <YAxis dataKey="product_name" type="category" stroke="#9ca3af" fontSize={11} width={100} />
+                                                            <Tooltip 
+                                                                contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: 'white' }}
+                                                                formatter={(value: any) => [`€${Number(value).toFixed(2)}`, 'Vlera']}
+                                                            />
+                                                            <Bar dataKey="total_revenue" fill="#10b981" radius={[0, 4, 4, 0]}>
+                                                                {analyticsData.top_products.map((_entry, index) => (
+                                                                    <Cell key={`cell-${index}`} fill={['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'][index % 5]} />
+                                                                ))}
+                                                            </Bar>
+                                                        </BarChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                                <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Detajet e Produkteve</h4>
+                                                <div className="overflow-y-auto max-h-64 custom-finance-scroll pr-2">
+                                                    <table className="w-full text-sm text-left text-gray-400">
+                                                        <thead className="text-xs text-gray-500 uppercase bg-white/5 sticky top-0">
+                                                            <tr>
+                                                                <th className="px-2 py-2">Produkti</th>
+                                                                <th className="px-2 py-2 text-right">Sasia</th>
+                                                                <th className="px-2 py-2 text-right">Vlera</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-white/5">
+                                                            {analyticsData.top_products.map((p, i) => (
+                                                                <tr key={i} className="hover:bg-white/5">
+                                                                    <td className="px-2 py-2 font-medium text-white truncate max-w-[120px]" title={p.product_name}>{p.product_name}</td>
+                                                                    <td className="px-2 py-2 text-right font-mono">{p.total_quantity}</td>
+                                                                    <td className="px-2 py-2 text-right font-bold text-emerald-400">€{p.total_revenue.toFixed(2)}</td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
                         {activeTab === 'imports' && (
                             <div className="space-y-3">
                                 {importBatches.length === 0 ? (
@@ -320,9 +448,8 @@ export const FinanceTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* --- MODALS --- */}
+            {/* --- MODALS (Import, Drill-Down, Mapping, Invoices...) --- */}
             
-            {/* 1. MAPPING MODAL (SMART MAPPER) - NEW */}
             {showMappingModal && mappingData && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl p-6 flex flex-col max-h-[90vh]">
@@ -383,10 +510,9 @@ export const FinanceTab: React.FC = () => {
                 </div>
             )}
 
-            {/* 2. UPLOAD MODAL */}
+            {/* Other Modals (Invoice, Expense, etc.) remain the same... */}
             {showImportModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-lg p-6"><div className="flex justify-between items-center mb-4"><h2 className="text-xl font-bold text-white flex items-center gap-2"><FileUp size={20} className="text-indigo-400" /> {t('finance.importModal.title')}</h2><button onClick={closeImportModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><p className="text-sm text-gray-400 mb-6">{t('finance.importModal.description')}</p><div><label htmlFor="file-upload" className="w-full py-10 border-2 border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-white/5 hover:border-indigo-400">{uploadFile ? (<><FileText size={32} className="text-indigo-400" /><span className="font-medium text-white">{uploadFile.name}</span><span className="text-xs text-gray-400">{t('finance.importModal.changeFile')}</span></>) : (<><UploadCloud size={32} className="text-gray-500" /><span className="font-medium text-white">{t('finance.importModal.selectFile')}</span><span className="text-xs text-gray-500">{t('finance.importModal.fileTypes')}</span></>)}</label><input id="file-upload" type="file" className="hidden" accept=".csv,.xlsx,.xls" onChange={handleFileSelect} />{uploadError && <p className="text-rose-400 text-sm mt-2 text-center">{uploadError}</p>}</div><div className="flex justify-end gap-3 pt-6 mt-6 border-t border-white/10"><button type="button" onClick={closeImportModal} className="px-4 py-2 text-gray-400 rounded-lg hover:bg-white/5">{t('general.cancel')}</button><button type="button" onClick={handleFileUpload} disabled={!uploadFile || isUploading} className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold flex items-center gap-2 disabled:opacity-50 hover:bg-indigo-500">{isUploading ? <Loader2 className="animate-spin" size={18} /> : <FileUp size={18} />}{isUploading ? t('finance.importModal.importing') : t('finance.importModal.import')}</button></div></div></div>)}
             
-            {/* 3. TRANSACTION DRILL-DOWN MODAL */}
             {selectedBatch && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col p-6">
@@ -438,7 +564,6 @@ export const FinanceTab: React.FC = () => {
                 </div>
             )}
 
-            {/* 4. EXISTING MODALS (INVOICE, EXPENSE, ARCHIVE) */}
             {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 custom-finance-scroll"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{editingInvoiceId ? t('finance.editInvoice') : t('finance.createInvoice')}</h2><button onClick={closeInvoiceModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateOrUpdateInvoice} className="space-y-6"><div className="space-y-4">{editingInvoiceId && (<div className="bg-white/5 p-4 rounded-xl border-white/10 mb-4"><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2"><Activity size={14} /> {t('finance.statusLabel')}</label><select value={newInvoice.status} onChange={(e) => setNewInvoice({...newInvoice, status: e.target.value})} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white"><option value="DRAFT">{t('finance.status.draft')}</option><option value="SENT">{t('finance.status.sent')}</option><option value="PAID">{t('finance.status.paid')}</option><option value="CANCELLED">{t('finance.status.cancelled')}</option></select></div>)}<h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-sm text-gray-300 mb-1">{t('business.firmNameLabel')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.publicEmail')}</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.phone')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.address')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> {t('finance.services')}</h3>{lineItems.map((item, index) => (<div key={index} className="flex flex-col sm:flex-row gap-2 items-center"><input type="text" placeholder={t('finance.description')} className="flex-1 w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder={t('finance.qty')} className="w-full sm:w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder={t('finance.price')} className="w-full sm:w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg self-end sm:self-center"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> {t('finance.addLine')}</button></div><div className="flex justify-end gap-3"><button type="button" onClick={closeInvoiceModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
             {showExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-white flex items-center gap-2"><MinusCircle size={20} className="text-rose-500" /> {editingExpenseId ? t('finance.editExpense') : t('finance.addExpense')}</h2><button onClick={closeExpenseModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><div className="mb-6"><input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => setExpenseReceipt(e.target.files?.[0] || null)} /><button onClick={() => receiptInputRef.current?.click()} className={`w-full py-3 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all ${expenseReceipt ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>{expenseReceipt ? (<><CheckCircle size={18} /> {expenseReceipt.name}</>) : (<><Paperclip size={18} /> {t('finance.attachReceipt')}</>)}</button></div><form onSubmit={handleCreateOrUpdateExpense} className="space-y-5"><div><label className="block text-sm text-gray-300 mb-1">{t('finance.expenseCategory')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.category} onChange={e => setNewExpense({...newExpense, category: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.amount')}</label><input required type="number" step="0.01" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: parseFloat(e.target.value)})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.date')}</label><DatePicker selected={expenseDate} onChange={(date: Date | null) => setExpenseDate(date)} locale={currentLocale} dateFormat="dd/MM/yyyy" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" required /></div><div><label className="block text-sm text-gray-300 mb-1">{t('finance.description')}</label><textarea rows={3} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})} /></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={closeExpenseModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
             {showArchiveInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6"><h2 className="text-xl font-bold text-white mb-4">{t('finance.archiveInvoice')}</h2><div className="mb-6"><label className="block text-sm text-gray-400 mb-1">{t('drafting.selectCaseLabel')}</label><select className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id}>{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-6 py-2 bg-blue-600 text-white rounded-lg">{t('general.save')}</button></div></div></div>)}

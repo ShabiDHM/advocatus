@@ -157,6 +157,33 @@ class TransactionInDB(TransactionBase):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
+# PHOENIX ADDITION: TransactionOut for sending data to frontend
+class TransactionOut(BaseModel):
+    id: str = Field(alias="_id", default=None) # Handles both _id from DB and serialization
+    transaction_ref: Optional[str] = None
+    date_time: datetime
+    product_name: str
+    quantity: float
+    unit_price: float
+    total_amount: float
+    model_config = ConfigDict(populate_by_name=True)
+
+# --- ANALYTICS MODELS ---
+class SalesTrendPoint(BaseModel):
+    date: str
+    amount: float
+
+class TopProductItem(BaseModel):
+    product_name: str
+    total_quantity: float
+    total_revenue: float
+
+class AnalyticsDashboardData(BaseModel):
+    total_revenue_period: float
+    total_transactions_period: int
+    sales_trend: List[SalesTrendPoint]
+    top_products: List[TopProductItem]
+
 # --- COLUMN MAPPING MODELS ---
 class ColumnMappingRuleInDB(BaseModel):
     id: PyObjectId = Field(alias="_id", default=None)

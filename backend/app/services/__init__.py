@@ -1,6 +1,5 @@
 # FILE: backend/app/services/__init__.py
-# PHOENIX PROTOCOL - SERVICE REGISTRY V3.1 (PARSING SERVICE ADDED)
-# 1. ADDED: parsing_service to register the new POS import logic.
+# PHOENIX PROTOCOL - SERVICE REGISTRY V3.2 (ANALYTICS ADDED)
 
 from . import (
     admin_service,
@@ -32,7 +31,8 @@ from . import (
     graph_service,
     pdf_service,
     social_service,
-    parsing_service, # PHOENIX FIX: Added the new service
+    parsing_service,
+    analytics_service, # <--- ADDED HERE
     
     # Albanian Specific Services
     albanian_document_processor,
