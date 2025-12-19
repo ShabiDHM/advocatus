@@ -1,8 +1,7 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT SERVICE V4.2 (CLIENT DETAILS FIX)
-# 1. FIX: Updated PDF generation to explicitly render client_phone, client_city, client_tax_id, and client_website.
-# 2. LOGIC: Replaced legacy address regex parsing with structured field rendering.
-# 3. STATUS: Production Ready.
+# PHOENIX PROTOCOL - REPORT SERVICE V4.3 (LABEL REDUNDANCY FIX)
+# 1. FIX: Changed "invoice_num" translation from "Fatura #" to "Nr." to avoid "Fatura # Faktura-..." redundancy.
+# 2. STATUS: Production Ready.
 
 import io
 import os
@@ -53,7 +52,7 @@ STYLES.add(ParagraphStyle(name='FirmMeta', parent=STYLES['Normal'], alignment=TA
 # --- TRANSLATIONS ---
 TRANSLATIONS = {
     "sq": {
-        "invoice_title": "FATURA", "invoice_num": "Fatura #", "date_issue": "Data e Lëshimit", "date_due": "Afati i Pagesës",
+        "invoice_title": "FATURA", "invoice_num": "Nr.", "date_issue": "Data e Lëshimit", "date_due": "Afati i Pagesës",
         "status": "Statusi", "from": "Nga", "to": "Për", "desc": "Përshkrimi", "qty": "Sasia", "price": "Çmimi",
         "total": "Totali", "subtotal": "Nëntotali", "tax": "TVSH (18%)", "notes": "Shënime",
         "footer_gen": "Dokument i gjeneruar elektronikisht nga", "page": "Faqe", 
@@ -228,12 +227,10 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     Story.append(Table([[Paragraph(_get_text('invoice_title', lang), STYLES['H1']), Table(meta_data, colWidths=[80*mm], style=[('ALIGN', (0,0), (-1,-1), 'RIGHT')])]], colWidths=[100*mm, 80*mm], style=[('VALIGN', (0,0), (-1,-1), 'TOP')]))
     Story.append(Spacer(1, 15*mm))
 
-    # --- CLIENT DETAILS BLOCK FIX ---
+    # --- CLIENT DETAILS BLOCK ---
     client_content: List[Flowable] = []
-    # 1. Client Name
     client_content.append(Paragraph(f"<b>{invoice.client_name}</b>", STYLES['AddressText']))
     
-    # 2. Address & City
     c_address = getattr(invoice, 'client_address', '')
     c_city = getattr(invoice, 'client_city', '')
     full_address = c_address
@@ -243,22 +240,18 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     if full_address:
         client_content.append(Paragraph(f"<b>{_get_text('lbl_address', lang)}</b> {full_address}", STYLES['AddressText']))
 
-    # 3. Tax ID (NUI)
     c_tax_id = getattr(invoice, 'client_tax_id', '')
     if c_tax_id:
         client_content.append(Paragraph(f"<b>{_get_text('lbl_nui', lang)}</b> {c_tax_id}", STYLES['AddressText']))
 
-    # 4. Email
     c_email = getattr(invoice, 'client_email', '')
     if c_email:
         client_content.append(Paragraph(f"<b>{_get_text('lbl_email', lang)}</b> {c_email}", STYLES['AddressText']))
 
-    # 5. Phone
     c_phone = getattr(invoice, 'client_phone', '')
     if c_phone:
         client_content.append(Paragraph(f"<b>{_get_text('lbl_tel', lang)}</b> {c_phone}", STYLES['AddressText']))
 
-    # 6. Website
     c_website = getattr(invoice, 'client_website', '')
     if c_website:
         client_content.append(Paragraph(f"<b>{_get_text('lbl_web', lang)}</b> {c_website}", STYLES['AddressText']))
