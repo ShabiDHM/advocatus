@@ -1,6 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V9.4 (CORRECT CAPITALIZATION)
-// 1. FIX: Changed .toUpperCase() to correctly capitalize only the first letter of the username.
+// PHOENIX PROTOCOL - BUSINESS PAGE V9.5 (MOBILE NAVIGATION GRID FIX)
+// 1. FIX: Switched navigation from scrollable flex to grid-cols-3 on mobile.
+// 2. UI: Buttons are now fully centered and responsive.
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen } from 'lucide-react';
@@ -37,27 +38,28 @@ const BusinessPage: React.FC = () => {
             </p>
         </div>
         
-        <div className="w-full sm:w-auto flex overflow-x-auto no-scrollbar bg-background-light/10 p-1.5 rounded-2xl border border-white/10 backdrop-blur-md">
+        {/* FIX: Grid layout for mobile (3 cols), Flex for desktop */}
+        <div className="w-full sm:w-auto grid grid-cols-3 sm:flex bg-background-light/10 p-1.5 rounded-2xl border border-white/10 backdrop-blur-md gap-1 sm:gap-0">
             <button 
                 onClick={() => setActiveTab('profile')} 
-                className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-300 w-full sm:w-auto ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
             >
-                <Building2 size={18} />
-                <span>{t('business.profile')}</span>
+                <Building2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                <span className="truncate">{t('business.profile')}</span>
             </button>
             <button 
                 onClick={() => setActiveTab('finance')} 
-                className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-300 w-full sm:w-auto ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
             >
-                <FileText size={18} />
-                <span>{t('business.finance')}</span>
+                <FileText size={16} className="sm:w-[18px] sm:h-[18px]" />
+                <span className="truncate">{t('business.finance')}</span>
             </button>
             <button 
                 onClick={() => setActiveTab('archive')} 
-                className={`flex-shrink-0 flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-300 ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-300 w-full sm:w-auto ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
             >
-                <FolderOpen size={18} />
-                <span>{t('business.archive')}</span>
+                <FolderOpen size={16} className="sm:w-[18px] sm:h-[18px]" />
+                <span className="truncate">{t('business.archive')}</span>
             </button>
         </div>
       </div>

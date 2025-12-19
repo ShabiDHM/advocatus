@@ -45,9 +45,23 @@ const QuickActionButton = ({ icon, label, onClick, color }: { icon: React.ReactN
     </button>
 );
 
+// FIX: Responsive TabButton (Grid on mobile, Auto on desktop)
 const TabButton = ({ label, icon, isActive, onClick }: { label: string, icon: React.ReactNode, isActive: boolean, onClick: () => void }) => (
-    <button onClick={onClick} className={`flex-shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${isActive ? 'bg-secondary-start/10 text-secondary-start border border-secondary-start/20' : 'text-gray-400 hover:bg-white/5 hover:text-white border border-transparent'}`}>
-        {icon} {label}
+    <button 
+        onClick={onClick} 
+        className={`
+            w-full sm:w-auto 
+            flex items-center justify-center 
+            gap-1 sm:gap-2 
+            px-1 sm:px-4 py-2 
+            rounded-lg 
+            text-[10px] xs:text-xs sm:text-sm font-medium 
+            transition-colors duration-200 
+            ${isActive ? 'bg-secondary-start/10 text-secondary-start border border-secondary-start/20' : 'text-gray-400 hover:bg-white/5 hover:text-white border border-transparent'}
+        `}
+    >
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate">{label}</span>
     </button>
 );
 
@@ -222,7 +236,7 @@ export const FinanceTab: React.FC = () => {
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             <style>{`.custom-finance-scroll::-webkit-scrollbar { width: 6px; } .custom-finance-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); } .custom-finance-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; } .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
             
-            {/* FIX: FIXED HEIGHT 600PX FOR DESKTOP */}
+            {/* GRID CONTAINER - FIXED HEIGHT 600PX */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 lg:h-[600px]">
                 {/* LEFT COLUMN */}
                 <div className="lg:col-span-1 flex flex-col gap-6 h-full">
@@ -255,7 +269,8 @@ export const FinanceTab: React.FC = () => {
                 <div className="lg:col-span-2 bg-background-dark/50 border border-glass-edge rounded-3xl p-6 flex flex-col h-full min-w-0">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-4 flex-none">
                         <h2 className="text-lg font-bold text-white shrink-0">{t('finance.activityAndReports')}</h2>
-                        <div className="w-full sm:w-auto flex items-center gap-2 bg-background-light p-1 rounded-xl border border-white/5 overflow-x-auto no-scrollbar">
+                        {/* FIX: Grid on mobile, Flex on desktop. Removed overflow-x-auto. */}
+                        <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center gap-2 bg-background-light p-1 rounded-xl border border-white/5">
                             <TabButton label={t('finance.tabTransactions')} icon={<Activity size={16} />} isActive={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} />
                             <TabButton label={t('finance.tabReports')} icon={<BarChart2 size={16} />} isActive={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
                             <TabButton label={t('finance.tabHistory')} icon={<History size={16} />} isActive={activeTab === 'history'} onClick={() => setActiveTab('history')} />
@@ -272,7 +287,7 @@ export const FinanceTab: React.FC = () => {
                                     <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="block w-full pl-10 pr-3 py-2 border border-white/10 rounded-xl leading-5 bg-white/5 text-gray-300 placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-indigo-500 sm:text-sm transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
                                 
-                                <div className="space-y-3 flex-1 overflow-y-auto custom-finance-scroll pr-2 max-h-[500px]">
+                                <div className="space-y-3 flex-1 overflow-y-auto custom-finance-scroll pr-2">
                                     {filteredTransactions.length === 0 ? <p className="text-gray-500 italic text-sm text-center py-10">{t('finance.noTransactions')}</p> : filteredTransactions.map(tx => (
                                         <div key={`${tx.type}-${tx.id}`} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors">
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
