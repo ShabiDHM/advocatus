@@ -1,7 +1,6 @@
 # FILE: backend/app/models/finance.py
-# PHOENIX PROTOCOL - FINANCE MODELS V6.0 (LEGAL PRACTICE PIVOT)
-# 1. REMOVED: Transaction, ImportBatch, and ColumnMapping models.
-# 2. STATUS: Cleaned and focused on manual Invoices and Expenses.
+# PHOENIX PROTOCOL - FINANCE MODELS V7.0 (ANALYTICS RESTORED)
+# 1. RESTORED: AnalyticsDashboardData, SalesTrendPoint, TopProductItem, CaseFinancialSummary.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
@@ -31,6 +30,8 @@ class InvoiceBase(BaseModel):
     currency: str = "EUR"
     status: str = "DRAFT" 
     is_locked: bool = False
+    # PHOENIX: Added for Case Summary
+    case_id: Optional[str] = None
 
 class InvoiceCreate(BaseModel):
     client_name: str
@@ -40,6 +41,7 @@ class InvoiceCreate(BaseModel):
     tax_rate: float = 0.0
     due_date: Optional[datetime] = None
     notes: Optional[str] = None
+    case_id: Optional[str] = None
 
 class InvoiceUpdate(BaseModel):
     client_name: Optional[str] = None
@@ -51,6 +53,7 @@ class InvoiceUpdate(BaseModel):
     status: Optional[str] = None
     notes: Optional[str] = None
     is_locked: Optional[bool] = None
+    case_id: Optional[str] = None
 
 class InvoiceInDB(InvoiceBase):
     id: PyObjectId = Field(alias="_id", default=None)
@@ -92,6 +95,30 @@ class ExpenseInDB(ExpenseBase):
 
 class ExpenseOut(ExpenseInDB):
     id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
+
+# --- ANALYTICS & CASE SUMMARY MODELS (RESTORED) ---
+class SalesTrendPoint(BaseModel):
+    date: str
+    amount: float
+
+class TopProductItem(BaseModel):
+    product_name: str
+    total_quantity: float
+    total_revenue: float
+
+class AnalyticsDashboardData(BaseModel):
+    total_revenue_period: float
+    total_transactions_period: int
+    sales_trend: List[SalesTrendPoint]
+    top_products: List[TopProductItem]
+
+class CaseFinancialSummary(BaseModel):
+    case_id: str
+    case_title: str
+    case_number: str
+    total_billed: float
+    total_expenses: float
+    net_balance: float
 
 # --- TAX ENGINE MODELS ---
 class TaxCalculation(BaseModel):

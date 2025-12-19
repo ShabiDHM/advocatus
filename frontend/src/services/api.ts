@@ -1,6 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER V6.3 (CASE-CENTRIC EXPENSE FIX)
-// 1. FIX: Added 'related_case_id' to Expense, ExpenseCreateRequest, and ExpenseUpdate interfaces.
+// PHOENIX PROTOCOL - API MASTER V7.0 (CASE SUMMARY ENABLED)
+// 1. ADDED: 'CaseFinancialSummary' interface.
+// 2. IMPLEMENTED: 'getCaseSummaries' function to fetch data for "Historiku".
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -17,7 +18,7 @@ export interface TaxCalculation { period_month: number; period_year: number; tot
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
 
-// --- ANALYTICS INTERFACES ---
+// --- ANALYTICS & HISTORY INTERFACES ---
 export interface SalesTrendPoint { date: string; amount: number; }
 export interface TopProductItem { product_name: string; total_quantity: number; total_revenue: number; }
 export interface AnalyticsDashboardData {
@@ -26,8 +27,16 @@ export interface AnalyticsDashboardData {
     sales_trend: SalesTrendPoint[];
     top_products: TopProductItem[];
 }
+export interface CaseFinancialSummary {
+    case_id: string;
+    case_title: string;
+    case_number: string;
+    total_billed: number;
+    total_expenses: number;
+    net_balance: number;
+}
 
-// --- EXPENSE INTERFACES (WITH FIX) ---
+// --- EXPENSE INTERFACES ---
 export interface Expense { 
     id: string; 
     category: string; 
@@ -36,21 +45,21 @@ export interface Expense {
     date: string; 
     currency: string; 
     receipt_url?: string; 
-    related_case_id?: string; // PHOENIX FIX
+    related_case_id?: string;
 }
 export interface ExpenseCreateRequest { 
     category: string; 
     amount: number; 
     description?: string; 
     date?: string; 
-    related_case_id?: string; // PHOENIX FIX
+    related_case_id?: string;
 }
 export interface ExpenseUpdate { 
     category?: string; 
     amount?: number; 
     description?: string; 
     date?: string;
-    related_case_id?: string; // PHOENIX FIX
+    related_case_id?: string;
 }
 
 interface LoginResponse { access_token: string; }
@@ -123,8 +132,14 @@ class ApiService {
     public async getWizardState(month: number, year: number): Promise<WizardState> { const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', { params: { month, year } }); return response.data; }
     public async downloadMonthlyReport(month: number, year: number): Promise<void> { const response = await this.axiosInstance.get('/finance/wizard/report/pdf', { params: { month, year }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_${month}_${year}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
 
+    // --- ANALYTICS & HISTORY ---
     public async getAnalyticsDashboard(days: number = 30): Promise<AnalyticsDashboardData> {
         const response = await this.axiosInstance.get<AnalyticsDashboardData>(`/finance/analytics/dashboard`, { params: { days } });
+        return response.data;
+    }
+    
+    public async getCaseSummaries(): Promise<CaseFinancialSummary[]> {
+        const response = await this.axiosInstance.get<CaseFinancialSummary[]>('/finance/case-summary');
         return response.data;
     }
 
