@@ -222,8 +222,8 @@ export const FinanceTab: React.FC = () => {
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             <style>{`.custom-finance-scroll::-webkit-scrollbar { width: 6px; } .custom-finance-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); } .custom-finance-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; } .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
             
-            {/* FIX: Reduced desktop height from 800px to 700px to match ~8 items and align columns */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 lg:h-[700px]">
+            {/* FIX: FIXED HEIGHT 600PX FOR DESKTOP */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 lg:h-[600px]">
                 {/* LEFT COLUMN */}
                 <div className="lg:col-span-1 flex flex-col gap-6 h-full">
                     <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-4 flex-none">
