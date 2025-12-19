@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER v3.5 (HISTORY & DRILL-DOWN)
-// 1. ADDED: TransactionOut interface.
-// 2. ADDED: getImportHistory and getBatchTransactions methods.
+// PHOENIX PROTOCOL - API MASTER v3.6 (MAPPING SUPPORT)
+// 1. ADDED: ImportMappingResponse interface.
+// 2. ADDED: finalizePosImport method to submit column mappings.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -18,21 +18,16 @@ export interface TaxCalculation { period_month: number; period_year: number; tot
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
 
-// NEW: Interface for the backend response after a successful file import
+// IMPORT INTERFACES
 export interface ImportBatchOut { id: string; filename: string; status: string; row_count: number; total_volume: number; created_at: string; }
+export interface TransactionOut { id: string; transaction_ref?: string; date_time: string; product_name: string; quantity: number; unit_price: number; total_amount: number; currency: string; category?: string; batch_id: string; }
 
-// NEW: Interface for individual transactions within a batch
-export interface TransactionOut {
-    id: string;
-    transaction_ref?: string;
-    date_time: string;
-    product_name: string;
-    quantity: number;
-    unit_price: number;
-    total_amount: number;
-    currency: string;
-    category?: string;
-    batch_id: string;
+// NEW: Response when mapping is required
+export interface ImportMappingResponse {
+    mapping_required: boolean;
+    upload_id?: string;
+    detected_headers?: string[];
+    system_fields?: string[];
 }
 
 // Restored Local Expense Interfaces
@@ -111,12 +106,17 @@ class ApiService {
     public async downloadMonthlyReport(month: number, year: number): Promise<void> { const response = await this.axiosInstance.get('/finance/wizard/report/pdf', { params: { month, year }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_${month}_${year}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
 
     // --- POS IMPORT METHODS ---
-    public async uploadPosFile(file: File): Promise<ImportBatchOut> {
+    public async uploadPosFile(file: File): Promise<ImportBatchOut | ImportMappingResponse> {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await this.axiosInstance.post<ImportBatchOut>('/finance/import-pos', formData, {
+        const response = await this.axiosInstance.post<ImportBatchOut | ImportMappingResponse>('/finance/import-pos', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
+        return response.data;
+    }
+
+    public async finalizePosImport(uploadId: string, mappings: Record<string, string>): Promise<ImportBatchOut> {
+        const response = await this.axiosInstance.post<ImportBatchOut>(`/finance/import-pos/${uploadId}/map`, { mappings });
         return response.data;
     }
 
