@@ -1,4 +1,8 @@
 # FILE: backend/app/models/finance.py
+# PHOENIX PROTOCOL - FINANCE MODELS V6.0 (LEGAL PRACTICE PIVOT)
+# 1. REMOVED: Transaction, ImportBatch, and ColumnMapping models.
+# 2. STATUS: Cleaned and focused on manual Invoices and Expenses.
+
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
 from datetime import datetime
@@ -56,7 +60,6 @@ class InvoiceInDB(InvoiceBase):
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 class InvoiceOut(InvoiceInDB):
-    # PHOENIX FIX: Added default=None to satisfy Pydantic inheritance rules
     id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
 
 # --- EXPENSE MODELS ---
@@ -88,7 +91,6 @@ class ExpenseInDB(ExpenseBase):
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 class ExpenseOut(ExpenseInDB):
-    # PHOENIX FIX: Added default=None
     id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
 
 # --- TAX ENGINE MODELS ---
@@ -117,72 +119,3 @@ class WizardState(BaseModel):
     calculation: TaxCalculation
     issues: List[AuditIssue]
     ready_to_close: bool
-
-# --- TRANSACTION & IMPORT MODELS ---
-class ImportBatchBase(BaseModel):
-    user_id: PyObjectId
-    filename: str
-    status: str 
-    row_count: int = 0
-    total_volume: float = 0.0
-    error_message: Optional[str] = None
-
-class ImportBatchInDB(ImportBatchBase):
-    id: PyObjectId = Field(alias="_id", default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
-
-class ImportBatchOut(ImportBatchInDB):
-    # PHOENIX FIX: Added default=None
-    id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
-
-class TransactionBase(BaseModel):
-    user_id: PyObjectId
-    batch_id: PyObjectId
-    transaction_ref: Optional[str] = None
-    date_time: datetime
-    product_name: str
-    quantity: float = 1.0
-    unit_price: float = 0.0
-    total_amount: float
-    currency: str = "EUR"
-    vat_rate: Optional[float] = None
-    category: Optional[str] = "Uncategorized"
-    source_raw_data: dict = {}
-
-class TransactionInDB(TransactionBase):
-    id: PyObjectId = Field(alias="_id", default=None)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
-
-class TransactionOut(TransactionInDB):
-    # PHOENIX FIX: Added default=None
-    id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
-
-# --- ANALYTICS MODELS ---
-class SalesTrendPoint(BaseModel):
-    date: str
-    amount: float
-
-class TopProductItem(BaseModel):
-    product_name: str
-    total_quantity: float
-    total_revenue: float
-
-class AnalyticsDashboardData(BaseModel):
-    total_revenue_period: float
-    total_transactions_period: int
-    sales_trend: List[SalesTrendPoint]
-    top_products: List[TopProductItem]
-
-# --- COLUMN MAPPING MODELS ---
-class ColumnMappingRuleInDB(BaseModel):
-    id: PyObjectId = Field(alias="_id", default=None)
-    user_id: PyObjectId
-    source_signature: str
-    mapping: Dict[str, str]
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
-
-class ColumnMappingCreate(BaseModel):
-    mappings: Dict[str, str]
