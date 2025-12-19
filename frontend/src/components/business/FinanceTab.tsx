@@ -264,8 +264,8 @@ export const FinanceTab: React.FC = () => {
                     </div>
                 </div>
 
-                {/* RIGHT COLUMN - h-full ensures symmetry */}
-                <div className="lg:col-span-2 bg-background-dark/50 border border-glass-edge rounded-3xl p-6 flex flex-col h-full min-w-0">
+                {/* RIGHT COLUMN - h-full ensures symmetry, overflow-hidden ensures containment */}
+                <div className="lg:col-span-2 bg-background-dark/50 border border-glass-edge rounded-3xl p-6 flex flex-col h-full min-w-0 overflow-hidden">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-4 flex-none">
                         <h2 className="text-lg font-bold text-white shrink-0">{t('finance.activityAndReports')}</h2>
                         <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center gap-2 bg-background-light p-1 rounded-xl border border-white/5">
@@ -275,8 +275,9 @@ export const FinanceTab: React.FC = () => {
                         </div>
                     </div>
                     
-                    {/* Content Wrapper - fluid height */}
-                    <div className="flex-1 flex flex-col min-h-0 -mr-2 pr-2">
+                    {/* Content Wrapper - fluid height, overflow hidden to contain children, relative positioning */}
+                    <div className="flex-1 flex flex-col min-h-0 relative -mr-2 pr-2 overflow-hidden">
+                        
                         {/* TAB: TRANSACTIONS */}
                         {activeTab === 'transactions' && (
                             <div className="flex flex-col h-full space-y-4">
@@ -333,9 +334,9 @@ export const FinanceTab: React.FC = () => {
                             </div>
                         )}
                         
-                        {/* TAB: REPORTS */}
+                        {/* TAB: REPORTS - NOW SCROLLABLE TO MATCH CONSISTENCY */}
                         {activeTab === 'reports' && (
-                            <div className="space-y-6">
+                            <div className="h-full overflow-y-auto custom-finance-scroll pr-2 space-y-6">
                                 {!analyticsData ? <div className="space-y-6"><SkeletonChart /><SkeletonGrid /></div> : (
                                     <>
                                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
@@ -363,7 +364,7 @@ export const FinanceTab: React.FC = () => {
                                                 </ResponsiveContainer>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
                                             <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                                                 <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2"><BarChart2 size={16} className="text-emerald-400" /> {t('finance.analytics.topProducts')}</h4>
                                                 {/* FIX: Added min-h */}
