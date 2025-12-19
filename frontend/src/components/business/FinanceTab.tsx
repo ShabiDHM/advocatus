@@ -192,8 +192,8 @@ export const FinanceTab: React.FC = () => {
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             <style>{`.custom-finance-scroll::-webkit-scrollbar { width: 6px; } .custom-finance-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); } .custom-finance-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; } .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
             
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="lg:col-span-1 flex flex-col gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 items-start">
+                <div className="lg:col-span-1 flex flex-col gap-6 h-full">
                     <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-4">
                         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">{t('finance.overview')}</h3>
                         <SmartStatCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp size={20} />} color="text-emerald-400" />
@@ -211,7 +211,8 @@ export const FinanceTab: React.FC = () => {
                         )}
                     </div>
 
-                    <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-3">
+                    {/* FIX: flex-1 ensures this column fills height if the right column is taller */}
+                    <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-3 flex-1 flex flex-col justify-start">
                         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">{t('finance.quickActions')}</h3>
                         <QuickActionButton icon={<Plus size={18} />} label={t('finance.createInvoice')} onClick={() => setShowInvoiceModal(true)} color="text-emerald-400" />
                         <QuickActionButton icon={<MinusCircle size={18} />} label={t('finance.addExpense')} onClick={() => setShowExpenseModal(true)} color="text-rose-400" />
@@ -219,7 +220,7 @@ export const FinanceTab: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="lg:col-span-2 bg-background-dark/50 border border-glass-edge rounded-3xl p-6 flex flex-col min-h-[700px]">
+                <div className="lg:col-span-2 bg-background-dark/50 border border-glass-edge rounded-3xl p-6 flex flex-col h-full">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-4">
                         <h2 className="text-lg font-bold text-white shrink-0">{t('finance.activityAndReports')}</h2>
                         <div className="w-full sm:w-auto flex items-center gap-2 bg-background-light p-1 rounded-xl border border-white/5 overflow-x-auto no-scrollbar">
@@ -237,7 +238,8 @@ export const FinanceTab: React.FC = () => {
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-500" /></div>
                                     <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="block w-full pl-10 pr-3 py-2 border border-white/10 rounded-xl leading-5 bg-white/5 text-gray-300 placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-indigo-500 sm:text-sm transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
-                                <div className="space-y-3 h-[620px] overflow-y-auto custom-finance-scroll pr-2">
+                                {/* FIX: Reduced height to 550px for balance */}
+                                <div className="space-y-3 h-[550px] overflow-y-auto custom-finance-scroll pr-2">
                                     {filteredTransactions.length === 0 ? <p className="text-gray-500 italic text-sm text-center py-10">{t('finance.noTransactions')}</p> : filteredTransactions.map(tx => (<div key={`${tx.type}-${tx.id}`} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors"><div className="flex justify-between items-center"><div className="flex items-center gap-3 min-w-0"><div className={`p-2 rounded-lg flex-shrink-0 ${tx.type === 'invoice' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{tx.type === 'invoice' ? <FileText size={18} /> : <MinusCircle size={18} />}</div><div className="min-w-0"><h4 className="font-bold text-white text-sm truncate">{tx.type === 'invoice' ? tx.client_name : tx.category}</h4><p className="text-xs text-gray-400 font-mono">{tx.type === 'invoice' ? `#${tx.invoice_number}` : new Date(tx.date).toLocaleDateString()}</p></div></div><div className="flex items-center gap-4"><p className={`font-bold ${tx.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'}`}>{tx.type === 'invoice' ? `+€${tx.total_amount.toFixed(2)}` : `-€${tx.amount.toFixed(2)}`}</p><Menu as="div" className="relative"><Menu.Button className="p-1.5 hover:bg-white/10 rounded-full text-gray-400"><MoreVertical size={16} /></Menu.Button><Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95"><Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-white/10 rounded-md bg-background-light shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 border border-glass-edge"><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleEditInvoice(tx) : handleEditExpense(tx)} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Edit2 className="mr-2 h-4 w-4 text-amber-400" />{t('general.edit')}</button>)}</Menu.Item><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} disabled={(tx.type === 'expense' && !tx.receipt_url) || openingDocId === tx.id} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}>{openingDocId === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eye className="mr-2 h-4 w-4 text-blue-400" />}{t('general.view')}</button>)}</Menu.Item><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? downloadInvoice(tx.id) : handleDownloadExpense(tx)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Download className="mr-2 h-4 w-4 text-green-400" />{t('general.download')}</button>)}</Menu.Item></div><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleArchiveInvoiceClick(tx.id) : handleArchiveExpenseClick(tx.id)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Archive className="mr-2 h-4 w-4 text-indigo-400" />{t('general.archive')}</button>)}</Menu.Item></div><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? deleteInvoice(tx.id) : deleteExpense(tx.id)} className={`${active ? 'bg-red-500/20 text-red-400' : 'text-red-400'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Trash2 className="mr-2 h-4 w-4" />{t('general.delete')}</button>)}</Menu.Item></div></Menu.Items></Transition></Menu></div></div></div>))}
                                 </div>
                             </div>
@@ -321,9 +323,10 @@ export const FinanceTab: React.FC = () => {
                             </div>
                         )}
 
-                        {/* TAB: HISTORY - FIXED */}
+                        {/* TAB: HISTORY */}
                         {activeTab === 'history' && (
-                            <div className="space-y-4 h-[620px] overflow-y-auto custom-finance-scroll pr-2">
+                            // FIX: Reduced height to 550px for balance
+                            <div className="space-y-4 h-[550px] overflow-y-auto custom-finance-scroll pr-2">
                                 {historyByCase.length === 0 ? (
                                     <div className="flex justify-center items-center h-full text-gray-500 text-center flex-col">
                                         <div className="bg-white/5 p-4 rounded-full mb-3"><Briefcase size={32} className="text-gray-600" /></div>
@@ -357,12 +360,10 @@ export const FinanceTab: React.FC = () => {
                                             
                                             {expandedCaseId === item.caseData.id && (
                                                 <div className="bg-black/20 p-4 border-t border-white/5 space-y-2">
-                                                    {/* FIX 1: Added fallback text for the translation key */}
                                                     <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>
                                                     {item.expenses.map(exp => (
                                                         <div key={exp.id} className="flex justify-between items-center text-sm py-1 border-b border-white/5 last:border-0">
                                                             <div className="flex items-center gap-2">
-                                                                {/* FIX 2: Formatted date to remove time and follow SQ locale */}
                                                                 <span className="text-gray-400">{new Date(exp.date).toLocaleDateString('sq-AL')}</span>
                                                                 <span className="text-white">{exp.category}</span>
                                                             </div>
