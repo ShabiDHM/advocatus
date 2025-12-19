@@ -274,21 +274,32 @@ export const FinanceTab: React.FC = () => {
                                 <div className="space-y-3 flex-1 overflow-y-auto custom-finance-scroll pr-2">
                                     {filteredTransactions.length === 0 ? <p className="text-gray-500 italic text-sm text-center py-10">{t('finance.noTransactions')}</p> : filteredTransactions.map(tx => (
                                         <div key={`${tx.type}-${tx.id}`} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors">
-                                            {/* FIX: Mobile Flex-Col, Desktop Flex-Row */}
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                                 {/* Left Side: Icon + Title */}
-                                                <div className="flex items-center gap-3 w-full sm:w-auto">
+                                                <div className="flex items-center gap-3 w-full sm:w-auto overflow-hidden">
                                                     <div className={`p-2 rounded-lg flex-shrink-0 ${tx.type === 'invoice' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
                                                         {tx.type === 'invoice' ? <FileText size={18} /> : getCategoryIcon(tx.category)}
                                                     </div>
-                                                    <div className="min-w-0">
+                                                    <div className="min-w-0 flex-1">
                                                         <h4 className="font-bold text-white text-sm truncate">{tx.type === 'invoice' ? tx.client_name : tx.category}</h4>
-                                                        <p className="text-xs text-gray-400 font-mono">{tx.type === 'invoice' ? `#${tx.invoice_number}` : new Date(tx.date).toLocaleDateString()}</p>
+                                                        {/* On Mobile: Badge below name to save width */}
+                                                        <div className="flex sm:hidden mt-1">
+                                                            {tx.type === 'invoice' && getStatusBadge(tx.status)}
+                                                        </div>
+                                                        {/* On Desktop: Date below name */}
+                                                        <p className="hidden sm:block text-xs text-gray-400 font-mono mt-0.5">{tx.type === 'invoice' ? `#${tx.invoice_number}` : new Date(tx.date).toLocaleDateString()}</p>
+                                                        {/* On Mobile: Date inline or hidden? Keep it simpler */}
+                                                        <p className="sm:hidden text-xs text-gray-500 font-mono mt-0.5">{new Date(tx.date).toLocaleDateString()}</p>
                                                     </div>
                                                 </div>
-                                                {/* Right Side: Badge + Amount + Menu (Spread on mobile) */}
+
+                                                {/* Right Side: Amount + Menu + Desktop Badge */}
                                                 <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-1 sm:mt-0 pl-11 sm:pl-0">
-                                                    {tx.type === 'invoice' && getStatusBadge(tx.status)}
+                                                    {/* Desktop Badge (Hidden on mobile) */}
+                                                    <div className="hidden sm:block">
+                                                        {tx.type === 'invoice' && getStatusBadge(tx.status)}
+                                                    </div>
+                                                    
                                                     <div className="flex items-center gap-3">
                                                         <p className={`font-bold ${tx.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'}`}>
                                                             {tx.type === 'invoice' ? `+€${tx.total_amount.toFixed(2)}` : `-€${tx.amount.toFixed(2)}`}
@@ -317,7 +328,8 @@ export const FinanceTab: React.FC = () => {
                                     <>
                                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                                             <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-indigo-400"/> {t('finance.analytics.salesTrend')}</h4>
-                                            <div className="h-64 w-full">
+                                            {/* FIX: Added min-h to prevent Recharts width(-1) error */}
+                                            <div className="h-64 w-full min-h-[250px]">
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <AreaChart data={analyticsData.sales_trend}>
                                                         <defs>
@@ -342,7 +354,8 @@ export const FinanceTab: React.FC = () => {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                                                 <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2"><BarChart2 size={16} className="text-emerald-400" /> {t('finance.analytics.topProducts')}</h4>
-                                                <div className="h-64 w-full">
+                                                {/* FIX: Added min-h */}
+                                                <div className="h-64 w-full min-h-[250px]">
                                                     <ResponsiveContainer width="100%" height="100%">
                                                         <BarChart data={analyticsData.top_products} layout="vertical">
                                                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.15)" horizontal={true} vertical={false} />
@@ -448,7 +461,6 @@ export const FinanceTab: React.FC = () => {
             </div>
 
             {/* --- MODALS --- */}
-            {/* Same modals as before - kept omitted for brevity in thought block but included in final output */}
             {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 custom-finance-scroll"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{editingInvoiceId ? t('finance.editInvoice') : t('finance.createInvoice')}</h2><button onClick={closeInvoiceModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateOrUpdateInvoice} className="space-y-6"><div className="space-y-4">{editingInvoiceId && (<div className="bg-white/5 p-4 rounded-xl border-white/10 mb-4"><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2"><Activity size={14} /> {t('finance.statusLabel')}</label><select value={newInvoice.status} onChange={(e) => setNewInvoice({...newInvoice, status: e.target.value})} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white"><option value="DRAFT">{t('finance.status.draft')}</option><option value="SENT">{t('finance.status.sent')}</option><option value="PAID">{t('finance.status.paid')}</option><option value="CANCELLED">{t('finance.status.cancelled')}</option></select></div>)}<h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-sm text-gray-300 mb-1">{t('business.firmNameLabel')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.publicEmail')}</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.phone')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.address')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> {t('finance.services')}</h3>{lineItems.map((item, index) => (<div key={index} className="flex flex-col sm:flex-row gap-2 items-center"><input type="text" placeholder={t('finance.description')} className="flex-1 w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder={t('finance.qty')} className="w-full sm:w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder={t('finance.price')} className="w-full sm:w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg self-end sm:self-center"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> {t('finance.addLine')}</button></div><div className="flex justify-end gap-3"><button type="button" onClick={closeInvoiceModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
             {showExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-white flex items-center gap-2"><MinusCircle size={20} className="text-rose-500" /> {editingExpenseId ? t('finance.editExpense') : t('finance.addExpense')}</h2><button onClick={closeExpenseModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><div className="mb-6"><input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => setExpenseReceipt(e.target.files?.[0] || null)} /><button onClick={() => receiptInputRef.current?.click()} className={`w-full py-3 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all ${expenseReceipt ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>{expenseReceipt ? (<><CheckCircle size={18} /> {expenseReceipt.name}</>) : (<><Paperclip size={18} /> {t('finance.attachReceipt')}</>)}</button></div><form onSubmit={handleCreateOrUpdateExpense} className="space-y-5">
                 <div>
