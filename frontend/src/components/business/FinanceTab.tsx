@@ -120,7 +120,14 @@ export const FinanceTab: React.FC = () => {
     const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null);
 
     // Form States
-    const [newInvoice, setNewInvoice] = useState({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '', status: 'DRAFT' });
+    const [newInvoice, setNewInvoice] = useState({ 
+        client_name: '', client_email: '', client_phone: '', client_address: '', 
+        client_city: '', client_tax_id: '', client_website: '', 
+        tax_rate: 18, notes: '', status: 'DRAFT' 
+    });
+    // Toggle for VAT
+    const [includeVat, setIncludeVat] = useState(true);
+
     const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
     const [newExpense, setNewExpense] = useState<ExpenseCreateRequest>({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0], related_case_id: '' });
     const [expenseDate, setExpenseDate] = useState<Date | null>(new Date());
@@ -140,6 +147,15 @@ export const FinanceTab: React.FC = () => {
     };
 
     useEffect(() => { loadInitialData(); }, []);
+
+    // Effect to handle VAT toggle logic
+    useEffect(() => {
+        if (!includeVat) {
+            setNewInvoice(prev => ({ ...prev, tax_rate: 0 }));
+        } else if (newInvoice.tax_rate === 0) {
+            setNewInvoice(prev => ({ ...prev, tax_rate: 18 }));
+        }
+    }, [includeVat]);
 
     const totalIncome = invoices.reduce((sum, inv) => sum + inv.total_amount, 0);
     const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
@@ -210,9 +226,69 @@ export const FinanceTab: React.FC = () => {
     const updateLineItem = (i: number, f: keyof InvoiceItem, v: any) => { const n = [...lineItems]; n[i] = { ...n[i], [f]: v }; n[i].total = n[i].quantity * n[i].unit_price; setLineItems(n); };
     
     // --- Invoice Handlers ---
-    const handleEditInvoice = (invoice: Invoice) => { setEditingInvoiceId(invoice.id); setNewInvoice({ client_name: invoice.client_name, client_email: invoice.client_email || '', client_address: invoice.client_address || '', client_phone: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: invoice.tax_rate, notes: invoice.notes || '', status: invoice.status }); setLineItems(invoice.items); setShowInvoiceModal(true); };
-    const handleCreateOrUpdateInvoice = async (e: React.FormEvent) => { e.preventDefault(); try { const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: newInvoice.client_address, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes, status: newInvoice.status }; if (editingInvoiceId) { const u = await apiService.updateInvoice(editingInvoiceId, payload); setInvoices(invoices.map(i => i.id === editingInvoiceId ? u : i)); } else { const n = await apiService.createInvoice(payload); setInvoices([n, ...invoices]); } closeInvoiceModal(); } catch { alert(t('error.generic')); } };
-    const closeInvoiceModal = () => { setShowInvoiceModal(false); setEditingInvoiceId(null); setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '', status: 'DRAFT' }); setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); };
+    const handleEditInvoice = (invoice: Invoice) => { 
+        setEditingInvoiceId(invoice.id); 
+        // FIX: Correctly mapping all client fields
+        setNewInvoice({ 
+            client_name: invoice.client_name, 
+            client_email: invoice.client_email || '', 
+            client_address: invoice.client_address || '', 
+            client_phone: (invoice as any).client_phone || '', 
+            client_city: (invoice as any).client_city || '', 
+            client_tax_id: (invoice as any).client_tax_id || '', 
+            client_website: (invoice as any).client_website || '', 
+            tax_rate: invoice.tax_rate, 
+            notes: invoice.notes || '', 
+            status: invoice.status 
+        }); 
+        setIncludeVat(invoice.tax_rate > 0);
+        setLineItems(invoice.items); 
+        setShowInvoiceModal(true); 
+    };
+
+    const handleCreateOrUpdateInvoice = async (e: React.FormEvent) => { 
+        e.preventDefault(); 
+        try { 
+            // FIX: Including all client fields in payload
+            const payload = { 
+                client_name: newInvoice.client_name, 
+                client_email: newInvoice.client_email, 
+                client_address: newInvoice.client_address, 
+                client_phone: newInvoice.client_phone,
+                client_city: newInvoice.client_city,
+                client_tax_id: newInvoice.client_tax_id,
+                client_website: newInvoice.client_website,
+                items: lineItems, 
+                tax_rate: includeVat ? newInvoice.tax_rate : 0, 
+                notes: newInvoice.notes, 
+                status: newInvoice.status 
+            }; 
+            
+            if (editingInvoiceId) { 
+                const u = await apiService.updateInvoice(editingInvoiceId, payload); 
+                setInvoices(invoices.map(i => i.id === editingInvoiceId ? u : i)); 
+            } else { 
+                const n = await apiService.createInvoice(payload); 
+                setInvoices([n, ...invoices]); 
+            } 
+            closeInvoiceModal(); 
+        } catch { 
+            alert(t('error.generic')); 
+        } 
+    };
+
+    const closeInvoiceModal = () => { 
+        setShowInvoiceModal(false); 
+        setEditingInvoiceId(null); 
+        setNewInvoice({ 
+            client_name: '', client_email: '', client_phone: '', client_address: '', 
+            client_city: '', client_tax_id: '', client_website: '', 
+            tax_rate: 18, notes: '', status: 'DRAFT' 
+        }); 
+        setIncludeVat(true);
+        setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); 
+    };
+
     const deleteInvoice = async (id: string) => { if(!window.confirm(t('general.confirmDelete'))) return; try { await apiService.deleteInvoice(id); setInvoices(invoices.filter(inv => inv.id !== id)); } catch { alert(t('documentsPanel.deleteFailed')); } };
     const handleViewInvoice = async (invoice: Invoice) => { setOpeningDocId(invoice.id); try { const blob = await apiService.getInvoicePdfBlob(invoice.id, i18n.language || 'sq'); const url = window.URL.createObjectURL(blob); setViewingUrl(url); setViewingDoc({ id: invoice.id, file_name: `Invoice #${invoice.invoice_number}`, mime_type: 'application/pdf', status: 'READY' } as any); } catch { alert(t('error.generic')); } finally { setOpeningDocId(null); } };
     const downloadInvoice = async (id: string) => { try { await apiService.downloadInvoicePdf(id, i18n.language || 'sq'); } catch { alert(t('error.generic')); } };
@@ -474,7 +550,7 @@ export const FinanceTab: React.FC = () => {
             </div>
 
             {/* --- MODALS --- */}
-            {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 custom-finance-scroll"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{editingInvoiceId ? t('finance.editInvoice') : t('finance.createInvoice')}</h2><button onClick={closeInvoiceModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateOrUpdateInvoice} className="space-y-6"><div className="space-y-4">{editingInvoiceId && (<div className="bg-white/5 p-4 rounded-xl border-white/10 mb-4"><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2"><Activity size={14} /> {t('finance.statusLabel')}</label><select value={newInvoice.status} onChange={(e) => setNewInvoice({...newInvoice, status: e.target.value})} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white"><option value="DRAFT">{t('finance.status.draft')}</option><option value="SENT">{t('finance.status.sent')}</option><option value="PAID">{t('finance.status.paid')}</option><option value="CANCELLED">{t('finance.status.cancelled')}</option></select></div>)}<h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-sm text-gray-300 mb-1">{t('business.firmNameLabel')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.publicEmail')}</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.phone')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.address')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> {t('finance.services')}</h3>{lineItems.map((item, index) => (<div key={index} className="flex flex-col sm:flex-row gap-2 items-center"><input type="text" placeholder={t('finance.description')} className="flex-1 w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder={t('finance.qty')} className="w-full sm:w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder={t('finance.price')} className="w-full sm:w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg self-end sm:self-center"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> {t('finance.addLine')}</button></div><div className="flex justify-end gap-3"><button type="button" onClick={closeInvoiceModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
+            {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 custom-finance-scroll"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{editingInvoiceId ? t('finance.editInvoice') : t('finance.createInvoice')}</h2><button onClick={closeInvoiceModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateOrUpdateInvoice} className="space-y-6"><div className="space-y-4">{editingInvoiceId && (<div className="bg-white/5 p-4 rounded-xl border-white/10 mb-4"><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2"><Activity size={14} /> {t('finance.statusLabel')}</label><select value={newInvoice.status} onChange={(e) => setNewInvoice({...newInvoice, status: e.target.value})} className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white"><option value="DRAFT">{t('finance.status.draft')}</option><option value="SENT">{t('finance.status.sent')}</option><option value="PAID">{t('finance.status.paid')}</option><option value="CANCELLED">{t('finance.status.cancelled')}</option></select></div>)}<h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-sm text-gray-300 mb-1">{t('business.firmNameLabel')}</label><input required type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.publicEmail')}</label><input type="email" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.phone')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-sm text-gray-300 mb-1">{t('business.city')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.taxId')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} /></div></div><div><label className="block text-sm text-gray-300 mb-1">{t('business.address')}</label><input type="text" className="w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div><div className="flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/10"><input type="checkbox" id="vatToggle" checked={includeVat} onChange={(e) => setIncludeVat(e.target.checked)} className="w-4 h-4 text-primary-start rounded border-gray-300 focus:ring-primary-start" /><label htmlFor="vatToggle" className="text-sm text-gray-300 cursor-pointer select-none">Apliko TVSH (18%)</label></div></div><div className="space-y-3 pt-4 border-t border-white/10"><h3 className="text-sm font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> {t('finance.services')}</h3>{lineItems.map((item, index) => (<div key={index} className="flex flex-col sm:flex-row gap-2 items-center"><input type="text" placeholder={t('finance.description')} className="flex-1 w-full bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder={t('finance.qty')} className="w-full sm:w-20 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder={t('finance.price')} className="w-full sm:w-24 bg-background-light border-glass-edge rounded-lg px-3 py-2 text-white" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-900/20 rounded-lg self-end sm:self-center"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1"><Plus size={14} /> {t('finance.addLine')}</button></div><div className="flex justify-end gap-3"><button type="button" onClick={closeInvoiceModal} className="px-4 py-2 text-gray-400">{t('general.cancel')}</button><button type="submit" className="px-6 py-2 bg-green-600 text-white rounded-lg font-bold">{t('general.save')}</button></div></form></div></div>)}
             {showExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-background-dark border border-glass-edge rounded-2xl w-full max-w-md p-6"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-white flex items-center gap-2"><MinusCircle size={20} className="text-rose-500" /> {editingExpenseId ? t('finance.editExpense') : t('finance.addExpense')}</h2><button onClick={closeExpenseModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><div className="mb-6"><input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => setExpenseReceipt(e.target.files?.[0] || null)} /><button onClick={() => receiptInputRef.current?.click()} className={`w-full py-3 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all ${expenseReceipt ? 'bg-indigo-600/20 border-indigo-500 text-indigo-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>{expenseReceipt ? (<><CheckCircle size={18} /> {expenseReceipt.name}</>) : (<><Paperclip size={18} /> {t('finance.attachReceipt')}</>)}</button></div><form onSubmit={handleCreateOrUpdateExpense} className="space-y-5">
                 <div>
                     <label className="block text-sm text-gray-300 mb-1">{t('drafting.selectCaseLabel', "Lënda e Lidhur (Opsionale)")}</label>
