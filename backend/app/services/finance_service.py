@@ -1,7 +1,7 @@
 # FILE: backend/app/services/finance_service.py
-# PHOENIX PROTOCOL - FINANCE LOGIC V5.3 (LAZY IMPORT FIX)
-# 1. FIX: Moved storage_service import inside the method to eliminate circular dependency.
-# 2. STATUS: Fully functional.
+# PHOENIX PROTOCOL - FINANCE LOGIC V5.5 (CLEAN STATE)
+# 1. REVERT: Removed manual string conversion for IDs. Models handle serialization now.
+# 2. STATUS: Fully functional and type-safe.
 
 import structlog
 from datetime import datetime, timezone
@@ -24,10 +24,6 @@ class FinanceService:
 
     # --- POS / INTEGRATION HUB LOGIC ---
     async def get_monthly_pos_revenue(self, async_db: Any, user_id: str, month: int, year: int) -> float:
-        """
-        Calculates total revenue from imported POS transactions for a specific month.
-        Requires the async motor database instance.
-        """
         try:
             start_date = datetime(year, month, 1)
             if month == 12:
@@ -89,27 +85,18 @@ class FinanceService:
         })
         
         result = self.db.invoices.insert_one(invoice_doc)
-        
-        invoice_doc["id"] = str(result.inserted_id)
         invoice_doc["_id"] = result.inserted_id
-        
         return InvoiceInDB(**invoice_doc)
 
     def get_invoices(self, user_id: str) -> list[InvoiceInDB]:
         cursor = self.db.invoices.find({"user_id": ObjectId(user_id)}).sort("created_at", -1)
-        invoices = []
-        for doc in cursor:
-            doc["id"] = str(doc["_id"])
-            invoices.append(InvoiceInDB(**doc))
-        return invoices
+        return [InvoiceInDB(**doc) for doc in cursor]
 
     def get_invoice(self, user_id: str, invoice_id: str) -> InvoiceInDB:
         try: oid = ObjectId(invoice_id)
         except: raise HTTPException(status_code=400, detail="Invalid Invoice ID")
         doc = self.db.invoices.find_one({"_id": oid, "user_id": ObjectId(user_id)})
         if not doc: raise HTTPException(status_code=404, detail="Invoice not found")
-        
-        doc["id"] = str(doc["_id"])
         return InvoiceInDB(**doc)
 
     def update_invoice(self, user_id: str, invoice_id: str, update_data: InvoiceUpdate) -> InvoiceInDB:
@@ -142,8 +129,6 @@ class FinanceService:
 
         update_dict["updated_at"] = datetime.now(timezone.utc)
         result = self.db.invoices.find_one_and_update({"_id": oid}, {"$set": update_dict}, return_document=True)
-        
-        result["id"] = str(result["_id"])
         return InvoiceInDB(**result)
 
     def update_invoice_status(self, user_id: str, invoice_id: str, status: str) -> InvoiceInDB:
@@ -155,8 +140,6 @@ class FinanceService:
             return_document=True
         )
         if not result: raise HTTPException(status_code=404, detail="Invoice not found")
-        
-        result["id"] = str(result["_id"])
         return InvoiceInDB(**result)
 
     def delete_invoice(self, user_id: str, invoice_id: str) -> None:
@@ -176,19 +159,12 @@ class FinanceService:
             "receipt_url": None
         })
         result = self.db.expenses.insert_one(expense_doc)
-        
-        expense_doc["id"] = str(result.inserted_id)
         expense_doc["_id"] = result.inserted_id
-        
         return ExpenseInDB(**expense_doc)
 
     def get_expenses(self, user_id: str) -> list[ExpenseInDB]:
         cursor = self.db.expenses.find({"user_id": ObjectId(user_id)}).sort("date", -1)
-        expenses = []
-        for doc in cursor:
-            doc["id"] = str(doc["_id"])
-            expenses.append(ExpenseInDB(**doc))
-        return expenses
+        return [ExpenseInDB(**doc) for doc in cursor]
 
     def update_expense(self, user_id: str, expense_id: str, update_data: ExpenseUpdate) -> ExpenseInDB:
         try: oid = ObjectId(expense_id)
@@ -199,8 +175,6 @@ class FinanceService:
 
         update_dict = update_data.model_dump(exclude_unset=True)
         result = self.db.expenses.find_one_and_update({"_id": oid}, {"$set": update_dict}, return_document=True)
-        
-        result["id"] = str(result["_id"])
         return ExpenseInDB(**result)
 
     def delete_expense(self, user_id: str, expense_id: str) -> None:
@@ -217,7 +191,7 @@ class FinanceService:
         expense = self.db.expenses.find_one({"_id": oid, "user_id": ObjectId(user_id)})
         if not expense: raise HTTPException(status_code=404, detail="Expense not found")
         
-        # PHOENIX FIX: Lazy import to break circular dependency
+        # Lazy import to break circular dependency
         from app.services.storage_service import upload_file_raw
         
         folder = f"expenses/{user_id}"

@@ -1,8 +1,4 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - ROUTING CORRECTION V5.0 (PREFIX REMOVED)
-# 1. FIX: Removed 'prefix="/finance"' from APIRouter definition.
-#    This resolves the 404 error for manual Invoices and Expenses.
-
 import pandas as pd
 import io
 import uuid
@@ -31,7 +27,6 @@ from app.services import report_service
 from app.services.parsing_service import PosParsingService
 from app.api.endpoints.dependencies import get_current_user, get_db, get_async_db, get_current_active_user, get_sync_redis
 
-# PHOENIX FIX: Prefix removed. URL is now correctly /api/v1/finance/...
 router = APIRouter(tags=["Finance"])
 
 REQUIRED_FIELDS = ["product", "total"]
@@ -46,8 +41,7 @@ async def get_import_history(
     """Fetches the history of file imports for the user."""
     cursor = db["import_batches"].find({"user_id": ObjectId(current_user.id)}).sort("created_at", -1).limit(50)
     batches = await cursor.to_list(length=50)
-    for b in batches:
-        b["id"] = str(b["_id"])
+    # The models now handle ObjectId serialization automatically via PyObjectId
     return batches
 
 @router.get("/import-batches/{batch_id}/transactions", response_model=List[TransactionOut])
@@ -68,8 +62,6 @@ async def get_batch_transactions(
 
     cursor = db["transactions"].find({"batch_id": b_oid}).limit(1000)
     transactions = await cursor.to_list(length=1000)
-    for t in transactions:
-        t["id"] = str(t["_id"])
     return transactions
 
 @router.get("/analytics/dashboard", response_model=AnalyticsDashboardData)
@@ -167,8 +159,19 @@ async def initiate_pos_import(
             if transactions_to_insert:
                 await db["transactions"].insert_many(transactions_to_insert)
 
+            # Response construction using model validation to handle ObjectId -> str
+            response_data = {
+                "_id": batch_id,
+                "user_id": current_user.id,
+                "filename": file.filename,
+                "status": "PROCESSED",
+                "row_count": len(transactions_data),
+                "total_volume": total_volume,
+                "created_at": datetime.utcnow()
+            }
+            # Return model dump via JSONResponse to allow proper status code handling
             return JSONResponse(
-                content={"id": str(batch_id), "filename": file.filename, "status": "PROCESSED", "row_count": len(transactions_data), "total_volume": total_volume, "created_at": datetime.utcnow().isoformat()},
+                content=json.loads(ImportBatchOut(**response_data).model_dump_json(by_alias=True)),
                 status_code=status.HTTP_201_CREATED
             )
 
@@ -214,7 +217,16 @@ async def finalize_pos_import_with_mapping(
     rule = ColumnMappingRuleInDB(user_id=current_user.id, source_signature=signature, mapping=mapping_data.mappings)
     await db["column_mappings"].update_one({"user_id": current_user.id, "source_signature": signature}, {"$set": rule.model_dump(by_alias=False)}, upsert=True)
 
-    return ImportBatchOut(id=str(batch_id), filename=filename, status="PROCESSED", row_count=len(transactions_data), total_volume=total_volume, created_at=datetime.utcnow())
+    # PHOENIX FIX: Just pass _id, default=None in model handles the rest via alias
+    return ImportBatchOut(
+        _id=batch_id,
+        user_id=current_user.id,
+        filename=filename, 
+        status="PROCESSED", 
+        row_count=len(transactions_data), 
+        total_volume=total_volume, 
+        created_at=datetime.utcnow()
+    )
 
 # --- INVOICES ---
 @router.get("/invoices", response_model=List[InvoiceOut])

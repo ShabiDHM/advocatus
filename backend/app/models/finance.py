@@ -56,7 +56,8 @@ class InvoiceInDB(InvoiceBase):
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 class InvoiceOut(InvoiceInDB):
-    id: str = Field(serialization_alias="id", default=None)
+    # PHOENIX FIX: Added default=None to satisfy Pydantic inheritance rules
+    id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
 
 # --- EXPENSE MODELS ---
 class ExpenseBase(BaseModel):
@@ -87,7 +88,8 @@ class ExpenseInDB(ExpenseBase):
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 class ExpenseOut(ExpenseInDB):
-    id: str = Field(serialization_alias="id", default=None)
+    # PHOENIX FIX: Added default=None
+    id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
 
 # --- TAX ENGINE MODELS ---
 class TaxCalculation(BaseModel):
@@ -130,13 +132,9 @@ class ImportBatchInDB(ImportBatchBase):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
-class ImportBatchOut(BaseModel):
-    id: str
-    filename: str
-    status: str
-    row_count: int
-    total_volume: float
-    created_at: datetime
+class ImportBatchOut(ImportBatchInDB):
+    # PHOENIX FIX: Added default=None
+    id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
 
 class TransactionBase(BaseModel):
     user_id: PyObjectId
@@ -157,16 +155,9 @@ class TransactionInDB(TransactionBase):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
-# PHOENIX ADDITION: TransactionOut for sending data to frontend
-class TransactionOut(BaseModel):
-    id: str = Field(alias="_id", default=None) # Handles both _id from DB and serialization
-    transaction_ref: Optional[str] = None
-    date_time: datetime
-    product_name: str
-    quantity: float
-    unit_price: float
-    total_amount: float
-    model_config = ConfigDict(populate_by_name=True)
+class TransactionOut(TransactionInDB):
+    # PHOENIX FIX: Added default=None
+    id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
 
 # --- ANALYTICS MODELS ---
 class SalesTrendPoint(BaseModel):
