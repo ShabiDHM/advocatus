@@ -1,4 +1,8 @@
 # FILE: backend/app/api/endpoints/finance.py
+# PHOENIX PROTOCOL - ROUTING CORRECTION V5.0 (PREFIX REMOVED)
+# 1. FIX: Removed 'prefix="/finance"' from APIRouter definition.
+#    This resolves the 404 error for manual Invoices and Expenses.
+
 import pandas as pd
 import io
 import uuid
@@ -27,7 +31,8 @@ from app.services import report_service
 from app.services.parsing_service import PosParsingService
 from app.api.endpoints.dependencies import get_current_user, get_db, get_async_db, get_current_active_user, get_sync_redis
 
-router = APIRouter(prefix="/finance", tags=["Finance"])
+# PHOENIX FIX: Prefix removed. URL is now correctly /api/v1/finance/...
+router = APIRouter(tags=["Finance"])
 
 REQUIRED_FIELDS = ["product", "total"]
 
@@ -69,7 +74,6 @@ async def get_batch_transactions(
 
 @router.get("/analytics/dashboard", response_model=AnalyticsDashboardData)
 async def get_analytics_dashboard(
-    # PHOENIX FIX: Reordered arguments. Required arguments (dependencies) must come before arguments with defaults.
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
     db: Any = Depends(get_async_db),
     days: int = 30
