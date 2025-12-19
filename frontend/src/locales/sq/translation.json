@@ -251,7 +251,7 @@
     "logoUploadFailed": "Ngarkimi i logos dështoi."
   },
   "finance": {
-    "income": "Të Hyrat",
+     "income": "Të Hyrat",
     "incomeSub": "Nga faturat e paguara",
     "expense": "Shpenzimet",
     "expenseSub": "Shpenzimet operacionale",
@@ -295,6 +295,19 @@
     "quickActions": "Veprimet e Shpejta",
     "activityAndReports": "Aktiviteti & Raportet",
     "tabTransactions": "Transaksionet",
+    "tabReports": "Raportet",
+    "tabHistory": "Historiku",
+    "analytics": {
+      "periodTitle": "Analiza (30 Ditë)",
+      "totalSales": "Shitjet Totale",
+      "invoiceCount": "Nr. Faturave/Trans",
+      "salesTrend": "Ecuria e Shitjeve",
+      "topProducts": "Top 5 Shërbimet",
+      "productDetails": "Detajet e Shërbimeve",
+      "tableProduct": "Shërbimi",
+      "tableQty": "Sasia",
+      "tableValue": "Vlera"
+    },
     "wizard": {
       "back": "Kthehu te Financat",
       "stepAudit": "Auditimi",

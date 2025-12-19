@@ -1,7 +1,6 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER V6.0 (LEGAL PRACTICE PIVOT)
-// 1. REMOVED: All functions and interfaces related to POS import.
-// 2. STATUS: Clean, focused on manual Invoices and Expenses.
+// PHOENIX PROTOCOL - API MASTER V6.1 (ANALYTICS RESTORED)
+// 1. RESTORED: 'getAnalyticsDashboard' method and 'AnalyticsDashboardData' interfaces.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -17,6 +16,16 @@ export interface AuditIssue { id: string; severity: 'CRITICAL' | 'WARNING'; mess
 export interface TaxCalculation { period_month: number; period_year: number; total_sales_gross: number; total_purchases_gross: number; vat_collected: number; vat_deductible: number; net_obligation: number; currency: string; status: string; regime: string; tax_rate_applied: string; description: string; }
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
+
+// --- ANALYTICS INTERFACES ---
+export interface SalesTrendPoint { date: string; amount: number; }
+export interface TopProductItem { product_name: string; total_quantity: number; total_revenue: number; }
+export interface AnalyticsDashboardData {
+    total_revenue_period: number;
+    total_transactions_period: number;
+    sales_trend: SalesTrendPoint[];
+    top_products: TopProductItem[];
+}
 
 // Restored Local Expense Interfaces
 export interface Expense { id: string; category: string; amount: number; description?: string; date: string; currency: string; receipt_url?: string; }
@@ -92,6 +101,11 @@ class ApiService {
     public async getExpenseReceiptBlob(expenseId: string): Promise<{ blob: Blob, filename: string }> { const response = await this.axiosInstance.get(`/finance/expenses/${expenseId}/receipt`, { responseType: 'blob' }); const disposition = response.headers['content-disposition']; let filename = `receipt-${expenseId}.pdf`; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="([^"]*)"/.exec(disposition); if (matches != null && matches[1]) filename = matches[1]; } return { blob: response.data, filename }; }
     public async getWizardState(month: number, year: number): Promise<WizardState> { const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', { params: { month, year } }); return response.data; }
     public async downloadMonthlyReport(month: number, year: number): Promise<void> { const response = await this.axiosInstance.get('/finance/wizard/report/pdf', { params: { month, year }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_${month}_${year}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
+
+    public async getAnalyticsDashboard(days: number = 30): Promise<AnalyticsDashboardData> {
+        const response = await this.axiosInstance.get<AnalyticsDashboardData>(`/finance/analytics/dashboard`, { params: { days } });
+        return response.data;
+    }
 
     public async getInvoices(): Promise<Invoice[]> { const response = await this.axiosInstance.get<any>('/finance/invoices'); return Array.isArray(response.data) ? response.data : (response.data.invoices || []); }
     public async createInvoice(data: InvoiceCreateRequest): Promise<Invoice> { const response = await this.axiosInstance.post<Invoice>('/finance/invoices', data); return response.data; }
