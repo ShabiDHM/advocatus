@@ -1,10 +1,15 @@
 // FILE: src/components/business/FinanceTab.tsx
+// PHOENIX PROTOCOL - FINANCE TAB V15.0 (SEARCH & SCROLL)
+// 1. ADDED: Search functionality for transactions (Client, Category, Amount, ID).
+// 2. CHANGED: Transaction list height restricted to ~4 items (380px) to force scrolling.
+// 3. UI: Added Search Input field above the list.
+
 import React, { useEffect, useState, useRef, useMemo, Fragment } from 'react';
 import { motion } from 'framer-motion';
 import { Menu, Transition } from '@headlessui/react';
 import { 
     TrendingUp, TrendingDown, Wallet, Calculator, MinusCircle, Plus, FileText, 
-    Edit2, Eye, Download, Archive, Trash2, CheckCircle, Paperclip, X, User, Activity, Loader2, UploadCloud, BarChart2, History, FileUp, MoreVertical, ChevronRight, ArrowRight, Table
+    Edit2, Eye, Download, Archive, Trash2, CheckCircle, Paperclip, X, User, Activity, Loader2, UploadCloud, BarChart2, History, FileUp, MoreVertical, ChevronRight, ArrowRight, Table, Search
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -22,6 +27,8 @@ import {
 } from 'recharts';
 
 const DatePicker = (ReactDatePicker as any).default;
+
+// --- UI SUB-COMPONENTS ---
 
 const SmartStatCard = ({ title, amount, icon, color }: { title: string, amount: string, icon: React.ReactNode, color: string }) => (
     <div className="group relative overflow-hidden rounded-xl bg-white/5 border border-white/10 p-4 hover:bg-white/10 transition-all duration-300">
@@ -48,6 +55,9 @@ const TabButton = ({ label, icon, isActive, onClick }: { label: string, icon: Re
     </button>
 );
 
+
+// --- MAIN FINANCE TAB COMPONENT ---
+
 export const FinanceTab: React.FC = () => {
     type ActiveTab = 'transactions' | 'reports' | 'imports';
 
@@ -56,6 +66,7 @@ export const FinanceTab: React.FC = () => {
     const localeMap: { [key: string]: any } = { sq, al: sq, en: enUS };
     const currentLocale = localeMap[i18n.language] || enUS;
 
+    // --- STATE MANAGEMENT ---
     const [loading, setLoading] = useState(true);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -64,31 +75,41 @@ export const FinanceTab: React.FC = () => {
     const [activeTab, setActiveTab] = useState<ActiveTab>('transactions');
     const [openingDocId, setOpeningDocId] = useState<string | null>(null);
 
+    // Search State
+    const [searchTerm, setSearchTerm] = useState('');
+
+    // Analytics State
     const [analyticsData, setAnalyticsData] = useState<AnalyticsDashboardData | null>(null);
 
+    // Modal States & Handlers
     const [showInvoiceModal, setShowInvoiceModal] = useState(false);
     const [showExpenseModal, setShowExpenseModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
     const [showArchiveInvoiceModal, setShowArchiveInvoiceModal] = useState(false);
     const [showArchiveExpenseModal, setShowArchiveExpenseModal] = useState(false);
     
+    // Mapping Modal State
     const [showMappingModal, setShowMappingModal] = useState(false);
     const [mappingData, setMappingData] = useState<ImportMappingResponse | null>(null);
     const [userMappings, setUserMappings] = useState<Record<string, string>>({});
 
+    // Drill-Down Modal State
     const [selectedBatch, setSelectedBatch] = useState<ImportBatchOut | null>(null);
     const [batchTransactions, setBatchTransactions] = useState<TransactionOut[]>([]);
     const [loadingTransactions, setLoadingTransactions] = useState(false);
 
+    // Selection / Edit States
     const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
     const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
     const [selectedCaseForInvoice, setSelectedCaseForInvoice] = useState<string>("");
     const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
     const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
+    // Document Viewing
     const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
     const [viewingUrl, setViewingUrl] = useState<string | null>(null);
 
+    // Form States
     const [newInvoice, setNewInvoice] = useState({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '', status: 'DRAFT' });
     const [lineItems, setLineItems] = useState<InvoiceItem[]>([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
     const [newExpense, setNewExpense] = useState<ExpenseCreateRequest>({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0] });
@@ -96,10 +117,12 @@ export const FinanceTab: React.FC = () => {
     const [expenseReceipt, setExpenseReceipt] = useState<File | null>(null);
     const receiptInputRef = useRef<HTMLInputElement>(null);
 
+    // Import Modal State
     const [isUploading, setIsUploading] = useState(false);
     const [uploadFile, setUploadFile] = useState<File | null>(null);
     const [uploadError, setUploadError] = useState<string | null>(null);
 
+    // --- DATA ---
     const loadInitialData = async () => {
         try {
             const [inv, exp, cs, batches, analytics] = await Promise.all([
@@ -119,6 +142,7 @@ export const FinanceTab: React.FC = () => {
 
     useEffect(() => { loadInitialData(); }, []);
 
+    // Handle Batch Drill-Down
     const handleViewBatch = async (batch: ImportBatchOut) => {
         setSelectedBatch(batch);
         setLoadingTransactions(true);
@@ -150,11 +174,34 @@ export const FinanceTab: React.FC = () => {
         return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [invoices, expenses]);
 
+    // Filter Logic for Search
+    const filteredTransactions = useMemo(() => {
+        if (!searchTerm) return sortedTransactions;
+        const lowerTerm = searchTerm.toLowerCase();
+        return sortedTransactions.filter(tx => {
+            if (tx.type === 'invoice') {
+                return (
+                    tx.client_name.toLowerCase().includes(lowerTerm) ||
+                    tx.invoice_number?.toLowerCase().includes(lowerTerm) ||
+                    tx.total_amount.toString().includes(lowerTerm)
+                );
+            } else {
+                return (
+                    tx.category.toLowerCase().includes(lowerTerm) ||
+                    (tx.description && tx.description.toLowerCase().includes(lowerTerm)) ||
+                    tx.amount.toString().includes(lowerTerm)
+                );
+            }
+        });
+    }, [sortedTransactions, searchTerm]);
+
+    // --- HANDLERS ---
     const closePreview = () => { if (viewingUrl) window.URL.revokeObjectURL(viewingUrl); setViewingUrl(null); setViewingDoc(null); };
     const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
     const removeLineItem = (i: number) => lineItems.length > 1 && setLineItems(lineItems.filter((_, idx) => idx !== i));
     const updateLineItem = (i: number, f: keyof InvoiceItem, v: any) => { const n = [...lineItems]; n[i] = { ...n[i], [f]: v }; n[i].total = n[i].quantity * n[i].unit_price; setLineItems(n); };
     
+    // Invoice Handlers
     const handleEditInvoice = (invoice: Invoice) => { setEditingInvoiceId(invoice.id); setNewInvoice({ client_name: invoice.client_name, client_email: invoice.client_email || '', client_address: invoice.client_address || '', client_phone: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: invoice.tax_rate, notes: invoice.notes || '', status: invoice.status }); setLineItems(invoice.items); setShowInvoiceModal(true); };
     const handleCreateOrUpdateInvoice = async (e: React.FormEvent) => { e.preventDefault(); try { const payload = { client_name: newInvoice.client_name, client_email: newInvoice.client_email, client_address: newInvoice.client_address, items: lineItems, tax_rate: newInvoice.tax_rate, notes: newInvoice.notes, status: newInvoice.status }; if (editingInvoiceId) { const u = await apiService.updateInvoice(editingInvoiceId, payload); setInvoices(invoices.map(i => i.id === editingInvoiceId ? u : i)); } else { const n = await apiService.createInvoice(payload); setInvoices([n, ...invoices]); } closeInvoiceModal(); } catch { alert(t('error.generic')); } };
     const closeInvoiceModal = () => { setShowInvoiceModal(false); setEditingInvoiceId(null); setNewInvoice({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '', status: 'DRAFT' }); setLineItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); };
@@ -164,6 +211,7 @@ export const FinanceTab: React.FC = () => {
     const handleArchiveInvoiceClick = (id: string) => { setSelectedInvoiceId(id); setShowArchiveInvoiceModal(true); };
     const submitArchiveInvoice = async () => { if (!selectedInvoiceId) return; try { await apiService.archiveInvoice(selectedInvoiceId, selectedCaseForInvoice || undefined); alert(t('general.saveSuccess')); setShowArchiveInvoiceModal(false); setSelectedCaseForInvoice(""); } catch { alert(t('error.generic')); } };
 
+    // Expense Handlers
     const handleEditExpense = (expense: Expense) => { setEditingExpenseId(expense.id); setNewExpense({ category: expense.category, amount: expense.amount, description: expense.description || '', date: expense.date }); setExpenseDate(new Date(expense.date)); setShowExpenseModal(true); };
     const handleCreateOrUpdateExpense = async (e: React.FormEvent) => { e.preventDefault(); try { const payload = { ...newExpense, date: expenseDate ? expenseDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0] }; let s: Expense; if (editingExpenseId) { s = await apiService.updateExpense(editingExpenseId, payload); setExpenses(expenses.map(exp => exp.id === editingExpenseId ? s : exp)); } else { s = await apiService.createExpense(payload); setExpenses([s, ...expenses]); } if (expenseReceipt && s.id) { await apiService.uploadExpenseReceipt(s.id, expenseReceipt); const f = { ...s, receipt_url: "PENDING_REFRESH" }; setExpenses(prev => prev.map(exp => exp.id === f.id ? f : exp)); } closeExpenseModal(); } catch { alert(t('error.generic')); } };
     const closeExpenseModal = () => { setShowExpenseModal(false); setEditingExpenseId(null); setNewExpense({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0] }); setExpenseReceipt(null); };
@@ -173,6 +221,7 @@ export const FinanceTab: React.FC = () => {
     const handleArchiveExpenseClick = (id: string) => { const ex = expenses.find(e => e.id === id); if (!ex || !ex.receipt_url) { alert(t('error.noReceiptToArchive')); return; } setSelectedExpenseId(id); setShowArchiveExpenseModal(true); };
     const submitArchiveExpense = async () => { if (!selectedExpenseId) return; try { const ex = expenses.find(e => e.id === selectedExpenseId); if (!ex || !ex.receipt_url) return; const { blob, filename } = await apiService.getExpenseReceiptBlob(ex.id); const f = new File([blob], filename, { type: blob.type }); await apiService.uploadArchiveItem(f, filename, "EXPENSE", selectedCaseForInvoice || undefined, undefined); alert(t('general.saveSuccess')); setShowArchiveExpenseModal(false); setSelectedCaseForInvoice(""); } catch { alert(t('error.generic')); } };
 
+    // Import Handlers
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) { setUploadError(null); setUploadFile(file); } };
     const closeImportModal = () => { setShowImportModal(false); setUploadFile(null); setUploadError(null); setIsUploading(false); };
     
@@ -302,7 +351,69 @@ export const FinanceTab: React.FC = () => {
                     </div>
                     
                     <div className="flex-1 overflow-y-auto custom-finance-scroll -mr-2 pr-2">
-                        {activeTab === 'transactions' && (<div className="space-y-3">{sortedTransactions.length === 0 ? <p className="text-gray-500 italic text-sm text-center py-10">{t('finance.noTransactions')}</p> : sortedTransactions.map(tx => (<div key={`${tx.type}-${tx.id}`} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors"><div className="flex justify-between items-center"><div className="flex items-center gap-3 min-w-0"><div className={`p-2 rounded-lg flex-shrink-0 ${tx.type === 'invoice' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{tx.type === 'invoice' ? <FileText size={18} /> : <MinusCircle size={18} />}</div><div className="min-w-0"><h4 className="font-bold text-white text-sm truncate">{tx.type === 'invoice' ? tx.client_name : tx.category}</h4><p className="text-xs text-gray-400 font-mono">{tx.type === 'invoice' ? `#${tx.invoice_number}` : new Date(tx.date).toLocaleDateString()}</p></div></div><div className="flex items-center gap-4"><p className={`font-bold ${tx.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'}`}>{tx.type === 'invoice' ? `+€${tx.total_amount.toFixed(2)}` : `-€${tx.amount.toFixed(2)}`}</p><Menu as="div" className="relative"><Menu.Button className="p-1.5 hover:bg-white/10 rounded-full text-gray-400"><MoreVertical size={16} /></Menu.Button><Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95"><Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-white/10 rounded-md bg-background-light shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 border border-glass-edge"><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleEditInvoice(tx) : handleEditExpense(tx)} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Edit2 className="mr-2 h-4 w-4 text-amber-400" />{t('general.edit')}</button>)}</Menu.Item><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} disabled={(tx.type === 'expense' && !tx.receipt_url) || openingDocId === tx.id} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}>{openingDocId === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eye className="mr-2 h-4 w-4 text-blue-400" />}{t('general.view')}</button>)}</Menu.Item><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? downloadInvoice(tx.id) : handleDownloadExpense(tx)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Download className="mr-2 h-4 w-4 text-green-400" />{t('general.download')}</button>)}</Menu.Item></div><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleArchiveInvoiceClick(tx.id) : handleArchiveExpenseClick(tx.id)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Archive className="mr-2 h-4 w-4 text-indigo-400" />{t('general.archive')}</button>)}</Menu.Item></div><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? deleteInvoice(tx.id) : deleteExpense(tx.id)} className={`${active ? 'bg-red-500/20 text-red-400' : 'text-red-400'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Trash2 className="mr-2 h-4 w-4" />{t('general.delete')}</button>)}</Menu.Item></div></Menu.Items></Transition></Menu></div></div></div>))}</div>)}
+                        {activeTab === 'transactions' && (
+                            <div className="space-y-4">
+                                {/* Search Bar */}
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <Search className="h-5 w-5 text-gray-500" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        placeholder={t('header.searchPlaceholder') || "Kërko transaksione..."}
+                                        className="block w-full pl-10 pr-3 py-2 border border-white/10 rounded-xl leading-5 bg-white/5 text-gray-300 placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-indigo-500 sm:text-sm transition-all"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+
+                                {/* Transaction List (Restricted Height) */}
+                                <div className="space-y-3 h-[380px] overflow-y-auto custom-finance-scroll pr-2">
+                                    {filteredTransactions.length === 0 ? (
+                                        <p className="text-gray-500 italic text-sm text-center py-10">{t('finance.noTransactions')}</p>
+                                    ) : (
+                                        filteredTransactions.map(tx => (
+                                            <div key={`${tx.type}-${tx.id}`} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors">
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div className={`p-2 rounded-lg flex-shrink-0 ${tx.type === 'invoice' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                                                            {tx.type === 'invoice' ? <FileText size={18} /> : <MinusCircle size={18} />}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <h4 className="font-bold text-white text-sm truncate">{tx.type === 'invoice' ? tx.client_name : tx.category}</h4>
+                                                            <p className="text-xs text-gray-400 font-mono">{tx.type === 'invoice' ? `#${tx.invoice_number}` : new Date(tx.date).toLocaleDateString()}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <p className={`font-bold ${tx.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                            {tx.type === 'invoice' ? `+€${tx.total_amount.toFixed(2)}` : `-€${tx.amount.toFixed(2)}`}
+                                                        </p>
+                                                        <Menu as="div" className="relative">
+                                                            <Menu.Button className="p-1.5 hover:bg-white/10 rounded-full text-gray-400"><MoreVertical size={16} /></Menu.Button>
+                                                            <Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95">
+                                                                <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-white/10 rounded-md bg-background-light shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 border border-glass-edge">
+                                                                    <div className="px-1 py-1">
+                                                                        <Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleEditInvoice(tx) : handleEditExpense(tx)} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Edit2 className="mr-2 h-4 w-4 text-amber-400" />{t('general.edit')}</button>)}</Menu.Item>
+                                                                        <Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} disabled={(tx.type === 'expense' && !tx.receipt_url) || openingDocId === tx.id} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}>{openingDocId === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eye className="mr-2 h-4 w-4 text-blue-400" />}{t('general.view')}</button>)}</Menu.Item>
+                                                                        <Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? downloadInvoice(tx.id) : handleDownloadExpense(tx)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Download className="mr-2 h-4 w-4 text-green-400" />{t('general.download')}</button>)}</Menu.Item>
+                                                                    </div>
+                                                                    <div className="px-1 py-1">
+                                                                        <Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleArchiveInvoiceClick(tx.id) : handleArchiveExpenseClick(tx.id)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Archive className="mr-2 h-4 w-4 text-indigo-400" />{t('general.archive')}</button>)}</Menu.Item>
+                                                                    </div>
+                                                                    <div className="px-1 py-1">
+                                                                        <Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? deleteInvoice(tx.id) : deleteExpense(tx.id)} className={`${active ? 'bg-red-500/20 text-red-400' : 'text-red-400'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Trash2 className="mr-2 h-4 w-4" />{t('general.delete')}</button>)}</Menu.Item>
+                                                                    </div>
+                                                                </Menu.Items>
+                                                            </Transition>
+                                                        </Menu>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
                         
                         {/* --- ANALYTICS DASHBOARD --- */}
                         {activeTab === 'reports' && (
@@ -425,7 +536,7 @@ export const FinanceTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* --- MODALS --- */}
+            {/* --- MODALS (Import, Drill-Down, Mapping, Invoices...) --- */}
             
             {showMappingModal && mappingData && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
