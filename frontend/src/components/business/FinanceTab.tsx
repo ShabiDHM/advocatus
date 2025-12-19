@@ -222,10 +222,11 @@ export const FinanceTab: React.FC = () => {
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
             <style>{`.custom-finance-scroll::-webkit-scrollbar { width: 6px; } .custom-finance-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); } .custom-finance-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; } .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
             
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* FIX: Fixed height of 800px on desktop to align columns perfectly */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 lg:h-[800px]">
                 {/* LEFT COLUMN */}
                 <div className="lg:col-span-1 flex flex-col gap-6 h-full">
-                    <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-4">
+                    <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-4 flex-none">
                         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">{t('finance.overview')}</h3>
                         <SmartStatCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp size={20} />} color="text-emerald-400" />
                         <SmartStatCard title={t('finance.expense')} amount={`€${totalExpenses.toFixed(2)}`} icon={<TrendingDown size={20} />} color="text-rose-400" />
@@ -251,7 +252,7 @@ export const FinanceTab: React.FC = () => {
                 </div>
 
                 {/* RIGHT COLUMN */}
-                <div className="lg:col-span-2 bg-background-dark/50 border border-glass-edge rounded-3xl p-6 flex flex-col h-full lg:h-[600px] min-w-0">
+                <div className="lg:col-span-2 bg-background-dark/50 border border-glass-edge rounded-3xl p-6 flex flex-col h-full min-w-0">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-4 flex-none">
                         <h2 className="text-lg font-bold text-white shrink-0">{t('finance.activityAndReports')}</h2>
                         <div className="w-full sm:w-auto flex items-center gap-2 bg-background-light p-1 rounded-xl border border-white/5 overflow-x-auto no-scrollbar">
@@ -286,9 +287,7 @@ export const FinanceTab: React.FC = () => {
                                                         <div className="flex sm:hidden mt-1">
                                                             {tx.type === 'invoice' && getStatusBadge(tx.status)}
                                                         </div>
-                                                        {/* On Desktop: Date below name */}
                                                         <p className="hidden sm:block text-xs text-gray-400 font-mono mt-0.5">{tx.type === 'invoice' ? `#${tx.invoice_number}` : new Date(tx.date).toLocaleDateString()}</p>
-                                                        {/* On Mobile: Date inline or hidden? Keep it simpler */}
                                                         <p className="sm:hidden text-xs text-gray-500 font-mono mt-0.5">{new Date(tx.date).toLocaleDateString()}</p>
                                                     </div>
                                                 </div>
@@ -328,7 +327,7 @@ export const FinanceTab: React.FC = () => {
                                     <>
                                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                                             <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-indigo-400"/> {t('finance.analytics.salesTrend')}</h4>
-                                            {/* FIX: Added min-h to prevent Recharts width(-1) error */}
+                                            {/* FIX: Added min-h */}
                                             <div className="h-64 w-full min-h-[250px]">
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <AreaChart data={analyticsData.sales_trend}>
