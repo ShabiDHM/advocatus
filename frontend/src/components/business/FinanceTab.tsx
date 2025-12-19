@@ -188,7 +188,7 @@ export const FinanceTab: React.FC = () => {
         const s = styles[status] || styles.DRAFT;
         const translatedStatus = t(`finance.status.${status.toLowerCase()}`, status);
         
-        return <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${s} uppercase tracking-wide`}>{translatedStatus}</span>;
+        return <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${s} uppercase tracking-wide whitespace-nowrap`}>{translatedStatus}</span>;
     };
 
     const closePreview = () => { if (viewingUrl) window.URL.revokeObjectURL(viewingUrl); setViewingUrl(null); setViewingDoc(null); };
@@ -223,6 +223,7 @@ export const FinanceTab: React.FC = () => {
             <style>{`.custom-finance-scroll::-webkit-scrollbar { width: 6px; } .custom-finance-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); } .custom-finance-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; } .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 items-start">
+                {/* LEFT COLUMN */}
                 <div className="lg:col-span-1 flex flex-col gap-6 h-full">
                     <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-4">
                         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">{t('finance.overview')}</h3>
@@ -249,8 +250,9 @@ export const FinanceTab: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="lg:col-span-2 bg-background-dark/50 border border-glass-edge rounded-3xl p-6 flex flex-col h-full">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-4">
+                {/* RIGHT COLUMN */}
+                <div className="lg:col-span-2 bg-background-dark/50 border border-glass-edge rounded-3xl p-6 flex flex-col h-full min-h-[600px]">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-white/10 pb-4 flex-none">
                         <h2 className="text-lg font-bold text-white shrink-0">{t('finance.activityAndReports')}</h2>
                         <div className="w-full sm:w-auto flex items-center gap-2 bg-background-light p-1 rounded-xl border border-white/5 overflow-x-auto no-scrollbar">
                             <TabButton label={t('finance.tabTransactions')} icon={<Activity size={16} />} isActive={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} />
@@ -259,21 +261,21 @@ export const FinanceTab: React.FC = () => {
                         </div>
                     </div>
                     
-                    <div className="flex-1 overflow-y-auto custom-finance-scroll -mr-2 pr-2">
+                    {/* Content Wrapper - fluid height */}
+                    <div className="flex-1 flex flex-col min-h-0 -mr-2 pr-2">
                         {/* TAB: TRANSACTIONS */}
                         {activeTab === 'transactions' && (
-                            <div className="space-y-4">
-                                <div className="relative">
+                            <div className="flex flex-col h-full space-y-4">
+                                <div className="relative flex-none">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-500" /></div>
                                     <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="block w-full pl-10 pr-3 py-2 border border-white/10 rounded-xl leading-5 bg-white/5 text-gray-300 placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-indigo-500 sm:text-sm transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
                                 
-                                <div className="space-y-3 h-[550px] overflow-y-auto custom-finance-scroll pr-2">
+                                <div className="space-y-3 flex-1 overflow-y-auto custom-finance-scroll pr-2">
                                     {filteredTransactions.length === 0 ? <p className="text-gray-500 italic text-sm text-center py-10">{t('finance.noTransactions')}</p> : filteredTransactions.map(tx => (
                                         <div key={`${tx.type}-${tx.id}`} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors">
                                             <div className="flex justify-between items-center">
                                                 <div className="flex items-center gap-3 min-w-0">
-                                                    {/* SMART ICON LOGIC */}
                                                     <div className={`p-2 rounded-lg flex-shrink-0 ${tx.type === 'invoice' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
                                                         {tx.type === 'invoice' ? <FileText size={18} /> : getCategoryIcon(tx.category)}
                                                     </div>
@@ -283,9 +285,7 @@ export const FinanceTab: React.FC = () => {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-3">
-                                                    {/* STATUS BADGE LOGIC */}
                                                     {tx.type === 'invoice' && getStatusBadge(tx.status)}
-                                                    
                                                     <p className={`font-bold ${tx.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'}`}>
                                                         {tx.type === 'invoice' ? `+€${tx.total_amount.toFixed(2)}` : `-€${tx.amount.toFixed(2)}`}
                                                     </p>
@@ -385,55 +385,57 @@ export const FinanceTab: React.FC = () => {
 
                         {/* TAB: HISTORY */}
                         {activeTab === 'history' && (
-                            <div className="space-y-4 h-[550px] overflow-y-auto custom-finance-scroll pr-2">
-                                {historyByCase.length === 0 ? (
-                                    <div className="flex justify-center items-center h-full text-gray-500 text-center flex-col">
-                                        <div className="bg-white/5 p-4 rounded-full mb-3"><Briefcase size={32} className="text-gray-600" /></div>
-                                        <p className="font-bold text-gray-400">{t('finance.noHistoryData', "Nuk ka të dhëna historike")}</p>
-                                        <p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime të lidhura me lëndë për të parë pasqyrën këtu.")}</p>
-                                    </div>
-                                ) : (
-                                    historyByCase.map((item) => (
-                                        <div key={item.caseData.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-                                            <div 
-                                                className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
-                                                onClick={() => setExpandedCaseId(expandedCaseId === item.caseData.id ? null : item.caseData.id)}
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg">
-                                                        <Briefcase size={18} />
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-bold text-white text-sm">{item.caseData.title}</h4>
-                                                        <p className="text-xs text-gray-500">{item.caseData.case_number}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="text-right">
-                                                        <p className="text-xs text-gray-400 uppercase">{t('finance.expense')}</p>
-                                                        <p className="font-bold text-rose-400">-€{item.expenseTotal.toFixed(2)}</p>
-                                                    </div>
-                                                    {expandedCaseId === item.caseData.id ? <ChevronDown size={18} className="text-gray-500"/> : <ChevronRight size={18} className="text-gray-500"/>}
-                                                </div>
-                                            </div>
-                                            
-                                            {expandedCaseId === item.caseData.id && (
-                                                <div className="bg-black/20 p-4 border-t border-white/5 space-y-2">
-                                                    <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>
-                                                    {item.expenses.map(exp => (
-                                                        <div key={exp.id} className="flex justify-between items-center text-sm py-1 border-b border-white/5 last:border-0">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-gray-400">{new Date(exp.date).toLocaleDateString('sq-AL')}</span>
-                                                                <span className="text-white">{exp.category}</span>
-                                                            </div>
-                                                            <span className="text-rose-400 font-mono">-€{exp.amount.toFixed(2)}</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
+                            <div className="flex flex-col h-full space-y-4">
+                                <div className="space-y-4 flex-1 overflow-y-auto custom-finance-scroll pr-2">
+                                    {historyByCase.length === 0 ? (
+                                        <div className="flex justify-center items-center h-full text-gray-500 text-center flex-col">
+                                            <div className="bg-white/5 p-4 rounded-full mb-3"><Briefcase size={32} className="text-gray-600" /></div>
+                                            <p className="font-bold text-gray-400">{t('finance.noHistoryData', "Nuk ka të dhëna historike")}</p>
+                                            <p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime të lidhura me lëndë për të parë pasqyrën këtu.")}</p>
                                         </div>
-                                    ))
-                                )}
+                                    ) : (
+                                        historyByCase.map((item) => (
+                                            <div key={item.caseData.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
+                                                <div 
+                                                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
+                                                    onClick={() => setExpandedCaseId(expandedCaseId === item.caseData.id ? null : item.caseData.id)}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg">
+                                                            <Briefcase size={18} />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-bold text-white text-sm">{item.caseData.title}</h4>
+                                                            <p className="text-xs text-gray-500">{item.caseData.case_number}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="text-right">
+                                                            <p className="text-xs text-gray-400 uppercase">{t('finance.expense')}</p>
+                                                            <p className="font-bold text-rose-400">-€{item.expenseTotal.toFixed(2)}</p>
+                                                        </div>
+                                                        {expandedCaseId === item.caseData.id ? <ChevronDown size={18} className="text-gray-500"/> : <ChevronRight size={18} className="text-gray-500"/>}
+                                                    </div>
+                                                </div>
+                                                
+                                                {expandedCaseId === item.caseData.id && (
+                                                    <div className="bg-black/20 p-4 border-t border-white/5 space-y-2">
+                                                        <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>
+                                                        {item.expenses.map(exp => (
+                                                            <div key={exp.id} className="flex justify-between items-center text-sm py-1 border-b border-white/5 last:border-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-gray-400">{new Date(exp.date).toLocaleDateString('sq-AL')}</span>
+                                                                    <span className="text-white">{exp.category}</span>
+                                                                </div>
+                                                                <span className="text-rose-400 font-mono">-€{exp.amount.toFixed(2)}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
