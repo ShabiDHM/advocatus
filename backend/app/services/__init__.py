@@ -1,7 +1,6 @@
 # FILE: backend/app/services/__init__.py
-# PHOENIX PROTOCOL - SERVICE REGISTRY V3.0 (FINDINGS EXCISED)
-# 1. REMOVED: findings_service.
-# 2. STATUS: All active services linked.
+# PHOENIX PROTOCOL - SERVICE REGISTRY V3.1 (PARSING SERVICE ADDED)
+# 1. ADDED: parsing_service to register the new POS import logic.
 
 from . import (
     admin_service,
@@ -33,6 +32,7 @@ from . import (
     graph_service,
     pdf_service,
     social_service,
+    parsing_service, # PHOENIX FIX: Added the new service
     
     # Albanian Specific Services
     albanian_document_processor,

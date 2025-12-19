@@ -1,6 +1,6 @@
 # FILE: backend/app/models/finance.py
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 from .common import PyObjectId
 
@@ -16,21 +16,16 @@ class InvoiceBase(BaseModel):
     client_name: str
     client_email: Optional[str] = None
     client_address: Optional[str] = None
-    
     issue_date: datetime = Field(default_factory=datetime.utcnow)
     due_date: datetime = Field(default_factory=datetime.utcnow)
-    
     items: List[InvoiceItem] = []
     notes: Optional[str] = None
-    
     subtotal: float = 0.0
     tax_rate: float = 0.0 
     tax_amount: float = 0.0
     total_amount: float = 0.0
-    
     currency: str = "EUR"
     status: str = "DRAFT" 
-    
     is_locked: bool = False
 
 class InvoiceCreate(BaseModel):
@@ -58,14 +53,10 @@ class InvoiceInDB(InvoiceBase):
     user_id: PyObjectId
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-    )
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 class InvoiceOut(InvoiceInDB):
-    id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
+    id: str = Field(serialization_alias="id", default=None)
 
 # --- EXPENSE MODELS ---
 class ExpenseBase(BaseModel):
@@ -93,14 +84,10 @@ class ExpenseInDB(ExpenseBase):
     id: PyObjectId = Field(alias="_id", default=None)
     user_id: PyObjectId
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-    )
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 class ExpenseOut(ExpenseInDB):
-    id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
+    id: str = Field(serialization_alias="id", default=None)
 
 # --- TAX ENGINE MODELS ---
 class TaxCalculation(BaseModel):
@@ -129,11 +116,11 @@ class WizardState(BaseModel):
     issues: List[AuditIssue]
     ready_to_close: bool
 
-# --- TRANSACTION & IMPORT MODELS (NEW) ---
+# --- TRANSACTION & IMPORT MODELS ---
 class ImportBatchBase(BaseModel):
     user_id: PyObjectId
     filename: str
-    status: str # "PROCESSED", "FAILED"
+    status: str 
     row_count: int = 0
     total_volume: float = 0.0
     error_message: Optional[str] = None
@@ -141,11 +128,7 @@ class ImportBatchBase(BaseModel):
 class ImportBatchInDB(ImportBatchBase):
     id: PyObjectId = Field(alias="_id", default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-    )
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
 class ImportBatchOut(BaseModel):
     id: str
@@ -172,8 +155,16 @@ class TransactionBase(BaseModel):
 class TransactionInDB(TransactionBase):
     id: PyObjectId = Field(alias="_id", default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
 
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-    )
+# --- COLUMN MAPPING MODELS ---
+class ColumnMappingRuleInDB(BaseModel):
+    id: PyObjectId = Field(alias="_id", default=None)
+    user_id: PyObjectId
+    source_signature: str
+    mapping: Dict[str, str]
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    model_config = ConfigDict(populate_by_name=True, arbitrary_types_allowed=True)
+
+class ColumnMappingCreate(BaseModel):
+    mappings: Dict[str, str]
