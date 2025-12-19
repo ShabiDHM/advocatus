@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE V8.0 (SURGICAL CLEANUP)
-# 1. REMOVED: All endpoints and logic related to POS import, history, and analytics.
-# 2. PRESERVED: All core functionality for manual Invoices and Expenses is untouched.
-# 3. CLEANED: All obsolete imports have been removed.
+# PHOENIX PROTOCOL - FINANCE V9.0 (DEFINITIVE CLEANUP)
+# 1. REMOVED: ALL code and imports related to POS import, analytics, and history.
+# 2. STATUS: Clean and stable, focused exclusively on manual Invoices and Expenses.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
