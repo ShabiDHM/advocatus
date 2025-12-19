@@ -102,7 +102,7 @@ export const FinanceTab: React.FC = () => {
     const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
     const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
     const [viewingUrl, setViewingUrl] = useState<string | null>(null);
-    const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null); // For History Tab
+    const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null);
 
     // Form States
     const [newInvoice, setNewInvoice] = useState({ client_name: '', client_email: '', client_phone: '', client_address: '', client_city: '', client_tax_id: '', client_website: '', tax_rate: 18, notes: '', status: 'DRAFT' });
@@ -147,14 +147,10 @@ export const FinanceTab: React.FC = () => {
         });
     }, [sortedTransactions, searchTerm]);
 
-    // History Logic: Group by Case
     const historyByCase = useMemo(() => {
         return cases.map(c => {
             const caseExpenses = expenses.filter(e => e.related_case_id === c.id);
             const expenseTotal = caseExpenses.reduce((sum, e) => sum + e.amount, 0);
-            
-            // Note: If Invoices eventually get 'case_id', add logic here.
-            // Currently aggregating Expenses per case.
             
             return {
                 caseData: c,
@@ -198,7 +194,6 @@ export const FinanceTab: React.FC = () => {
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <div className="lg:col-span-1 flex flex-col gap-6">
-                    {/* Financial Overview Cards */}
                     <div className="bg-background-dark/50 border border-glass-edge rounded-3xl p-6 space-y-4">
                         <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">{t('finance.overview')}</h3>
                         <SmartStatCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp size={20} />} color="text-emerald-400" />
@@ -242,7 +237,6 @@ export const FinanceTab: React.FC = () => {
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-500" /></div>
                                     <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="block w-full pl-10 pr-3 py-2 border border-white/10 rounded-xl leading-5 bg-white/5 text-gray-300 placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-indigo-500 sm:text-sm transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
-                                {/* HEIGHT FIX: Increased to 620px to show more items */}
                                 <div className="space-y-3 h-[620px] overflow-y-auto custom-finance-scroll pr-2">
                                     {filteredTransactions.length === 0 ? <p className="text-gray-500 italic text-sm text-center py-10">{t('finance.noTransactions')}</p> : filteredTransactions.map(tx => (<div key={`${tx.type}-${tx.id}`} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors"><div className="flex justify-between items-center"><div className="flex items-center gap-3 min-w-0"><div className={`p-2 rounded-lg flex-shrink-0 ${tx.type === 'invoice' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{tx.type === 'invoice' ? <FileText size={18} /> : <MinusCircle size={18} />}</div><div className="min-w-0"><h4 className="font-bold text-white text-sm truncate">{tx.type === 'invoice' ? tx.client_name : tx.category}</h4><p className="text-xs text-gray-400 font-mono">{tx.type === 'invoice' ? `#${tx.invoice_number}` : new Date(tx.date).toLocaleDateString()}</p></div></div><div className="flex items-center gap-4"><p className={`font-bold ${tx.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'}`}>{tx.type === 'invoice' ? `+€${tx.total_amount.toFixed(2)}` : `-€${tx.amount.toFixed(2)}`}</p><Menu as="div" className="relative"><Menu.Button className="p-1.5 hover:bg-white/10 rounded-full text-gray-400"><MoreVertical size={16} /></Menu.Button><Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95"><Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-white/10 rounded-md bg-background-light shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 border border-glass-edge"><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleEditInvoice(tx) : handleEditExpense(tx)} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Edit2 className="mr-2 h-4 w-4 text-amber-400" />{t('general.edit')}</button>)}</Menu.Item><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} disabled={(tx.type === 'expense' && !tx.receipt_url) || openingDocId === tx.id} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}>{openingDocId === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eye className="mr-2 h-4 w-4 text-blue-400" />}{t('general.view')}</button>)}</Menu.Item><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? downloadInvoice(tx.id) : handleDownloadExpense(tx)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Download className="mr-2 h-4 w-4 text-green-400" />{t('general.download')}</button>)}</Menu.Item></div><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleArchiveInvoiceClick(tx.id) : handleArchiveExpenseClick(tx.id)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Archive className="mr-2 h-4 w-4 text-indigo-400" />{t('general.archive')}</button>)}</Menu.Item></div><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? deleteInvoice(tx.id) : deleteExpense(tx.id)} className={`${active ? 'bg-red-500/20 text-red-400' : 'text-red-400'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Trash2 className="mr-2 h-4 w-4" />{t('general.delete')}</button>)}</Menu.Item></div></Menu.Items></Transition></Menu></div></div></div>))}
                                 </div>
@@ -255,7 +249,6 @@ export const FinanceTab: React.FC = () => {
                                 {!analyticsData ? <div className="space-y-6"><SkeletonChart /><SkeletonGrid /></div> : (
                                     <>
                                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
-                                            {/* Readability Fix: Lighter text */}
                                             <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-indigo-400"/> {t('finance.analytics.salesTrend')}</h4>
                                             <div className="h-64 w-full">
                                                 <ResponsiveContainer width="100%" height="100%">
@@ -266,7 +259,6 @@ export const FinanceTab: React.FC = () => {
                                                                 <stop offset="95%" stopColor="#818cf8" stopOpacity={0}/>
                                                             </linearGradient>
                                                         </defs>
-                                                        {/* Contrast Fix: Brighter Grid and Axes */}
                                                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.15)" />
                                                         <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} tickFormatter={(str) => str.slice(5)} tick={{fill: '#d1d5db'}} />
                                                         <YAxis stroke="#9ca3af" fontSize={12} tick={{fill: '#d1d5db'}} width={40} />
@@ -329,7 +321,7 @@ export const FinanceTab: React.FC = () => {
                             </div>
                         )}
 
-                        {/* TAB: HISTORY - IMPLEMENTED */}
+                        {/* TAB: HISTORY - FIXED */}
                         {activeTab === 'history' && (
                             <div className="space-y-4 h-[620px] overflow-y-auto custom-finance-scroll pr-2">
                                 {historyByCase.length === 0 ? (
@@ -365,11 +357,13 @@ export const FinanceTab: React.FC = () => {
                                             
                                             {expandedCaseId === item.caseData.id && (
                                                 <div className="bg-black/20 p-4 border-t border-white/5 space-y-2">
-                                                    <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('finance.details')}</h5>
+                                                    {/* FIX 1: Added fallback text for the translation key */}
+                                                    <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>
                                                     {item.expenses.map(exp => (
                                                         <div key={exp.id} className="flex justify-between items-center text-sm py-1 border-b border-white/5 last:border-0">
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-gray-400">{exp.date}</span>
+                                                                {/* FIX 2: Formatted date to remove time and follow SQ locale */}
+                                                                <span className="text-gray-400">{new Date(exp.date).toLocaleDateString('sq-AL')}</span>
                                                                 <span className="text-white">{exp.category}</span>
                                                             </div>
                                                             <span className="text-rose-400 font-mono">-€{exp.amount.toFixed(2)}</span>
