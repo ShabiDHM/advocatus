@@ -1,8 +1,8 @@
 # FILE: backend/app/services/admin_service.py
-# PHOENIX PROTOCOL - ADMIN SERVICE V2.0 (OPTIMIZED)
-# 1. OPTIMIZATION: 'find_user_in_aggregate' now queries ONLY the target user, not the whole DB.
-# 2. LOGIC: Added debug logging to confirm update payloads (e.g. status changes).
-# 3. STATUS: Scalable and Debuggable.
+# PHOENIX PROTOCOL - ADMIN SERVICE V2.1 (FORCED UPDATE)
+# 1. LOGIC: Explicitly extracts 'status' to ensure it's never dropped.
+# 2. VERIFICATION: Reads the document immediately after update to confirm success.
+# 3. STATUS: Hardened against silent failures.
 
 from bson import ObjectId
 from datetime import datetime
@@ -21,9 +21,6 @@ CASE_COLLECTION = "cases"
 DOCUMENT_COLLECTION = "documents"
 
 def get_all_users(db: Database) -> List[Dict[str, Any]]:
-    """
-    Retrieves all users with their associated counts.
-    """
     pipeline = [
         {"$lookup": {"from": CASE_COLLECTION, "localField": "_id", "foreignField": "owner_id", "as": "owned_cases"}},
         {"$lookup": {"from": DOCUMENT_COLLECTION, "localField": "_id", "foreignField": "owner_id", "as": "owned_documents"}},
@@ -43,16 +40,11 @@ def get_all_users(db: Database) -> List[Dict[str, Any]]:
     return users_data
 
 def find_user_in_aggregate(user_id: str, db: Database) -> Optional[AdminUserOut]:
-    """
-    Optimized lookup: Aggregates data for a SINGLE user only.
-    """
-    try:
-        oid = ObjectId(user_id)
-    except:
-        return None
+    try: oid = ObjectId(user_id)
+    except: return None
 
     pipeline = [
-        {"$match": {"_id": oid}}, # PHOENIX FIX: Filter first!
+        {"$match": {"_id": oid}},
         {"$lookup": {"from": CASE_COLLECTION, "localField": "_id", "foreignField": "owner_id", "as": "owned_cases"}},
         {"$lookup": {"from": DOCUMENT_COLLECTION, "localField": "_id", "foreignField": "owner_id", "as": "owned_documents"}},
         {"$addFields": {
@@ -69,17 +61,19 @@ def find_user_in_aggregate(user_id: str, db: Database) -> Optional[AdminUserOut]
     ]
     
     result = list(db[USER_COLLECTION].aggregate(pipeline))
-    if not result:
-        return None
-        
+    if not result: return None
     return AdminUserOut.model_validate(result[0])
 
 def update_user_details(user_id: str, update_data: UserUpdateRequest, db: Database) -> Optional[AdminUserOut]:
-    # Dump model, excluding defaults/unset values
+    # PHOENIX FIX: Dump as dict, then explicitly check status
     payload = update_data.model_dump(exclude_unset=True)
     
+    # If the frontend sent a status, FORCE it into the payload
+    if update_data.status:
+        payload['status'] = update_data.status.lower()
+
     logger.info(f"--- [ADMIN] Updating User {user_id} ---")
-    logger.info(f"Payload: {payload}")
+    logger.info(f"--- [ADMIN] Final Payload: {payload} ---")
 
     if not payload:
         return find_user_in_aggregate(user_id, db)
@@ -95,7 +89,7 @@ def update_user_details(user_id: str, update_data: UserUpdateRequest, db: Databa
             logger.error(f"User {user_id} not found during update.")
             raise FileNotFoundError("User not found")
             
-        logger.info(f"--- [ADMIN] User {user_id} updated successfully. New Status: {updated_user_doc.get('status')} ---")
+        logger.info(f"--- [ADMIN] Success. DB Status is now: {updated_user_doc.get('status')} ---")
         
         return find_user_in_aggregate(user_id, db)
     except Exception as e:
