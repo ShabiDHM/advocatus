@@ -1,7 +1,6 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V16.1 (TYPE & LINT FIX)
-// 1. FIX: Corrected type definitions for Recharts formatter props.
-// 2. FIX: Resolved unused variable warnings.
+// PHOENIX PROTOCOL - FINANCE TAB V18.1 (LAYOUT ADJUSTMENT)
+// 1. CHANGED: Increased transaction list height to h-[520px] to show ~6 items.
 
 import React, { useEffect, useState, useRef, useMemo, Fragment } from 'react';
 import { motion } from 'framer-motion';
@@ -26,6 +25,7 @@ import {
 
 const DatePicker = (ReactDatePicker as any).default;
 
+// --- UI SUB-COMPONENTS ---
 const SmartStatCard = ({ title, amount, icon, color }: { title: string, amount: string, icon: React.ReactNode, color: string }) => (
     <div className="group relative overflow-hidden rounded-xl bg-white/5 border border-white/10 p-4 hover:bg-white/10 transition-all duration-300">
         <div className="flex items-center gap-4">
@@ -49,6 +49,32 @@ const TabButton = ({ label, icon, isActive, onClick }: { label: string, icon: Re
     <button onClick={onClick} className={`flex-shrink-0 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${isActive ? 'bg-secondary-start/10 text-secondary-start' : 'text-gray-400 hover:bg-white/5 hover:text-white'}`}>
         {icon} {label}
     </button>
+);
+
+const SkeletonChart = () => (
+    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 animate-pulse">
+        <div className="h-6 bg-gray-700 rounded w-1/3 mb-4"></div>
+        <div className="h-64 bg-gray-700 rounded"></div>
+    </div>
+);
+
+const SkeletonGrid = () => (
+     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-pulse">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <div className="h-6 bg-gray-700 rounded w-1/2 mb-4"></div>
+            <div className="h-64 bg-gray-700 rounded"></div>
+        </div>
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+            <div className="h-6 bg-gray-700 rounded w-1/2 mb-4"></div>
+            <div className="space-y-2 mt-4">
+                <div className="h-8 bg-gray-700 rounded"></div>
+                <div className="h-8 bg-gray-700 rounded"></div>
+                <div className="h-8 bg-gray-700 rounded"></div>
+                <div className="h-8 bg-gray-700 rounded"></div>
+                <div className="h-8 bg-gray-700 rounded"></div>
+            </div>
+        </div>
+    </div>
 );
 
 
@@ -136,13 +162,13 @@ export const FinanceTab: React.FC = () => {
     const submitArchiveInvoice = async () => { if (!selectedInvoiceId) return; try { await apiService.archiveInvoice(selectedInvoiceId, selectedCaseForInvoice || undefined); alert(t('general.saveSuccess')); setShowArchiveInvoiceModal(false); setSelectedCaseForInvoice(""); } catch { alert(t('error.generic')); } };
 
     const handleEditExpense = (expense: Expense) => { setEditingExpenseId(expense.id); setNewExpense({ category: expense.category, amount: expense.amount, description: expense.description || '', date: expense.date }); setExpenseDate(new Date(expense.date)); setShowExpenseModal(true); };
-    const handleCreateOrUpdateExpense = async (e: React.FormEvent) => { e.preventDefault(); try { const payload = { ...newExpense, date: expenseDate ? expenseDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0] }; let s: Expense; if (editingExpenseId) { s = await apiService.updateExpense(editingExpenseId, payload); setExpenses(expenses.map(exp => exp.id === editingExpenseId ? s : exp)); } else { s = await apiService.createExpense(payload); setExpenses([s, ...expenses]); } if (expenseReceipt && s.id) { await apiService.uploadExpenseReceipt(s.id, expenseReceipt); const f = { ...s, receipt_url: "PENDING_REFRESH" }; setExpenses(prev => prev.map(exp => exp.id === f.id ? f : exp)); } closeExpenseModal(); } catch { alert(t('error.generic')); } };
+    const handleCreateOrUpdateExpense = async (e: React.FormEvent) => { e.preventDefault(); try { const payload = { ...newExpense, date: expenseDate ? expenseDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0] }; let s: Expense; if (editingInvoiceId) { s = await apiService.updateExpense(editingExpenseId, payload); setExpenses(expenses.map(exp => exp.id === editingExpenseId ? s : exp)); } else { s = await apiService.createExpense(payload); setExpenses([s, ...expenses]); } if (expenseReceipt && s.id) { await apiService.uploadExpenseReceipt(s.id, expenseReceipt); const f = { ...s, receipt_url: "PENDING_REFRESH" }; setExpenses(prev => prev.map(exp => exp.id === f.id ? f : exp)); } closeExpenseModal(); } catch { alert(t('error.generic')); } };
     const closeExpenseModal = () => { setShowExpenseModal(false); setEditingExpenseId(null); setNewExpense({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0] }); setExpenseReceipt(null); };
     const deleteExpense = async (id: string) => { if(!window.confirm(t('general.confirmDelete'))) return; try { await apiService.deleteExpense(id); setExpenses(expenses.filter(e => e.id !== id)); } catch { alert(t('error.generic')); } };
     const handleViewExpense = async (expense: Expense) => { if (!expense.receipt_url) { alert(t('error.noReceiptAttached')); return; } setOpeningDocId(expense.id); try { const { blob, filename } = await apiService.getExpenseReceiptBlob(expense.id); const url = window.URL.createObjectURL(blob); const ext = filename.split('.').pop()?.toLowerCase(); const mime = ext === 'pdf' ? 'application/pdf' : 'image/jpeg'; setViewingUrl(url); setViewingDoc({ id: expense.id, file_name: filename, mime_type: mime, status: 'READY' } as any); } catch { alert(t('error.receiptNotFound')); } finally { setOpeningDocId(null); } };
     const handleDownloadExpense = async (expense: Expense) => { if (!expense.receipt_url) { alert(t('error.noReceiptAttached')); return; } try { const { blob, filename } = await apiService.getExpenseReceiptBlob(expense.id); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); } catch { alert(t('error.generic')); } };
     const handleArchiveExpenseClick = (id: string) => { const ex = expenses.find(e => e.id === id); if (!ex || !ex.receipt_url) { alert(t('error.noReceiptToArchive')); return; } setSelectedExpenseId(id); setShowArchiveExpenseModal(true); };
-    const submitArchiveExpense = async () => { if (!selectedExpenseId) return; try { const ex = expenses.find(e => e.id === selectedExpenseId); if (!ex || !ex.receipt_url) return; const { blob, filename } = await apiService.getExpenseReceiptBlob(ex.id); const f = new File([blob], filename, { type: blob.type }); await apiService.uploadArchiveItem(f, filename, "EXPENSE", selectedCaseForInvoice || undefined, undefined); alert(t('general.saveSuccess')); setShowArchiveInvoiceModal(false); setSelectedCaseForInvoice(""); } catch { alert(t('error.generic')); } };
+    const submitArchiveExpense = async () => { if (!selectedExpenseId) return; try { const ex = expenses.find(e => e.id === selectedExpenseId); if (!ex || !ex.receipt_url) return; const { blob, filename } = await apiService.getExpenseReceiptBlob(ex.id); const f = new File([blob], filename, { type: blob.type }); await apiService.uploadArchiveItem(f, filename, "EXPENSE", selectedCaseForInvoice || undefined, undefined); alert(t('general.saveSuccess')); setShowArchiveExpenseModal(false); setSelectedCaseForInvoice(""); } catch { alert(t('error.generic')); } };
 
     if (loading) return <div className="flex justify-center h-64 items-center"><Loader2 className="animate-spin text-secondary-start" /></div>;
     
@@ -190,11 +216,9 @@ export const FinanceTab: React.FC = () => {
                     <div className="flex-1 overflow-y-auto custom-finance-scroll -mr-2 pr-2">
                         {activeTab === 'transactions' && (
                             <div className="space-y-4">
-                                <div className="relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-500" /></div>
-                                    <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="block w-full pl-10 pr-3 py-2 border border-white/10 rounded-xl leading-5 bg-white/5 text-gray-300 placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-indigo-500 sm:text-sm transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                                </div>
-                                <div className="space-y-3 h-[380px] overflow-y-auto custom-finance-scroll pr-2">
+                                <div className="relative"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-500" /></div><input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="block w-full pl-10 pr-3 py-2 border border-white/10 rounded-xl leading-5 bg-white/5 text-gray-300 placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-indigo-500 sm:text-sm transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
+                                {/* PHOENIX FIX: Increased height from 380px to 520px */}
+                                <div className="space-y-3 h-[520px] overflow-y-auto custom-finance-scroll pr-2">
                                     {filteredTransactions.length === 0 ? <p className="text-gray-500 italic text-sm text-center py-10">{t('finance.noTransactions')}</p> : filteredTransactions.map(tx => (<div key={`${tx.type}-${tx.id}`} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors"><div className="flex justify-between items-center"><div className="flex items-center gap-3 min-w-0"><div className={`p-2 rounded-lg flex-shrink-0 ${tx.type === 'invoice' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{tx.type === 'invoice' ? <FileText size={18} /> : <MinusCircle size={18} />}</div><div className="min-w-0"><h4 className="font-bold text-white text-sm truncate">{tx.type === 'invoice' ? tx.client_name : tx.category}</h4><p className="text-xs text-gray-400 font-mono">{tx.type === 'invoice' ? `#${tx.invoice_number}` : new Date(tx.date).toLocaleDateString()}</p></div></div><div className="flex items-center gap-4"><p className={`font-bold ${tx.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'}`}>{tx.type === 'invoice' ? `+€${tx.total_amount.toFixed(2)}` : `-€${tx.amount.toFixed(2)}`}</p><Menu as="div" className="relative"><Menu.Button className="p-1.5 hover:bg-white/10 rounded-full text-gray-400"><MoreVertical size={16} /></Menu.Button><Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95"><Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-white/10 rounded-md bg-background-light shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 border border-glass-edge"><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleEditInvoice(tx) : handleEditExpense(tx)} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Edit2 className="mr-2 h-4 w-4 text-amber-400" />{t('general.edit')}</button>)}</Menu.Item><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} disabled={(tx.type === 'expense' && !tx.receipt_url) || openingDocId === tx.id} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}>{openingDocId === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eye className="mr-2 h-4 w-4 text-blue-400" />}{t('general.view')}</button>)}</Menu.Item><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? downloadInvoice(tx.id) : handleDownloadExpense(tx)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Download className="mr-2 h-4 w-4 text-green-400" />{t('general.download')}</button>)}</Menu.Item></div><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleArchiveInvoiceClick(tx.id) : handleArchiveExpenseClick(tx.id)} disabled={tx.type === 'expense' && !tx.receipt_url} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Archive className="mr-2 h-4 w-4 text-indigo-400" />{t('general.archive')}</button>)}</Menu.Item></div><div className="px-1 py-1"><Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? deleteInvoice(tx.id) : deleteExpense(tx.id)} className={`${active ? 'bg-red-500/20 text-red-400' : 'text-red-400'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Trash2 className="mr-2 h-4 w-4" />{t('general.delete')}</button>)}</Menu.Item></div></Menu.Items></Transition></Menu></div></div></div>))}
                                 </div>
                             </div>
@@ -202,7 +226,7 @@ export const FinanceTab: React.FC = () => {
                         
                         {activeTab === 'reports' && (
                             <div className="space-y-6">
-                                {!analyticsData ? <div className="flex justify-center items-center h-48 text-gray-500"><p>Po ngarkohen të dhënat...</p></div> : (
+                                {!analyticsData ? <div className="space-y-6"><SkeletonChart /><SkeletonGrid /></div> : (
                                     <>
                                         <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
                                             <h4 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={16} /> {t('finance.analytics.salesTrend')}</h4>
@@ -225,7 +249,7 @@ export const FinanceTab: React.FC = () => {
 
                         {activeTab === 'history' && (
                             <div className="flex justify-center items-center h-full text-gray-500 text-center">
-                                <div><History size={32} className="mx-auto mb-2" /><p className="font-bold">Historiku i Lëndëve</p><p className="text-sm">Ky seksion do të shfaqë historikun financiar për çështje specifike.</p></div>
+                                <div><History size={32} className="mx-auto mb-2" /><p className="font-bold">Historiku Sipas Lëndës</p><p className="text-sm">Së shpejti: Shikoni historikun financiar të filtruar për çdo lëndë individuale.</p></div>
                             </div>
                         )}
                     </div>
