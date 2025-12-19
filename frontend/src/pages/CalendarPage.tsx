@@ -1,7 +1,7 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR V7.2 (TIMEZONE FIX)
-// 1. FIX: Adjusted Date submission logic to prevent UTC rollback.
-// 2. LOGIC: Forces selected date to Noon UTC to ensure it stays on the correct day worldwide.
+// PHOENIX PROTOCOL - CALENDAR V7.3 (HEIGHT ADJUSTMENT)
+// 1. FIX: Reduced grid cell min-height to balance layout with side columns.
+// 2. PRESERVED: Text sizes and logic remain identical.
 // 3. STATUS: Production Ready.
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -352,7 +352,8 @@ const CalendarPage: React.FC = () => {
     const weekStartsOn = currentLocale?.options?.weekStartsOn ?? 1; 
     const firstDayOfMonth = getDay(monthStart);
     const startingDayIndex = (firstDayOfMonth - weekStartsOn + 7) % 7;
-    const cellClass = "min-h-[120px] sm:min-h-[140px] border-r border-b border-white/5 relative group transition-colors hover:bg-white/5 flex flex-col";
+    // PHOENIX FIX: Reduced min-height from 140px to 100px for consistency
+    const cellClass = "min-h-[80px] sm:min-h-[100px] border-r border-b border-white/5 relative group transition-colors hover:bg-white/5 flex flex-col";
     const days = Array.from({ length: startingDayIndex }, (_, i) => <div key={`empty-${i}`} className={`${cellClass} bg-black/20`} />);
 
     for (let day = 1; day <= daysInMonth; day++) {

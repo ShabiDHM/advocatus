@@ -272,7 +272,7 @@ export const FinanceTab: React.FC = () => {
                                     <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="block w-full pl-10 pr-3 py-2 border border-white/10 rounded-xl leading-5 bg-white/5 text-gray-300 placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-indigo-500 sm:text-sm transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
                                 
-                                <div className="space-y-3 flex-1 overflow-y-auto custom-finance-scroll pr-2">
+                                <div className="space-y-3 flex-1 overflow-y-auto custom-finance-scroll pr-2 max-h-[500px]">
                                     {filteredTransactions.length === 0 ? <p className="text-gray-500 italic text-sm text-center py-10">{t('finance.noTransactions')}</p> : filteredTransactions.map(tx => (
                                         <div key={`${tx.type}-${tx.id}`} className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition-colors">
                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
