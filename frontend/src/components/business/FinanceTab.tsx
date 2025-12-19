@@ -1,4 +1,9 @@
 // FILE: src/components/business/FinanceTab.tsx
+// PHOENIX PROTOCOL - FINANCE TAB V8.0 (HISTORY SEARCH)
+// 1. FEATURE: Added Search Bar to History Tab.
+// 2. LOGIC: Implemented filteredHistory to search by Case Title, Number, Client Name, or Expense Category.
+// 3. UI: Consistent search styling with Transactions tab.
+
 import React, { useEffect, useState, useRef, useMemo, Fragment } from 'react';
 import { motion } from 'framer-motion';
 import { Menu, Transition } from '@headlessui/react';
@@ -170,13 +175,13 @@ export const FinanceTab: React.FC = () => {
     }, [invoices, expenses]);
 
     const filteredTransactions = useMemo(() => {
-        if (!searchTerm) return sortedTransactions;
+        if (!searchTerm || activeTab !== 'transactions') return sortedTransactions;
         const lowerTerm = searchTerm.toLowerCase();
         return sortedTransactions.filter(tx => {
             if (tx.type === 'invoice') return (tx.client_name.toLowerCase().includes(lowerTerm) || tx.invoice_number?.toLowerCase().includes(lowerTerm) || tx.total_amount.toString().includes(lowerTerm));
             else return (tx.category.toLowerCase().includes(lowerTerm) || (tx.description && tx.description.toLowerCase().includes(lowerTerm)) || tx.amount.toString().includes(lowerTerm));
         });
-    }, [sortedTransactions, searchTerm]);
+    }, [sortedTransactions, searchTerm, activeTab]);
 
     const historyByCase = useMemo(() => {
         return cases.map(c => {
@@ -203,8 +208,26 @@ export const FinanceTab: React.FC = () => {
                 activity,
                 hasActivity: activity.length > 0
             };
-        }).filter(x => x.hasActivity).sort((a, b) => b.balance - a.balance); // Sort by balance? Or activity date? Let's default to balance magnitude or just most active? Kept default sort logic.
+        }).filter(x => x.hasActivity).sort((a, b) => b.balance - a.balance); 
     }, [cases, expenses, invoices]);
+
+    // PHOENIX: Filter History Logic
+    const filteredHistory = useMemo(() => {
+        if (!searchTerm || activeTab !== 'history') return historyByCase;
+        const lowerTerm = searchTerm.toLowerCase();
+        return historyByCase.filter(item => {
+            // Check Case Title or Number
+            const inCase = item.caseData.title.toLowerCase().includes(lowerTerm) || 
+                           item.caseData.case_number.toLowerCase().includes(lowerTerm);
+            
+            // Check any activity (Invoice Client Name or Expense Category)
+            const inActivity = item.activity.some(act => 
+                (act.label && act.label.toLowerCase().includes(lowerTerm))
+            );
+            
+            return inCase || inActivity;
+        });
+    }, [historyByCase, searchTerm, activeTab]);
 
     // --- HELPER: Smart Icons for Expenses ---
     const getCategoryIcon = (category: string) => {
@@ -505,15 +528,20 @@ export const FinanceTab: React.FC = () => {
                         {/* TAB: HISTORY */}
                         {activeTab === 'history' && (
                             <div className="flex flex-col h-full space-y-4">
+                                <div className="relative flex-none">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-500" /></div>
+                                    <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="block w-full pl-10 pr-3 py-2 border border-white/10 rounded-xl leading-5 bg-white/5 text-gray-300 placeholder-gray-500 focus:outline-none focus:bg-white/10 focus:border-indigo-500 sm:text-sm transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                                </div>
+
                                 <div className="space-y-4 flex-1 overflow-y-auto custom-finance-scroll pr-2">
-                                    {historyByCase.length === 0 ? (
+                                    {filteredHistory.length === 0 ? (
                                         <div className="flex justify-center items-center h-full text-gray-500 text-center flex-col">
                                             <div className="bg-white/5 p-4 rounded-full mb-3"><Briefcase size={32} className="text-gray-600" /></div>
                                             <p className="font-bold text-gray-400">{t('finance.noHistoryData', "Nuk ka të dhëna historike")}</p>
                                             <p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime ose fatura të lidhura me lëndë për të parë pasqyrën këtu.")}</p>
                                         </div>
                                     ) : (
-                                        historyByCase.map((item) => (
+                                        filteredHistory.map((item) => (
                                             <div key={item.caseData.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
                                                 <div 
                                                     className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors"
