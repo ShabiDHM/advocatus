@@ -1,7 +1,7 @@
 # FILE: backend/app/services/user_service.py
-# PHOENIX PROTOCOL - USER SERVICE V1.1 (CASE INSENSITIVE QUERIES)
-# 1. FIX: All username/email lookups are now case-insensitive using Regex.
-# 2. LOGIC: Allows login with 'shaban' even if registered as 'Shaban'.
+# PHOENIX PROTOCOL - USER SERVICE V1.2 (SECURITY GATE)
+# 1. SECURITY: 'authenticate' now checks for 'user.status == "active"'.
+# 2. LOGIC: Prevents inactive users from getting an access token.
 
 from pymongo.database import Database
 from bson import ObjectId
@@ -18,7 +18,6 @@ from app.services import storage_service
 logger = logging.getLogger(__name__)
 
 def get_user_by_username(db: Database, username: str) -> Optional[UserInDB]:
-    # PHOENIX FIX: Case-insensitive regex query
     query = {"username": {"$regex": f"^{re.escape(username)}$", "$options": "i"}}
     user_dict = db.users.find_one(query)
     if user_dict:
@@ -26,7 +25,6 @@ def get_user_by_username(db: Database, username: str) -> Optional[UserInDB]:
     return None
 
 def get_user_by_email(db: Database, email: str) -> Optional[UserInDB]:
-    # PHOENIX FIX: Case-insensitive regex query
     query = {"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}}
     user_dict = db.users.find_one(query)
     if user_dict:
@@ -44,7 +42,15 @@ def authenticate(db: Database, username: str, password: str) -> Optional[UserInD
     if not user:
         user = get_user_by_email(db, username)
         
-    if not user or not verify_password(password, user.hashed_password):
+    if not user:
+        return None
+        
+    # PHOENIX SECURITY GATE: Check if user is active BEFORE checking password
+    if user.status != "active":
+        logger.warning(f"Login attempt for inactive user: {username}")
+        return None
+    
+    if not verify_password(password, user.hashed_password):
         return None
         
     return user
@@ -56,6 +62,7 @@ def create(db: Database, obj_in: UserCreate) -> UserInDB:
     
     user_data["hashed_password"] = hashed_password
     user_data["created_at"] = datetime.now(timezone.utc)
+    # The default 'status: "inactive"' from the model will now be correctly applied
     
     result = db.users.insert_one(user_data)
     new_user = db.users.find_one({"_id": result.inserted_id})
