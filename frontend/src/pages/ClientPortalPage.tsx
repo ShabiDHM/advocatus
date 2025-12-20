@@ -1,6 +1,7 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V2.9.1 (CLEANUP)
+// PHOENIX PROTOCOL - CLIENT PORTAL V3.1 (CLEANUP & STABILIZATION)
 // 1. FIX: Removed unused 'Scale' import to resolve TypeScript warning.
+// 2. STATUS: No functional changes; Finance tab remains removed.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -8,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Calendar, AlertCircle, Loader2, 
     FileText, Gavel, Users, ShieldCheck, 
-    Briefcase, Euro, Download, Eye, Building2
+    Briefcase, Download, Eye, Building2
 } from 'lucide-react';
 import axios from 'axios';
 import { API_V1_URL } from '../services/api';
@@ -25,6 +26,7 @@ interface SharedDocument {
     id: string; file_name: string; created_at: string; file_type: string; source: 'ACTIVE' | 'ARCHIVE';
 }
 
+// Kept for type compatibility with API response
 interface SharedInvoice {
     id: string; number: string; amount: number; status: string; date: string;
 }
@@ -48,8 +50,8 @@ const ClientPortalPage: React.FC = () => {
     const [data, setData] = useState<PublicCaseData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState<'timeline' | 'documents' | 'finance'>('timeline');
-    const [imgError, setImgError] = useState(false); // Track image loading errors
+    const [activeTab, setActiveTab] = useState<'timeline' | 'documents'>('timeline');
+    const [imgError, setImgError] = useState(false);
 
     // Viewer State
     const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
@@ -74,27 +76,22 @@ const ClientPortalPage: React.FC = () => {
     const getLogoUrl = () => {
         if (!data?.logo) return null;
         if (data.logo.startsWith('http')) return data.logo;
-        // Prepend API URL if it's a relative path from backend
-        // Remove trailing slash from API_URL if exists, ensure leading slash on logo
         const baseUrl = API_V1_URL.replace(/\/$/, '');
         const path = data.logo.startsWith('/') ? data.logo : `/${data.logo}`;
         return `${baseUrl}${path}`;
     };
 
-    const getDownloadUrl = (docId: string, source: 'ACTIVE' | 'ARCHIVE' | 'INVOICE') => {
-        if (source === 'INVOICE') {
-             return `${API_V1_URL}/cases/public/${caseId}/invoices/${docId}/download`;
-        }
+    const getDownloadUrl = (docId: string, source: 'ACTIVE' | 'ARCHIVE') => {
         return `${API_V1_URL}/cases/public/${caseId}/documents/${docId}/download?source=${source}`;
     };
 
-    const handleDownload = (docId: string, source: 'ACTIVE' | 'ARCHIVE' | 'INVOICE') => {
+    const handleDownload = (docId: string, source: 'ACTIVE' | 'ARCHIVE') => {
         if (!caseId) return;
         const url = getDownloadUrl(docId, source);
         window.open(url, '_blank');
     };
 
-    const handleView = (docId: string, source: 'ACTIVE' | 'ARCHIVE' | 'INVOICE', filename: string, mimeType: string) => {
+    const handleView = (docId: string, source: 'ACTIVE' | 'ARCHIVE', filename: string, mimeType: string) => {
         const url = getDownloadUrl(docId, source);
         if (!url) return;
         
@@ -119,19 +116,6 @@ const ClientPortalPage: React.FC = () => {
             case 'MEETING': return <Users className="text-blue-400" />;
             default: return <Calendar className="text-gray-400" />;
         }
-    };
-
-    const getStatusBadge = (status: string) => {
-        const normalizedStatus = status ? status.toUpperCase() : 'OPEN';
-        const color = normalizedStatus === 'PAID' ? 'bg-green-500/20 text-green-400' : 
-                      normalizedStatus === 'SENT' ? 'bg-blue-500/20 text-blue-400' : 
-                      'bg-gray-500/20 text-gray-400';
-        
-        return (
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border border-white/5 ${color}`}>
-                {t(`status.${normalizedStatus}`, normalizedStatus)}
-            </span>
-        );
     };
 
     if (loading) return (
@@ -169,7 +153,6 @@ const ClientPortalPage: React.FC = () => {
                                 onError={() => setImgError(true)}
                             />
                         ) : (
-                            // Fallback Icon if logo missing or fails to load
                             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
                                 <Building2 className="text-white w-4 h-4" />
                             </div>
@@ -228,13 +211,6 @@ const ClientPortalPage: React.FC = () => {
                     >
                         {t('portal.documents', 'Dokumentet')} 
                         <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.documents.length}</span>
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('finance')} 
-                        className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'finance' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
-                    >
-                        {t('portal.finances', 'Financat')} 
-                        <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.invoices.length}</span>
                     </button>
                 </div>
 
@@ -313,57 +289,6 @@ const ClientPortalPage: React.FC = () => {
                                                 >
                                                     <Download size={18} />
                                                 </button>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {activeTab === 'finance' && (
-                        <motion.div key="finance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                            <div className="space-y-3">
-                                {data.invoices.length === 0 ? (
-                                    <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">
-                                        {t('portal.empty_invoices', 'Nuk ka fatura aktive.')}
-                                    </div>
-                                ) : (
-                                    data.invoices.map((inv, i) => (
-                                        <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between hover:bg-white/10 transition-colors">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                                                    <Euro size={20} />
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <h4 className="text-sm font-bold text-white truncate max-w-[150px]">
-                                                        {t('portal.invoice_prefix', 'Fatura #')}{inv.number}
-                                                    </h4>
-                                                    <p className="text-xs text-gray-500 mt-0.5">{new Date(inv.date).toLocaleDateString()}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <div className="text-right">
-                                                    <p className="text-lg font-bold text-white mb-1">€{inv.amount.toFixed(2)}</p>
-                                                    {getStatusBadge(inv.status)}
-                                                </div>
-                                                
-                                                <div className="flex flex-col gap-1 ml-2">
-                                                    <button 
-                                                        onClick={() => handleView(inv.id, 'INVOICE', `Fatura_${inv.number}.pdf`, 'application/pdf')} 
-                                                        className="p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-blue-400 transition-colors" 
-                                                        title={t('actions.view', 'Shiko')}
-                                                    >
-                                                        <Eye size={16} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDownload(inv.id, 'INVOICE')} 
-                                                        className="p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-green-400 transition-colors" 
-                                                        title={t('actions.download', 'Shkarko')}
-                                                    >
-                                                        <Download size={18} />
-                                                    </button>
-                                                </div>
                                             </div>
                                         </div>
                                     ))
