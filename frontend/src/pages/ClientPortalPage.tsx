@@ -1,8 +1,8 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V2.5 (INVOICE ACCESS)
-// 1. FEATURE: Added 'View' and 'Download' buttons for Invoices.
-// 2. LOGIC: Implemented URL generation for public invoice endpoints.
-// 3. STATUS: Complete Client Portal experience.
+// PHOENIX PROTOCOL - CLIENT PORTAL V2.6
+// 1. FEATURE: Dynamic Branding (Law Firm Name).
+// 2. LOGIC: Full i18n implementation.
+// 3. UI: Removed Case Number, Optimized Mobile Layout.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -32,28 +32,16 @@ interface SharedInvoice {
 }
 
 interface PublicCaseData {
-    case_number: string; title: string; client_name: string; status: string;
+    case_number: string; 
+    title: string; 
+    client_name: string; 
+    status: string;
+    organization_name?: string; // Dynamic Branding
+    logo?: string; // Dynamic Branding
     timeline: PublicEvent[];
     documents: SharedDocument[];
     invoices: SharedInvoice[];
 }
-
-// --- ICONS & STYLES ---
-const getEventIcon = (type: string) => {
-    switch (type) {
-        case 'DEADLINE': return <AlertCircle className="text-rose-400" />;
-        case 'HEARING': return <Gavel className="text-purple-400" />;
-        case 'MEETING': return <Users className="text-blue-400" />;
-        default: return <Calendar className="text-gray-400" />;
-    }
-};
-
-const getStatusBadge = (status: string) => {
-    const color = status === 'PAID' ? 'bg-green-500/20 text-green-400' : 
-                  status === 'SENT' ? 'bg-blue-500/20 text-blue-400' : 
-                  'bg-gray-500/20 text-gray-400';
-    return <span className={`text-[10px] font-bold px-2 py-0.5 rounded border border-white/5 ${color}`}>{status}</span>;
-};
 
 // --- MAIN COMPONENT ---
 const ClientPortalPage: React.FC = () => {
@@ -75,13 +63,13 @@ const ClientPortalPage: React.FC = () => {
                 setData(response.data);
             } catch (err) {
                 console.error(err);
-                setError("Dosja nuk u gjet ose nuk keni qasje.");
+                setError(t('portal.error_not_found', "Dosja nuk u gjet ose nuk keni qasje."));
             } finally {
                 setLoading(false);
             }
         };
         if (caseId) fetchPublicData();
-    }, [caseId]);
+    }, [caseId, t]);
 
     const getDownloadUrl = (docId: string, source: 'ACTIVE' | 'ARCHIVE' | 'INVOICE') => {
         if (source === 'INVOICE') {
@@ -114,10 +102,32 @@ const ClientPortalPage: React.FC = () => {
         setViewingUrl(null);
     };
 
+    const getEventIcon = (type: string) => {
+        switch (type) {
+            case 'DEADLINE': return <AlertCircle className="text-rose-400" />;
+            case 'HEARING': return <Gavel className="text-purple-400" />;
+            case 'MEETING': return <Users className="text-blue-400" />;
+            default: return <Calendar className="text-gray-400" />;
+        }
+    };
+
+    const getStatusBadge = (status: string) => {
+        const color = status === 'PAID' ? 'bg-green-500/20 text-green-400' : 
+                      status === 'SENT' ? 'bg-blue-500/20 text-blue-400' : 
+                      'bg-gray-500/20 text-gray-400';
+        return (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded border border-white/5 ${color}`}>
+                {t(`status.${status}`, status)}
+            </span>
+        );
+    };
+
     if (loading) return (
         <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white">
             <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mb-6" />
-            <p className="text-gray-500 text-sm font-medium tracking-widest uppercase animate-pulse">Duke ngarkuar të dhënat...</p>
+            <p className="text-gray-500 text-sm font-medium tracking-widest uppercase animate-pulse">
+                {t('portal.loading', 'Duke ngarkuar të dhënat...')}
+            </p>
         </div>
     );
 
@@ -125,7 +135,7 @@ const ClientPortalPage: React.FC = () => {
         <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-6">
             <div className="bg-red-500/5 border border-red-500/20 p-10 rounded-3xl text-center max-w-md backdrop-blur-md">
                 <ShieldCheck className="w-16 h-16 text-red-500 mx-auto mb-6" />
-                <h1 className="text-2xl font-bold text-white mb-3">Qasja u Refuzua</h1>
+                <h1 className="text-2xl font-bold text-white mb-3">{t('portal.access_denied', 'Qasja u Refuzua')}</h1>
                 <p className="text-gray-400 leading-relaxed">{error}</p>
             </div>
         </div>
@@ -133,65 +143,162 @@ const ClientPortalPage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] font-sans text-gray-100 selection:bg-indigo-500/30 pb-20">
+            {/* Header */}
             <header className="sticky top-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-white/5">
                 <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                            <Scale className="text-white w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-lg tracking-tight">Juristi Portal</span>
+                        {data.logo ? (
+                            <img src={data.logo} alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
+                        ) : (
+                            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                                <Scale className="text-white w-5 h-5" />
+                            </div>
+                        )}
+                        <span className="font-bold text-lg tracking-tight">
+                            {data.organization_name || t('branding.default', 'Juristi Portal')}
+                        </span>
                     </div>
                     <div className="hidden sm:flex items-center gap-4 text-xs font-medium text-gray-500">
-                        <span className="flex items-center gap-2"><ShieldCheck size={14} className="text-green-500"/> Lidhje e Sigurt</span>
+                        <span className="flex items-center gap-2">
+                            <ShieldCheck size={14} className="text-green-500"/> 
+                            {t('portal.secure_connection', 'Lidhje e Sigurt')}
+                        </span>
                     </div>
                 </div>
             </header>
 
             <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-10">
+                {/* Dashboard Grid - Mobile Friendly */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                    {/* Main Case Card */}
                     <div className="md:col-span-2 bg-white/5 border border-white/10 rounded-3xl p-8 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
                         <div className="relative z-10">
-                            <span className="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-indigo-300 text-[10px] font-bold uppercase tracking-widest mb-4">{data.case_number}</span>
-                            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 leading-tight">{data.title}</h1>
-                            <p className="text-gray-400 flex items-center gap-2 text-sm mt-4"><Briefcase size={16} /> Klient: <span className="text-white font-medium">{data.client_name}</span></p>
+                            {/* REMOVED: Case Number Badge as requested */}
+                            
+                            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 leading-tight">
+                                {data.title}
+                            </h1>
+                            <p className="text-gray-400 flex items-center gap-2 text-sm mt-4">
+                                <Briefcase size={16} /> 
+                                {t('portal.client_label', 'Klient')}: <span className="text-white font-medium">{data.client_name}</span>
+                            </p>
                         </div>
                     </div>
+
+                    {/* Status Card */}
                     <div className="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col justify-center items-center text-center relative overflow-hidden">
                         <div className="w-3 h-3 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] mb-4 animate-pulse" />
-                        <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">Statusi i Çështjes</h3>
-                        <p className="text-2xl font-bold text-white">{data.status}</p>
+                        <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">
+                            {t('portal.status_label', 'Statusi i Çështjes')}
+                        </h3>
+                        <p className="text-2xl font-bold text-white">
+                            {t(`status.${data.status}`, data.status)}
+                        </p>
                     </div>
                 </div>
 
+                {/* Tabs Navigation */}
                 <div className="flex gap-2 mb-8 overflow-x-auto no-scrollbar pb-2">
-                    <button onClick={() => setActiveTab('timeline')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'timeline' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Kronologjia</button>
-                    <button onClick={() => setActiveTab('documents')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'documents' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Dokumentet <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.documents.length}</span></button>
-                    <button onClick={() => setActiveTab('finance')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'finance' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Financat <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.invoices.length}</span></button>
+                    <button 
+                        onClick={() => setActiveTab('timeline')} 
+                        className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'timeline' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                    >
+                        {t('portal.timeline', 'Kronologjia')}
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('documents')} 
+                        className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'documents' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                    >
+                        {t('portal.documents', 'Dokumentet')} 
+                        <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.documents.length}</span>
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('finance')} 
+                        className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'finance' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                    >
+                        {t('portal.finances', 'Financat')} 
+                        <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.invoices.length}</span>
+                    </button>
                 </div>
 
+                {/* Content Area */}
                 <AnimatePresence mode="wait">
+                    {/* Timeline Tab */}
                     {activeTab === 'timeline' && (
                         <motion.div key="timeline" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                            {data.timeline.length === 0 ? <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka ngjarje në kronologji.</div> : (
-                                <div className="space-y-6">{data.timeline.map((ev, i) => (<div key={i} className="flex gap-6 group"><div className="flex flex-col items-center"><div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500/20 group-hover:border-indigo-500/50 transition-colors">{getEventIcon(ev.type)}</div><div className="w-px h-full bg-white/10 my-2 group-last:hidden" /></div><div className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all mb-2"><div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2"><h3 className="text-lg font-bold text-white">{ev.title}</h3><span className="text-xs font-mono text-gray-400 bg-black/30 px-3 py-1 rounded-lg border border-white/5">{new Date(ev.date).toLocaleDateString('sq-AL')}</span></div><p className="text-gray-400 text-sm leading-relaxed">{ev.description}</p></div></div>))}</div>
+                            {data.timeline.length === 0 ? (
+                                <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">
+                                    {t('portal.empty_timeline', 'Nuk ka ngjarje në kronologji.')}
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {data.timeline.map((ev, i) => (
+                                        <div key={i} className="flex gap-6 group">
+                                            <div className="flex flex-col items-center">
+                                                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500/20 group-hover:border-indigo-500/50 transition-colors">
+                                                    {getEventIcon(ev.type)}
+                                                </div>
+                                                <div className="w-px h-full bg-white/10 my-2 group-last:hidden" />
+                                            </div>
+                                            <div className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all mb-2">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+                                                    <h3 className="text-lg font-bold text-white">{ev.title}</h3>
+                                                    <span className="text-xs font-mono text-gray-400 bg-black/30 px-3 py-1 rounded-lg border border-white/5">
+                                                        {new Date(ev.date).toLocaleDateString(t('locale.date', 'sq-AL'))}
+                                                    </span>
+                                                </div>
+                                                <p className="text-gray-400 text-sm leading-relaxed">{ev.description}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
                             )}
                         </motion.div>
                     )}
 
+                    {/* Documents Tab */}
                     {activeTab === 'documents' && (
                         <motion.div key="documents" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {data.documents.length === 0 ? <div className="md:col-span-2 text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka dokumente të ndara me ju.</div> : (
+                                {data.documents.length === 0 ? (
+                                    <div className="md:col-span-2 text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">
+                                        {t('portal.empty_documents', 'Nuk ka dokumente të ndara me ju.')}
+                                    </div>
+                                ) : (
                                     data.documents.map((doc, i) => (
                                         <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors flex items-center justify-between group">
                                             <div className="flex items-center gap-4 min-w-0">
-                                                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 flex-shrink-0"><FileText size={20} /></div>
-                                                <div className="min-w-0"><h4 className="text-sm font-bold text-white truncate max-w-[200px]">{doc.file_name}</h4><p className="text-xs text-gray-500 mt-1 flex items-center gap-2">{new Date(doc.created_at).toLocaleDateString()}{doc.source === 'ARCHIVE' && <span className="bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">Arkivë</span>}</p></div>
+                                                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 flex-shrink-0">
+                                                    <FileText size={20} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="text-sm font-bold text-white truncate max-w-[200px]">{doc.file_name}</h4>
+                                                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                                                        {new Date(doc.created_at).toLocaleDateString()}
+                                                        {doc.source === 'ARCHIVE' && (
+                                                            <span className="bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">
+                                                                {t('portal.archive', 'Arkivë')}
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                </div>
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={() => handleView(doc.id, doc.source, doc.file_name, doc.file_type)} className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-blue-400 transition-colors" title="Shiko"><Eye size={18} /></button>
-                                                <button onClick={() => handleDownload(doc.id, doc.source)} className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-gray-300 transition-colors" title="Shkarko"><Download size={18} /></button>
+                                                <button 
+                                                    onClick={() => handleView(doc.id, doc.source, doc.file_name, doc.file_type)} 
+                                                    className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-blue-400 transition-colors" 
+                                                    title={t('actions.view', 'Shiko')}
+                                                >
+                                                    <Eye size={18} />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDownload(doc.id, doc.source)} 
+                                                    className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-gray-300 transition-colors" 
+                                                    title={t('actions.download', 'Shkarko')}
+                                                >
+                                                    <Download size={18} />
+                                                </button>
                                             </div>
                                         </div>
                                     ))
@@ -200,26 +307,49 @@ const ClientPortalPage: React.FC = () => {
                         </motion.div>
                     )}
 
+                    {/* Finance Tab */}
                     {activeTab === 'finance' && (
                         <motion.div key="finance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                             <div className="space-y-3">
-                                {data.invoices.length === 0 ? <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka fatura aktive.</div> : (
+                                {data.invoices.length === 0 ? (
+                                    <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">
+                                        {t('portal.empty_invoices', 'Nuk ka fatura aktive.')}
+                                    </div>
+                                ) : (
                                     data.invoices.map((inv, i) => (
                                         <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between hover:bg-white/10 transition-colors">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400"><Euro size={20} /></div>
+                                                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                                                    <Euro size={20} />
+                                                </div>
                                                 <div className="min-w-0">
-                                                    <h4 className="text-sm font-bold text-white truncate max-w-[150px]">Fatura #{inv.number}</h4>
+                                                    <h4 className="text-sm font-bold text-white truncate max-w-[150px]">
+                                                        {t('portal.invoice_prefix', 'Fatura #')}{inv.number}
+                                                    </h4>
                                                     <p className="text-xs text-gray-500 mt-0.5">{new Date(inv.date).toLocaleDateString()}</p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3">
-                                                <div className="text-right"><p className="text-lg font-bold text-white mb-1">€{inv.amount.toFixed(2)}</p>{getStatusBadge(inv.status)}</div>
+                                                <div className="text-right">
+                                                    <p className="text-lg font-bold text-white mb-1">€{inv.amount.toFixed(2)}</p>
+                                                    {getStatusBadge(inv.status)}
+                                                </div>
                                                 
-                                                {/* PHOENIX FIX: Added View/Download Buttons for Invoices */}
                                                 <div className="flex flex-col gap-1 ml-2">
-                                                    <button onClick={() => handleView(inv.id, 'INVOICE', `Fatura_${inv.number}.pdf`, 'application/pdf')} className="p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-blue-400 transition-colors" title="Shiko Faturën"><Eye size={16} /></button>
-                                                    <button onClick={() => handleDownload(inv.id, 'INVOICE')} className="p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-green-400 transition-colors" title="Shkarko Faturën"><Download size={16} /></button>
+                                                    <button 
+                                                        onClick={() => handleView(inv.id, 'INVOICE', `Fatura_${inv.number}.pdf`, 'application/pdf')} 
+                                                        className="p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-blue-400 transition-colors" 
+                                                        title={t('actions.view', 'Shiko')}
+                                                    >
+                                                        <Eye size={16} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDownload(inv.id, 'INVOICE')} 
+                                                        className="p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-green-400 transition-colors" 
+                                                        title={t('actions.download', 'Shkarko')}
+                                                    >
+                                                        <Download size={16} />
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>

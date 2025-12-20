@@ -1,7 +1,7 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - SECURITY FIX
-# 1. SECURITY: Default status for new users is now 'inactive'.
-# 2. LOGIC: Prevents unverified users from logging in. An Admin MUST activate them.
+# PHOENIX PROTOCOL - USER MODEL V5.0 (BRANDING SUPPORT)
+# 1. FEATURE: Added 'organization_name' and 'logo' fields for White-Labeling.
+# 2. SECURITY: Fields are optional and default to None.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional
@@ -14,9 +14,11 @@ class UserBase(BaseModel):
     email: EmailStr
     role: str = "STANDARD" # USER, ADMIN, LAWYER
     subscription_status: str = "TRIAL" # ACTIVE, INACTIVE, TRIAL, EXPIRED
-    
-    # PHOENIX SECURITY FIX: All new users must be manually activated.
     status: str = "inactive"
+    
+    # PHOENIX NEW: Branding Fields
+    organization_name: Optional[str] = None
+    logo: Optional[str] = None 
 
 # Model for creating a new user (Registration)
 class UserCreate(UserBase):
@@ -29,6 +31,8 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     subscription_status: Optional[str] = None
     status: Optional[str] = None
+    organization_name: Optional[str] = None
+    logo: Optional[str] = None
 
 # Model stored in DB (includes hashed password)
 class UserInDB(UserBase):

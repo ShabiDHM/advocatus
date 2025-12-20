@@ -1,8 +1,7 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V4.3 (ROBUST EVENT SHARING)
-# 1. FIX: Events are now public if they have 'is_public=True' OR '[CLIENT_VISIBLE]' tag.
-# 2. LOGIC: Cleans the '[CLIENT_VISIBLE]' tag from the text before sending to client.
-# 3. STATUS: Solves the missing timeline event issue.
+# PHOENIX PROTOCOL - CASE SERVICE V4.4 (BRANDING INJECTION)
+# 1. FEATURE: Injects 'organization_name' and 'logo' into public portal data.
+# 2. LOGIC: Fetches owner profile to display Law Firm Identity instead of App Identity.
 
 import re
 import importlib
@@ -159,16 +158,17 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
     """
     Fetches public-safe data for the Client Portal.
     Includes:
-    1. Timeline (Public Events) - PHOENIX FIX: Checks both 'is_public' flag AND '[CLIENT_VISIBLE]' text tag.
+    1. Timeline (Public Events)
     2. Shared Documents (Only is_shared=True)
     3. Invoices (Excluding Drafts)
+    4. PHOENIX NEW: Law Firm Branding (organization_name, logo)
     """
     try:
         case_oid = ObjectId(case_id)
         case = db.cases.find_one({"_id": case_oid})
         if not case: return None
         
-        # 1. Fetch Timeline (ROBUST QUERY)
+        # 1. Fetch Timeline
         events_cursor = db.calendar_events.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
             "$or": [
@@ -180,7 +180,6 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
         
         events = []
         for ev in events_cursor:
-            # Clean the tag from the text so the client doesn't see it
             description = ev.get("description", "") or ev.get("notes", "") or ""
             clean_desc = description.replace("[CLIENT_VISIBLE]", "").replace("[client_visible]", "").strip()
             
@@ -191,7 +190,7 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "description": clean_desc
             })
         
-        # 2. Fetch Shared Documents (Active)
+        # 2. Fetch Shared Documents
         docs_cursor = db.documents.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
             "is_shared": True 
@@ -207,7 +206,7 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "source": "ACTIVE"
             })
 
-        # 3. Fetch Shared Archive Items
+        # 3. Fetch Archive Items
         archive_cursor = db.archives.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
             "is_shared": True,
@@ -239,6 +238,17 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "date": inv.get("issue_date")
             })
 
+        # PHOENIX NEW: Fetch User Branding
+        owner_id = case.get("owner_id") or case.get("user_id")
+        organization_name = None
+        logo = None
+        
+        if owner_id:
+            owner = db.users.find_one({"_id": owner_id})
+            if owner:
+                organization_name = owner.get("organization_name")
+                logo = owner.get("logo")
+
         raw_name = case.get("client", {}).get("name", "Klient")
         clean_name = raw_name.strip().title() if raw_name else "Klient"
         
@@ -247,6 +257,8 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
             "title": case.get("title") or case.get("case_name"), 
             "client_name": clean_name, 
             "status": case.get("status", "OPEN"), 
+            "organization_name": organization_name, # Injected
+            "logo": logo, # Injected
             "timeline": events,
             "documents": shared_docs,
             "invoices": shared_invoices
