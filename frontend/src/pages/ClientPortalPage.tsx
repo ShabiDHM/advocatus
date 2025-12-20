@@ -1,8 +1,7 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V4.0 (UI POLISH & META FIX)
-// 1. UI: Removed redundant Status Box.
-// 2. DESIGN: Consolidated into a single, elegant, responsive Header Card.
-// 3. META: Added dynamic document title and meta tag injection for sharing.
+// PHOENIX PROTOCOL - CLIENT PORTAL V4.1 (MINIMALIST HEADER)
+// 1. UI: Removed Status Badge and Case Number as requested.
+// 2. CLEANUP: Removed unused status logic and icons.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -10,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Calendar, AlertCircle, Loader2, 
     FileText, Gavel, Users, ShieldCheck, 
-    Briefcase, Download, Eye, Building2, CheckCircle2, Clock
+    Briefcase, Download, Eye, Building2
 } from 'lucide-react';
 import axios from 'axios';
 import { API_V1_URL } from '../services/api';
@@ -64,13 +63,10 @@ const ClientPortalPage: React.FC = () => {
                 const caseData = response.data;
                 setData(caseData);
 
-                // --- PHOENIX META FIX: Dynamic Title & Metadata ---
-                // This updates the browser tab and helps some modern social scrapers
                 if (caseData) {
                     const pageTitle = `${caseData.title} | ${caseData.organization_name || 'Portal'}`;
                     document.title = pageTitle;
                     
-                    // Attempt to update Open Graph tags dynamically
                     updateMetaTag('og:title', pageTitle);
                     updateMetaTag('og:description', `Dosja: ${caseData.case_number} - Klient: ${caseData.client_name}`);
                 }
@@ -85,7 +81,6 @@ const ClientPortalPage: React.FC = () => {
         if (caseId) fetchPublicData();
     }, [caseId, t]);
 
-    // Helper to update meta tags
     const updateMetaTag = (property: string, content: string) => {
         let meta = document.querySelector(`meta[property="${property}"]`);
         if (!meta) {
@@ -96,7 +91,6 @@ const ClientPortalPage: React.FC = () => {
         meta.setAttribute('content', content);
     };
 
-    // --- LOGO URL CONSTRUCTOR ---
     const getLogoUrl = () => {
         if (!data?.logo) return null;
         if (data.logo.startsWith('http')) return data.logo;
@@ -142,21 +136,6 @@ const ClientPortalPage: React.FC = () => {
         }
     };
 
-    // Refined Status Badge Logic
-    const getStatusColor = (status: string) => {
-        const s = status ? status.toUpperCase() : 'OPEN';
-        if (s === 'CLOSED' || s === 'ARCHIVED') return 'text-gray-400 bg-gray-500/10 border-gray-500/20';
-        if (s === 'PENDING') return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
-        return 'text-green-400 bg-green-500/10 border-green-500/20';
-    };
-
-    const getStatusIcon = (status: string) => {
-        const s = status ? status.toUpperCase() : 'OPEN';
-        if (s === 'CLOSED') return <ShieldCheck size={14} className="mr-1.5" />;
-        if (s === 'PENDING') return <Clock size={14} className="mr-1.5" />;
-        return <CheckCircle2 size={14} className="mr-1.5" />;
-    };
-
     if (loading) return (
         <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white">
             <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mb-6" />
@@ -177,7 +156,6 @@ const ClientPortalPage: React.FC = () => {
     );
 
     const logoSrc = getLogoUrl();
-    const statusKey = data.status ? data.status.toUpperCase() : 'OPEN';
 
     return (
         <div className="min-h-screen bg-[#050505] font-sans text-gray-100 selection:bg-indigo-500/30 pb-20">
@@ -210,7 +188,7 @@ const ClientPortalPage: React.FC = () => {
 
             <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-8">
                 
-                {/* HERO SECTION - Redesigned & Consolidated */}
+                {/* HERO SECTION - Minimalist */}
                 <div className="relative mb-10 group">
                     <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent rounded-3xl blur-2xl group-hover:from-indigo-500/15 transition-all duration-700" />
                     
@@ -220,17 +198,10 @@ const ClientPortalPage: React.FC = () => {
                         
                         <div className="flex flex-col sm:flex-row justify-between items-start gap-6 relative z-10">
                             <div className="space-y-4 max-w-2xl">
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${getStatusColor(data.status)}`}>
-                                        {getStatusIcon(data.status)}
-                                        {t(`status.${statusKey}`, data.status)}
-                                    </span>
-                                    <span className="text-gray-500 text-xs font-mono tracking-wider border border-white/5 px-2 py-1 rounded-md bg-black/20">
-                                        #{data.case_number}
-                                    </span>
-                                </div>
                                 
-                                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight tracking-tight">
+                                {/* PHOENIX FIX: Removed Status and Case Number Badges here */}
+                                
+                                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight tracking-tight mt-2">
                                     {data.title}
                                 </h1>
                                 
@@ -248,7 +219,7 @@ const ClientPortalPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* TABS - Sleek & Minimal */}
+                {/* TABS */}
                 <div className="flex justify-center mb-8">
                     <div className="bg-white/5 border border-white/10 p-1 rounded-full flex gap-1">
                         <button 

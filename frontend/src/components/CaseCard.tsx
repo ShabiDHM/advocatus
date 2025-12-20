@@ -1,15 +1,15 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - CASE CARD V4.4 (UI POLISH)
-// 1. REFINED: Increased font sizes for key text elements for improved readability.
-// 2. REFINED: REMOVED status indicator dot to simplify the UI.
-// 3. STATUS: Clean build.
+// PHOENIX PROTOCOL - CASE CARD V4.5 (MINIMALIST)
+// 1. UI: Removed Case Number badge as requested.
+// 2. CLEANUP: Removed unused 'Hash' icon import.
+// 3. STATUS: Production Ready.
 
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Case } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
-import { Trash2, FileText, AlertTriangle, CalendarDays, User, Mail, Phone, Hash } from 'lucide-react';
+import { Trash2, FileText, AlertTriangle, CalendarDays, User, Mail, Phone } from 'lucide-react';
 
 const MotionLink = motion(Link);
 
@@ -59,17 +59,12 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         <div className="flex flex-col mb-4 relative z-10">
           <div className="flex justify-between items-start gap-2">
             <div className="flex flex-col">
-                <span className="text-xs font-mono text-indigo-400 font-bold tracking-wider mb-1 uppercase flex items-center gap-1">
-                    <Hash className="w-3 h-3" />
-                    {caseData.case_number || 'N/A'}
-                </span>
+                {/* PHOENIX FIX: Removed Case Number Badge */}
                 
                 <h2 className={`text-xl font-bold line-clamp-2 leading-tight tracking-tight ${!hasTitle ? 'text-gray-500 italic' : 'text-gray-100'}`}>
                     {displayTitle}
                 </h2>
             </div>
-
-            {/* PHOENIX: Status Indicator REMOVED */}
           </div>
           
           <div className="flex items-center gap-2 mt-3">
