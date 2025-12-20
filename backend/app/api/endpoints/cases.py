@@ -1,11 +1,11 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V4.6 (FINDINGS REMOVAL)
-# 1. REMOVED: get_findings_for_case endpoint.
-# 2. REMOVED: deep_scan_document endpoint.
-# 3. CLEANUP: Removed findings_service and visual_service imports.
+# PHOENIX PROTOCOL - CASES ROUTER V4.7 (SHARE ENDPOINT)
+# 1. ADDED: PUT /{case_id}/documents/{doc_id}/share endpoint.
+# 2. LOGIC: Allows toggling the 'is_shared' flag for Client Portal visibility.
+# 3. STATUS: API fully supports Client Portal 2.0 features.
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from typing import List, Annotated
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
+from typing import List, Annotated, Dict
 from fastapi.responses import Response, StreamingResponse, JSONResponse, FileResponse
 from pydantic import BaseModel
 from pymongo.database import Database
@@ -15,6 +15,7 @@ from bson.errors import InvalidId
 import asyncio
 import logging
 import io
+from datetime import datetime, timezone
 
 # --- SERVICE IMPORTS ---
 from ...services import (
@@ -52,6 +53,9 @@ class DeletedDocumentResponse(BaseModel):
 
 class RenameDocumentRequest(BaseModel):
     new_name: str
+
+class ShareDocumentRequest(BaseModel):
+    is_shared: bool # PHOENIX: New schema for sharing
 
 class BulkDeleteRequest(BaseModel):
     document_ids: List[str]
@@ -176,6 +180,35 @@ async def delete_document(
             deletedFindingIds=result.get("deleted_finding_ids", [])
         )
     raise HTTPException(status_code=500, detail="Failed to delete document.")
+
+# --- PHOENIX: NEW ENDPOINT FOR SHARING ---
+@router.put("/{case_id}/documents/{doc_id}/share", response_model=DocumentOut, tags=["Documents"])
+async def share_document_toggle(
+    case_id: str,
+    doc_id: str,
+    body: ShareDocumentRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    # 1. Validate IDs
+    validate_object_id(case_id)
+    doc_oid = validate_object_id(doc_id)
+    
+    # 2. Verify Ownership
+    doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
+    if str(doc.case_id) != case_id: 
+        raise HTTPException(status_code=403, detail="Document does not belong to this case.")
+
+    # 3. Update Database
+    await asyncio.to_thread(
+        db.documents.update_one,
+        {"_id": doc_oid},
+        {"$set": {"is_shared": body.is_shared, "updated_at": datetime.now(timezone.utc)}}
+    )
+    
+    # 4. Return Updated Document
+    updated_doc = await asyncio.to_thread(db.documents.find_one, {"_id": doc_oid})
+    return DocumentOut.model_validate(updated_doc)
 
 @router.post("/{case_id}/documents/{doc_id}/cross-examine", tags=["Analysis"])
 async def cross_examine_document(

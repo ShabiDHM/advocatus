@@ -1,18 +1,17 @@
 # FILE: backend/app/api/endpoints/archive.py
-# PHOENIX PROTOCOL - ARCHIVE API V2.1 (RENAME ADDED)
-# 1. NEW: Added 'rename_archive_item' endpoint via PUT.
-# 2. SCHEMA: Added 'ArchiveRenameRequest' model.
-# 3. STATUS: Fully Integrated with ArchiveService.
+# PHOENIX PROTOCOL - ARCHIVE API V2.2 (SHARING ENABLED)
+# 1. NEW: Added 'share_archive_item' for single item toggling.
+# 2. NEW: Added 'share_archive_case' for bulk case sharing.
+# 3. STATUS: API Support for Client Portal Library.
 
 from fastapi import APIRouter, Depends, status, UploadFile, Form, Query, HTTPException, Body
 from fastapi.responses import StreamingResponse
-from typing import List, Annotated, Optional
+from typing import List, Annotated, Optional, Dict, Any
 from pymongo.database import Database
 from pydantic import BaseModel
 import urllib.parse
 import mimetypes
 
-# PHOENIX FIX: Relative imports
 from ...models.user import UserInDB
 from ...models.archive import ArchiveItemOut
 from ...services.archive_service import ArchiveService 
@@ -23,6 +22,13 @@ router = APIRouter(tags=["Archive"])
 # --- REQUEST MODELS ---
 class ArchiveRenameRequest(BaseModel):
     new_title: str
+
+class ArchiveShareRequest(BaseModel):
+    is_shared: bool
+
+class ArchiveCaseShareRequest(BaseModel):
+    case_id: str
+    is_shared: bool
 
 # --- ENDPOINTS ---
 
@@ -71,7 +77,6 @@ def delete_archive_item(
     service = ArchiveService(db)
     service.delete_archive_item(str(current_user.id), item_id)
 
-# PHOENIX NEW: RENAME ENDPOINT
 @router.put("/items/{item_id}/rename", status_code=status.HTTP_204_NO_CONTENT)
 def rename_archive_item(
     item_id: str,
@@ -79,11 +84,36 @@ def rename_archive_item(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    """
-    Renames a file or folder in the archive.
-    """
     service = ArchiveService(db)
     service.rename_item(str(current_user.id), item_id, body.new_title)
+
+# PHOENIX NEW: SHARE SINGLE ITEM
+@router.put("/items/{item_id}/share", response_model=ArchiveItemOut)
+def share_archive_item(
+    item_id: str,
+    body: ArchiveShareRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Toggles visibility of an archive item in the Client Portal.
+    """
+    service = ArchiveService(db)
+    return service.share_item(str(current_user.id), item_id, body.is_shared)
+
+# PHOENIX NEW: SHARE ALL ITEMS FOR CASE
+@router.put("/case/share", status_code=status.HTTP_200_OK)
+def share_archive_case(
+    body: ArchiveCaseShareRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Bulk toggles visibility for ALL archive files belonging to a case.
+    """
+    service = ArchiveService(db)
+    count = service.share_case_items(str(current_user.id), body.case_id, body.is_shared)
+    return {"message": "Success", "updated_count": count}
 
 @router.get("/items/{item_id}/download")
 def download_archive_item(
@@ -95,15 +125,10 @@ def download_archive_item(
     service = ArchiveService(db)
     stream, filename = service.get_file_stream(str(current_user.id), item_id)
     
-    # Encode filename for safety
     safe_filename = urllib.parse.quote(filename)
-    
-    # Determine MIME type based on extension
     content_type, _ = mimetypes.guess_type(filename)
-    if not content_type:
-        content_type = "application/octet-stream"
+    if not content_type: content_type = "application/octet-stream"
         
-    # Set disposition based on preview flag
     disposition_type = "inline" if preview else "attachment"
     
     return StreamingResponse(

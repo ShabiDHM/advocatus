@@ -1,8 +1,8 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE V2.2 (RENAME SUPPORT)
-# 1. NEW: 'rename_item' allows updating file/folder titles.
-# 2. LOGIC: Updates MongoDB record (metadata only, does not rename S3 key).
-# 3. STATUS: Essential for organizing imported files.
+# PHOENIX PROTOCOL - ARCHIVE V2.3 (SHARING SUPPORT)
+# 1. NEW: 'share_item' toggles 'is_shared' for a single file.
+# 2. NEW: 'share_case_items' bulk toggles 'is_shared' for all files in a case.
+# 3. STATUS: Backend logic complete for Client Portal Library.
 
 import os
 import logging
@@ -48,7 +48,8 @@ class ArchiveService:
             "created_at": datetime.now(timezone.utc),
             "storage_key": None,
             "file_size": 0,
-            "description": ""
+            "description": "",
+            "is_shared": False 
         }
         
         if parent_id and parent_id.strip() and parent_id != "null":
@@ -102,7 +103,8 @@ class ArchiveService:
             "storage_key": storage_key,
             "file_size": file_size,
             "created_at": datetime.now(timezone.utc),
-            "description": ""
+            "description": "",
+            "is_shared": False
         }
         
         if case_id and case_id.strip() and case_id != "null": 
@@ -157,21 +159,49 @@ class ArchiveService:
         
         self.db.archives.delete_one({"_id": oid_item})
 
-    # --- PHOENIX NEW: RENAME ---
+    # --- RENAME ---
     def rename_item(self, user_id: str, item_id: str, new_title: str) -> None:
-        """
-        Renames a file or folder in the Archive.
-        """
         oid_user = self._to_oid(user_id)
         oid_item = self._to_oid(item_id)
-
         result = self.db.archives.update_one(
             {"_id": oid_item, "user_id": oid_user},
             {"$set": {"title": new_title}}
         )
-        
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Item not found or access denied.")
+
+    # --- PHOENIX NEW: SHARING LOGIC ---
+    def share_item(self, user_id: str, item_id: str, is_shared: bool) -> ArchiveItemInDB:
+        """
+        Toggles the 'is_shared' flag for a single archive item.
+        """
+        oid_user = self._to_oid(user_id)
+        oid_item = self._to_oid(item_id)
+
+        result = self.db.archives.find_one_and_update(
+            {"_id": oid_item, "user_id": oid_user},
+            {"$set": {"is_shared": is_shared}},
+            return_document=True
+        )
+        
+        if not result:
+            raise HTTPException(status_code=404, detail="Item not found or access denied.")
+            
+        return ArchiveItemInDB(**result)
+
+    def share_case_items(self, user_id: str, case_id: str, is_shared: bool) -> int:
+        """
+        Bulk toggles 'is_shared' for all files belonging to a specific case.
+        """
+        oid_user = self._to_oid(user_id)
+        oid_case = self._to_oid(case_id)
+
+        result = self.db.archives.update_many(
+            {"case_id": oid_case, "user_id": oid_user, "item_type": "FILE"},
+            {"$set": {"is_shared": is_shared}}
+        )
+        
+        return result.modified_count
 
     def get_file_stream(self, user_id: str, item_id: str) -> Tuple[Any, str]:
         query: Dict[str, Any] = {"_id": self._to_oid(item_id), "user_id": self._to_oid(user_id)}
@@ -213,7 +243,8 @@ class ArchiveService:
             "storage_key": storage_key,
             "file_size": len(content),
             "created_at": datetime.now(timezone.utc),
-            "description": "Generated System Document"
+            "description": "Generated System Document",
+            "is_shared": False
         }
         
         if case_id and case_id.strip() and case_id != "null":
@@ -245,7 +276,8 @@ class ArchiveService:
             "storage_key": dest_key,
             "file_size": file_size,
             "created_at": datetime.now(timezone.utc),
-            "description": "Archived from Case"
+            "description": "Archived from Case",
+            "is_shared": False
         }
         self.db.archives.insert_one(doc_data)
         return ArchiveItemInDB(**doc_data)

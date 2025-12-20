@@ -1,8 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V3.6 (FINDINGS CLEANUP)
-# 1. REMOVED: finding_count calculation.
-# 2. REMOVED: sync_case_calendar_from_findings (Dead Logic).
-# 3. STATUS: Clean and crash-proof.
+# PHOENIX PROTOCOL - CASE SERVICE V4.2 (ARCHIVE SHARING)
+# 1. FEATURE: 'get_public_case_events' now includes Shared Archive Items.
+# 2. LOGIC: Fetches items from 'archives' collection where is_shared=True.
+# 3. STATUS: Client Portal now sees both Active Docs and Archived Docs.
 
 import re
 import importlib
@@ -134,7 +134,6 @@ def delete_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB):
     db.cases.delete_one({"_id": case_id})
     db.documents.delete_many(any_id_query)
     db.calendar_events.delete_many(any_id_query)
-    # db.findings.delete_many(any_id_query) # Safe to remove if you want full deletion, or keep as silent cleanup
     if "alerts" in db.list_collection_names(): db.alerts.delete_many(any_id_query)
 
 def create_draft_job_for_case(db: Database, case_id: ObjectId, job_in: DraftRequest, owner: UserInDB) -> Dict[str, Any]:
@@ -157,15 +156,83 @@ def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name:
 
 # --- PUBLIC PORTAL FUNCTIONS ---
 def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetches public-safe data for the Client Portal.
+    Includes:
+    1. Timeline (Public Events)
+    2. Shared Documents (Active)
+    3. Shared Archive Items (PHOENIX UPGRADE)
+    4. Invoices
+    """
     try:
         case_oid = ObjectId(case_id)
         case = db.cases.find_one({"_id": case_oid})
         if not case: return None
+        
+        # 1. Fetch Timeline
         events_cursor = db.calendar_events.find({"$or": [{"case_id": case_id}, {"case_id": case_oid}], "is_public": True }).sort("start_date", 1)
         events = [{"title": ev.get("title"), "date": ev.get("start_date"), "type": ev.get("event_type", "EVENT"), "description": ev.get("description", "")} for ev in events_cursor]
+        
+        # 2. Fetch Shared Active Documents
+        docs_cursor = db.documents.find({
+            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+            "is_shared": True 
+        }).sort("created_at", -1)
+        
+        shared_docs = []
+        for d in docs_cursor:
+            shared_docs.append({
+                "id": str(d["_id"]),
+                "file_name": d.get("file_name"),
+                "created_at": d.get("created_at"),
+                "file_type": d.get("mime_type", "application/pdf"),
+                "source": "ACTIVE"
+            })
+
+        # 3. Fetch Shared Archive Items (NEW)
+        archive_cursor = db.archives.find({
+            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+            "is_shared": True,
+            "item_type": "FILE" # Only share files, not empty folders
+        }).sort("created_at", -1)
+        
+        for a in archive_cursor:
+             shared_docs.append({
+                "id": str(a["_id"]),
+                "file_name": a.get("title", "Archived File"),
+                "created_at": a.get("created_at"),
+                "file_type": "application/pdf", # Assume PDF for simplicity, or fetch field
+                "source": "ARCHIVE"
+            })
+
+        # 4. Fetch Invoices
+        invoices_cursor = db.invoices.find({
+            "related_case_id": case_id,
+            "status": {"$ne": "DRAFT"}
+        }).sort("issue_date", -1)
+
+        shared_invoices = []
+        for inv in invoices_cursor:
+            shared_invoices.append({
+                "id": str(inv["_id"]),
+                "number": inv.get("invoice_number"),
+                "amount": inv.get("total_amount"),
+                "status": inv.get("status"),
+                "date": inv.get("issue_date")
+            })
+
         raw_name = case.get("client", {}).get("name", "Klient")
         clean_name = raw_name.strip().title() if raw_name else "Klient"
-        return {"case_number": case.get("case_number"), "title": case.get("title") or case.get("case_name"), "client_name": clean_name, "status": case.get("status", "OPEN"), "timeline": events}
+        
+        return {
+            "case_number": case.get("case_number"), 
+            "title": case.get("title") or case.get("case_name"), 
+            "client_name": clean_name, 
+            "status": case.get("status", "OPEN"), 
+            "timeline": events,
+            "documents": shared_docs,
+            "invoices": shared_invoices
+        }
     except Exception as e:
         print(f"Public Portal Error: {e}")
         return None
