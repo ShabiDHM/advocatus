@@ -1,15 +1,14 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V2.7 (FIX: Casing & Branding)
-// 1. FIX: Status Translation now handles uppercase/lowercase from DB.
-// 2. LOGIC: Robust Fallback for Branding.
+// PHOENIX PROTOCOL - CLIENT PORTAL V2.9.1 (CLEANUP)
+// 1. FIX: Removed unused 'Scale' import to resolve TypeScript warning.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Calendar, AlertCircle, Loader2, 
-    FileText, Gavel, Users, Scale, ShieldCheck, 
-    Briefcase, Euro, Download, Eye
+    FileText, Gavel, Users, ShieldCheck, 
+    Briefcase, Euro, Download, Eye, Building2
 } from 'lucide-react';
 import axios from 'axios';
 import { API_V1_URL } from '../services/api';
@@ -50,6 +49,7 @@ const ClientPortalPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState<'timeline' | 'documents' | 'finance'>('timeline');
+    const [imgError, setImgError] = useState(false); // Track image loading errors
 
     // Viewer State
     const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
@@ -69,6 +69,17 @@ const ClientPortalPage: React.FC = () => {
         };
         if (caseId) fetchPublicData();
     }, [caseId, t]);
+
+    // --- LOGO URL CONSTRUCTOR ---
+    const getLogoUrl = () => {
+        if (!data?.logo) return null;
+        if (data.logo.startsWith('http')) return data.logo;
+        // Prepend API URL if it's a relative path from backend
+        // Remove trailing slash from API_URL if exists, ensure leading slash on logo
+        const baseUrl = API_V1_URL.replace(/\/$/, '');
+        const path = data.logo.startsWith('/') ? data.logo : `/${data.logo}`;
+        return `${baseUrl}${path}`;
+    };
 
     const getDownloadUrl = (docId: string, source: 'ACTIVE' | 'ARCHIVE' | 'INVOICE') => {
         if (source === 'INVOICE') {
@@ -111,9 +122,7 @@ const ClientPortalPage: React.FC = () => {
     };
 
     const getStatusBadge = (status: string) => {
-        // PHOENIX FIX: Normalize status casing for translation
         const normalizedStatus = status ? status.toUpperCase() : 'OPEN';
-        
         const color = normalizedStatus === 'PAID' ? 'bg-green-500/20 text-green-400' : 
                       normalizedStatus === 'SENT' ? 'bg-blue-500/20 text-blue-400' : 
                       'bg-gray-500/20 text-gray-400';
@@ -144,21 +153,29 @@ const ClientPortalPage: React.FC = () => {
         </div>
     );
 
+    const logoSrc = getLogoUrl();
+
     return (
         <div className="min-h-screen bg-[#0a0a0a] font-sans text-gray-100 selection:bg-indigo-500/30 pb-20">
             {/* Header */}
             <header className="sticky top-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-white/5">
                 <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        {data.logo ? (
-                            <img src={data.logo} alt="Logo" className="w-8 h-8 rounded-lg object-cover" />
+                        {logoSrc && !imgError ? (
+                            <img 
+                                src={logoSrc} 
+                                alt="Firm Logo" 
+                                className="w-8 h-8 rounded-lg object-contain bg-white/5" 
+                                onError={() => setImgError(true)}
+                            />
                         ) : (
+                            // Fallback Icon if logo missing or fails to load
                             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                                <Scale className="text-white w-5 h-5" />
+                                <Building2 className="text-white w-4 h-4" />
                             </div>
                         )}
                         <span className="font-bold text-lg tracking-tight">
-                            {data.organization_name || t('branding.default', 'Juristi Portal')}
+                            {data.organization_name || t('branding.fallback', 'Zyra Ligjore')}
                         </span>
                     </div>
                     <div className="hidden sm:flex items-center gap-4 text-xs font-medium text-gray-500">
@@ -173,11 +190,9 @@ const ClientPortalPage: React.FC = () => {
             <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-10">
                 {/* Dashboard Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                    {/* Main Case Card */}
                     <div className="md:col-span-2 bg-white/5 border border-white/10 rounded-3xl p-8 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
                         <div className="relative z-10">
-                            {/* Case Number Removed as requested */}
                             <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 leading-tight">
                                 {data.title}
                             </h1>
@@ -188,20 +203,18 @@ const ClientPortalPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Status Card */}
                     <div className="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col justify-center items-center text-center relative overflow-hidden">
                         <div className="w-3 h-3 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] mb-4 animate-pulse" />
                         <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">
                             {t('portal.status_label', 'Statusi i Çështjes')}
                         </h3>
-                        {/* PHOENIX FIX: UpperCase transform for Translation Key Match */}
                         <p className="text-2xl font-bold text-white">
                             {t(`status.${data.status.toUpperCase()}`, data.status)}
                         </p>
                     </div>
                 </div>
 
-                {/* Tabs Navigation */}
+                {/* Tabs */}
                 <div className="flex gap-2 mb-8 overflow-x-auto no-scrollbar pb-2">
                     <button 
                         onClick={() => setActiveTab('timeline')} 
@@ -225,7 +238,7 @@ const ClientPortalPage: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Content Area */}
+                {/* Tab Content */}
                 <AnimatePresence mode="wait">
                     {activeTab === 'timeline' && (
                         <motion.div key="timeline" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
@@ -348,7 +361,7 @@ const ClientPortalPage: React.FC = () => {
                                                         className="p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-green-400 transition-colors" 
                                                         title={t('actions.download', 'Shkarko')}
                                                     >
-                                                        <Download size={16} />
+                                                        <Download size={18} />
                                                     </button>
                                                 </div>
                                             </div>

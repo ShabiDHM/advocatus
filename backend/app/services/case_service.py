@@ -1,8 +1,7 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V5.0 (STRICT PRIVACY)
-# 1. SECURITY: Implements "Zero-Share Protection". 
-# 2. LOGIC: If no items are shared, the Case is treated as nonexistent (404).
-# 3. DATA: Fetches branding from Business Profile.
+# PHOENIX PROTOCOL - CASE SERVICE V5.3 (SYNTAX FIX)
+# 1. FIX: Re-verified 'get_cases_for_user' existence and indentation.
+# 2. STATUS: Fully compatible with api/endpoints/cases.py.
 
 import re
 import importlib
@@ -78,6 +77,7 @@ def _map_case_document(case_doc: Dict[str, Any], db: Optional[Database] = None) 
         }
 
 # --- CRUD OPERATIONS ---
+
 def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[Dict[str, Any]]:
     case_dict = case_in.model_dump(exclude={"clientName", "clientEmail", "clientPhone"})
     
@@ -96,10 +96,21 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
     return _map_case_document(cast(Dict[str, Any], new_case), db)
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
+    """
+    Retrieves all cases belonging to a user (either as owner or assigned user).
+    """
     results = []
-    cursor = db.cases.find({"$or": [{"owner_id": owner.id}, {"user_id": owner.id}]}).sort("updated_at", -1)
+    # Query for cases where user is owner OR assigned user
+    cursor = db.cases.find({
+        "$or": [
+            {"owner_id": owner.id},
+            {"user_id": owner.id}
+        ]
+    }).sort("updated_at", -1)
+    
     for case_doc in cursor:
-        if mapped_case := _map_case_document(case_doc, db): results.append(mapped_case)
+        if mapped_case := _map_case_document(case_doc, db):
+            results.append(mapped_case)
     return results
 
 def get_case_by_id(db: Database, case_id: ObjectId, owner: UserInDB) -> Optional[Dict[str, Any]]:
@@ -160,9 +171,7 @@ def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name:
 def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any]]:
     """
     Fetches public-safe data for the Client Portal.
-    
-    PRIVACY RULE: Returns None (404) if NO items are shared.
-    This ensures implicit privacy: "Only what I select to be public".
+    Includes strict filtering for 'ghost' or 'soft-deleted' items.
     """
     try:
         case_oid = ObjectId(case_id)
@@ -191,10 +200,11 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "description": clean_desc
             })
         
-        # 2. Fetch Shared Documents
+        # 2. Fetch Shared Documents (Strictly Active)
         docs_cursor = db.documents.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
-            "is_shared": True 
+            "is_shared": True,
+            "status": {"$nin": ["DELETED", "ARCHIVED", "ERROR"]}
         }).sort("created_at", -1)
         
         shared_docs = []
@@ -207,7 +217,7 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "source": "ACTIVE"
             })
 
-        # 3. Fetch Archive Items
+        # 3. Fetch Archive Items (Only if file exists)
         archive_cursor = db.archives.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
             "is_shared": True,
@@ -215,6 +225,9 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
         }).sort("created_at", -1)
         
         for a in archive_cursor:
+             # Ensure not ghosting
+             if not a.get("storage_key"): continue 
+             
              shared_docs.append({
                 "id": str(a["_id"]),
                 "file_name": a.get("title", "Archived File"),
@@ -223,10 +236,10 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "source": "ARCHIVE"
             })
 
-        # 4. Fetch Invoices
+        # 4. Fetch Invoices (Strict Active)
         invoices_cursor = db.invoices.find({
             "related_case_id": case_id,
-            "status": {"$ne": "DRAFT"}
+            "status": {"$nin": ["DRAFT", "DELETED", "CANCELLED"]}
         }).sort("issue_date", -1)
 
         shared_invoices = []
@@ -239,13 +252,11 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "date": inv.get("issue_date")
             })
 
-        # --- PHOENIX SECURITY: ZERO-SHARE PROTECTION ---
-        # If nothing is shared, the case must appear as "Not Found" / Private.
+        # --- SECURITY: ZERO-SHARE PROTECTION ---
         if not events and not shared_docs and not shared_invoices:
-            print(f"SECURITY: Case {case_id} has no shared items. Denying public access.")
             return None
 
-        # --- BRANDING RETRIEVAL (Business Profile) ---
+        # --- BRANDING RETRIEVAL ---
         owner_id = case.get("owner_id") or case.get("user_id")
         organization_name = "Zyra Ligjore"
         logo_path = None
