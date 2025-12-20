@@ -1,7 +1,7 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - CASE CARD V4.2 (FINDINGS REMOVAL)
-// 1. REMOVED: finding_count display and logic.
-// 2. REMOVED: Navigation to deleted findings view.
+// PHOENIX PROTOCOL - CASE CARD V4.3 (UI POLISH)
+// 1. REFINED: Increased font sizes for key text elements for improved readability.
+// 2. REFINED: Removed glowing effect from status indicator dot.
 // 3. STATUS: Clean build.
 
 import React from 'react';
@@ -59,27 +59,27 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         <div className="flex flex-col mb-4 relative z-10">
           <div className="flex justify-between items-start gap-2">
             <div className="flex flex-col">
-                <span className="text-[10px] font-mono text-indigo-400 font-bold tracking-wider mb-1 uppercase flex items-center gap-1">
+                <span className="text-xs font-mono text-indigo-400 font-bold tracking-wider mb-1 uppercase flex items-center gap-1">
                     <Hash className="w-3 h-3" />
                     {caseData.case_number || 'N/A'}
                 </span>
                 
-                <h2 className={`text-lg font-bold line-clamp-2 leading-tight tracking-tight ${!hasTitle ? 'text-gray-500 italic' : 'text-gray-100'}`}>
+                <h2 className={`text-xl font-bold line-clamp-2 leading-tight tracking-tight ${!hasTitle ? 'text-gray-500 italic' : 'text-gray-100'}`}>
                     {displayTitle}
                 </h2>
             </div>
 
-            {/* Status Indicator */}
+            {/* Status Indicator - Glowing dot shadow removed */}
             <div 
                 className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${
-                    caseData.status === 'open' ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]' : 'bg-gray-500'
+                    caseData.status === 'open' ? 'bg-emerald-400' : 'bg-gray-500'
                 }`} 
                 title={t(`caseView.statusTypes.${caseData.status.toUpperCase()}`, { fallback: caseData.status })} 
             />
           </div>
           
           <div className="flex items-center gap-2 mt-3">
-            <p className="text-xs text-gray-500 font-medium">
+            <p className="text-sm text-gray-500 font-medium">
                 {t('caseCard.createdOn')}: <span className="text-gray-400">{formattedDate}</span>
             </p>
           </div>
@@ -88,24 +88,24 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         {/* Client Details Section */}
         <div className="flex flex-col mb-6 relative z-10">
           <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
-             <User className="w-3 h-3 text-indigo-400" />
-             <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">{t('caseCard.client')}</span>
+             <User className="w-3.5 h-3.5 text-indigo-400" />
+             <span className="text-sm font-bold text-gray-300 uppercase tracking-wider">{t('caseCard.client')}</span>
           </div>
           
           <div className="space-y-1.5 pl-1">
-              <p className="text-sm font-medium text-gray-200 truncate">
+              <p className="text-base font-medium text-gray-200 truncate">
                 {caseData.client?.name || t('general.notAvailable')}
               </p>
               
               {caseData.client?.email && (
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <Mail className="w-3 h-3" />
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Mail className="w-3.5 h-3.5" />
                       <span className="truncate">{caseData.client.email}</span>
                   </div>
               )}
               {caseData.client?.phone && (
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <Phone className="w-3 h-3" />
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <Phone className="w-3.5 h-3.5" />
                       <span className="truncate">{caseData.client.phone}</span>
                   </div>
               )}
@@ -148,7 +148,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
 
         {/* Footer: Actions */}
         <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-          <span className="text-xs font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">
+          <span className="text-sm font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">
             {t('caseCard.viewDetails')} 
           </span>
           
