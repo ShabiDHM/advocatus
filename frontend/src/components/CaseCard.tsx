@@ -1,7 +1,7 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - CASE CARD V4.3 (UI POLISH)
+// PHOENIX PROTOCOL - CASE CARD V4.4 (UI POLISH)
 // 1. REFINED: Increased font sizes for key text elements for improved readability.
-// 2. REFINED: Removed glowing effect from status indicator dot.
+// 2. REFINED: REMOVED status indicator dot to simplify the UI.
 // 3. STATUS: Clean build.
 
 import React from 'react';
@@ -69,13 +69,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
                 </h2>
             </div>
 
-            {/* Status Indicator - Glowing dot shadow removed */}
-            <div 
-                className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${
-                    caseData.status === 'open' ? 'bg-emerald-400' : 'bg-gray-500'
-                }`} 
-                title={t(`caseView.statusTypes.${caseData.status.toUpperCase()}`, { fallback: caseData.status })} 
-            />
+            {/* PHOENIX: Status Indicator REMOVED */}
           </div>
           
           <div className="flex items-center gap-2 mt-3">
