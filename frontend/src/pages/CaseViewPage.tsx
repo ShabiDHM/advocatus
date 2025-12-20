@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V8.1 (LINT FIX)
-// 1. FIX: Removed unused 'Share2' and 'CheckCircle' imports.
-// 2. STATUS: Clean build.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V8.2 (PDF VIEWER FIX)
+// 1. FIX: Replaced 'onMinimize' with 'onMinimizeRequest' prop for new viewer.
+// 2. STATUS: Resolves TypeScript build error TS2322.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -193,7 +193,10 @@ const CaseViewPage: React.FC = () => {
   // Viewer Handlers
   const handleViewOriginal = (doc: Document) => { const url = `${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`; setViewingUrl(url); setViewingDocument(doc); setMinimizedDocument(null); };
   const handleCloseViewer = () => { setViewingDocument(null); setViewingUrl(null); };
+  
+  // PHOENIX FIX: This is now called from the viewer's toolbar
   const handleMinimizeViewer = () => { if (viewingDocument) { setMinimizedDocument(viewingDocument); handleCloseViewer(); } };
+  
   const handleExpandViewer = () => { if (minimizedDocument) { handleViewOriginal(minimizedDocument); } };
 
   const handleRename = async (newName: string) => { if (!caseId || !documentToRename) return; try { await apiService.renameDocument(caseId, documentToRename.id, newName); setLiveDocuments(prev => prev.map(d => d.id === documentToRename.id ? { ...d, file_name: newName } : d)); } catch (error) { alert(t('error.generic')); } };
@@ -240,7 +243,9 @@ const CaseViewPage: React.FC = () => {
         </div>
       </div>
       
-      {viewingDocument && (<PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={handleCloseViewer} onMinimize={handleMinimizeViewer} t={t} directUrl={viewingUrl} isAuth={true} />)}
+      {/* PHOENIX FIX: Replaced onMinimize with onMinimizeRequest */}
+      {viewingDocument && (<PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={handleCloseViewer} onMinimizeRequest={handleMinimizeViewer} t={t} directUrl={viewingUrl} isAuth={true} />)}
+      
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={handleExpandViewer} onClose={() => setMinimizedDocument(null)} />}
 
       {analysisResult && (<AnalysisModal isOpen={activeModal === 'analysis'} onClose={() => setActiveModal('none')} result={analysisResult} />)}
