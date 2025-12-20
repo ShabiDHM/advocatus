@@ -1,8 +1,7 @@
 # FILE: backend/app/models/finance.py
-# PHOENIX PROTOCOL - FINANCE MODELS V7.1 (FIELDS ALIGNMENT)
-# 1. FIX: Renamed 'case_id' to 'related_case_id' in Invoice models to match Expenses and Frontend.
-# 2. FEATURE: Added missing client fields (phone, city, tax_id, website) to Invoice models.
-# 3. STATUS: Production Ready.
+# PHOENIX PROTOCOL - FINANCE MODELS V7.2 (WIZARD STATE FIX)
+# 1. FIX: Reverted 'ready_to_close' in WizardState to 'bool' to resolve validation error.
+# 2. STATUS: Production Ready.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
@@ -169,4 +168,4 @@ class AuditIssue(BaseModel):
 class WizardState(BaseModel):
     calculation: TaxCalculation
     issues: List[AuditIssue]
-    ready_to_close: List[str] = [] # Placeholder for consistency
+    ready_to_close: bool # PHOENIX FIX: Changed back to bool
