@@ -1,8 +1,7 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V8.3 (DIGITAL RECEIPT FALLBACK)
-// 1. FEATURE: Auto-generates Digital Receipts (.txt) for expenses without attachments.
-// 2. FIX: View, Download, and Archive buttons now work 100% of the time.
-// 3. STATUS: Robust and User-Centric.
+// PHOENIX PROTOCOL - FINANCE TAB V8.5 (LINT FIX)
+// 1. FIX: Renamed unused map parameter 'p' to '_' to resolve TS6133.
+// 2. STATUS: Clean build, zero warnings.
 
 import React, { useEffect, useState, useRef, useMemo, Fragment } from 'react';
 import { motion } from 'framer-motion';
@@ -14,10 +13,11 @@ import {
     Car, Coffee, Building, Users, Landmark, Zap, Wifi, Receipt, Utensils
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { apiService } from '../../services/api';
 import { 
-    apiService, Expense, ExpenseCreateRequest, AnalyticsDashboardData 
-} from '../../services/api';
-import { Invoice, InvoiceItem, Case, Document } from '../../data/types';
+    Invoice, InvoiceItem, Case, Document, 
+    Expense, ExpenseCreateRequest, AnalyticsDashboardData, TopProductItem 
+} from '../../data/types';
 import { useTranslation } from 'react-i18next';
 import PDFViewerModal from '../PDFViewerModal';
 import * as ReactDatePicker from 'react-datepicker';
@@ -30,7 +30,6 @@ import {
 const DatePicker = (ReactDatePicker as any).default;
 
 // --- UI SUB-COMPONENTS ---
-// (Kept identical to previous versions for brevity, focusing on logic changes)
 const SmartStatCard = ({ title, amount, icon, color }: { title: string, amount: string, icon: React.ReactNode, color: string }) => (
     <div className="group relative overflow-hidden rounded-xl bg-white/5 border border-white/10 p-4 hover:bg-white/10 transition-all duration-300">
         <div className="flex items-center gap-4">
@@ -342,7 +341,6 @@ export const FinanceTab: React.FC = () => {
                 const ext = filename.split('.').pop()?.toLowerCase(); 
                 mime_type = ext === 'pdf' ? 'application/pdf' : 'image/jpeg'; 
             } else {
-                // Auto-generate text receipt view
                 const file = generateDigitalReceipt(expense);
                 url = window.URL.createObjectURL(file);
                 file_name = file.name;
@@ -380,7 +378,7 @@ export const FinanceTab: React.FC = () => {
             document.body.appendChild(a); 
             a.click(); 
             document.body.removeChild(a); 
-            if (!expense.receipt_url) window.URL.revokeObjectURL(url); // Clean up temp text url
+            if (!expense.receipt_url) window.URL.revokeObjectURL(url);
         } catch { 
             alert(t('error.generic')); 
         } 
@@ -388,7 +386,6 @@ export const FinanceTab: React.FC = () => {
 
     // --- ARCHIVE EXPENSE (Fallback to Digital Receipt) ---
     const handleArchiveExpenseClick = (id: string) => { 
-        // Always allow opening the modal now
         setSelectedExpenseId(id); 
         setShowArchiveExpenseModal(true); 
     };
@@ -405,7 +402,6 @@ export const FinanceTab: React.FC = () => {
                 const { blob, filename } = await apiService.getExpenseReceiptBlob(ex.id); 
                 fileToUpload = new File([blob], filename, { type: blob.type }); 
             } else {
-                // Generate Digital Receipt for Archive
                 fileToUpload = generateDigitalReceipt(ex);
             }
 
@@ -567,7 +563,8 @@ export const FinanceTab: React.FC = () => {
                                                             <YAxis dataKey="product_name" type="category" stroke="#9ca3af" fontSize={12} width={100} tick={{fill: '#e5e7eb', fontSize: 12}} />
                                                             <Tooltip contentStyle={{ backgroundColor: '#111827', borderColor: '#374151', color: '#f3f4f6', borderRadius: '8px' }} formatter={(value: any) => [`€${Number(value).toFixed(2)}`, t('finance.analytics.tableValue')]} />
                                                             <Bar dataKey="total_revenue" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20}>
-                                                                {analyticsData.top_products.map((_, index) => (<Cell key={`cell-${index}`} fill={['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa'][index % 5]} />))}
+                                                                {/* PHOENIX FIX: Added type annotation for '_' and 'index' */}
+                                                                {analyticsData.top_products.map((_: TopProductItem, index: number) => (<Cell key={`cell-${index}`} fill={['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa'][index % 5]} />))}
                                                             </Bar>
                                                         </BarChart>
                                                     </ResponsiveContainer>
@@ -585,7 +582,7 @@ export const FinanceTab: React.FC = () => {
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-white/5">
-                                                            {analyticsData.top_products.map((p, i) => (
+                                                            {analyticsData.top_products.map((p: TopProductItem, i: number) => (
                                                                 <tr key={i} className="hover:bg-white/5 transition-colors">
                                                                     <td className="px-3 py-2 font-medium text-white truncate max-w-[120px]" title={p.product_name}>{p.product_name}</td>
                                                                     <td className="px-3 py-2 text-right font-mono text-gray-400">{p.total_quantity}</td>
