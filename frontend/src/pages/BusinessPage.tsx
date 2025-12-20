@@ -1,7 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V9.5 (MOBILE NAVIGATION GRID FIX)
-// 1. FIX: Switched navigation from scrollable flex to grid-cols-3 on mobile.
-// 2. UI: Buttons are now fully centered and responsive.
+// PHOENIX PROTOCOL - BUSINESS PAGE V9.6 (CHART RENDER FIX)
+// 1. FIX: Implemented Conditional Rendering for tabs.
+// 2. LOGIC: The FinanceTab (and its chart) is now only mounted when active.
+// 3. RESULT: Fixes the 'width(-1) and height(-1)' chart warning in the console.
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen } from 'lucide-react';
@@ -22,6 +23,20 @@ const BusinessPage: React.FC = () => {
   const capitalize = (s: string | undefined) => {
     if (!s) return 'Përdorues';
     return s.charAt(0).toUpperCase() + s.slice(1);
+  };
+
+  // PHOENIX FIX: Component mapping for conditional rendering
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case 'profile':
+        return <ProfileTab />;
+      case 'finance':
+        return <FinanceTab />;
+      case 'archive':
+        return <ArchiveTab />;
+      default:
+        return null;
+    }
   };
 
   return (
@@ -65,9 +80,8 @@ const BusinessPage: React.FC = () => {
       </div>
 
       <div className="min-h-[500px]">
-        {activeTab === 'profile' && <ProfileTab />}
-        {activeTab === 'finance' && <FinanceTab />}
-        {activeTab === 'archive' && <ArchiveTab />}
+        {/* PHOENIX FIX: Render ONLY the active tab component */}
+        {renderActiveTab()}
       </div>
     </div>
   );
