@@ -1,7 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V5.3 (SYNTAX FIX)
-# 1. FIX: Re-verified 'get_cases_for_user' existence and indentation.
-# 2. STATUS: Fully compatible with api/endpoints/cases.py.
+# PHOENIX PROTOCOL - CASE SERVICE V5.5 (WORKFLOW UPDATE)
+# 1. FIX: Updated Invoice Whitelist to match new "Auto-Paid" workflow.
+# 2. LOGIC: Removed 'OPEN' and 'PARTIAL' statuses.
+# 3. RESULT: Old/Zombie invoices with status 'OPEN' are now hidden.
 
 import re
 import importlib
@@ -96,11 +97,7 @@ def create_case(db: Database, case_in: CaseCreate, owner: UserInDB) -> Optional[
     return _map_case_document(cast(Dict[str, Any], new_case), db)
 
 def get_cases_for_user(db: Database, owner: UserInDB) -> List[Dict[str, Any]]:
-    """
-    Retrieves all cases belonging to a user (either as owner or assigned user).
-    """
     results = []
-    # Query for cases where user is owner OR assigned user
     cursor = db.cases.find({
         "$or": [
             {"owner_id": owner.id},
@@ -171,7 +168,6 @@ def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name:
 def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any]]:
     """
     Fetches public-safe data for the Client Portal.
-    Includes strict filtering for 'ghost' or 'soft-deleted' items.
     """
     try:
         case_oid = ObjectId(case_id)
@@ -225,7 +221,6 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
         }).sort("created_at", -1)
         
         for a in archive_cursor:
-             # Ensure not ghosting
              if not a.get("storage_key"): continue 
              
              shared_docs.append({
@@ -236,10 +231,12 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "source": "ARCHIVE"
             })
 
-        # 4. Fetch Invoices (Strict Active)
+        # 4. Fetch Invoices (UPDATED STRICT WHITELIST)
+        # PHOENIX FIX: Removed 'OPEN' and 'PARTIAL' to match new workflow.
+        # Only 'PAID', 'SENT', 'OVERDUE' are considered active/public.
         invoices_cursor = db.invoices.find({
             "related_case_id": case_id,
-            "status": {"$nin": ["DRAFT", "DELETED", "CANCELLED"]}
+            "status": {"$in": ["PAID", "SENT", "OVERDUE"]}
         }).sort("issue_date", -1)
 
         shared_invoices = []
