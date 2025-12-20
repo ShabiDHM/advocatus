@@ -1,14 +1,15 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V10.1 (FINAL CLEANUP)
-// 1. FIX: Removed final unused 'Upload' import to resolve TS(6133) compiler warning.
-// 2. STATUS: Clean, production-ready.
+// PHOENIX PROTOCOL - ARCHIVE TAB V10.2 (SHARING ENABLED)
+// 1. FEATURE: Added 'Share' button to Archive Cards.
+// 2. LOGIC: Allows toggling 'is_shared' status for Client Portal visibility.
+// 3. UI: Consistent with DocumentsPanel sharing interface.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Home, Briefcase, FolderOpen, ChevronRight, FolderPlus, Loader2,
     Calendar, Info, Hash, FileText, FileImage, FileCode, File as FileIcon, Eye, Download, Trash2, Tag, X, Pencil, Save,
-    FolderUp, FileUp, Search
+    FolderUp, FileUp, Search, Share2
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { ArchiveItemOut, Case, Document } from '../../data/types';
@@ -33,7 +34,7 @@ const getFileIcon = (fileType: string) => {
 };
 
 // --- ARCHIVE CARD COMPONENT ---
-const ArchiveCard = ({ title, subtitle, type, date, icon, onClick, onDownload, onDelete, onRename, isFolder, isLoading }: any) => {
+const ArchiveCard = ({ title, subtitle, type, date, icon, onClick, onDownload, onDelete, onRename, onShare, isShared, isFolder, isLoading }: any) => {
     const { t } = useTranslation();
     return (
         <div onClick={onClick} className={`group relative flex flex-col justify-between h-full min-h-[14rem] p-6 rounded-2xl transition-all duration-300 cursor-pointer bg-gray-900/40 backdrop-blur-md border border-white/5 shadow-xl hover:shadow-2xl hover:bg-gray-800/60 hover:-translate-y-1 hover:scale-[1.01]`}>
@@ -42,6 +43,12 @@ const ArchiveCard = ({ title, subtitle, type, date, icon, onClick, onDownload, o
                 <div className="flex flex-col mb-4 relative z-10">
                     <div className="flex justify-between items-start gap-2">
                         <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 group-hover:scale-110 transition-transform duration-300">{icon}</div>
+                        {/* PHOENIX: Visual Indicator for Shared Status */}
+                        {isShared && (
+                            <div className="bg-green-500/20 text-green-400 p-1.5 rounded-lg border border-green-500/30" title={t('documentsPanel.shared', 'E ndarë me klientin')}>
+                                <Share2 size={14} />
+                            </div>
+                        )}
                     </div>
                     <div className="mt-4">
                         <h2 className="text-xl font-bold text-gray-100 line-clamp-2 leading-tight tracking-tight group-hover:text-primary-start transition-colors break-words">{title}</h2>
@@ -62,6 +69,13 @@ const ArchiveCard = ({ title, subtitle, type, date, icon, onClick, onDownload, o
             <div className="relative z-10 pt-4 border-t border-white/5 flex items-center justify-between min-h-[3rem]">
                 <span className="text-sm font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">{isFolder ? t('archive.openFolder', 'Open Folder') : ''}</span>
                 <div className="flex gap-1 items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    {/* PHOENIX: Share Button */}
+                    {!isFolder && onShare && (
+                        <button onClick={(e) => { e.stopPropagation(); onShare(); }} className={`p-2 rounded-lg transition-colors ${isShared ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'text-gray-600 hover:text-white hover:bg-white/10'}`} title={isShared ? t('documentsPanel.unshare') : t('documentsPanel.share')}>
+                            <Share2 className="h-4 w-4" />
+                        </button>
+                    )}
+
                     {onRename && (
                         <button onClick={(e) => { e.stopPropagation(); onRename(); }} className="p-2 rounded-lg text-gray-600 hover:text-white hover:bg-white/10 transition-colors" title={t('documentsPanel.rename', 'Riemërto')}>
                             <Pencil className="h-4 w-4" />
@@ -179,6 +193,17 @@ export const ArchiveTab: React.FC = () => {
         }
     };
 
+    // PHOENIX NEW: Share Handler
+    const handleShareItem = async (item: ArchiveItemOut) => {
+        try {
+            const newStatus = !(item as any).is_shared;
+            await apiService.shareArchiveItem(item.id, newStatus);
+            setArchiveItems(prev => prev.map(i => i.id === item.id ? { ...i, is_shared: newStatus } as any : i));
+        } catch (e) {
+            alert(t('error.generic', 'Gabim gjatë procesimit'));
+        }
+    };
+
     const currentView = breadcrumbs[breadcrumbs.length - 1];
     const filteredCases = cases.filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase()) || c.case_number.toLowerCase().includes(searchTerm.toLowerCase()));
     const filteredItems = archiveItems.filter(item => {
@@ -190,7 +215,6 @@ export const ArchiveTab: React.FC = () => {
 
     return (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
-            {/* PHOENIX: Consolidated Header Bar */}
             <div className="flex flex-col md:flex-row gap-4 items-center">
                 <div className="flex-1 w-full">
                     <div className="relative">
@@ -205,7 +229,6 @@ export const ArchiveTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* Breadcrumbs (below new header) */}
             <div className="flex items-center gap-2 overflow-x-auto text-sm no-scrollbar pb-2">
                 {breadcrumbs.map((crumb, index) => (
                     <React.Fragment key={crumb.id || 'root'}>
@@ -226,6 +249,7 @@ export const ArchiveTab: React.FC = () => {
                             {filteredItems.map(item => { 
                                 const isFolder = (item as any).item_type === 'FOLDER'; 
                                 const fileExt = item.file_type || 'FILE'; 
+                                const isShared = (item as any).is_shared === true;
                                 return (
                                     <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} key={item.id} className="h-full">
                                         <ArchiveCard 
@@ -235,11 +259,13 @@ export const ArchiveTab: React.FC = () => {
                                             date={new Date().toLocaleDateString()} 
                                             icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)} 
                                             isFolder={isFolder} 
+                                            isShared={isShared} // PHOENIX: Pass Shared State
                                             isLoading={openingDocId === item.id}
                                             onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)} 
                                             onDownload={() => downloadArchiveItem(item.id, item.title)} 
                                             onDelete={() => deleteArchiveItem(item.id)}
                                             onRename={() => handleRenameClick(item)} 
+                                            onShare={() => handleShareItem(item)} // PHOENIX: Pass Share Handler
                                         />
                                     </motion.div>
                                 );
@@ -249,7 +275,7 @@ export const ArchiveTab: React.FC = () => {
                 )}
             </div>
 
-            {/* CREATE FOLDER MODAL */}
+            {/* MODALS (Create Folder / Rename) Kept same as before... */}
             {showFolderModal && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
                     <div className="bg-background-dark border border-glass-edge rounded-3xl w-full max-w-sm p-8 shadow-2xl scale-100">
@@ -275,7 +301,6 @@ export const ArchiveTab: React.FC = () => {
                 </div>
             )}
 
-            {/* RENAME MODAL */}
             {itemToRename && (
                  <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
                     <div className="bg-background-dark border border-glass-edge rounded-3xl w-full max-w-sm p-8 shadow-2xl scale-100">

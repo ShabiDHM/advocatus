@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V7.11 (CLEANUP)
-// 1. FIX: Removed 'onViewDocument' prop to resolve TypeScript error.
-// 2. CLEANUP: Removed unused link handling logic per "No Links" directive.
-// 3. PRESERVED: Minimize/Docking functionality remains intact.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V7.12 (SHARING LOGIC)
+// 1. FEATURE: Implemented 'handleShareDocument' to toggle client portal visibility.
+// 2. LOGIC: Connected 'onShare' prop to DocumentsPanel.
+// 3. STATUS: Document sharing is now fully functional.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -162,6 +162,22 @@ const CaseViewPage: React.FC = () => {
   const handleExpandViewer = () => { if (minimizedDocument) { handleViewOriginal(minimizedDocument); } };
 
   const handleRename = async (newName: string) => { if (!caseId || !documentToRename) return; try { await apiService.renameDocument(caseId, documentToRename.id, newName); setLiveDocuments(prev => prev.map(d => d.id === documentToRename.id ? { ...d, file_name: newName } : d)); } catch (error) { alert(t('error.generic')); } };
+  
+  // PHOENIX: Share Handler Logic
+  const handleShareDocument = async (doc: Document) => {
+    if (!caseId) return;
+    try {
+        const newStatus = !(doc as any).is_shared;
+        // Optimistic UI Update
+        setLiveDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, is_shared: newStatus } as any : d));
+        
+        await apiService.shareDocument(caseId, doc.id, newStatus);
+    } catch (e) {
+        // Revert on error
+        setLiveDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, is_shared: !(doc as any).is_shared } as any : d));
+        alert(t('error.generic', 'Gabim gjatë procesimit'));
+    }
+  };
 
   if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
   if (error || !caseData.details) return <div className="p-8 text-center text-red-400 border border-red-600 rounded-md bg-red-900/50"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p>{error}</p></div>;
@@ -171,7 +187,19 @@ const CaseViewPage: React.FC = () => {
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:py-6">
         <CaseHeader caseDetails={caseData.details} documents={liveDocuments} activeContextId={activeContextId} onContextChange={setActiveContextId} t={t} onAnalyze={handleAnalyze} isAnalyzing={isAnalyzing} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px]">
-            <DocumentsPanel caseId={caseData.details.id} documents={liveDocuments} t={t} connectionStatus={connectionStatus} reconnect={reconnect} onDocumentUploaded={handleDocumentUploaded} onDocumentDeleted={handleDocumentDeleted} onViewOriginal={handleViewOriginal} onRename={(doc) => setDocumentToRename(doc)} className="h-[500px] lg:h-full" />
+            <DocumentsPanel 
+                caseId={caseData.details.id} 
+                documents={liveDocuments} 
+                t={t} 
+                connectionStatus={connectionStatus} 
+                reconnect={reconnect} 
+                onDocumentUploaded={handleDocumentUploaded} 
+                onDocumentDeleted={handleDocumentDeleted} 
+                onViewOriginal={handleViewOriginal} 
+                onRename={(doc) => setDocumentToRename(doc)}
+                onShare={handleShareDocument} // PHOENIX: Pass the share handler
+                className="h-[500px] lg:h-full" 
+            />
             <ChatPanel messages={liveMessages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} onClearChat={handleClearChat} t={t} className="!h-[600px] lg:!h-full w-full" activeContextId={activeContextId} />
         </div>
       </div>

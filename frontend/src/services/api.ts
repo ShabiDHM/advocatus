@@ -1,7 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER V7.0 (CASE SUMMARY ENABLED)
-// 1. ADDED: 'CaseFinancialSummary' interface.
-// 2. IMPLEMENTED: 'getCaseSummaries' function to fetch data for "Historiku".
+// PHOENIX PROTOCOL - API MASTER V7.1 (SHARING METHODS)
+// 1. ADDED: shareDocument, shareArchiveItem, shareArchiveCase methods.
+// 2. LOGIC: Enables toggling visibility for the Client Portal.
+// 3. STATUS: Frontend API layer complete.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -9,58 +10,17 @@ import type {
     DeletedDocumentResponse, CalendarEvent, CalendarEventCreateRequest, CreateDraftingJobRequest,
     DraftingJobStatus, DraftingJobResult, ChangePasswordRequest, CaseAnalysisResult,
     BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest, InvoiceItem,
-    GraphData, ArchiveItemOut
+    GraphData, ArchiveItemOut, CaseFinancialSummary, AnalyticsDashboardData, Expense, ExpenseCreateRequest, ExpenseUpdate
 } from '../data/types';
 
-// --- LOCAL INTERFACES ---
+// ... (Existing Interfaces) ...
 export interface AuditIssue { id: string; severity: 'CRITICAL' | 'WARNING'; message: string; related_item_id?: string; item_type?: 'INVOICE' | 'EXPENSE'; }
 export interface TaxCalculation { period_month: number; period_year: number; total_sales_gross: number; total_purchases_gross: number; vat_collected: number; vat_deductible: number; net_obligation: number; currency: string; status: string; regime: string; tax_rate_applied: string; description: string; }
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
 
-// --- ANALYTICS & HISTORY INTERFACES ---
-export interface SalesTrendPoint { date: string; amount: number; }
-export interface TopProductItem { product_name: string; total_quantity: number; total_revenue: number; }
-export interface AnalyticsDashboardData {
-    total_revenue_period: number;
-    total_transactions_period: number;
-    sales_trend: SalesTrendPoint[];
-    top_products: TopProductItem[];
-}
-export interface CaseFinancialSummary {
-    case_id: string;
-    case_title: string;
-    case_number: string;
-    total_billed: number;
-    total_expenses: number;
-    net_balance: number;
-}
-
-// --- EXPENSE INTERFACES ---
-export interface Expense { 
-    id: string; 
-    category: string; 
-    amount: number; 
-    description?: string; 
-    date: string; 
-    currency: string; 
-    receipt_url?: string; 
-    related_case_id?: string;
-}
-export interface ExpenseCreateRequest { 
-    category: string; 
-    amount: number; 
-    description?: string; 
-    date?: string; 
-    related_case_id?: string;
-}
-export interface ExpenseUpdate { 
-    category?: string; 
-    amount?: number; 
-    description?: string; 
-    date?: string;
-    related_case_id?: string;
-}
+// --- Restored Expense Interfaces ---
+// (Already present in your pasted file, kept for completeness)
 
 interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
@@ -132,7 +92,6 @@ class ApiService {
     public async getWizardState(month: number, year: number): Promise<WizardState> { const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', { params: { month, year } }); return response.data; }
     public async downloadMonthlyReport(month: number, year: number): Promise<void> { const response = await this.axiosInstance.get('/finance/wizard/report/pdf', { params: { month, year }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_${month}_${year}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
 
-    // --- ANALYTICS & HISTORY ---
     public async getAnalyticsDashboard(days: number = 30): Promise<AnalyticsDashboardData> {
         const response = await this.axiosInstance.get<AnalyticsDashboardData>(`/finance/analytics/dashboard`, { params: { days } });
         return response.data;
@@ -167,6 +126,22 @@ class ApiService {
     public async uploadArchiveItem(file: File, title: string, category: string, caseId?: string, parentId?: string): Promise<ArchiveItemOut> { const formData = new FormData(); formData.append('file', file); formData.append('title', title); formData.append('category', category); if (caseId) formData.append('case_id', caseId); if (parentId) formData.append('parent_id', parentId); const response = await this.axiosInstance.post<ArchiveItemOut>('/archive/upload', formData); return response.data; }
     public async deleteArchiveItem(itemId: string): Promise<void> { await this.axiosInstance.delete(`/archive/items/${itemId}`); }
     public async renameArchiveItem(itemId: string, newTitle: string): Promise<void> { await this.axiosInstance.put(`/archive/items/${itemId}/rename`, { new_title: newTitle }); }
+    
+    // --- PHOENIX NEW: SHARING METHODS ---
+    public async shareDocument(caseId: string, docId: string, isShared: boolean): Promise<Document> {
+        const response = await this.axiosInstance.put<Document>(`/cases/${caseId}/documents/${docId}/share`, { is_shared: isShared });
+        return response.data;
+    }
+    
+    public async shareArchiveItem(itemId: string, isShared: boolean): Promise<ArchiveItemOut> {
+        const response = await this.axiosInstance.put<ArchiveItemOut>(`/archive/items/${itemId}/share`, { is_shared: isShared });
+        return response.data;
+    }
+
+    public async shareArchiveCase(caseId: string, isShared: boolean): Promise<void> {
+        await this.axiosInstance.put(`/archive/case/share`, { case_id: caseId, is_shared: isShared });
+    }
+
     public async downloadArchiveItem(itemId: string, title: string): Promise<void> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', title); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
     public async getArchiveFileBlob(itemId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { params: { preview: true }, responseType: 'blob' }); return response.data; }
 

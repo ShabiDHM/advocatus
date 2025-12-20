@@ -1,7 +1,8 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES REFACTOR V6.2 (POLICY ENFORCEMENT)
-// 1. ADDED: 'UPLOADING' to Document status to support one-at-a-time policy.
-// 2. STATUS: Clean.
+// PHOENIX PROTOCOL - TYPES REFACTOR V7.1 (FINANCIAL & SHARING)
+// 1. ADDED: Financial interfaces (Expense, Analytics, Summary).
+// 2. UPDATED: Document & ArchiveItemOut with 'is_shared' flag.
+// 3. STATUS: Fully synchronized with Backend V4.8.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -45,7 +46,6 @@ export interface Document {
     storage_key: string;
     uploaded_by: string;
     created_at: string;
-    // PHOENIX FIX: Added 'UPLOADING' for frontend-only state management
     status: 'UPLOADING' | 'PENDING' | 'PROCESSING' | 'READY' | 'COMPLETED' | 'FAILED';
     summary?: string;
     risk_score?: number;
@@ -55,6 +55,7 @@ export interface Document {
     error_message?: string;
     progress_percent?: number;
     progress_message?: string;
+    is_shared?: boolean; // PHOENIX: Client Portal Visibility
 }
 
 export interface ChatMessage {
@@ -78,6 +79,7 @@ export interface CalendarEvent {
     notes?: string;
     priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
     attendees?: string[];
+    is_public?: boolean;
 }
 
 export interface BusinessProfile {
@@ -129,6 +131,7 @@ export interface Invoice {
     currency: string;
     status: 'DRAFT' | 'SENT' | 'PAID' | 'OVERDUE' | 'CANCELLED';
     notes?: string;
+    related_case_id?: string;
 }
 
 export interface InvoiceCreateRequest {
@@ -139,6 +142,54 @@ export interface InvoiceCreateRequest {
     tax_rate: number;
     due_date?: string;
     notes?: string;
+    related_case_id?: string;
+}
+
+// PHOENIX: Financial Types Added
+export interface Expense { 
+    id: string; 
+    category: string; 
+    amount: number; 
+    description?: string; 
+    date: string; 
+    currency: string; 
+    receipt_url?: string; 
+    related_case_id?: string;
+}
+
+export interface ExpenseCreateRequest { 
+    category: string; 
+    amount: number; 
+    description?: string; 
+    date?: string; 
+    related_case_id?: string;
+}
+
+export interface ExpenseUpdate { 
+    category?: string; 
+    amount?: number; 
+    description?: string; 
+    date?: string;
+    related_case_id?: string;
+}
+
+export interface CaseFinancialSummary {
+    case_id: string;
+    case_title: string;
+    case_number: string;
+    total_billed: number;
+    total_expenses: number;
+    net_balance: number;
+}
+
+export interface SalesTrendPoint { date: string; amount: number; }
+export interface TopProductItem { product_name: string; total_quantity: number; total_revenue: number; }
+
+export interface AnalyticsDashboardData {
+    total_revenue_period: number;
+    total_transactions_period: number;
+    sales_trend: SalesTrendPoint[];
+    top_products: TopProductItem[];
 }
 
 export interface ArchiveItemOut {
@@ -151,7 +202,8 @@ export interface ArchiveItemOut {
     created_at: string;
     case_id?: string;
     parent_id?: string; 
-    item_type?: 'FILE' | 'FOLDER'; 
+    item_type?: 'FILE' | 'FOLDER';
+    is_shared?: boolean; // PHOENIX: Added for Archive Sharing
 }
 
 // --- SHARED ---
@@ -216,6 +268,9 @@ export interface CaseAnalysisResult {
     active_parties?: string[];
     analysis_mode?: string;
     target_document_id?: string;
+
+    judicial_observation?: string;
+    red_flags?: string[];
 
     // Strategy
     suggested_questions?: string[];
