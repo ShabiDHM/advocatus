@@ -1,7 +1,8 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V3.1 (CLEANUP & STABILIZATION)
-// 1. FIX: Removed unused 'Scale' import to resolve TypeScript warning.
-// 2. STATUS: No functional changes; Finance tab remains removed.
+// PHOENIX PROTOCOL - CLIENT PORTAL V4.0 (UI POLISH & META FIX)
+// 1. UI: Removed redundant Status Box.
+// 2. DESIGN: Consolidated into a single, elegant, responsive Header Card.
+// 3. META: Added dynamic document title and meta tag injection for sharing.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -9,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Calendar, AlertCircle, Loader2, 
     FileText, Gavel, Users, ShieldCheck, 
-    Briefcase, Download, Eye, Building2
+    Briefcase, Download, Eye, Building2, CheckCircle2, Clock
 } from 'lucide-react';
 import axios from 'axios';
 import { API_V1_URL } from '../services/api';
@@ -26,7 +27,6 @@ interface SharedDocument {
     id: string; file_name: string; created_at: string; file_type: string; source: 'ACTIVE' | 'ARCHIVE';
 }
 
-// Kept for type compatibility with API response
 interface SharedInvoice {
     id: string; number: string; amount: number; status: string; date: string;
 }
@@ -61,7 +61,20 @@ const ClientPortalPage: React.FC = () => {
         const fetchPublicData = async () => {
             try {
                 const response = await axios.get(`${API_V1_URL}/cases/public/${caseId}/timeline`);
-                setData(response.data);
+                const caseData = response.data;
+                setData(caseData);
+
+                // --- PHOENIX META FIX: Dynamic Title & Metadata ---
+                // This updates the browser tab and helps some modern social scrapers
+                if (caseData) {
+                    const pageTitle = `${caseData.title} | ${caseData.organization_name || 'Portal'}`;
+                    document.title = pageTitle;
+                    
+                    // Attempt to update Open Graph tags dynamically
+                    updateMetaTag('og:title', pageTitle);
+                    updateMetaTag('og:description', `Dosja: ${caseData.case_number} - Klient: ${caseData.client_name}`);
+                }
+
             } catch (err) {
                 console.error(err);
                 setError(t('portal.error_not_found', "Dosja nuk u gjet ose nuk keni qasje."));
@@ -71,6 +84,17 @@ const ClientPortalPage: React.FC = () => {
         };
         if (caseId) fetchPublicData();
     }, [caseId, t]);
+
+    // Helper to update meta tags
+    const updateMetaTag = (property: string, content: string) => {
+        let meta = document.querySelector(`meta[property="${property}"]`);
+        if (!meta) {
+            meta = document.createElement('meta');
+            meta.setAttribute('property', property);
+            document.head.appendChild(meta);
+        }
+        meta.setAttribute('content', content);
+    };
 
     // --- LOGO URL CONSTRUCTOR ---
     const getLogoUrl = () => {
@@ -118,6 +142,21 @@ const ClientPortalPage: React.FC = () => {
         }
     };
 
+    // Refined Status Badge Logic
+    const getStatusColor = (status: string) => {
+        const s = status ? status.toUpperCase() : 'OPEN';
+        if (s === 'CLOSED' || s === 'ARCHIVED') return 'text-gray-400 bg-gray-500/10 border-gray-500/20';
+        if (s === 'PENDING') return 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+        return 'text-green-400 bg-green-500/10 border-green-500/20';
+    };
+
+    const getStatusIcon = (status: string) => {
+        const s = status ? status.toUpperCase() : 'OPEN';
+        if (s === 'CLOSED') return <ShieldCheck size={14} className="mr-1.5" />;
+        if (s === 'PENDING') return <Clock size={14} className="mr-1.5" />;
+        return <CheckCircle2 size={14} className="mr-1.5" />;
+    };
+
     if (loading) return (
         <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white">
             <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mb-6" />
@@ -138,104 +177,138 @@ const ClientPortalPage: React.FC = () => {
     );
 
     const logoSrc = getLogoUrl();
+    const statusKey = data.status ? data.status.toUpperCase() : 'OPEN';
 
     return (
-        <div className="min-h-screen bg-[#0a0a0a] font-sans text-gray-100 selection:bg-indigo-500/30 pb-20">
+        <div className="min-h-screen bg-[#050505] font-sans text-gray-100 selection:bg-indigo-500/30 pb-20">
             {/* Header */}
-            <header className="sticky top-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-white/5">
-                <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+            <header className="sticky top-0 z-50 bg-[#050505]/90 backdrop-blur-xl border-b border-white/5">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         {logoSrc && !imgError ? (
                             <img 
                                 src={logoSrc} 
                                 alt="Firm Logo" 
-                                className="w-8 h-8 rounded-lg object-contain bg-white/5" 
+                                className="w-8 h-8 rounded-lg object-contain bg-white/5 border border-white/10" 
                                 onError={() => setImgError(true)}
                             />
                         ) : (
-                            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                                <Building2 className="text-white w-4 h-4" />
+                            <div className="w-8 h-8 bg-indigo-900/30 border border-indigo-500/30 rounded-lg flex items-center justify-center">
+                                <Building2 className="text-indigo-400 w-4 h-4" />
                             </div>
                         )}
-                        <span className="font-bold text-lg tracking-tight">
+                        <span className="font-semibold text-sm tracking-wide text-gray-200">
                             {data.organization_name || t('branding.fallback', 'Zyra Ligjore')}
                         </span>
                     </div>
-                    <div className="hidden sm:flex items-center gap-4 text-xs font-medium text-gray-500">
-                        <span className="flex items-center gap-2">
-                            <ShieldCheck size={14} className="text-green-500"/> 
-                            {t('portal.secure_connection', 'Lidhje e Sigurt')}
-                        </span>
+                    <div className="flex items-center gap-2 text-[10px] sm:text-xs font-medium text-emerald-500 bg-emerald-500/5 px-3 py-1.5 rounded-full border border-emerald-500/10">
+                        <ShieldCheck size={12} />
+                        {t('portal.secure_connection', 'Lidhje e Sigurt')}
                     </div>
                 </div>
             </header>
 
-            <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-10">
-                {/* Dashboard Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                    <div className="md:col-span-2 bg-white/5 border border-white/10 rounded-3xl p-8 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                        <div className="relative z-10">
-                            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 leading-tight">
-                                {data.title}
-                            </h1>
-                            <p className="text-gray-400 flex items-center gap-2 text-sm mt-4">
-                                <Briefcase size={16} /> 
-                                {t('portal.client_label', 'Klient')}: <span className="text-white font-medium">{data.client_name}</span>
-                            </p>
+            <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-8">
+                
+                {/* HERO SECTION - Redesigned & Consolidated */}
+                <div className="relative mb-10 group">
+                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent rounded-3xl blur-2xl group-hover:from-indigo-500/15 transition-all duration-700" />
+                    
+                    <div className="relative bg-[#0F0F0F] border border-white/10 rounded-3xl p-6 sm:p-10 shadow-2xl overflow-hidden">
+                        {/* Decorative Background Elements */}
+                        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/5 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                        
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-6 relative z-10">
+                            <div className="space-y-4 max-w-2xl">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider border ${getStatusColor(data.status)}`}>
+                                        {getStatusIcon(data.status)}
+                                        {t(`status.${statusKey}`, data.status)}
+                                    </span>
+                                    <span className="text-gray-500 text-xs font-mono tracking-wider border border-white/5 px-2 py-1 rounded-md bg-black/20">
+                                        #{data.case_number}
+                                    </span>
+                                </div>
+                                
+                                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight tracking-tight">
+                                    {data.title}
+                                </h1>
+                                
+                                <div className="flex items-center gap-2 text-gray-400 pt-2">
+                                    <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center">
+                                        <Briefcase size={14} className="text-gray-300"/>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">{t('portal.client_label', 'Klient')}</span>
+                                        <span className="text-sm font-medium text-gray-200">{data.client_name}</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
+                </div>
 
-                    <div className="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col justify-center items-center text-center relative overflow-hidden">
-                        <div className="w-3 h-3 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] mb-4 animate-pulse" />
-                        <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">
-                            {t('portal.status_label', 'Statusi i Çështjes')}
-                        </h3>
-                        <p className="text-2xl font-bold text-white">
-                            {t(`status.${data.status.toUpperCase()}`, data.status)}
-                        </p>
+                {/* TABS - Sleek & Minimal */}
+                <div className="flex justify-center mb-8">
+                    <div className="bg-white/5 border border-white/10 p-1 rounded-full flex gap-1">
+                        <button 
+                            onClick={() => setActiveTab('timeline')} 
+                            className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+                                activeTab === 'timeline' 
+                                ? 'bg-white text-black shadow-lg shadow-white/5' 
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                            }`}
+                        >
+                            {t('portal.timeline', 'Kronologjia')}
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('documents')} 
+                            className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-2 ${
+                                activeTab === 'documents' 
+                                ? 'bg-white text-black shadow-lg shadow-white/5' 
+                                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                            }`}
+                        >
+                            {t('portal.documents', 'Dokumentet')} 
+                            {data.documents.length > 0 && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${activeTab === 'documents' ? 'bg-black/10 text-black' : 'bg-white/10 text-white'}`}>
+                                    {data.documents.length}
+                                </span>
+                            )}
+                        </button>
                     </div>
                 </div>
 
-                {/* Tabs */}
-                <div className="flex gap-2 mb-8 overflow-x-auto no-scrollbar pb-2">
-                    <button 
-                        onClick={() => setActiveTab('timeline')} 
-                        className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'timeline' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
-                    >
-                        {t('portal.timeline', 'Kronologjia')}
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('documents')} 
-                        className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'documents' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
-                    >
-                        {t('portal.documents', 'Dokumentet')} 
-                        <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.documents.length}</span>
-                    </button>
-                </div>
-
-                {/* Tab Content */}
+                {/* CONTENT AREA */}
                 <AnimatePresence mode="wait">
                     {activeTab === 'timeline' && (
-                        <motion.div key="timeline" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                        <motion.div key="timeline" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                             {data.timeline.length === 0 ? (
-                                <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">
-                                    {t('portal.empty_timeline', 'Nuk ka ngjarje në kronologji.')}
+                                <div className="text-center py-20 bg-[#0F0F0F] border border-dashed border-white/10 rounded-3xl">
+                                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <Calendar className="text-gray-500 opacity-50" size={32} />
+                                    </div>
+                                    <p className="text-gray-500 text-sm">{t('portal.empty_timeline', 'Nuk ka ngjarje në kronologji.')}</p>
                                 </div>
                             ) : (
-                                <div className="space-y-6">
+                                <div className="space-y-4">
                                     {data.timeline.map((ev, i) => (
-                                        <div key={i} className="flex gap-6 group">
-                                            <div className="flex flex-col items-center">
-                                                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500/20 group-hover:border-indigo-500/50 transition-colors">
+                                        <div key={i} className="group relative pl-8 pb-8 last:pb-0">
+                                            {/* Timeline Line */}
+                                            <div className="absolute left-[15px] top-[24px] bottom-0 w-px bg-white/10 group-last:hidden" />
+                                            
+                                            {/* Timeline Dot */}
+                                            <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-[#0F0F0F] border border-white/10 flex items-center justify-center z-10 group-hover:border-indigo-500/50 group-hover:shadow-[0_0_15px_rgba(99,102,241,0.2)] transition-all">
+                                                <div className="scale-75 text-gray-400 group-hover:text-indigo-400 transition-colors">
                                                     {getEventIcon(ev.type)}
                                                 </div>
-                                                <div className="w-px h-full bg-white/10 my-2 group-last:hidden" />
                                             </div>
-                                            <div className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all mb-2">
-                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
-                                                    <h3 className="text-lg font-bold text-white">{ev.title}</h3>
-                                                    <span className="text-xs font-mono text-gray-400 bg-black/30 px-3 py-1 rounded-lg border border-white/5">
+
+                                            {/* Event Card */}
+                                            <div className="bg-[#0F0F0F] border border-white/10 rounded-2xl p-5 hover:bg-white/[0.02] hover:border-white/20 transition-all ml-4">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2">
+                                                    <h3 className="text-base font-bold text-gray-200">{ev.title}</h3>
+                                                    <span className="text-xs font-mono text-indigo-300 bg-indigo-500/10 px-2 py-1 rounded border border-indigo-500/20 whitespace-nowrap self-start sm:self-auto">
                                                         {new Date(ev.date).toLocaleDateString(t('locale.date', 'sq-AL'))}
                                                     </span>
                                                 </div>
@@ -249,42 +322,45 @@ const ClientPortalPage: React.FC = () => {
                     )}
 
                     {activeTab === 'documents' && (
-                        <motion.div key="documents" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <motion.div key="documents" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
+                            <div className="grid grid-cols-1 gap-3">
                                 {data.documents.length === 0 ? (
-                                    <div className="md:col-span-2 text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">
-                                        {t('portal.empty_documents', 'Nuk ka dokumente të ndara me ju.')}
+                                    <div className="text-center py-20 bg-[#0F0F0F] border border-dashed border-white/10 rounded-3xl">
+                                        <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                                            <FileText className="text-gray-500 opacity-50" size={32} />
+                                        </div>
+                                        <p className="text-gray-500 text-sm">{t('portal.empty_documents', 'Nuk ka dokumente të ndara me ju.')}</p>
                                     </div>
                                 ) : (
                                     data.documents.map((doc, i) => (
-                                        <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors flex items-center justify-between group">
+                                        <div key={i} className="bg-[#0F0F0F] border border-white/10 rounded-2xl p-4 hover:border-white/20 hover:bg-white/[0.02] transition-all flex items-center justify-between group">
                                             <div className="flex items-center gap-4 min-w-0">
-                                                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 flex-shrink-0">
+                                                <div className="w-12 h-12 rounded-xl bg-blue-500/5 border border-blue-500/10 flex items-center justify-center text-blue-400 flex-shrink-0 group-hover:bg-blue-500/10 transition-colors">
                                                     <FileText size={20} />
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <h4 className="text-sm font-bold text-white truncate max-w-[200px]">{doc.file_name}</h4>
-                                                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
-                                                        {new Date(doc.created_at).toLocaleDateString()}
+                                                    <h4 className="text-sm font-bold text-gray-200 truncate pr-4">{doc.file_name}</h4>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <span className="text-[10px] text-gray-500 font-mono">{new Date(doc.created_at).toLocaleDateString()}</span>
                                                         {doc.source === 'ARCHIVE' && (
-                                                            <span className="bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">
+                                                            <span className="bg-purple-500/10 text-purple-300 border border-purple-500/20 px-1.5 py-0.5 rounded-[4px] text-[9px] uppercase font-bold tracking-wider">
                                                                 {t('portal.archive', 'Arkivë')}
                                                             </span>
                                                         )}
-                                                    </p>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="flex gap-2">
                                                 <button 
                                                     onClick={() => handleView(doc.id, doc.source, doc.file_name, doc.file_type)} 
-                                                    className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-blue-400 transition-colors" 
+                                                    className="p-2.5 bg-white/5 hover:bg-white/10 hover:text-white rounded-xl text-gray-400 transition-all border border-transparent hover:border-white/10" 
                                                     title={t('actions.view', 'Shiko')}
                                                 >
                                                     <Eye size={18} />
                                                 </button>
                                                 <button 
                                                     onClick={() => handleDownload(doc.id, doc.source)} 
-                                                    className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-gray-300 transition-colors" 
+                                                    className="p-2.5 bg-white/5 hover:bg-white/10 hover:text-white rounded-xl text-gray-400 transition-all border border-transparent hover:border-white/10" 
                                                     title={t('actions.download', 'Shkarko')}
                                                 >
                                                     <Download size={18} />
