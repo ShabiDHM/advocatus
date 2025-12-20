@@ -1,297 +1,148 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V2.3 (SCROLL & MOBILE FIX)
-// 1. FIX: Injected specific styles for dark-theme scrollbars (custom-pdf-scroll).
-// 2. UI: Mobile optimizations - hidden text labels on small screens, adjusted spacing.
-// 3. FEATURE: Supports Minimize button (visuals prepared, requires parent handler).
+// PHOENIX PROTOCOL - PDF VIEWER V3.0 (PERFORMANCE & UI UPGRADE)
+// 1. UPGRADE: Replaced 'react-pdf' with professional '@react-pdf-viewer' library.
+// 2. FEATURE: Restored thumbnail sidebar ("Minimizer") using defaultLayoutPlugin.
+// 3. PERFORMANCE: Fixes "extra spinning" by using a more optimized engine.
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { Document as PdfDocument, Page, pdfjs } from 'react-pdf';
 import { apiService, API_V1_URL } from '../services/api';
 import { Document } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
-    Download, RefreshCw, ZoomIn, ZoomOut, Maximize, Minus 
-} from 'lucide-react';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
+import { X, Loader, AlertTriangle, Download, RefreshCw } from 'lucide-react';
 import { TFunction } from 'i18next';
 
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
+// PHOENIX: Import the new viewer and layout components
+import { Viewer, Worker } from '@react-pdf-viewer/core';
+import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
+
+// PHOENIX: Import styles for the new viewer
+import '@react-pdf-viewer/core/lib/styles/index.css';
+import '@react-pdf-viewer/default-layout/lib/styles/index.css';
+
+// The worker URL is critical for the new library
+const workerUrl = `https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
 
 interface PDFViewerModalProps {
   documentData: Document;
   caseId?: string; 
   onClose: () => void;
-  onMinimize?: () => void; // PHOENIX: Minimize handler
   t: TFunction; 
   directUrl?: string | null; 
   isAuth?: boolean;
 }
 
-const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, onClose, onMinimize, t, directUrl, isAuth = false }) => {
-  const [pdfSource, setPdfSource] = useState<any>(null);
-  const [textContent, setTextContent] = useState<string | null>(null);
-  const [imageSource, setImageSource] = useState<string | null>(null);
-  
-  const [isLoading, setIsLoading] = useState(!directUrl);
+const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, onClose, t, directUrl, isAuth = false }) => {
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [retryOriginal, setRetryOriginal] = useState(false);
-  
-  const [numPages, setNumPages] = useState<number | null>(null);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [scale, setScale] = useState(1.0); 
-  const [containerWidth, setContainerWidth] = useState<number>(0); 
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const [actualViewerMode, setActualViewerMode] = useState<'PDF' | 'TEXT' | 'IMAGE' | 'DOWNLOAD'>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
 
+  // Create the layout plugin instance
+  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+
   useEffect(() => {
-      const updateWidth = () => {
-          if (containerRef.current) {
-              setContainerWidth(containerRef.current.clientWidth - 32); 
-          }
-      };
-      
-      window.addEventListener('resize', updateWidth);
-      updateWidth(); 
-      setTimeout(updateWidth, 100);
-
-      return () => window.removeEventListener('resize', updateWidth);
-  }, [actualViewerMode]);
-
-  const getTargetMode = (mimeType: string) => {
-    const m = mimeType?.toLowerCase() || '';
-    if (m.startsWith('text/') || m === 'application/json' || m.includes('plain')) return 'TEXT';
-    if (m.startsWith('image/')) return 'IMAGE';
-    return 'PDF';
-  };
-
-  const fetchDocument = async () => {
-    const targetMode = getTargetMode(documentData.mime_type || '');
-    const token = apiService.getToken();
-
-    if (directUrl) {
-        if (targetMode === 'PDF') {
-             if (isAuth && token) {
-                 setPdfSource({
-                    url: directUrl,
-                    httpHeaders: { 'Authorization': `Bearer ${token}` },
-                    withCredentials: true
-                 });
-             } else {
-                 setPdfSource(directUrl);
-             }
-             setActualViewerMode('PDF');
-        } else {
-             try {
-                 let blob: Blob;
-                 if (isAuth && token) {
-                     const headers: Record<string, string> = {};
-                     headers['Authorization'] = `Bearer ${token}`;
-                     
-                     const response = await fetch(directUrl, { headers });
-                     if (!response.ok) throw new Error('Fetch failed');
-                     blob = await response.blob();
-                 } else {
-                     const response = await fetch(directUrl);
-                     blob = await response.blob();
-                 }
-
-                 if (targetMode === 'TEXT') {
-                     const text = await blob.text();
-                     setTextContent(text);
-                     setActualViewerMode('TEXT');
-                 } else {
-                     const url = URL.createObjectURL(blob);
-                     setImageSource(url);
-                     setActualViewerMode('IMAGE');
-                 }
-             } catch (e) {
-                 console.error(e);
-                 setActualViewerMode('DOWNLOAD');
-             }
-             setIsLoading(false);
-        }
-        return;
-    }
-
-    if (!caseId) return;
-
-    if (targetMode === 'PDF') {
-        const baseUrl = retryOriginal 
-            ? `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/original`
-            : `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/preview`;
+    const fetchAndSetUrl = async () => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            let blob: Blob;
+            const token = apiService.getToken();
             
-        setPdfSource({
-            url: baseUrl,
-            httpHeaders: { 'Authorization': `Bearer ${token}` },
-            withCredentials: true
-        });
-        setActualViewerMode('PDF');
-        return;
-    }
+            // Determine the URL to fetch from
+            const urlToFetch = directUrl 
+                ? directUrl 
+                : `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/preview`;
 
-    setIsLoading(true);
-    setError(null);
+            const headers: Record<string, string> = {};
+            if (isAuth && token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
 
-    try {
-      let blob: Blob;
-      blob = await apiService.getOriginalDocument(caseId as string, documentData.id);
+            const response = await fetch(urlToFetch, { headers });
+            if (!response.ok) {
+                // If preview fails, try original for non-direct URLs
+                if (!directUrl && caseId) {
+                    const originalUrl = `${API_V1_URL}/cases/${caseId}/documents/${documentData.id}/original`;
+                    const originalResponse = await fetch(originalUrl, { headers });
+                    if (!originalResponse.ok) throw new Error('Failed to fetch original document');
+                    blob = await originalResponse.blob();
+                } else {
+                    throw new Error('Failed to fetch document');
+                }
+            } else {
+                blob = await response.blob();
+            }
 
-      if (targetMode === 'TEXT') {
-          const text = await blob.text();
-          setTextContent(text);
-          setActualViewerMode('TEXT');
-      } else {
-          const url = URL.createObjectURL(blob);
-          setImageSource(url);
-          setActualViewerMode('IMAGE');
-      }
-    } catch (err: any) {
-        console.error("Viewer Error:", err);
-        setError(t('pdfViewer.errorFetch', { defaultValue: 'Gabim gjatë ngarkimit të dokumentit' }));
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  useEffect(() => {
-    fetchDocument();
-    return () => { 
-        if (imageSource && !directUrl) URL.revokeObjectURL(imageSource);
+            // Create a blob URL for the viewer
+            const blobUrl = URL.createObjectURL(blob);
+            setFileUrl(blobUrl);
+        } catch (err) {
+            console.error("Viewer Error:", err);
+            setError(t('pdfViewer.errorFetch', 'Gabim gjatë ngarkimit të dokumentit'));
+        } finally {
+            setIsLoading(false);
+        }
     };
-  }, [caseId, documentData.id, directUrl, retryOriginal]);
+    
+    fetchAndSetUrl();
 
-  const onPdfLoadError = (err: any) => {
-      if (!retryOriginal && !directUrl) {
-          setRetryOriginal(true);
-      } else {
-          console.error("PDF Load Failed:", err);
-          setIsLoading(false);
-          setActualViewerMode('DOWNLOAD');
+    // Cleanup blob URL on component unmount
+    return () => {
+      if (fileUrl) {
+        URL.revokeObjectURL(fileUrl);
       }
-  };
-
-  const onPdfLoadSuccess = ({ numPages }: { numPages: number }) => {
-      setNumPages(numPages);
-      setPageNumber(1);
-      setIsLoading(false);
-  };
+    };
+  }, [caseId, documentData.id, directUrl, isAuth, t]);
 
   const handleDownloadOriginal = async () => {
     setIsDownloading(true);
     try {
-      let blob;
-      const token = apiService.getToken();
-      
-      if (directUrl) {
-          const headers: Record<string, string> = {};
-          if (isAuth && token) {
-              headers['Authorization'] = `Bearer ${token}`;
-          }
-          const r = await fetch(directUrl, { headers });
-          blob = await r.blob();
-      } else if (caseId) {
-          blob = await apiService.getOriginalDocument(caseId, documentData.id);
-      }
-      
-      if (blob) {
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = documentData.file_name;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-      }
+        if (fileUrl) {
+            const link = document.createElement('a');
+            link.href = fileUrl;
+            link.download = documentData.file_name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
     } catch (e) { console.error(e); } finally { setIsDownloading(false); }
   };
 
-  const zoomIn = () => setScale(prev => Math.min(prev + 0.1, 3.0));
-  const zoomOut = () => setScale(prev => Math.max(prev - 0.1, 0.5));
-  const zoomReset = () => setScale(1.0);
-
   const renderContent = () => {
-    if (actualViewerMode === 'DOWNLOAD') {
-        return (
-          <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <div className="bg-white/5 p-6 rounded-full mb-6"><Download size={64} className="text-gray-400" /></div>
-            <h3 className="text-xl font-bold text-white mb-2">{t('pdfViewer.previewNotAvailable', { defaultValue: 'Pamja paraprake nuk është në dispozicion' })}</h3>
-            <p className="text-gray-400 mb-8 max-w-md">{t('pdfViewer.downloadToViewMessage', { defaultValue: 'Shkarkoni dokumentin për ta parë.' })}</p>
-            <button onClick={handleDownloadOriginal} disabled={isDownloading} className="px-6 py-3 bg-primary-start hover:bg-primary-end text-white font-semibold rounded-xl shadow-lg transition-all flex items-center gap-2">
-                {isDownloading ? <Loader size={20} className="animate-spin" /> : <Download size={20} />} {t('pdfViewer.downloadOriginal', { defaultValue: 'Shkarko Origjinalin' })}
-            </button>
-          </div>
-        );
+    if (isLoading) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-gray-400">
+          <Loader className="animate-spin h-8 w-8 mb-2 text-primary-start" />
+          <span>{t('pdfViewer.loading', 'Duke hapur dokumentin...')}</span>
+        </div>
+      );
     }
 
-    if (error) return (
+    if (error || !fileUrl) {
+      return (
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
-            <p className="text-red-300 mb-6">{error}</p>
-            <button onClick={() => { setRetryOriginal(false); fetchDocument(); }} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2"><RefreshCw size={16} /> {t('caseView.tryAgain', { defaultValue: 'Provo Përsëri' })}</button>
+          <AlertTriangle className="h-12 w-12 text-red-400 mb-4" />
+          <p className="text-red-300 mb-6">{error}</p>
+          <button onClick={() => window.location.reload()} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg text-white flex items-center gap-2">
+            <RefreshCw size={16} /> {t('caseView.tryAgain', 'Provo Përsëri')}
+          </button>
         </div>
-    );
-
-    switch (actualViewerMode) {
-      case 'PDF':
-        return (
-          <div className="flex flex-col items-center w-full min-h-full bg-[#2a2a2a] overflow-auto pt-4 pb-20 custom-pdf-scroll" ref={containerRef}>
-             <div className="flex justify-center w-full">
-                 <PdfDocument 
-                    file={pdfSource} 
-                    onLoadSuccess={onPdfLoadSuccess}
-                    onLoadError={onPdfLoadError}
-                    loading={
-                        <div className="flex flex-col items-center text-gray-400 mt-20">
-                            <Loader className="animate-spin h-8 w-8 mb-2 text-primary-start" />
-                            <span className="text-sm">Duke hapur dokumentin...</span>
-                        </div>
-                    }
-                    error={<div className="text-red-400 mt-10">Gabim gjatë hapjes së PDF.</div>}
-                 >
-                     <Page 
-                        pageNumber={pageNumber} 
-                        width={containerWidth > 0 ? Math.min(containerWidth, 800) : undefined} 
-                        scale={scale}
-                        renderTextLayer={false} 
-                        renderAnnotationLayer={false}
-                        className="shadow-2xl mb-4" 
-                     />
-                 </PdfDocument>
-             </div>
-          </div>
-        );
-      case 'TEXT':
-        return (
-          <div className="flex justify-center p-4 sm:p-8 min-h-full">
-            <div 
-                className="bg-white text-gray-900 shadow-2xl p-6 sm:p-12 min-h-[600px] sm:min-h-[800px] w-full max-w-3xl transition-transform origin-top rounded-sm sm:rounded-md"
-                style={{ transform: `scale(${scale})` }}
-            >
-                <pre className="whitespace-pre-wrap font-mono text-xs sm:text-sm leading-relaxed overflow-x-hidden">
-                    {textContent}
-                </pre>
-            </div>
-          </div>
-        );
-      case 'IMAGE':
-        if (isLoading) return <div className="flex justify-center items-center h-full"><Loader className="animate-spin text-primary-start" /></div>;
-        return (
-            <div className="flex items-center justify-center h-full p-4 overflow-auto touch-pinch-zoom custom-pdf-scroll">
-                <img 
-                    src={imageSource!} 
-                    alt="Doc" 
-                    style={{ transform: `scale(${scale})`, transition: 'transform 0.1s' }}
-                    className="max-w-full max-h-full object-contain rounded-lg shadow-lg origin-center" 
+      );
+    }
+    
+    // PHOENIX: The new Viewer component
+    return (
+        <Worker workerUrl={workerUrl}>
+            <div className="h-full w-full">
+                <Viewer 
+                    fileUrl={fileUrl} 
+                    plugins={[defaultLayoutPluginInstance]}
+                    theme="dark"
                 />
             </div>
-        );
-      default: return null;
-    }
+        </Worker>
+    );
   };
 
   const modalContent = (
@@ -300,67 +151,43 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         initial={{ opacity: 0 }} 
         animate={{ opacity: 1 }} 
         exit={{ opacity: 0 }} 
-        className="fixed inset-0 bg-black/95 backdrop-blur-md z-[9999] flex items-center justify-center p-0 sm:p-4" 
+        className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-0" 
         onClick={onClose}
       >
         <motion.div 
             initial={{ scale: 0.95, opacity: 0 }} 
             animate={{ scale: 1, opacity: 1 }} 
             exit={{ scale: 0.95, opacity: 0 }} 
-            className="bg-[#1a1a1a] w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-glass-edge" 
+            className="bg-[#1a1a1a] w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-white/10" 
             onClick={(e) => e.stopPropagation()}
         >
-          {/* FIX: Injected Custom Scrollbar Styles */}
+          {/* PHOENIX: Custom styles to override viewer theme */}
           <style>{`
-            .custom-pdf-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-            .custom-pdf-scroll::-webkit-scrollbar-track { background: #1a1a1a; }
-            .custom-pdf-scroll::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
-            .custom-pdf-scroll::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+            .rpv-core__viewer { background-color: #1a1a1a !important; border: none !important; }
+            .rpv-core__inner-pages { background-color: #2a2a2a !important; }
+            .rpv-toolbar { background-color: #101010 !important; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; }
+            .rpv-toolbar__button { color: #d1d5db !important; }
+            .rpv-toolbar__button:hover { background-color: rgba(255, 255, 255, 0.1) !important; }
+            .rpv-default-layout__sidebar { background-color: #101010 !important; border-right: 1px solid rgba(255, 255, 255, 0.1) !important; }
+            .rpv-default-layout__thumbnail-item--selected { border: 2px solid #6366f1 !important; }
           `}</style>
 
-          <header className="flex flex-wrap items-center justify-between p-3 sm:p-4 bg-background-light/95 border-b border-glass-edge backdrop-blur-xl z-20 gap-2 shrink-0">
+          <header className="flex items-center justify-between p-3 sm:p-4 bg-[#101010] border-b border-white/10 z-20 shrink-0">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-                <h2 className="text-sm sm:text-lg font-bold text-gray-200 truncate max-w-[150px] sm:max-w-md">{documentData.file_name}</h2>
-                {(actualViewerMode !== 'DOWNLOAD') && (
-                    <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10 ml-2">
-                        <button onClick={zoomOut} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded active:scale-95 transition-transform"><ZoomOut size={16} /></button>
-                        <span className="text-[10px] sm:text-xs text-gray-400 w-8 text-center hidden sm:inline-block">{Math.round(scale * 100)}%</span>
-                        <button onClick={zoomIn} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded active:scale-95 transition-transform"><ZoomIn size={16} /></button>
-                        <button onClick={zoomReset} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded ml-1 active:scale-95 transition-transform" title="Reset"><Maximize size={16} /></button>
-                    </div>
-                )}
+                <h2 className="text-sm sm:text-lg font-bold text-gray-200 truncate">{documentData.file_name}</h2>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {/* FIX: Hide text on mobile */}
-              <button onClick={handleDownloadOriginal} className="p-2 sm:px-4 sm:py-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg transition-colors border border-primary-start/30 flex items-center gap-2" title={t('pdfViewer.downloadOriginal', { defaultValue: 'Shkarko Origjinalin' })}>
-                  <Download size={20} />
-                  <span className="hidden sm:inline text-sm font-medium">{t('pdfViewer.downloadOriginalShort', { defaultValue: 'Shkarko' })}</span>
+              <button onClick={handleDownloadOriginal} disabled={isDownloading} className="p-2 sm:px-4 sm:py-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg transition-colors border border-primary-start/30 flex items-center gap-2">
+                  {isDownloading ? <Loader size={20} className="animate-spin" /> : <Download size={20} />}
+                  <span className="hidden sm:inline text-sm font-medium">{t('pdfViewer.downloadOriginalShort', 'Shkarko')}</span>
               </button>
-              
-              {/* Minimize Button */}
-              {onMinimize && (
-                  <button onClick={onMinimize} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors" title={t('pdfViewer.minimize', { defaultValue: 'Minimizo' })}>
-                      <Minus size={24} />
-                  </button>
-              )}
-
               <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"><X size={24} /></button>
             </div>
           </header>
           
-          <div className="flex-grow relative bg-[#0f0f0f] overflow-auto flex flex-col custom-pdf-scroll touch-pan-y">
+          <div className="flex-grow relative bg-[#2a2a2a] overflow-hidden">
               {renderContent()}
           </div>
-          
-          {actualViewerMode === 'PDF' && numPages && numPages > 1 && (
-            <footer className="flex items-center justify-center p-3 bg-background-light/95 border-t border-glass-edge backdrop-blur-xl z-20 shrink-0 absolute bottom-0 w-full sm:relative">
-              <div className="flex items-center gap-4 bg-black/80 px-4 py-2 rounded-full border border-white/10 shadow-lg">
-                <button onClick={() => setPageNumber(p => Math.max(1, p - 1))} disabled={pageNumber <= 1} className="p-2 text-gray-400 hover:text-white disabled:opacity-30"><ChevronLeft size={24} /></button>
-                <span className="text-sm font-medium text-gray-200 w-20 text-center">{pageNumber} / {numPages}</span>
-                <button onClick={() => setPageNumber(p => Math.min(numPages, p + 1))} disabled={pageNumber >= numPages} className="p-2 text-gray-400 hover:text-white disabled:opacity-30"><ChevronRight size={24} /></button>
-              </div>
-            </footer>
-          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>
