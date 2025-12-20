@@ -1,8 +1,7 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V10.3 (PORTAL SHARE)
-// 1. FEATURE: Added 'Share Portal' button when viewing a Case Folder.
-// 2. LOGIC: Generates and copies the client portal link for the active case.
-// 3. UI: Located in the header for easy access.
+// PHOENIX PROTOCOL - ARCHIVE TAB V10.4 (SMART SHARE LINK)
+// 1. FIX: 'Portal Link' now copies the Backend Smart Share URL.
+// 2. RESULT: WhatsApp/Viber now show the correct Case Preview Card.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,7 +10,7 @@ import {
     Calendar, Info, Hash, FileText, FileImage, FileCode, File as FileIcon, Eye, Download, Trash2, Tag, X, Pencil, Save,
     FolderUp, FileUp, Search, Share2, CheckCircle, Link as LinkIcon
 } from 'lucide-react';
-import { apiService } from '../../services/api';
+import { apiService, API_V1_URL } from '../../services/api'; // PHOENIX: Added API_V1_URL import
 import { ArchiveItemOut, Case, Document } from '../../data/types';
 import { useTranslation } from 'react-i18next';
 import PDFViewerModal from '../PDFViewerModal';
@@ -203,11 +202,13 @@ export const ArchiveTab: React.FC = () => {
         }
     };
     
-    // PHOENIX: Portal Link Logic
+    // PHOENIX: Smart Share Link Logic
     const handleCopyPortalLink = () => {
         const active = breadcrumbs[breadcrumbs.length - 1];
         if (active.type === 'CASE' && active.id) {
-            const link = `${window.location.origin}/portal/${active.id}`;
+            // Uses the BACKEND endpoint to generate the social media preview
+            // Browser redirects user to frontend, but Bots read the HTML metadata.
+            const link = `${API_V1_URL}/share/${active.id}`;
             navigator.clipboard.writeText(link);
             setLinkCopied(true);
             setTimeout(() => setLinkCopied(false), 2000);
@@ -234,7 +235,7 @@ export const ArchiveTab: React.FC = () => {
                 </div>
                 
                 <div className="flex w-full md:w-auto gap-2 flex-shrink-0 p-1.5 bg-white/5 rounded-xl border border-white/10">
-                    {/* PHOENIX: Portal Link Button (Only when inside a Case) */}
+                    {/* PHOENIX: Portal Link Button */}
                     {currentView.type === 'CASE' && (
                         <button 
                             onClick={handleCopyPortalLink} 
@@ -298,7 +299,7 @@ export const ArchiveTab: React.FC = () => {
                 )}
             </div>
 
-            {/* MODALS (Create Folder / Rename) Kept same as before... */}
+            {/* MODALS */}
             {showFolderModal && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
                     <div className="bg-background-dark border border-glass-edge rounded-3xl w-full max-w-sm p-8 shadow-2xl scale-100">

@@ -1,8 +1,7 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V5.2 (STABILITY FIX)
-# 1. REMOVED: All references to 'findings' to prevent startup crashes.
-# 2. CONFIG: Verified CORS for 'https://juristi.tech'.
-# 3. STATUS: Production Ready.
+# PHOENIX PROTOCOL - MAIN APPLICATION V5.3 (ADDED SHARE ROUTER)
+# 1. ADDED: share_router for Smart Social Media Links.
+# 2. STATUS: Production Ready.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +26,7 @@ from app.api.endpoints import finance_wizard
 from app.api.endpoints.graph import router as graph_router
 from app.api.endpoints.archive import router as archive_router
 from app.api.endpoints.drafting_v2 import router as drafting_v2_router
+from app.api.endpoints.share import router as share_router # PHOENIX NEW
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,7 +34,6 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ---
-# Trust Proxy Headers (Critical for correct HTTPS/Scheme detection behind Load Balancers)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
 
 # --- CORS CONFIGURATION ---
@@ -45,7 +44,6 @@ allowed_origins = [
     "https://www.juristi.tech"
 ]
 
-# Load additional origins from ENV if present
 try:
     env_origins_str = os.getenv("BACKEND_CORS_ORIGINS")
     if env_origins_str:
@@ -54,7 +52,6 @@ try:
 except (json.JSONDecodeError, TypeError) as e:
     logger.warning(f"⚠️ CORS Warning: Could not parse BACKEND_CORS_ORIGINS. Using defaults. Error: {e}")
 
-# Deduplicate and Sort
 allowed_origins = sorted(list(set(allowed_origins)))
 logger.info(f"✅ CORS Allowed Origins: {allowed_origins}")
 
@@ -88,6 +85,7 @@ api_v1_router.include_router(finance_wizard.router, prefix="/finance/wizard", ta
 # Advanced Modules
 api_v1_router.include_router(graph_router, prefix="/graph", tags=["Graph"])
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
+api_v1_router.include_router(share_router, prefix="/share", tags=["Share"]) # PHOENIX NEW
 
 # V2 Modules
 api_v2_router = APIRouter(prefix="/api/v2")
