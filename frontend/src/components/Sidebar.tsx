@@ -1,9 +1,13 @@
 // FILE: src/components/Sidebar.tsx
+// PHOENIX PROTOCOL - SIDEBAR V1.2 (CLEANUP)
+// 1. FIX: Removed unused 'LayoutDashboard' import to resolve TS(6133) warning.
+// 2. STATUS: Clean build.
+
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
-    LayoutDashboard, Calendar, FileText, MessageSquare, 
-    Building2, Shield, LogOut, User as UserIcon 
+    Calendar, FileText, MessageSquare, 
+    Building2, Shield, LogOut, User as UserIcon, Scale 
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -29,7 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         path: '/business' 
       },
       { 
-        icon: LayoutDashboard, 
+        icon: Scale, 
         label: t('sidebar.juristi_ai', 'Juristi AI'), 
         path: '/dashboard' 
       },

@@ -1,7 +1,7 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V5.2 (TITLE CHANGE)
-// 1. CHANGE: Replaced dynamic "welcome" message with static "Asistenti Juridik" title.
-// 2. CLEANUP: Removed the unused getFormattedName function.
+// PHOENIX PROTOCOL - DASHBOARD V5.3 (SCROLL & LIMIT FIX)
+// 1. FIX: Constrained the case grid to a max height and enabled scrolling after 4 items.
+// 2. UI: Prevents vertical expansion of the page for a consistent layout.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -115,6 +115,8 @@ const DashboardPage: React.FC = () => {
     setNewCaseData(prev => ({ ...prev, [name]: value }));
   };
 
+  const casesToDisplay = cases.length > 4 ? cases : cases.slice(0, 4);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
@@ -137,14 +139,16 @@ const DashboardPage: React.FC = () => {
       {isLoading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div></div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {cases.map((c) => (
-            <CaseCard 
-              key={c.id} 
-              caseData={c} 
-              onDelete={handleDeleteCase} 
-            />
-          ))}
+        <div className="h-[500px] overflow-y-auto custom-scrollbar -mr-4 pr-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {casesToDisplay.map((c) => (
+              <CaseCard 
+                key={c.id} 
+                caseData={c} 
+                onDelete={handleDeleteCase} 
+              />
+            ))}
+          </div>
         </div>
       )}
 
