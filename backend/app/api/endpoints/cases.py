@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V4.9 (PUBLIC INVOICE ACCESS)
-# 1. ADDED: GET /public/{case_id}/invoices/{invoice_id}/download endpoint.
-# 2. LOGIC: Generates PDF on-the-fly using report_service for public access.
-# 3. SECURITY: Restricts access to non-DRAFT invoices linked to the specific case.
+# PHOENIX PROTOCOL - CASES ROUTER V5.0 (PUBLIC BRANDING)
+# 1. FEATURE: Added GET /public/{case_id}/logo endpoint.
+# 2. SECURITY: Publicly accessible but validates case existence.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -38,7 +37,7 @@ from ...models.user import UserInDB
 from ...models.drafting import DraftRequest 
 from ...models.archive import ArchiveItemOut 
 from ...models.document import DocumentOut
-from ...models.finance import InvoiceInDB # PHOENIX: Added for Invoice generation
+from ...models.finance import InvoiceInDB
 
 from .dependencies import get_current_user, get_db, get_sync_redis
 from ...celery_app import celery_app
@@ -329,7 +328,6 @@ async def get_public_case_timeline(case_id: str, db: Database = Depends(get_db))
         return await asyncio.to_thread(case_service.get_public_case_events, db=db, case_id=case_id)
     except Exception: raise HTTPException(404, "Portal not available.")
 
-# --- PHOENIX NEW: PUBLIC SECURE DOWNLOAD FOR DOCUMENTS ---
 @router.get("/public/{case_id}/documents/{doc_id}/download", tags=["Public Portal"])
 async def download_public_document(
     case_id: str,
@@ -341,7 +339,6 @@ async def download_public_document(
         case_oid = validate_object_id(case_id)
         doc_oid = validate_object_id(doc_id)
         
-        # 1. Fetch Document Metadata
         doc_data = None
         if source == "ACTIVE":
             doc_data = await asyncio.to_thread(db.documents.find_one, {
@@ -358,11 +355,9 @@ async def download_public_document(
         if not doc_data:
             raise HTTPException(status_code=404, detail="Document not found.")
 
-        # 2. SECURITY CHECK
         if not doc_data.get("is_shared"):
             raise HTTPException(status_code=403, detail="Access Denied: This document is not shared.")
 
-        # 3. Stream File
         storage_key = doc_data.get("storage_key")
         if not storage_key:
             raise HTTPException(status_code=404, detail="File content missing.")
@@ -388,7 +383,6 @@ async def download_public_document(
         logger.error(f"Public Download Error: {e}")
         raise HTTPException(status_code=500, detail="Download failed.")
 
-# --- PHOENIX NEW: PUBLIC SECURE DOWNLOAD FOR INVOICES ---
 @router.get("/public/{case_id}/invoices/{invoice_id}/download", tags=["Public Portal"])
 async def download_public_invoice(
     case_id: str,
@@ -399,7 +393,6 @@ async def download_public_invoice(
         validate_object_id(case_id)
         invoice_oid = validate_object_id(invoice_id)
         
-        # 1. Fetch Invoice
         invoice_doc = await asyncio.to_thread(db.invoices.find_one, {
             "_id": invoice_oid,
             "related_case_id": case_id,
@@ -409,10 +402,7 @@ async def download_public_invoice(
         if not invoice_doc:
             raise HTTPException(status_code=404, detail="Invoice not found or not available.")
 
-        # 2. Convert to Model (for report service)
         invoice = InvoiceInDB(**invoice_doc)
-        
-        # 3. Generate PDF
         user_id = str(invoice_doc.get("owner_id"))
         
         pdf_buffer = await asyncio.to_thread(
@@ -435,3 +425,47 @@ async def download_public_invoice(
     except Exception as e:
         logger.error(f"Public Invoice Download Error: {e}")
         raise HTTPException(status_code=500, detail="Generation failed.")
+
+# --- PHOENIX NEW: PUBLIC LOGO ENDPOINT ---
+@router.get("/public/{case_id}/logo", tags=["Public Portal"])
+async def get_public_case_logo(
+    case_id: str,
+    db: Database = Depends(get_db)
+):
+    """
+    Streams the Logo of the Case Owner (Law Firm).
+    Publicly accessible to display on the Client Portal.
+    """
+    try:
+        case_oid = validate_object_id(case_id)
+        case = await asyncio.to_thread(db.cases.find_one, {"_id": case_oid})
+        if not case: raise HTTPException(status_code=404, detail="Case not found")
+        
+        owner_id = case.get("owner_id") or case.get("user_id")
+        if not owner_id: raise HTTPException(status_code=404, detail="Owner not found")
+        
+        # Resolve Owner ID (String vs ObjectId)
+        query_id = owner_id
+        if isinstance(query_id, str):
+            try: query_id = ObjectId(query_id)
+            except: pass
+        
+        # Fetch Business Profile
+        profile = await asyncio.to_thread(db.business_profiles.find_one, {"user_id": query_id})
+        if not profile and isinstance(owner_id, ObjectId):
+             profile = await asyncio.to_thread(db.business_profiles.find_one, {"user_id": str(owner_id)})
+             
+        if not profile or "logo_storage_key" not in profile:
+            raise HTTPException(status_code=404, detail="Logo not found")
+        
+        key = profile["logo_storage_key"]
+        
+        stream = await asyncio.to_thread(storage_service.get_file_stream, key)
+        mime_type, _ = mimetypes.guess_type(key)
+        
+        return StreamingResponse(stream, media_type=mime_type or "image/png")
+
+    except HTTPException as e: raise e
+    except Exception as e:
+        logger.error(f"Public Logo Error: {e}")
+        raise HTTPException(status_code=404, detail="Logo not available")

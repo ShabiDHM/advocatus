@@ -1,10 +1,12 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V4.5 (ROBUST ID LOOKUP)
-# 1. FIX: Handles both String and ObjectId types for User Lookup.
-# 2. LOGIC: Ensures 'organization_name' is found even if data types mismatch.
+# PHOENIX PROTOCOL - CASE SERVICE V5.0 (STRICT PRIVACY)
+# 1. SECURITY: Implements "Zero-Share Protection". 
+# 2. LOGIC: If no items are shared, the Case is treated as nonexistent (404).
+# 3. DATA: Fetches branding from Business Profile.
 
 import re
 import importlib
+import urllib.parse 
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List, cast
 from bson import ObjectId
@@ -158,6 +160,9 @@ def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name:
 def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any]]:
     """
     Fetches public-safe data for the Client Portal.
+    
+    PRIVACY RULE: Returns None (404) if NO items are shared.
+    This ensures implicit privacy: "Only what I select to be public".
     """
     try:
         case_oid = ObjectId(case_id)
@@ -234,29 +239,32 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "date": inv.get("issue_date")
             })
 
-        # PHOENIX FIX: Robust User/Organization Lookup
-        owner_id = case.get("owner_id") or case.get("user_id")
-        organization_name = None
-        logo = None
-        
-        if owner_id:
-            # Attempt 1: Direct Lookup
-            owner = db.users.find_one({"_id": owner_id})
-            
-            # Attempt 2: If id is string, try ObjectId
-            if not owner and isinstance(owner_id, str):
-                try:
-                    owner = db.users.find_one({"_id": ObjectId(owner_id)})
-                except InvalidId:
-                    pass
-            
-            # Attempt 3: If id is ObjectId, try String
-            if not owner and isinstance(owner_id, ObjectId):
-                owner = db.users.find_one({"_id": str(owner_id)})
+        # --- PHOENIX SECURITY: ZERO-SHARE PROTECTION ---
+        # If nothing is shared, the case must appear as "Not Found" / Private.
+        if not events and not shared_docs and not shared_invoices:
+            print(f"SECURITY: Case {case_id} has no shared items. Denying public access.")
+            return None
 
-            if owner:
-                organization_name = owner.get("organization_name")
-                logo = owner.get("logo")
+        # --- BRANDING RETRIEVAL (Business Profile) ---
+        owner_id = case.get("owner_id") or case.get("user_id")
+        organization_name = "Zyra Ligjore"
+        logo_path = None
+
+        if owner_id:
+            query_id = owner_id
+            if isinstance(query_id, str):
+                try: query_id = ObjectId(query_id)
+                except: pass
+            
+            profile = db.business_profiles.find_one({"user_id": query_id})
+            
+            if not profile and isinstance(owner_id, ObjectId):
+                profile = db.business_profiles.find_one({"user_id": str(owner_id)})
+
+            if profile:
+                organization_name = profile.get("firm_name") or "Zyra Ligjore"
+                if profile.get("logo_storage_key"):
+                    logo_path = f"/cases/public/{case_id}/logo"
 
         raw_name = case.get("client", {}).get("name", "Klient")
         clean_name = raw_name.strip().title() if raw_name else "Klient"
@@ -266,8 +274,8 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
             "title": case.get("title") or case.get("case_name"), 
             "client_name": clean_name, 
             "status": case.get("status", "OPEN"), 
-            "organization_name": organization_name, 
-            "logo": logo, 
+            "organization_name": organization_name,
+            "logo": logo_path,
             "timeline": events,
             "documents": shared_docs,
             "invoices": shared_invoices
