@@ -1,8 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V4.2 (ARCHIVE SHARING)
-# 1. FEATURE: 'get_public_case_events' now includes Shared Archive Items.
-# 2. LOGIC: Fetches items from 'archives' collection where is_shared=True.
-# 3. STATUS: Client Portal now sees both Active Docs and Archived Docs.
+# PHOENIX PROTOCOL - CASE SERVICE V4.3 (ROBUST EVENT SHARING)
+# 1. FIX: Events are now public if they have 'is_public=True' OR '[CLIENT_VISIBLE]' tag.
+# 2. LOGIC: Cleans the '[CLIENT_VISIBLE]' tag from the text before sending to client.
+# 3. STATUS: Solves the missing timeline event issue.
 
 import re
 import importlib
@@ -159,21 +159,39 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
     """
     Fetches public-safe data for the Client Portal.
     Includes:
-    1. Timeline (Public Events)
-    2. Shared Documents (Active)
-    3. Shared Archive Items (PHOENIX UPGRADE)
-    4. Invoices
+    1. Timeline (Public Events) - PHOENIX FIX: Checks both 'is_public' flag AND '[CLIENT_VISIBLE]' text tag.
+    2. Shared Documents (Only is_shared=True)
+    3. Invoices (Excluding Drafts)
     """
     try:
         case_oid = ObjectId(case_id)
         case = db.cases.find_one({"_id": case_oid})
         if not case: return None
         
-        # 1. Fetch Timeline
-        events_cursor = db.calendar_events.find({"$or": [{"case_id": case_id}, {"case_id": case_oid}], "is_public": True }).sort("start_date", 1)
-        events = [{"title": ev.get("title"), "date": ev.get("start_date"), "type": ev.get("event_type", "EVENT"), "description": ev.get("description", "")} for ev in events_cursor]
+        # 1. Fetch Timeline (ROBUST QUERY)
+        events_cursor = db.calendar_events.find({
+            "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+            "$or": [
+                {"is_public": True},
+                {"notes": {"$regex": "CLIENT_VISIBLE", "$options": "i"}},
+                {"description": {"$regex": "CLIENT_VISIBLE", "$options": "i"}}
+            ]
+        }).sort("start_date", 1)
         
-        # 2. Fetch Shared Active Documents
+        events = []
+        for ev in events_cursor:
+            # Clean the tag from the text so the client doesn't see it
+            description = ev.get("description", "") or ev.get("notes", "") or ""
+            clean_desc = description.replace("[CLIENT_VISIBLE]", "").replace("[client_visible]", "").strip()
+            
+            events.append({
+                "title": ev.get("title"),
+                "date": ev.get("start_date"),
+                "type": ev.get("event_type", "EVENT"),
+                "description": clean_desc
+            })
+        
+        # 2. Fetch Shared Documents (Active)
         docs_cursor = db.documents.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
             "is_shared": True 
@@ -189,11 +207,11 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "source": "ACTIVE"
             })
 
-        # 3. Fetch Shared Archive Items (NEW)
+        # 3. Fetch Shared Archive Items
         archive_cursor = db.archives.find({
             "$or": [{"case_id": case_id}, {"case_id": case_oid}],
             "is_shared": True,
-            "item_type": "FILE" # Only share files, not empty folders
+            "item_type": "FILE"
         }).sort("created_at", -1)
         
         for a in archive_cursor:
@@ -201,7 +219,7 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "id": str(a["_id"]),
                 "file_name": a.get("title", "Archived File"),
                 "created_at": a.get("created_at"),
-                "file_type": "application/pdf", # Assume PDF for simplicity, or fetch field
+                "file_type": "application/pdf", 
                 "source": "ARCHIVE"
             })
 

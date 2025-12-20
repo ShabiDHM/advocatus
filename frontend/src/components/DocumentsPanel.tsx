@@ -1,7 +1,8 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V7.0 (INTERFACE FIX)
-// 1. FIX: Added 'onShare' to DocumentsPanelProps to resolve Type Error.
-// 2. STATUS: Fully compatible with CaseViewPage logic.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V7.1 (SHARE REMOVED)
+// 1. FIX: Removed 'Share' button. Active docs are internal-only.
+// 2. POLICY: Sharing is now exclusive to the Archive (Finalized Docs).
+// 3. STATUS: Clean build.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -11,7 +12,7 @@ import moment from 'moment';
 import { 
     FolderOpen, Eye, Trash, Plus, Loader2, 
     Archive, Pencil, CheckSquare, Square, XCircle, 
-    HardDrive, FilePlus, Lock, Share2
+    HardDrive, FilePlus, Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ArchiveImportModal from './ArchiveImportModal';
@@ -24,7 +25,6 @@ interface DocumentsPanelProps {
   onDocumentUploaded: (newDocument: Document) => void;
   onViewOriginal: (document: Document) => void;
   onRename?: (document: Document) => void; 
-  onShare?: (document: Document) => void; // PHOENIX: Defined Here
   connectionStatus: ConnectionStatus;
   reconnect: () => void; 
   className?: string;
@@ -38,7 +38,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   onDocumentUploaded,
   onViewOriginal,
   onRename,
-  onShare,
   t,
   className
 }) => {
@@ -266,9 +265,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
           const statusTextColor = isUploadingState ? "text-primary-start" : "text-blue-400";
           const canInteract = !isUploadingState && !isProcessingState;
           const isSelected = selectedIds.has(doc.id);
-          
-          // PHOENIX: Check if shared
-          const isShared = (doc as any).is_shared === true;
 
           return (
             <motion.div 
@@ -292,17 +288,6 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               </div>
               
               <div className={`flex items-center gap-1 sm:gap-2 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-80 group-hover:opacity-100'}`}>
-                {/* PHOENIX: Share Button */}
-                {canInteract && onShare && (
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onShare(doc); }} 
-                        className={`p-1.5 rounded-lg transition-colors ${isShared ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'hover:bg-white/10 text-gray-400 hover:text-white'}`} 
-                        title={isShared ? t('documentsPanel.unshare', 'Ndalo Ndarjen') : t('documentsPanel.share', 'Ndaj me Klientin')}
-                    >
-                        <Share2 size={14} />
-                    </button>
-                )}
-
                 {canInteract && (
                     <button onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} className="p-1.5 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
                 )}
