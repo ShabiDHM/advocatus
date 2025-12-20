@@ -1,7 +1,8 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V2.4 (LINT FIX)
-// 1. FIX: Removed unused 'X' import and 'filename' parameter.
-// 2. STATUS: Zero warnings. Clean build.
+// PHOENIX PROTOCOL - CLIENT PORTAL V2.5 (INVOICE ACCESS)
+// 1. FEATURE: Added 'View' and 'Download' buttons for Invoices.
+// 2. LOGIC: Implemented URL generation for public invoice endpoints.
+// 3. STATUS: Complete Client Portal experience.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -84,19 +85,18 @@ const ClientPortalPage: React.FC = () => {
 
     const getDownloadUrl = (docId: string, source: 'ACTIVE' | 'ARCHIVE' | 'INVOICE') => {
         if (source === 'INVOICE') {
-             return null; 
+             return `${API_V1_URL}/cases/public/${caseId}/invoices/${docId}/download`;
         }
         return `${API_V1_URL}/cases/public/${caseId}/documents/${docId}/download?source=${source}`;
     };
 
-    // PHOENIX FIX: Removed unused 'filename' parameter
-    const handleDownload = (docId: string, source: 'ACTIVE' | 'ARCHIVE') => {
+    const handleDownload = (docId: string, source: 'ACTIVE' | 'ARCHIVE' | 'INVOICE') => {
         if (!caseId) return;
-        const downloadUrl = `${API_V1_URL}/cases/public/${caseId}/documents/${docId}/download?source=${source}`;
-        window.open(downloadUrl, '_blank');
+        const url = getDownloadUrl(docId, source);
+        window.open(url, '_blank');
     };
 
-    const handleView = (docId: string, source: 'ACTIVE' | 'ARCHIVE', filename: string, mimeType: string) => {
+    const handleView = (docId: string, source: 'ACTIVE' | 'ARCHIVE' | 'INVOICE', filename: string, mimeType: string) => {
         const url = getDownloadUrl(docId, source);
         if (!url) return;
         
@@ -191,7 +191,6 @@ const ClientPortalPage: React.FC = () => {
                                             </div>
                                             <div className="flex gap-2">
                                                 <button onClick={() => handleView(doc.id, doc.source, doc.file_name, doc.file_type)} className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-blue-400 transition-colors" title="Shiko"><Eye size={18} /></button>
-                                                {/* PHOENIX FIX: Removed unused 'doc.file_name' from call */}
                                                 <button onClick={() => handleDownload(doc.id, doc.source)} className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-gray-300 transition-colors" title="Shkarko"><Download size={18} /></button>
                                             </div>
                                         </div>
@@ -209,9 +208,20 @@ const ClientPortalPage: React.FC = () => {
                                         <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between hover:bg-white/10 transition-colors">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400"><Euro size={20} /></div>
-                                                <div><h4 className="text-sm font-bold text-white">Fatura #{inv.number}</h4><p className="text-xs text-gray-500 mt-0.5">{new Date(inv.date).toLocaleDateString()}</p></div>
+                                                <div className="min-w-0">
+                                                    <h4 className="text-sm font-bold text-white truncate max-w-[150px]">Fatura #{inv.number}</h4>
+                                                    <p className="text-xs text-gray-500 mt-0.5">{new Date(inv.date).toLocaleDateString()}</p>
+                                                </div>
                                             </div>
-                                            <div className="text-right"><p className="text-lg font-bold text-white mb-1">€{inv.amount.toFixed(2)}</p>{getStatusBadge(inv.status)}</div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="text-right"><p className="text-lg font-bold text-white mb-1">€{inv.amount.toFixed(2)}</p>{getStatusBadge(inv.status)}</div>
+                                                
+                                                {/* PHOENIX FIX: Added View/Download Buttons for Invoices */}
+                                                <div className="flex flex-col gap-1 ml-2">
+                                                    <button onClick={() => handleView(inv.id, 'INVOICE', `Fatura_${inv.number}.pdf`, 'application/pdf')} className="p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-blue-400 transition-colors" title="Shiko Faturën"><Eye size={16} /></button>
+                                                    <button onClick={() => handleDownload(inv.id, 'INVOICE')} className="p-1.5 bg-white/5 hover:bg-white/20 rounded-lg text-green-400 transition-colors" title="Shkarko Faturën"><Download size={16} /></button>
+                                                </div>
+                                            </div>
                                         </div>
                                     ))
                                 )}

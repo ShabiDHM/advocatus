@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V4.8 (PUBLIC DOWNLOAD)
-# 1. ADDED: GET /public/{case_id}/documents/{doc_id}/download
-# 2. SECURITY: Enforces 'is_shared=True' check before streaming.
-# 3. LOGIC: Supports both 'ACTIVE' and 'ARCHIVE' sources.
+# PHOENIX PROTOCOL - CASES ROUTER V4.9 (PUBLIC INVOICE ACCESS)
+# 1. ADDED: GET /public/{case_id}/invoices/{invoice_id}/download endpoint.
+# 2. LOGIC: Generates PDF on-the-fly using report_service for public access.
+# 3. SECURITY: Restricts access to non-DRAFT invoices linked to the specific case.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -38,6 +38,7 @@ from ...models.user import UserInDB
 from ...models.drafting import DraftRequest 
 from ...models.archive import ArchiveItemOut 
 from ...models.document import DocumentOut
+from ...models.finance import InvoiceInDB # PHOENIX: Added for Invoice generation
 
 from .dependencies import get_current_user, get_db, get_sync_redis
 from ...celery_app import celery_app
@@ -328,7 +329,7 @@ async def get_public_case_timeline(case_id: str, db: Database = Depends(get_db))
         return await asyncio.to_thread(case_service.get_public_case_events, db=db, case_id=case_id)
     except Exception: raise HTTPException(404, "Portal not available.")
 
-# --- PHOENIX NEW: PUBLIC SECURE DOWNLOAD ---
+# --- PHOENIX NEW: PUBLIC SECURE DOWNLOAD FOR DOCUMENTS ---
 @router.get("/public/{case_id}/documents/{doc_id}/download", tags=["Public Portal"])
 async def download_public_document(
     case_id: str,
@@ -379,10 +380,58 @@ async def download_public_document(
         return StreamingResponse(
             file_stream, 
             media_type=content_type, 
-            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}"}
+            headers={"Content-Disposition": f"inline; filename*=UTF-8''{safe_filename}"}
         )
 
     except HTTPException as e: raise e
     except Exception as e:
         logger.error(f"Public Download Error: {e}")
         raise HTTPException(status_code=500, detail="Download failed.")
+
+# --- PHOENIX NEW: PUBLIC SECURE DOWNLOAD FOR INVOICES ---
+@router.get("/public/{case_id}/invoices/{invoice_id}/download", tags=["Public Portal"])
+async def download_public_invoice(
+    case_id: str,
+    invoice_id: str,
+    db: Database = Depends(get_db)
+):
+    try:
+        validate_object_id(case_id)
+        invoice_oid = validate_object_id(invoice_id)
+        
+        # 1. Fetch Invoice
+        invoice_doc = await asyncio.to_thread(db.invoices.find_one, {
+            "_id": invoice_oid,
+            "related_case_id": case_id,
+            "status": {"$ne": "DRAFT"}
+        })
+        
+        if not invoice_doc:
+            raise HTTPException(status_code=404, detail="Invoice not found or not available.")
+
+        # 2. Convert to Model (for report service)
+        invoice = InvoiceInDB(**invoice_doc)
+        
+        # 3. Generate PDF
+        user_id = str(invoice_doc.get("owner_id"))
+        
+        pdf_buffer = await asyncio.to_thread(
+            report_service.generate_invoice_pdf, 
+            invoice=invoice, 
+            db=db, 
+            user_id=user_id
+        )
+        
+        filename = f"Fatura_{invoice.invoice_number}.pdf"
+        safe_filename = urllib.parse.quote(filename)
+        
+        return StreamingResponse(
+            pdf_buffer, 
+            media_type="application/pdf", 
+            headers={"Content-Disposition": f"inline; filename*=UTF-8''{safe_filename}"}
+        )
+
+    except HTTPException as e: raise e
+    except Exception as e:
+        logger.error(f"Public Invoice Download Error: {e}")
+        raise HTTPException(status_code=500, detail="Generation failed.")
