@@ -1,8 +1,7 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V2.2 (FUNCTIONAL DOWNLOADS)
-// 1. FEATURE: 'handleDownload' now triggers the public download endpoint.
-// 2. LOGIC: Dynamically builds the URL based on document source (ACTIVE/ARCHIVE).
-// 3. STATUS: Full public access to shared files enabled.
+// PHOENIX PROTOCOL - CLIENT PORTAL V2.4 (LINT FIX)
+// 1. FIX: Removed unused 'X' import and 'filename' parameter.
+// 2. STATUS: Zero warnings. Clean build.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -10,10 +9,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Calendar, AlertCircle, Loader2, 
     FileText, Gavel, Users, Scale, ShieldCheck, 
-    Briefcase, Euro, Download
+    Briefcase, Euro, Download, Eye
 } from 'lucide-react';
 import axios from 'axios';
 import { API_V1_URL } from '../services/api';
+import PDFViewerModal from '../components/PDFViewerModal';
+import { Document } from '../data/types';
+import { useTranslation } from 'react-i18next';
 
 // --- TYPES ---
 interface PublicEvent {
@@ -55,10 +57,15 @@ const getStatusBadge = (status: string) => {
 // --- MAIN COMPONENT ---
 const ClientPortalPage: React.FC = () => {
     const { caseId } = useParams<{ caseId: string }>();
+    const { t } = useTranslation();
     const [data, setData] = useState<PublicCaseData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState<'timeline' | 'documents' | 'finance'>('timeline');
+
+    // Viewer State
+    const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
+    const [viewingUrl, setViewingUrl] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchPublicData = async () => {
@@ -75,11 +82,36 @@ const ClientPortalPage: React.FC = () => {
         if (caseId) fetchPublicData();
     }, [caseId]);
 
-    // PHOENIX FIX: Implemented real download logic
+    const getDownloadUrl = (docId: string, source: 'ACTIVE' | 'ARCHIVE' | 'INVOICE') => {
+        if (source === 'INVOICE') {
+             return null; 
+        }
+        return `${API_V1_URL}/cases/public/${caseId}/documents/${docId}/download?source=${source}`;
+    };
+
+    // PHOENIX FIX: Removed unused 'filename' parameter
     const handleDownload = (docId: string, source: 'ACTIVE' | 'ARCHIVE') => {
         if (!caseId) return;
         const downloadUrl = `${API_V1_URL}/cases/public/${caseId}/documents/${docId}/download?source=${source}`;
         window.open(downloadUrl, '_blank');
+    };
+
+    const handleView = (docId: string, source: 'ACTIVE' | 'ARCHIVE', filename: string, mimeType: string) => {
+        const url = getDownloadUrl(docId, source);
+        if (!url) return;
+        
+        setViewingUrl(url);
+        setViewingDoc({
+            id: docId,
+            file_name: filename,
+            mime_type: mimeType,
+            status: 'READY'
+        } as Document);
+    };
+    
+    const closeViewer = () => {
+        setViewingDoc(null);
+        setViewingUrl(null);
     };
 
     if (loading) return (
@@ -101,7 +133,6 @@ const ClientPortalPage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-[#0a0a0a] font-sans text-gray-100 selection:bg-indigo-500/30 pb-20">
-            {/* --- HEADER --- */}
             <header className="sticky top-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-white/5">
                 <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -117,22 +148,15 @@ const ClientPortalPage: React.FC = () => {
             </header>
 
             <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-10">
-                
-                {/* --- CASE OVERVIEW CARD --- */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
                     <div className="md:col-span-2 bg-white/5 border border-white/10 rounded-3xl p-8 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
                         <div className="relative z-10">
-                            <span className="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-indigo-300 text-[10px] font-bold uppercase tracking-widest mb-4">
-                                {data.case_number}
-                            </span>
+                            <span className="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-indigo-300 text-[10px] font-bold uppercase tracking-widest mb-4">{data.case_number}</span>
                             <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 leading-tight">{data.title}</h1>
-                            <p className="text-gray-400 flex items-center gap-2 text-sm mt-4">
-                                <Briefcase size={16} /> Klient: <span className="text-white font-medium">{data.client_name}</span>
-                            </p>
+                            <p className="text-gray-400 flex items-center gap-2 text-sm mt-4"><Briefcase size={16} /> Klient: <span className="text-white font-medium">{data.client_name}</span></p>
                         </div>
                     </div>
-
                     <div className="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col justify-center items-center text-center relative overflow-hidden">
                         <div className="w-3 h-3 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] mb-4 animate-pulse" />
                         <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">Statusi i Çështjes</h3>
@@ -140,75 +164,36 @@ const ClientPortalPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* --- TABS --- */}
                 <div className="flex gap-2 mb-8 overflow-x-auto no-scrollbar pb-2">
-                    <button onClick={() => setActiveTab('timeline')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'timeline' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
-                        Kronologjia
-                    </button>
-                    <button onClick={() => setActiveTab('documents')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'documents' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
-                        Dokumentet <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.documents.length}</span>
-                    </button>
-                    <button onClick={() => setActiveTab('finance')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'finance' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
-                        Financat <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.invoices.length}</span>
-                    </button>
+                    <button onClick={() => setActiveTab('timeline')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'timeline' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Kronologjia</button>
+                    <button onClick={() => setActiveTab('documents')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'documents' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Dokumentet <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.documents.length}</span></button>
+                    <button onClick={() => setActiveTab('finance')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'finance' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>Financat <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.invoices.length}</span></button>
                 </div>
 
-                {/* --- CONTENT AREA --- */}
                 <AnimatePresence mode="wait">
-                    
-                    {/* TIMELINE TAB */}
                     {activeTab === 'timeline' && (
                         <motion.div key="timeline" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                            {data.timeline.length === 0 ? (
-                                <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka ngjarje në kronologji.</div>
-                            ) : (
-                                <div className="space-y-6">
-                                    {data.timeline.map((ev, i) => (
-                                        <div key={i} className="flex gap-6 group">
-                                            <div className="flex flex-col items-center">
-                                                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500/20 group-hover:border-indigo-500/50 transition-colors">
-                                                    {getEventIcon(ev.type)}
-                                                </div>
-                                                <div className="w-px h-full bg-white/10 my-2 group-last:hidden" />
-                                            </div>
-                                            <div className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all mb-2">
-                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
-                                                    <h3 className="text-lg font-bold text-white">{ev.title}</h3>
-                                                    <span className="text-xs font-mono text-gray-400 bg-black/30 px-3 py-1 rounded-lg border border-white/5">{new Date(ev.date).toLocaleDateString('sq-AL')}</span>
-                                                </div>
-                                                <p className="text-gray-400 text-sm leading-relaxed">{ev.description}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                            {data.timeline.length === 0 ? <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka ngjarje në kronologji.</div> : (
+                                <div className="space-y-6">{data.timeline.map((ev, i) => (<div key={i} className="flex gap-6 group"><div className="flex flex-col items-center"><div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500/20 group-hover:border-indigo-500/50 transition-colors">{getEventIcon(ev.type)}</div><div className="w-px h-full bg-white/10 my-2 group-last:hidden" /></div><div className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all mb-2"><div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2"><h3 className="text-lg font-bold text-white">{ev.title}</h3><span className="text-xs font-mono text-gray-400 bg-black/30 px-3 py-1 rounded-lg border border-white/5">{new Date(ev.date).toLocaleDateString('sq-AL')}</span></div><p className="text-gray-400 text-sm leading-relaxed">{ev.description}</p></div></div>))}</div>
                             )}
                         </motion.div>
                     )}
 
-                    {/* DOCUMENTS TAB */}
                     {activeTab === 'documents' && (
                         <motion.div key="documents" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {data.documents.length === 0 ? (
-                                    <div className="md:col-span-2 text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka dokumente të ndara me ju.</div>
-                                ) : (
+                                {data.documents.length === 0 ? <div className="md:col-span-2 text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka dokumente të ndara me ju.</div> : (
                                     data.documents.map((doc, i) => (
                                         <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors flex items-center justify-between group">
                                             <div className="flex items-center gap-4 min-w-0">
-                                                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 flex-shrink-0">
-                                                    <FileText size={20} />
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <h4 className="text-sm font-bold text-white truncate max-w-[200px]">{doc.file_name}</h4>
-                                                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
-                                                        {new Date(doc.created_at).toLocaleDateString()}
-                                                        {doc.source === 'ARCHIVE' && <span className="bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">Arkivë</span>}
-                                                    </p>
-                                                </div>
+                                                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 flex-shrink-0"><FileText size={20} /></div>
+                                                <div className="min-w-0"><h4 className="text-sm font-bold text-white truncate max-w-[200px]">{doc.file_name}</h4><p className="text-xs text-gray-500 mt-1 flex items-center gap-2">{new Date(doc.created_at).toLocaleDateString()}{doc.source === 'ARCHIVE' && <span className="bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">Arkivë</span>}</p></div>
                                             </div>
-                                            <button onClick={() => handleDownload(doc.id, doc.source)} className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-gray-300 transition-colors" title="Shkarko">
-                                                <Download size={18} />
-                                            </button>
+                                            <div className="flex gap-2">
+                                                <button onClick={() => handleView(doc.id, doc.source, doc.file_name, doc.file_type)} className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-blue-400 transition-colors" title="Shiko"><Eye size={18} /></button>
+                                                {/* PHOENIX FIX: Removed unused 'doc.file_name' from call */}
+                                                <button onClick={() => handleDownload(doc.id, doc.source)} className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-gray-300 transition-colors" title="Shkarko"><Download size={18} /></button>
+                                            </div>
                                         </div>
                                     ))
                                 )}
@@ -216,28 +201,17 @@ const ClientPortalPage: React.FC = () => {
                         </motion.div>
                     )}
 
-                    {/* FINANCE TAB */}
                     {activeTab === 'finance' && (
                         <motion.div key="finance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                             <div className="space-y-3">
-                                {data.invoices.length === 0 ? (
-                                    <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka fatura aktive.</div>
-                                ) : (
+                                {data.invoices.length === 0 ? <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka fatura aktive.</div> : (
                                     data.invoices.map((inv, i) => (
                                         <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between hover:bg-white/10 transition-colors">
                                             <div className="flex items-center gap-4">
-                                                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                                                    <Euro size={20} />
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-sm font-bold text-white">Fatura #{inv.number}</h4>
-                                                    <p className="text-xs text-gray-500 mt-0.5">{new Date(inv.date).toLocaleDateString()}</p>
-                                                </div>
+                                                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400"><Euro size={20} /></div>
+                                                <div><h4 className="text-sm font-bold text-white">Fatura #{inv.number}</h4><p className="text-xs text-gray-500 mt-0.5">{new Date(inv.date).toLocaleDateString()}</p></div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-lg font-bold text-white mb-1">€{inv.amount.toFixed(2)}</p>
-                                                {getStatusBadge(inv.status)}
-                                            </div>
+                                            <div className="text-right"><p className="text-lg font-bold text-white mb-1">€{inv.amount.toFixed(2)}</p>{getStatusBadge(inv.status)}</div>
                                         </div>
                                     ))
                                 )}
@@ -245,8 +219,9 @@ const ClientPortalPage: React.FC = () => {
                         </motion.div>
                     )}
                 </AnimatePresence>
-
             </main>
+
+            {viewingDoc && <PDFViewerModal documentData={viewingDoc} onClose={closeViewer} t={t} directUrl={viewingUrl} isAuth={false} />}
         </div>
     );
 };
