@@ -1,11 +1,11 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V4.7 (SHARE ENDPOINT)
-# 1. ADDED: PUT /{case_id}/documents/{doc_id}/share endpoint.
-# 2. LOGIC: Allows toggling the 'is_shared' flag for Client Portal visibility.
-# 3. STATUS: API fully supports Client Portal 2.0 features.
+# PHOENIX PROTOCOL - CASES ROUTER V4.8 (PUBLIC DOWNLOAD)
+# 1. ADDED: GET /public/{case_id}/documents/{doc_id}/download
+# 2. SECURITY: Enforces 'is_shared=True' check before streaming.
+# 3. LOGIC: Supports both 'ACTIVE' and 'ARCHIVE' sources.
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
-from typing import List, Annotated, Dict
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
+from typing import List, Annotated, Dict, Optional
 from fastapi.responses import Response, StreamingResponse, JSONResponse, FileResponse
 from pydantic import BaseModel
 from pymongo.database import Database
@@ -15,6 +15,8 @@ from bson.errors import InvalidId
 import asyncio
 import logging
 import io
+import urllib.parse
+import mimetypes
 from datetime import datetime, timezone
 
 # --- SERVICE IMPORTS ---
@@ -55,7 +57,7 @@ class RenameDocumentRequest(BaseModel):
     new_name: str
 
 class ShareDocumentRequest(BaseModel):
-    is_shared: bool # PHOENIX: New schema for sharing
+    is_shared: bool 
 
 class BulkDeleteRequest(BaseModel):
     document_ids: List[str]
@@ -181,7 +183,6 @@ async def delete_document(
         )
     raise HTTPException(status_code=500, detail="Failed to delete document.")
 
-# --- PHOENIX: NEW ENDPOINT FOR SHARING ---
 @router.put("/{case_id}/documents/{doc_id}/share", response_model=DocumentOut, tags=["Documents"])
 async def share_document_toggle(
     case_id: str,
@@ -190,23 +191,18 @@ async def share_document_toggle(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
-    # 1. Validate IDs
     validate_object_id(case_id)
     doc_oid = validate_object_id(doc_id)
-    
-    # 2. Verify Ownership
     doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(doc.case_id) != case_id: 
         raise HTTPException(status_code=403, detail="Document does not belong to this case.")
 
-    # 3. Update Database
     await asyncio.to_thread(
         db.documents.update_one,
         {"_id": doc_oid},
         {"$set": {"is_shared": body.is_shared, "updated_at": datetime.now(timezone.utc)}}
     )
     
-    # 4. Return Updated Document
     updated_doc = await asyncio.to_thread(db.documents.find_one, {"_id": doc_oid})
     return DocumentOut.model_validate(updated_doc)
 
@@ -331,3 +327,62 @@ async def get_public_case_timeline(case_id: str, db: Database = Depends(get_db))
         validate_object_id(case_id)
         return await asyncio.to_thread(case_service.get_public_case_events, db=db, case_id=case_id)
     except Exception: raise HTTPException(404, "Portal not available.")
+
+# --- PHOENIX NEW: PUBLIC SECURE DOWNLOAD ---
+@router.get("/public/{case_id}/documents/{doc_id}/download", tags=["Public Portal"])
+async def download_public_document(
+    case_id: str,
+    doc_id: str,
+    source: str = Query("ACTIVE", enum=["ACTIVE", "ARCHIVE"]),
+    db: Database = Depends(get_db)
+):
+    try:
+        case_oid = validate_object_id(case_id)
+        doc_oid = validate_object_id(doc_id)
+        
+        # 1. Fetch Document Metadata
+        doc_data = None
+        if source == "ACTIVE":
+            doc_data = await asyncio.to_thread(db.documents.find_one, {
+                "_id": doc_oid,
+                "$or": [{"case_id": case_id}, {"case_id": case_oid}]
+            })
+        else:
+            doc_data = await asyncio.to_thread(db.archives.find_one, {
+                "_id": doc_oid,
+                "$or": [{"case_id": case_id}, {"case_id": case_oid}],
+                "item_type": "FILE"
+            })
+
+        if not doc_data:
+            raise HTTPException(status_code=404, detail="Document not found.")
+
+        # 2. SECURITY CHECK
+        if not doc_data.get("is_shared"):
+            raise HTTPException(status_code=403, detail="Access Denied: This document is not shared.")
+
+        # 3. Stream File
+        storage_key = doc_data.get("storage_key")
+        if not storage_key:
+            raise HTTPException(status_code=404, detail="File content missing.")
+        
+        file_stream = await asyncio.to_thread(storage_service.download_original_document_stream, storage_key)
+        if not file_stream:
+             raise HTTPException(status_code=500, detail="Storage Error.")
+
+        filename = doc_data.get("file_name") or doc_data.get("title") or "document.pdf"
+        safe_filename = urllib.parse.quote(filename)
+        
+        content_type, _ = mimetypes.guess_type(filename)
+        if not content_type: content_type = "application/octet-stream"
+
+        return StreamingResponse(
+            file_stream, 
+            media_type=content_type, 
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{safe_filename}"}
+        )
+
+    except HTTPException as e: raise e
+    except Exception as e:
+        logger.error(f"Public Download Error: {e}")
+        raise HTTPException(status_code=500, detail="Download failed.")

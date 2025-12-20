@@ -1,174 +1,251 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V1.1 (LINT FREE)
-// 1. CLEANUP: Removed unused imports (CheckCircle, MessageSquare).
-// 2. LOGIC: Remains identical to V1.0.
+// PHOENIX PROTOCOL - CLIENT PORTAL V2.2 (FUNCTIONAL DOWNLOADS)
+// 1. FEATURE: 'handleDownload' now triggers the public download endpoint.
+// 2. LOGIC: Dynamically builds the URL based on document source (ACTIVE/ARCHIVE).
+// 3. STATUS: Full public access to shared files enabled.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    Calendar, Clock, AlertCircle, Loader2, 
-    FileText, Gavel, Users, Scale, ShieldCheck 
+    Calendar, AlertCircle, Loader2, 
+    FileText, Gavel, Users, Scale, ShieldCheck, 
+    Briefcase, Euro, Download
 } from 'lucide-react';
 import axios from 'axios';
 import { API_V1_URL } from '../services/api';
 
-// Simple types for the public view
+// --- TYPES ---
 interface PublicEvent {
-    title: string;
-    date: string;
-    type: string;
-    description: string;
+    title: string; date: string; type: string; description: string;
+}
+
+interface SharedDocument {
+    id: string; file_name: string; created_at: string; file_type: string; source: 'ACTIVE' | 'ARCHIVE';
+}
+
+interface SharedInvoice {
+    id: string; number: string; amount: number; status: string; date: string;
 }
 
 interface PublicCaseData {
-    case_number: string;
-    title: string;
-    client_name: string;
-    status: string;
+    case_number: string; title: string; client_name: string; status: string;
     timeline: PublicEvent[];
+    documents: SharedDocument[];
+    invoices: SharedInvoice[];
 }
 
+// --- ICONS & STYLES ---
 const getEventIcon = (type: string) => {
     switch (type) {
         case 'DEADLINE': return <AlertCircle className="text-rose-400" />;
         case 'HEARING': return <Gavel className="text-purple-400" />;
         case 'MEETING': return <Users className="text-blue-400" />;
-        case 'FILING': return <FileText className="text-amber-400" />;
-        case 'COURT_DATE': return <Scale className="text-orange-400" />;
         default: return <Calendar className="text-gray-400" />;
     }
 };
 
+const getStatusBadge = (status: string) => {
+    const color = status === 'PAID' ? 'bg-green-500/20 text-green-400' : 
+                  status === 'SENT' ? 'bg-blue-500/20 text-blue-400' : 
+                  'bg-gray-500/20 text-gray-400';
+    return <span className={`text-[10px] font-bold px-2 py-0.5 rounded border border-white/5 ${color}`}>{status}</span>;
+};
+
+// --- MAIN COMPONENT ---
 const ClientPortalPage: React.FC = () => {
     const { caseId } = useParams<{ caseId: string }>();
     const [data, setData] = useState<PublicCaseData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [activeTab, setActiveTab] = useState<'timeline' | 'documents' | 'finance'>('timeline');
 
     useEffect(() => {
         const fetchPublicData = async () => {
             try {
-                // Direct Axios call to bypass Interceptors
                 const response = await axios.get(`${API_V1_URL}/cases/public/${caseId}/timeline`);
                 setData(response.data);
             } catch (err) {
                 console.error(err);
-                setError("Kjo dosje nuk u gjet ose nuk keni qasje.");
+                setError("Dosja nuk u gjet ose nuk keni qasje.");
             } finally {
                 setLoading(false);
             }
         };
-
         if (caseId) fetchPublicData();
     }, [caseId]);
 
+    // PHOENIX FIX: Implemented real download logic
+    const handleDownload = (docId: string, source: 'ACTIVE' | 'ARCHIVE') => {
+        if (!caseId) return;
+        const downloadUrl = `${API_V1_URL}/cases/public/${caseId}/documents/${docId}/download?source=${source}`;
+        window.open(downloadUrl, '_blank');
+    };
+
     if (loading) return (
-        <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center text-white">
-            <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
-            <p className="text-gray-400 animate-pulse">Duke u lidhur me sistemin ligjor...</p>
+        <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center text-white">
+            <Loader2 className="w-12 h-12 animate-spin text-indigo-500 mb-6" />
+            <p className="text-gray-500 text-sm font-medium tracking-widest uppercase animate-pulse">Duke ngarkuar të dhënat...</p>
         </div>
     );
 
     if (error || !data) return (
-        <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
-            <div className="bg-red-500/10 border border-red-500/20 p-8 rounded-2xl text-center max-w-md">
-                <ShieldCheck className="w-12 h-12 text-red-400 mx-auto mb-4" />
-                <h1 className="text-xl font-bold text-white mb-2">Qasja u Refuzua</h1>
-                <p className="text-gray-400">{error}</p>
+        <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center p-6">
+            <div className="bg-red-500/5 border border-red-500/20 p-10 rounded-3xl text-center max-w-md backdrop-blur-md">
+                <ShieldCheck className="w-16 h-16 text-red-500 mx-auto mb-6" />
+                <h1 className="text-2xl font-bold text-white mb-3">Qasja u Refuzua</h1>
+                <p className="text-gray-400 leading-relaxed">{error}</p>
             </div>
         </div>
     );
 
     return (
-        <div className="min-h-screen bg-gray-950 font-sans text-gray-100 selection:bg-indigo-500/30">
-            {/* Header / Branding */}
-            <header className="bg-gray-900/50 backdrop-blur-md border-b border-white/5 sticky top-0 z-10">
-                <div className="max-w-3xl mx-auto px-6 py-4 flex justify-between items-center">
+        <div className="min-h-screen bg-[#0a0a0a] font-sans text-gray-100 selection:bg-indigo-500/30 pb-20">
+            {/* --- HEADER --- */}
+            <header className="sticky top-0 z-50 bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-white/5">
+                <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                            <Scale className="text-white w-6 h-6" />
+                        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                            <Scale className="text-white w-5 h-5" />
                         </div>
-                        <div>
-                            <h1 className="font-bold text-lg leading-tight tracking-tight">Juristi Portal</h1>
-                            <p className="text-xs text-gray-500 font-medium">Qasje e Sigurt për Klientin</p>
-                        </div>
+                        <span className="font-bold text-lg tracking-tight">Juristi Portal</span>
                     </div>
-                    <div className="px-3 py-1 bg-green-500/10 border border-green-500/20 text-green-400 text-xs font-bold rounded-full uppercase tracking-wider flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                        {data.status}
+                    <div className="hidden sm:flex items-center gap-4 text-xs font-medium text-gray-500">
+                        <span className="flex items-center gap-2"><ShieldCheck size={14} className="text-green-500"/> Lidhje e Sigurt</span>
                     </div>
                 </div>
             </header>
 
-            <main className="max-w-3xl mx-auto px-6 py-12">
-                {/* Case Info Card */}
-                <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-gray-900 border border-white/10 rounded-3xl p-8 mb-12 shadow-2xl relative overflow-hidden"
-                >
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                    
-                    <span className="text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2 block">{data.case_number}</span>
-                    <h2 className="text-3xl font-bold text-white mb-2">{data.title}</h2>
-                    <p className="text-gray-400">Klienti: <span className="text-white font-medium">{data.client_name}</span></p>
-                </motion.div>
-
-                {/* Timeline */}
-                <h3 className="text-xl font-bold text-white mb-8 flex items-center gap-3">
-                    <Clock className="text-gray-500" />
-                    Kronologjia e Çështjes
-                </h3>
-
-                <div className="relative border-l-2 border-white/10 ml-3.5 space-y-12 pb-12">
-                    {data.timeline.length === 0 ? (
-                        <div className="ml-8 p-6 bg-white/5 rounded-2xl border border-dashed border-white/10 text-gray-500 italic">
-                            Nuk ka ngjarje publike për të shfaqur momentalisht.
-                        </div>
-                    ) : (
-                        data.timeline.map((event, index) => (
-                            <motion.div 
-                                key={index}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: index * 0.1 }}
-                                className="relative ml-8"
-                            >
-                                {/* Dot on the line */}
-                                <div className="absolute -left-[41px] top-0 bg-gray-950 p-1">
-                                    <div className="w-4 h-4 rounded-full bg-indigo-500 border-4 border-gray-950 shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
-                                </div>
-
-                                <div className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-colors group">
-                                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-gray-800 rounded-lg border border-white/5 text-gray-300 group-hover:text-indigo-400 transition-colors">
-                                                {getEventIcon(event.type)}
-                                            </div>
-                                            <div>
-                                                <h4 className="text-lg font-bold text-white">{event.title}</h4>
-                                                <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">{event.type}</span>
-                                            </div>
-                                        </div>
-                                        <div className="text-sm font-mono text-gray-400 bg-black/20 px-3 py-1 rounded-lg border border-white/5 whitespace-nowrap">
-                                            {new Date(event.date).toLocaleDateString('sq-AL', { year: 'numeric', month: 'long', day: 'numeric' })}
-                                        </div>
-                                    </div>
-                                    {event.description && (
-                                        <p className="text-gray-400 text-sm leading-relaxed border-t border-white/5 pt-3 mt-2">
-                                            {event.description}
-                                        </p>
-                                    )}
-                                </div>
-                            </motion.div>
-                        ))
-                    )}
-                </div>
+            <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-10">
                 
-                <div className="text-center text-gray-600 text-xs mt-12 pt-8 border-t border-white/5">
-                    &copy; {new Date().getFullYear()} Data And Human Management. Të gjitha të drejtat e rezervuara.
+                {/* --- CASE OVERVIEW CARD --- */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                    <div className="md:col-span-2 bg-white/5 border border-white/10 rounded-3xl p-8 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                        <div className="relative z-10">
+                            <span className="inline-block px-3 py-1 rounded-full bg-white/5 border border-white/10 text-indigo-300 text-[10px] font-bold uppercase tracking-widest mb-4">
+                                {data.case_number}
+                            </span>
+                            <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 leading-tight">{data.title}</h1>
+                            <p className="text-gray-400 flex items-center gap-2 text-sm mt-4">
+                                <Briefcase size={16} /> Klient: <span className="text-white font-medium">{data.client_name}</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white/5 border border-white/10 rounded-3xl p-6 flex flex-col justify-center items-center text-center relative overflow-hidden">
+                        <div className="w-3 h-3 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.6)] mb-4 animate-pulse" />
+                        <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">Statusi i Çështjes</h3>
+                        <p className="text-2xl font-bold text-white">{data.status}</p>
+                    </div>
                 </div>
+
+                {/* --- TABS --- */}
+                <div className="flex gap-2 mb-8 overflow-x-auto no-scrollbar pb-2">
+                    <button onClick={() => setActiveTab('timeline')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'timeline' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                        Kronologjia
+                    </button>
+                    <button onClick={() => setActiveTab('documents')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'documents' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                        Dokumentet <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.documents.length}</span>
+                    </button>
+                    <button onClick={() => setActiveTab('finance')} className={`px-6 py-3 rounded-full text-sm font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === 'finance' ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                        Financat <span className="bg-black/20 px-2 py-0.5 rounded-full text-xs">{data.invoices.length}</span>
+                    </button>
+                </div>
+
+                {/* --- CONTENT AREA --- */}
+                <AnimatePresence mode="wait">
+                    
+                    {/* TIMELINE TAB */}
+                    {activeTab === 'timeline' && (
+                        <motion.div key="timeline" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                            {data.timeline.length === 0 ? (
+                                <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka ngjarje në kronologji.</div>
+                            ) : (
+                                <div className="space-y-6">
+                                    {data.timeline.map((ev, i) => (
+                                        <div key={i} className="flex gap-6 group">
+                                            <div className="flex flex-col items-center">
+                                                <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:bg-indigo-500/20 group-hover:border-indigo-500/50 transition-colors">
+                                                    {getEventIcon(ev.type)}
+                                                </div>
+                                                <div className="w-px h-full bg-white/10 my-2 group-last:hidden" />
+                                            </div>
+                                            <div className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all mb-2">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
+                                                    <h3 className="text-lg font-bold text-white">{ev.title}</h3>
+                                                    <span className="text-xs font-mono text-gray-400 bg-black/30 px-3 py-1 rounded-lg border border-white/5">{new Date(ev.date).toLocaleDateString('sq-AL')}</span>
+                                                </div>
+                                                <p className="text-gray-400 text-sm leading-relaxed">{ev.description}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </motion.div>
+                    )}
+
+                    {/* DOCUMENTS TAB */}
+                    {activeTab === 'documents' && (
+                        <motion.div key="documents" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {data.documents.length === 0 ? (
+                                    <div className="md:col-span-2 text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka dokumente të ndara me ju.</div>
+                                ) : (
+                                    data.documents.map((doc, i) => (
+                                        <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors flex items-center justify-between group">
+                                            <div className="flex items-center gap-4 min-w-0">
+                                                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 flex-shrink-0">
+                                                    <FileText size={20} />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="text-sm font-bold text-white truncate max-w-[200px]">{doc.file_name}</h4>
+                                                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                                                        {new Date(doc.created_at).toLocaleDateString()}
+                                                        {doc.source === 'ARCHIVE' && <span className="bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded text-[9px] uppercase font-bold">Arkivë</span>}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => handleDownload(doc.id, doc.source)} className="p-2 bg-white/5 hover:bg-white/20 rounded-lg text-gray-300 transition-colors" title="Shkarko">
+                                                <Download size={18} />
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* FINANCE TAB */}
+                    {activeTab === 'finance' && (
+                        <motion.div key="finance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                            <div className="space-y-3">
+                                {data.invoices.length === 0 ? (
+                                    <div className="text-center py-20 text-gray-500 italic border border-dashed border-white/10 rounded-3xl">Nuk ka fatura aktive.</div>
+                                ) : (
+                                    data.invoices.map((inv, i) => (
+                                        <div key={i} className="bg-white/5 border border-white/10 rounded-2xl p-5 flex items-center justify-between hover:bg-white/10 transition-colors">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                                                    <Euro size={20} />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-bold text-white">Fatura #{inv.number}</h4>
+                                                    <p className="text-xs text-gray-500 mt-0.5">{new Date(inv.date).toLocaleDateString()}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-lg font-bold text-white mb-1">€{inv.amount.toFixed(2)}</p>
+                                                {getStatusBadge(inv.status)}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
             </main>
         </div>
     );
