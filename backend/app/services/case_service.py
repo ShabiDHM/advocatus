@@ -1,13 +1,14 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V4.4 (BRANDING INJECTION)
-# 1. FEATURE: Injects 'organization_name' and 'logo' into public portal data.
-# 2. LOGIC: Fetches owner profile to display Law Firm Identity instead of App Identity.
+# PHOENIX PROTOCOL - CASE SERVICE V4.5 (ROBUST ID LOOKUP)
+# 1. FIX: Handles both String and ObjectId types for User Lookup.
+# 2. LOGIC: Ensures 'organization_name' is found even if data types mismatch.
 
 import re
 import importlib
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List, cast
 from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import HTTPException
 from pymongo.database import Database
 
@@ -157,11 +158,6 @@ def rename_document(db: Database, case_id: ObjectId, doc_id: ObjectId, new_name:
 def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any]]:
     """
     Fetches public-safe data for the Client Portal.
-    Includes:
-    1. Timeline (Public Events)
-    2. Shared Documents (Only is_shared=True)
-    3. Invoices (Excluding Drafts)
-    4. PHOENIX NEW: Law Firm Branding (organization_name, logo)
     """
     try:
         case_oid = ObjectId(case_id)
@@ -238,13 +234,26 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "date": inv.get("issue_date")
             })
 
-        # PHOENIX NEW: Fetch User Branding
+        # PHOENIX FIX: Robust User/Organization Lookup
         owner_id = case.get("owner_id") or case.get("user_id")
         organization_name = None
         logo = None
         
         if owner_id:
+            # Attempt 1: Direct Lookup
             owner = db.users.find_one({"_id": owner_id})
+            
+            # Attempt 2: If id is string, try ObjectId
+            if not owner and isinstance(owner_id, str):
+                try:
+                    owner = db.users.find_one({"_id": ObjectId(owner_id)})
+                except InvalidId:
+                    pass
+            
+            # Attempt 3: If id is ObjectId, try String
+            if not owner and isinstance(owner_id, ObjectId):
+                owner = db.users.find_one({"_id": str(owner_id)})
+
             if owner:
                 organization_name = owner.get("organization_name")
                 logo = owner.get("logo")
@@ -257,8 +266,8 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
             "title": case.get("title") or case.get("case_name"), 
             "client_name": clean_name, 
             "status": case.get("status", "OPEN"), 
-            "organization_name": organization_name, # Injected
-            "logo": logo, # Injected
+            "organization_name": organization_name, 
+            "logo": logo, 
             "timeline": events,
             "documents": shared_docs,
             "invoices": shared_invoices

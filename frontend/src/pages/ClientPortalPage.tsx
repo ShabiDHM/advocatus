@@ -1,8 +1,7 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V2.6
-// 1. FEATURE: Dynamic Branding (Law Firm Name).
-// 2. LOGIC: Full i18n implementation.
-// 3. UI: Removed Case Number, Optimized Mobile Layout.
+// PHOENIX PROTOCOL - CLIENT PORTAL V2.7 (FIX: Casing & Branding)
+// 1. FIX: Status Translation now handles uppercase/lowercase from DB.
+// 2. LOGIC: Robust Fallback for Branding.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -36,8 +35,8 @@ interface PublicCaseData {
     title: string; 
     client_name: string; 
     status: string;
-    organization_name?: string; // Dynamic Branding
-    logo?: string; // Dynamic Branding
+    organization_name?: string; 
+    logo?: string; 
     timeline: PublicEvent[];
     documents: SharedDocument[];
     invoices: SharedInvoice[];
@@ -112,12 +111,16 @@ const ClientPortalPage: React.FC = () => {
     };
 
     const getStatusBadge = (status: string) => {
-        const color = status === 'PAID' ? 'bg-green-500/20 text-green-400' : 
-                      status === 'SENT' ? 'bg-blue-500/20 text-blue-400' : 
+        // PHOENIX FIX: Normalize status casing for translation
+        const normalizedStatus = status ? status.toUpperCase() : 'OPEN';
+        
+        const color = normalizedStatus === 'PAID' ? 'bg-green-500/20 text-green-400' : 
+                      normalizedStatus === 'SENT' ? 'bg-blue-500/20 text-blue-400' : 
                       'bg-gray-500/20 text-gray-400';
+        
         return (
             <span className={`text-[10px] font-bold px-2 py-0.5 rounded border border-white/5 ${color}`}>
-                {t(`status.${status}`, status)}
+                {t(`status.${normalizedStatus}`, normalizedStatus)}
             </span>
         );
     };
@@ -168,14 +171,13 @@ const ClientPortalPage: React.FC = () => {
             </header>
 
             <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-10">
-                {/* Dashboard Grid - Mobile Friendly */}
+                {/* Dashboard Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
                     {/* Main Case Card */}
                     <div className="md:col-span-2 bg-white/5 border border-white/10 rounded-3xl p-8 relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-600/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2 pointer-events-none" />
                         <div className="relative z-10">
-                            {/* REMOVED: Case Number Badge as requested */}
-                            
+                            {/* Case Number Removed as requested */}
                             <h1 className="text-3xl sm:text-4xl font-bold text-white mb-2 leading-tight">
                                 {data.title}
                             </h1>
@@ -192,8 +194,9 @@ const ClientPortalPage: React.FC = () => {
                         <h3 className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">
                             {t('portal.status_label', 'Statusi i Çështjes')}
                         </h3>
+                        {/* PHOENIX FIX: UpperCase transform for Translation Key Match */}
                         <p className="text-2xl font-bold text-white">
-                            {t(`status.${data.status}`, data.status)}
+                            {t(`status.${data.status.toUpperCase()}`, data.status)}
                         </p>
                     </div>
                 </div>
@@ -224,7 +227,6 @@ const ClientPortalPage: React.FC = () => {
 
                 {/* Content Area */}
                 <AnimatePresence mode="wait">
-                    {/* Timeline Tab */}
                     {activeTab === 'timeline' && (
                         <motion.div key="timeline" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                             {data.timeline.length === 0 ? (
@@ -257,7 +259,6 @@ const ClientPortalPage: React.FC = () => {
                         </motion.div>
                     )}
 
-                    {/* Documents Tab */}
                     {activeTab === 'documents' && (
                         <motion.div key="documents" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -307,7 +308,6 @@ const ClientPortalPage: React.FC = () => {
                         </motion.div>
                     )}
 
-                    {/* Finance Tab */}
                     {activeTab === 'finance' && (
                         <motion.div key="finance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                             <div className="space-y-3">
