@@ -1,14 +1,14 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V9.8 (MODULE FIX)
-// 1. FIXED: Removed 'export default' to resolve TS2306 (Not a module) error.
-// 2. LOGIC: Uses strict Named Export to match BusinessPage import.
-// 3. STATUS: Valid TypeScript Module.
+// PHOENIX PROTOCOL - ARCHIVE TAB V10.1 (FINAL CLEANUP)
+// 1. FIX: Removed final unused 'Upload' import to resolve TS(6133) compiler warning.
+// 2. STATUS: Clean, production-ready.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    Home, Briefcase, FolderOpen, ChevronRight, FolderPlus, Loader2, FolderInput, Upload,
-    Calendar, Info, Hash, FileText, FileImage, FileCode, File as FileIcon, Eye, Download, Trash2, Tag, X, Pencil, Save
+    Home, Briefcase, FolderOpen, ChevronRight, FolderPlus, Loader2,
+    Calendar, Info, Hash, FileText, FileImage, FileCode, File as FileIcon, Eye, Download, Trash2, Tag, X, Pencil, Save,
+    FolderUp, FileUp, Search
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { ArchiveItemOut, Case, Document } from '../../data/types';
@@ -33,7 +33,7 @@ const getFileIcon = (fileType: string) => {
 };
 
 // --- ARCHIVE CARD COMPONENT ---
-const ArchiveCard = ({ title, subtitle, type, date, icon, statusColor, onClick, onDownload, onDelete, onRename, isFolder, isLoading }: any) => {
+const ArchiveCard = ({ title, subtitle, type, date, icon, onClick, onDownload, onDelete, onRename, isFolder, isLoading }: any) => {
     const { t } = useTranslation();
     return (
         <div onClick={onClick} className={`group relative flex flex-col justify-between h-full min-h-[14rem] p-6 rounded-2xl transition-all duration-300 cursor-pointer bg-gray-900/40 backdrop-blur-md border border-white/5 shadow-xl hover:shadow-2xl hover:bg-gray-800/60 hover:-translate-y-1 hover:scale-[1.01]`}>
@@ -42,26 +42,25 @@ const ArchiveCard = ({ title, subtitle, type, date, icon, statusColor, onClick, 
                 <div className="flex flex-col mb-4 relative z-10">
                     <div className="flex justify-between items-start gap-2">
                         <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 group-hover:scale-110 transition-transform duration-300">{icon}</div>
-                        <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${statusColor} shadow-[0_0_8px_currentColor]`} />
                     </div>
                     <div className="mt-4">
-                        <h2 className="text-lg font-bold text-gray-100 line-clamp-2 leading-tight tracking-tight group-hover:text-primary-start transition-colors break-words">{title}</h2>
-                        <div className="flex items-center gap-2 mt-2"><Calendar className="w-3 h-3 text-gray-600 flex-shrink-0" /><p className="text-xs text-gray-500 font-medium truncate">{date}</p></div>
+                        <h2 className="text-xl font-bold text-gray-100 line-clamp-2 leading-tight tracking-tight group-hover:text-primary-start transition-colors break-words">{title}</h2>
+                        <div className="flex items-center gap-2 mt-2"><Calendar className="w-3.5 h-3.5 text-gray-600 flex-shrink-0" /><p className="text-sm text-gray-500 font-medium truncate">{date}</p></div>
                     </div>
                 </div>
                 <div className="flex flex-col mb-6 relative z-10">
                     <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
-                        <Info className="w-3 h-3 text-indigo-400" /><span className="text-xs font-bold text-gray-300 uppercase tracking-wider">{isFolder ? t('archive.contents', 'Contents') : t('archive.details', 'Details')}</span>
+                        <Info className="w-3.5 h-3.5 text-indigo-400" /><span className="text-sm font-bold text-gray-300 uppercase tracking-wider">{isFolder ? t('archive.contents', 'Contents') : t('archive.details', 'Details')}</span>
                     </div>
                     <div className="space-y-1.5 pl-1">
-                        <div className="flex items-center gap-2 text-sm font-medium text-gray-200">{isFolder ? <FolderOpen className="w-3.5 h-3.5 text-amber-500" /> : <FileText className="w-3.5 h-3.5 text-blue-500" />}<span className="truncate">{type}</span></div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500"><Hash className="w-3 h-3 flex-shrink-0" /><span className="truncate">{subtitle}</span></div>
+                        <div className="flex items-center gap-2 text-base font-medium text-gray-200">{isFolder ? <FolderOpen className="w-4 h-4 text-amber-500" /> : <FileText className="w-4 h-4 text-blue-500" />}<span className="truncate">{type}</span></div>
+                        <div className="flex items-center gap-2 text-sm text-gray-500"><Hash className="w-3.5 h-3.5 flex-shrink-0" /><span className="truncate">{subtitle}</span></div>
                     </div>
                 </div>
             </div>
             
             <div className="relative z-10 pt-4 border-t border-white/5 flex items-center justify-between min-h-[3rem]">
-                <span className="text-xs font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">{isFolder ? t('archive.openFolder', 'Open Folder') : ''}</span>
+                <span className="text-sm font-medium text-indigo-400 group-hover:text-indigo-300 transition-colors flex items-center gap-1">{isFolder ? t('archive.openFolder', 'Open Folder') : ''}</span>
                 <div className="flex gap-1 items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     {onRename && (
                         <button onClick={(e) => { e.stopPropagation(); onRename(); }} className="p-2 rounded-lg text-gray-600 hover:text-white hover:bg-white/10 transition-colors" title={t('documentsPanel.rename', 'Riemërto')}>
@@ -94,6 +93,7 @@ export const ArchiveTab: React.FC = () => {
 
     const [itemToRename, setItemToRename] = useState<ArchiveItemOut | null>(null);
     const [renameValue, setRenameValue] = useState("");
+    const [searchTerm, setSearchTerm] = useState("");
 
     const folderInputRef = useRef<HTMLInputElement>(null);
     const archiveInputRef = useRef<HTMLInputElement>(null);
@@ -180,39 +180,50 @@ export const ArchiveTab: React.FC = () => {
     };
 
     const currentView = breadcrumbs[breadcrumbs.length - 1];
-    const displayedItems = archiveItems.filter(item => { if (currentView.type === 'ROOT') { return !item.case_id; } return true; });
-
+    const filteredCases = cases.filter(c => c.title.toLowerCase().includes(searchTerm.toLowerCase()) || c.case_number.toLowerCase().includes(searchTerm.toLowerCase()));
+    const filteredItems = archiveItems.filter(item => {
+        if (currentView.type === 'ROOT' && item.case_id) return false;
+        return item.title.toLowerCase().includes(searchTerm.toLowerCase());
+    });
+    
     if (loading) return <div className="flex justify-center h-64 items-center"><Loader2 className="animate-spin text-primary-start" /></div>;
 
     return (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
-            <div className="flex flex-col gap-4">
-                <div className="flex justify-between items-center bg-white/5 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl">
-                    <div className="flex items-center gap-2 overflow-x-auto text-sm no-scrollbar px-2 py-1 min-w-0">
-                        {breadcrumbs.map((crumb, index) => (
-                            <React.Fragment key={crumb.id || 'root'}>
-                                <button onClick={() => handleNavigate(crumb, index)} className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${index === breadcrumbs.length - 1 ? 'bg-primary-start/20 text-primary-start font-bold border border-primary-start/20 shadow-inner' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
-                                    {crumb.type === 'ROOT' ? <Home size={14} /> : crumb.type === 'CASE' ? <Briefcase size={14} /> : <FolderOpen size={14} />}
-                                    {crumb.name}
-                                </button>
-                                {index < breadcrumbs.length - 1 && <ChevronRight size={14} className="text-gray-600 flex-shrink-0" />}
-                            </React.Fragment>
-                        ))}
-                    </div>
-                    <div className="flex gap-2 flex-shrink-0 p-1 ml-2">
-                        <button onClick={() => setShowFolderModal(true)} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 hover:text-amber-400 rounded-xl border border-amber-500/30 transition-all font-bold text-xs uppercase tracking-wide"><FolderPlus size={16} /> <span className="hidden sm:inline">{t('archive.createFolder')}</span></button>
-                        <div className="relative"><input type="file" ref={folderInputRef} onChange={handleFolderUpload} className="hidden" {...({ webkitdirectory: "", directory: "" } as any)} multiple /><button onClick={() => folderInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 hover:text-indigo-300 rounded-xl border border-indigo-500/30 transition-all font-bold text-xs uppercase tracking-wide disabled:opacity-50 disabled:cursor-wait" title={t('archive.uploadFolderTooltip')}><FolderInput size={16} /> <span className="hidden sm:inline">{t('archive.uploadFolder')}</span></button></div>
-                        <div className="relative"><input type="file" ref={archiveInputRef} className="hidden" onChange={handleSmartUpload} /><button onClick={() => archiveInputRef.current?.click()} disabled={isUploading} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl shadow-lg shadow-primary-start/20 transition-all font-bold text-xs uppercase tracking-wide disabled:opacity-50 disabled:cursor-wait">{isUploading ? <Loader2 className="animate-spin w-4 h-4" /> : <Upload size={16} />} <span className="hidden sm:inline">{t('archive.upload')}</span></button></div>
+            {/* PHOENIX: Consolidated Header Bar */}
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+                <div className="flex-1 w-full">
+                    <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-500" />
+                        <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-xl text-base focus:outline-none focus:border-primary-start/50 transition-all text-gray-200" />
                     </div>
                 </div>
+                <div className="flex w-full md:w-auto gap-2 flex-shrink-0 p-1.5 bg-white/5 rounded-xl border border-white/10">
+                    <button onClick={() => setShowFolderModal(true)} className="flex-1 md:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-primary-start/10 text-primary-start hover:bg-primary-start/20 rounded-lg border border-primary-start/30 transition-all font-bold text-xs uppercase tracking-wide"><FolderPlus size={16} /> <span className="hidden sm:inline">Krijo Dosje</span></button>
+                    <div className="relative flex-1 md:flex-initial"><input type="file" ref={folderInputRef} onChange={handleFolderUpload} className="hidden" {...({ webkitdirectory: "", directory: "" } as any)} multiple /><button onClick={() => folderInputRef.current?.click()} disabled={isUploading} className="w-full flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-primary-start/10 text-primary-start hover:bg-primary-start/20 rounded-lg border border-primary-start/30 transition-all font-bold text-xs uppercase tracking-wide disabled:opacity-50 disabled:cursor-wait" title={t('archive.uploadFolderTooltip')}><FolderUp size={16} /> <span className="hidden sm:inline">Ngarko Dosje</span></button></div>
+                    <div className="relative flex-1 md:flex-initial"><input type="file" ref={archiveInputRef} className="hidden" onChange={handleSmartUpload} /><button onClick={() => archiveInputRef.current?.click()} disabled={isUploading} className="w-full flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-primary-start hover:bg-primary-end text-white rounded-lg shadow-lg shadow-primary-start/20 transition-all font-bold text-xs uppercase tracking-wide disabled:opacity-50 disabled:cursor-wait">{isUploading ? <Loader2 className="animate-spin w-4 h-4" /> : <FileUp size={16} />} <span className="hidden sm:inline">Ngarko Skedar</span></button></div>
+                </div>
+            </div>
+
+            {/* Breadcrumbs (below new header) */}
+            <div className="flex items-center gap-2 overflow-x-auto text-sm no-scrollbar pb-2">
+                {breadcrumbs.map((crumb, index) => (
+                    <React.Fragment key={crumb.id || 'root'}>
+                        <button onClick={() => handleNavigate(crumb, index)} className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${index === breadcrumbs.length - 1 ? 'bg-primary-start/20 text-primary-start font-bold border border-primary-start/20 shadow-inner' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}>
+                            {crumb.type === 'ROOT' ? <Home size={14} /> : crumb.type === 'CASE' ? <Briefcase size={14} /> : <FolderOpen size={14} />}
+                            {crumb.name}
+                        </button>
+                        {index < breadcrumbs.length - 1 && <ChevronRight size={14} className="text-gray-600 flex-shrink-0" />}
+                    </React.Fragment>
+                ))}
             </div>
             
             <div className="space-y-10">
-                {currentView.type === 'ROOT' && cases.length > 0 && (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">{cases.map(c => (<div key={c.id} className="h-full"><ArchiveCard title={c.title || `Rasti #${c.case_number}`} subtitle={c.case_number || 'Pa numër'} type="Dosje Çështjeje" date={new Date(c.created_at).toLocaleDateString()} icon={<Briefcase className="w-5 h-5 text-indigo-400" />} statusColor="bg-indigo-400" isFolder={true} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} /></div>))}</div>)}
-                {displayedItems.length > 0 && (
+                {currentView.type === 'ROOT' && filteredCases.length > 0 && (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">{filteredCases.map(c => (<div key={c.id} className="h-full"><ArchiveCard title={c.title || `Rasti #${c.case_number}`} subtitle={c.case_number || 'Pa numër'} type="Dosje Çështjeje" date={new Date(c.created_at).toLocaleDateString()} icon={<Briefcase className="w-5 h-5 text-indigo-400" />} isFolder={true} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} /></div>))}</div>)}
+                {filteredItems.length > 0 && (
                     <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         <AnimatePresence>
-                            {displayedItems.map(item => { 
+                            {filteredItems.map(item => { 
                                 const isFolder = (item as any).item_type === 'FOLDER'; 
                                 const fileExt = item.file_type || 'FILE'; 
                                 return (
@@ -223,7 +234,6 @@ export const ArchiveTab: React.FC = () => {
                                             type={isFolder ? 'Folder' : fileExt} 
                                             date={new Date().toLocaleDateString()} 
                                             icon={isFolder ? <FolderOpen className="w-5 h-5 text-amber-500" /> : getFileIcon(fileExt)} 
-                                            statusColor={isFolder ? 'bg-amber-400' : 'bg-blue-400'} 
                                             isFolder={isFolder} 
                                             isLoading={openingDocId === item.id}
                                             onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)} 
