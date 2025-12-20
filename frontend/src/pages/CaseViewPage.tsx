@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V7.13 (SHARE REMOVAL)
-// 1. FIX: Removed 'handleShareDocument' to match DocumentsPanel update.
-// 2. CLEANUP: Removed unused 'onShare' prop passing.
-// 3. STATUS: Synchronized with "Archive Only Sharing" policy.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V8.1 (LINT FIX)
+// 1. FIX: Removed unused 'Share2' and 'CheckCircle' imports.
+// 2. STATUS: Clean build.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -17,7 +16,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, X, Save, Share2, CheckCircle, FileText, Maximize2 } from 'lucide-react';
+import { AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, X, Save, FileText, Maximize2 } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -90,11 +89,47 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
 };
 
 // --- RESPONSIVE HEADER COMPONENT ---
-const CaseHeader: React.FC<{ caseDetails: Case; documents: Document[]; activeContextId: string; onContextChange: (id: string) => void; t: TFunction; onAnalyze: () => void; isAnalyzing: boolean; }> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing }) => {
-    const [linkCopied, setLinkCopied] = useState(false);
-    const handleCopyLink = () => { const link = `${window.location.origin}/portal/${caseDetails.id}`; navigator.clipboard.writeText(link); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); };
-    const analyzeButtonText = activeContextId === 'general' ? t('analysis.analyzeButton', 'Analizo Rastin') : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
-    return ( <motion.div className="relative z-30 mb-6 p-4 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-white/10" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} > <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"> <div className="flex-1 min-w-0 w-full"> <h1 className="text-lg sm:text-xl font-bold text-white break-words mb-2 leading-snug"> {caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase', 'Rast pa Emër')} </h1> <div className="flex flex-row flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm text-text-secondary"> <div className="flex items-center"><User className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{caseDetails.client?.name || 'N/A'}</span></div> <div className="flex items-center"><Briefcase className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`)}</span></div> <div className="flex items-center"><Info className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div> </div> </div> <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto mt-4 md:mt-0"> <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full md:w-auto" /> <div className="flex items-center gap-3 w-full md:w-auto"> <button onClick={handleCopyLink} title={linkCopied ? t('general.copied', 'E kopjuar!') : t('general.share', 'Ndaj')} className={`flex items-center justify-center p-2.5 rounded-xl border transition-all flex-shrink-0 ${linkCopied ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-black/20 hover:bg-black/40 text-gray-200 border-white/10'}`} type="button" > {linkCopied ? <CheckCircle size={16} /> : <Share2 size={16} />} </button> </div> <button onClick={onAnalyze} disabled={isAnalyzing} className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all disabled:opacity-50" type="button">{isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin text-primary-start" /> : <ShieldCheck className="h-4 w-4 text-primary-start" />}<span className="inline">{isAnalyzing ? t('analysis.analyzing') : analyzeButtonText}</span></button> </div> </div> </motion.div> );
+const CaseHeader: React.FC<{ 
+    caseDetails: Case;
+    documents: Document[];
+    activeContextId: string;
+    onContextChange: (id: string) => void;
+    t: TFunction; 
+    onAnalyze: () => void;
+    isAnalyzing: boolean; 
+}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing }) => {
+    
+    const analyzeButtonText = activeContextId === 'general' 
+        ? t('analysis.analyzeButton', 'Analizo Rastin')
+        : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
+
+    return (
+        <motion.div 
+            className="relative z-30 mb-6 p-4 rounded-2xl shadow-lg bg-background-light/50 backdrop-blur-sm border border-white/10" 
+            initial={{ opacity: 0, y: -10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ duration: 0.3 }}
+        >
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex-1 min-w-0 w-full">
+                  <h1 className="text-lg sm:text-xl font-bold text-white break-words mb-2 leading-snug">
+                    {caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase', 'Rast pa Emër')}
+                  </h1>
+                  <div className="flex flex-row flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm text-text-secondary">
+                      <div className="flex items-center"><User className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{caseDetails.client?.name || 'N/A'}</span></div>
+                      <div className="flex items-center"><Briefcase className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`)}</span></div>
+                      <div className="flex items-center"><Info className="h-3.5 w-3.5 mr-1.5 text-primary-start" /><span>{new Date(caseDetails.created_at).toLocaleDateString()}</span></div>
+                  </div>
+              </div>
+              
+              <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
+                  <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full md:w-auto" />
+                  
+                  <button onClick={onAnalyze} disabled={isAnalyzing} className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all disabled:opacity-50" type="button">{isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin text-primary-start" /> : <ShieldCheck className="h-4 w-4 text-primary-start" />}<span className="inline">{isAnalyzing ? t('analysis.analyzing') : analyzeButtonText}</span></button>
+              </div>
+          </div>
+        </motion.div>
+    );
 };
 
 const CaseViewPage: React.FC = () => {
@@ -169,21 +204,39 @@ const CaseViewPage: React.FC = () => {
   return (
     <motion.div className="w-full min-h-screen bg-background-dark pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:py-6">
-        <CaseHeader caseDetails={caseData.details} documents={liveDocuments} activeContextId={activeContextId} onContextChange={setActiveContextId} t={t} onAnalyze={handleAnalyze} isAnalyzing={isAnalyzing} />
+        <CaseHeader 
+            caseDetails={caseData.details} 
+            documents={liveDocuments}
+            activeContextId={activeContextId}
+            onContextChange={setActiveContextId}
+            t={t} 
+            onAnalyze={handleAnalyze} 
+            isAnalyzing={isAnalyzing} 
+        />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px]">
-            <DocumentsPanel 
-                caseId={caseData.details.id} 
-                documents={liveDocuments} 
-                t={t} 
-                connectionStatus={connectionStatus} 
-                reconnect={reconnect} 
-                onDocumentUploaded={handleDocumentUploaded} 
-                onDocumentDeleted={handleDocumentDeleted} 
-                onViewOriginal={handleViewOriginal} 
+            <DocumentsPanel
+                caseId={caseData.details.id}
+                documents={liveDocuments}
+                t={t}
+                connectionStatus={connectionStatus}
+                reconnect={reconnect}
+                onDocumentUploaded={handleDocumentUploaded}
+                onDocumentDeleted={handleDocumentDeleted}
+                onViewOriginal={handleViewOriginal}
                 onRename={(doc) => setDocumentToRename(doc)}
                 className="h-[500px] lg:h-full" 
             />
-            <ChatPanel messages={liveMessages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} onClearChat={handleClearChat} t={t} className="!h-[600px] lg:!h-full w-full" activeContextId={activeContextId} />
+            <ChatPanel 
+                messages={liveMessages} 
+                connectionStatus={connectionStatus} 
+                reconnect={reconnect} 
+                onSendMessage={handleChatSubmit} 
+                isSendingMessage={isSendingMessage} 
+                onClearChat={handleClearChat} 
+                t={t} 
+                className="!h-[600px] lg:!h-full w-full"
+                activeContextId={activeContextId}
+            />
         </div>
       </div>
       
