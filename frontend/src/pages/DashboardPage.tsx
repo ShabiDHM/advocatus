@@ -1,7 +1,7 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V5.3 (SCROLL & LIMIT FIX)
-// 1. FIX: Constrained the case grid to a max height and enabled scrolling after 4 items.
-// 2. UI: Prevents vertical expansion of the page for a consistent layout.
+// PHOENIX PROTOCOL - DASHBOARD V5.4 (DISPLAY LIMIT REFINEMENT)
+// 1. REFINED: Changed the display limit from 4 cases to 3 before scrolling is enabled.
+// 2. STATUS: Clean build.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -115,7 +115,8 @@ const DashboardPage: React.FC = () => {
     setNewCaseData(prev => ({ ...prev, [name]: value }));
   };
 
-  const casesToDisplay = cases.length > 4 ? cases : cases.slice(0, 4);
+  // PHOENIX: Changed display limit from 4 to 3
+  const casesToDisplay = cases.length > 3 ? cases : cases.slice(0, 3);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
