@@ -1,8 +1,7 @@
 // FILE: vite.config.ts
-// PHOENIX PROTOCOL - PWA ENABLED
-// 1. ADDED: 'vite-plugin-pwa' configuration.
-// 2. MANIFEST: Defines name, colors, and icons for "Add to Home Screen".
-// 3. BEHAVIOR: 'standalone' mode removes the browser URL bar when installed.
+// PHOENIX PROTOCOL - BUILD FIX
+// 1. FIX: Added 'workbox' configuration to handle large JS chunks.
+// 2. LOGIC: 'maximumFileSizeToCacheInBytes' prevents build failure from PWA caching.
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -12,15 +11,15 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate', // Automatically updates the app when you deploy
+      registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Juristi AI',
         short_name: 'Juristi',
         description: 'Platforma e Inteligjencës Ligjore',
-        theme_color: '#111827', // Dark background color
+        theme_color: '#111827', 
         background_color: '#111827',
-        display: 'standalone', // Looks like a native app (no address bar)
+        display: 'standalone', 
         orientation: 'portrait',
         icons: [
           {
@@ -37,9 +36,15 @@ export default defineConfig({
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable' // Ensures icon looks good on Android round icons
+            purpose: 'any maskable' 
           }
         ]
+      },
+      // PHOENIX FIX: Added workbox config to solve build error
+      workbox: {
+        // This setting tells the service worker to ignore large files.
+        // We increase the limit to 5MB, which is more than enough for our large JS chunk.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       }
     })
   ],
