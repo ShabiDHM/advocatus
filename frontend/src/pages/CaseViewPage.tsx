@@ -1,7 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V8.7 (LINT CLEANUP)
-// 1. FIX: Removed unused 'Info' and 'Clock' imports (Resolves TS6133).
-// 2. STATUS: Clean build.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V8.8 (LAYOUT COMPACT)
+// 1. FIX: Removed 'Status' (Hapur) badge/icon entirely.
+// 2. UI: Moved Dropdown and Button to the same row as the Date.
+// 3. STATUS: Clean build.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -16,7 +17,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, Briefcase, ShieldCheck, Loader2, X, Save, FileText, Maximize2, Calendar } from 'lucide-react';
+import { AlertCircle, User, ShieldCheck, Loader2, X, Save, FileText, Maximize2, Calendar } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -90,7 +91,7 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
-// --- REDESIGNED HEADER COMPONENT (MOBILE FRIENDLY) ---
+// --- REDESIGNED HEADER COMPONENT (SINGLE ROW LAYOUT) ---
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
@@ -116,7 +117,7 @@ const CaseHeader: React.FC<{
           <div className="absolute inset-0 bg-gradient-to-br from-background-light/90 via-background-dark/95 to-background-dark pointer-events-none" />
           <div className="absolute top-0 right-0 p-20 bg-primary-start/5 blur-[80px] rounded-full pointer-events-none" />
 
-          <div className="relative p-5 sm:p-6 flex flex-col gap-5">
+          <div className="relative p-5 sm:p-6 flex flex-col gap-4">
               
               {/* TOP SECTION: Title & Client */}
               <div className="flex flex-col gap-1">
@@ -130,45 +131,28 @@ const CaseHeader: React.FC<{
                   </div>
               </div>
 
-              {/* MIDDLE SECTION: Badges (Pills) */}
-              <div className="flex flex-wrap items-center gap-3">
-                  {/* Status Pill */}
-                  <div className={`
-                      flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs sm:text-sm font-semibold uppercase tracking-wide
-                      ${caseDetails.status.toLowerCase() === 'open' 
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                          : 'bg-gray-500/10 text-gray-400 border-gray-500/20'}
-                  `}>
-                      <Briefcase className="h-3.5 w-3.5" />
-                      {t(`caseView.statusTypes.${caseDetails.status.toUpperCase()}`)}
-                  </div>
-
-                  {/* Date Pill */}
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs sm:text-sm font-medium">
-                      <Calendar className="h-3.5 w-3.5" />
+              {/* BOTTOM SECTION: Single Row - Date | Dropdown | Action */}
+              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full">
+                  
+                  {/* Date Pill - Now first in the row */}
+                  <div className="flex items-center justify-center md:justify-start gap-2 px-3 py-3 md:py-1.5 rounded-xl md:rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-sm font-medium whitespace-nowrap">
+                      <Calendar className="h-4 w-4" />
                       {new Date(caseDetails.created_at).toLocaleDateString()}
                   </div>
-              </div>
 
-              {/* DIVIDER */}
-              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
-              {/* BOTTOM SECTION: Actions (Stacked on Mobile, Row on Desktop) */}
-              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-4">
-                  
-                  {/* Dropdown - Full width on mobile */}
-                  <div className="w-full md:w-auto md:min-w-[240px] flex-1">
+                  {/* Dropdown - Flexible width */}
+                  <div className="flex-1 w-full md:w-auto">
                      <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full" />
                   </div>
                   
-                  {/* Analyze Button - Full width on mobile */}
+                  {/* Analyze Button - Flexible but contained */}
                   <button 
                       onClick={onAnalyze} 
                       disabled={isAnalyzing} 
                       className={`
-                          w-full md:w-auto px-6 py-3 rounded-xl 
+                          w-full md:w-auto px-6 py-3 md:py-2.5 rounded-xl 
                           flex items-center justify-center gap-2.5 
-                          text-sm font-bold text-white shadow-lg transition-all duration-300
+                          text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
                           ${isAnalyzing ? 'bg-background-light border border-white/10 cursor-not-allowed' : 'bg-gradient-to-r from-primary-start to-primary-end hover:shadow-primary-start/20 hover:scale-[1.02] border border-transparent'}
                       `}
                       type="button"
