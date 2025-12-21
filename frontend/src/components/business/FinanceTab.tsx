@@ -1,11 +1,10 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V8.9 (LINT CLEANUP)
-// 1. FIX: Removed unused 'getStatusBadge' function (Resolves TS6133).
+// PHOENIX PROTOCOL - FINANCE TAB V8.91 (LINT CLEANUP 2)
+// 1. FIX: Removed unused 'Menu' and 'Transition' imports (Resolves TS6192).
 // 2. STATUS: Clean build, optimized UI without unused logic.
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Menu, Transition } from '@headlessui/react';
 import { 
     TrendingUp, TrendingDown, Wallet, Calculator, MinusCircle, Plus, FileText, 
     Edit2, Eye, Download, Archive, Trash2, CheckCircle, Paperclip, X, User, Activity, 
