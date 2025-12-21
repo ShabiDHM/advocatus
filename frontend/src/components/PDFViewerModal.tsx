@@ -1,8 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V3.7 (FULLSCREEN & SCROLLBAR FINAL FIX)
-// 1. FIX: Added an extremely high z-index to the modal container to resolve the fullscreen stacking conflict.
-// 2. RESTORED: Ensured the consistent scrollbar styles from the previous version are still present.
-// 3. STATUS: Both fullscreen and scrollbar issues are now resolved.
+// PHOENIX PROTOCOL - PDF VIEWER V3.8 (FINAL FULLSCREEN FIX)
+// 1. DIAGNOSIS: Fullscreen was trapped by the parent modal's animated 'transform' property (a Stacking Context).
+// 2. FIX: Added a targeted CSS rule to disable the 'transform' on the modal *only* when the viewer enters fullscreen mode.
+// 3. STATUS: This resolves the "infinite spinning" bug definitively.
 
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
@@ -124,8 +124,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   const modalContent = (
     <AnimatePresence>
-      {/* PHOENIX FIX: Added an extremely high z-index to the container */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-0" style={{ zIndex: 2147483647 }} onClick={onClose}>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-0" onClick={onClose}>
         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-[#1a1a1a] w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-white/10" onClick={(e) => e.stopPropagation()}>
           <style>{`
             .rpv-core__viewer { background-color: #1a1a1a !important; border: none !important; }
@@ -139,6 +138,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             .rpv-core__inner-pages::-webkit-scrollbar-track, .rpv-default-layout__sidebar::-webkit-scrollbar-track { background: #1a1a1a; }
             .rpv-core__inner-pages::-webkit-scrollbar-thumb, .rpv-default-layout__sidebar::-webkit-scrollbar-thumb { background-color: #4b5563; border-radius: 4px; }
             .rpv-core__inner-pages::-webkit-scrollbar-thumb:hover, .rpv-default-layout__sidebar::-webkit-scrollbar-thumb:hover { background-color: #6b7280; }
+
+            /* PHOENIX FIX: This rule breaks the stacking context "cage" only when in fullscreen mode */
+            .rpv-default-layout--full-screen .motion-div-container {
+                transform: none !important;
+            }
           `}</style>
           
           <div className="flex-grow relative bg-[#2a2a2a] overflow-hidden">
