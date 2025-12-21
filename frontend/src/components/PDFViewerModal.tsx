@@ -1,8 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V3.8 (LAYOUT FIX)
-// 1. FIX: Moved Zoom Controls to a dedicated flex container to prevent hiding on mobile.
-// 2. UI: Header layout is now: [Title] [Zoom Controls] [Actions].
-// 3. STATUS: Zoom buttons guaranteed visible.
+// PHOENIX PROTOCOL - PDF VIEWER V3.9 (LOCAL WORKER ENFORCED)
+// 1. FIX: Forces use of local '/pdf.worker.min.js' to fix "Preview not available".
+// 2. STABILITY: Removes reliance on external CDNs which were failing.
+// 3. UI: Retains the Zoom/Minimize layout fixes.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -16,8 +16,9 @@ import {
 } from 'lucide-react';
 import { TFunction } from 'i18next';
 
-// CDN Worker for stability
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+// PHOENIX CRITICAL FIX: Use the local worker you have in /public
+// This is the only way to guarantee stability across all devices/networks.
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 interface PDFViewerModalProps {
   documentData: Document;
@@ -151,7 +152,9 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   const onPdfLoadError = (err: any) => {
       console.error("PDF Render Error:", err);
-      setError("PDF mund të jetë i dëmtuar.");
+      // Don't show error immediately, give it a moment or ensure it's not a temporary glitch
+      // But if it fails, we fall back to download
+      setError("PDF nuk mund të shfaqet. (Worker Error)");
       setIsLoading(false);
       setActualViewerMode('DOWNLOAD');
   };
@@ -259,39 +262,32 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 backdrop-blur-md z-[9999] flex items-center justify-center p-0 sm:p-4" onClick={onClose}>
         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-[#1a1a1a] w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-glass-edge" onClick={(e) => e.stopPropagation()}>
           
-          {/* HEADER TOOLBAR */}
           <header className="flex flex-wrap items-center justify-between p-3 sm:p-4 bg-background-light/95 border-b border-glass-edge backdrop-blur-xl z-20 gap-2 shrink-0">
-            {/* 1. Title Section */}
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 <h2 className="text-sm sm:text-lg font-bold text-gray-200 truncate max-w-[200px]">
                     {documentData.file_name} <span className="text-[10px] text-gray-500 font-normal">(Phoenix View)</span>
                 </h2>
+                
+                {actualViewerMode === 'PDF' && (
+                    <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10 ml-2">
+                        <button onClick={zoomOut} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded"><ZoomOut size={16} /></button>
+                        <span className="text-[10px] text-gray-400 w-8 text-center">{Math.round(scale * 100)}%</span>
+                        <button onClick={zoomIn} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded"><ZoomIn size={16} /></button>
+                        <button onClick={zoomReset} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded ml-1" title="Reset"><Maximize size={16} /></button>
+                    </div>
+                )}
             </div>
             
-            {/* 2. Zoom Controls - CENTERED / VISIBLE */}
-            {actualViewerMode === 'PDF' && (
-                <div className="hidden sm:flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10 mx-2">
-                    <button onClick={zoomOut} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded"><ZoomOut size={16} /></button>
-                    <span className="text-[10px] text-gray-400 w-8 text-center">{Math.round(scale * 100)}%</span>
-                    <button onClick={zoomIn} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded"><ZoomIn size={16} /></button>
-                    <button onClick={zoomReset} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded ml-1" title="Reset"><Maximize size={16} /></button>
-                </div>
-            )}
-            
-            {/* 3. Action Buttons */}
             <div className="flex items-center gap-2 flex-shrink-0">
-                {/* Mobile Zoom (Simpler) */}
-                <button onClick={zoomIn} className="sm:hidden p-2 text-gray-400 hover:text-white"><ZoomIn size={20} /></button>
-                
-                <button onClick={handleDownloadOriginal} className="p-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg border border-primary-start/30"><Download size={20} /></button>
-                
-                {onMinimize && (
-                    <button onClick={onMinimize} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full" title="Minimizo">
-                        <Minus size={24} />
-                    </button>
-                )}
+              <button onClick={handleDownloadOriginal} className="p-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg border border-primary-start/30"><Download size={20} /></button>
+              
+              {onMinimize && (
+                <button onClick={onMinimize} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full" title="Minimizo">
+                    <Minus size={24} />
+                </button>
+              )}
 
-                <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full"><X size={24} /></button>
+              <button onClick={onClose} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full"><X size={24} /></button>
             </div>
           </header>
           
