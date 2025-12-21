@@ -1,8 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V3.9 (LOCAL WORKER ENFORCED)
-// 1. FIX: Forces use of local '/pdf.worker.min.js' to fix "Preview not available".
-// 2. STABILITY: Removes reliance on external CDNs which were failing.
-// 3. UI: Retains the Zoom/Minimize layout fixes.
+// PHOENIX PROTOCOL - PDF VIEWER V4.1 (LOCAL WORKER ENFORCED)
+// 1. FIX: Hardcoded workerSrc to '/pdf.worker.min.js' (Your local file).
+// 2. REVERT: Removed CDN logic that was failing.
+// 3. UI: Retains Minimize button and Custom Toolbar.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -16,8 +16,8 @@ import {
 } from 'lucide-react';
 import { TFunction } from 'i18next';
 
-// PHOENIX CRITICAL FIX: Use the local worker you have in /public
-// This is the only way to guarantee stability across all devices/networks.
+// PHOENIX FIX: Point strictly to the local file in your /public folder.
+// Ensure the file exists at: frontend/public/pdf.worker.min.js
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 interface PDFViewerModalProps {
@@ -47,6 +47,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const [actualViewerMode, setActualViewerMode] = useState<'PDF' | 'TEXT' | 'IMAGE' | 'DOWNLOAD'>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
 
+  // Resize handler
   useEffect(() => {
       const updateWidth = () => {
           if (containerRef.current) {
@@ -151,10 +152,9 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   };
 
   const onPdfLoadError = (err: any) => {
-      console.error("PDF Render Error:", err);
-      // Don't show error immediately, give it a moment or ensure it's not a temporary glitch
-      // But if it fails, we fall back to download
-      setError("PDF nuk mund të shfaqet. (Worker Error)");
+      console.error("PDF Render Error Detailed:", err);
+      // PHOENIX: Show detailed error to help debug version mismatch
+      setError(err.message || "PDF Failed to Render. Check Worker.");
       setIsLoading(false);
       setActualViewerMode('DOWNLOAD');
   };
@@ -196,6 +196,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <div className="bg-white/5 p-6 rounded-full mb-6"><Download size={64} className="text-gray-400" /></div>
             <h3 className="text-xl font-bold text-white mb-2">{t('pdfViewer.previewNotAvailable', { defaultValue: 'Pamja paraprake nuk është në dispozicion' })}</h3>
+            {error && <p className="text-red-400 text-sm mb-4 font-mono bg-black/50 p-2 rounded max-w-md break-words">{error}</p>}
             <button onClick={handleDownloadOriginal} disabled={isDownloading} className="px-6 py-3 bg-primary-start hover:bg-primary-end text-white font-semibold rounded-xl shadow-lg transition-all flex items-center gap-2 mt-4">
                 {isDownloading ? <Loader size={20} className="animate-spin" /> : <Download size={20} />} {t('pdfViewer.downloadOriginal', { defaultValue: 'Shkarko Origjinalin' })}
             </button>
@@ -226,6 +227,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                     onLoadError={onPdfLoadError}
                     loading={null} 
                     noData={null}
+                    key={typeof pdfSource === 'string' ? pdfSource : pdfSource?.url}
                  >
                      <Page 
                         pageNumber={pageNumber} 
@@ -262,6 +264,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 backdrop-blur-md z-[9999] flex items-center justify-center p-0 sm:p-4" onClick={onClose}>
         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-[#1a1a1a] w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-glass-edge" onClick={(e) => e.stopPropagation()}>
           
+          {/* HEADER TOOLBAR */}
           <header className="flex flex-wrap items-center justify-between p-3 sm:p-4 bg-background-light/95 border-b border-glass-edge backdrop-blur-xl z-20 gap-2 shrink-0">
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 <h2 className="text-sm sm:text-lg font-bold text-gray-200 truncate max-w-[200px]">
