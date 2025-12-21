@@ -1,8 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V4.1 (LOCAL WORKER ENFORCED)
-// 1. FIX: Hardcoded workerSrc to '/pdf.worker.min.js' (Your local file).
-// 2. REVERT: Removed CDN logic that was failing.
-// 3. UI: Retains Minimize button and Custom Toolbar.
+// PHOENIX PROTOCOL - PDF VIEWER V4.2 (VERSION SYNC FIX)
+// 1. FIX: Points workerSrc to CDN with 'pdfjs.version' to ensure exact match (5.x).
+// 2. LOGIC: Uses '.mjs' extension required for PDF.js v5+.
+// 3. STATUS: Resolves "Version Mismatch" crash.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -16,9 +16,9 @@ import {
 } from 'lucide-react';
 import { TFunction } from 'i18next';
 
-// PHOENIX FIX: Point strictly to the local file in your /public folder.
-// Ensure the file exists at: frontend/public/pdf.worker.min.js
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+// PHOENIX CRITICAL FIX: Use CDN to fetch the EXACT matching version.
+// Version 5.x requires .mjs extension.
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface PDFViewerModalProps {
   documentData: Document;
@@ -153,7 +153,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   const onPdfLoadError = (err: any) => {
       console.error("PDF Render Error Detailed:", err);
-      // PHOENIX: Show detailed error to help debug version mismatch
       setError(err.message || "PDF Failed to Render. Check Worker.");
       setIsLoading(false);
       setActualViewerMode('DOWNLOAD');
@@ -264,7 +263,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 backdrop-blur-md z-[9999] flex items-center justify-center p-0 sm:p-4" onClick={onClose}>
         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-[#1a1a1a] w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-glass-edge" onClick={(e) => e.stopPropagation()}>
           
-          {/* HEADER TOOLBAR */}
           <header className="flex flex-wrap items-center justify-between p-3 sm:p-4 bg-background-light/95 border-b border-glass-edge backdrop-blur-xl z-20 gap-2 shrink-0">
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 <h2 className="text-sm sm:text-lg font-bold text-gray-200 truncate max-w-[200px]">
