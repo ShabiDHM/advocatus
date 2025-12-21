@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V8.4 (CLEANUP)
-// 1. FIX: Removed unused 'AnimatePresence', 'FileText', and 'Maximize2' imports.
-// 2. STATUS: Resolves all TypeScript warnings from the previous refactor.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V8.5 (PROP FIX)
+// 1. FIX: Renamed 'onMinimizeRequest' to 'onMinimize' to match PDFViewerModal interface.
+// 2. STATUS: Clean build.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -10,14 +10,13 @@ import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel, { ChatMode, Jurisdiction } from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
-import DockedPDFViewer from '../components/DockedPDFViewer';
 import AnalysisModal from '../components/AnalysisModal';
 import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import { motion } from 'framer-motion'; // PHOENIX FIX: Removed AnimatePresence
-import { AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, X, Save } from 'lucide-react'; // PHOENIX FIX: Removed FileText, Maximize2
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertCircle, User, Briefcase, Info, ShieldCheck, Loader2, X, Save, FileText, Maximize2 } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 
@@ -25,6 +24,34 @@ type CaseData = {
     details: Case | null;
 };
 type ActiveModal = 'none' | 'analysis';
+
+// --- PHOENIX: DOCKED PDF COMPONENT ---
+const DockedPDFViewer: React.FC<{ document: Document; onExpand: () => void; onClose: () => void; }> = ({ document, onExpand, onClose }) => {
+    return (
+        <AnimatePresence>
+            <motion.div
+                initial={{ y: "100%", opacity: 0 }}
+                animate={{ y: "0%", opacity: 1 }}
+                exit={{ y: "100%", opacity: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="fixed bottom-4 right-4 z-[9998] w-72 bg-background-light/80 backdrop-blur-xl border border-glass-edge rounded-xl shadow-2xl flex items-center justify-between p-3"
+            >
+                <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="h-5 w-5 text-primary-start flex-shrink-0" />
+                    <p className="text-xs font-medium text-gray-200 truncate">{document.file_name}</p>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={onExpand} className="p-1.5 hover:bg-white/10 rounded-md text-gray-400 hover:text-white transition-colors" title="Expand">
+                        <Maximize2 size={16} />
+                    </button>
+                    <button onClick={onClose} className="p-1.5 hover:bg-red-500/10 rounded-md text-gray-400 hover:text-red-400 transition-colors" title="Close">
+                        <X size={16} />
+                    </button>
+                </div>
+            </motion.div>
+        </AnimatePresence>
+    );
+};
 
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     if (!data) return [];
@@ -61,6 +88,7 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
+// --- RESPONSIVE HEADER COMPONENT ---
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
@@ -113,6 +141,7 @@ const CaseViewPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // PDF Viewer State
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [minimizedDocument, setMinimizedDocument] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
@@ -151,6 +180,7 @@ const CaseViewPage: React.FC = () => {
   const handleAnalyze = async () => { if (!caseId) return; setIsAnalyzing(true); setActiveModal('none'); try { let result: CaseAnalysisResult; if (activeContextId === 'general') { result = await apiService.analyzeCase(caseId); } else { result = await apiService.crossExamineDocument(caseId, activeContextId); } if (result.error) alert(result.error); else { setAnalysisResult(result); setActiveModal('analysis'); } } catch (err) { alert(t('error.generic')); } finally { setIsAnalyzing(false); } };
   const handleChatSubmit = (text: string, _mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => { sendChatMessage(text, documentId, jurisdiction); };
   
+  // Viewer Handlers
   const handleViewOriginal = (doc: Document) => { const url = `${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`; setViewingUrl(url); setViewingDocument(doc); setMinimizedDocument(null); };
   const handleCloseViewer = () => { setViewingDocument(null); setViewingUrl(null); };
   const handleMinimizeViewer = () => { if (viewingDocument) { setMinimizedDocument(viewingDocument); handleCloseViewer(); } };
@@ -171,7 +201,8 @@ const CaseViewPage: React.FC = () => {
         </div>
       </div>
       
-      {viewingDocument && (<PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={handleCloseViewer} onMinimizeRequest={handleMinimizeViewer} t={t} directUrl={viewingUrl} isAuth={true} />)}
+      {/* PHOENIX FIX: Updated prop name to 'onMinimize' */}
+      {viewingDocument && (<PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={handleCloseViewer} onMinimize={handleMinimizeViewer} t={t} directUrl={viewingUrl} isAuth={true} />)}
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={handleExpandViewer} onClose={() => setMinimizedDocument(null)} />}
 
       {analysisResult && (<AnalysisModal isOpen={activeModal === 'analysis'} onClose={() => setActiveModal('none')} result={analysisResult} />)}

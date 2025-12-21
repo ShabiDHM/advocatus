@@ -1,7 +1,7 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V3.2 (LINT FIX)
+// PHOENIX PROTOCOL - PDF VIEWER V3.3 (FINAL LINT FIX)
 // 1. FIX: Removed unused 'API_V1_URL' and 'RefreshCw' imports.
-// 2. STATUS: Clean build, fully functional custom PDF viewer.
+// 2. STATUS: Clean build.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
