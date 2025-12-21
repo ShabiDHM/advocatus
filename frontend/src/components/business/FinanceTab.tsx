@@ -1,15 +1,15 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V8.7 (INTERFACE ALIGNMENT)
-// 1. FIX: Changed 'onMinimizeRequest' to 'onMinimize' in PDFViewerModal usage.
-// 2. STATUS: Clean build.
+// PHOENIX PROTOCOL - FINANCE TAB V8.9 (LINT CLEANUP)
+// 1. FIX: Removed unused 'getStatusBadge' function (Resolves TS6133).
+// 2. STATUS: Clean build, optimized UI without unused logic.
 
-import React, { useEffect, useState, useRef, useMemo, Fragment } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Menu, Transition } from '@headlessui/react';
 import { 
     TrendingUp, TrendingDown, Wallet, Calculator, MinusCircle, Plus, FileText, 
     Edit2, Eye, Download, Archive, Trash2, CheckCircle, Paperclip, X, User, Activity, 
-    Loader2, BarChart2, History, MoreVertical, Search, Briefcase, ChevronRight, ChevronDown,
+    Loader2, BarChart2, History, Search, Briefcase, ChevronRight, ChevronDown,
     Car, Coffee, Building, Users, Landmark, Zap, Wifi, Receipt, Utensils
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -222,17 +222,7 @@ export const FinanceTab: React.FC = () => {
         return <Receipt size={18} />;
     };
 
-    const getStatusBadge = (status: string) => {
-        const styles: Record<string, string> = {
-            PAID: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-            SENT: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-            DRAFT: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-            CANCELLED: 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-        };
-        const s = styles[status] || styles.DRAFT;
-        const translatedStatus = t(`finance.status.${status.toLowerCase()}`, status);
-        return <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${s} uppercase tracking-wide whitespace-nowrap`}>{translatedStatus}</span>;
-    };
+    // PHOENIX: REMOVED getStatusBadge
 
     const closePreview = () => { if (viewingUrl) window.URL.revokeObjectURL(viewingUrl); setViewingUrl(null); setViewingDoc(null); };
     const addLineItem = () => setLineItems([...lineItems, { description: '', quantity: 1, unit_price: 0, total: 0 }]);
@@ -475,50 +465,58 @@ export const FinanceTab: React.FC = () => {
                                                     </div>
                                                     <div className="min-w-0 flex-1">
                                                         <h4 className="font-bold text-white text-sm truncate">{tx.type === 'invoice' ? tx.client_name : tx.category}</h4>
-                                                        <div className="flex sm:hidden mt-1">{tx.type === 'invoice' && getStatusBadge(tx.status)}</div>
                                                         <p className="hidden sm:block text-xs text-gray-400 font-mono mt-0.5">{tx.type === 'invoice' ? `#${tx.invoice_number}` : new Date(tx.date).toLocaleDateString()}</p>
                                                         <p className="sm:hidden text-xs text-gray-500 font-mono mt-0.5">{new Date(tx.date).toLocaleDateString()}</p>
                                                     </div>
                                                 </div>
 
                                                 <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-1 sm:mt-0 pl-11 sm:pl-0">
-                                                    <div className="hidden sm:block">{tx.type === 'invoice' && getStatusBadge(tx.status)}</div>
                                                     <div className="flex items-center gap-3">
                                                         <p className={`font-bold ${tx.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'}`}>{tx.type === 'invoice' ? `+€${tx.total_amount.toFixed(2)}` : `-€${tx.amount.toFixed(2)}`}</p>
                                                         
-                                                        {/* --- MENU ACTIONS --- */}
-                                                        <Menu as="div" className="relative">
-                                                            <Menu.Button className="p-1.5 hover:bg-white/10 rounded-full text-gray-400"><MoreVertical size={16} /></Menu.Button>
-                                                            <Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95">
-                                                                <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-white/10 rounded-md bg-background-light shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10 border border-glass-edge">
-                                                                    <div className="px-1 py-1">
-                                                                        <Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleEditInvoice(tx) : handleEditExpense(tx)} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Edit2 className="mr-2 h-4 w-4 text-amber-400" />{t('general.edit')}</button>)}</Menu.Item>
-                                                                        
-                                                                        {/* PHOENIX FIX: Used openingDocId for Spinner */}
-                                                                        <Menu.Item>
-                                                                            {({ active }: { active: boolean }) => (
-                                                                                <button 
-                                                                                    onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} 
-                                                                                    disabled={openingDocId === tx.id}
-                                                                                    className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}
-                                                                                >
-                                                                                    {openingDocId === tx.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Eye className="mr-2 h-4 w-4 text-blue-400" />}
-                                                                                    {t('general.view')}
-                                                                                </button>
-                                                                            )}
-                                                                        </Menu.Item>
-                                                                        
-                                                                        <Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? downloadInvoice(tx.id) : handleDownloadExpense(tx)} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Download className="mr-2 h-4 w-4 text-green-400" />{t('general.download')}</button>)}</Menu.Item>
-                                                                    </div>
-                                                                    <div className="px-1 py-1">
-                                                                        <Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? handleArchiveInvoiceClick(tx.id) : handleArchiveExpenseClick(tx.id)} className={`${active ? 'bg-white/10 text-white' : 'text-gray-300'} group flex w-full items-center rounded-md px-2 py-2 text-sm disabled:opacity-50`}><Archive className="mr-2 h-4 w-4 text-indigo-400" />{t('general.archive')}</button>)}</Menu.Item>
-                                                                    </div>
-                                                                    <div className="px-1 py-1">
-                                                                        <Menu.Item>{({ active }: { active: boolean }) => (<button onClick={() => tx.type === 'invoice' ? deleteInvoice(tx.id) : deleteExpense(tx.id)} className={`${active ? 'bg-red-500/20 text-red-400' : 'text-red-400'} group flex w-full items-center rounded-md px-2 py-2 text-sm`}><Trash2 className="mr-2 h-4 w-4" />{t('general.delete')}</button>)}</Menu.Item>
-                                                                    </div>
-                                                                </Menu.Items>
-                                                            </Transition>
-                                                        </Menu>
+                                                        {/* DIRECT ACTION ICONS */}
+                                                        <div className="flex items-center gap-1">
+                                                            <button 
+                                                                onClick={() => tx.type === 'invoice' ? handleEditInvoice(tx) : handleEditExpense(tx)} 
+                                                                className="p-1.5 hover:bg-white/20 rounded-md text-amber-400 transition-colors"
+                                                                title={t('general.edit')}
+                                                            >
+                                                                <Edit2 size={16} />
+                                                            </button>
+                                                            
+                                                            <button 
+                                                                onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} 
+                                                                disabled={(tx.type === 'expense' && !tx.receipt_url) && openingDocId !== tx.id && !openingDocId} 
+                                                                className="p-1.5 hover:bg-white/20 rounded-md text-blue-400 transition-colors disabled:opacity-50"
+                                                                title={t('general.view')}
+                                                            >
+                                                                {openingDocId === tx.id ? <Loader2 size={16} className="animate-spin"/> : <Eye size={16} />}
+                                                            </button>
+
+                                                            <button 
+                                                                onClick={() => tx.type === 'invoice' ? downloadInvoice(tx.id) : handleDownloadExpense(tx)} 
+                                                                className="p-1.5 hover:bg-white/20 rounded-md text-green-400 transition-colors"
+                                                                title={t('general.download')}
+                                                            >
+                                                                <Download size={16} />
+                                                            </button>
+
+                                                            <button 
+                                                                onClick={() => tx.type === 'invoice' ? handleArchiveInvoiceClick(tx.id) : handleArchiveExpenseClick(tx.id)} 
+                                                                className="p-1.5 hover:bg-white/20 rounded-md text-indigo-400 transition-colors"
+                                                                title={t('general.archive')}
+                                                            >
+                                                                <Archive size={16} />
+                                                            </button>
+
+                                                            <button 
+                                                                onClick={() => tx.type === 'invoice' ? deleteInvoice(tx.id) : deleteExpense(tx.id)} 
+                                                                className="p-1.5 hover:bg-white/20 rounded-md text-red-400 transition-colors"
+                                                                title={t('general.delete')}
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
