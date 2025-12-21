@@ -1,8 +1,8 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - SIDEBAR V1.3 (MOBILE OPTIMIZATION)
-// 1. FIX: Optimized mobile layout to prevent vertical overcrowding on small screens.
-// 2. UI: Added distinct background and compact styling to the mobile user footer.
-// 3. LOGIC: Enforced flex constraints to ensure navigation scrolls properly.
+// PHOENIX PROTOCOL - SIDEBAR V1.4 (MOBILE COMPACT FIX)
+// 1. UI: Reduced button height and font sizes in mobile footer for a sleeker look.
+// 2. LAYOUT: Adjusted avatar size and spacing to prevent overcrowding.
+// 3. STATUS: Mobile view is now consistent and professional.
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -92,7 +92,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             <BrandLogo />
           </div>
 
-          {/* Navigation - PHOENIX FIX: Added min-h-0 to force scrolling */}
+          {/* Navigation */}
           <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto custom-scrollbar min-h-0">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -122,14 +122,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             })}
           </nav>
 
-          {/* Mobile-Only Profile Footer - PHOENIX FIX: Compact Design */}
+          {/* Mobile-Only Profile Footer - PHOENIX FIX: Ultra Compact & Proportional */}
           <div className="p-3 border-t border-glass-edge bg-[#0a0a0a] lg:hidden mt-auto flex-shrink-0 pb-safe">
             <div className="flex items-center gap-3 mb-3 px-1">
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-md shrink-0">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-md shrink-0 text-xs">
                 {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="overflow-hidden min-w-0">
-                <p className="text-sm font-bold text-white truncate">{user?.username}</p>
+                <p className="text-xs font-bold text-white truncate">{user?.username}</p>
                 <p className="text-[10px] text-gray-500 truncate uppercase tracking-wider">{user?.role}</p>
               </div>
             </div>
@@ -137,16 +137,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                 <NavLink 
                     to="/account"
                     onClick={() => setIsOpen(false)}
-                    className="flex items-center justify-center px-2 py-2 rounded-lg bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white transition-colors text-xs font-bold border border-white/5"
+                    className="flex items-center justify-center px-2 py-1.5 rounded-lg bg-white/5 text-gray-300 hover:bg-white/10 hover:text-white transition-colors text-[11px] font-bold border border-white/5"
                 >
-                    <UserIcon className="h-3.5 w-3.5 mr-2" />
+                    <UserIcon className="h-3.5 w-3.5 mr-1.5" />
                     {t('sidebar.account', 'Profili')}
                 </NavLink>
                 <button 
                     onClick={handleLogout}
-                    className="flex items-center justify-center px-2 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-xs font-bold border border-red-500/20"
+                    className="flex items-center justify-center px-2 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-[11px] font-bold border border-red-500/20"
                 >
-                    <LogOut className="h-3.5 w-3.5 mr-2" />
+                    <LogOut className="h-3.5 w-3.5 mr-1.5" />
                     {t('header.logout', 'Dilni')}
                 </button>
             </div>
