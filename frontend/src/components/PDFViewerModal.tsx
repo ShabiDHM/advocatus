@@ -1,7 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V3.3 (FINAL LINT FIX)
-// 1. FIX: Removed unused 'API_V1_URL' and 'RefreshCw' imports.
-// 2. STATUS: Clean build.
+// PHOENIX PROTOCOL - PDF VIEWER V3.5 (LOCAL WORKER FIX)
+// 1. FIX: Pointed workerSrc to local '/pdf.worker.min.js' (from public folder).
+// 2. LOGIC: Eliminates CDN dependency and resolves build errors.
+// 3. STATUS: Production Ready.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -13,11 +14,11 @@ import {
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
     Download, ZoomIn, ZoomOut, Maximize, Minus 
 } from 'lucide-react';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import { TFunction } from 'i18next';
 
-// Configure PDF Worker
-pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
+// PHOENIX FIX: Use local worker from 'public' folder
+// This prevents build errors and ensures offline capability
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 interface PDFViewerModalProps {
   documentData: Document;
@@ -46,7 +47,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const [actualViewerMode, setActualViewerMode] = useState<'PDF' | 'TEXT' | 'IMAGE' | 'DOWNLOAD'>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Resize handler for PDF responsiveness
   useEffect(() => {
       const updateWidth = () => {
           if (containerRef.current) {
@@ -54,7 +54,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           }
       };
       window.addEventListener('resize', updateWidth);
-      setTimeout(updateWidth, 200); // Initial delay
+      setTimeout(updateWidth, 200); 
       return () => window.removeEventListener('resize', updateWidth);
   }, [actualViewerMode]);
 
@@ -260,12 +260,10 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/95 backdrop-blur-md z-[9999] flex items-center justify-center p-0 sm:p-4" onClick={onClose}>
         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="bg-[#1a1a1a] w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-glass-edge" onClick={(e) => e.stopPropagation()}>
           
-          {/* HEADER TOOLBAR */}
           <header className="flex flex-wrap items-center justify-between p-3 sm:p-4 bg-background-light/95 border-b border-glass-edge backdrop-blur-xl z-20 gap-2 shrink-0">
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 <h2 className="text-sm sm:text-lg font-bold text-gray-200 truncate max-w-[200px]">{documentData.file_name}</h2>
                 
-                {/* Custom Zoom Controls */}
                 {actualViewerMode === 'PDF' && (
                     <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1 border border-white/10 ml-2">
                         <button onClick={zoomOut} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded"><ZoomOut size={16} /></button>
@@ -279,7 +277,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             <div className="flex items-center gap-2 flex-shrink-0">
               <button onClick={handleDownloadOriginal} className="p-2 text-gray-200 bg-primary-start/20 hover:bg-primary-start hover:text-white rounded-lg border border-primary-start/30"><Download size={20} /></button>
               
-              {/* PHOENIX: Minimize Button */}
               {onMinimize && (
                 <button onClick={onMinimize} className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full" title="Minimizo">
                     <Minus size={24} />
