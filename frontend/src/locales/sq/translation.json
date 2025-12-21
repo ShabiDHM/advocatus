@@ -166,9 +166,7 @@
   "documentsPanel": {
     "title": "Dokumentet",
     "uploadDocument": "Ngarko Dokument",
-    "uploadFolder": "Ngarko Dosje",
-    "uploadFolderTooltip": "Ngarko një dosje të tërë me dokumente",
-    "noDocuments": "Asnjë dokument i ngarkuar.",
+      "noDocuments": "Asnjë dokument i ngarkuar.",
     "statusPending": "Duke pritur...",
     "statusUploading": "Duke ngarkuar...",
     "statusProcessing": "Duke procesuar...",
@@ -204,7 +202,9 @@
     "contextGeneral": "E gjithë Dosja"
   },
   "analysis": {
-    "warRoomTitle": "Salla e Strategjisë (War Room)",
+    "analyzeButton": "Analizo Rastin",
+    "crossExamineButton": "Kryqëzo Dokumentin",
+    "warRoomTitle": "Dhoma e Strategjisë",
     "modeAudit": "AUDITIM I PLOTË",
     "modeCross": "KRYQËZIM DOKUMENTESH",
     "modeStandard": "ANALIZË STANDARDE",
