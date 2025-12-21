@@ -1,7 +1,7 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V3.4 (TOOLBAR RENDER FIX)
-// 1. FIX: Correctly wrapped the 'Download' component in a function for the toolbar.
-// 2. STATUS: Resolves the final build error while preserving all features.
+// PHOENIX PROTOCOL - PDF VIEWER V3.6 (SCROLLBAR CONSISTENCY)
+// 1. UI: Applied consistent, custom scrollbar styles to the main viewer and thumbnail sidebar.
+// 2. STATUS: Final UI polish complete.
 
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
@@ -34,65 +34,65 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const defaultLayoutPluginInstance = defaultLayoutPlugin({
-    // PHOENIX FIX: The toolbar now correctly renders all components
-    renderToolbar: (Toolbar: (props: ToolbarProps) => React.ReactElement) => (
-      <Toolbar>
+  const renderToolbar = (Toolbar: (props: ToolbarProps) => React.ReactElement) => (
+    <Toolbar>
         {(slots: ToolbarSlot) => {
-          const {
-            CurrentPageInput,
-            Download,
-            EnterFullScreen,
-            GoToNextPage,
-            GoToPreviousPage,
-            NumberOfPages,
-            Print,
-            ShowSearchPopover,
-            ZoomIn,
-            ZoomOut,
-          } = slots;
-          return (
-            <div className="flex items-center justify-between w-full p-1 bg-[#101010] border-b border-white/10">
-              <div className="flex items-center">
-                <div className="p-1"><ShowSearchPopover /></div>
-                <div className="p-1"><ZoomOut /></div>
-                <div className="p-1"><ZoomIn /></div>
-              </div>
-              <div className="flex items-center">
-                <div className="p-1"><GoToPreviousPage /></div>
-                <div className="flex items-center mx-1">
-                  <CurrentPageInput /> / <NumberOfPages />
+            const {
+                CurrentPageInput,
+                Download,
+                EnterFullScreen,
+                GoToNextPage,
+                GoToPreviousPage,
+                NumberOfPages,
+                Print,
+                ShowSearchPopover,
+                ZoomIn,
+                ZoomOut,
+            } = slots;
+            return (
+                <div className="flex items-center justify-between w-full p-1 bg-[#101010] border-b border-white/10">
+                    <div className="flex items-center">
+                        <div className="p-1"><ShowSearchPopover /></div>
+                        <div className="p-1"><ZoomOut /></div>
+                        <div className="p-1"><ZoomIn /></div>
+                    </div>
+                     <div className="flex items-center">
+                        <div className="p-1"><GoToPreviousPage /></div>
+                        <div className="flex items-center mx-1">
+                           <CurrentPageInput /> / <NumberOfPages />
+                        </div>
+                        <div className="p-1"><GoToNextPage /></div>
+                    </div>
+                    <div className="flex items-center">
+                        <div className="p-1"><EnterFullScreen /></div>
+                        <div className="p-1">
+                          <Download>
+                            {(props) => (
+                              <button className="rpv-toolbar__button" onClick={props.onClick} title={t('actions.download', 'Shkarko')}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                              </button>
+                            )}
+                          </Download>
+                        </div>
+                        <div className="p-1"><Print /></div>
+                        {onMinimizeRequest && (
+                             <div className="p-1 border-l border-white/10 ml-2">
+                                <button className="rpv-toolbar__button" onClick={onMinimizeRequest} title="Minimize">
+                                    <Minus size={20} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
-                <div className="p-1"><GoToNextPage /></div>
-              </div>
-              <div className="flex items-center">
-                <div className="p-1"><EnterFullScreen /></div>
-                <div className="p-1">
-                  {/* The Download component needs a function to provide the file */}
-                  <Download>
-                    {(props) => (
-                      <button className="rpv-toolbar__button" onClick={props.onClick}>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-                      </button>
-                    )}
-                  </Download>
-                </div>
-                <div className="p-1"><Print /></div>
-                {onMinimizeRequest && (
-                  <div className="p-1 border-l border-white/10 ml-2">
-                    <button className="rpv-toolbar__button" onClick={onMinimizeRequest} title="Minimize">
-                      <Minus size={20} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
+            );
         }}
-      </Toolbar>
-    ),
+    </Toolbar>
+  );
+
+  const defaultLayoutPluginInstance = defaultLayoutPlugin({
+    renderToolbar,
     sidebarTabs: (defaultTabs) => [
-      defaultTabs[0], // Thumbnails
+        defaultTabs[0], // Thumbnails
     ],
   });
 
@@ -166,6 +166,27 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             .rpv-default-layout__thumbnail-item--selected { border: 2px solid #6366f1 !important; }
             .rpv-toolbar__button { color: #d1d5db !important; }
             .rpv-toolbar__button:hover { background-color: rgba(255, 255, 255, 0.1) !important; color: #fff !important; }
+            .rpv-default-layout__full-screen-target { z-index: 10001 !important; }
+
+            /* PHOENIX FIX: Consistent Application Scrollbars */
+            .rpv-core__inner-pages::-webkit-scrollbar,
+            .rpv-default-layout__sidebar::-webkit-scrollbar {
+                width: 8px;
+                height: 8px;
+            }
+            .rpv-core__inner-pages::-webkit-scrollbar-track,
+            .rpv-default-layout__sidebar::-webkit-scrollbar-track {
+                background: #1a1a1a;
+            }
+            .rpv-core__inner-pages::-webkit-scrollbar-thumb,
+            .rpv-default-layout__sidebar::-webkit-scrollbar-thumb {
+                background-color: #4b5563;
+                border-radius: 4px;
+            }
+            .rpv-core__inner-pages::-webkit-scrollbar-thumb:hover,
+            .rpv-default-layout__sidebar::-webkit-scrollbar-thumb:hover {
+                background-color: #6b7280;
+            }
           `}</style>
           
           <div className="flex-grow relative bg-[#2a2a2a] overflow-hidden">
