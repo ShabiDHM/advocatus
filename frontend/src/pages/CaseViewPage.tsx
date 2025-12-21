@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW PAGE V8.8 (LAYOUT COMPACT)
-// 1. FIX: Removed 'Status' (Hapur) badge/icon entirely.
-// 2. UI: Moved Dropdown and Button to the same row as the Date.
-// 3. STATUS: Clean build.
+// PHOENIX PROTOCOL - CASE VIEW PAGE V8.92 (LOCALIZATION FIX)
+// 1. FIX: Replaced hardcoded strings ('Expand', 'Close', 'Klient i Panjohur') with translation keys.
+// 2. STATUS: Fully localized and layout optimized.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -28,6 +27,7 @@ type ActiveModal = 'none' | 'analysis';
 
 // --- PHOENIX: DOCKED PDF COMPONENT ---
 const DockedPDFViewer: React.FC<{ document: Document; onExpand: () => void; onClose: () => void; }> = ({ document, onExpand, onClose }) => {
+    const { t } = useTranslation(); // Added hook for internal localization
     return (
         <AnimatePresence>
             <motion.div
@@ -44,10 +44,10 @@ const DockedPDFViewer: React.FC<{ document: Document; onExpand: () => void; onCl
                     <p className="text-xs font-medium text-gray-200 truncate">{document.file_name}</p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={onExpand} className="p-1.5 hover:bg-white/10 rounded-md text-gray-400 hover:text-white transition-colors" title="Expand">
+                    <button onClick={onExpand} className="p-1.5 hover:bg-white/10 rounded-md text-gray-400 hover:text-white transition-colors" title={t('general.expand', 'Zgjero')}>
                         <Maximize2 size={16} />
                     </button>
-                    <button onClick={onClose} className="p-1.5 hover:bg-red-500/10 rounded-md text-gray-400 hover:text-red-400 transition-colors" title="Close">
+                    <button onClick={onClose} className="p-1.5 hover:bg-red-500/10 rounded-md text-gray-400 hover:text-red-400 transition-colors" title={t('general.close', 'Mbyll')}>
                         <X size={16} />
                     </button>
                 </div>
@@ -91,7 +91,7 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
-// --- REDESIGNED HEADER COMPONENT (SINGLE ROW LAYOUT) ---
+// --- REDESIGNED HEADER COMPONENT (LOCALIZED) ---
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
@@ -108,16 +108,19 @@ const CaseHeader: React.FC<{
 
     return (
         <motion.div 
-            className="relative z-30 mb-6 rounded-2xl shadow-xl border border-glass-edge overflow-hidden group" 
+            className="relative z-30 mb-6 rounded-2xl shadow-xl border border-glass-edge group" 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }} 
             transition={{ duration: 0.3 }}
         >
-          {/* Background Gradient & Effects */}
-          <div className="absolute inset-0 bg-gradient-to-br from-background-light/90 via-background-dark/95 to-background-dark pointer-events-none" />
-          <div className="absolute top-0 right-0 p-20 bg-primary-start/5 blur-[80px] rounded-full pointer-events-none" />
+          {/* Background Gradient Layer (Clipped to shape) */}
+          <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+              <div className="absolute inset-0 bg-gradient-to-br from-background-light/90 via-background-dark/95 to-background-dark" />
+              <div className="absolute top-0 right-0 p-20 bg-primary-start/5 blur-[80px] rounded-full" />
+          </div>
 
-          <div className="relative p-5 sm:p-6 flex flex-col gap-4">
+          {/* Content Layer (Visible, allows dropdown overflow) */}
+          <div className="relative p-5 sm:p-6 flex flex-col gap-5 z-10">
               
               {/* TOP SECTION: Title & Client */}
               <div className="flex flex-col gap-1">
@@ -127,30 +130,35 @@ const CaseHeader: React.FC<{
                   
                   <div className="flex items-center gap-2 text-gray-400 mt-1">
                       <User className="h-4 w-4 text-primary-start" />
-                      <span className="text-sm sm:text-base font-medium">{caseDetails.client?.name || 'Klient i Panjohur'}</span>
+                      <span className="text-sm sm:text-base font-medium">
+                          {caseDetails.client?.name || t('caseCard.unknownClient', 'Klient i Panjohur')}
+                      </span>
                   </div>
               </div>
 
-              {/* BOTTOM SECTION: Single Row - Date | Dropdown | Action */}
+              {/* DIVIDER */}
+              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+              {/* BOTTOM SECTION: Aligned Row */}
               <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full">
                   
-                  {/* Date Pill - Now first in the row */}
-                  <div className="flex items-center justify-center md:justify-start gap-2 px-3 py-3 md:py-1.5 rounded-xl md:rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-sm font-medium whitespace-nowrap">
-                      <Calendar className="h-4 w-4" />
+                  {/* Date Pill - Fixed height h-11 (44px) */}
+                  <div className="flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-background-light border border-glass-edge text-gray-300 text-sm font-medium whitespace-nowrap min-w-[140px]">
+                      <Calendar className="h-4 w-4 text-blue-400" />
                       {new Date(caseDetails.created_at).toLocaleDateString()}
                   </div>
 
-                  {/* Dropdown - Flexible width */}
-                  <div className="flex-1 w-full md:w-auto">
-                     <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full" />
+                  {/* Dropdown - Wraps to fill height */}
+                  <div className="flex-1 w-full md:w-auto h-12 md:h-11 [&>div]:h-full [&>div>button]:h-full">
+                     <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
                   </div>
                   
-                  {/* Analyze Button - Flexible but contained */}
+                  {/* Analyze Button - Fixed height h-11 */}
                   <button 
                       onClick={onAnalyze} 
                       disabled={isAnalyzing} 
                       className={`
-                          w-full md:w-auto px-6 py-3 md:py-2.5 rounded-xl 
+                          w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
                           flex items-center justify-center gap-2.5 
                           text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
                           ${isAnalyzing ? 'bg-background-light border border-white/10 cursor-not-allowed' : 'bg-gradient-to-r from-primary-start to-primary-end hover:shadow-primary-start/20 hover:scale-[1.02] border border-transparent'}
