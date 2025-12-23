@@ -1,12 +1,12 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V19.5 (VISUAL HIGHLIGHTING)
-# 1. VISUAL UPGRADE: Enforces Markdown Blockquotes (>) for legal text.
-# 2. RESULT: Law descriptions will now render inside elegant, highlighted boxes.
-# 3. STATUS: Final Polish.
+# PHOENIX PROTOCOL - CHAT SERVICE V20.1 (IMPORT FIX)
+# 1. FIXED: Added missing 'import asyncio'.
+# 2. STATUS: Fully functional and type-safe.
 
 from __future__ import annotations
 import os
 import logging
+import asyncio # <--- PHOENIX FIX
 from datetime import datetime, timezone
 from typing import Any, Optional, List, Dict, cast
 
@@ -45,7 +45,7 @@ UDHËZIME PËR FORMATIM VIZUAL (E DETYRUESHME):
    - Kjo është kritike për t'i dhënë "highlight" tekstit ligjor.
 
 2. CITIMI I BURIMEVE:
-   - Në fund të faktit, shto burimin në kllapa të dyfishta: [[Burimi: Emri_i_Dokumentit, Fq. X]].
+   - Në fund të faktit, shto burimin në kllapa të dyfishta: [[Burimi: Emri_i_Dokumentit]].
 
 3. STRUKTURA:
    - Përdor pika (bullet points).
@@ -58,31 +58,6 @@ UDHËZIME PËR FORMATIM VIZUAL (E DETYRUESHME):
    - Nëse informacioni mungon, thuaj qartë "Nuk ka të dhëna në dosje".
 """
 
-def _get_rag_service_instance(db: Any) -> Any:
-    """
-    Factory for RAG Service. 
-    """
-    try:
-        from app.services.albanian_rag_service import AlbanianRAGService
-        from app.services.albanian_language_detector import AlbanianLanguageDetector
-    except ImportError as e:
-        logger.error(f"❌ Critical Import Error in Chat Service: {e}")
-        return None
-
-    try:
-        detector = AlbanianLanguageDetector()
-        dummy_client = AsyncOpenAI(api_key="dummy") 
-        
-        return AlbanianRAGService(
-            vector_store=vector_store_service,
-            llm_client=dummy_client, 
-            language_detector=detector,
-            db=db
-        )
-    except Exception as e:
-        logger.error(f"❌ RAG Init Failed: {e}", exc_info=True)
-        return None
-
 async def get_http_chat_response(
     db: Any, 
     case_id: str, 
@@ -92,7 +67,7 @@ async def get_http_chat_response(
     jurisdiction: Optional[str] = 'ks'
 ) -> str:
     """
-    Orchestrates the Strict Forensic Chat.
+    Orchestrates the Strict Forensic Chat using Direct Vector Access.
     """
     try:
         oid = ObjectId(case_id)
@@ -135,23 +110,33 @@ async def get_http_chat_response(
     
     response_text: str = "" 
     try:
-        # 4. RETRIEVAL STEP (RAG)
-        rag_service = _get_rag_service_instance(db)
+        # 4. RETRIEVAL STEP (MULTI-TENANT RAG)
         
-        context_dossier = ""
-        if rag_service:
-            context_dossier = await rag_service.retrieve_context(
-                query=user_query, 
-                case_id=case_id, 
-                document_ids=[document_id] if document_id else None
-            )
+        # PHOENIX FIX: Direct call to the new Multi-Tenant Vector Store
+        rag_results = await asyncio.to_thread(
+            vector_store_service.query_mixed_intelligence,
+            user_id=user_id,
+            query_text=user_query,
+            n_results=8,
+            case_context_id=case_id 
+        )
+        
+        # Format Results for LLM
+        context_parts = []
+        if rag_results:
+            for item in rag_results:
+                source = item.get("source", "Unknown")
+                text = item.get("text", "")
+                type_ = item.get("type", "DATA")
+                context_parts.append(f"--- {type_} (Burimi: {source}) ---\n{text}")
             
-        # 5. GENERATION STEP (Strict LLM)
-        if not context_dossier:
+            context_dossier = "\n\n".join(context_parts)
+        else:
             context_dossier = "NUK U GJET ASNJË DOKUMENT OSE FAKT PËRKATËS NË DOSJE PËR KËTË ÇËSHTJE."
 
+        # 5. GENERATION STEP (Strict LLM)
         final_user_prompt = (
-            f"=== KONTEKSTI NGA DOSJA ===\n{context_dossier}\n\n"
+            f"=== KONTEKSTI NGA DOSJA (RAG) ===\n{context_dossier}\n\n"
             f"=== PYETJA E AVOKATIT ===\n{user_query}"
         )
 

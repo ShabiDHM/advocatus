@@ -1,8 +1,7 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - DOCUMENT PIPELINE V8.1 (FINDINGS REMOVAL)
-# 1. REMOVED: findings_service import.
-# 2. REMOVED: task_findings (Dead Logic).
-# 3. STATUS: Crash-proof and Optimized.
+# PHOENIX PROTOCOL - DOCUMENT PIPELINE V9.0 (MULTI-TENANT)
+# 1. UPDATE: Passes 'user_id' to vector store for private collection storage.
+# 2. STATUS: Fully Integrated with Multi-Tenant Architecture.
 
 import os
 import tempfile
@@ -16,7 +15,6 @@ from pymongo.database import Database
 import redis
 from bson import ObjectId
 
-# Core Services
 from . import (
     document_service, 
     storage_service, 
@@ -101,10 +99,9 @@ def orchestrate_document_processing_mongo(
         if not raw_text or not raw_text.strip():
             raise ValueError("OCR dështoi: Dokumenti duket bosh.")
 
-        # --- PHOENIX STERILIZATION PROTOCOL ---
         _emit_progress(redis_client, user_id, document_id_str, "Sterilizimi Ligjor...", 28)
         extracted_text = llm_service.sterilize_legal_text(raw_text)
-        logger.info(f"✅ Document {document_id_str} sterilized. (Length: {len(raw_text)} -> {len(extracted_text)})")
+        logger.info(f"✅ Document {document_id_str} sterilized.")
         
         _emit_progress(redis_client, user_id, document_id_str, "Klasifikimi...", 30)
         is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
@@ -129,6 +126,7 @@ def orchestrate_document_processing_mongo(
                 enriched_chunks = EnhancedDocumentProcessor.process_document(text_content=extracted_text, document_metadata=base_doc_metadata, is_albanian=is_albanian)
                 
                 vector_store_service.create_and_store_embeddings_from_chunks(
+                    user_id=user_id, # PHOENIX FIX: Added user_id for Private Apartment
                     document_id=document_id_str, case_id=case_id_str, file_name=doc_name,
                     chunks=[c.content for c in enriched_chunks],
                     metadatas=[c.metadata for c in enriched_chunks]
@@ -149,8 +147,6 @@ def orchestrate_document_processing_mongo(
                 optimized = extracted_text[:limit] if len(extracted_text) > limit else extracted_text
                 return llm_service.generate_summary(optimized)
             except Exception: return "Përmbledhja nuk është e disponueshme."
-
-        # REMOVED: task_findings
 
         def task_deadlines() -> None:
             try:
@@ -173,8 +169,7 @@ def orchestrate_document_processing_mongo(
             except Exception as e: logger.error(f"Graph Ingestion Error: {e}")
 
         summary_result, text_storage_key = None, None
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor: # Reduced workers by 1
-            # REMOVED: task_findings from this list
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures_list = [executor.submit(task) for task in [task_embeddings, task_storage, task_summary, task_deadlines, task_graph]]
             summary_result = futures_list[2].result()
             text_storage_key = futures_list[1].result()
