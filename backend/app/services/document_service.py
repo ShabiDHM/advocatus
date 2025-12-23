@@ -1,8 +1,8 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.3 (FINDINGS REMOVAL)
-# 1. FIXED: Removed 'findings_service' import (Resolves Crash).
-# 2. CLEANUP: Removed findings deletion logic (Collection is deprecated).
-# 3. STATUS: Crash-proof.
+# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.5 (DIRECT CASCADE)
+# 1. FIXED: Findings deletion logic moved INSIDE this service (No dependency on findings_service).
+# 2. LOGIC: Ensures complete cleanup (S3 + Vector + Mongo Findings + Calendar + Graph).
+# 3. STATUS: Robust & Independent.
 
 import logging
 import datetime
@@ -17,6 +17,7 @@ from pymongo.database import Database
 from ..models.document import DocumentOut, DocumentStatus
 from ..models.user import UserInDB
 
+# Only essential services
 from . import vector_store_service, storage_service
 
 logger = logging.getLogger(__name__)
@@ -126,6 +127,10 @@ def get_document_content_by_key(storage_key: str) -> Optional[str]:
         return None
 
 def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: ObjectId, owner: UserInDB) -> List[str]:
+    """
+    MASTER DELETE FUNCTION
+    Removes: DB Record, S3 Files, Findings, Vector Embeddings, Calendar Events, Graph Nodes.
+    """
     document_to_delete = db.documents.find_one({"_id": doc_id, "owner_id": owner.id})
     if not document_to_delete:
         raise HTTPException(status_code=404, detail="Document not found.")
@@ -137,9 +142,22 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
 
     mixed_id_query = {"$in": [doc_id, doc_id_str]}
     
-    # REMOVED: db.findings.delete_many (Module deleted)
+    # 1. DELETE FINDINGS (Direct DB Access)
+    # We no longer rely on 'findings_service', we just wipe the data.
     deleted_finding_ids = []
+    try:
+        findings_query = {"document_id": mixed_id_query}
+        # Capture IDs first for frontend update
+        findings_cursor = db.findings.find(findings_query, {"_id": 1})
+        deleted_finding_ids = [str(f["_id"]) for f in findings_cursor]
+        
+        # Execute Delete
+        db.findings.delete_many(findings_query)
+        logger.info(f"Cascading delete: Removed findings for doc {doc_id}")
+    except Exception as e:
+        logger.error(f"Error deleting findings for doc {doc_id}: {e}")
     
+    # 2. DELETE CALENDAR EVENTS & ALERTS
     link_query = {
         "$or": [
             {"document_id": mixed_id_query},
@@ -154,6 +172,7 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     except Exception as e:
         logger.error(f"Error deleting events/alerts for doc {doc_id}: {e}")
 
+    # 3. DELETE GRAPH NODES
     try:
         graph_service_module = importlib.import_module("app.services.graph_service")
         if hasattr(graph_service_module, "graph_service"):
@@ -161,11 +180,16 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     except Exception as e:
         logger.warning(f"Graph cleanup failed (non-critical): {e}")
 
+    # 4. DELETE VECTOR EMBEDDINGS (AI Memory)
     try:
-        vector_store_service.delete_document_embeddings(document_id=doc_id_str)
+        vector_store_service.delete_document_embeddings(
+            user_id=str(owner.id), # Multi-Tenant Aware
+            document_id=doc_id_str
+        )
     except Exception as e:
         logger.error(f"Vector store cleanup failed: {e}")
     
+    # 5. DELETE S3 FILES
     if storage_key: 
         try: storage_service.delete_file(storage_key=storage_key)
         except: pass
@@ -176,7 +200,9 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
         try: storage_service.delete_file(storage_key=preview_key)
         except: pass
     
+    # 6. DELETE DOCUMENT RECORD
     db.documents.delete_one({"_id": doc_id})
+    
     return deleted_finding_ids
 
 def bulk_delete_documents(db: Database, redis_client: redis.Redis, document_ids: List[str], owner: UserInDB) -> Dict[str, Any]:
@@ -190,6 +216,7 @@ def bulk_delete_documents(db: Database, redis_client: redis.Redis, document_ids:
                 continue
             
             doc_oid = ObjectId(doc_id_str)
+            # Re-use the safe delete logic
             finding_ids = delete_document_by_id(db, redis_client, doc_oid, owner)
             all_deleted_finding_ids.extend(finding_ids)
             deleted_count += 1
