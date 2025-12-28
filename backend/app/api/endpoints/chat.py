@@ -1,7 +1,6 @@
-# FILE: backend/app/routers/chat.py
-# PHOENIX PROTOCOL - JURISDICTION SUPPORT (API LAYER)
-# 1. API: Updated 'ChatMessageRequest' to accept 'jurisdiction' (ks/al).
-# 2. LOGIC: Passes 'jurisdiction' down to the service layer for RAG filtering.
+# FILE: backend/app/api/endpoints/chat.py
+# PHOENIX PROTOCOL - V5.1 (VERIFIED)
+# STATUS: No changes needed. Correctly passes all required parameters to the service layer.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from typing import Annotated, Any, Optional
@@ -20,7 +19,6 @@ logger = logging.getLogger(__name__)
 class ChatMessageRequest(BaseModel):
     message: str
     document_id: Optional[str] = None
-    # PHOENIX FIX: Added jurisdiction, defaults to Kosovo ('ks')
     jurisdiction: Optional[str] = 'ks' 
 
 class ChatResponse(BaseModel):
@@ -40,13 +38,11 @@ async def handle_chat_message(
     if not chat_request.message: 
         raise HTTPException(status_code=400, detail="Empty message")
         
-    # Debug Log for context
     scope_log = f"Document {chat_request.document_id}" if chat_request.document_id else "Full Case"
     jur_log = chat_request.jurisdiction.upper() if chat_request.jurisdiction else 'KS'
     logger.info(f"📨 API Recv: Chat from User {current_user.id} [Scope: {scope_log}] [Jurisdiction: {jur_log}]")
 
     try:
-        # PHOENIX FIX: Passing all parameters to service
         response_text = await chat_service.get_http_chat_response(
             db=db, 
             case_id=case_id, 
@@ -56,7 +52,6 @@ async def handle_chat_message(
             jurisdiction=chat_request.jurisdiction
         )
         
-        # SSE Notification
         try:
             channel = f"user:{current_user.id}:updates"
             payload = {
