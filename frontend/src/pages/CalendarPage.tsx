@@ -1,8 +1,8 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR V9.0 (SYMMETRICAL LAYOUT)
-// 1. SYMMETRY FIX: Applied 'items-stretch' and 'flex-1' to force equal column heights on Desktop.
-// 2. LAYOUT: The 'Upcoming Alerts' panel now expands to align with the bottom of the calendar.
-// 3. VISUALS: Preserved Glassmorphism and Glow effects.
+// PHOENIX PROTOCOL - CALENDAR V9.5 (SYMMETRY & HEIGHT FIX)
+// 1. HEIGHT FIX: Removed 'flex-1' from main container to prevent unlimited vertical stretching.
+// 2. SYMMETRY: Kept 'items-stretch' so the Sidebar always matches the Calendar's natural height.
+// 3. CELLS: Adjusted cell min-height to 120px for a balanced, premium look.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -349,8 +349,9 @@ const CalendarPage: React.FC = () => {
     const weekStartsOn = currentLocale?.options?.weekStartsOn ?? 1; 
     const firstDayOfMonth = getDay(monthStart);
     const startingDayIndex = (firstDayOfMonth - weekStartsOn + 7) % 7;
-    // Glass Cell Styles - Flex Col to fill available space
-    const cellClass = "min-h-[100px] border-r border-b border-white/5 relative group transition-colors hover:bg-white/5 flex flex-col";
+    
+    // PHOENIX FIX: Set min-height to 120px to prevent ugly stretching
+    const cellClass = "min-h-[120px] border-r border-b border-white/5 relative group transition-colors hover:bg-white/5 flex flex-col";
     const days = Array.from({ length: startingDayIndex }, (_, i) => <div key={`empty-${i}`} className={`${cellClass} bg-black/10`} />);
 
     for (let day = 1; day <= daysInMonth; day++) {
@@ -400,8 +401,8 @@ const CalendarPage: React.FC = () => {
     const weekStarts = startOfWeek(new Date(), { weekStartsOn });
     const weekDays = Array.from({ length: 7 }, (_, i) => format(addDays(weekStarts, i), 'EEEEEE', { locale: currentLocale }));
     
-    // PHOENIX: Added 'flex-1' to allow vertical expansion
-    return (<div className="glass-panel rounded-3xl shadow-2xl overflow-hidden flex flex-col flex-1 h-full"><div className="grid grid-cols-7 bg-white/5 border-b border-white/10 shrink-0">{weekDays.map(day => <div key={day} className="py-3 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">{day}</div>)}</div><div className="grid grid-cols-7 border-l border-t border-white/5 flex-1 auto-rows-fr">{days}</div></div>);
+    // PHOENIX: Removed 'h-full' from container to allow natural height
+    return (<div className="glass-panel rounded-3xl shadow-2xl overflow-hidden flex flex-col flex-1"><div className="grid grid-cols-7 bg-white/5 border-b border-white/10 shrink-0">{weekDays.map(day => <div key={day} className="py-3 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">{day}</div>)}</div><div className="grid grid-cols-7 border-l border-t border-white/5 flex-1 auto-rows-fr">{days}</div></div>);
   };
   
   const monthName = format(currentDate, 'LLLL yyyy', { locale: currentLocale });
@@ -410,7 +411,10 @@ const CalendarPage: React.FC = () => {
   return (
     <div className="min-h-screen font-sans text-gray-100 flex flex-col">
         <div id="react-datepicker-portal"></div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 flex flex-col">
+        
+        {/* PHOENIX FIX: Removed 'flex-1' to prevent vertical stretching */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
+            
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 shrink-0">
                 <div><h1 className="text-3xl font-bold text-white flex items-center gap-3"><CalendarIcon className="text-primary-start h-8 w-8" /><span className="capitalize">{monthName}</span></h1><p className="text-gray-400 mt-1 ml-1">{t('calendar.pageSubtitle')}</p></div>
                 <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto"><div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-1"><button onClick={() => navigateMonth('prev')} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ChevronLeft size={20} /></button><button onClick={() => setCurrentDate(new Date())} className="px-4 text-sm font-medium hover:text-white transition-colors">{t('calendar.today')}</button><button onClick={() => navigateMonth('next')} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ChevronRight size={20} /></button></div><button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 text-white rounded-xl font-bold transition-all"><Plus size={18} /> <span className="hidden sm:inline">{t('calendar.newEvent')}</span></button></div>
@@ -418,7 +422,7 @@ const CalendarPage: React.FC = () => {
             {error && <div className="bg-red-900/20 border border-red-500/50 rounded-xl p-4 mb-6 flex items-center space-x-3 shrink-0"><AlertCircle className="h-5 w-5 text-red-400" /><span className="text-red-200 text-sm">{error}</span></div>}
             
             {/* PHOENIX SYMMETRY FIX: items-stretch to force equal height */}
-            <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 flex-1 items-stretch">
+            <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 items-stretch">
                 <div className="xl:col-span-3 flex flex-col gap-6 h-full">
                     <div className="flex flex-col sm:flex-row gap-3 shrink-0">
                         <div className="relative flex-grow">
@@ -440,7 +444,7 @@ const CalendarPage: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                    {/* Calendar Container fills remaining space */}
+                    {/* Calendar Container */}
                     {viewMode === 'month' ? renderMonthView() : renderListView()}
                 </div>
                 
