@@ -1,7 +1,7 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V5.2 (TS FIX)
-// 1. FIX: Removed redundant type check causing TS2367.
-// 2. LOGIC: Maintained authenticated Blob fetching architecture.
+// PHOENIX PROTOCOL - PDF VIEWER V5.4 (CLEANUP)
+// 1. CLEANUP: Removed unused 'RefreshCw' import.
+// 2. LOGIC: Preserved Hybrid Performance/Fallback architecture.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -29,12 +29,14 @@ interface PDFViewerModalProps {
 }
 
 const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, onClose, onMinimize, t, directUrl, isAuth = false }) => {
-  const [pdfSource, setPdfSource] = useState<string | null>(null);
+  // pdfSource can be a string (Blob URL) or an object (Direct URL + Headers)
+  const [pdfSource, setPdfSource] = useState<any>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [imageSource, setImageSource] = useState<string | null>(null);
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [useBlobFallback, setUseBlobFallback] = useState(false);
   
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
@@ -63,55 +65,85 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     return 'PDF';
   };
 
-  const fetchDocument = async () => {
-    setError(null);
-    setIsLoading(true);
-    const targetMode = getTargetMode(documentData.mime_type || '');
-    
-    try {
-        let blob: Blob;
+  // --- FETCHING LOGIC ---
 
-        // SCENARIO 1: Direct URL provided
-        if (directUrl) {
-            if (isAuth) {
-                const response = await apiService.axiosInstance.get(directUrl, { 
-                    responseType: 'blob' 
-                });
-                blob = response.data;
-            } else {
-                const response = await fetch(directUrl);
-                if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-                blob = await response.blob();
-            }
-        } 
-        // SCENARIO 2: Case ID provided
-        else if (caseId) {
-            blob = await apiService.getOriginalDocument(caseId, documentData.id);
-        } else {
-            throw new Error("Missing source configuration (No URL or CaseID)");
-        }
+  // 1. The Slow but Secure Way (Blob via Axios)
+  // Used for non-PDF files OR as a fallback if the fast PDF path fails
+  const fetchAsBlob = async (targetMode: string) => {
+      try {
+          setIsLoading(true);
+          let blob: Blob;
 
-        // Handle the Blob based on Type
-        if (targetMode === 'PDF') {
-            const url = URL.createObjectURL(blob);
-            setPdfSource(url);
-            setActualViewerMode('PDF');
-        } else {
-            await handleBlobContent(blob, targetMode);
-        }
-        
-        if (targetMode !== 'PDF') setIsLoading(false);
+          if (directUrl) {
+              if (isAuth) {
+                  const response = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
+                  blob = response.data;
+              } else {
+                  const response = await fetch(directUrl);
+                  if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+                  blob = await response.blob();
+              }
+          } else if (caseId) {
+              blob = await apiService.getOriginalDocument(caseId, documentData.id);
+          } else {
+              throw new Error("Missing source configuration");
+          }
 
-    } catch (err: any) {
-        console.error("Viewer Fetch Error:", err);
-        const errMsg = err.response?.status === 404 
-            ? t('pdfViewer.notFound', { defaultValue: 'Dokumenti nuk u gjet.' })
-            : t('pdfViewer.errorFetch', { defaultValue: 'Gabim gjatë ngarkimit.' });
-        
-        setError(errMsg);
-        setActualViewerMode('DOWNLOAD');
-        setIsLoading(false);
-    }
+          if (targetMode === 'PDF') {
+              const url = URL.createObjectURL(blob);
+              setPdfSource(url); // Passing string forces react-pdf to treat as local file
+          } else {
+              await handleBlobContent(blob, targetMode);
+          }
+          
+          if (targetMode !== 'PDF') setIsLoading(false);
+
+      } catch (err: any) {
+          console.error("Blob Fetch Error:", err);
+          handleFinalError(err);
+      }
+  };
+
+  // 2. The Fast Way (Direct URL + Headers)
+  // Used primarily for PDFs to enable streaming
+  const initFastPath = () => {
+      const targetMode = getTargetMode(documentData.mime_type || '');
+      setActualViewerMode(targetMode as any);
+
+      if (targetMode !== 'PDF') {
+          // Non-PDFs always go through Blob fetch to ensure we can render text/images securely
+          fetchAsBlob(targetMode);
+          return;
+      }
+
+      // If we are already in fallback mode or don't have a direct URL, use Blob
+      if (useBlobFallback || !directUrl) {
+          fetchAsBlob('PDF');
+          return;
+      }
+
+      // FAST PATH: Provide URL + Token directly to PDF.js
+      // This allows streaming (showing page 1 while downloading page 10)
+      const token = apiService.getToken();
+      if (isAuth && token) {
+          setPdfSource({
+              url: directUrl,
+              httpHeaders: { 'Authorization': `Bearer ${token}` },
+              withCredentials: true
+          });
+      } else {
+          setPdfSource(directUrl);
+      }
+      // Note: We leave isLoading=true. onLoadSuccess clears it.
+  };
+
+  const handleFinalError = (err: any) => {
+      const errMsg = err.response?.status === 404 
+          ? t('pdfViewer.notFound', { defaultValue: 'Dokumenti nuk u gjet.' })
+          : t('pdfViewer.errorFetch', { defaultValue: 'Gabim gjatë ngarkimit.' });
+      setError(errMsg);
+      setActualViewerMode('DOWNLOAD');
+      setIsLoading(false);
   };
 
   const handleBlobContent = async (blob: Blob, mode: string) => {
@@ -126,13 +158,29 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       }
   };
   
+  // Initial Load & Reset on props change
   useEffect(() => {
-    fetchDocument();
+    setError(null);
+    setIsLoading(true);
+    setUseBlobFallback(false); // Reset fallback logic
+    
+    // Tiny timeout to ensure state clears before starting fresh
+    const tId = setTimeout(initFastPath, 0);
+
     return () => { 
+        clearTimeout(tId);
         if (imageSource) URL.revokeObjectURL(imageSource);
-        if (pdfSource) URL.revokeObjectURL(pdfSource);
+        if (typeof pdfSource === 'string' && pdfSource.startsWith('blob:')) URL.revokeObjectURL(pdfSource);
     };
   }, [caseId, documentData.id, directUrl]);
+
+  // Effect to trigger Blob Fetch if Fallback is activated
+  useEffect(() => {
+      if (useBlobFallback && actualViewerMode === 'PDF') {
+          console.log("Switching to Blob Fallback for PDF...");
+          fetchAsBlob('PDF');
+      }
+  }, [useBlobFallback]);
 
   const onPdfLoadSuccess = ({ numPages }: { numPages: number }) => {
       setNumPages(numPages);
@@ -141,7 +189,15 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   };
 
   const onPdfLoadError = (err: any) => {
-      console.error("PDF Render Error Detailed:", err);
+      console.error("PDF Render Error (Fast Path):", err);
+      
+      // CRITICAL: If Fast Path fails (likely 401 or CORS), switch to Blob Fallback
+      if (!useBlobFallback) {
+          setUseBlobFallback(true);
+          return;
+      }
+
+      // If we failed even in fallback mode, show error
       setError(t('pdfViewer.corruptFile', { defaultValue: 'Skedari nuk mund të shfaqet.' }));
       setIsLoading(false);
       setActualViewerMode('DOWNLOAD');
@@ -185,7 +241,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const zoomReset = () => setScale(1.0);
 
   const renderContent = () => {
-    // 1. Check Download Mode first (Explicit manual fallback or error fallback)
     if (actualViewerMode === 'DOWNLOAD') {
         return (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -199,7 +254,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         );
     }
 
-    // 2. Check for generic errors that didn't force DOWNLOAD mode
     if (error) return (
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <div className="bg-red-500/10 p-6 rounded-full mb-4"><AlertTriangle className="h-12 w-12 text-red-400" /></div>
@@ -207,14 +261,16 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         </div>
     );
 
-    // 3. Render content based on mode
     switch (actualViewerMode) {
       case 'PDF':
         return (
           <div className="flex flex-col items-center w-full min-h-full bg-black/40 overflow-auto pt-8 pb-20" ref={containerRef}>
              {isLoading && (
                  <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/60 backdrop-blur-sm">
-                     <Loader className="animate-spin h-10 w-10 text-primary-start" />
+                     <div className="flex flex-col items-center gap-2">
+                        <Loader className="animate-spin h-10 w-10 text-primary-start" />
+                        {useBlobFallback && <span className="text-xs text-white/70">Sigurimi i lidhjes...</span>}
+                     </div>
                  </div>
              )}
              <div className="flex justify-center w-full">
@@ -225,6 +281,8 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                         onLoadError={onPdfLoadError}
                         loading={null} 
                         noData={null}
+                        // Force remount when switching source types to avoid internal caching issues
+                        key={typeof pdfSource === 'string' ? pdfSource : pdfSource.url}
                      >
                          <Page 
                             pageNumber={pageNumber} 
@@ -271,8 +329,9 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                     <h2 className="text-sm sm:text-base font-bold text-white truncate max-w-[200px] sm:max-w-md">
                         {documentData.file_name}
                     </h2>
-                    <span className="text-[10px] font-mono text-text-secondary uppercase tracking-widest">
-                        {actualViewerMode} VIEW
+                    <span className="text-[10px] font-mono text-text-secondary uppercase tracking-widest flex items-center gap-1">
+                        {actualViewerMode} VIEW 
+                        {useBlobFallback && <span className="text-amber-400 text-[9px]">(SECURE)</span>}
                     </span>
                 </div>
                 
