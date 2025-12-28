@@ -1,8 +1,7 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V5.0 (GLASS STYLE)
-// 1. VISUALS: Full Glassmorphism adoption (glass-high).
-// 2. UX: Floating controls on glass layers for maximum document visibility.
-// 3. LOGIC: Preserved PDF.js worker version fix and all viewing modes.
+// PHOENIX PROTOCOL - PDF VIEWER V5.2 (TS FIX)
+// 1. FIX: Removed redundant type check causing TS2367.
+// 2. LOGIC: Maintained authenticated Blob fetching architecture.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -30,7 +29,7 @@ interface PDFViewerModalProps {
 }
 
 const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, onClose, onMinimize, t, directUrl, isAuth = false }) => {
-  const [pdfSource, setPdfSource] = useState<any>(null);
+  const [pdfSource, setPdfSource] = useState<string | null>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [imageSource, setImageSource] = useState<string | null>(null);
   
@@ -65,60 +64,53 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   };
 
   const fetchDocument = async () => {
+    setError(null);
+    setIsLoading(true);
     const targetMode = getTargetMode(documentData.mime_type || '');
-    const token = apiService.getToken();
+    
+    try {
+        let blob: Blob;
 
-    if (directUrl) {
-        if (targetMode === 'PDF') {
-             if (isAuth && token) {
-                 setPdfSource({
-                    url: directUrl,
-                    httpHeaders: { 'Authorization': `Bearer ${token}` },
-                    withCredentials: true
-                 });
-             } else {
-                 setPdfSource(directUrl);
-             }
-             setActualViewerMode('PDF');
-        } else {
-             try {
-                 let blob: Blob;
-                 if (isAuth && token) {
-                     const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
-                     const response = await fetch(directUrl, { headers });
-                     if (!response.ok) throw new Error('Fetch failed');
-                     blob = await response.blob();
-                 } else {
-                     const response = await fetch(directUrl);
-                     blob = await response.blob();
-                 }
-                 handleBlobContent(blob, targetMode);
-             } catch (e) {
-                 console.error(e);
-                 setActualViewerMode('DOWNLOAD');
-                 setIsLoading(false);
-             }
-        }
-        return;
-    }
-
-    if (caseId) {
-        setIsLoading(true);
-        try {
-            const blob = await apiService.getOriginalDocument(caseId, documentData.id);
-            if (targetMode === 'PDF') {
-                const url = URL.createObjectURL(blob);
-                setPdfSource(url);
-                setActualViewerMode('PDF');
+        // SCENARIO 1: Direct URL provided
+        if (directUrl) {
+            if (isAuth) {
+                const response = await apiService.axiosInstance.get(directUrl, { 
+                    responseType: 'blob' 
+                });
+                blob = response.data;
             } else {
-                handleBlobContent(blob, targetMode);
+                const response = await fetch(directUrl);
+                if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+                blob = await response.blob();
             }
-        } catch (err) {
-            console.error("Viewer Error:", err);
-            setError(t('pdfViewer.errorFetch', { defaultValue: 'Gabim gjatë ngarkimit.' }));
-            setIsLoading(false);
+        } 
+        // SCENARIO 2: Case ID provided
+        else if (caseId) {
+            blob = await apiService.getOriginalDocument(caseId, documentData.id);
+        } else {
+            throw new Error("Missing source configuration (No URL or CaseID)");
         }
-        return;
+
+        // Handle the Blob based on Type
+        if (targetMode === 'PDF') {
+            const url = URL.createObjectURL(blob);
+            setPdfSource(url);
+            setActualViewerMode('PDF');
+        } else {
+            await handleBlobContent(blob, targetMode);
+        }
+        
+        if (targetMode !== 'PDF') setIsLoading(false);
+
+    } catch (err: any) {
+        console.error("Viewer Fetch Error:", err);
+        const errMsg = err.response?.status === 404 
+            ? t('pdfViewer.notFound', { defaultValue: 'Dokumenti nuk u gjet.' })
+            : t('pdfViewer.errorFetch', { defaultValue: 'Gabim gjatë ngarkimit.' });
+        
+        setError(errMsg);
+        setActualViewerMode('DOWNLOAD');
+        setIsLoading(false);
     }
   };
 
@@ -132,14 +124,13 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           setImageSource(url);
           setActualViewerMode('IMAGE');
       }
-      setIsLoading(false);
   };
   
   useEffect(() => {
     fetchDocument();
     return () => { 
         if (imageSource) URL.revokeObjectURL(imageSource);
-        if (typeof pdfSource === 'string' && pdfSource.startsWith('blob:')) URL.revokeObjectURL(pdfSource);
+        if (pdfSource) URL.revokeObjectURL(pdfSource);
     };
   }, [caseId, documentData.id, directUrl]);
 
@@ -151,7 +142,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   const onPdfLoadError = (err: any) => {
       console.error("PDF Render Error Detailed:", err);
-      setError(err.message || "PDF Failed to Render. Check Worker.");
+      setError(t('pdfViewer.corruptFile', { defaultValue: 'Skedari nuk mund të shfaqet.' }));
       setIsLoading(false);
       setActualViewerMode('DOWNLOAD');
   };
@@ -160,12 +151,14 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     setIsDownloading(true);
     try {
       let blob;
-      const token = apiService.getToken();
-      
       if (directUrl) {
-          const headers: Record<string, string> = isAuth && token ? { 'Authorization': `Bearer ${token}` } : {};
-          const r = await fetch(directUrl, { headers });
-          blob = await r.blob();
+          if (isAuth) {
+             const r = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
+             blob = r.data;
+          } else {
+             const r = await fetch(directUrl);
+             blob = await r.blob();
+          }
       } else if (caseId) {
           blob = await apiService.getOriginalDocument(caseId, documentData.id);
       }
@@ -180,7 +173,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           document.body.removeChild(link);
           window.URL.revokeObjectURL(url);
       }
-    } catch (e) { console.error(e); } finally { setIsDownloading(false); }
+    } catch (e) { 
+        console.error(e); 
+    } finally { 
+        setIsDownloading(false); 
+    }
   };
 
   const zoomIn = () => setScale(prev => Math.min(prev + 0.1, 3.0));
@@ -188,6 +185,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const zoomReset = () => setScale(1.0);
 
   const renderContent = () => {
+    // 1. Check Download Mode first (Explicit manual fallback or error fallback)
     if (actualViewerMode === 'DOWNLOAD') {
         return (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -201,6 +199,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         );
     }
 
+    // 2. Check for generic errors that didn't force DOWNLOAD mode
     if (error) return (
         <div className="flex flex-col items-center justify-center h-full text-center p-8">
             <div className="bg-red-500/10 p-6 rounded-full mb-4"><AlertTriangle className="h-12 w-12 text-red-400" /></div>
@@ -208,6 +207,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         </div>
     );
 
+    // 3. Render content based on mode
     switch (actualViewerMode) {
       case 'PDF':
         return (
@@ -218,23 +218,24 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                  </div>
              )}
              <div className="flex justify-center w-full">
-                 <PdfDocument 
-                    file={pdfSource} 
-                    onLoadSuccess={onPdfLoadSuccess}
-                    onLoadError={onPdfLoadError}
-                    loading={null} 
-                    noData={null}
-                    key={typeof pdfSource === 'string' ? pdfSource : pdfSource?.url}
-                 >
-                     <Page 
-                        pageNumber={pageNumber} 
-                        width={containerWidth > 0 ? containerWidth : 600} 
-                        scale={scale}
-                        renderTextLayer={false} 
-                        renderAnnotationLayer={false}
-                        className="shadow-2xl mb-4 border border-white/5 rounded-lg overflow-hidden" 
-                     />
-                 </PdfDocument>
+                 {pdfSource && (
+                     <PdfDocument 
+                        file={pdfSource} 
+                        onLoadSuccess={onPdfLoadSuccess}
+                        onLoadError={onPdfLoadError}
+                        loading={null} 
+                        noData={null}
+                     >
+                         <Page 
+                            pageNumber={pageNumber} 
+                            width={containerWidth > 0 ? containerWidth : 600} 
+                            scale={scale}
+                            renderTextLayer={false} 
+                            renderAnnotationLayer={false}
+                            className="shadow-2xl mb-4 border border-white/5 rounded-lg overflow-hidden" 
+                         />
+                     </PdfDocument>
+                 )}
              </div>
           </div>
         );
@@ -261,7 +262,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-background-dark/90 backdrop-blur-xl z-[9999] flex items-center justify-center p-0 sm:p-4" onClick={onClose}>
         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-high w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-white/10" onClick={(e) => e.stopPropagation()}>
           
-          {/* Header */}
           <header className="flex flex-wrap items-center justify-between p-4 border-b border-white/5 bg-white/5 backdrop-blur-md z-20 gap-3 shrink-0">
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="p-2 bg-primary-start/20 rounded-lg border border-primary-start/30">
@@ -304,12 +304,10 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             </div>
           </header>
           
-          {/* Main Content */}
           <div className="flex-grow relative bg-black/20 overflow-auto flex flex-col custom-scrollbar touch-pan-y">
               {renderContent()}
           </div>
           
-          {/* Footer Controls */}
           {actualViewerMode === 'PDF' && numPages && numPages > 1 && (
             <footer className="flex items-center justify-center p-4 border-t border-white/5 bg-white/5 backdrop-blur-md z-20 shrink-0">
               <div className="flex items-center gap-4 bg-black/60 px-6 py-2 rounded-full border border-white/10 shadow-lg backdrop-blur-xl">
