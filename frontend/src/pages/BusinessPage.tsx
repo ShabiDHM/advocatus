@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V9.6 (CHART RENDER FIX)
-// 1. FIX: Implemented Conditional Rendering for tabs.
-// 2. LOGIC: The FinanceTab (and its chart) is now only mounted when active.
-// 3. RESULT: Fixes the 'width(-1) and height(-1)' chart warning in the console.
+// PHOENIX PROTOCOL - BUSINESS PAGE V10.0 (GLASS & GRADIENTS)
+// 1. VISUALS: Updated Tab Switcher to use 'glass-panel' and gradient active states.
+// 2. TYPOGRAPHY: aligned with global text variables (text-text-primary).
+// 3. LOGIC: Preserved conditional rendering to prevent chart dimension errors.
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen } from 'lucide-react';
@@ -25,7 +25,7 @@ const BusinessPage: React.FC = () => {
     return s.charAt(0).toUpperCase() + s.slice(1);
   };
 
-  // PHOENIX FIX: Component mapping for conditional rendering
+  // Component mapping for conditional rendering
   const renderActiveTab = () => {
     switch (activeTab) {
       case 'profile':
@@ -40,38 +40,38 @@ const BusinessPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6">
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 h-full">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-10 gap-4 sm:gap-6">
         <div>
             {/* Dynamic Welcome Message */}
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2 tracking-tight">
                 {t('dashboard.welcome', { name: capitalize(user?.username) })}
             </h1>
             {/* Context Label */}
-            <p className="text-gray-400 text-sm sm:text-base">
+            <p className="text-text-secondary text-sm sm:text-base">
                 {t('business.title', 'Qendra e Biznesit')}
             </p>
         </div>
         
-        {/* FIX: Grid layout for mobile (3 cols), Flex for desktop */}
-        <div className="w-full sm:w-auto grid grid-cols-3 sm:flex bg-background-light/10 p-1.5 rounded-2xl border border-white/10 backdrop-blur-md gap-1 sm:gap-0">
+        {/* Tab Switcher - Glass Style */}
+        <div className="w-full sm:w-auto grid grid-cols-3 sm:flex glass-panel p-1.5 rounded-xl gap-1 sm:gap-0">
             <button 
                 onClick={() => setActiveTab('profile')} 
-                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-300 w-full sm:w-auto ${activeTab === 'profile' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${activeTab === 'profile' ? 'bg-gradient-to-r from-primary-start to-primary-end text-white shadow-lg shadow-primary-start/20' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
             >
                 <Building2 size={16} className="sm:w-[18px] sm:h-[18px]" />
                 <span className="truncate">{t('business.profile')}</span>
             </button>
             <button 
                 onClick={() => setActiveTab('finance')} 
-                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-300 w-full sm:w-auto ${activeTab === 'finance' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${activeTab === 'finance' ? 'bg-gradient-to-r from-primary-start to-primary-end text-white shadow-lg shadow-primary-start/20' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
             >
                 <FileText size={16} className="sm:w-[18px] sm:h-[18px]" />
                 <span className="truncate">{t('business.finance')}</span>
             </button>
             <button 
                 onClick={() => setActiveTab('archive')} 
-                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-300 w-full sm:w-auto ${activeTab === 'archive' ? 'bg-primary-start text-white shadow-lg' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${activeTab === 'archive' ? 'bg-gradient-to-r from-primary-start to-primary-end text-white shadow-lg shadow-primary-start/20' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
             >
                 <FolderOpen size={16} className="sm:w-[18px] sm:h-[18px]" />
                 <span className="truncate">{t('business.archive')}</span>
@@ -79,8 +79,7 @@ const BusinessPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="min-h-[500px]">
-        {/* PHOENIX FIX: Render ONLY the active tab component */}
+      <div className="min-h-[500px] animate-in fade-in slide-in-from-bottom-4 duration-500">
         {renderActiveTab()}
       </div>
     </div>

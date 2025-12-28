@@ -1,8 +1,8 @@
 // FILE: src/pages/RegisterPage.tsx
-// PHOENIX PROTOCOL - SYNTAX & BUILD CORRECTION
-// 1. FIX: Corrected all JSX syntax errors, including missing closing tags, from the previous version.
-// 2. MESSAGING: Retained the approved inspirational messaging for the pending approval screen.
-// 3. STATUS: This version is guaranteed to be syntactically correct and will produce a clean build.
+// PHOENIX PROTOCOL - REGISTER PAGE V3.0 (GLASS STYLE)
+// 1. VISUALS: Full Glassmorphism adoption (glass-high, glass-input).
+// 2. LAYOUT: Ambient background and consistent spacing.
+// 3. MESSAGING: Retained inspirational messaging for the success state.
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -65,22 +65,28 @@ const RegisterPage: React.FC = () => {
 
   if (isSuccess) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background-dark px-4">
-            <div className="max-w-md w-full p-8 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge text-center shadow-2xl">
-                <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Sparkles className="w-10 h-10 text-emerald-400" />
+        <div className="min-h-screen flex items-center justify-center bg-background-dark px-4 relative overflow-hidden font-sans selection:bg-primary-start/30">
+            {/* Ambient Background */}
+            <div className="fixed inset-0 pointer-events-none">
+                <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-emerald-500/20 rounded-full blur-[100px] opacity-40 animate-pulse-slow"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-primary-start/20 rounded-full blur-[100px] opacity-30 animate-pulse-slow delay-1000"></div>
+            </div>
+
+            <div className="glass-high max-w-md w-full p-10 rounded-3xl border border-white/10 text-center shadow-2xl relative z-10 animate-in fade-in zoom-in-95 duration-500">
+                <div className="w-24 h-24 bg-gradient-to-br from-emerald-400/20 to-emerald-600/20 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_30px_rgba(52,211,153,0.3)] ring-1 ring-emerald-500/30">
+                    <Sparkles className="w-12 h-12 text-emerald-400" />
                 </div>
                 
-                <h2 className="text-2xl font-bold text-white mb-3">
+                <h2 className="text-3xl font-bold text-white mb-4 tracking-tight">
                     {t('auth.welcomeTitle', 'Mirë se erdhët në të ardhmen')}
                 </h2>
                 
-                <p className="text-gray-300 mb-8 leading-relaxed">
+                <p className="text-gray-300 mb-10 leading-relaxed text-lg">
                     {t('auth.welcomeMessage', 'Llogaria juaj është krijuar. Ndërsa ekipi ynë verifikon të dhënat, ju jeni një hap më afër bashkimit të ekspertizës njerëzore me fuqinë e të dhënave për të transformuar praktikën tuaj ligjore.')}
                 </p>
                 
-                <Link to="/login" className="inline-flex items-center px-6 py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-primary-500/25">
-                    {t('auth.backToLogin', 'Kthehu te Kyçja')} <ArrowRight className="ml-2 w-4 h-4" />
+                <Link to="/login" className="inline-flex items-center px-8 py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:-translate-y-1">
+                    {t('auth.backToLogin', 'Kthehu te Kyçja')} <ArrowRight className="ml-2 w-5 h-5" />
                 </Link>
             </div>
         </div>
@@ -88,18 +94,24 @@ const RegisterPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background-dark px-4">
-      <div className="max-w-md w-full p-8 bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge shadow-xl">
-        <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-white mb-2">{t('auth.registerTitle')}</h2>
-            <p className="text-gray-400">{t('auth.registerSubtitle')}</p>
+    <div className="min-h-screen flex items-center justify-center bg-background-dark px-4 relative overflow-hidden font-sans selection:bg-primary-start/30">
+        {/* Ambient Background */}
+        <div className="fixed inset-0 pointer-events-none">
+            <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] bg-primary-start/20 rounded-full blur-[100px] opacity-40 animate-pulse-slow"></div>
+            <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-secondary-start/20 rounded-full blur-[100px] opacity-30 animate-pulse-slow delay-1000"></div>
         </div>
 
-        <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300 ml-1">{t('account.username')}</label>
+      <div className="glass-high max-w-md w-full p-8 rounded-3xl shadow-2xl relative z-10 animate-in fade-in zoom-in-95 duration-300 border border-white/10">
+        <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-2 tracking-tight">{t('auth.registerTitle')}</h2>
+            <p className="text-text-secondary">{t('auth.registerSubtitle')}</p>
+        </div>
+
+        <form className="space-y-5" onSubmit={handleSubmit}>
+            <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">{t('account.username')}</label>
                 <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
                     <input 
                         type="text" 
                         required 
@@ -107,30 +119,30 @@ const RegisterPage: React.FC = () => {
                         placeholder={t('auth.usernamePlaceholder')}
                         value={username}
                         onChange={e => setUsername(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
+                        className="glass-input w-full pl-10 pr-4 py-3 rounded-xl"
                     />
                 </div>
             </div>
 
-            <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300 ml-1">{t('account.email')}</label>
+            <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">{t('account.email')}</label>
                 <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
                     <input 
                         type="email" 
                         required 
                         placeholder={t('auth.emailPlaceholder')}
                         value={email}
                         onChange={e => setEmail(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
+                        className="glass-input w-full pl-10 pr-4 py-3 rounded-xl"
                     />
                 </div>
             </div>
 
-            <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300 ml-1">{t('auth.password')}</label>
+            <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-wider">{t('auth.password')}</label>
                 <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none" />
                     <input 
                         type="password" 
                         required 
@@ -138,14 +150,14 @@ const RegisterPage: React.FC = () => {
                         placeholder="••••••••"
                         value={password}
                         onChange={e => setPassword(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 bg-black/50 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500 transition-all"
+                        className="glass-input w-full pl-10 pr-4 py-3 rounded-xl"
                     />
                 </div>
-                <p className="text-xs text-gray-500 text-right">{t('auth.passwordMinChars')}</p>
+                <p className="text-[10px] text-gray-500 text-right font-medium">{t('auth.passwordMinChars')}</p>
             </div>
             
             {error && (
-                <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-sm">
+                <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-red-300 text-sm font-medium">
                     <ShieldAlert className="w-5 h-5 shrink-0" />
                     <span>{error}</span>
                 </div>
@@ -154,7 +166,7 @@ const RegisterPage: React.FC = () => {
             <button 
                 type="submit" 
                 disabled={isSubmitting} 
-                className="w-full py-3 bg-primary-600 hover:bg-primary-500 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-primary-start/20 active:scale-95"
             >
                 {isSubmitting ? (
                     <>
@@ -169,7 +181,7 @@ const RegisterPage: React.FC = () => {
 
         <div className="mt-6 text-center text-sm text-gray-400">
             {t('auth.hasAccount')}{' '}
-            <Link to="/login" className="text-primary-400 hover:text-primary-300 font-medium hover:underline">
+            <Link to="/login" className="text-primary-300 hover:text-white font-bold hover:underline transition-colors">
                 {t('auth.signInLink')}
             </Link>
         </div>

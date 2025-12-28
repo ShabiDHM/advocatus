@@ -1,13 +1,14 @@
 // FILE: src/pages/AccountPage.tsx
-// PHOENIX PROTOCOL - I18N ALIGNMENT
-// 1. I18N FIX: Replaced all hardcoded labels with t() function calls using the 'account' namespace for consistency.
-// 2. VERIFIED: All password change and account deletion functionality is preserved.
+// PHOENIX PROTOCOL - ACCOUNT PAGE V2.0 (GLASS STYLE)
+// 1. VISUALS: Applied global 'glass-panel' and 'glass-input' classes.
+// 2. UX: Enhanced read-only fields to look like glass cards.
+// 3. SAFETY: stylized the "Danger Zone" with a red-tinted glass effect.
 
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
-import { User, Lock, Trash2, Save, Loader2 } from 'lucide-react';
+import { User, Lock, Trash2, Save, Loader2, Shield } from 'lucide-react';
 
 const AccountPage: React.FC = () => {
   const { user, logout } = useAuth();
@@ -53,80 +54,102 @@ const AccountPage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-3xl font-bold text-text-primary mb-8">{t('account.title')}</h1>
+        <div className="mb-8">
+            <h1 className="text-3xl font-bold text-white mb-2">{t('account.title')}</h1>
+            <p className="text-gray-400 text-sm">{t('account.subtitle', 'Menaxhoni të dhënat dhe sigurinë e llogarisë tuaj')}</p>
+        </div>
         
         <div className="grid gap-8">
-            {/* Profile Info */}
-            <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge">
+            {/* Profile Info - Glass Panel */}
+            <div className="glass-panel p-6 rounded-2xl">
                 <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-                    <User className="text-primary-start" /> {t('account.profileInfo')}
+                    <User className="text-primary-start" size={24} /> 
+                    {t('account.profileInfo')}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label className="block text-sm text-text-secondary mb-1">{t('account.username')}</label>
-                        <div className="px-4 py-2 bg-background-dark rounded-lg text-white border border-glass-edge">
+                    <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">{t('account.username')}</label>
+                        <div className="w-full px-4 py-3 bg-white/5 border border-white/5 rounded-xl text-gray-300 font-medium">
                             {user.username}
                         </div>
                     </div>
-                    <div>
-                        <label className="block text-sm text-text-secondary mb-1">{t('account.email')}</label>
-                        <div className="px-4 py-2 bg-background-dark rounded-lg text-white border border-glass-edge">
+                    <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">{t('account.email')}</label>
+                        <div className="w-full px-4 py-3 bg-white/5 border border-white/5 rounded-xl text-gray-300 font-medium">
                             {user.email}
                         </div>
                     </div>
-                    <div>
-                        <label className="block text-sm text-text-secondary mb-1">{t('account.role')}</label>
-                        <div className="px-4 py-2 bg-background-dark rounded-lg text-white border border-glass-edge capitalize">
-                            {user.role.toLowerCase()}
+                    <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">{t('account.role')}</label>
+                        <div className="w-full px-4 py-3 bg-white/5 border border-white/5 rounded-xl text-gray-300 font-medium flex items-center gap-2">
+                            <Shield size={16} className="text-secondary-start" />
+                            <span className="capitalize">{user.role.toLowerCase()}</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Password Change */}
-            <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge">
+            {/* Password Change - Glass Panel */}
+            <div className="glass-panel p-6 rounded-2xl">
                 <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-                    <Lock className="text-secondary-start" /> {t('account.security')}
+                    <Lock className="text-secondary-start" size={24} /> 
+                    {t('account.security')}
                 </h3>
-                <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
-                    <input 
-                        type="password" 
-                        placeholder={t('account.currentPassword')}
-                        required
-                        value={passwords.current}
-                        onChange={e => setPasswords({...passwords, current: e.target.value})}
-                        className="w-full bg-background-dark border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-secondary-start outline-none"
-                    />
-                    <input 
-                        type="password" 
-                        placeholder={t('account.newPassword')}
-                        required
-                        value={passwords.new}
-                        onChange={e => setPasswords({...passwords, new: e.target.value})}
-                        className="w-full bg-background-dark border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-secondary-start outline-none"
-                    />
-                    <input 
-                        type="password" 
-                        placeholder={t('account.confirmPassword')}
-                        required
-                        value={passwords.confirm}
-                        onChange={e => setPasswords({...passwords, confirm: e.target.value})}
-                        className="w-full bg-background-dark border border-glass-edge rounded-lg px-4 py-2 text-white focus:ring-1 focus:ring-secondary-start outline-none"
-                    />
-                    <button type="submit" disabled={isSaving} className="px-6 py-2 rounded-lg bg-secondary-start hover:bg-secondary-end text-white font-medium transition-colors flex items-center gap-2 disabled:opacity-50">
-                        {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
-                        {t('general.save')}
-                    </button>
+                <form onSubmit={handlePasswordChange} className="space-y-5 max-w-lg">
+                    <div className="space-y-1.5">
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">{t('account.currentPassword')}</label>
+                        <input 
+                            type="password" 
+                            required
+                            value={passwords.current}
+                            onChange={e => setPasswords({...passwords, current: e.target.value})}
+                            className="glass-input w-full px-4 py-3 rounded-xl"
+                        />
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">{t('account.newPassword')}</label>
+                            <input 
+                                type="password" 
+                                required
+                                value={passwords.new}
+                                onChange={e => setPasswords({...passwords, new: e.target.value})}
+                                className="glass-input w-full px-4 py-3 rounded-xl"
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">{t('account.confirmPassword')}</label>
+                            <input 
+                                type="password" 
+                                required
+                                value={passwords.confirm}
+                                onChange={e => setPasswords({...passwords, confirm: e.target.value})}
+                                className="glass-input w-full px-4 py-3 rounded-xl"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="pt-2">
+                        <button type="submit" disabled={isSaving} className="px-6 py-3 rounded-xl bg-gradient-to-r from-secondary-start to-secondary-end hover:opacity-90 text-white font-bold shadow-lg shadow-secondary-start/20 transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50">
+                            {isSaving ? <Loader2 className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
+                            {t('general.save')}
+                        </button>
+                    </div>
                 </form>
             </div>
 
-            {/* Danger Zone */}
-            <div className="bg-red-900/10 p-6 rounded-2xl border border-red-500/20">
-                <h3 className="text-xl font-semibold text-red-400 mb-4 flex items-center gap-2">
-                    <Trash2 /> {t('account.dangerZone')}
+            {/* Danger Zone - Red Glass Panel */}
+            <div className="relative overflow-hidden p-6 rounded-2xl border border-red-500/20 bg-red-500/5 backdrop-blur-sm">
+                <div className="absolute top-0 right-0 p-10 bg-red-500/10 blur-[60px] rounded-full pointer-events-none"></div>
+                
+                <h3 className="text-xl font-semibold text-red-400 mb-4 flex items-center gap-2 relative z-10">
+                    <Trash2 size={24} /> {t('account.dangerZone')}
                 </h3>
-                <p className="text-sm text-red-300/70 mb-4">{t('account.deleteWarning')}</p>
-                <button onClick={handleDeleteAccount} className="px-4 py-2 rounded-lg border border-red-500 text-red-400 hover:bg-red-500 hover:text-white transition-all">
+                <p className="text-sm text-red-200/60 mb-6 max-w-xl relative z-10 leading-relaxed">
+                    {t('account.deleteWarning')}
+                </p>
+                <button onClick={handleDeleteAccount} className="px-5 py-2.5 rounded-xl border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white transition-all font-medium relative z-10 active:scale-95">
                     {t('account.deleteAccount')}
                 </button>
             </div>
