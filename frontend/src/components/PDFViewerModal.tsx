@@ -1,8 +1,7 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V5.2 (MOBILE FIX)
-// 1. MOBILE: Title now truncates properly without overlapping buttons.
-// 2. SCALE: Auto-detects mobile (Scale 1.0) vs Desktop (Scale 0.7) on load.
-// 3. LAYOUT: Adjusted container width calculation for better mobile fit.
+// PHOENIX PROTOCOL - PDF VIEWER V5.1 (ZOOM FIX)
+// 1. ZOOM: Set initial scale to 0.7 (70%) as requested.
+// 2. STATUS: Clean build.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -39,35 +38,22 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
-  
-  // PHOENIX FIX: Initial scale based on screen width
-  const [scale, setScale] = useState(window.innerWidth < 640 ? 1.0 : 0.7);
-  
+  const [scale, setScale] = useState(0.7); // PHOENIX FIX: Set initial zoom to 0.7
   const [containerWidth, setContainerWidth] = useState<number>(0); 
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [actualViewerMode, setActualViewerMode] = useState<'PDF' | 'TEXT' | 'IMAGE' | 'DOWNLOAD'>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
 
-  // Responsive Layout Handler
   useEffect(() => {
-      const handleResize = () => {
+      const updateWidth = () => {
           if (containerRef.current) {
-              // PHOENIX FIX: Subtract padding (32px) to prevent overflow
-              setContainerWidth(containerRef.current.clientWidth - 32); 
-          }
-          
-          // Auto-adjust scale logic if moving between desktop/mobile
-          if (window.innerWidth < 640) {
-              setScale(1.0); // Fit width on mobile
+              setContainerWidth(containerRef.current.clientWidth - 40); 
           }
       };
-
-      // Initial calculation
-      handleResize();
-
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
+      window.addEventListener('resize', updateWidth);
+      setTimeout(updateWidth, 200); 
+      return () => window.removeEventListener('resize', updateWidth);
   }, [actualViewerMode]);
 
   const getTargetMode = (mimeType: string) => {
@@ -198,7 +184,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   const zoomIn = () => setScale(prev => Math.min(prev + 0.1, 3.0));
   const zoomOut = () => setScale(prev => Math.max(prev - 0.1, 0.5));
-  const zoomReset = () => setScale(window.innerWidth < 640 ? 1.0 : 0.7);
+  const zoomReset = () => setScale(0.7); // Reset to new default 0.7
 
   const renderContent = () => {
     if (actualViewerMode === 'DOWNLOAD') {
@@ -230,7 +216,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                      <Loader className="animate-spin h-10 w-10 text-primary-start" />
                  </div>
              )}
-             <div className="flex justify-center w-full px-4">
+             <div className="flex justify-center w-full">
                  <PdfDocument 
                     file={pdfSource} 
                     onLoadSuccess={onPdfLoadSuccess}
@@ -241,7 +227,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                  >
                      <Page 
                         pageNumber={pageNumber} 
-                        width={containerWidth > 0 ? containerWidth : 300} 
+                        width={containerWidth > 0 ? containerWidth : 600} 
                         scale={scale}
                         renderTextLayer={false} 
                         renderAnnotationLayer={false}
@@ -275,25 +261,22 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-high w-full h-full sm:max-w-6xl sm:max-h-[95vh] rounded-none sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-white/10" onClick={(e) => e.stopPropagation()}>
           
           {/* Header */}
-          <header className="flex items-center justify-between p-4 border-b border-white/5 bg-white/5 backdrop-blur-md z-20 gap-3 shrink-0">
-            {/* Left: Icon & Title */}
-            <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
-                <div className="p-2 bg-primary-start/20 rounded-lg border border-primary-start/30 flex-shrink-0">
+          <header className="flex flex-wrap items-center justify-between p-4 border-b border-white/5 bg-white/5 backdrop-blur-md z-20 gap-3 shrink-0">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="p-2 bg-primary-start/20 rounded-lg border border-primary-start/30">
                     <FileText className="text-primary-start w-5 h-5" />
                 </div>
-                <div className="min-w-0 flex-1 flex flex-col">
-                    {/* PHOENIX FIX: Truncate title properly on mobile */}
-                    <h2 className="text-sm sm:text-base font-bold text-white truncate w-full">
+                <div>
+                    <h2 className="text-sm sm:text-base font-bold text-white truncate max-w-[200px] sm:max-w-md">
                         {documentData.file_name}
                     </h2>
-                    <span className="text-[10px] font-mono text-text-secondary uppercase tracking-widest truncate">
+                    <span className="text-[10px] font-mono text-text-secondary uppercase tracking-widest">
                         {actualViewerMode} VIEW
                     </span>
                 </div>
                 
-                {/* Desktop Zoom Controls */}
                 {actualViewerMode === 'PDF' && (
-                    <div className="hidden md:flex items-center gap-1 bg-black/40 rounded-lg p-1 border border-white/10 ml-4 flex-shrink-0">
+                    <div className="hidden sm:flex items-center gap-1 bg-black/40 rounded-lg p-1 border border-white/10 ml-4">
                         <button onClick={zoomOut} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded transition-colors"><ZoomOut size={16} /></button>
                         <span className="text-[10px] font-bold text-white w-10 text-center">{Math.round(scale * 100)}%</span>
                         <button onClick={zoomIn} className="p-1.5 text-gray-400 hover:text-white hover:bg-white/10 rounded transition-colors"><ZoomIn size={16} /></button>
@@ -303,8 +286,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                 )}
             </div>
             
-            {/* Right: Actions */}
-            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button onClick={handleDownloadOriginal} className="p-2 text-primary-300 bg-primary-500/10 hover:bg-primary-500/20 hover:text-white rounded-xl border border-primary-500/20 transition-colors" title="Shkarko">
                   <Download size={20} />
               </button>
