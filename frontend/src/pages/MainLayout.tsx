@@ -1,14 +1,13 @@
 // FILE: src/pages/MainLayout.tsx
-// PHOENIX PROTOCOL - ARCHITECTURAL CORRECTION (FINAL)
-// 1. HEADER INTEGRATION: Imported and rendered the main Header component, making it visible on desktop screens.
-// 2. RESPONSIVENESS: The main Header is hidden on mobile, and the existing mobile-only header is preserved, ensuring full responsiveness.
-// 3. STATE MANAGEMENT: The sidebar toggle function is now passed correctly to both headers.
+// PHOENIX PROTOCOL - VISUAL UPGRADE 4.0 (GLASSMORPHISM)
+// 1. BACKGROUND: Added animated ambient glows (primary & secondary blobs).
+// 2. LAYOUT: Preserved existing structural logic (Sidebar/Header) while wrapping content in relative z-containers.
 
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
-import Header from '../components/Header'; // PHOENIX: Import the main Header
+import Header from '../components/Header';
 import BrandLogo from '../components/BrandLogo';
 
 const MainLayout: React.FC = () => {
@@ -19,18 +18,32 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-background-dark text-text-primary overflow-hidden">
+    <div className="flex h-screen w-full overflow-hidden bg-background-dark text-text-primary relative selection:bg-primary-start/30">
+      
+      {/* --- AMBIENT BACKGROUND GLOWS (FIXED LAYER) --- */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        {/* Top Right - Primary Glow */}
+        <div className="absolute -top-[20%] -right-[10%] w-[800px] h-[800px] bg-primary-start/20 rounded-full blur-[120px] opacity-40 animate-pulse-slow"></div>
+        {/* Bottom Left - Secondary Glow */}
+        <div className="absolute -bottom-[20%] -left-[10%] w-[600px] h-[600px] bg-secondary-start/20 rounded-full blur-[100px] opacity-30 animate-pulse-slow delay-1000"></div>
+        {/* Center - Accent Tint */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] bg-background-light/40 rounded-full blur-[150px] opacity-20"></div>
+      </div>
+
+      {/* --- SIDEBAR (Z-INDEX 50) --- */}
+      {/* Sidebar handles its own z-index and positioning */}
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-64 relative transition-all duration-300">
+      {/* --- MAIN CONTENT WRAPPER (Z-INDEX 10) --- */}
+      <div className="flex-1 flex flex-col overflow-hidden lg:ml-64 relative z-10 transition-all duration-300">
         
-        {/* PHOENIX: Main Desktop Header */}
+        {/* Desktop Header */}
         <div className="hidden lg:block">
           <Header toggleSidebar={toggleSidebar} />
         </div>
         
-        {/* Mobile-Only Header */}
-        <header className="lg:hidden flex items-center justify-between p-4 border-b border-glass-edge bg-background-light/10 backdrop-blur-md z-10">
+        {/* Mobile Header (Frosted) */}
+        <header className="lg:hidden flex items-center justify-between p-4 border-b border-white/10 bg-background-dark/60 backdrop-blur-xl z-20">
           <BrandLogo />
           <button 
             onClick={() => setIsSidebarOpen(true)}
@@ -40,9 +53,12 @@ const MainLayout: React.FC = () => {
           </button>
         </header>
 
-        {/* Content Area */}
-        <main className="flex-1 overflow-y-auto p-0 bg-gradient-to-br from-background-dark to-background-light/5 custom-scrollbar">
-          <Outlet />
+        {/* Scrollable Page Content */}
+        <main className="flex-1 overflow-y-auto p-0 scroll-smooth custom-scrollbar">
+          {/* Outlet Wrapper ensures content sits above background blobs */}
+          <div className="relative min-h-full">
+            <Outlet />
+          </div>
         </main>
 
       </div>

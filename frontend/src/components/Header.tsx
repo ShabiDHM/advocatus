@@ -1,7 +1,7 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V3.1 (EVENT LISTENER FIX)
-// 1. FIX: Removed CSS-based backdrop in favor of Document Event Listener (useClickOutside).
-// 2. LOGIC: Solves z-index stacking issues caused by MainLayout's transforms.
+// PHOENIX PROTOCOL - HEADER V4.0 (GLASS STYLE)
+// 1. VISUALS: Applied 'backdrop-blur-xl' and reduced opacity for true glassmorphism.
+// 2. INTEGRITY: Retained all event listeners and auth logic from V3.1.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, Menu, LogOut, User as UserIcon } from 'lucide-react';
@@ -38,11 +38,11 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
     };
     
     checkAlerts();
-    const interval = setInterval(checkAlerts, 60000); // Check every minute
+    const interval = setInterval(checkAlerts, 60000); 
     return () => clearInterval(interval);
   }, [user]);
 
-  // PHOENIX FIX: Click Outside Event Listener
+  // Click Outside Event Listener
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -63,7 +63,12 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   }, [isProfileOpen]);
 
   return (
-    <header className="h-16 bg-background-dark border-b border-glass-edge flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 sticky top-0 backdrop-blur-md bg-opacity-90">
+    // GLASS HEADER CONFIGURATION:
+    // sticky: Stays at top
+    // backdrop-blur-xl: Heavy blur for content passing underneath
+    // bg-background-dark/60: High transparency for glass effect
+    // border-white/5: Subtle edge definition
+    <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 sticky top-0 backdrop-blur-xl bg-background-dark/60 border-b border-white/5 transition-all duration-300">
       
       {/* Left: Mobile Menu & Search */}
       <div className="flex items-center gap-4">
@@ -79,7 +84,8 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           <input 
             type="text" 
             placeholder={t('header.searchPlaceholder')} 
-            className="bg-background-light/10 border border-glass-edge rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:ring-1 focus:ring-primary-start outline-none w-64 transition-all focus:w-80"
+            // Glass Input Style
+            className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-text-secondary/50 focus:ring-1 focus:ring-primary-start/50 focus:bg-background-dark/80 focus:border-primary-start/50 outline-none w-64 transition-all focus:w-80"
           />
         </div>
       </div>
@@ -97,14 +103,14 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           )}
         </Link>
         
-        <div className="h-6 w-px bg-glass-edge/50"></div>
+        <div className="h-6 w-px bg-white/10"></div>
 
         {/* Profile Dropdown Container */}
         <div className="relative">
           <button 
             ref={buttonRef}
             onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="flex items-center gap-3 hover:bg-white/5 p-1.5 rounded-xl transition-colors border border-transparent hover:border-glass-edge"
+            className={`flex items-center gap-3 p-1.5 rounded-xl transition-all border ${isProfileOpen ? 'bg-white/10 border-white/10' : 'border-transparent hover:bg-white/5 hover:border-white/5'}`}
           >
             <div className="text-right hidden sm:block">
               <p className="text-sm font-medium text-white">{user?.username || 'User'}</p>
@@ -112,7 +118,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                 {user?.role || 'LAWYER'}
               </p>
             </div>
-            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg shadow-secondary-start/20">
+            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg shadow-secondary-start/20 ring-2 ring-transparent group-hover:ring-white/10">
               {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
             </div>
           </button>
@@ -120,30 +126,31 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           {isProfileOpen && (
             <div 
               ref={dropdownRef}
-              className="absolute right-0 mt-2 w-56 bg-background-dark border border-glass-edge rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2"
+              // Glass Dropdown
+              className="absolute right-0 mt-2 w-60 bg-background-dark/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2"
             >
-              <div className="px-4 py-3 border-b border-glass-edge mb-1">
+              <div className="px-4 py-3 border-b border-white/5 mb-1 bg-white/5">
                 <p className="text-sm text-white font-medium truncate">{user?.username}</p>
                 <p className="text-xs text-text-secondary truncate">{user?.email}</p>
               </div>
 
               <Link 
                 to="/account" 
-                className="flex items-center px-4 py-2 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
                 onClick={() => setIsProfileOpen(false)}
               >
-                <UserIcon size={16} className="mr-3 text-blue-400" />
+                <UserIcon size={16} className="mr-3 text-primary-start" />
                 {t('sidebar.account')}
               </Link>
 
-              <div className="h-px bg-glass-edge my-1"></div>
+              <div className="h-px bg-white/5 my-1"></div>
 
               <button
                 onClick={() => {
                   setIsProfileOpen(false);
                   logout();
                 }}
-                className="w-full flex items-center px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                className="w-full flex items-center px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
               >
                 <LogOut size={16} className="mr-3" />
                 {t('header.logout')}

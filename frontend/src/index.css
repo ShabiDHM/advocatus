@@ -1,22 +1,45 @@
 /* /home/user/advocatus-frontend/src/index.css */
-/* DEFINITIVE VERSION 2.0: Corrected base layer to use new design system classes */
+/* DEFINITIVE VERSION 3.0: GLASSMORPHISM SYSTEM & AMBIENT GLOWS */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Custom base styles for the Revolutionary Design Transformation */
 @layer base {
   body {
-    /* FIX: Replaced deprecated bg-background and text-text-dark with new design palette */
-    @apply bg-background-dark text-text-secondary font-sans;
+    /* Deep dark background foundation */
+    @apply bg-background-dark text-text-secondary font-sans antialiased overflow-hidden selection:bg-primary-start/30 selection:text-white;
   }
-  h1, h2, h3, h4 {
-    /* FIX: Replaced deprecated text-text-light with new design palette */
-    @apply text-text-primary font-bold;
+  
+  /* Heading Styles */
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-text-primary font-bold tracking-tight;
   }
 }
 
-/* Re-implementing a utility from the old codebase that our components might rely on */
+@layer components {
+  /* --- GLASSMORPHISM UTILITIES --- */
+  
+  /* Standard Glass Panel (Cards, Sidebar, etc.) */
+  .glass-panel {
+    @apply bg-background-light/30 backdrop-blur-md border border-white/10 shadow-xl;
+  }
+  
+  /* High Intensity Glass (Modals, Popovers) */
+  .glass-high {
+    @apply bg-background-light/60 backdrop-blur-xl border border-white/10 shadow-2xl;
+  }
+
+  /* Glass Inputs */
+  .glass-input {
+    @apply bg-background-dark/50 border border-white/10 text-text-primary placeholder-text-secondary/50 focus:border-primary-start/50 focus:ring-2 focus:ring-primary-start/20 transition-all duration-200 backdrop-blur-sm;
+  }
+
+  /* Glass Buttons */
+  .glass-button {
+    @apply bg-white/5 hover:bg-white/10 border border-white/5 text-white transition-all active:scale-95 backdrop-blur-sm;
+  }
+}
+
 @layer utilities {
   .compact-line-clamp-2 {
     display: -webkit-box;
@@ -24,14 +47,28 @@
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
-  /* New custom scrollbar class for chat/document panels to keep dark aesthetic */
+
+  /* Custom Scrollbar for Dark Mode */
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-background-light/50 rounded-full;
+    height: 6px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
     @apply bg-background-dark;
   }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+  }
+}
+
+/* GLOBAL ANIMATIONS */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+  100% { transform: translateY(0px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.05); }
 }
