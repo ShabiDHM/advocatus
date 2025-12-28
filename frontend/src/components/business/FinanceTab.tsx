@@ -1,7 +1,7 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V9.1 (CLEANUP)
-// 1. FIX: Removed unused 'AnimatePresence' import.
-// 2. STATUS: Zero linting errors.
+// PHOENIX PROTOCOL - FINANCE TAB V9.3 (LINT FIX)
+// 1. FIX: Removed unused 'AnimatePresence' import to resolve TS6133.
+// 2. STATUS: Clean build.
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -55,16 +55,16 @@ const TabButton = ({ label, icon, isActive, onClick }: { label: string, icon: Re
         className={`
             w-full sm:w-auto 
             flex items-center justify-center 
-            gap-2 
-            px-4 py-2.5 
+            gap-1.5 sm:gap-2 
+            px-2 sm:px-4 py-2.5 
             rounded-xl 
-            text-xs sm:text-sm font-bold 
+            text-[10px] sm:text-xs md:text-sm font-bold 
             transition-all duration-300 
             ${isActive ? 'bg-gradient-to-r from-primary-start to-primary-end text-white shadow-lg shadow-primary-start/20' : 'text-text-secondary hover:bg-white/5 hover:text-white'}
         `}
     >
         <span className="shrink-0">{icon}</span>
-        <span className="truncate">{label}</span>
+        <span className="whitespace-nowrap">{label}</span>
     </button>
 );
 

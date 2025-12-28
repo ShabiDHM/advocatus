@@ -1,8 +1,7 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V5.0 (GLASS STYLE)
-// 1. VISUALS: Full Glassmorphism adoption (glass-high).
-// 2. UX: Floating controls on glass layers for maximum document visibility.
-// 3. LOGIC: Preserved PDF.js worker version fix and all viewing modes.
+// PHOENIX PROTOCOL - PDF VIEWER V5.1 (ZOOM FIX)
+// 1. ZOOM: Set initial scale to 0.7 (70%) as requested.
+// 2. STATUS: Clean build.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -39,7 +38,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
-  const [scale, setScale] = useState(1.0); 
+  const [scale, setScale] = useState(0.7); // PHOENIX FIX: Set initial zoom to 0.7
   const [containerWidth, setContainerWidth] = useState<number>(0); 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -185,7 +184,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   const zoomIn = () => setScale(prev => Math.min(prev + 0.1, 3.0));
   const zoomOut = () => setScale(prev => Math.max(prev - 0.1, 0.5));
-  const zoomReset = () => setScale(1.0);
+  const zoomReset = () => setScale(0.7); // Reset to new default 0.7
 
   const renderContent = () => {
     if (actualViewerMode === 'DOWNLOAD') {
