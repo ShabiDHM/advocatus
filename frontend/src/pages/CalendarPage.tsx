@@ -1,8 +1,8 @@
 // FILE: src/pages/CalendarPage.tsx
-// PHOENIX PROTOCOL - CALENDAR V9.5 (SYMMETRY & HEIGHT FIX)
-// 1. HEIGHT FIX: Removed 'flex-1' from main container to prevent unlimited vertical stretching.
-// 2. SYMMETRY: Kept 'items-stretch' so the Sidebar always matches the Calendar's natural height.
-// 3. CELLS: Adjusted cell min-height to 120px for a balanced, premium look.
+// PHOENIX PROTOCOL - CALENDAR V10.0 (MOBILE RESPONSIVE UI)
+// 1. HEADER: Stacked layout on mobile. Title top, controls below (justified).
+// 2. FILTERS: Stacked layout on mobile. Search (full), Filters (grid), Toggle (full).
+// 3. UX: Eliminated accidental horizontal scrolling.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { CalendarEvent, Case, CalendarEventCreateRequest } from '../data/types';
@@ -412,45 +412,74 @@ const CalendarPage: React.FC = () => {
     <div className="min-h-screen font-sans text-gray-100 flex flex-col">
         <div id="react-datepicker-portal"></div>
         
-        {/* PHOENIX FIX: Removed 'flex-1' to prevent vertical stretching */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col">
+        {/* Main Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col w-full">
             
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 shrink-0">
-                <div><h1 className="text-3xl font-bold text-white flex items-center gap-3"><CalendarIcon className="text-primary-start h-8 w-8" /><span className="capitalize">{monthName}</span></h1><p className="text-gray-400 mt-1 ml-1">{t('calendar.pageSubtitle')}</p></div>
-                <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto"><div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-1"><button onClick={() => navigateMonth('prev')} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ChevronLeft size={20} /></button><button onClick={() => setCurrentDate(new Date())} className="px-4 text-sm font-medium hover:text-white transition-colors">{t('calendar.today')}</button><button onClick={() => navigateMonth('next')} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ChevronRight size={20} /></button></div><button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 text-white rounded-xl font-bold transition-all"><Plus size={18} /> <span className="hidden sm:inline">{t('calendar.newEvent')}</span></button></div>
+            {/* Header: Title + Navigation */}
+            <div className="flex flex-col gap-6 mb-8 w-full">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                            <CalendarIcon className="text-primary-start h-8 w-8" />
+                            <span className="capitalize">{monthName}</span>
+                        </h1>
+                        <p className="text-gray-400 mt-1 ml-1">{t('calendar.pageSubtitle')}</p>
+                    </div>
+
+                    {/* Controls Row - Stacked on Mobile, Flex on Desktop */}
+                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                        <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-1">
+                            <button onClick={() => navigateMonth('prev')} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ChevronLeft size={20} /></button>
+                            <button onClick={() => setCurrentDate(new Date())} className="px-4 text-sm font-medium hover:text-white transition-colors">{t('calendar.today')}</button>
+                            <button onClick={() => navigateMonth('next')} className="p-2 hover:bg-white/10 rounded-lg transition-colors"><ChevronRight size={20} /></button>
+                        </div>
+                        <button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 text-white rounded-xl font-bold transition-all">
+                            <Plus size={18} /> <span className="hidden sm:inline">{t('calendar.newEvent')}</span>
+                        </button>
+                    </div>
+                </div>
             </div>
+            
             {error && <div className="bg-red-900/20 border border-red-500/50 rounded-xl p-4 mb-6 flex items-center space-x-3 shrink-0"><AlertCircle className="h-5 w-5 text-red-400" /><span className="text-red-200 text-sm">{error}</span></div>}
             
-            {/* PHOENIX SYMMETRY FIX: items-stretch to force equal height */}
+            {/* Grid Layout for Main Content & Sidebar */}
             <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 items-stretch">
+                
+                {/* Main Calendar Area */}
                 <div className="xl:col-span-3 flex flex-col gap-6 h-full">
-                    <div className="flex flex-col sm:flex-row gap-3 shrink-0">
-                        <div className="relative flex-grow">
+                    
+                    {/* Filters Row - Stacked on Mobile */}
+                    <div className="flex flex-col gap-3 w-full">
+                        {/* Row 1: Search */}
+                        <div className="relative w-full">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
-                            <input type="text" placeholder={t('calendar.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="glass-input w-full pl-10 pr-4 py-2.5 rounded-xl text-sm" />
+                            <input type="text" placeholder={t('calendar.searchPlaceholder')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="glass-input w-full pl-10 pr-4 py-3 rounded-xl text-sm" />
                         </div>
-                        <div className="flex gap-2">
-                            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="glass-input px-3 py-2.5 rounded-xl text-sm cursor-pointer">
+
+                        {/* Row 2: Filters Grid & Toggle */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="glass-input w-full px-3 py-2.5 rounded-xl text-sm cursor-pointer">
                                 <option value="ALL" className="bg-gray-900 text-gray-200">{t('calendar.allTypes')}</option>
                                 {Object.keys(t('calendar.types', { returnObjects: true })).map(key => <option key={key} value={key} className="bg-gray-900 text-gray-200">{t(`calendar.types.${key}`)}</option>)}
                             </select>
-                            <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="glass-input px-3 py-2.5 rounded-xl text-sm cursor-pointer">
+                            <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="glass-input w-full px-3 py-2.5 rounded-xl text-sm cursor-pointer">
                                 <option value="ALL" className="bg-gray-900 text-gray-200">{t('calendar.allPriorities')}</option>
                                 {Object.keys(t('calendar.priorities', { returnObjects: true })).map(key => <option key={key} value={key} className="bg-gray-900 text-gray-200">{t(`calendar.priorities.${key}`)}</option>)}
                             </select>
-                            <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
-                                <button onClick={() => setViewMode('month')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'month' ? 'bg-white text-black shadow' : 'text-gray-400 hover:text-white'}`}>{t('calendar.month')}</button>
-                                <button onClick={() => setViewMode('list')} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'list' ? 'bg-white text-black shadow' : 'text-gray-400 hover:text-white'}`}>{t('calendar.list')}</button>
+                            <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 w-full">
+                                <button onClick={() => setViewMode('month')} className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'month' ? 'bg-white text-black shadow' : 'text-gray-400 hover:text-white'}`}>{t('calendar.month')}</button>
+                                <button onClick={() => setViewMode('list')} className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${viewMode === 'list' ? 'bg-white text-black shadow' : 'text-gray-400 hover:text-white'}`}>{t('calendar.list')}</button>
                             </div>
                         </div>
                     </div>
+
                     {/* Calendar Container */}
                     {viewMode === 'month' ? renderMonthView() : renderListView()}
                 </div>
                 
                 {/* Side Panels - Flex Col to allow expansion */}
                 <div className="xl:col-span-1 flex flex-col gap-6 h-full">
-                    <div className="glass-panel p-6 rounded-3xl relative overflow-hidden flex-1 flex flex-col">
+                    <div className="glass-panel p-6 rounded-3xl relative overflow-hidden flex-1 flex flex-col min-h-[300px]">
                         <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><Bell size={64} /></div>
                         <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2 shrink-0"><Bell className="text-yellow-400" size={18} />{t('calendar.upcomingAlerts')}</h3>
                         <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar">
