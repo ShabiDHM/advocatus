@@ -1,7 +1,7 @@
 # FILE: backend/app/models/archive.py
-# PHOENIX PROTOCOL - ARCHIVE V3.0 (AI STATUS)
-# 1. SCHEMA: Added 'indexing_status' to track AI processing (PENDING, PROCESSING, COMPLETED, FAILED).
-# 2. DEBUG: Added 'indexing_error' to store reasons for failure.
+# PHOENIX PROTOCOL - REVERT TO STABLE V2
+# 1. REVERT: Removed 'indexing_status' and 'indexing_error' fields.
+# 2. LOGIC: Restores the schema to be a simple file archive, not an AI knowledge base.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
@@ -11,7 +11,7 @@ from .common import PyObjectId
 class ArchiveItemBase(BaseModel):
     title: str
     item_type: str = "FILE" # 'FILE' or 'FOLDER'
-    parent_id: Optional[PyObjectId] = None 
+    parent_id: Optional[PyObjectId] = None
     
     file_type: str = "PDF"
     category: str = "GENERAL" 
@@ -20,11 +20,7 @@ class ArchiveItemBase(BaseModel):
     description: str = ""
     
     case_id: Optional[PyObjectId] = None 
-    
-    # PHOENIX: AI Brain Status
     is_shared: bool = False
-    indexing_status: str = "PENDING" # PENDING, PROCESSING, COMPLETED, FAILED
-    indexing_error: Optional[str] = None
 
 class ArchiveItemCreate(ArchiveItemBase):
     pass
