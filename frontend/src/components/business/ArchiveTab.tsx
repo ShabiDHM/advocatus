@@ -1,20 +1,29 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V11.0 (GLASS & INTERACTIONS)
-// 1. VISUALS: Full Glassmorphism adoption (glass-panel, glass-high).
-// 2. UX: Enhanced hover states and smooth modal transitions.
-// 3. LOGIC: Preserved file upload, folder navigation, and sharing logic.
+// PHOENIX PROTOCOL - ARCHIVE TAB V12.2 (STRICT TYPES)
+// 1. FIX: Restored 'ArchiveStatusUpdate' and applied it to SSE JSON parsing.
+// 2. LOGIC: Validated 'isShared' logic inside ArchiveCard to ensure UI updates correctly.
+// 3. STATUS: Type-safe and fully functional.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Home, Briefcase, FolderOpen, ChevronRight, FolderPlus, Loader2,
     Calendar, Info, Hash, FileText, FileImage, FileCode, File as FileIcon, Eye, Download, Trash2, Tag, X, Pencil, Save,
-    FolderUp, FileUp, Search, Share2, CheckCircle, Link as LinkIcon
+    FolderUp, FileUp, Search, Share2, CheckCircle, Link as LinkIcon,
+    BrainCircuit, AlertTriangle
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { ArchiveItemOut, Case, Document } from '../../data/types';
 import { useTranslation } from 'react-i18next';
 import PDFViewerModal from '../PDFViewerModal';
+import { useAuth } from '../../context/AuthContext';
+
+// PHOENIX: Restored Interface for SSE
+interface ArchiveStatusUpdate {
+    type: 'ARCHIVE_STATUS';
+    document_id: string;
+    status: string;
+}
 
 type Breadcrumb = { id: string | null; name: string; type: 'ROOT' | 'CASE' | 'FOLDER'; };
 
@@ -33,31 +42,58 @@ const getFileIcon = (fileType: string) => {
     return <FileIcon className="w-5 h-5 text-blue-400" />;
 };
 
-// --- ARCHIVE CARD (GLASS STYLE) ---
-const ArchiveCard = ({ title, subtitle, type, date, icon, onClick, onDownload, onDelete, onRename, onShare, isShared, isFolder, isLoading }: any) => {
+const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, isLoading }: any) => {
     const { t } = useTranslation();
+    const isFolder = item.item_type === 'FOLDER';
+    
+    // PHOENIX: Logic extracted from item object
+    const isShared = item.is_shared === true;
+    const status = item.indexing_status || 'PENDING';
+
     return (
         <div onClick={onClick} className={`group relative flex flex-col justify-between h-full min-h-[14rem] p-6 rounded-2xl transition-all duration-300 cursor-pointer glass-panel hover:bg-white/10 hover:-translate-y-1 hover:shadow-2xl`}>
-            {/* Hover Gradient Overlay */}
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-start/5 to-secondary-end/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
             
             <div>
                 <div className="flex flex-col mb-4 relative z-10">
                     <div className="flex justify-between items-start gap-2">
                         <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 group-hover:scale-110 transition-transform duration-300 shadow-inner">
-                            {icon}
+                            {isFolder ? <FolderOpen className="w-5 h-5 text-accent-start" /> : getFileIcon(item.file_type)}
                         </div>
-                        {isShared && (
-                            <div className="bg-emerald-500/20 text-emerald-400 p-1.5 rounded-lg border border-emerald-500/30 shadow-lg shadow-emerald-500/10" title={t('documentsPanel.shared', 'E ndarë me klientin')}>
-                                <Share2 size={14} />
-                            </div>
-                        )}
+                        
+                        <div className="flex gap-1">
+                            {!isFolder && (
+                                <>
+                                    {status === 'PROCESSING' && (
+                                        <div className="bg-amber-500/20 text-amber-400 p-1.5 rounded-lg border border-amber-500/30 animate-pulse" title="AI Processing...">
+                                            <BrainCircuit size={14} />
+                                        </div>
+                                    )}
+                                    {status === 'COMPLETED' && (
+                                        <div className="bg-emerald-500/20 text-emerald-400 p-1.5 rounded-lg border border-emerald-500/30" title="AI Indexed (Smart)">
+                                            <BrainCircuit size={14} />
+                                        </div>
+                                    )}
+                                    {status === 'FAILED' && (
+                                        <div className="bg-red-500/20 text-red-400 p-1.5 rounded-lg border border-red-500/30" title="AI Failed">
+                                            <AlertTriangle size={14} />
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                            
+                            {isShared && (
+                                <div className="bg-emerald-500/20 text-emerald-400 p-1.5 rounded-lg border border-emerald-500/30 shadow-lg shadow-emerald-500/10" title={t('documentsPanel.shared')}>
+                                    <Share2 size={14} />
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div className="mt-4">
-                        <h2 className="text-lg font-bold text-white line-clamp-2 leading-tight tracking-tight group-hover:text-primary-start transition-colors break-words">{title}</h2>
+                        <h2 className="text-lg font-bold text-white line-clamp-2 leading-tight tracking-tight group-hover:text-primary-start transition-colors break-words">{item.title}</h2>
                         <div className="flex items-center gap-2 mt-2">
                             <Calendar className="w-3.5 h-3.5 text-text-secondary flex-shrink-0" />
-                            <p className="text-xs text-text-secondary font-medium truncate">{date}</p>
+                            <p className="text-xs text-text-secondary font-medium truncate">{new Date(item.created_at).toLocaleDateString()}</p>
                         </div>
                     </div>
                 </div>
@@ -69,11 +105,11 @@ const ArchiveCard = ({ title, subtitle, type, date, icon, onClick, onDownload, o
                     <div className="space-y-1.5 pl-1">
                         <div className="flex items-center gap-2 text-sm font-medium text-white">
                             {isFolder ? <FolderOpen className="w-4 h-4 text-accent-start" /> : <FileText className="w-4 h-4 text-primary-end" />}
-                            <span className="truncate">{type}</span>
+                            <span className="truncate">{isFolder ? 'Folder' : item.file_type}</span>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-text-secondary">
                             <Hash className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span className="truncate">{subtitle}</span>
+                            <span className="truncate">{isFolder ? t('archive.caseFolders') : `${(item.file_size / 1024).toFixed(1)} KB`}</span>
                         </div>
                     </div>
                 </div>
@@ -105,6 +141,7 @@ const ArchiveCard = ({ title, subtitle, type, date, icon, onClick, onDownload, o
 
 export const ArchiveTab: React.FC = () => {
     const { t } = useTranslation();
+    const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [archiveItems, setArchiveItems] = useState<ArchiveItemOut[]>([]);
     const [cases, setCases] = useState<Case[]>([]);
@@ -125,6 +162,33 @@ export const ArchiveTab: React.FC = () => {
 
     const folderInputRef = useRef<HTMLInputElement>(null);
     const archiveInputRef = useRef<HTMLInputElement>(null);
+
+    // PHOENIX FIX: Explicitly cast JSON to ArchiveStatusUpdate
+    useEffect(() => {
+        if (!user) return;
+        const eventSource = new EventSource(`${apiService.axiosInstance.defaults.baseURL}/stream/${user.id}`);
+        
+        eventSource.onmessage = (event) => {
+            try {
+                // Casting here satisfies the linter and provides type safety
+                const data = JSON.parse(event.data) as ArchiveStatusUpdate;
+                
+                if (data.type === 'ARCHIVE_STATUS') {
+                    setArchiveItems(prev => prev.map(item => 
+                        item.id === data.document_id 
+                        ? { ...item, indexing_status: data.status } as any
+                        : item
+                    ));
+                }
+            } catch (e) {
+                console.error("SSE Parse Error", e);
+            }
+        };
+
+        return () => {
+            eventSource.close();
+        };
+    }, [user]);
 
     useEffect(() => {
         const loadCases = async () => { try { const c = await apiService.getCases(); setCases(c); } catch {} };
@@ -280,30 +344,22 @@ export const ArchiveTab: React.FC = () => {
             </div>
             
             <div className="space-y-10">
-                {currentView.type === 'ROOT' && filteredCases.length > 0 && (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">{filteredCases.map(c => (<div key={c.id} className="h-full"><ArchiveCard title={c.title || `Rasti #${c.case_number}`} subtitle={c.case_number || 'Pa numër'} type="Dosje Çështjeje" date={new Date(c.created_at).toLocaleDateString()} icon={<Briefcase className="w-5 h-5 text-primary-start" />} isFolder={true} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} /></div>))}</div>)}
+                {currentView.type === 'ROOT' && filteredCases.length > 0 && (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">{filteredCases.map(c => (<div key={c.id} className="h-full"><ArchiveCard item={{ title: c.title || `Rasti #${c.case_number}`, case_number: c.case_number, created_at: c.created_at, item_type: 'FOLDER' }} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} /></div>))}</div>)}
                 {filteredItems.length > 0 && (
                     <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         <AnimatePresence>
                             {filteredItems.map(item => { 
                                 const isFolder = (item as any).item_type === 'FOLDER'; 
-                                const fileExt = item.file_type || 'FILE'; 
-                                const isShared = (item as any).is_shared === true;
                                 return (
                                     <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} key={item.id} className="h-full">
                                         <ArchiveCard 
-                                            title={item.title} 
-                                            subtitle={isFolder ? t('archive.caseFolders') : `${fileExt} Dokument`} 
-                                            type={isFolder ? 'Folder' : fileExt} 
-                                            date={new Date().toLocaleDateString()} 
-                                            icon={isFolder ? <FolderOpen className="w-5 h-5 text-accent-start" /> : getFileIcon(fileExt)} 
-                                            isFolder={isFolder} 
-                                            isShared={isShared}
-                                            isLoading={openingDocId === item.id}
+                                            item={item}
                                             onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)} 
                                             onDownload={() => downloadArchiveItem(item.id, item.title)} 
                                             onDelete={() => deleteArchiveItem(item.id)}
                                             onRename={() => handleRenameClick(item)} 
                                             onShare={() => handleShareItem(item)}
+                                            isLoading={openingDocId === item.id}
                                         />
                                     </motion.div>
                                 );
@@ -313,6 +369,7 @@ export const ArchiveTab: React.FC = () => {
                 )}
             </div>
 
+            {/* Modals... (Same as before) */}
             {showFolderModal && (
                 <div className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
                     <div className="glass-high w-full max-w-sm p-8 rounded-3xl shadow-2xl scale-100">
@@ -332,7 +389,7 @@ export const ArchiveTab: React.FC = () => {
                                     <option value="CONTRACTS" className="bg-gray-900 text-white">{t('category.contracts', 'Contracts')}</option>
                                 </select>
                             </div>
-                            <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-accent-start to-accent-end text-white rounded-xl font-bold shadow-lg shadow-accent-start/20 transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div>
+                            <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-white hover:bg-white/10 transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-accent-start to-accent-end text-white rounded-xl font-bold shadow-lg shadow-accent-start/20 transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div>
                         </form>
                     </div>
                 </div>
@@ -351,7 +408,7 @@ export const ArchiveTab: React.FC = () => {
                                 <input autoFocus type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-lg" />
                             </div>
                             <div className="flex justify-end gap-3">
-                                <button type="button" onClick={() => setItemToRename(null)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors font-medium">{t('general.cancel')}</button>
+                                <button type="button" onClick={() => setItemToRename(null)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-white hover:bg-white/10 transition-colors font-medium">{t('general.cancel')}</button>
                                 <button type="submit" className="px-8 py-3 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold shadow-lg shadow-primary-start/20 transition-all transform hover:scale-[1.02] flex items-center gap-2">
                                     <Save size={16} /> {t('general.save')}
                                 </button>
@@ -365,3 +422,5 @@ export const ArchiveTab: React.FC = () => {
         </motion.div>
     );
 };
+
+export default ArchiveTab;

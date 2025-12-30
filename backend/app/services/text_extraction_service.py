@@ -1,15 +1,15 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V8.2 (SMART HYBRID MODE)
-# 1. OPTIMIZATION: Implemented 'Text Layer Check'. Skips heavy OCR if digital text exists.
-# 2. LOGIC: Sorts text blocks by coordinates to preserve legal document layout (Rows/Columns).
-# 3. SAFETY: Includes fallback to optical recognition for scanned images.
+# PHOENIX PROTOCOL - OCR ENGINE V8.3 (ADAPTED FOR STREAMING)
+# 1. LOGIC: Preserved ALL V8.2 Hybrid features (Layout Sort, Smart OCR Fallback, Threading).
+# 2. INTEGRATION: Added 'extract_text_from_file' wrapper to handle BytesIO streams from Celery.
+# 3. SAFETY: Uses temp files to ensure complex libraries (PyMuPDF/CV2) work reliably.
 
 import fitz  # PyMuPDF
 import docx
 from pptx import Presentation # Requires python-pptx
 import pandas as pd
 import csv
-from typing import Dict, Callable, Any, Optional
+from typing import Dict, Callable, Any, Optional, Union
 import logging
 import cv2
 import numpy as np
@@ -17,6 +17,8 @@ import io
 import concurrent.futures
 import time
 import os
+import tempfile
+import uuid
 
 # Link to our advanced OCR engine (only loaded if needed)
 try:
@@ -50,8 +52,7 @@ def _process_single_page_safe(doc_path: str, page_num: int) -> str:
         with fitz.open(doc_path) as doc:
             page: Any = doc[page_num]
             
-            # 1. Try Direct Text Extraction (BLOCK MODE) - FAST PATH (0.01s)
-            # "blocks" returns a list of tuples: (x0, y0, x1, y1, "lines", block_no, block_type)
+            # 1. Try Direct Text Extraction (BLOCK MODE) - FAST PATH
             blocks = page.get_text("blocks")
             
             text = ""
@@ -61,32 +62,29 @@ def _process_single_page_safe(doc_path: str, page_num: int) -> str:
                 text = "\n".join([b[4] for b in sorted_blocks])
 
             # If meaningful text is found (>50 chars), return immediately.
-            # This skips the heavy OCR process for 90% of legal docs.
             if text and len(text.strip()) > 50:
                 return page_marker + _sanitize_text(text)
             
-            # 2. Fallback: Optical Recognition - SLOW PATH (2-5s)
+            # 2. Fallback: Optical Recognition - SLOW PATH
             logger.info(f"Page {page_num} seems scanned (text len < 50). Engaging Optical OCR...")
             
             if not advanced_image_ocr:
-                logger.warning("Advanced OCR service missing. Returning empty.")
                 return page_marker + "[SCANNED DOCUMENT - NO OCR AVAILABLE]"
 
-            # Render page to image (High DPI for better accuracy)
+            # Render page to image
             zoom = 2.0 
             mat = fitz.Matrix(zoom, zoom)
             pix = page.get_pixmap(matrix=mat) 
             img_data = pix.tobytes("png")
             
             # Save temp file for OCR service
-            temp_img_path = f"/tmp/page_{page_num}_{os.getpid()}_{int(time.time())}.png"
+            temp_img_path = f"/tmp/page_{page_num}_{uuid.uuid4()}.png"
             with open(temp_img_path, "wb") as f:
                 f.write(img_data)
             
             ocr_text = ""
             try:
                 ocr_text = advanced_image_ocr(temp_img_path)
-                logger.info(f"✅ OCR Success (Page {page_num}): {len(ocr_text)} chars.")
             except Exception as ocr_err:
                 logger.error(f"OCR Failed for page {page_num}: {ocr_err}")
             finally:
@@ -109,7 +107,6 @@ def _extract_text_sequentially(file_path: str, total_pages: int) -> str:
     buffer = []
     for i in range(total_pages):
         buffer.append(_process_single_page_safe(file_path, i))
-        # Small sleep to yield CPU to other tasks
         time.sleep(0.05) 
     return "".join(buffer)
 
@@ -121,24 +118,19 @@ def _extract_text_from_pdf(file_path: str) -> str:
             total_pages = len(doc)
     except Exception: return ""
 
-    # For small docs, do sequential (lower overhead)
     if total_pages < 5:
          return _extract_text_sequentially(file_path, total_pages)
 
-    # For large docs, use ThreadPool (IO Bound due to OCR wait times)
     try:
         page_args = [(file_path, i) for i in range(total_pages)]
         results = []
-        # Optimization: Limit max workers to avoid OOM
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {executor.submit(_process_single_page_wrapper, arg): arg[1] for arg in page_args}
             for future in concurrent.futures.as_completed(futures):
                 results.append((futures[future], future.result()))
         
         results.sort(key=lambda x: x[0])
-        final_text = "".join([r[1] for r in results])
-        
-        return final_text
+        return "".join([r[1] for r in results])
     except Exception as e:
         logger.error(f"Parallel PDF extraction failed: {e}")
         return _extract_text_sequentially(file_path, total_pages)
@@ -212,8 +204,7 @@ EXTRACTION_MAP: Dict[str, Callable[[str], str]] = {
 
 def extract_text(file_path: str, mime_type: str) -> str:
     """
-    Main entry point for text extraction.
-    Determines the correct extractor based on mime_type.
+    Internal Entry Point (Path-Based).
     """
     normalized_mime_type = mime_type.split(';')[0].strip().lower()
     extractor = EXTRACTION_MAP.get(normalized_mime_type)
@@ -226,3 +217,49 @@ def extract_text(file_path: str, mime_type: str) -> str:
         return _extract_text_from_txt(file_path)
         
     return extractor(file_path)
+
+# --- PHOENIX BRIDGE: STREAM HANDLER ---
+def extract_text_from_file(file_obj: io.BytesIO, file_type: str = "PDF") -> str:
+    """
+    Public Entry Point (Stream-Based).
+    Adapts the BytesIO stream from Celery to the Path-based logic required by V8.2.
+    """
+    # 1. Map file_type to MIME or extension
+    extension_map = {
+        "PDF": ".pdf",
+        "DOCX": ".docx",
+        "PPTX": ".pptx",
+        "PNG": ".png",
+        "JPG": ".jpg",
+        "JPEG": ".jpeg",
+        "TXT": ".txt",
+        "CSV": ".csv",
+        "XLSX": ".xlsx"
+    }
+    ext = extension_map.get(file_type.upper(), ".bin")
+    
+    # 2. Determine MIME type for internal map
+    mime_map = {
+        "PDF": "application/pdf",
+        "DOCX": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "PPTX": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "XLSX": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "CSV": "text/csv",
+        "TXT": "text/plain",
+        "PNG": "image/png",
+        "JPG": "image/jpeg"
+    }
+    mime_type = mime_map.get(file_type.upper(), "application/octet-stream")
+
+    # 3. Write Stream to Temp File (Essential for PyMuPDF/CV2 stability)
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp.write(file_obj.getvalue())
+        tmp_path = tmp.name
+
+    try:
+        # 4. Delegate to the Robust V8.2 Logic
+        return extract_text(tmp_path, mime_type)
+    finally:
+        # 5. Clean up
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
