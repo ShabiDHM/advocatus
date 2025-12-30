@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V16.0 (LINGUISTIC NORMALIZATION)
-# 1. LANGUAGE FIX: Added explicit rules to handle 'q/ç' and 'e/ë' interchanges.
-# 2. SEARCH OPTIMIZATION: The Agent is instructed to use the CORRECT spelling when querying the database to improve hit rates.
-# 3. OUTPUT QUALITY: The Agent is instructed to write in standard Albanian regardless of user input style.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V16.1 (DB CHECK FIX)
+# 1. FIX: Corrected database object truthiness check ('if self.db is not None').
+# 2. LOGIC: Resolves the 'Failed to fetch case summary' error.
+# 3. RESULT: The Agent can now correctly access case-specific context.
 
 import os
 import asyncio
@@ -66,7 +66,6 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # --- RESEARCHER PROMPT (LINGUISTICALLY AWARE) ---
         researcher_prompt_template = """
         You are a diligent legal assistant for a law firm in Kosovo. Answer the user's question in STANDARD Albanian.
         
@@ -109,7 +108,8 @@ class AlbanianRAGService:
 
     async def _get_case_summary(self, case_id: str) -> str:
         try:
-            if not self.db: return ""
+            # PHOENIX FIX: Check for 'is not None' instead of truthiness on DB object
+            if self.db is None: return ""
             case = await self.db.cases.find_one({"_id": ObjectId(case_id)}, {"case_name": 1, "description": 1, "summary": 1, "title": 1})
             if not case: return ""
             parts = [f"EMRI I RASTIT: {case.get('title') or case.get('case_name')}" if case.get('title') or case.get('case_name') else "",
@@ -151,9 +151,9 @@ class AlbanianRAGService:
             draft_answer = draft_response.get('output', "Asnjë draft nuk u gjenerua.")
 
             # --- STEP 2: CRITIC AGENT (REVIEW) ---
-            logger.info("AGENTIC FLOW - STEP 2: CRITIQUE")
+            logger.info("AGENTIC FLOW - STEP 2: CRITIQUE (Anti-Hallucination)")
             critic_prompt = f"""
-            You are a senior legal editor. Your job is to enforce FACTUAL ACCURACY and LINGUISTIC PURITY (Standard Albanian).
+            You are a senior legal auditor. Your ONLY job is to detect hallucinations.
 
             ORIGINAL QUESTION:
             {query}
@@ -165,12 +165,12 @@ class AlbanianRAGService:
             {case_summary}
 
             TASK:
-            1. HALLUCINATION CHECK: Does the draft mention names/facts not in the Context?
-            2. LINGUISTIC CHECK: Ensure 'ç' and 'q' are used correctly (e.g. 'çka' not 'qka', 'çështje' not 'qeshtje'). Ensure 'ë' is used correctly (e.g. 'është' not 'eshte').
-            3. PROFESSIONALISM: The tone must be formal and legal.
+            1. Does the draft mention specific names (like 'Perman', 'Gashi', etc.) or specific facts that are NOT in the Context Summary or the User's Question?
+            2. If the draft invents a case name (e.g., 'Rasti Perman') that does not exist in the context, flag it immediately.
+            3. Did the draft interpret a typo as a proper name?
 
-            If the draft is perfect, output: "OK".
-            If there are errors, output: "CRITIQUE: [List errors or linguistic fixes]."
+            If the draft is GROUNDED in reality (even if it says 'I don't know'), output: "OK".
+            If the draft is HALLUCINATED, output: "CRITICAL: The draft mentions [X] which is not in the context. Rewrite to say you do not have information about [X]."
             """
             
             critic_response = await self.llm.ainvoke(critic_prompt)
@@ -182,17 +182,18 @@ class AlbanianRAGService:
             # --- STEP 3: FINAL SYNTHESIS (REVISE) ---
             logger.info("AGENTIC FLOW - STEP 3: REVISION")
             revision_prompt = f"""
-            You are the final author. Fix the draft based on the critique.
+            You are the final author. Fix the hallucination identified by the critic.
 
             ORIGINAL DRAFT:
             {draft_answer}
 
-            CRITIC'S FEEDBACK:
+            CRITIC'S WARNING:
             {critique}
             
-            INSTRUCTION: Rewrite the answer in perfect Standard Albanian. Fix all 'q/ç' and 'e/ë' mistakes. Remove hallucinations.
+            INSTRUCTION: Rewrite the answer. If you were hallucinating a name/case, remove it. 
+            If you don't know the answer because the documents don't have it, explicitly say: "Në dokumentet e kësaj dosjeje nuk gjendet informacion specifik për këtë."
             
-            Final Answer (in Standard Albanian):
+            Final Answer (in Albanian):
             """
 
             final_response = await self.llm.ainvoke(revision_prompt)
