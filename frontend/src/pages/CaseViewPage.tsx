@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V9.0 (GLASS & MOBILE OPTIMIZED)
-// 1. LAYOUT: Mobile stack (grid-cols-1) -> Desktop split (grid-cols-2).
-// 2. DESIGN: Applied global 'glass-panel' classes and refined header gradients.
-// 3. UX: Improved docked PDF viewer positioning for mobile devices.
+// PHOENIX PROTOCOL - CASE VIEW V10.1 (LINT CLEANUP)
+// 1. FIX: Removed unused imports (AnimatePresence, FileText, Maximize2) that were moved to DockedPDFViewer.
+// 2. STATUS: Clean build with no linter warnings.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -16,46 +15,16 @@ import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, FileText, Maximize2, Calendar } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
+import DockedPDFViewer from '../components/DockedPDFViewer';
 
 type CaseData = {
     details: Case | null;
 };
 type ActiveModal = 'none' | 'analysis';
-
-// --- DOCKED PDF VIEWER (GLASS STYLE) ---
-const DockedPDFViewer: React.FC<{ document: Document; onExpand: () => void; onClose: () => void; }> = ({ document, onExpand, onClose }) => {
-    const { t } = useTranslation();
-    return (
-        <AnimatePresence>
-            <motion.div
-                initial={{ y: "100%", opacity: 0 }}
-                animate={{ y: "0%", opacity: 1 }}
-                exit={{ y: "100%", opacity: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                className="fixed bottom-20 lg:bottom-4 right-4 z-[9998] w-[calc(100%-2rem)] sm:w-80 bg-background-dark/80 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl flex items-center justify-between p-3"
-            >
-                <div className="flex items-center gap-3 min-w-0">
-                    <div className="p-2 bg-red-500/10 rounded-lg border border-red-500/10">
-                        <FileText className="h-5 w-5 text-red-400 flex-shrink-0" />
-                    </div>
-                    <p className="text-sm font-medium text-white truncate">{document.file_name}</p>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={onExpand} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors" title={t('general.expand', 'Zgjero')}>
-                        <Maximize2 size={18} />
-                    </button>
-                    <button onClick={onClose} className="p-2 hover:bg-red-500/10 rounded-lg text-gray-400 hover:text-red-400 transition-colors" title={t('general.close', 'Mbyll')}>
-                        <X size={18} />
-                    </button>
-                </div>
-            </motion.div>
-        </AnimatePresence>
-    );
-};
 
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     if (!data) return [];
@@ -107,7 +76,7 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
-// --- HEADER COMPONENT (GLASS STYLE) ---
+// --- HEADER COMPONENT (GLASS STYLE - Z-INDEX FIX) ---
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
@@ -124,16 +93,20 @@ const CaseHeader: React.FC<{
 
     return (
         <motion.div 
-            className="relative z-30 mb-6 rounded-2xl shadow-2xl border border-white/5 group overflow-hidden" 
+            className="relative z-50 mb-6 group" 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }} 
             transition={{ duration: 0.3 }}
         >
-          {/* Glass Background */}
-          <div className="absolute inset-0 bg-background-light/40 backdrop-blur-md" />
-          <div className="absolute top-0 right-0 p-32 bg-primary-start/10 blur-[100px] rounded-full pointer-events-none" />
+          {/* 1. Visual Background Layer (Clipped) */}
+          <div className="absolute inset-0 rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
+              <div className="absolute inset-0 bg-background-light/40 backdrop-blur-md" />
+              <div className="absolute top-0 right-0 p-32 bg-primary-start/10 blur-[100px] rounded-full pointer-events-none" />
+          </div>
 
+          {/* 2. Content Layer (Visible - Allows Dropdown Overflow) */}
           <div className="relative p-5 sm:p-6 flex flex-col gap-5 z-10">
+              
               {/* TOP SECTION */}
               <div className="flex flex-col gap-1">
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight leading-snug break-words">
@@ -149,7 +122,7 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              {/* BOTTOM SECTION - Mobile Optimized Stacking */}
+              {/* BOTTOM SECTION */}
               <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full">
                   
                   <div className="flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap min-w-[140px]">
@@ -257,8 +230,7 @@ const CaseViewPage: React.FC = () => {
         </div>
         
         {/* MAIN GRID: 1 col on mobile, 2 cols on desktop */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px]">
-            {/* Left: Documents (Full height on mobile or fixed 500px) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px] relative z-0">
             <DocumentsPanel 
                 caseId={caseData.details.id} 
                 documents={liveDocuments} 
@@ -272,7 +244,6 @@ const CaseViewPage: React.FC = () => {
                 className="h-[500px] lg:h-full shadow-xl" 
             />
             
-            {/* Right: Chat (Full height on mobile or fixed 600px) */}
             <ChatPanel 
                 messages={liveMessages} 
                 connectionStatus={connectionStatus} 

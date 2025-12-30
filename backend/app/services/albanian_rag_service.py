@@ -1,9 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V15.0 (REFLECTION PATTERN)
-# 1. ARCHITECTURE: Implemented a two-step "Reflection" (Critique & Revise) workflow.
-# 2. STEP 1 (Researcher Agent): The existing agent now produces a 'Draft Answer'.
-# 3. STEP 2 (Critic Agent): A new LLM call critiques the draft for flaws.
-# 4. FINAL OUTPUT: A final LLM call synthesizes the original query, draft, and critique into a polished, high-quality answer.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V16.0 (LINGUISTIC NORMALIZATION)
+# 1. LANGUAGE FIX: Added explicit rules to handle 'q/ç' and 'e/ë' interchanges.
+# 2. SEARCH OPTIMIZATION: The Agent is instructed to use the CORRECT spelling when querying the database to improve hit rates.
+# 3. OUTPUT QUALITY: The Agent is instructed to write in standard Albanian regardless of user input style.
 
 import os
 import asyncio
@@ -67,21 +66,33 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
+        # --- RESEARCHER PROMPT (LINGUISTICALLY AWARE) ---
         researcher_prompt_template = """
-        Answer the user's question in Albanian. You have access to the following tools:
+        You are a diligent legal assistant for a law firm in Kosovo. Answer the user's question in STANDARD Albanian.
+        
+        LINGUISTIC RULES (Dialect & Typos):
+        1. Many users type 'q' instead of 'ç' (e.g., 'qka' -> 'çka', 'qa' -> 'ça').
+        2. Many users type 'e' instead of 'ë' (e.g., 'eshte' -> 'është', 'per' -> 'për').
+        3. WHEN USING TOOLS: You MUST convert the user's keywords to Standard Albanian. Searching for "qka" might fail, searching for "çka" will succeed.
+        
+        CRITICAL RULES:
+        1. GROUNDING: Answer ONLY using the information found in the 'Observation' from the tools. 
+        2. NO HALLUCINATION: If the tools return no relevant information, say "Nuk gjeta informacion në dokumente." Do NOT invent facts.
+        3. TYPO CORRECTION: If the user says "Rasti Perman" but you see "Rasti Përmban" or similar, use logic to infer the intent.
 
+        You have access to the following tools:
         {tools}
 
         Use the following format:
 
         Question: the input question you must answer
-        Thought: you should always think about what to do.
+        Thought: you should always think about what to do. (Normalize the user's spelling here before deciding on an Action).
         Action: the action to take, should be one of [{tool_names}]
-        Action Input: the input to the action
+        Action Input: the input to the action (MUST BE IN STANDARD ALBANIAN SPELLING)
         Observation: the result of the action
         ... (this Thought/Action/Action Input/Observation can repeat N times)
         Thought: I now have enough information to draft a comprehensive answer.
-        Final Answer: [A detailed, well-structured draft of the answer in professional Albanian based on the observations]
+        Final Answer: [A detailed answer based on Observations, written in Standard Albanian with correct ë/ç]
         
         Begin!
 
@@ -92,7 +103,7 @@ class AlbanianRAGService:
         
         if self.llm:
             researcher_agent = create_react_agent(self.llm, self.tools, self.researcher_prompt)
-            self.researcher_executor = AgentExecutor(agent=researcher_agent, tools=self.tools, verbose=True, handle_parsing_errors="Check your output and make sure it conforms to the format.")
+            self.researcher_executor = AgentExecutor(agent=researcher_agent, tools=self.tools, verbose=True, handle_parsing_errors=True)
         else:
             self.researcher_executor = None
 
@@ -123,9 +134,9 @@ class AlbanianRAGService:
         case_summary = await self._get_case_summary(case_id)
         
         enriched_input = f"""
-        Original User Question: "{query}"
+        User's Question (Raw): "{query}"
 
-        Case Summary Context:
+        KNOWN CASE CONTEXT (Use this):
         {case_summary}
         """
         
@@ -142,48 +153,46 @@ class AlbanianRAGService:
             # --- STEP 2: CRITIC AGENT (REVIEW) ---
             logger.info("AGENTIC FLOW - STEP 2: CRITIQUE")
             critic_prompt = f"""
-            You are a senior legal partner reviewing a draft from a junior associate.
-            Your task is to critique the draft for accuracy, completeness, and clarity. Be harsh but fair.
-            Provide a bulleted list of suggestions for improvement. If the draft is perfect, simply state "Drafti është i saktë dhe i plotë."
+            You are a senior legal editor. Your job is to enforce FACTUAL ACCURACY and LINGUISTIC PURITY (Standard Albanian).
 
             ORIGINAL QUESTION:
-            ---
             {query}
-            ---
 
-            ASSOCIATE'S DRAFT:
-            ---
+            DRAFT ANSWER:
             {draft_answer}
-            ---
 
-            Your critique (in Albanian):
+            CONTEXT SUMMARY:
+            {case_summary}
+
+            TASK:
+            1. HALLUCINATION CHECK: Does the draft mention names/facts not in the Context?
+            2. LINGUISTIC CHECK: Ensure 'ç' and 'q' are used correctly (e.g. 'çka' not 'qka', 'çështje' not 'qeshtje'). Ensure 'ë' is used correctly (e.g. 'është' not 'eshte').
+            3. PROFESSIONALISM: The tone must be formal and legal.
+
+            If the draft is perfect, output: "OK".
+            If there are errors, output: "CRITIQUE: [List errors or linguistic fixes]."
             """
             
             critic_response = await self.llm.ainvoke(critic_prompt)
             critique = critic_response.content if isinstance(critic_response.content, str) else ""
 
+            if "OK" in critique and len(critique) < 10:
+                return draft_answer
+
             # --- STEP 3: FINAL SYNTHESIS (REVISE) ---
             logger.info("AGENTIC FLOW - STEP 3: REVISION")
             revision_prompt = f"""
-            You are the final author. Your task is to revise the original draft based on the senior partner's critique.
-            Produce a final, polished, and professional answer in Albanian.
-
-            ORIGINAL QUESTION:
-            ---
-            {query}
-            ---
+            You are the final author. Fix the draft based on the critique.
 
             ORIGINAL DRAFT:
-            ---
             {draft_answer}
-            ---
 
-            SENIOR PARTNER'S CRITIQUE:
-            ---
+            CRITIC'S FEEDBACK:
             {critique}
-            ---
             
-            Your final, revised, and comprehensive answer in Albanian:
+            INSTRUCTION: Rewrite the answer in perfect Standard Albanian. Fix all 'q/ç' and 'e/ë' mistakes. Remove hallucinations.
+            
+            Final Answer (in Standard Albanian):
             """
 
             final_response = await self.llm.ainvoke(revision_prompt)
