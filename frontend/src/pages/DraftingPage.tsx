@@ -1,8 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V7.0 (GLASS & MOBILE)
-// 1. VISUALS: Full Glassmorphism adoption (glass-panel, glass-input).
-// 2. LAYOUT: Mobile stack (fixed height) -> Desktop split (full height).
-// 3. UX: Smoother transitions and better input field visibility.
+// PHOENIX PROTOCOL - DRAFTING PAGE V7.1 (MARKDOWN RESTORATION)
+// 1. STYLE FIX: Replaced invalid 'text-primary-200' classes with valid system colors.
+// 2. TYPOGRAPHY: Enhanced headers, lists, and spacing for a professional legal look.
+// 3. VISUALS: Bold text now pops in white, links in blue, citations in amber.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -54,9 +54,10 @@ const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({
     );
 };
 
-// --- STREAMING MARKDOWN ---
+// --- STREAMING MARKDOWN (RESTORED BEAUTY) ---
 const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () => void }> = ({ text, isNew, onComplete }) => {
     const [displayedText, setDisplayedText] = useState(isNew ? "" : text);
+    
     useEffect(() => {
         if (!isNew) { setDisplayedText(text); return; }
         setDisplayedText(""); 
@@ -71,22 +72,37 @@ const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () 
     }, [text, isNew, onComplete]);
 
     return (
-        <div className="markdown-content text-gray-200 text-sm leading-relaxed">
+        <div className="markdown-content text-gray-300 text-sm leading-8 font-serif">
              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-                    p: ({node, ...props}) => <p className="mb-4 last:mb-0 text-justify" {...props} />,
-                    strong: ({node, ...props}) => <span className="font-bold text-primary-200" {...props} />,
+                    // Paragraphs: Justified with spacing for readability
+                    p: ({node, ...props}) => <p className="mb-6 last:mb-0 text-justify text-gray-200" {...props} />,
+                    
+                    // Bold: Highlighted in White for emphasis
+                    strong: ({node, ...props}) => <span className="font-bold text-white" {...props} />,
+                    
+                    // Italics: Subtle gray
                     em: ({node, ...props}) => <span className="italic text-gray-400" {...props} />,
-                    ul: ({node, ...props}) => <ul className="list-disc pl-5 space-y-2 my-3 marker:text-primary-start" {...props} />,
-                    ol: ({node, ...props}) => <ol className="list-decimal pl-5 space-y-2 my-3 marker:text-primary-start" {...props} />,
+                    
+                    // Lists: Indented with custom markers
+                    ul: ({node, ...props}) => <ul className="list-disc pl-6 space-y-2 my-4 marker:text-primary-start" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal pl-6 space-y-2 my-4 marker:text-primary-start" {...props} />,
                     li: ({node, ...props}) => <li className="pl-1" {...props} />,
-                    h1: ({node, ...props}) => <h1 className="text-xl font-bold text-white mt-6 mb-4 border-b border-white/10 pb-2 uppercase tracking-wide text-center" {...props} />,
-                    h2: ({node, ...props}) => <h2 className="text-lg font-bold text-white mt-5 mb-3" {...props} />,
-                    h3: ({node, ...props}) => <h3 className="text-base font-bold text-gray-200 mt-4 mb-2" {...props} />,
-                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-primary-start pl-4 py-2 my-4 bg-white/5 italic text-gray-400 rounded-r-lg" {...props} />,
-                    code: ({node, ...props}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-primary-200" {...props} />,
-                    table: ({node, ...props}) => <div className="overflow-x-auto my-4"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>,
-                    th: ({node, ...props}) => <th className="border border-white/10 px-3 py-2 bg-white/5 font-bold text-left" {...props} />,
-                    td: ({node, ...props}) => <td className="border border-white/10 px-3 py-2" {...props} />,
+                    
+                    // Headers: Legal Document Style
+                    h1: ({node, ...props}) => <h1 className="text-2xl font-bold text-white mt-8 mb-6 pb-2 border-b-2 border-white/10 uppercase tracking-widest text-center" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-xl font-bold text-white mt-6 mb-4 border-b border-white/5 pb-1" {...props} />,
+                    h3: ({node, ...props}) => <h3 className="text-lg font-bold text-primary-start mt-4 mb-2 uppercase tracking-wide" {...props} />,
+                    
+                    // Blockquotes: Citation Style
+                    blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-accent-start pl-4 py-2 my-6 bg-white/5 italic text-gray-300 rounded-r-lg" {...props} />,
+                    
+                    // Code: Legal Clauses or References
+                    code: ({node, ...props}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent-end border border-white/10" {...props} />,
+                    
+                    // Tables: Clean borders
+                    table: ({node, ...props}) => <div className="overflow-x-auto my-6"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>,
+                    th: ({node, ...props}) => <th className="border border-white/10 px-4 py-2 bg-white/10 font-bold text-left text-white uppercase tracking-wider" {...props} />,
+                    td: ({node, ...props}) => <td className="border border-white/10 px-4 py-2 text-gray-300" {...props} />,
                 }} >{displayedText}</ReactMarkdown>
         </div>
     );

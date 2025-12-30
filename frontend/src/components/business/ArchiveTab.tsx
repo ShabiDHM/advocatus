@@ -1,8 +1,7 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V12.2 (STRICT TYPES)
-// 1. FIX: Restored 'ArchiveStatusUpdate' and applied it to SSE JSON parsing.
-// 2. LOGIC: Validated 'isShared' logic inside ArchiveCard to ensure UI updates correctly.
-// 3. STATUS: Type-safe and fully functional.
+// PHOENIX PROTOCOL - ARCHIVE TAB V12.3 (STATUS VISIBILITY)
+// 1. UI FIX: Added a Gray Brain icon for 'PENDING' state so users know the status exists.
+// 2. UX: Now displays status for ALL documents (Pending, Processing, Completed, Failed).
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,7 +17,6 @@ import { useTranslation } from 'react-i18next';
 import PDFViewerModal from '../PDFViewerModal';
 import { useAuth } from '../../context/AuthContext';
 
-// PHOENIX: Restored Interface for SSE
 interface ArchiveStatusUpdate {
     type: 'ARCHIVE_STATUS';
     document_id: string;
@@ -45,8 +43,6 @@ const getFileIcon = (fileType: string) => {
 const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, isLoading }: any) => {
     const { t } = useTranslation();
     const isFolder = item.item_type === 'FOLDER';
-    
-    // PHOENIX: Logic extracted from item object
     const isShared = item.is_shared === true;
     const status = item.indexing_status || 'PENDING';
 
@@ -62,8 +58,14 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
                         </div>
                         
                         <div className="flex gap-1">
+                            {/* PHOENIX: Full Status Visibility */}
                             {!isFolder && (
                                 <>
+                                    {status === 'PENDING' && (
+                                        <div className="bg-white/5 text-gray-500 p-1.5 rounded-lg border border-white/10" title="Waiting for AI Indexing">
+                                            <BrainCircuit size={14} />
+                                        </div>
+                                    )}
                                     {status === 'PROCESSING' && (
                                         <div className="bg-amber-500/20 text-amber-400 p-1.5 rounded-lg border border-amber-500/30 animate-pulse" title="AI Processing...">
                                             <BrainCircuit size={14} />
@@ -163,16 +165,14 @@ export const ArchiveTab: React.FC = () => {
     const folderInputRef = useRef<HTMLInputElement>(null);
     const archiveInputRef = useRef<HTMLInputElement>(null);
 
-    // PHOENIX FIX: Explicitly cast JSON to ArchiveStatusUpdate
+    // SSE: Real-time Status Updates
     useEffect(() => {
         if (!user) return;
         const eventSource = new EventSource(`${apiService.axiosInstance.defaults.baseURL}/stream/${user.id}`);
         
         eventSource.onmessage = (event) => {
             try {
-                // Casting here satisfies the linter and provides type safety
                 const data = JSON.parse(event.data) as ArchiveStatusUpdate;
-                
                 if (data.type === 'ARCHIVE_STATUS') {
                     setArchiveItems(prev => prev.map(item => 
                         item.id === data.document_id 
