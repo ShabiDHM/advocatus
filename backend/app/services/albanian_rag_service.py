@@ -1,8 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V18.1 (FINAL TYPE FIX)
-# 1. FIX: Removed the unnecessary 'agent_type' parameter from the public library tool signature.
-# 2. LOGIC: The vector_store_service now correctly defaults to the 'business' knowledge base.
-# 3. STATUS: All Pylance errors resolved. Final version.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V18.2 (KEY FIX)
+# 1. FIX: Corrected KeyError by changing 'content' to 'text' when parsing tool results.
+# 2. STATUS: This aligns the agent's tools with the vector_store_service's output.
 
 import os
 import asyncio
@@ -42,7 +41,8 @@ class PrivateDiaryTool(BaseTool):
         )
         if not results:
             return "No private records found matching the query."
-        return "\n\n".join([f"[SOURCE: {r['source']}]\n{r['content']}" for r in results])
+        # PHOENIX FIX: Use 'text' key instead of 'content'
+        return "\n\n".join([f"[SOURCE: {r['source']}]\n{r['text']}" for r in results])
 
     async def _arun(self, query: str) -> str:
         return await asyncio.to_thread(self._run, query)
@@ -61,11 +61,11 @@ def query_public_library_tool(query: str) -> str:
     Use this to verify compliance, finding labor laws, tax codes, or official procedures.
     """
     from . import vector_store_service
-    # PHOENIX FIX: Removed agent_type. The vector_store_service now defaults to 'business'.
     results = vector_store_service.query_public_library(query_text=query)
     if not results:
         return "No public records found."
-    return "\n\n".join([f"[SOURCE: {r['source']}]\n{r['content']}" for r in results])
+    # PHOENIX FIX: Use 'text' key instead of 'content'
+    return "\n\n".join([f"[SOURCE: {r['source']}]\n{r['text']}" for r in results])
 
 
 class AlbanianRAGService:
