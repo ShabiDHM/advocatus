@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V23.2 (CRITICAL FIX)
-# 1. FIX: Restored required 'tool_names' variable in researcher_prompt (Fixes ValueError).
-# 2. PRESERVE: Kept the "Beautiful Citation" logic in generate_legal_draft.
-# 3. STATUS: Chat and Drafting are now both fully operational.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V23.3 (UNIFIED STYLING)
+# 1. STYLE: Injected 'VISUAL_STYLE_PROTOCOL' into the Chat Agent (fixes plain text chat).
+# 2. PROMPT: Chat now enforces **Bold** laws and {{Citation}} syntax in Final Answer.
+# 3. CORE: Preserves all previous fix logic (ReAct variables, Dual-Stream Drafting).
 
 import os
 import asyncio
@@ -25,10 +25,23 @@ OPENROUTER_MODEL = "deepseek/deepseek-chat"
 # --- THE FORENSIC CONSTITUTION ---
 STRICT_FORENSIC_RULES = """
 RREGULLAT E AUDITIMIT DHE HARTIMIT (STRICT LIABILITY):
-1. CITIM I INTEGRUAR: Faktet dhe Ligjet duhet të jenë pjesë e fjalisë, jo lista në fund.
-2. SAKTËSIA LIGJORE: Përmend ligjet specifike (Ligji për Familjen, LPK, Kushtetuta).
-3. GJUHA: Shqipe Standarde Juridike, ton formal, bindës dhe elokuent.
-4. ZERO HALUCINACIONE: Përdor vetëm ligjet dhe faktet e ofruara.
+1. SAKTËSIA: Mos shpik fakte.
+2. BURIMET: Çdo pohim duhet të mbështetet në ligj ose provë.
+3. GJUHA: Shqipe Standarde Juridike.
+"""
+
+# --- THE VISUAL STYLE PROTOCOL (NEW) ---
+# This ensures Chat outputs look identical to Draft outputs
+VISUAL_STYLE_PROTOCOL = """
+PROTOKOLLI I STILIT VIZUAL (DETYRUESHËM PËR "FINAL ANSWER"):
+1. **LIGJET**: Çdo referencë ligjore duhet të jetë me BOLD dhe në formatin: **{{LIGJI: Neni X}}**.
+   - E gabuar: Sipas nenit 4...
+   - E saktë: Sipas **{{LIGJI: Neni 4 i LPF}}**...
+
+2. **PROVAT**: Çdo referencë faktike nga dosja duhet të jetë në formatin: [[PROVA: Emri i Dok]].
+   - E saktë: ...siç shihet në [[PROVA: Mesazhet SMS]].
+
+3. **STRUKTURA**: Përdor lista dhe paragrafë të qartë. Mos shkruaj blloqe teksti pa fund.
 """
 
 # --- Custom Tool Class for Private Diary ---
@@ -44,7 +57,7 @@ class PrivateDiaryTool(BaseTool):
 
     def _run(self, query: str) -> str:
         from . import vector_store_service
-        # Explicit keyword args to prevent Pylance errors
+        # Explicit keyword args
         results = vector_store_service.query_private_diary(
             user_id=self.user_id, 
             query_text=query, 
@@ -88,24 +101,26 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # PHOENIX FIX: Added {{tool_names}} to satisfy LangChain ReAct requirements.
+        # PHOENIX UPGRADE: Injected VISUAL_STYLE_PROTOCOL into Chat Prompt
         researcher_template = f"""
         Ti je "Juristi AI", një asistent ligjor elitar.
         
         {STRICT_FORENSIC_RULES}
+        
+        {VISUAL_STYLE_PROTOCOL}
 
         MJETET E DISPONUESHME:
         {{tools}}
         
-        Përdor formatin e mëposhtëm:
+        Përdor formatin e mëposhtëm (ReAct):
         Question: Pyetja e hyrjes
-        Thought: Mendo çfarë të bësh
+        Thought: Mendo çfarë të bësh (Kërko ligje ose fakte)
         Action: Veprimi që duhet marrë, duhet të jetë një nga [{{tool_names}}]
         Action Input: Inputi për veprimin
         Observation: Rezultati i veprimit
-        ... (kjo mund të përsëritet N herë)
-        Thought: Tani e di përgjigjen përfundimtare
-        Final Answer: Përgjigja përfundimtare juridike në Shqipe Standarde.
+        ... (Përsërit nëse duhet)
+        Thought: Tani e di përgjigjen përfundimtare.
+        Final Answer: Përgjigja përfundimtare juridike duke respektuar PROTOKOLLIN E STILIT VIZUAL.
 
         Fillo!
         Question: {{input}}
@@ -152,14 +167,14 @@ class AlbanianRAGService:
         case_id: Optional[str]
     ) -> str:
         """
-        DUAL-STREAM DRAFTING ENGINE WITH "BEAUTIFUL CITATION" PROTOCOL.
+        DUAL-STREAM DRAFTING ENGINE.
         """
         if not self.llm: return "System Error: No AI Model."
 
         case_summary = await self._get_case_summary(case_id)
         from . import vector_store_service
         
-        # 1. GET FACTS (Private)
+        # 1. GET FACTS
         private_docs = vector_store_service.query_private_diary(
             user_id=user_id, 
             query_text=instruction[:300], 
@@ -167,48 +182,25 @@ class AlbanianRAGService:
         )
         facts_text = "\n\n".join([f"DOKUMENTI: {d.get('text', '')} (Burimi: {d.get('source', '')})" for d in private_docs]) if private_docs else "Nuk u gjetën dokumente specifike."
 
-        # 2. GET LAWS (Public)
+        # 2. GET LAWS
         public_docs = vector_store_service.query_public_library(query_text=instruction[:300])
         laws_text = "\n\n".join([f"LIGJI: {d.get('text', '')} (Burimi: {d.get('source', '')})" for d in public_docs]) if public_docs else "Referohu parimeve të përgjithshme ligjore të Kosovës."
 
-        # 3. THE "BEAUTIFUL CITATION" PROMPT
+        # 3. DRAFTING PROMPT (Uses same style protocol implicitly via context)
         drafting_prompt = f"""
-        Ti je Avokat Kryesor (Senior Counsel). Stili yt është elokuent, bindës dhe tepër profesional.
+        Ti je Avokat Kryesor (Senior Counsel).
         
         {STRICT_FORENSIC_RULES}
+        {VISUAL_STYLE_PROTOCOL}
         
-        --- MATERIALET E DOSJES ---
-        FAKTET (Nga Klienti):
-        {facts_text}
-        
-        LIGJET (Nga Baza Ligjore):
-        {laws_text}
-        
+        --- MATERIALET ---
+        FAKTET: {facts_text}
+        LIGJET: {laws_text}
         INFO RASTI: {case_summary}
-        ---
         
-        UDHËZIMI I DRAFTIMIT:
-        {instruction}
+        UDHËZIMI: {instruction}
         
-        DETYRA: Harto dokumentin e plotë juridik.
-        
-        PROTOKOLLI I STILIT DHE CITIMIT (SHUMË E RËNDËSISHME):
-        
-        1. STRUKTURA E ARGUMENTIT: Përdor metodën "IRAC" (Issue, Rule, Analysis, Conclusion) për çdo paragraf.
-           - Fillo me pretendimin.
-           - Mbështete me LIGJIN {{...}}.
-           - Vërtetoje me FAKTIN [[...]].
-        
-        2. FORMATIMI VIZUAL I BURIMEVE:
-           - Kur citon një FAKT, përdor kllapa katrore të dyfishta direkt në tekst.
-             Shembull: "...siç vërtetohet qartë nga komunikimi me SMS [[PROVA: Mesazhet e dt. 12.02.2024]]."
-           
-           - Kur citon një LIGJ, përdor kllapa gjarpëruese të dyfishta direkt në tekst.
-             Shembull: "...duke u bazuar në interesin më të lartë të fëmijës, siç sanksionohet në {{LIGJI: Neni 6 i LPF-së}}."
-
-        3. TONI: Mos përdor lista (bullets) për argumentet kryesore. Shkruaj në paragrafë të plotë, rrjedhës.
-        
-        FILLIMI I DOKUMENTIT TANI:
+        DETYRA: Harto dokumentin e plotë. Përdor formatimin vizual (BOLD, kllapa) rigorozisht.
         """
         
         try:
