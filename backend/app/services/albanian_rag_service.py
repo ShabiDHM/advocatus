@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V22.2 (FULL RESTORATION)
-# 1. FIX: Completed the truncated file from previous step.
-# 2. FIX: Resolved Pylance error in 'generate_legal_draft' using keyword arguments.
-# 3. STATUS: Fully parsable, restoring 'chat' and 'generate_legal_draft' methods.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V23.0 (DUAL STREAM LAW + FACT)
+# 1. UPGRADE: 'generate_legal_draft' now queries BOTH Private Diary (Facts) AND Public Library (Laws).
+# 2. PROMPT: Enforced "Beautiful Citations" - requiring specific Articles (Neni X) for every argument.
+# 3. FIX: Resolved Pylance argument mismatches.
 
 import os
 import asyncio
@@ -22,13 +22,14 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# --- THE FORENSIC CONSTITUTION (Imported Logic) ---
+# --- THE FORENSIC CONSTITUTION ---
 STRICT_FORENSIC_RULES = """
-RREGULLAT E AUDITIMIT (STRICT LIABILITY):
-1. ZERO HALUCINACIONE: Nëse fakti nuk ekziston në kontekst, shkruaj "NUK KA TË DHËNA". Mos hamendëso.
-2. CITIM I DETYRUESHËM: Çdo pretendim faktik duhet të ketë referencën nga dokumentet e gjetura.
-3. GJUHA: Përdor Shqipe Standarde (e, ë, ç).
-4. KONTEKSTI: Përdor vetëm informacionin nga 'Observation' ose 'Case Context'.
+RREGULLAT E AUDITIMIT DHE HARTIMIT (STRICT LIABILITY):
+1. CITIM I KOMBINUAR: Çdo argument duhet të mbështetet në FAKT (nga dosja) dhe në LIGJ (nga biblioteka publike).
+   - Shembull: "Sipas Nenit 134 të LPF, kontakti me fëmijën është e drejtë (Ligji), gjë që vërtetohet nga SMS-të (Fakti)..."
+2. SAKTËSIA LIGJORE: Përmend ligjet specifike (Ligji për Familjen, LPK, Kushtetuta).
+3. GJUHA: Shqipe Standarde Juridike, ton formal dhe bindës.
+4. ZERO HALUCINACIONE: Mos shpik nene ligjore që nuk ekzistojnë në kontekst.
 """
 
 # --- Custom Tool Class for Private Diary ---
@@ -43,20 +44,13 @@ class PrivateDiaryTool(BaseTool):
     document_ids: Optional[List[str]] = None
 
     def _run(self, query: str) -> str:
-        # Lazy import to avoid circular dependency
         from . import vector_store_service
-        
-        # We use explicit keyword arguments to avoid positional mismatches
-        # Assuming signature: query_private_diary(user_id, query_text, n_results, case_context_id)
         results = vector_store_service.query_private_diary(
             user_id=self.user_id, 
             query_text=query, 
             case_context_id=self.case_id
         )
-        if not results:
-            return "No private records found matching the query."
-        
-        # PHOENIX FIX: Use 'text' key explicitly
+        if not results: return "No private records found."
         return "\n\n".join([f"[BURIMI: {r.get('source', 'Unknown')}]\n{r.get('text', '')}" for r in results])
 
     async def _arun(self, query: str) -> str:
@@ -73,48 +67,43 @@ class PublicLibraryInput(BaseModel):
 def query_public_library_tool(query: str) -> str:
     """
     Access the 'Public Library' (Official Laws & Business Regulations).
-    Use this to verify compliance, finding labor laws, tax codes, or official procedures.
     """
     from . import vector_store_service
     results = vector_store_service.query_public_library(query_text=query)
-    if not results:
-        return "No public records found."
-    return "\n\n".join([f"[LIGJI/BURIMI: {r.get('source', 'Unknown')}]\n{r.get('text', '')}" for r in results])
+    if not results: return "No public records found."
+    return "\n\n".join([f"[LIGJI: {r.get('source', 'Unknown')}]\n{r.get('text', '')}" for r in results])
 
 
 class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
         if DEEPSEEK_API_KEY:
-            # We enforce the API key into OpenAI client env for LangChain compatibility
             os.environ["OPENAI_API_KEY"] = DEEPSEEK_API_KEY
             self.llm = ChatOpenAI(
                 model=OPENROUTER_MODEL, 
                 base_url=OPENROUTER_BASE_URL, 
-                temperature=0.0, # Zero temp for strictness
+                temperature=0.0, 
                 streaming=False
             )
         else:
             self.llm = None
         
-        # PHOENIX UPGRADE: Enhanced Researcher Prompt with Constitution
+        # Enhanced Researcher Prompt
         researcher_template = f"""
-        Ti je "Juristi AI", një asistent ligjor i saktë dhe profesional.
+        Ti je "Juristi AI", një asistent ligjor elitar.
         
         {STRICT_FORENSIC_RULES}
 
-        TI KE AKSES NË KËTO MJETE (TOOLS):
+        MJETET E DISPONUESHME:
         {{tools}}
 
         PROCEDURA E MENDIMIT (ReAct):
-        Question: Pyetja e përdoruesit
-        Thought: Çfarë duhet të kërkoj? (Planifiko kërkimin)
-        Action: Zgjidh mjetin [{{tool_names}}]
-        Action Input: Parametri i kërkimit
-        Observation: Rezultati nga mjeti
-        ... (Përsërit nëse duhet më shumë info)
-        Thought: Tani kam informacionin e duhur.
-        Final Answer: Përgjigja përfundimtare në Shqipe Standarde.
+        Question: {{input}}
+        Thought: Analizo kërkesën ligjore.
+        Action: query_private_diary (për fakte) OSE query_public_library (për ligje)
+        Observation: Rezultatet...
+        Thought: Tani kombino faktet me ligjin.
+        Final Answer: Përgjigja përfundimtare juridike.
 
         Fillo!
         Question: {{input}}
@@ -125,68 +114,34 @@ class AlbanianRAGService:
     async def _get_case_summary(self, case_id: Optional[str]) -> str:
         try:
             if self.db is None or not case_id: return ""
-            # Handle string vs ObjectId safely
-            try:
-                oid = ObjectId(case_id)
-            except:
-                return ""
-                
-            case = await self.db.cases.find_one({"_id": oid}, {"case_name": 1, "description": 1, "summary": 1, "title": 1})
+            try: oid = ObjectId(case_id)
+            except: return ""  
+            case = await self.db.cases.find_one({"_id": oid}, {"case_name": 1, "description": 1, "summary": 1})
             if not case: return ""
-            parts = [
-                f"EMRI I PROJEKTIT: {case.get('title') or case.get('case_name')}", 
-                f"PËRSHKRIMI: {case.get('description')}", 
-                f"PËRMBLEDHJA: {case.get('summary')}"
-            ]
-            return "\n".join(filter(None, parts))
-        except Exception as e:
-            logger.warning(f"Failed to fetch case summary: {e}")
-            return ""
+            return f"LËNDA: {case.get('case_name')}\nPËRSHKRIMI: {case.get('description')}\nINFO: {case.get('summary')}"
+        except Exception: return ""
 
     async def chat(
-        self, 
-        query: str, 
-        user_id: str, 
-        case_id: Optional[str] = None,
-        document_ids: Optional[List[str]] = None,
-        jurisdiction: str = 'ks'
+        self, query: str, user_id: str, case_id: Optional[str] = None,
+        document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks'
     ) -> str:
-        """
-        Main Chat Handler. Uses ReAct Agent to search and answer.
-        """
-        if not self.llm:
-            return "Sistemi AI nuk është konfiguruar (Mungon API Key)."
+        if not self.llm: return "Sistemi AI nuk është konfiguruar."
 
-        # Initialize Tools with Context
-        private_tool_instance = PrivateDiaryTool(user_id=user_id, case_id=case_id, document_ids=document_ids)
-        session_tools = [private_tool_instance, query_public_library_tool]
+        private_tool = PrivateDiaryTool(user_id=user_id, case_id=case_id, document_ids=document_ids)
+        session_tools = [private_tool, query_public_library_tool]
 
-        researcher_agent = create_react_agent(self.llm, session_tools, self.researcher_prompt)
-        researcher_executor = AgentExecutor(
-            agent=researcher_agent, 
-            tools=session_tools, 
-            verbose=True, 
-            handle_parsing_errors=True,
-            max_iterations=5 # Prevent infinite loops
-        )
+        agent = create_react_agent(self.llm, session_tools, self.researcher_prompt)
+        executor = AgentExecutor(agent=agent, tools=session_tools, verbose=True, handle_parsing_errors=True, max_iterations=5)
 
         case_summary = await self._get_case_summary(case_id)
-        doc_context = f" (Fokusohu tek dokumentet ID: {document_ids})" if document_ids else ""
-        
-        enriched_input = (
-            f"Pyetja: \"{query}\"\n"
-            f"Juridiksioni: {jurisdiction}\n"
-            f"Konteksti i Çështjes:\n{case_summary}{doc_context}"
-        )
+        input_text = f"Pyetja: \"{query}\"\nJuridiksioni: {jurisdiction}\nKonteksti:\n{case_summary}"
         
         try:
-            # Single Pass Execution
-            response = await researcher_executor.ainvoke({"input": enriched_input})
-            return response.get('output', "Nuk u gjenerua përgjigje.")
-
+            res = await executor.ainvoke({"input": input_text})
+            return res.get('output', "Nuk u gjenerua përgjigje.")
         except Exception as e:
-            logger.error(f"Agent Chat Error: {e}", exc_info=True)
-            return "Ndodhi një gabim gjatë procesimit të kërkesës nga agjenti."
+            logger.error(f"Chat Error: {e}")
+            return "Gabim teknik gjatë bisedës."
 
     async def generate_legal_draft(
         self,
@@ -195,45 +150,59 @@ class AlbanianRAGService:
         case_id: Optional[str]
     ) -> str:
         """
-        DIRECT GENERATION MODE (No Agents).
-        Used for Drafting to prevent ReAct loops and ensure strict adherence to templates.
+        DUAL-STREAM DRAFTING ENGINE:
+        1. Retrieves FACTS from Private Diary.
+        2. Retrieves LAWS from Public Library.
+        3. Synthesizes them into a high-level legal document.
         """
         if not self.llm: return "System Error: No AI Model."
 
         case_summary = await self._get_case_summary(case_id)
-        
-        # Fetch relevant context FIRST (Manual RAG step)
-        # We query the diary strictly to get facts for the draft
         from . import vector_store_service
         
-        # PHOENIX FIX: Strict keyword arguments to satisfy Pylance
-        context_docs = vector_store_service.query_private_diary(
+        # STREAM 1: FACT RETRIEVAL (The "What Happened")
+        private_docs = vector_store_service.query_private_diary(
             user_id=user_id, 
-            query_text=instruction[:200], 
+            query_text=instruction[:300], 
             case_context_id=case_id
         )
-        
-        context_text = "\n\n".join([d.get('text', '') for d in context_docs]) if context_docs else "Nuk ka dokumente shtesë."
+        facts_text = "\n\n".join([f"PROVË (Doc): {d.get('text', '')}" for d in private_docs]) if private_docs else "Nuk u gjetën dokumente specifike në dosje."
 
+        # STREAM 2: LAW RETRIEVAL (The "Legal Basis")
+        # We query the public library using keywords from the instruction (e.g., "Alimentacion", "Padi", "Zgjidhje martese")
+        public_docs = vector_store_service.query_public_library(query_text=instruction[:300])
+        laws_text = "\n\n".join([f"LIGJI (Neni/Kodi): {d.get('text', '')}" for d in public_docs]) if public_docs else "Nuk u gjetën ligje specifike."
+
+        # THE SYNTHESIS PROMPT
         drafting_prompt = f"""
-        Ti je një Avokat Ekspert në hartimin e dokumenteve ligjore.
+        Ti je Avokat i Lartë dhe Ekspert i Hartimit Ligjor.
         
         {STRICT_FORENSIC_RULES}
         
-        KONTEKSTI NGA DOSJA (FAKTET):
-        {context_text}
+        --- BURIMET E INFORMACIONIT ---
         
-        INFORMACIONI I LËNDËS:
+        [A] FAKTET E RASTIT (Nga Dosja e Klientit):
+        {facts_text}
+        
+        [B] BAZA LIGJORE (Nga Biblioteka Publike - Ligjet e Kosovës):
+        {laws_text}
+        
+        [C] INFO E LËNDËS:
         {case_summary}
         
         ---
         
-        UDHËZIMI PËR DRAFTIM:
+        UDHËZIMI I DRAFTIMIT:
         {instruction}
         
-        DETYRA:
-        Harto dokumentin e plotë. Mos përdor placeholders si [VENDOS KËTU] nëse informacioni ekziston në kontekst.
-        Nëse informacioni mungon, lëre bosh me [MUNGON].
+        DETYRA KRYESORE:
+        Harto një dokument juridik të nivelit të lartë.
+        
+        KRITERET E "BUKURISË JURIDIKE":
+        1. CITIME LIGJORE: Çdo paragraf argumentues MË SË PAKU një referencë ligjore (psh. "Konform nenit 34, paragrafi 2 të LPF...").
+        2. KORRELACIONI: Lidh faktin me ligjin. (psh. "Fakti që babai pagoi faturat (Shih Provën 1) përmbush obligimin sipas Nenit X...").
+        3. STRUKTURA: Tituj të qartë, gjuhë profesionale, pa gabime drejtshkrimore.
+        4. FINALIZIMI: Përfundo me Petitiumin (Kërkesën) e qartë dhe nënshkrimin.
         
         FILLIMI I DOKUMENTIT:
         """
@@ -242,5 +211,5 @@ class AlbanianRAGService:
             response = await self.llm.ainvoke(drafting_prompt)
             return str(response.content)
         except Exception as e:
-            logger.error(f"Draft Generation Error: {e}")
-            return "Dështoi gjenerimi i draftit."
+            logger.error(f"Draft Gen Error: {e}")
+            return "Dështoi gjenerimi i draftit ligjor."
