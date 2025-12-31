@@ -1,7 +1,7 @@
 # FILE: backend/app/services/drafting_service.py
 # PHOENIX PROTOCOL - DRAFTING SERVICE V19.0 (DIRECT MODE)
 # 1. UPGRADE: Uses 'generate_legal_draft' instead of 'chat' to avoid ReAct loops.
-# 2. PROMPT: Improved template mapping.
+
 
 import os
 import io
