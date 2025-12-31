@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V23.0 (DUAL STREAM LAW + FACT)
-# 1. UPGRADE: 'generate_legal_draft' now queries BOTH Private Diary (Facts) AND Public Library (Laws).
-# 2. PROMPT: Enforced "Beautiful Citations" - requiring specific Articles (Neni X) for every argument.
-# 3. FIX: Resolved Pylance argument mismatches.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V23.1 (BEAUTIFUL CITATION STYLE)
+# 1. STYLE: Implemented "Embedded Citation" protocol ({{LIGJI}} vs [[PROVA]]).
+# 2. LOGIC: Forces "Fact-Law-Conclusion" paragraph structure.
+# 3. FIX: Ensures the Public Library is queried efficiently for legal basis.
 
 import os
 import asyncio
@@ -25,11 +25,10 @@ OPENROUTER_MODEL = "deepseek/deepseek-chat"
 # --- THE FORENSIC CONSTITUTION ---
 STRICT_FORENSIC_RULES = """
 RREGULLAT E AUDITIMIT DHE HARTIMIT (STRICT LIABILITY):
-1. CITIM I KOMBINUAR: Çdo argument duhet të mbështetet në FAKT (nga dosja) dhe në LIGJ (nga biblioteka publike).
-   - Shembull: "Sipas Nenit 134 të LPF, kontakti me fëmijën është e drejtë (Ligji), gjë që vërtetohet nga SMS-të (Fakti)..."
+1. CITIM I INTEGRUAR: Faktet dhe Ligjet duhet të jenë pjesë e fjalisë, jo lista në fund.
 2. SAKTËSIA LIGJORE: Përmend ligjet specifike (Ligji për Familjen, LPK, Kushtetuta).
-3. GJUHA: Shqipe Standarde Juridike, ton formal dhe bindës.
-4. ZERO HALUCINACIONE: Mos shpik nene ligjore që nuk ekzistojnë në kontekst.
+3. GJUHA: Shqipe Standarde Juridike, ton formal, bindës dhe elokuent.
+4. ZERO HALUCINACIONE: Përdor vetëm ligjet dhe faktet e ofruara.
 """
 
 # --- Custom Tool Class for Private Diary ---
@@ -45,6 +44,7 @@ class PrivateDiaryTool(BaseTool):
 
     def _run(self, query: str) -> str:
         from . import vector_store_service
+        # Explicit keyword args to prevent Pylance errors
         results = vector_store_service.query_private_diary(
             user_id=self.user_id, 
             query_text=query, 
@@ -150,61 +150,64 @@ class AlbanianRAGService:
         case_id: Optional[str]
     ) -> str:
         """
-        DUAL-STREAM DRAFTING ENGINE:
-        1. Retrieves FACTS from Private Diary.
-        2. Retrieves LAWS from Public Library.
-        3. Synthesizes them into a high-level legal document.
+        DUAL-STREAM DRAFTING ENGINE WITH "BEAUTIFUL CITATION" PROTOCOL.
         """
         if not self.llm: return "System Error: No AI Model."
 
         case_summary = await self._get_case_summary(case_id)
         from . import vector_store_service
         
-        # STREAM 1: FACT RETRIEVAL (The "What Happened")
+        # 1. GET FACTS (Private)
         private_docs = vector_store_service.query_private_diary(
             user_id=user_id, 
             query_text=instruction[:300], 
             case_context_id=case_id
         )
-        facts_text = "\n\n".join([f"PROVË (Doc): {d.get('text', '')}" for d in private_docs]) if private_docs else "Nuk u gjetën dokumente specifike në dosje."
+        facts_text = "\n\n".join([f"DOKUMENTI: {d.get('text', '')} (Burimi: {d.get('source', '')})" for d in private_docs]) if private_docs else "Nuk u gjetën dokumente specifike."
 
-        # STREAM 2: LAW RETRIEVAL (The "Legal Basis")
-        # We query the public library using keywords from the instruction (e.g., "Alimentacion", "Padi", "Zgjidhje martese")
+        # 2. GET LAWS (Public)
+        # Search for broader terms like "Family Law", "Custody", "Contract Law" based on instruction
         public_docs = vector_store_service.query_public_library(query_text=instruction[:300])
-        laws_text = "\n\n".join([f"LIGJI (Neni/Kodi): {d.get('text', '')}" for d in public_docs]) if public_docs else "Nuk u gjetën ligje specifike."
+        laws_text = "\n\n".join([f"LIGJI: {d.get('text', '')} (Burimi: {d.get('source', '')})" for d in public_docs]) if public_docs else "Referohu parimeve të përgjithshme ligjore të Kosovës."
 
-        # THE SYNTHESIS PROMPT
+        # 3. THE "BEAUTIFUL CITATION" PROMPT
         drafting_prompt = f"""
-        Ti je Avokat i Lartë dhe Ekspert i Hartimit Ligjor.
+        Ti je Avokat Kryesor (Senior Counsel). Stili yt është elokuent, bindës dhe tepër profesional.
         
         {STRICT_FORENSIC_RULES}
         
-        --- BURIMET E INFORMACIONIT ---
-        
-        [A] FAKTET E RASTIT (Nga Dosja e Klientit):
+        --- MATERIALET E DOSJES ---
+        FAKTET (Nga Klienti):
         {facts_text}
         
-        [B] BAZA LIGJORE (Nga Biblioteka Publike - Ligjet e Kosovës):
+        LIGJET (Nga Baza Ligjore):
         {laws_text}
         
-        [C] INFO E LËNDËS:
-        {case_summary}
-        
+        INFO RASTI: {case_summary}
         ---
         
         UDHËZIMI I DRAFTIMIT:
         {instruction}
         
-        DETYRA KRYESORE:
-        Harto një dokument juridik të nivelit të lartë.
+        DETYRA: Harto dokumentin e plotë juridik.
         
-        KRITERET E "BUKURISË JURIDIKE":
-        1. CITIME LIGJORE: Çdo paragraf argumentues MË SË PAKU një referencë ligjore (psh. "Konform nenit 34, paragrafi 2 të LPF...").
-        2. KORRELACIONI: Lidh faktin me ligjin. (psh. "Fakti që babai pagoi faturat (Shih Provën 1) përmbush obligimin sipas Nenit X...").
-        3. STRUKTURA: Tituj të qartë, gjuhë profesionale, pa gabime drejtshkrimore.
-        4. FINALIZIMI: Përfundo me Petitiumin (Kërkesën) e qartë dhe nënshkrimin.
+        PROTOKOLLI I STILIT DHE CITIMIT (SHUMË E RËNDËSISHME):
         
-        FILLIMI I DOKUMENTIT:
+        1. STRUKTURA E ARGUMENTIT: Përdor metodën "IRAC" (Issue, Rule, Analysis, Conclusion) për çdo paragraf.
+           - Fillo me pretendimin.
+           - Mbështete me LIGJIN {{...}}.
+           - Vërtetoje me FAKTIN [[...]].
+        
+        2. FORMATIMI VIZUAL I BURIMEVE:
+           - Kur citon një FAKT, përdor kllapa katrore të dyfishta direkt në tekst.
+             Shembull: "...siç vërtetohet qartë nga komunikimi me SMS [[PROVA: Mesazhet e dt. 12.02.2024]]."
+           
+           - Kur citon një LIGJ, përdor kllapa gjarpëruese të dyfishta direkt në tekst.
+             Shembull: "...duke u bazuar në interesin më të lartë të fëmijës, siç sanksionohet në {{LIGJI: Neni 6 i LPF-së}}."
+
+        3. TONI: Mos përdor lista (bullets) për argumentet kryesore. Shkruaj në paragrafë të plotë, rrjedhës.
+        
+        FILLIMI I DOKUMENTIT TANI:
         """
         
         try:
