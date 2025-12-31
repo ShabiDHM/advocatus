@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V24.0 (MARKDOWN LINKS & SHADOW STYLE)
-# 1. VISUAL: Switched to Markdown Links [**Text**](doc://Source) to match Frontend styling.
-# 2. LOGIC: AI now maps retrieved "BURIMI" directly to "doc://" links.
-# 3. STRUCTURE: Enforces specific headers (BAZA LIGJORE, VLERËSIMI I PROVAVE).
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V24.1 (DETAILED CITATIONS)
+# 1. VISUAL: Enforces "Full Law Name + Nr + Article" inside the highlighted link.
+# 2. PROMPT: Instructs AI to look for Law Numbers (Nr.) in the retrieval context.
+# 3. STATUS: Matches the user's request for detailed, highlighted legal citations.
 
 import os
 import asyncio
@@ -25,32 +25,28 @@ OPENROUTER_MODEL = "deepseek/deepseek-chat"
 # --- THE FORENSIC CONSTITUTION ---
 STRICT_FORENSIC_RULES = """
 RREGULLAT E AUDITIMIT DHE HARTIMIT (STRICT LIABILITY):
-1. SAKTËSIA: Mos shpik fakte.
-2. BURIMET: Çdo pohim duhet të ketë një LINK drejt burimit.
+1. SAKTËSIA: Mos shpik fakte apo numra ligjesh.
+2. BURIMET: Çdo pohim ligjor duhet të ketë referencën e plotë.
 3. GJUHA: Shqipe Standarde Juridike.
 """
 
-# --- THE VISUAL STYLE PROTOCOL (MARKDOWN LINKS) ---
+# --- THE VISUAL STYLE PROTOCOL (DETAILED CITATION) ---
 VISUAL_STYLE_PROTOCOL = """
-PROTOKOLLI I STILIT VIZUAL (DETYRUESHËM PËR "FINAL ANSWER"):
+PROTOKOLLI I STILIT VIZUAL (DETYRUESHËM PËR FINAL ANSWER):
 
-1. **CITIMET SI LINQE (SHUMË E RËNDËSISHME)**:
-   - Çdo Ligj ose Provë duhet të shkruhet si LINK MARKDOWN.
-   - Formati: [**Titulli i Shkurtër**](doc://Emri_i_Burimit)
+1. **FORMATI I CITIMIT TË LIGJIT (Highlighter)**:
+   - Duhet të përfshijë: Emrin e Ligjit + Numrin e Ligjit (nëse gjendet) + Nenin.
+   - Formati: [**{Emri i Plotë i Ligjit} {Nr. i Ligjit}, {Neni X}**](doc://{Emri_i_Burimit_PDF})
    
-   Shembuj:
-   - Për Ligj: ...bazuar në [**Neni 145 i LPF**](doc://Ligji_Nr_2004_32_Familja.pdf).
-   - Për Provë: ...siç vërtetohet nga [**Mesazhet SMS**](doc://Deshmite_2024.pdf).
+   - E GABUAR: ...sipas [**Neni 4**](doc://...).
+   - E SAKTË: ...sipas [**Ligji për Familjen i Kosovës (Nr. 2004/32), Neni 4**](doc://Ligji_Familjes.pdf).
 
-2. **STRUKTURA E PËRGJIGJES**:
-   - Përdor gjithmonë këta tituj me BOLD:
-     - **BAZA LIGJORE:** (Listo ligjet me bullets ose numra)
-     - **VLERËSIMI I PROVAVE:** (Analizo faktet)
-     - **KONKLUZIONI:** (Përfundimi)
+2. **FORMATI I PROVAVE**:
+   - Formati: [**PROVA: {Përshkrimi i Dokumentit}**](doc://{Emri_i_Dosjes})
+   - Shembull: ...siç vërtetohet nga [**PROVA: Raporti Mjekësor QKUK**](doc://Raporti_2024.pdf).
 
-3. **ESTETIKA**:
-   - Titulli brenda linkut duhet të jetë gjithmonë me **BOLD**.
-   - Përdor "doc://" para emrit të dosjes në link.
+3. **STRUKTURA**:
+   - Përdor titujt: **BAZA LIGJORE**, **VLERËSIMI I PROVAVE**, **KONKLUZIONI**.
 """
 
 # --- Custom Tool Class for Private Diary ---
@@ -93,7 +89,7 @@ def query_public_library_tool(query: str) -> str:
     from . import vector_store_service
     results = vector_store_service.query_public_library(query_text=query)
     if not results: return "No public records found."
-    return "\n\n".join([f"[BURIMI: {r.get('source', 'Ligjet_e_Kosoves')}]\n{r.get('text', '')}" for r in results])
+    return "\n\n".join([f"[BURIMI: {r.get('source', 'Ligji_Unknown')}]\n{r.get('text', '')}" for r in results])
 
 
 class AlbanianRAGService:
@@ -110,7 +106,7 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # PHOENIX UPGRADE: Enhanced Researcher Prompt with MARKDOWN LINK Protocol
+        # PHOENIX UPGRADE: Researcher Prompt with DETAILED CITATION Protocol
         researcher_template = f"""
         Ti je "Juristi AI", një asistent ligjor elitar.
         
@@ -123,13 +119,13 @@ class AlbanianRAGService:
         
         Përdor formatin e mëposhtëm (ReAct):
         Question: Pyetja e hyrjes
-        Thought: Mendo çfarë të bësh (Kërko ligje dhe fakte)
+        Thought: Mendo çfarë të bësh
         Action: Një nga [{{tool_names}}]
         Action Input: Inputi për veprimin
-        Observation: Rezultati i veprimit (Këtu merr emrin e BURIMIT për linkun)
+        Observation: Rezultati i veprimit (Kërko 'Nr.' të ligjit këtu)
         ... (Përsërit nëse duhet)
         Thought: Tani e di përgjigjen.
-        Final Answer: Përgjigja përfundimtare duke përdorur [**Titulli**](doc://Burimi) për çdo citim.
+        Final Answer: Përgjigja përfundimtare duke përdorur citimet e plota të theksuara.
 
         Fillo!
         Question: {{input}}
@@ -195,7 +191,7 @@ class AlbanianRAGService:
         public_docs = vector_store_service.query_public_library(query_text=instruction[:300])
         laws_text = "\n\n".join([f"LIGJI: {d.get('text', '')} (Burimi: {d.get('source', '')})" for d in public_docs]) if public_docs else "Referohu parimeve të përgjithshme ligjore të Kosovës."
 
-        # 3. DRAFTING PROMPT (Updated to match Chat Style)
+        # 3. DRAFTING PROMPT (Updated to match Detailed Style)
         drafting_prompt = f"""
         Ti je Avokat Kryesor (Senior Counsel).
         
@@ -210,7 +206,7 @@ class AlbanianRAGService:
         UDHËZIMI: {instruction}
         
         DETYRA: Harto dokumentin e plotë.
-        RREGULL I FORTË: Përdor [**Link Markdown**](doc://Burimi) për çdo citim.
+        RREGULL I FORTË: Përfshi Emrin e Ligjit, Numrin, dhe Nenin në linkun e citimit.
         """
         
         try:
