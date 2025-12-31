@@ -1,7 +1,7 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING SERVICE V18.1 (TYPE FIX)
-# 1. FIX: Added a check for 'case_id' before passing it to the agent to satisfy strict 'str | None' typing.
-# 2. STATUS: Pylance errors resolved.
+# PHOENIX PROTOCOL - DRAFTING SERVICE V19.0 (DIRECT MODE)
+# 1. UPGRADE: Uses 'generate_legal_draft' instead of 'chat' to avoid ReAct loops.
+# 2. PROMPT: Improved template mapping.
 
 import os
 import io
@@ -18,11 +18,11 @@ from .albanian_rag_service import AlbanianRAGService
 logger = structlog.get_logger(__name__)
 
 TEMPLATE_MAP = {
-    "generic": "Strukturoje si dokument juridik standard.",
-    "padi": "STRUKTURA E PADISË: 1. Gjykata... 2. Palët... 3. Baza Ligjore... 4. Faktet... 5. Petitiumi...",
-    "pergjigje": "STRUKTURA E PËRGJIGJES: 1. Deklarim kundërshtues... 2. Arsyetimi... 3. Propozimi...",
-    "kunderpadi": "STRUKTURA E KUNDËRPADISË: 1. Baza e kundërpadisë... 2. Kërkesa...",
-    "kontrate": "STRUKTURA E KONTRATËS: 1. Titulli... 2. Palët... 3. Nenet (Objekti, Çmimi, Kohëzgjatja)... 4. Nënshkrimet..."
+    "generic": "Strukturoje si dokument juridik formal.",
+    "padi": "STRUKTURA E PADISË: 1. Gjykata... 2. Palët... 3. Baza Ligjore... 4. Faktet (Kronologjia)... 5. Provat... 6. Petitiumi (Kërkesa).",
+    "pergjigje": "STRUKTURA E PËRGJIGJES NË PADI: 1. Deklarim mbi pretendimet... 2. Kundërshtimi i provave... 3. Kundër-propozimi.",
+    "kunderpadi": "STRUKTURA E KUNDËRPADISË: 1. Faktet e reja... 2. Dëmi i shkaktuar... 3. Kompensimi i kërkuar.",
+    "kontrate": "STRUKTURA E KONTRATËS: 1. Palët Kontraktuese... 2. Objekti i Kontratës... 3. Çmimi/Pagesa... 4. Të Drejtat dhe Detyrimet... 5. Zgjidhja e Mosmarrëveshjeve... 6. Nënshkrimet."
 }
 
 async def generate_draft(
@@ -33,42 +33,39 @@ async def generate_draft(
     user_prompt: str,
 ) -> str:
     """
-    Uses the full Agentic RAG service to generate a legal or business draft.
+    Uses the Direct Generation Mode to write legal drafts.
     """
-    logger.info("Initializing Agentic Drafting Service...")
+    logger.info(f"Initializing Drafting Service for type: {draft_type}")
     
     template_instruction = TEMPLATE_MAP.get(draft_type, TEMPLATE_MAP["generic"])
 
-    agent_query = f"""
-    DETYRA: Harto një dokument të tipit '{draft_type.upper()}'.
-    STRUKTURA PËR T'U NDJEKUR: {template_instruction}
+    # Combined instruction for the AI
+    final_instruction = f"""
+    LLOJI I DOKUMENTIT: {draft_type.upper()}
+    STRUKTURA E KËRKUAR: {template_instruction}
     
-    UDHËZIMET E PËRDORUESIT:
-    ---
+    DETAJET SPECIFIKE NGA PËRDORUESI:
     {user_prompt}
-    ---
-    
-    Filloni me hulumtimin e informacionit të nevojshëm dhe më pas hartoni dokumentin e plotë.
     """
     
     try:
         agent_service = AlbanianRAGService(db)
         
-        # PHOENIX FIX: Pass case_id only if it's not None
-        final_draft = await agent_service.chat(
-            query=agent_query,
+        # PHOENIX FIX: Call the dedicated drafting method, NOT the chat agent.
+        final_draft = await agent_service.generate_legal_draft(
+            instruction=final_instruction,
             user_id=user_id,
-            case_id=case_id if case_id else None
+            case_id=case_id
         )
         return final_draft
     except Exception as e:
-        logger.error(f"Agentic drafting failed: {e}", exc_info=True)
-        return "Gjatë hartimit të draftit ka ndodhur një gabim në sistemin e inteligjencës artificiale."
+        logger.error(f"Drafting service failed: {e}", exc_info=True)
+        return "Gjatë hartimit të draftit ka ndodhur një gabim teknik."
 
 
 def generate_objection_document(analysis_result: Dict[str, Any], case_title: str) -> bytes:
     """
-    (Unchanged) Generates a .docx file from an analysis result.
+    Generates a .docx file from an analysis result.
     """
     document = Document()
     style = document.styles['Normal']

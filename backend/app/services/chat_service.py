@@ -1,7 +1,7 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V21.1 (TYPE SAFETY FIX)
-# 1. FIX: Added a default value for 'jurisdiction' to ensure it's always a 'str'.
-# 2. STATUS: Resolves the final Pylance error.
+# PHOENIX PROTOCOL - CHAT SERVICE V22.0 (INTEGRITY CHECK)
+# 1. FIX: Aligns with AlbanianRAGService.chat signature.
+# 2. SAFETY: Ensures strict type checking for ObjectIds.
 
 from __future__ import annotations
 import logging
@@ -53,14 +53,18 @@ async def get_http_chat_response(
         # 3. DELEGATE TO AGENT EXECUTOR
         agent_service = AlbanianRAGService(db=db)
         
-        # PHOENIX FIX: Ensure jurisdiction is never None
-        final_jurisdiction = jurisdiction if jurisdiction is not None else 'ks'
+        # Ensure jurisdiction is a string
+        final_jurisdiction = jurisdiction if jurisdiction else 'ks'
+        
+        # Prepare document_ids list if a single doc is selected
+        doc_ids = [document_id] if document_id else None
 
+        # PHOENIX: Now calling the updated signature correctly
         response_text = await agent_service.chat(
             query=user_query,
             user_id=user_id,
             case_id=case_id,
-            document_ids=[document_id] if document_id else None,
+            document_ids=doc_ids,
             jurisdiction=final_jurisdiction
         )
 
