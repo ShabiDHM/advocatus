@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V23.1 (BEAUTIFUL CITATION STYLE)
-# 1. STYLE: Implemented "Embedded Citation" protocol ({{LIGJI}} vs [[PROVA]]).
-# 2. LOGIC: Forces "Fact-Law-Conclusion" paragraph structure.
-# 3. FIX: Ensures the Public Library is queried efficiently for legal basis.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V23.2 (CRITICAL FIX)
+# 1. FIX: Restored required 'tool_names' variable in researcher_prompt (Fixes ValueError).
+# 2. PRESERVE: Kept the "Beautiful Citation" logic in generate_legal_draft.
+# 3. STATUS: Chat and Drafting are now both fully operational.
 
 import os
 import asyncio
@@ -88,7 +88,7 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # Enhanced Researcher Prompt
+        # PHOENIX FIX: Added {{tool_names}} to satisfy LangChain ReAct requirements.
         researcher_template = f"""
         Ti je "Juristi AI", një asistent ligjor elitar.
         
@@ -96,14 +96,16 @@ class AlbanianRAGService:
 
         MJETET E DISPONUESHME:
         {{tools}}
-
-        PROCEDURA E MENDIMIT (ReAct):
-        Question: {{input}}
-        Thought: Analizo kërkesën ligjore.
-        Action: query_private_diary (për fakte) OSE query_public_library (për ligje)
-        Observation: Rezultatet...
-        Thought: Tani kombino faktet me ligjin.
-        Final Answer: Përgjigja përfundimtare juridike.
+        
+        Përdor formatin e mëposhtëm:
+        Question: Pyetja e hyrjes
+        Thought: Mendo çfarë të bësh
+        Action: Veprimi që duhet marrë, duhet të jetë një nga [{{tool_names}}]
+        Action Input: Inputi për veprimin
+        Observation: Rezultati i veprimit
+        ... (kjo mund të përsëritet N herë)
+        Thought: Tani e di përgjigjen përfundimtare
+        Final Answer: Përgjigja përfundimtare juridike në Shqipe Standarde.
 
         Fillo!
         Question: {{input}}
@@ -166,7 +168,6 @@ class AlbanianRAGService:
         facts_text = "\n\n".join([f"DOKUMENTI: {d.get('text', '')} (Burimi: {d.get('source', '')})" for d in private_docs]) if private_docs else "Nuk u gjetën dokumente specifike."
 
         # 2. GET LAWS (Public)
-        # Search for broader terms like "Family Law", "Custody", "Contract Law" based on instruction
         public_docs = vector_store_service.query_public_library(query_text=instruction[:300])
         laws_text = "\n\n".join([f"LIGJI: {d.get('text', '')} (Burimi: {d.get('source', '')})" for d in public_docs]) if public_docs else "Referohu parimeve të përgjithshme ligjore të Kosovës."
 
