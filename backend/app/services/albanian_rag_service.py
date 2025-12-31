@@ -1,8 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V24.1 (DETAILED CITATIONS)
-# 1. VISUAL: Enforces "Full Law Name + Nr + Article" inside the highlighted link.
-# 2. PROMPT: Instructs AI to look for Law Numbers (Nr.) in the retrieval context.
-# 3. STATUS: Matches the user's request for detailed, highlighted legal citations.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V24.2 (TEMPLATE ESCAPE FIX)
+# 1. FIX: Escaped curly braces in VISUAL_STYLE_PROTOCOL ({{...}}) to prevent LangChain variable errors.
+# 2. STATUS: Chat and Drafting will now function without crashing on the prompt template.
 
 import os
 import asyncio
@@ -30,19 +29,20 @@ RREGULLAT E AUDITIMIT DHE HARTIMIT (STRICT LIABILITY):
 3. GJUHA: Shqipe Standarde Juridike.
 """
 
-# --- THE VISUAL STYLE PROTOCOL (DETAILED CITATION) ---
+# --- THE VISUAL STYLE PROTOCOL (ESCAPED FOR PYTHON) ---
+# NOTE: We use double curly braces {{ }} here so Python/LangChain treats them as text, not variables.
 VISUAL_STYLE_PROTOCOL = """
 PROTOKOLLI I STILIT VIZUAL (DETYRUESHËM PËR FINAL ANSWER):
 
 1. **FORMATI I CITIMIT TË LIGJIT (Highlighter)**:
    - Duhet të përfshijë: Emrin e Ligjit + Numrin e Ligjit (nëse gjendet) + Nenin.
-   - Formati: [**{Emri i Plotë i Ligjit} {Nr. i Ligjit}, {Neni X}**](doc://{Emri_i_Burimit_PDF})
+   - Formati i kërkuar: [**{{Emri i Plotë i Ligjit}} {{Nr. i Ligjit}}, {{Neni X}}**](doc://{{Emri_i_Burimit_PDF}})
    
    - E GABUAR: ...sipas [**Neni 4**](doc://...).
    - E SAKTË: ...sipas [**Ligji për Familjen i Kosovës (Nr. 2004/32), Neni 4**](doc://Ligji_Familjes.pdf).
 
 2. **FORMATI I PROVAVE**:
-   - Formati: [**PROVA: {Përshkrimi i Dokumentit}**](doc://{Emri_i_Dosjes})
+   - Formati i kërkuar: [**PROVA: {{Përshkrimi i Dokumentit}}**](doc://{{Emri_i_Dosjes}})
    - Shembull: ...siç vërtetohet nga [**PROVA: Raporti Mjekësor QKUK**](doc://Raporti_2024.pdf).
 
 3. **STRUKTURA**:
@@ -106,7 +106,9 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # PHOENIX UPGRADE: Researcher Prompt with DETAILED CITATION Protocol
+        # PHOENIX UPGRADE: Researcher Prompt with ESCAPED Style Protocol
+        # We use f-string here, so {input} and {tools} must remain single for replacement,
+        # but the {{ }} inside VISUAL_STYLE_PROTOCOL will pass through safely.
         researcher_template = f"""
         Ti je "Juristi AI", një asistent ligjor elitar.
         
@@ -206,7 +208,7 @@ class AlbanianRAGService:
         UDHËZIMI: {instruction}
         
         DETYRA: Harto dokumentin e plotë.
-        RREGULL I FORTË: Përfshi Emrin e Ligjit, Numrin, dhe Nenin në linkun e citimit.
+        RREGULL I FORTË: Përfshi Emrin e Ligjit, Numrin, dhe Nenin në linkun e citimit Markdown.
         """
         
         try:
