@@ -1,8 +1,8 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V5.0 (GLASS & EXTERNAL)
-// 1. VISUALS: Full Glassmorphism adoption for external client view.
-// 2. HEADER: Frosted glass sticky header for premium feel.
-// 3. UX: Smoother transitions and refined document cards.
+// PHOENIX PROTOCOL - CLIENT PORTAL V6.0 (HERO REDESIGN)
+// 1. VISUALS: Matched 'Case Card' design with Client Info section.
+// 2. DATA: Integrated Created Date, Email, and Phone from backend.
+// 3. UX: Refined typography and spacing for better readability.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Calendar, AlertCircle, Loader2, 
     FileText, Gavel, Users, ShieldCheck, 
-    Briefcase, Download, Eye, Building2
+    Download, Eye, Building2, Mail, Phone, User
 } from 'lucide-react';
 import axios from 'axios';
 import { API_V1_URL } from '../services/api';
@@ -35,6 +35,9 @@ interface PublicCaseData {
     case_number: string; 
     title: string; 
     client_name: string; 
+    client_email?: string; // New
+    client_phone?: string; // New
+    created_at?: string;   // New
     status: string;
     organization_name?: string; 
     logo?: string; 
@@ -195,25 +198,57 @@ const ClientPortalPage: React.FC = () => {
 
             <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-8 relative z-10">
                 
-                {/* HERO SECTION - Glass Card */}
-                <div className="relative mb-10 group">
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary-start/20 via-secondary-start/10 to-transparent rounded-3xl blur-xl opacity-50 group-hover:opacity-70 transition-opacity duration-700" />
-                    
-                    <div className="glass-panel p-6 sm:p-10 rounded-3xl shadow-2xl relative overflow-hidden">
-                        <div className="flex flex-col sm:flex-row justify-between items-start gap-6 relative z-10">
-                            <div className="space-y-4 max-w-2xl">
-                                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight tracking-tight mt-2 drop-shadow-sm">
-                                    {data.title}
-                                </h1>
-                                
-                                <div className="flex items-center gap-3 text-gray-400 pt-2">
-                                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/5">
-                                        <Briefcase size={16} className="text-gray-300"/>
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">{t('portal.client_label', 'Klient')}</span>
-                                        <span className="text-base font-medium text-white">{data.client_name}</span>
-                                    </div>
+                {/* HERO SECTION - REDESIGNED (Image 2 Replica) */}
+                <div className="relative mb-10">
+                    <div className="glass-panel p-6 sm:p-8 rounded-3xl shadow-2xl relative overflow-hidden border border-white/5 bg-gradient-to-br from-white/5 to-transparent">
+                        {/* Title & Date */}
+                        <div className="mb-8">
+                            <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight mb-2">
+                                {data.title}
+                            </h1>
+                            {data.created_at && (
+                                <div className="text-gray-400 text-sm font-medium flex items-center gap-2">
+                                    <span>Krijuar më:</span>
+                                    <span className="text-gray-300">
+                                        {new Date(data.created_at).toLocaleDateString(t('locale.date', 'sq-AL'), { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Client Info Section */}
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-primary-400 mb-3">
+                                <User size={16} />
+                                <h3 className="text-xs font-bold tracking-widest uppercase text-primary-300 opacity-80">
+                                    Informacioni i Klientit
+                                </h3>
+                            </div>
+                            
+                            <div className="space-y-3">
+                                {/* Name */}
+                                <div className="text-xl font-bold text-white pl-1">
+                                    {data.client_name}
+                                </div>
+
+                                {/* Contact Details */}
+                                <div className="flex flex-col gap-2">
+                                    {data.client_email && (
+                                        <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors group">
+                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                                                <Mail size={14} />
+                                            </div>
+                                            <span className="text-sm">{data.client_email}</span>
+                                        </div>
+                                    )}
+                                    {data.client_phone && (
+                                        <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors group">
+                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                                                <Phone size={14} />
+                                            </div>
+                                            <span className="text-sm">{data.client_phone}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -231,7 +266,7 @@ const ClientPortalPage: React.FC = () => {
                                 : 'text-gray-400 hover:text-white hover:bg-white/5'
                             }`}
                         >
-                            {t('portal.timeline', 'Kronologjia')}
+                            {t('portal.timeline', 'Terminet')}
                         </button>
                         <button 
                             onClick={() => setActiveTab('documents')} 
@@ -260,7 +295,7 @@ const ClientPortalPage: React.FC = () => {
                                     <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
                                         <Calendar className="text-gray-500 opacity-50" size={32} />
                                     </div>
-                                    <p className="text-gray-500 text-sm">{t('portal.empty_timeline', 'Nuk ka ngjarje në kronologji.')}</p>
+                                    <p className="text-gray-500 text-sm">{t('portal.empty_timeline', 'Nuk ka termine në kronologji.')}</p>
                                 </div>
                             ) : (
                                 <div className="space-y-6">

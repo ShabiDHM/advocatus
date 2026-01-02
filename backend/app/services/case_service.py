@@ -1,8 +1,7 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V5.6 (PORTAL ACCESS FIX)
-# 1. FIX: Removed 'Zero-Share Protection' to allow empty portals to load.
-# 2. LOGIC: Returns portal shell (logo/title) even if no docs exist.
-# 3. RESULT: Fixes "Access Denied" on valid empty cases.
+# PHOENIX PROTOCOL - CASE SERVICE V5.7 (PUBLIC DATA EXPANSION)
+# 1. UPDATE: Exposed 'client_email', 'client_phone', and 'created_at' to Public Portal.
+# 2. LOGIC: Allows frontend to render full case card details.
 
 import re
 import importlib
@@ -247,14 +246,7 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "date": inv.get("issue_date")
             })
 
-        # --- SECURITY: ZERO-SHARE PROTECTION DISABLED ---
-        # We now return the case 'shell' even if lists are empty.
-        # This prevents the frontend from showing "Access Denied" on valid empty cases.
-        
-        # if not events and not shared_docs and not shared_invoices:
-        #    return None
-
-        # --- BRANDING RETRIEVAL ---
+        # --- BRANDING & CLIENT INFO ---
         owner_id = case.get("owner_id") or case.get("user_id")
         organization_name = "Zyra Ligjore"
         logo_path = None
@@ -275,13 +267,23 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 if profile.get("logo_storage_key"):
                     logo_path = f"/cases/public/{case_id}/logo"
 
-        raw_name = case.get("client", {}).get("name", "Klient")
+        # Client Details Extraction
+        client_obj = case.get("client", {})
+        raw_name = client_obj.get("name") if isinstance(client_obj, dict) else None
         clean_name = raw_name.strip().title() if raw_name else "Klient"
         
+        # PHOENIX UPDATE: Extracting Email, Phone, and Creation Date
+        client_email = client_obj.get("email") if isinstance(client_obj, dict) else None
+        client_phone = client_obj.get("phone") if isinstance(client_obj, dict) else None
+        created_at = case.get("created_at")
+
         return {
             "case_number": case.get("case_number"), 
             "title": case.get("title") or case.get("case_name"), 
             "client_name": clean_name, 
+            "client_email": client_email, # New Field
+            "client_phone": client_phone, # New Field
+            "created_at": created_at,     # New Field
             "status": case.get("status", "OPEN"), 
             "organization_name": organization_name,
             "logo": logo_path,
