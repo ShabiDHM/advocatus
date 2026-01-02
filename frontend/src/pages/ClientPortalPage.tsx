@@ -1,7 +1,8 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V6.4 (LINT FIX)
-// 1. FIX: Removed unused 'User' import to resolve TypeScript error.
-// 2. STATUS: Clean build.
+// PHOENIX PROTOCOL - CLIENT PORTAL V6.1 (STYLING UPDATE)
+// 1. VISUALS: Updated Hero Title to Blue.
+// 2. VISUALS: Updated Contact Icons to Blue theme.
+// 3. STATUS: Layout matches "Case Card" structure with requested branding.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -9,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Calendar, AlertCircle, Loader2, 
     FileText, Gavel, Users, ShieldCheck, 
-    Download, Eye, Building2, Mail, Phone, MapPin, Globe
+    Download, Eye, Building2, Mail, Phone, User
 } from 'lucide-react';
 import axios from 'axios';
 import { API_V1_URL } from '../services/api';
@@ -34,15 +35,11 @@ interface PublicCaseData {
     case_number: string; 
     title: string; 
     client_name: string; 
-    // Firm Info
-    organization_name?: string; 
-    firm_email?: string;
-    firm_phone?: string;
-    firm_address?: string;
-    firm_website?: string;
-    
+    client_email?: string;
+    client_phone?: string;
     created_at?: string;
     status: string;
+    organization_name?: string; 
     logo?: string; 
     timeline: PublicEvent[];
     documents: SharedDocument[];
@@ -206,6 +203,7 @@ const ClientPortalPage: React.FC = () => {
                     <div className="glass-panel p-6 sm:p-8 rounded-3xl shadow-2xl relative overflow-hidden border border-white/5 bg-gradient-to-br from-white/5 to-transparent">
                         {/* Title & Date */}
                         <div className="mb-8">
+                            {/* UPDATED: Title color changed to blue-400 */}
                             <h1 className="text-3xl sm:text-4xl font-bold text-blue-400 leading-tight mb-2">
                                 {data.title}
                             </h1>
@@ -219,55 +217,39 @@ const ClientPortalPage: React.FC = () => {
                             )}
                         </div>
 
-                        {/* FIRM INFO SECTION */}
+                        {/* Client Info Section */}
                         <div className="space-y-4">
-                            <div className="flex items-center gap-2 mb-3">
-                                <Building2 size={16} className="text-blue-400" />
-                                <h3 className="text-xs font-bold tracking-widest uppercase text-gray-500 opacity-80">
-                                    Informacioni i Zyrës
+                            <div className="flex items-center gap-2 text-primary-400 mb-3">
+                                <User size={16} />
+                                <h3 className="text-xs font-bold tracking-widest uppercase text-primary-300 opacity-80">
+                                    Informacioni i Klientit
                                 </h3>
                             </div>
                             
                             <div className="space-y-3">
-                                {/* Firm Name */}
+                                {/* Name */}
                                 <div className="text-xl font-bold text-white pl-1">
-                                    {data.organization_name || "Zyra Ligjore"}
+                                    {data.client_name}
                                 </div>
 
                                 {/* Contact Details */}
                                 <div className="flex flex-col gap-2">
-                                    {data.firm_email && (
+                                    {data.client_email && (
                                         <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors group">
-                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-white/10 transition-colors">
-                                                <Mail size={14} />
+                                            {/* UPDATED: Icon container and icon set to blue theme */}
+                                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                                                <Mail size={14} className="text-blue-400" />
                                             </div>
-                                            <span className="text-sm">{data.firm_email}</span>
+                                            <span className="text-sm">{data.client_email}</span>
                                         </div>
                                     )}
-                                    {data.firm_phone && (
+                                    {data.client_phone && (
                                         <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors group">
-                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-white/10 transition-colors">
-                                                <Phone size={14} />
+                                            {/* UPDATED: Icon container and icon set to blue theme */}
+                                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
+                                                <Phone size={14} className="text-blue-400" />
                                             </div>
-                                            <span className="text-sm">{data.firm_phone}</span>
-                                        </div>
-                                    )}
-                                    {data.firm_address && (
-                                        <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors group">
-                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-white/10 transition-colors">
-                                                <MapPin size={14} />
-                                            </div>
-                                            <span className="text-sm">{data.firm_address}</span>
-                                        </div>
-                                    )}
-                                    {data.firm_website && (
-                                        <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors group">
-                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-white/10 transition-colors">
-                                                <Globe size={14} />
-                                            </div>
-                                            <a href={data.firm_website.startsWith('http') ? data.firm_website : `https://${data.firm_website}`} target="_blank" rel="noopener noreferrer" className="text-sm hover:underline">
-                                                {data.firm_website}
-                                            </a>
+                                            <span className="text-sm">{data.client_phone}</span>
                                         </div>
                                     )}
                                 </div>

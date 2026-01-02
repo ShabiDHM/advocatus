@@ -1,7 +1,7 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V5.8 (FIRM DATA EXPOSURE)
-# 1. UPDATE: Added firm_email, firm_phone, firm_address, firm_website to public payload.
-# 2. LOGIC: Fetches contact info from 'business_profiles' collection.
+# PHOENIX PROTOCOL - CASE SERVICE V5.7 (PUBLIC DATA EXPANSION)
+# 1. UPDATE: Exposed 'client_email', 'client_phone', and 'created_at' to Public Portal.
+# 2. LOGIC: Allows frontend to render full case card details.
 
 import re
 import importlib
@@ -246,16 +246,10 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "date": inv.get("issue_date")
             })
 
-        # --- BRANDING & FIRM INFO ---
+        # --- BRANDING & CLIENT INFO ---
         owner_id = case.get("owner_id") or case.get("user_id")
         organization_name = "Zyra Ligjore"
         logo_path = None
-        
-        # New Variables for Firm Info
-        firm_email = None
-        firm_phone = None
-        firm_address = None
-        firm_website = None
 
         if owner_id:
             query_id = owner_id
@@ -270,42 +264,28 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
 
             if profile:
                 organization_name = profile.get("firm_name") or "Zyra Ligjore"
-                # PHOENIX UPDATE: Extract Firm Details
-                firm_email = profile.get("public_email")
-                firm_phone = profile.get("phone")
-                
-                # Combine address and city if available
-                addr = profile.get("address", "")
-                city = profile.get("city", "")
-                if addr and city:
-                    firm_address = f"{addr}, {city}"
-                elif addr:
-                    firm_address = addr
-                elif city:
-                    firm_address = city
-                
-                firm_website = profile.get("website")
-
                 if profile.get("logo_storage_key"):
                     logo_path = f"/cases/public/{case_id}/logo"
 
-        # Client Details Extraction (Still available if needed, but we focus on Firm now)
+        # Client Details Extraction
         client_obj = case.get("client", {})
         raw_name = client_obj.get("name") if isinstance(client_obj, dict) else None
         clean_name = raw_name.strip().title() if raw_name else "Klient"
+        
+        # PHOENIX UPDATE: Extracting Email, Phone, and Creation Date
+        client_email = client_obj.get("email") if isinstance(client_obj, dict) else None
+        client_phone = client_obj.get("phone") if isinstance(client_obj, dict) else None
+        created_at = case.get("created_at")
 
         return {
             "case_number": case.get("case_number"), 
             "title": case.get("title") or case.get("case_name"), 
             "client_name": clean_name, 
-            # Firm Information (Replacing Client Info on Frontend)
-            "organization_name": organization_name,
-            "firm_email": firm_email,
-            "firm_phone": firm_phone,
-            "firm_address": firm_address,
-            "firm_website": firm_website,
-            "created_at": case.get("created_at"),
+            "client_email": client_email, # New Field
+            "client_phone": client_phone, # New Field
+            "created_at": created_at,     # New Field
             "status": case.get("status", "OPEN"), 
+            "organization_name": organization_name,
             "logo": logo_path,
             "timeline": events,
             "documents": shared_docs,
