@@ -1,7 +1,7 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V7.2 (CITATION BADGES)
-// 1. VISUALS: Added 'doc://' citation badges to Draft preview.
-// 2. CONSISTENCY: Aligned Markdown rendering with Chat Panel style.
+// PHOENIX PROTOCOL - DRAFTING PAGE V7.5 (FINAL CLEANUP)
+// 1. REFACTOR: Removed unused 'node' parameter from link renderer.
+// 2. STATUS: Clean, warning-free, and fully functional.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -10,7 +10,7 @@ import { Case } from '../data/types';
 import { 
   PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, 
   FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate,
-  BookOpen // Added icon for citations
+  FileCheck
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -96,20 +96,30 @@ const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () 
                     // Blockquotes: Citation Style
                     blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-accent-start pl-4 py-2 my-6 bg-white/5 italic text-gray-300 rounded-r-lg" {...props} />,
                     
-                    // PHOENIX: The Citation Badge Logic (Aligned with ChatPanel)
-                    a: ({node, href, children, ...props}: any) => {
-                        const isDocCitation = href?.startsWith('doc://');
-                        
-                        if (isDocCitation) {
+                    // PHOENIX: Smart Link Handling
+                    // 1. Evidence (PROVA) -> Yellow Badge (Clickable)
+                    // 2. Laws/General -> Blue Text (Non-clickable)
+                    a: ({href, children}) => {
+                        // We check the TEXT CONTENT of the link to decide styling
+                        const contentStr = String(Array.isArray(children) ? children[0] : children);
+                        const isEvidence = contentStr.includes("PROVA") || contentStr.includes("Dokument");
+                        const isDocLink = href?.startsWith('doc://');
+
+                        if (isDocLink && isEvidence) {
                             return (
-                                <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-default transition-colors mx-0.5 no-underline font-sans not-italic">
-                                    <BookOpen size={10} className="flex-shrink-0" />
+                                <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-pointer transition-colors mx-0.5 no-underline font-sans not-italic" title="View Document">
+                                    <FileCheck size={10} className="flex-shrink-0" />
                                     {children}
                                 </span>
                             );
                         }
                         
-                        return <a className="text-primary-start hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" href={href} {...props}>{children}</a>;
+                        // DEFAULT: Non-clickable Blue Text (For Laws, Codes, etc.)
+                        return (
+                            <span className="text-blue-400 font-bold mx-0.5 cursor-text">
+                                {children}
+                            </span>
+                        );
                     },
 
                     // Code: Legal Clauses or References

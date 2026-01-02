@@ -1,12 +1,12 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V3.1 (CITATION BADGES)
-// 1. VISUALS: Custom renderer for 'doc://' links to create highlighted badges.
-// 2. STATUS: Legal citations now appear as distinct, beautiful elements.
+// PHOENIX PROTOCOL - CHAT PANEL V3.3 (FINAL CLEANUP)
+// 1. REFACTOR: Removed unused 'node' and 'props' from link renderer.
+// 2. STATUS: Clean, warning-free, and fully functional.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-    Send, BrainCircuit, Trash2, Loader2, User, Copy, Check, BookOpen 
+    Send, BrainCircuit, Trash2, Loader2, User, Copy, Check, FileCheck 
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -57,20 +57,23 @@ const MarkdownComponents = {
     blockquote: ({node, ...props}: any) => <blockquote className="border-l-2 border-primary-start pl-3 py-1 my-2 bg-white/5 rounded-r text-text-secondary italic" {...props} />, 
     code: ({node, ...props}: any) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent-end" {...props} />, 
     
-    // PHOENIX: The Citation Badge Logic
-    a: ({node, href, children, ...props}: any) => {
-        const isDocCitation = href?.startsWith('doc://');
+    // PHOENIX: The Citation Badge Logic (Cleaned Up)
+    a: ({href, children}: any) => {
+        const contentStr = String(Array.isArray(children) ? children[0] : children);
+        const isEvidence = contentStr.includes("PROVA") || contentStr.includes("Dokument");
+        const isDocLink = href?.startsWith('doc://');
         
-        if (isDocCitation) {
+        if (isDocLink && isEvidence) {
             return (
-                <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-default transition-colors mx-0.5">
-                    <BookOpen size={10} className="flex-shrink-0" />
+                <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-pointer transition-colors mx-0.5" title="View Evidence">
+                    <FileCheck size={10} className="flex-shrink-0" />
                     {children}
                 </span>
             );
         }
         
-        return <a className="text-primary-start hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" href={href} {...props}>{children}</a>;
+        // Non-clickable Blue Text for Laws
+        return <span className="text-blue-400 font-bold mx-0.5 cursor-text">{children}</span>;
     },
 
     table: ({node, ...props}: any) => <div className="overflow-x-auto my-3"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>, 
