@@ -1,7 +1,7 @@
 // FILE: src/components/business/ArchiveTab.tsx
 // PHOENIX PROTOCOL - ARCHIVE TAB V12.3 (STATUS VISIBILITY)
 // 1. UI FIX: Added a Gray Brain icon for 'PENDING' state so users know the status exists.
-// 2. UX: Now displays status for ALL documents (Pending, Processing, Completed, Failed).
+
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
