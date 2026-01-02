@@ -1,15 +1,14 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V12.3 (STATUS VISIBILITY)
-// 1. UI FIX: Added a Gray Brain icon for 'PENDING' state so users know the status exists.
-
+// PHOENIX PROTOCOL - ARCHIVE TAB V12.4 (VISUAL CLEANUP)
+// 1. UI FIX: Removed AI Status Icons (Brain/Processing/Failed).
+// 2. STATUS: Archive is now strictly a storage view, no processing indicators.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Home, Briefcase, FolderOpen, ChevronRight, FolderPlus, Loader2,
     Calendar, Info, Hash, FileText, FileImage, FileCode, File as FileIcon, Eye, Download, Trash2, Tag, X, Pencil, Save,
-    FolderUp, FileUp, Search, Share2, CheckCircle, Link as LinkIcon,
-    BrainCircuit, AlertTriangle
+    FolderUp, FileUp, Search, Share2, CheckCircle, Link as LinkIcon
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { ArchiveItemOut, Case, Document } from '../../data/types';
@@ -44,7 +43,6 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
     const { t } = useTranslation();
     const isFolder = item.item_type === 'FOLDER';
     const isShared = item.is_shared === true;
-    const status = item.indexing_status || 'PENDING';
 
     return (
         <div onClick={onClick} className={`group relative flex flex-col justify-between h-full min-h-[14rem] p-6 rounded-2xl transition-all duration-300 cursor-pointer glass-panel hover:bg-white/10 hover:-translate-y-1 hover:shadow-2xl`}>
@@ -58,31 +56,7 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
                         </div>
                         
                         <div className="flex gap-1">
-                            {/* PHOENIX: Full Status Visibility */}
-                            {!isFolder && (
-                                <>
-                                    {status === 'PENDING' && (
-                                        <div className="bg-white/5 text-gray-500 p-1.5 rounded-lg border border-white/10" title="Waiting for AI Indexing">
-                                            <BrainCircuit size={14} />
-                                        </div>
-                                    )}
-                                    {status === 'PROCESSING' && (
-                                        <div className="bg-amber-500/20 text-amber-400 p-1.5 rounded-lg border border-amber-500/30 animate-pulse" title="AI Processing...">
-                                            <BrainCircuit size={14} />
-                                        </div>
-                                    )}
-                                    {status === 'COMPLETED' && (
-                                        <div className="bg-emerald-500/20 text-emerald-400 p-1.5 rounded-lg border border-emerald-500/30" title="AI Indexed (Smart)">
-                                            <BrainCircuit size={14} />
-                                        </div>
-                                    )}
-                                    {status === 'FAILED' && (
-                                        <div className="bg-red-500/20 text-red-400 p-1.5 rounded-lg border border-red-500/30" title="AI Failed">
-                                            <AlertTriangle size={14} />
-                                        </div>
-                                    )}
-                                </>
-                            )}
+                            {/* PHOENIX UPDATE: AI Status Indicators REMOVED */}
                             
                             {isShared && (
                                 <div className="bg-emerald-500/20 text-emerald-400 p-1.5 rounded-lg border border-emerald-500/30 shadow-lg shadow-emerald-500/10" title={t('documentsPanel.shared')}>
