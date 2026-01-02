@@ -1,8 +1,7 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V7.1 (MARKDOWN RESTORATION)
-// 1. STYLE FIX: Replaced invalid 'text-primary-200' classes with valid system colors.
-// 2. TYPOGRAPHY: Enhanced headers, lists, and spacing for a professional legal look.
-// 3. VISUALS: Bold text now pops in white, links in blue, citations in amber.
+// PHOENIX PROTOCOL - DRAFTING PAGE V7.2 (CITATION BADGES)
+// 1. VISUALS: Added 'doc://' citation badges to Draft preview.
+// 2. CONSISTENCY: Aligned Markdown rendering with Chat Panel style.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { apiService } from '../services/api';
@@ -10,7 +9,8 @@ import { useTranslation } from 'react-i18next';
 import { Case } from '../data/types'; 
 import { 
   PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, 
-  FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate
+  FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate,
+  BookOpen // Added icon for citations
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -96,6 +96,22 @@ const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () 
                     // Blockquotes: Citation Style
                     blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-accent-start pl-4 py-2 my-6 bg-white/5 italic text-gray-300 rounded-r-lg" {...props} />,
                     
+                    // PHOENIX: The Citation Badge Logic (Aligned with ChatPanel)
+                    a: ({node, href, children, ...props}: any) => {
+                        const isDocCitation = href?.startsWith('doc://');
+                        
+                        if (isDocCitation) {
+                            return (
+                                <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-default transition-colors mx-0.5 no-underline font-sans not-italic">
+                                    <BookOpen size={10} className="flex-shrink-0" />
+                                    {children}
+                                </span>
+                            );
+                        }
+                        
+                        return <a className="text-primary-start hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" href={href} {...props}>{children}</a>;
+                    },
+
                     // Code: Legal Clauses or References
                     code: ({node, ...props}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent-end border border-white/10" {...props} />,
                     

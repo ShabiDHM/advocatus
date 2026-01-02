@@ -1,13 +1,12 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V3.0 (GLASS STYLE)
-// 1. VISUALS: Full Glassmorphism adoption (glass-panel, glass-input).
-// 2. UX: Enhanced message bubbles and input area with ambient glows.
-// 3. LOGIC: Preserved copy functionality and typing animation.
+// PHOENIX PROTOCOL - CHAT PANEL V3.1 (CITATION BADGES)
+// 1. VISUALS: Custom renderer for 'doc://' links to create highlighted badges.
+// 2. STATUS: Legal citations now appear as distinct, beautiful elements.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-    Send, BrainCircuit, Trash2, Loader2, User, Copy, Check 
+    Send, BrainCircuit, Trash2, Loader2, User, Copy, Check, BookOpen 
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -46,6 +45,39 @@ const MessageCopyButton: React.FC<{ text: string }> = ({ text }) => {
     );
 };
 
+// --- HELPER: CUSTOM MARKDOWN COMPONENTS ---
+// PHOENIX: Custom Renderers for Beautiful Citations
+const MarkdownComponents = {
+    p: ({node, ...props}: any) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />, 
+    strong: ({node, ...props}: any) => <span className="font-bold text-accent-end" {...props} />, 
+    em: ({node, ...props}: any) => <span className="italic text-text-secondary" {...props} />, 
+    ul: ({node, ...props}: any) => <ul className="list-disc pl-4 space-y-1 my-2 marker:text-primary-start" {...props} />, 
+    ol: ({node, ...props}: any) => <ol className="list-decimal pl-4 space-y-1 my-2 marker:text-primary-start" {...props} />, 
+    li: ({node, ...props}: any) => <li className="pl-1" {...props} />, 
+    blockquote: ({node, ...props}: any) => <blockquote className="border-l-2 border-primary-start pl-3 py-1 my-2 bg-white/5 rounded-r text-text-secondary italic" {...props} />, 
+    code: ({node, ...props}: any) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent-end" {...props} />, 
+    
+    // PHOENIX: The Citation Badge Logic
+    a: ({node, href, children, ...props}: any) => {
+        const isDocCitation = href?.startsWith('doc://');
+        
+        if (isDocCitation) {
+            return (
+                <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-default transition-colors mx-0.5">
+                    <BookOpen size={10} className="flex-shrink-0" />
+                    {children}
+                </span>
+            );
+        }
+        
+        return <a className="text-primary-start hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" href={href} {...props}>{children}</a>;
+    },
+
+    table: ({node, ...props}: any) => <div className="overflow-x-auto my-3"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>, 
+    th: ({node, ...props}: any) => <th className="border border-white/10 px-2 py-1.5 bg-white/10 font-bold text-left text-white" {...props} />, 
+    td: ({node, ...props}: any) => <td className="border border-white/10 px-2 py-1.5" {...props} />, 
+};
+
 const TypingMessage: React.FC<{ text: string; onComplete?: () => void }> = ({ text, onComplete }) => {
     const [displayedText, setDisplayedText] = useState("");
     useEffect(() => {
@@ -61,7 +93,7 @@ const TypingMessage: React.FC<{ text: string; onComplete?: () => void }> = ({ te
 
     return (
         <div className="markdown-content space-y-2 break-words">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ p: ({node, ...props}) => <p className="mb-1 last:mb-0" {...props} />, strong: ({node, ...props}) => <span className="font-bold text-accent-end" {...props} />, ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-1 my-1 marker:text-primary-start" {...props} />, ol: ({node, ...props}) => <ol className="list-decimal pl-4 space-y-1 my-1 marker:text-primary-start" {...props} />, }} >{displayedText}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{displayedText}</ReactMarkdown>
         </div>
     );
 };
@@ -179,20 +211,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                                 <TypingMessage text={msg.content} onComplete={() => setTypingIndex(null)} />
                             ) : (
                                 <div className="markdown-content space-y-2 break-words">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ 
-                                        p: ({node, ...props}) => <p className="mb-2 last:mb-0" {...props} />, 
-                                        strong: ({node, ...props}) => <span className="font-bold text-accent-end" {...props} />, 
-                                        em: ({node, ...props}) => <span className="italic text-text-secondary" {...props} />, 
-                                        ul: ({node, ...props}) => <ul className="list-disc pl-4 space-y-1 my-2 marker:text-primary-start" {...props} />, 
-                                        ol: ({node, ...props}) => <ol className="list-decimal pl-4 space-y-1 my-2 marker:text-primary-start" {...props} />, 
-                                        li: ({node, ...props}) => <li className="pl-1" {...props} />, 
-                                        blockquote: ({node, ...props}) => <blockquote className="border-l-2 border-primary-start pl-3 py-1 my-2 bg-white/5 rounded-r text-text-secondary italic" {...props} />, 
-                                        code: ({node, ...props}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent-end" {...props} />, 
-                                        a: ({node, ...props}) => <a className="text-primary-start hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" {...props} />, 
-                                        table: ({node, ...props}) => <div className="overflow-x-auto my-3"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>, 
-                                        th: ({node, ...props}) => <th className="border border-white/10 px-2 py-1.5 bg-white/10 font-bold text-left text-white" {...props} />, 
-                                        td: ({node, ...props}) => <td className="border border-white/10 px-2 py-1.5" {...props} />, 
-                                    }} >{msg.content}</ReactMarkdown>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{msg.content}</ReactMarkdown>
                                 </div>
                             )}
                         </div>
