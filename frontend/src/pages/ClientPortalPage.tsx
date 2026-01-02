@@ -1,8 +1,8 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V6.0 (HERO REDESIGN)
-// 1. VISUALS: Matched 'Case Card' design with Client Info section.
-// 2. DATA: Integrated Created Date, Email, and Phone from backend.
-// 3. UX: Refined typography and spacing for better readability.
+// PHOENIX PROTOCOL - CLIENT PORTAL V6.2 (STYLE REFINEMENT)
+// 1. VISUALS: Case Title -> Blue.
+// 2. VISUALS: 'Man Icon' (User) -> Blue.
+// 3. VISUALS: Contact Icons -> Reverted to Neutral (Gray).
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -35,9 +35,9 @@ interface PublicCaseData {
     case_number: string; 
     title: string; 
     client_name: string; 
-    client_email?: string; // New
-    client_phone?: string; // New
-    created_at?: string;   // New
+    client_email?: string;
+    client_phone?: string;
+    created_at?: string;
     status: string;
     organization_name?: string; 
     logo?: string; 
@@ -198,12 +198,13 @@ const ClientPortalPage: React.FC = () => {
 
             <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-8 relative z-10">
                 
-                {/* HERO SECTION - REDESIGNED (Image 2 Replica) */}
+                {/* HERO SECTION - REDESIGNED */}
                 <div className="relative mb-10">
                     <div className="glass-panel p-6 sm:p-8 rounded-3xl shadow-2xl relative overflow-hidden border border-white/5 bg-gradient-to-br from-white/5 to-transparent">
                         {/* Title & Date */}
                         <div className="mb-8">
-                            <h1 className="text-3xl sm:text-4xl font-bold text-white leading-tight mb-2">
+                            {/* Blue Title */}
+                            <h1 className="text-3xl sm:text-4xl font-bold text-blue-400 leading-tight mb-2">
                                 {data.title}
                             </h1>
                             {data.created_at && (
@@ -218,9 +219,10 @@ const ClientPortalPage: React.FC = () => {
 
                         {/* Client Info Section */}
                         <div className="space-y-4">
-                            <div className="flex items-center gap-2 text-primary-400 mb-3">
-                                <User size={16} />
-                                <h3 className="text-xs font-bold tracking-widest uppercase text-primary-300 opacity-80">
+                            <div className="flex items-center gap-2 mb-3">
+                                {/* Blue 'Man' Icon */}
+                                <User size={16} className="text-blue-400" />
+                                <h3 className="text-xs font-bold tracking-widest uppercase text-gray-500 opacity-80">
                                     Informacioni i Klientit
                                 </h3>
                             </div>
@@ -231,11 +233,11 @@ const ClientPortalPage: React.FC = () => {
                                     {data.client_name}
                                 </div>
 
-                                {/* Contact Details */}
+                                {/* Contact Details - Reverted to Neutral Gray */}
                                 <div className="flex flex-col gap-2">
                                     {data.client_email && (
                                         <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors group">
-                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-white/10 transition-colors">
                                                 <Mail size={14} />
                                             </div>
                                             <span className="text-sm">{data.client_email}</span>
@@ -243,7 +245,7 @@ const ClientPortalPage: React.FC = () => {
                                     )}
                                     {data.client_phone && (
                                         <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors group">
-                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                                            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center border border-white/5 group-hover:bg-white/10 transition-colors">
                                                 <Phone size={14} />
                                             </div>
                                             <span className="text-sm">{data.client_phone}</span>
