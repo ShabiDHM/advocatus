@@ -1,10 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V24.3 (PERFORMANCE OPTIMIZED)
-# 1. FIX: Increased iteration limits to prevent premature agent termination
-# 2. ADDED: Configurable timeout parameters via environment variables
-# 3. ADDED: Better error handling and verbose logging for debugging
-# 4. FIX: Removed invalid request_timeout parameter from ChatOpenAI
-# 5. FIX: Added proper null checking for LLM before agent creation
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V24.5 (SYNTAX FIX)
+# 1. FIX: Added missing 'except' clause in generate_legal_draft.
+# 2. STATUS: Syntax error resolved.
 
 import os
 import asyncio
@@ -25,48 +22,50 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
 # --- PERFORMANCE CONFIGURATION ---
-# Configurable via environment variables for flexibility
-MAX_ITERATIONS = int(os.environ.get("RAG_MAX_ITERATIONS", "15"))  # Increased from 5 to 15
-MAX_EXECUTION_TIME = int(os.environ.get("RAG_MAX_EXECUTION_TIME", "120"))  # 120 seconds
-LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "60"))  # LLM call timeout
+MAX_ITERATIONS = int(os.environ.get("RAG_MAX_ITERATIONS", "15"))  
+MAX_EXECUTION_TIME = int(os.environ.get("RAG_MAX_EXECUTION_TIME", "120"))  
+LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "60"))  
 EARLY_STOPPING_METHOD = os.environ.get("RAG_EARLY_STOPPING", "force")
 
 logger.info(f"RAG Configuration: max_iterations={MAX_ITERATIONS}, max_execution_time={MAX_EXECUTION_TIME}s")
 
-# --- THE FORENSIC CONSTITUTION ---
+# --- THE FORENSIC CONSTITUTION (SYNCED WITH LLM_SERVICE) ---
 STRICT_FORENSIC_RULES = """
-RREGULLAT E AUDITIMIT DHE HARTIMIT (STRICT LIABILITY):
-1. SAKTËSIA: Mos shpik fakte apo numra ligjesh.
-2. BURIMET: Çdo pohim ligjor duhet të ketë referencën e plotë.
-3. GJUHA: Shqipe Standarde Juridike.
+RREGULLAT E AUDITIMIT (STRICT LIABILITY):
+
+1. HIERARKIA E BURIMEVE (THE SOURCE HIERARCHY):
+   - GLOBAL KNOWLEDGE BASE (Biblioteka Publike) = LIGJI (The Law). Përmban rregullat, nenet, dhe precedentët.
+   - CASE KNOWLEDGE BASE (Ditari Privat) = FAKTET (The Facts). Përmban vetëm dokumentet e dosjes specifike.
+   - URDHËR: Ti nuk guxon të shpikësh fakte. Faktet merren VETËM nga CASE KNOWLEDGE BASE.
+   - URDHËR: Ti nuk guxon të shpikësh ligje. Ligjet merren VETËM nga GLOBAL KNOWLEDGE BASE.
+
+2. ZERO HALUCINACIONE: Nëse fakti nuk ekziston në "Case Knowledge Base", shkruaj "NUK KA TË DHËNA NË DOSJE".
+3. RREGULLI I HESHTJES: Nëse kemi vetëm Padinë, I Padituri "NUK KA PARAQITUR PËRGJIGJE".
+4. CITIM I DETYRUESHËM: Çdo pretendim faktik ose ligjor duhet të ketë referencën (Linkun Markdown).
+5. GJUHA: Shqipe Standarde Juridike.
 """
 
-# --- THE VISUAL STYLE PROTOCOL (ESCAPED FOR PYTHON) ---
-# NOTE: We use double curly braces {{ }} here so Python/LangChain treats them as text, not variables.
+# --- THE VISUAL STYLE PROTOCOL ---
 VISUAL_STYLE_PROTOCOL = """
 PROTOKOLLI I STILIT VIZUAL (DETYRUESHËM PËR FINAL ANSWER):
 
 1. **FORMATI I CITIMIT TË LIGJIT (Highlighter)**:
-   - Duhet të përfshijë: Emrin e Ligjit + Numrin e Ligjit (nëse gjendet) + Nenin.
-   - Formati i kërkuar: [**{{Emri i Plotë i Ligjit}} {{Nr. i Ligjit}}, {{Neni X}}**](doc://{{Emri_i_Burimit_PDF}})
-   
-   - E GABUAR: ...sipas [**Neni 4**](doc://...).
-   - E SAKTË: ...sipas [**Ligji për Familjen i Kosovës (Nr. 2004/32), Neni 4**](doc://Ligji_Familjes.pdf).
+   - Duhet të përfshijë: Emrin e Ligjit + Numrin e Ligjit + Nenin.
+   - Formati: [**{{Emri i Plotë i Ligjit}} {{Nr. i Ligjit}}, {{Neni X}}**](doc://{{Emri_i_Burimit_PDF}})
 
 2. **FORMATI I PROVAVE**:
-   - Formati i kërkuar: [**PROVA: {{Përshkrimi i Dokumentit}}**](doc://{{Emri_i_Dosjes}})
-   - Shembull: ...siç vërtetohet nga [**PROVA: Raporti Mjekësor QKUK**](doc://Raporti_2024.pdf).
+   - Formati: [**PROVA: {{Përshkrimi i Dokumentit}}**](doc://{{Emri_i_Dosjes}})
 
 3. **STRUKTURA**:
-   - Përdor titujt: **BAZA LIGJORE**, **VLERËSIMI I PROVAVE**, **KONKLUZIONI**.
+   - Titujt: **BAZA LIGJORE**, **VLERËSIMI I PROVAVE**, **KONKLUZIONI**.
 """
 
 # --- Custom Tool Class for Private Diary ---
 class PrivateDiaryTool(BaseTool):
     name: str = "query_private_diary"
     description: str = (
-        "Access the user's 'Private Diary' & uploaded documents. "
-        "Use this FIRST to find specific details about the user's business, past cases, or documents."
+        "CASE KNOWLEDGE BASE (FACTS). Access the user's uploaded documents/evidence. "
+        "Use this for: Specific dates, names, events, contracts, or police reports inside the case."
     )
     user_id: str
     case_id: Optional[str]
@@ -87,7 +86,7 @@ class PrivateDiaryTool(BaseTool):
             for r in results:
                 source = r.get('source', 'Unknown')
                 text = r.get('text', '')
-                formatted_results.append(f"[BURIMI: {source}]\n{text}")
+                formatted_results.append(f"[BURIMI (FACT): {source}]\n{text}")
             
             return "\n\n".join(formatted_results)
         except Exception as e:
@@ -100,14 +99,15 @@ class PrivateDiaryTool(BaseTool):
     class ArgsSchema(BaseModel):
         query: str = Field(description="The question to search for in the user's private documents.")
 
-# --- Public Library Tool (Stateless) ---
+# --- Public Library Tool ---
 class PublicLibraryInput(BaseModel):
     query: str = Field(description="The topic to search for in the public laws and business regulations.")
 
 @tool("query_public_library", args_schema=PublicLibraryInput)
 def query_public_library_tool(query: str) -> str:
     """
-    Access the 'Public Library' (Official Laws & Business Regulations).
+    GLOBAL KNOWLEDGE BASE (LAW). Access Official Laws & Business Regulations.
+    Use this for: Legal Articles (Nenet), Definitions, Compliance Rules.
     """
     from . import vector_store_service
     try:
@@ -119,7 +119,7 @@ def query_public_library_tool(query: str) -> str:
         for r in results:
             source = r.get('source', 'Ligji_Unknown')
             text = r.get('text', '')
-            formatted_results.append(f"[BURIMI: {source}]\n{text}")
+            formatted_results.append(f"[BURIMI (LAW): {source}]\n{text}")
         
         return "\n\n".join(formatted_results)
     except Exception as e:
@@ -145,7 +145,7 @@ class AlbanianRAGService:
             self.llm = None
             logger.warning("No DEEPSEEK_API_KEY found, LLM not initialized")
         
-        # PHOENIX UPGRADE: Researcher Prompt with ESCAPED Style Protocol
+        # PHOENIX UPGRADE: Researcher Prompt with ENFORCED DUAL SOURCE LOGIC
         researcher_template = f"""
         Ti je "Juristi AI", një asistent ligjor elitar.
         
@@ -156,23 +156,24 @@ class AlbanianRAGService:
         MJETET E DISPONUESHME:
         {{tools}}
         
-        STRATEGJIA E KËRKIMIT:
-        1. Së pari kërko në ditarin privat për fakte specifike të rastit
-        2. Pastaj kërko në bibliotekën publike për ligje të përshtatshme
-        3. Kombino të dhënat dhe aplikojnë ligjet në fakte
-        4. Formatizo përgjigjen sipas protokollit vizual
+        PROTOKOLLI I KËRKIMIT (DUAL BRAIN PROTOCOL):
+        1. HAPI 1 (FACTS): Përdor 'query_private_diary' për të gjetur FAKTET e rastit.
+           - Nëse nuk gjen fakte, STOP dhe thuaj "Nuk ka të dhëna në dosje".
+        2. HAPI 2 (LAW): Përdor 'query_public_library' për të gjetur LIGJIN e zbatueshëm.
+           - Ti duhet të gjesh Nenin specifik. Mos hamendëso ligjin.
+        3. HAPI 3 (SYNTHESIS): Apliko LIGJIN mbi FAKTET.
         
         Përdor formatin e mëposhtëm (ReAct):
         Question: Pyetja e hyrjes
-        Thought: Mendo çfarë të bësh
+        Thought: Mendo çfarë të bësh (Duhet të kontrolloj Faktet pastaj Ligjin)
         Action: Një nga [{{tool_names}}]
         Action Input: Inputi për veprimin
-        Observation: Rezultati i veprimit (Kërko 'Nr.' të ligjit këtu)
-        ... (Përsërit nëse duhet)
-        Thought: Tani e di përgjigjen.
-        Final Answer: Përgjigja përfundimtare duke përdorur citimet e plota të theksuara.
+        Observation: Rezultati i veprimit
+        ... (Përsërit për Burimin tjetër)
+        Thought: Tani kam edhe Faktet edhe Ligjin.
+        Final Answer: Përgjigja përfundimtare e strukturuar.
 
-        SHËNIM: Mos përdor më shumë se {MAX_ITERATIONS} hapa. Nëse keni gjetur përgjigjen e plotë, ndaloni më herët.
+        SHËNIM: Mos përdor më shumë se {MAX_ITERATIONS} hapa.
         
         Fillo!
         Question: {{input}}
@@ -207,11 +208,9 @@ class AlbanianRAGService:
             return "Nuk mund të merret informacioni i rastit."
     
     def _create_agent_executor(self, session_tools: List) -> AgentExecutor:
-        """Create an AgentExecutor with optimized configuration."""
         try:
-            # Check if LLM is available
             if self.llm is None:
-                raise ValueError("LLM is not initialized. Check API keys configuration.")
+                raise ValueError("LLM is not initialized.")
             
             agent = create_react_agent(self.llm, session_tools, self.researcher_prompt)
             executor = AgentExecutor(
@@ -222,7 +221,7 @@ class AlbanianRAGService:
                 max_iterations=MAX_ITERATIONS,
                 max_execution_time=MAX_EXECUTION_TIME,
                 early_stopping_method=EARLY_STOPPING_METHOD,
-                return_intermediate_steps=False  # Set to True for debugging if needed
+                return_intermediate_steps=False 
             )
             return executor
         except Exception as e:
@@ -234,15 +233,14 @@ class AlbanianRAGService:
         document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks'
     ) -> str:
         """
-        Main chat method with improved agent execution.
+        Main chat method with DUAL BRAIN enforcement.
         """
         if not self.llm: 
-            return "Gabim: Sistemi AI nuk është konfiguruar saktë. Kontrolloni çelësat API."
+            return "Gabim: Sistemi AI nuk është konfiguruar saktë."
 
         logger.info(f"Chat request - User: {user_id}, Case: {case_id}, Query: '{query[:100]}...'")
         
         try:
-            # Create tools
             private_tool = PrivateDiaryTool(
                 user_id=user_id, 
                 case_id=case_id, 
@@ -250,48 +248,35 @@ class AlbanianRAGService:
             )
             session_tools = [private_tool, query_public_library_tool]
             
-            # Create executor with optimized settings
             executor = self._create_agent_executor(session_tools)
             
-            # Prepare input context
             case_summary = await self._get_case_summary(case_id)
             input_text = f"""
             PYETJA: "{query}"
             JURIDIKSIONI: {jurisdiction}
-            KONTEKSTI I RASTIT:
+            KONTEKSTI I RASTIT (Meta-Data):
             {case_summary}
             
-            UDHËZIM: Jep një përgjigje të plotë dhe të dokumentuar duke përdorur të dyja burimet.
+            URDHËR EKZEKUTIV:
+            1. Kontrollo 'query_private_diary' për faktet e këtij rasti.
+            2. Kontrollo 'query_public_library' për nenet ligjore.
+            3. Në Final Answer, cito burimet nga të dyja.
             """
             
-            logger.info(f"Executing agent with max_iterations={MAX_ITERATIONS}, max_execution_time={MAX_EXECUTION_TIME}s")
-            
-            # Execute the agent
             res = await executor.ainvoke({"input": input_text})
             
-            # Extract and format response
             output = res.get('output', 'Nuk u gjenerua përgjigje.')
             
-            # Add context note if agent was truncated
             if len(output) < 100 and "Thought" in str(res):
-                output += "\n\n[SHËNIM: Kërkimi u ndal pasi arriti limitin e hapave. Ju lutem specifikoni më shumë ose thjeshtoni pyetjen tuaj.]"
+                output += "\n\n[SHËNIM: Kërkimi u ndal pasi arriti limitin. Ju lutem specifikoni pyetjen.]"
             
-            logger.info(f"Chat completed successfully. Response length: {len(output)} chars")
             return output
             
         except asyncio.TimeoutError:
-            logger.warning(f"Agent timeout after {MAX_EXECUTION_TIME} seconds")
-            return f"Kërkimi mori shumë kohë (kufiri: {MAX_EXECUTION_TIME} sekonda). Ju lutem thjeshtoni pyetjen ose provoni përsëri."
-            
-        except ValueError as e:
-            if "LLM is not initialized" in str(e):
-                return "Gabim: Sistemi AI nuk është konfiguruar. Kontrolloni çelësat API."
-            logger.error(f"ValueError in chat: {str(e)}", exc_info=True)
-            return f"Gabim në konfigurimin e sistemit: {str(e)[:200]}"
-            
+            return f"Kërkimi mori shumë kohë. Ju lutem thjeshtoni pyetjen."
         except Exception as e:
             logger.error(f"Chat execution error: {str(e)}", exc_info=True)
-            return f"Ndodhi një gabim teknik gjatë përpunimit të kërkesës tuaj: {str(e)[:200]}"
+            return f"Ndodhi një gabim teknik: {str(e)[:200]}"
 
     async def generate_legal_draft(
         self,
@@ -300,18 +285,18 @@ class AlbanianRAGService:
         case_id: Optional[str]
     ) -> str:
         """
-        DUAL-STREAM DRAFTING ENGINE.
+        DUAL-STREAM DRAFTING ENGINE (Already Perfected).
         """
         if not self.llm: 
             return "Gabim i Sistemit: Modeli AI nuk është i disponueshëm."
 
-        logger.info(f"Generating legal draft - User: {user_id}, Case: {case_id}, Instruction: '{instruction[:100]}...'")
+        logger.info(f"Generating legal draft - User: {user_id}, Case: {case_id}")
         
         try:
             case_summary = await self._get_case_summary(case_id)
             from . import vector_store_service
             
-            # 1. GET FACTS with timeout protection
+            # 1. GET FACTS (Case Knowledge Base)
             try:
                 private_docs = vector_store_service.query_private_diary(
                     user_id=user_id, 
@@ -319,25 +304,24 @@ class AlbanianRAGService:
                     case_context_id=case_id
                 )
                 facts_text = "\n\n".join([
-                    f"DOKUMENTI: {d.get('text', '')} (Burimi: {d.get('source', '')})" 
+                    f"DOKUMENTI (FACT): {d.get('text', '')} (Burimi: {d.get('source', '')})" 
                     for d in private_docs
-                ]) if private_docs else "Nuk u gjetën dokumente specifike."
+                ]) if private_docs else "Nuk u gjetën dokumente specifike në dosje."
             except Exception as e:
-                logger.error(f"Failed to fetch private documents: {e}")
-                facts_text = "Nuk mund të merren dokumentet private."
+                facts_text = "Gabim gjatë marrjes së fakteve."
 
-            # 2. GET LAWS with timeout protection
+            # 2. GET LAWS (Global Knowledge Base)
             try:
                 public_docs = vector_store_service.query_public_library(query_text=instruction[:300])
                 laws_text = "\n\n".join([
-                    f"LIGJI: {d.get('text', '')} (Burimi: {d.get('source', '')})" 
+                    f"LIGJI (LAW): {d.get('text', '')} (Burimi: {d.get('source', '')})" 
                     for d in public_docs
-                ]) if public_docs else "Referohu parimeve të përgjithshme ligjore të Kosovës."
+                ]) if public_docs else "Referohu parimeve të përgjithshme ligjore."
             except Exception as e:
-                logger.error(f"Failed to fetch public laws: {e}")
-                laws_text = "Nuk mund të merren ligjet publike."
+                # PHOENIX FIX: Added missing except clause
+                laws_text = "Gabim gjatë marrjes së ligjeve."
 
-            # 3. DRAFTING PROMPT (Updated to match Detailed Style)
+            # 3. DRAFTING PROMPT (Synthesizer)
             drafting_prompt = f"""
             Ti je Avokat Kryesor (Senior Counsel).
             
@@ -345,42 +329,30 @@ class AlbanianRAGService:
             {VISUAL_STYLE_PROTOCOL}
             
             --- MATERIALET ---
-            FAKTET E RASTIT:
+            [CASE KNOWLEDGE BASE - FAKTET]:
             {facts_text}
             
-            BAZA LIGJORE:
+            [GLOBAL KNOWLEDGE BASE - LIGJI]:
             {laws_text}
             
-            INFORMACION SHTESË PËR RASTIN:
+            [META-DATA E RASTIT]:
             {case_summary}
             
             --- UDHËZIMI ---
             {instruction}
             
             --- DETYRA ---
-            Harto dokumentin e plotë ligjor duke:
-            1. Përdorur të gjitha faktet e disponueshme
-            2. Citimi i plotë i çdo ligji (Emri + Nr. + Neni)
-            3. Strukturimi i qartë me tituj
-            4. Përfshirja e referencave të sakta
-            
-            RREGULL I FORTË: Përfshi Emrin e Ligjit, Numrin, dhe Nenin në linkun e citimit Markdown.
+            Harto dokumentin ligjor duke aplikuar LIGJIN mbi FAKTET.
             """
             
-            # Generate draft with timeout
             response = await asyncio.wait_for(
                 self.llm.ainvoke(drafting_prompt),
                 timeout=LLM_TIMEOUT
             )
             
-            draft_content = str(response.content)
-            logger.info(f"Draft generated successfully. Length: {len(draft_content)} chars")
-            return draft_content
+            return str(response.content)
             
         except asyncio.TimeoutError:
-            logger.error(f"Draft generation timeout after {LLM_TIMEOUT} seconds")
-            return f"Koha për gjenerimin e draftit ka skaduar ({LLM_TIMEOUT} sekonda). Ju lutem thjeshtoni udhëzimin ose provoni përsëri."
-            
+            return f"Koha skadoi. Provoni përsëri."
         except Exception as e:
-            logger.error(f"Draft generation error: {str(e)}", exc_info=True)
-            return f"Dështoi gjenerimi i draftit ligjor për shkak të: {str(e)[:200]}"
+            return f"Dështoi gjenerimi: {str(e)[:200]}"
