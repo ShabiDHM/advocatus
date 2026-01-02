@@ -1,6 +1,6 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V5.0 (PUBLIC BRANDING)
-# 1. FEATURE: Added GET /public/{case_id}/logo endpoint.
+# PHOENIX PROTOCOL - CASES ROUTER V5.1 (ANALYSIS FIX)
+# 1. FIX: Updated analyze_case_risks endpoint to pass user_id parameter
 # 2. SECURITY: Publicly accessible but validates case existence.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
@@ -319,7 +319,13 @@ async def rename_document_endpoint(case_id: str, doc_id: str, body: RenameDocume
 @router.post("/{case_id}/analyze", tags=["Analysis"])
 async def analyze_case_risks(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
-    return JSONResponse(content=await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id))
+    # FIX: Added user_id parameter to match the updated function signature
+    return JSONResponse(content=await asyncio.to_thread(
+        analysis_service.cross_examine_case, 
+        db=db, 
+        case_id=case_id,
+        user_id=str(current_user.id)
+    ))
 
 @router.get("/public/{case_id}/timeline", tags=["Public Portal"])
 async def get_public_case_timeline(case_id: str, db: Database = Depends(get_db)):
