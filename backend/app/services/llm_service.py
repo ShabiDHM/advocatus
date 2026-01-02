@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V23.0 (UNIFIED CONSTITUTION)
-# 1. SYNC: Aligned 'STRICT_FORENSIC_RULES' with AlbanianRAGService.
-# 2. UPGRADE: Added 'Chain-of-Thought' injection to JSON analysis for higher accuracy.
-# 3. STATUS: The "Brain" is now fully synchronized with the "Mouth" (Chat/Drafting).
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V23.1 (DUAL KNOWLEDGE SEPARATION)
+# 1. ARCHITECTURE: Explicit separation of 'Global Knowledge' (Law) vs 'Case Knowledge' (Facts).
+# 2. LOGIC: New 'perform_dual_source_analysis' function for RAG workflows.
+# 3. SAFETY: Strict hierarchy enforced in the Constitution.
 
 import os
 import json
@@ -29,13 +29,20 @@ _deepseek_client: Optional[OpenAI] = None
 # This must match the rules in albanian_rag_service.py exactly.
 STRICT_FORENSIC_RULES = """
 RREGULLAT E AUDITIMIT (STRICT LIABILITY):
-1. ZERO HALUCINACIONE: Nëse fakti nuk ekziston në tekst, shkruaj "NUK KA TË DHËNA". Mos hamendëso asgjë.
-2. RREGULLI I HESHTJES (THE SILENT PARTY RULE): 
+
+1. HIERARKIA E BURIMEVE (THE SOURCE HIERARCHY):
+   - GLOBAL KNOWLEDGE BASE = LIGJI (The Law). Kjo përmban rregullat, nenet dhe precedentët.
+   - CASE KNOWLEDGE BASE = FAKTET (The Facts). Kjo përmban vetëm dokumentet që ndodhen në "Document Panel" të dosjes.
+   - URDHËR: Ti nuk guxon të shpikësh fakte. Faktet merren VETËM nga CASE KNOWLEDGE BASE.
+   - URDHËR: Ti nuk guxon të shpikësh ligje. Ligjet merren VETËM nga GLOBAL KNOWLEDGE BASE.
+
+2. ZERO HALUCINACIONE: Nëse fakti nuk ekziston në "Case Knowledge Base", shkruaj "NUK KA TË DHËNA NË DOSJE".
+3. RREGULLI I HESHTJES (THE SILENT PARTY RULE): 
    - Nëse kemi vetëm Padinë, I Padituri "NUK KA PARAQITUR PËRGJIGJE". Mos shpik mbrojtje për të.
-3. CITIM I DETYRUESHËM:
+4. CITIM I DETYRUESHËM:
    - Çdo pretendim faktik duhet të ketë referencën: [Fq. X] ose [Burimi].
-4. GJUHA: Përdor Shqipe Standarde (e, ë, ç).
-5. JURIDIKSIONI: Republika e Kosovës.
+5. GJUHA: Përdor Shqipe Standarde (e, ë, ç).
+6. JURIDIKSIONI: Republika e Kosovës.
 """
 
 def get_deepseek_client() -> Optional[OpenAI]:
@@ -151,7 +158,7 @@ def analyze_case_integrity(text: str) -> Dict[str, Any]:
     Ti je "Gjykatës Suprem & Detektiv Hetues".
     
     DETYRA:
-    1. Analizo tekstin rresht për rresht.
+    1. Analizo tekstin rresht për rresht (CASE KNOWLEDGE BASE).
     2. Identifiko palët, datat dhe kontradiktat.
     3. Plotëso JSON-in e mëposhtëm me saktësi maksimale.
     
@@ -175,7 +182,7 @@ def analyze_case_integrity(text: str) -> Dict[str, Any]:
         "missing_info": ["Cilat dokumente procedurale mungojnë?"]
     }
     """
-    user_prompt = f"DOSJA E PLOTË (TEXT):\n{clean_text}"
+    user_prompt = f"DOSJA E PLOTË (CASE KNOWLEDGE BASE):\n{clean_text}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
@@ -189,7 +196,7 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
     system_prompt = """
     Ti je "Phoenix Litigation Engine".
     
-    DETYRA: Kryqëzo dokumentin e ri [TARGET] me historikun [CONTEXT].
+    DETYRA: Kryqëzo dokumentin e ri [TARGET] me historikun e dosjes [CASE KNOWLEDGE BASE].
     Gjej çdo mospërputhje sado të vogël.
     
     FORMATI JSON (Strict):
@@ -204,7 +211,52 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
         "discovery_targets": ["Dokumente shtesë për t'u kërkuar."]
     }
     """
-    user_prompt = f"[CONTEXT - DOSJA EKZISTUESE]:\n{formatted_context}\n\n[TARGET - DOKUMENTI I RI]:\n{clean_target}"
+    user_prompt = f"[CASE KNOWLEDGE BASE - DOSJA EKZISTUESE]:\n{formatted_context}\n\n[TARGET - DOKUMENTI I RI]:\n{clean_target}"
+    content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
+    if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
+    return _parse_json_safely(content) if content else {}
+
+# --- NEW: DUAL SOURCE RAG ANALYSIS ---
+
+def perform_dual_source_analysis(query: str, case_context: str, global_context: str) -> Dict[str, Any]:
+    """
+    Uses BOTH knowledge bases to answer a complex query.
+    1. Case Knowledge Base: The specific facts.
+    2. Global Knowledge Base: The laws and precedents.
+    """
+    clean_case = sterilize_legal_text(case_context[:20000])
+    clean_global = sterilize_legal_text(global_context[:10000])
+    
+    system_prompt = """
+    Ti je "Phoenix Legal Architect".
+    
+    BURIMET E TUA:
+    1. GLOBAL KNOWLEDGE BASE = LIGJI (Nenet, Jurisprudenca).
+    2. CASE KNOWLEDGE BASE = FAKTET (Dokumentet e dosjes).
+    
+    DETYRA:
+    Përgjigju pyetjes duke aplikuar LIGJIN (Global) mbi FAKTET (Case).
+    
+    FORMATI JSON (Strict):
+    {
+        "direct_answer": "Përgjigja përfundimtare.",
+        "legal_basis": ["Nenet specifike nga Global KB që u aplikuan."],
+        "factual_basis": ["Faktet specifike nga Case KB që mbështesin përgjigjen."],
+        "missing_facts": ["Çfarë mungon në dosje për të plotësuar kushtin ligjor?"],
+        "strategy": "Hapi i rradhës i sugjeruar."
+    }
+    """
+    
+    user_prompt = f"""
+    PYETJA: {query}
+    
+    [BURIMI 1: GLOBAL KNOWLEDGE BASE - LIGJI]:
+    {clean_global}
+    
+    [BURIMI 2: CASE KNOWLEDGE BASE - FAKTET]:
+    {clean_case}
+    """
+    
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
