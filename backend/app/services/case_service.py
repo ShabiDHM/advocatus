@@ -1,8 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V5.5 (WORKFLOW UPDATE)
-# 1. FIX: Updated Invoice Whitelist to match new "Auto-Paid" workflow.
-# 2. LOGIC: Removed 'OPEN' and 'PARTIAL' statuses.
-# 3. RESULT: Old/Zombie invoices with status 'OPEN' are now hidden.
+# PHOENIX PROTOCOL - CASE SERVICE V5.6 (PORTAL ACCESS FIX)
+# 1. FIX: Removed 'Zero-Share Protection' to allow empty portals to load.
+# 2. LOGIC: Returns portal shell (logo/title) even if no docs exist.
+# 3. RESULT: Fixes "Access Denied" on valid empty cases.
 
 import re
 import importlib
@@ -231,9 +231,7 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "source": "ARCHIVE"
             })
 
-        # 4. Fetch Invoices (UPDATED STRICT WHITELIST)
-        # PHOENIX FIX: Removed 'OPEN' and 'PARTIAL' to match new workflow.
-        # Only 'PAID', 'SENT', 'OVERDUE' are considered active/public.
+        # 4. Fetch Invoices
         invoices_cursor = db.invoices.find({
             "related_case_id": case_id,
             "status": {"$in": ["PAID", "SENT", "OVERDUE"]}
@@ -249,9 +247,12 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
                 "date": inv.get("issue_date")
             })
 
-        # --- SECURITY: ZERO-SHARE PROTECTION ---
-        if not events and not shared_docs and not shared_invoices:
-            return None
+        # --- SECURITY: ZERO-SHARE PROTECTION DISABLED ---
+        # We now return the case 'shell' even if lists are empty.
+        # This prevents the frontend from showing "Access Denied" on valid empty cases.
+        
+        # if not events and not shared_docs and not shared_invoices:
+        #    return None
 
         # --- BRANDING RETRIEVAL ---
         owner_id = case.get("owner_id") or case.get("user_id")

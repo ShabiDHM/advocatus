@@ -1,7 +1,7 @@
 // FILE: src/components/ArchiveImportModal.tsx
-// PHOENIX PROTOCOL - ARCHIVE SELECTOR MODAL V2.1 (TYPE FIX)
-// 1. FIX: Added explicit generic type to 'new Set<string>()' to resolve TS error.
-// 2. STATUS: Compliant and Error Free.
+// PHOENIX PROTOCOL - ARCHIVE SELECTOR MODAL V2.2 (SCOPE FIX)
+// 1. FIX: Now passes 'caseId' to API to enforce strict case-scoped filtering.
+// 2. RESULT: Modal only shows files belonging to the current case.
 
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
@@ -33,7 +33,9 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
   const fetchItems = async (parentId?: string) => {
     setLoading(true);
     try {
-      const data = await apiService.getArchiveItems(undefined, undefined, parentId);
+      // PHOENIX FIX: Added 'caseId' as second argument (was undefined). 
+      // This forces the backend to filter items by the current Case ID.
+      const data = await apiService.getArchiveItems(undefined, caseId, parentId);
       setItems(data);
     } catch (error) {
       console.error("Failed to load archive items", error);
@@ -58,15 +60,15 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
     setSelectedIds(new Set()); // Clear selection on back
   };
 
-  // PHOENIX FIX: Added <string> generic to Set constructor
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => {
-      const newSet = new Set<string>(); // Fix: Explicitly typed as Set<string>
+      const newSet = new Set<string>();
       if (prev.has(id)) {
           // If clicking the already selected one, deselect it (empty set)
           return newSet; 
       } else {
-          // Otherwise, select ONLY this one
+          // Otherwise, select ONLY this one (Single Selection Mode for Import)
+          // Note: If multi-select is desired later, change this logic.
           newSet.add(id);
           return newSet;
       }
@@ -135,7 +137,12 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
                 <Loader2 className="animate-spin mr-2" /> Duke ngarkuar...
               </div>
             ) : items.length === 0 ? (
-              <div className="text-center text-gray-500 mt-10">Dosja është e zbrazët.</div>
+              <div className="text-center text-gray-500 mt-10">
+                 <div className="bg-white/5 p-4 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-3">
+                    <Folder className="text-gray-600" size={30}/>
+                 </div>
+                 Dosja është e zbrazët.
+              </div>
             ) : (
               items.map(item => {
                 const isSelected = selectedIds.has(item.id);
