@@ -1,7 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - REFACTOR V10.3 (UI REDESIGN)
-// 1. UI: Replaced ViewMode buttons with a high-end Glass Segmented Control.
-// 2. LAYOUT: Adjusted spacing for cleaner look.
+// PHOENIX PROTOCOL - REFACTOR V10.4 (TOOLBAR CONSOLIDATION)
+// 1. REMOVED: Top Segmented Control (Workspace/Analyst tabs).
+// 2. MOVED: 'Financial Analyst' button to the main Control Bar.
+// 3. UI: Standardized button styles for consistent actions.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -77,7 +78,7 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
-// --- NEW HEADER WITH SEGMENTED CONTROL ---
+// --- REDESIGNED HEADER ---
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
@@ -124,83 +125,76 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              {/* NAV ROW: Segmented Control */}
-              <div className="flex justify-between items-center">
-                   {/* Segmented Control */}
-                   <div className="flex p-1 bg-black/20 backdrop-blur-lg rounded-xl border border-white/5 relative">
-                        {/* Animated Slider Background */}
-                        <motion.div 
-                            className="absolute top-1 bottom-1 bg-gradient-to-r from-primary-start/20 to-primary-end/20 border border-primary-start/30 rounded-lg shadow-sm"
-                            initial={false}
-                            animate={{ 
-                                left: viewMode === 'workspace' ? '4px' : '50%',
-                                width: 'calc(50% - 4px)',
-                                x: viewMode === 'workspace' ? 0 : 0
-                            }}
-                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        />
+              {/* CONTROL BAR - Consolidated Navigation */}
+              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full animate-in fade-in slide-in-from-top-2">
+                    {/* Date Badge */}
+                    <div className="flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap min-w-[140px]">
+                        <Calendar className="h-4 w-4 text-blue-400" />
+                        {new Date(caseDetails.created_at).toLocaleDateString()}
+                    </div>
 
-                        <button 
-                            onClick={() => setViewMode('workspace')}
-                            className={`relative z-10 flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-colors w-36 ${viewMode === 'workspace' ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
-                        >
-                            <LayoutGrid size={16} />
-                            {t('caseView.workspace', 'Workspace')}
-                        </button>
-                        <button 
-                            onClick={() => setViewMode('analyst')}
-                            className={`relative z-10 flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-colors w-36 ${viewMode === 'analyst' ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
-                        >
-                            <Activity size={16} />
-                            {t('caseView.analyst', 'Analyst')}
-                        </button>
-                  </div>
-              </div>
-
-              {/* CONTROL BAR (Workspace Only) */}
-              <AnimatePresence>
-                  {viewMode === 'workspace' && (
-                    <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full"
+                    {/* Context Switcher - Takes remaining space */}
+                    <div className="flex-1 w-full md:w-auto h-12 md:h-11">
+                        {viewMode === 'workspace' && (
+                             <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
+                        )}
+                        {viewMode === 'analyst' && (
+                            <div className="w-full h-full flex items-center px-4 bg-white/5 border border-white/10 rounded-xl text-gray-400 italic text-sm">
+                                {t('analyst.subtitle', 'Smart Financial Analysis Mode')}
+                            </div>
+                        )}
+                    </div>
+                    
+                    {/* ACTION BUTTONS */}
+                    
+                    {/* 1. Financial Analyst Toggle */}
+                    <button 
+                        onClick={() => setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
+                        className={`
+                            w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
+                            flex items-center justify-center gap-2.5 
+                            text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
+                            border border-transparent
+                            ${viewMode === 'analyst' 
+                                ? 'bg-white/10 border-white/20 hover:bg-white/20' 
+                                : 'bg-gradient-to-r from-gray-700 to-gray-600 hover:from-gray-600 hover:to-gray-500 hover:scale-[1.02] active:scale-95 shadow-black/20'
+                            }
+                        `}
                     >
-                        <div className="flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap min-w-[140px]">
-                            <Calendar className="h-4 w-4 text-blue-400" />
-                            {new Date(caseDetails.created_at).toLocaleDateString()}
-                        </div>
+                        {viewMode === 'analyst' ? <LayoutGrid className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
+                        <span>
+                            {viewMode === 'analyst' ? t('caseView.workspace') : t('caseView.analyst')}
+                        </span>
+                    </button>
 
-                        <div className="flex-1 w-full md:w-auto h-12 md:h-11">
-                            <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
-                        </div>
-                        
-                        <button 
-                            onClick={onAnalyze} 
-                            disabled={isAnalyzing} 
-                            className={`
-                                w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
-                                flex items-center justify-center gap-2.5 
-                                text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
-                                ${isAnalyzing ? 'bg-white/5 border border-white/10 cursor-not-allowed' : 'bg-gradient-to-r from-primary-start to-primary-end hover:shadow-primary-start/20 hover:scale-[1.02] active:scale-95 border border-transparent'}
-                            `}
-                            type="button"
-                        >
-                            {isAnalyzing ? (
-                                <>
-                                    <Loader2 className="h-4 w-4 animate-spin text-white/70" />
-                                    <span className="text-white/70">{t('analysis.analyzing')}...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <ShieldCheck className="h-4 w-4" />
-                                    <span>{analyzeButtonText}</span>
-                                </>
-                            )}
-                        </button>
-                    </motion.div>
-                  )}
-              </AnimatePresence>
+                    {/* 2. Analyze Case Button (Standard) */}
+                    <button 
+                        onClick={onAnalyze} 
+                        disabled={isAnalyzing || viewMode === 'analyst'} 
+                        className={`
+                            w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
+                            flex items-center justify-center gap-2.5 
+                            text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
+                            ${(isAnalyzing || viewMode === 'analyst') 
+                                ? 'bg-white/5 border border-white/10 cursor-not-allowed opacity-50' 
+                                : 'bg-gradient-to-r from-primary-start to-primary-end hover:shadow-primary-start/20 hover:scale-[1.02] active:scale-95 border border-transparent'
+                            }
+                        `}
+                        type="button"
+                    >
+                        {isAnalyzing ? (
+                            <>
+                                <Loader2 className="h-4 w-4 animate-spin text-white/70" />
+                                <span className="text-white/70">{t('analysis.analyzing')}...</span>
+                            </>
+                        ) : (
+                            <>
+                                <ShieldCheck className="h-4 w-4" />
+                                <span>{analyzeButtonText}</span>
+                            </>
+                        )}
+                    </button>
+              </div>
           </div>
         </motion.div>
     );

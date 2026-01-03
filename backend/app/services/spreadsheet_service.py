@@ -1,8 +1,7 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - ROBUSTNESS PATCH V1.3
-# 1. FIX: Added Case-Insensitive extension checking.
-# 2. FIX: Explicit engine definition for read_excel.
-# 3. LOGGING: Added detailed error logging for debugging.
+# PHOENIX PROTOCOL - LOCALIZATION PATCH V1.4
+# 1. FIX: Translated all static chart titles and anomaly reasons to Albanian.
+# 2. STATUS: Fully localized backend response.
 
 import pandas as pd
 import numpy as np
@@ -43,12 +42,15 @@ def _detect_anomalies(df: pd.DataFrame) -> List[Dict[str, Any]]:
             except (ValueError, TypeError):
                 row_idx = 0 
 
+            z_score = np.round((row[col] - mean) / std, 1)
             severity = "HIGH" if np.abs((row[col] - mean) / std) > 5 else "MEDIUM"
+            
+            # TRANSLATED REASON
             anomalies.append({
                 "row_index": row_idx,
                 "column": col,
                 "value": float(row[col]),
-                "reason": f"Value is {np.round((row[col] - mean) / std, 1)} standard deviations from mean.",
+                "reason": f"Vlera është {z_score} devijime standarde larg mesatares.",
                 "severity": severity
             })
             
@@ -62,11 +64,12 @@ def _generate_chart_config(df: pd.DataFrame) -> List[Dict[str, Any]]:
         if df[col].nunique() < 15: 
             counts = df[col].value_counts().head(8).to_dict()
             chart_data = [{"name": str(k), "value": int(v)} for k, v in counts.items()]
+            # TRANSLATED CHART INFO
             charts.append({
                 "id": f"dist_{col}",
-                "title": f"Distribution by {col}",
+                "title": f"Shpërndarja sipas {col}",
                 "type": "bar",
-                "description": f"Frequency of top categories in {col}",
+                "description": f"Frekuenca e kategorive kryesore në {col}",
                 "data": chart_data
             })
             if len(charts) >= 2: break 
@@ -77,7 +80,7 @@ def _generate_chart_config(df: pd.DataFrame) -> List[Dict[str, Any]]:
             top_vals = df.nlargest(8, col)
             chart_data = []
             for idx, row in top_vals.iterrows():
-                label = f"Row {idx}"
+                label = f"Rreshti {idx}"
                 for cat in categorical_cols:
                     if df[cat].nunique() == len(df): 
                         label = str(row[cat])
@@ -85,11 +88,12 @@ def _generate_chart_config(df: pd.DataFrame) -> List[Dict[str, Any]]:
                 
                 chart_data.append({"name": label, "value": float(row[col])})
             
+            # TRANSLATED CHART INFO
             charts.append({
                 "id": f"top_{col}",
-                "title": f"Top Values in {col}",
+                "title": f"Vlerat më të larta në {col}",
                 "type": "bar",
-                "description": f"Highest recorded values for {col}",
+                "description": f"Vlerat maksimale të regjistruara për {col}",
                 "data": chart_data
             })
             if len(charts) >= 4: break
@@ -108,7 +112,7 @@ async def analyze_spreadsheet_file(file_content: bytes, filename: str) -> Dict[s
                 df = pd.read_csv(io.BytesIO(file_content))
             except Exception as e:
                 logger.error(f"CSV Parsing Failed: {e}")
-                raise ValueError("Could not parse CSV file. Check delimiter/encoding.")
+                raise ValueError("Nuk mund të lexohet skedari CSV. Kontrolloni formatin.")
                 
         elif filename_clean.endswith(('.xls', '.xlsx')):
             try:
@@ -117,15 +121,15 @@ async def analyze_spreadsheet_file(file_content: bytes, filename: str) -> Dict[s
                 df = pd.read_excel(io.BytesIO(file_content), engine=engine)
             except ImportError:
                 logger.error("Pandas Engine Missing: openpyxl is likely not installed.")
-                raise ValueError("Server missing Excel support (openpyxl).")
+                raise ValueError("Serveri nuk mbështet Excel (mungon openpyxl).")
             except Exception as e:
                 logger.error(f"Excel Parsing Failed: {e}")
-                raise ValueError("Could not parse Excel file. Is it corrupted?")
+                raise ValueError("Nuk mund të lexohet skedari Excel. A është i dëmtuar?")
         else:
-            raise ValueError(f"Unsupported format: {filename}")
+            raise ValueError(f"Format i pambështetur: {filename}")
 
         if df is None or df.empty:
-            raise ValueError("File is empty or could not be read.")
+            raise ValueError("Skedari është bosh ose nuk mund të lexohet.")
 
         # 3. Processing
         record_count = len(df)
