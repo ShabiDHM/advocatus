@@ -1,7 +1,7 @@
 // FILE: src/components/DepositionAnalyst.tsx
-// PHOENIX PROTOCOL - FIX V1.4 (EXTENSION RECOVERY)
-// 1. FIX: Ensures imported files always have an extension so backend extraction works.
-// 2. LOGIC: Checks title extension -> falls back to file_type -> falls back to PDF.
+// PHOENIX PROTOCOL - REFACTOR V1.5 (FONT CONSISTENCY)
+// 1. FIX: Increased font size for item details from text-xs to text-sm for readability.
+// 2. STATUS: Consistent and legible UI.
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -36,19 +36,13 @@ const DepositionAnalyst: React.FC<DepositionAnalystProps> = ({ caseId }) => {
         setError(null);
         try {
             const blob = await apiService.getArchiveFileBlob(item.id);
-            
-            // PHOENIX FIX: Construct proper filename with extension
             let filename = item.title;
             const hasExtension = filename.includes('.');
-            let mimeType = 'application/pdf'; // Default
-
-            // If title lacks extension, try to use file_type from DB
             if (!hasExtension) {
-                const ext = item.file_type ? item.file_type.toLowerCase() : 'pdf'; // Default to pdf if unknown
+                const ext = item.file_type ? item.file_type.toLowerCase() : 'pdf';
                 filename = `${filename}.${ext}`;
             }
-
-            // Determine MIME type based on the (now guaranteed) extension
+            let mimeType = 'application/pdf';
             const finalExt = filename.split('.').pop()?.toLowerCase();
             if (finalExt === 'docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
             else if (finalExt === 'txt') mimeType = 'text/plain';
@@ -99,23 +93,19 @@ const DepositionAnalyst: React.FC<DepositionAnalystProps> = ({ caseId }) => {
                                         <span className="text-sm text-gray-300 truncate max-w-[200px]">{file ? file.name : t('deposition.selectFile', 'Select Transcript...')}</span>
                                     </div>
                                 </div>
-
                                 <span className="text-gray-500 text-sm hidden sm:block">{t('general.or', 'or')}</span>
-
                                 <button onClick={() => setIsArchiveOpen(true)} className="w-full sm:w-auto px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-gray-300 text-sm font-medium flex items-center justify-center gap-2 transition-colors whitespace-nowrap">
                                     <FolderOpen className="w-4 h-4" />
                                     {t('analyst.importFromCase', 'Import from Archive')}
                                 </button>
                             </>
                         )}
-
                         {file && !result && (
                             <button onClick={runAnalysis} disabled={isAnalyzing} className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-purple-600 to-purple-800 text-white rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg hover:shadow-purple-500/20 transition-all active:scale-95 disabled:opacity-50">
                                 {isAnalyzing ? <Loader2 className="animate-spin w-4 h-4" /> : <Zap className="w-4 h-4" />}
                                 {isAnalyzing ? t('deposition.analyzing', 'Analyzing...') : t('deposition.run', 'Run Forensics')}
                             </button>
                         )}
-                        
                         {result && (
                              <button onClick={() => { setResult(null); setFile(null); }} className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex items-center gap-2 hover:bg-white/5">
                                 <RefreshCw className="w-4 h-4" />
@@ -126,7 +116,6 @@ const DepositionAnalyst: React.FC<DepositionAnalystProps> = ({ caseId }) => {
                 </div>
 
                 {error && <div className="mt-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-200"><AlertTriangle className="w-5 h-5" />{error}</div>}
-                
                 {isImporting && <div className="mt-4 flex items-center gap-2 text-purple-300 text-sm animate-pulse"><Loader2 className="w-4 h-4 animate-spin" />Downloading document from archive...</div>}
             </div>
 
@@ -139,11 +128,44 @@ const DepositionAnalyst: React.FC<DepositionAnalystProps> = ({ caseId }) => {
                                 <div className="flex-1 bg-white/5 p-4 rounded-xl border border-white/10 flex items-center justify-between"><div><p className="text-xs text-gray-400 uppercase font-bold">{t('deposition.credibility', 'Credibility Score')}</p><p className={`text-xl font-bold ${result.credibility_score > 70 ? 'text-green-400' : result.credibility_score > 40 ? 'text-yellow-400' : 'text-red-400'}`}>{result.credibility_score}/100</p></div><Activity className="w-8 h-8 text-purple-400 opacity-50" /></div>
                             </div>
                             <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5"><h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><CheckCircle className="text-green-400 w-5 h-5" />{t('deposition.summary', 'Executive Summary')}</h3><p className="text-gray-300 leading-relaxed text-sm">{result.summary}</p></div>
-                            <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5"><h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><MessageSquare className="text-blue-400 w-5 h-5" />{t('deposition.strategy', 'Cross-Examination Strategy')}</h3><div className="space-y-4">{result.suggested_questions.map((q, idx) => (<div key={idx} className="bg-black/20 p-4 rounded-xl border border-white/5 hover:border-purple-500/30 transition-colors"><div className="flex justify-between mb-2"><span className="text-xs font-bold text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded uppercase">{q.strategy}</span></div><p className="text-white font-medium mb-1">"{q.question}"</p><p className="text-xs text-gray-400 italic">{q.rationale}</p></div>))}</div></div>
+                            <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5"><h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><MessageSquare className="text-blue-400 w-5 h-5" />{t('deposition.strategy', 'Cross-Examination Strategy')}</h3>
+                                <div className="space-y-4">
+                                    {result.suggested_questions.map((q, idx) => (
+                                        <div key={idx} className="bg-black/20 p-4 rounded-xl border border-white/5">
+                                            <div className="flex justify-between mb-2"><span className="text-xs font-bold text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded uppercase">{q.strategy}</span></div>
+                                            {/* PHOENIX FIX: Changed font size to text-sm */}
+                                            <p className="text-white font-medium mb-2 text-sm">"{q.question}"</p>
+                                            <p className="text-sm text-gray-400 italic">{q.rationale}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                         <div className="lg:col-span-1 space-y-6">
-                            <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5"><h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><AlertTriangle className="text-red-400 w-5 h-5" />{t('deposition.contradictions', 'Contradictions')}</h3><div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">{result.inconsistencies.map((inc, idx) => (<div key={idx} className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg"><div className="flex justify-between mb-1"><span className="text-[10px] text-red-300 font-bold">{inc.severity}</span><span className="text-[10px] text-gray-500">{inc.source_ref}</span></div><p className="text-xs text-gray-300 mb-1">"{inc.statement}"</p><p className="text-xs text-red-200 font-medium">VS: {inc.contradiction}</p></div>))}</div></div>
-                            <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5"><h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><BrainCircuit className="text-pink-400 w-5 h-5" />{t('deposition.emotions', 'Psycholinguistic Markers')}</h3><div className="space-y-3">{result.emotional_segments.map((em, idx) => (<div key={idx} className="p-3 bg-pink-500/5 border border-pink-500/20 rounded-lg"><div className="flex items-center gap-2 mb-1"><span className="text-[10px] font-bold bg-pink-500/20 text-pink-300 px-2 rounded">{em.emotion}</span></div><p className="text-xs text-white mb-1">"{em.segment}"</p><p className="text-[10px] text-gray-400">{em.analysis}</p></div>))}</div></div>
+                            <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5"><h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><AlertTriangle className="text-red-400 w-5 h-5" />{t('deposition.contradictions', 'Contradictions')}</h3>
+                                <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                                    {result.inconsistencies.map((inc, idx) => (
+                                        <div key={idx} className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg">
+                                            <div className="flex justify-between mb-1"><span className="text-[10px] text-red-300 font-bold">{inc.severity}</span><span className="text-[10px] text-gray-500">{inc.source_ref}</span></div>
+                                            {/* PHOENIX FIX: Changed font size to text-sm */}
+                                            <p className="text-sm text-gray-300 mb-1">"{inc.statement}"</p>
+                                            <p className="text-sm text-red-200 font-medium">VS: {inc.contradiction}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5"><h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><BrainCircuit className="text-pink-400 w-5 h-5" />{t('deposition.emotions', 'Psycholinguistic Markers')}</h3>
+                                <div className="space-y-3">
+                                    {result.emotional_segments.map((em, idx) => (
+                                        <div key={idx} className="p-3 bg-pink-500/5 border border-pink-500/20 rounded-lg">
+                                            <div className="flex items-center gap-2 mb-1"><span className="text-[10px] font-bold bg-pink-500/20 text-pink-300 px-2 rounded">{em.emotion}</span></div>
+                                            {/* PHOENIX FIX: Changed font size to text-sm */}
+                                            <p className="text-sm text-white mb-1">"{em.segment}"</p>
+                                            <p className="text-xs text-gray-400">{em.analysis}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </motion.div>
                 )}
@@ -159,14 +181,7 @@ const DepositionAnalyst: React.FC<DepositionAnalystProps> = ({ caseId }) => {
                 )}
             </AnimatePresence>
 
-            <ArchiveImportModal
-                isOpen={isArchiveOpen}
-                onClose={() => setIsArchiveOpen(false)}
-                caseId={caseId}
-                mode="select"
-                allowedExtensions={['pdf', 'docx', 'txt']}
-                onSelectFile={handleArchiveSelect}
-            />
+            <ArchiveImportModal isOpen={isArchiveOpen} onClose={() => setIsArchiveOpen(false)} caseId={caseId} mode="select" allowedExtensions={['pdf', 'docx', 'txt']} onSelectFile={handleArchiveSelect} />
         </div>
     );
 };

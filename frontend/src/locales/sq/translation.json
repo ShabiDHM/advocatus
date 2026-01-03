@@ -169,7 +169,7 @@
   },
   "analyst": {
     "title": "Analisti Financiar",
-    "subtitle": "Ngarko të dhëna Excel/CSV për analizë forenzike të automatizuar.",
+    "subtitle": "Ngarko të dhëna Excel/CSV për analizë forenzike.",
     "selectFile": "Zgjidhni Spreadsheet...",
     "analyzing": "Duke Analizuar...",
     "run": "Ekzekuto Analizën",
