@@ -1,7 +1,7 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING SERVICE V19.0 (DIRECT MODE)
-# 1. UPGRADE: Uses 'generate_legal_draft' instead of 'chat' to avoid ReAct loops.
-
+# PHOENIX PROTOCOL - DRAFTING SERVICE V19.1 (PROMPT INTEGRATION FIX)
+# 1. FIX: Integrated 'user_prompt' directly into the final instruction for the RAG service.
+# 2. STATUS: Ensures user's specific details are not lost during draft generation.
 
 import os
 import io
@@ -33,25 +33,27 @@ async def generate_draft(
     user_prompt: str,
 ) -> str:
     """
-    Uses the Direct Generation Mode to write legal drafts.
+    Uses the Direct Generation Mode to write legal drafts, integrating user prompt with RAG context.
     """
     logger.info(f"Initializing Drafting Service for type: {draft_type}")
     
     template_instruction = TEMPLATE_MAP.get(draft_type, TEMPLATE_MAP["generic"])
 
-    # Combined instruction for the AI
+    # PHOENIX FIX: Combine all instructions into a single prompt for the RAG service.
     final_instruction = f"""
-    LLOJI I DOKUMENTIT: {draft_type.upper()}
-    STRUKTURA E KËRKUAR: {template_instruction}
+    DETYRA SPECIFIKE: {user_prompt}
     
-    DETAJET SPECIFIKE NGA PËRDORUESI:
-    {user_prompt}
+    UDHËZIME SHTESË:
+    - LLOJI I DOKUMENTIT: {draft_type.upper()}
+    - STRUKTURA E KËRKUAR: {template_instruction}
+    
+    Harto dokumentin bazuar në detajet specifike të dhëna më lart, duke përdorur faktet dhe ligjet relevante.
     """
     
     try:
         agent_service = AlbanianRAGService(db)
         
-        # PHOENIX FIX: Call the dedicated drafting method, NOT the chat agent.
+        # This now passes the complete context to the agent's drafting method.
         final_draft = await agent_service.generate_legal_draft(
             instruction=final_instruction,
             user_id=user_id,
