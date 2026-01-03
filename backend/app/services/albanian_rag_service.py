@@ -1,7 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V25.2 (TYPE FIX)
-# 1. FIX: Corrected argument passing in 'query_private_diary' (n_results vs case_id).
-# 2. STATUS: Type error resolved.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V25.3 (PROMPT FIX)
+# 1. FIX: Restored required '{{tool_names}}' variable in Researcher Prompt.
+# 2. STATUS: Resolves 'Prompt missing required variables' crash.
 
 import os
 import asyncio
@@ -116,14 +116,15 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # CHAT PROMPT (Strategic Advisor)
+        # CHAT PROMPT (Strategic Advisor + ReAct Logic)
         researcher_template = f"""
         Ti je "Juristi AI", këshilltar ligjor strategjik.
         
         {STRICT_FORENSIC_RULES}
         {VISUAL_STYLE_PROTOCOL}
 
-        MJETET: {{tools}}
+        MJETET E DISPONUESHME:
+        {{tools}}
         
         PROTOKOLLI I MENDIMIT (DUAL BRAIN):
         1. Gjej FAKTET (Private Diary).
@@ -132,7 +133,17 @@ class AlbanianRAGService:
            - Përdor stilin shpjegues (Plain Language) për klientin.
            - Përdor seksionin "**📌 Si ndikon kjo në rastin tuaj:**".
         
-        Përdor ReAct:
+        FORMATI REACT (DETYRUESHËM):
+        Question: Pyetja e hyrjes
+        Thought: Mendo çfarë të bësh (Cilin mjet të përdor?)
+        Action: Një nga [{{tool_names}}]
+        Action Input: Inputi për veprimin
+        Observation: Rezultati i veprimit
+        ... (Përsërit derisa të kesh përgjigjen)
+        Thought: Tani e di përgjigjen.
+        Final Answer: Përgjigja përfundimtare për klientin.
+        
+        Fillo!
         Question: {{input}}
         Thought: {{agent_scratchpad}}
         """
@@ -172,7 +183,7 @@ class AlbanianRAGService:
             return res.get('output', 'Nuk ka përgjigje.')
         except Exception as e:
             logger.error(f"Chat error: {e}")
-            return "Gabim teknik."
+            return f"Gabim teknik: {str(e)[:50]}"
 
     async def generate_legal_draft(self, instruction: str, user_id: str, case_id: Optional[str]) -> str:
         if not self.llm: return "Gabim AI."
@@ -180,19 +191,17 @@ class AlbanianRAGService:
             case_summary = await self._get_case_summary(case_id)
             from . import vector_store_service
             
-            # 1. Facts from Case Brain (FIXED ARGUMENTS)
             try:
                 p_docs = vector_store_service.query_private_diary(
                     user_id=user_id, 
                     query_text=instruction[:300], 
-                    case_context_id=case_id # Pass case_id specifically as keyword arg
+                    case_context_id=case_id
                 )
                 facts = "\n".join([d.get('text', '') for d in p_docs]) if p_docs else "S'ka dokumente specifike."
             except Exception as e:
                 logger.warning(f"Error fetching facts: {e}")
                 facts = "Gabim në marrjen e fakteve."
             
-            # 2. Laws from Global Brain
             try:
                 l_docs = vector_store_service.query_public_library(instruction[:300])
                 laws = "\n".join([d.get('text', '') for d in l_docs]) if l_docs else "Referohu parimeve ligjore."
@@ -200,7 +209,6 @@ class AlbanianRAGService:
                 logger.warning(f"Error fetching laws: {e}")
                 laws = "Gabim në marrjen e ligjeve."
 
-            # 3. DRAFTING PROMPT (Senior Counsel Mode)
             drafting_prompt = f"""
             Ti je Avokat Kryesor (Senior Counsel).
             Ti po harton një DOKUMENT ZYRËTAR LIGJOR (Për Gjykatë/Institucion).
