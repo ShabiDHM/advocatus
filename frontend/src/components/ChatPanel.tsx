@@ -1,7 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V3.3 (FINAL CLEANUP)
-// 1. REFACTOR: Removed unused 'node' and 'props' from link renderer.
-// 2. STATUS: Clean, warning-free, and fully functional.
+// PHOENIX PROTOCOL - CHAT PANEL V3.5 (NON-INTERACTIVE STYLING)
+// 1. VISUALS: Preserved Blue (Laws) and Yellow Badge (Evidence) styles.
+// 2. UX: Disabled clickability for ALL internal citations as requested.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -46,7 +46,6 @@ const MessageCopyButton: React.FC<{ text: string }> = ({ text }) => {
 };
 
 // --- HELPER: CUSTOM MARKDOWN COMPONENTS ---
-// PHOENIX: Custom Renderers for Beautiful Citations
 const MarkdownComponents = {
     p: ({node, ...props}: any) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />, 
     strong: ({node, ...props}: any) => <span className="font-bold text-accent-end" {...props} />, 
@@ -57,23 +56,42 @@ const MarkdownComponents = {
     blockquote: ({node, ...props}: any) => <blockquote className="border-l-2 border-primary-start pl-3 py-1 my-2 bg-white/5 rounded-r text-text-secondary italic" {...props} />, 
     code: ({node, ...props}: any) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent-end" {...props} />, 
     
-    // PHOENIX: The Citation Badge Logic (Cleaned Up)
+    // PHOENIX: Smart Link Handling (Non-Clickable Styles)
     a: ({href, children}: any) => {
-        const contentStr = String(Array.isArray(children) ? children[0] : children);
+        // Recursive helper to get raw text even if bolded/nested
+        const getText = (child: any): string => {
+            if (!child) return '';
+            if (typeof child === 'string') return child;
+            if (Array.isArray(child)) return child.map(getText).join('');
+            if (child.props && child.props.children) return getText(child.props.children);
+            return '';
+        };
+
+        const contentStr = getText(children);
         const isEvidence = contentStr.includes("PROVA") || contentStr.includes("Dokument");
         const isDocLink = href?.startsWith('doc://');
         
-        if (isDocLink && isEvidence) {
+        if (isDocLink) {
+            // CASE 1: Evidence (Yellow Badge - Non-Clickable)
+            if (isEvidence) {
+                return (
+                    <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide cursor-default mx-0.5" title="Evidence Document">
+                        <FileCheck size={10} className="flex-shrink-0" />
+                        {children}
+                    </span>
+                );
+            }
+            
+            // CASE 2: Laws/Codes (Blue Text - Non-Clickable)
             return (
-                <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-pointer transition-colors mx-0.5" title="View Evidence">
-                    <FileCheck size={10} className="flex-shrink-0" />
+                <span className="text-blue-400 font-bold cursor-text mx-0.5">
                     {children}
                 </span>
             );
         }
         
-        // Non-clickable Blue Text for Laws
-        return <span className="text-blue-400 font-bold mx-0.5 cursor-text">{children}</span>;
+        // CASE 3: External Web Links (Still Clickable for Safety)
+        return <a className="text-primary-start hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" href={href}>{children}</a>;
     },
 
     table: ({node, ...props}: any) => <div className="overflow-x-auto my-3"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>, 
