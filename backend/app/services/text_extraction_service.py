@@ -1,18 +1,15 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V8.3 (ADAPTED FOR STREAMING)
-# 1. LOGIC: Preserved ALL V8.2 Hybrid features (Layout Sort, Smart OCR Fallback, Threading).
-# 2. INTEGRATION: Added 'extract_text_from_file' wrapper to handle BytesIO streams from Celery.
-# 3. SAFETY: Uses temp files to ensure complex libraries (PyMuPDF/CV2) work reliably.
+# PHOENIX PROTOCOL - OCR ENGINE V8.4 (ROBUST STREAM HANDLER)
+# 1. FIX: 'extract_text_from_file' now correctly parses the filename to determine the extension.
+# 2. STATUS: Resolves the 500 Internal Server Error during Deposition Analysis.
 
 import fitz  # PyMuPDF
 import docx
-from pptx import Presentation # Requires python-pptx
+from pptx import Presentation
 import pandas as pd
 import csv
-from typing import Dict, Callable, Any, Optional, Union
+from typing import Dict, Callable, Any, Optional
 import logging
-import cv2
-import numpy as np
 import io
 import concurrent.futures
 import time
@@ -20,7 +17,7 @@ import os
 import tempfile
 import uuid
 
-# Link to our advanced OCR engine (only loaded if needed)
+# Link to OCR (optional)
 try:
     from .ocr_service import extract_text_from_image as advanced_image_ocr
 except ImportError:
@@ -31,53 +28,37 @@ logger = logging.getLogger(__name__)
 MAX_WORKERS = 2 
 
 def _sanitize_text(text: str) -> str:
-    """Removes null bytes and cleans text."""
     if not text: return ""
     return text.replace("\x00", "")
 
 def _sort_blocks(blocks):
-    """
-    Sorts blocks first by vertical position (Y0), then by horizontal (X0).
-    Tolerance of 3 pixels allows for slight misalignment in rows.
-    """
     return sorted(blocks, key=lambda b: (int(b[1] / 3), int(b[0])))
 
 def _process_single_page_safe(doc_path: str, page_num: int) -> str:
-    """
-    Extracts text from a single PDF page with Layout Preservation.
-    PHOENIX OPTIMIZATION: Checks for digital text first.
-    """
     page_marker = f"\n--- [FAQJA {page_num + 1}] ---\n"
     try:
         with fitz.open(doc_path) as doc:
             page: Any = doc[page_num]
             
-            # 1. Try Direct Text Extraction (BLOCK MODE) - FAST PATH
             blocks = page.get_text("blocks")
-            
             text = ""
             if blocks:
-                # Sort blocks to ensure reading order (Row by Row)
                 sorted_blocks = _sort_blocks(blocks)
                 text = "\n".join([b[4] for b in sorted_blocks])
 
-            # If meaningful text is found (>50 chars), return immediately.
             if text and len(text.strip()) > 50:
                 return page_marker + _sanitize_text(text)
             
-            # 2. Fallback: Optical Recognition - SLOW PATH
-            logger.info(f"Page {page_num} seems scanned (text len < 50). Engaging Optical OCR...")
+            logger.info(f"Page {page_num} seems scanned. Engaging Optical OCR...")
             
             if not advanced_image_ocr:
                 return page_marker + "[SCANNED DOCUMENT - NO OCR AVAILABLE]"
 
-            # Render page to image
             zoom = 2.0 
             mat = fitz.Matrix(zoom, zoom)
             pix = page.get_pixmap(matrix=mat) 
             img_data = pix.tobytes("png")
             
-            # Save temp file for OCR service
             temp_img_path = f"/tmp/page_{page_num}_{uuid.uuid4()}.png"
             with open(temp_img_path, "wb") as f:
                 f.write(img_data)
@@ -98,12 +79,10 @@ def _process_single_page_safe(doc_path: str, page_num: int) -> str:
         return "" 
 
 def _process_single_page_wrapper(args) -> str:
-    """Wrapper for parallel processing unpacking."""
     try: return _process_single_page_safe(*args)
     except Exception: return ""
 
 def _extract_text_sequentially(file_path: str, total_pages: int) -> str:
-    """Fallback sequential processing."""
     buffer = []
     for i in range(total_pages):
         buffer.append(_process_single_page_safe(file_path, i))
@@ -146,11 +125,7 @@ def _extract_text_from_docx(file_path: str) -> str:
 def _extract_text_from_pptx(file_path: str) -> str:
     try:
         prs = Presentation(file_path)
-        text_runs = []
-        for slide in prs.slides:
-            for shape in slide.shapes:
-                if hasattr(shape, "text"):
-                    text_runs.append(shape.text)
+        text_runs = [shape.text for slide in prs.slides for shape in slide.shapes if hasattr(shape, "text")]
         return _sanitize_text("\n".join(text_runs))
     except Exception as e:
         logger.error(f"PPTX Error: {e}")
@@ -179,87 +154,58 @@ def _extract_text_from_csv(file_path: str) -> str:
 def _extract_text_from_excel(file_path: str) -> str:
     try:
         xls = pd.ExcelFile(file_path)
-        full_text = []
-        for sheet_name in xls.sheet_names:
-            df = xls.parse(sheet_name)
-            if df.empty: continue
-            full_text.append(f"--- Sheet: {sheet_name} ---")
-            full_text.append(df.to_string(index=False, na_rep=""))
+        full_text = [f"--- Sheet: {sheet_name} ---\n{xls.parse(sheet_name).to_string(index=False, na_rep='')}" for sheet_name in xls.sheet_names if not xls.parse(sheet_name).empty]
         return _sanitize_text("\n".join(full_text))
     except Exception: return ""
 
 EXTRACTION_MAP: Dict[str, Callable[[str], str]] = {
-    "application/pdf": _extract_text_from_pdf,
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": _extract_text_from_docx,
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": _extract_text_from_pptx,
-    "image/png": _extract_text_from_image, 
-    "image/jpeg": _extract_text_from_image, 
-    "image/tiff": _extract_text_from_image,
-    "image/jpg": _extract_text_from_image,
-    "text/plain": _extract_text_from_txt, 
-    "text/csv": _extract_text_from_csv,
-    "application/vnd.ms-excel": _extract_text_from_excel,
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": _extract_text_from_excel
+    ".pdf": _extract_text_from_pdf,
+    ".docx": _extract_text_from_docx,
+    ".pptx": _extract_text_from_pptx,
+    ".png": _extract_text_from_image, 
+    ".jpeg": _extract_text_from_image, 
+    ".tiff": _extract_text_from_image,
+    ".jpg": _extract_text_from_image,
+    ".txt": _extract_text_from_txt, 
+    ".csv": _extract_text_from_csv,
+    ".xls": _extract_text_from_excel,
+    ".xlsx": _extract_text_from_excel
 }
 
-def extract_text(file_path: str, mime_type: str) -> str:
+def extract_text(file_path: str, mime_type: Optional[str] = None) -> str:
     """
-    Internal Entry Point (Path-Based).
+    Internal Entry Point (Path-Based). Determines extractor from file extension.
     """
-    normalized_mime_type = mime_type.split(';')[0].strip().lower()
-    extractor = EXTRACTION_MAP.get(normalized_mime_type)
+    _, ext = os.path.splitext(file_path)
+    extractor = EXTRACTION_MAP.get(ext.lower())
     
-    if not extractor:
-        if file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.tiff')):
-            return _extract_text_from_image(file_path)
-        if "text/" in normalized_mime_type: 
-            return _extract_text_from_txt(file_path)
-        return _extract_text_from_txt(file_path)
-        
-    return extractor(file_path)
+    if extractor:
+        return extractor(file_path)
+    
+    logger.warning(f"No specific extractor for extension '{ext}'. Falling back to plain text.")
+    return _extract_text_from_txt(file_path)
 
-# --- PHOENIX BRIDGE: STREAM HANDLER ---
-def extract_text_from_file(file_obj: io.BytesIO, file_type: str = "PDF") -> str:
+# --- PHOENIX BRIDGE: STREAM HANDLER (Corrected) ---
+def extract_text_from_file(file_obj: io.BytesIO, filename: str) -> str:
     """
     Public Entry Point (Stream-Based).
-    Adapts the BytesIO stream from Celery to the Path-based logic required by V8.2.
+    Correctly determines file type from the provided filename.
     """
-    # 1. Map file_type to MIME or extension
-    extension_map = {
-        "PDF": ".pdf",
-        "DOCX": ".docx",
-        "PPTX": ".pptx",
-        "PNG": ".png",
-        "JPG": ".jpg",
-        "JPEG": ".jpeg",
-        "TXT": ".txt",
-        "CSV": ".csv",
-        "XLSX": ".xlsx"
-    }
-    ext = extension_map.get(file_type.upper(), ".bin")
-    
-    # 2. Determine MIME type for internal map
-    mime_map = {
-        "PDF": "application/pdf",
-        "DOCX": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "PPTX": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "XLSX": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "CSV": "text/csv",
-        "TXT": "text/plain",
-        "PNG": "image/png",
-        "JPG": "image/jpeg"
-    }
-    mime_type = mime_map.get(file_type.upper(), "application/octet-stream")
+    # 1. Get extension from filename
+    _, ext = os.path.splitext(filename)
+    if not ext:
+        logger.warning(f"Filename '{filename}' has no extension. Assuming .txt")
+        ext = ".txt"
 
-    # 3. Write Stream to Temp File (Essential for PyMuPDF/CV2 stability)
+    # 2. Write Stream to Temp File
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp.write(file_obj.getvalue())
         tmp_path = tmp.name
 
     try:
-        # 4. Delegate to the Robust V8.2 Logic
-        return extract_text(tmp_path, mime_type)
+        # 3. Delegate to the path-based logic
+        return extract_text(tmp_path)
     finally:
-        # 5. Clean up
+        # 4. Clean up
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
