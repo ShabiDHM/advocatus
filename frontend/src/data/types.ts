@@ -1,7 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES V5.1 (FEATURE 3: SPREADSHEET ANALYST)
-// 1. ADDED: SpreadsheetAnalysisResult, ChartConfig, Anomaly, and related interfaces.
-// 2. STATUS: Contains Legal, Case, Chat, Calendar, Finance, and Analyst types.
+// PHOENIX PROTOCOL - TYPES V5.2 (FEATURE 4: DEPOSITION ANALYST)
+// 1. ADDED: DepositionAnalysisResult and sub-interfaces.
+// 2. STATUS: Contains Legal, Case, Chat, Calendar, Finance, Spreadsheet, and Deposition types.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -77,7 +77,7 @@ export interface GraphNode { id: string; name: string; group: string; val: numbe
 export interface GraphLink { source: string; target: string; label: string; }
 export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
 
-// NEW: Spreadsheet Analyst Types
+// Spreadsheet Analyst Types
 export interface SpreadsheetAnomaly {
     row_index: number;
     column: string;
@@ -107,10 +107,40 @@ export interface SpreadsheetAnalysisResult {
     filename: string;
     record_count: number;
     columns: string[];
-    narrative_report: string; // The "AI" story about the data
+    narrative_report: string; 
     charts: AnalysisChartConfig[];
     anomalies: SpreadsheetAnomaly[];
     key_statistics: Record<string, string | number>;
-    preview_rows?: Record<string, any>[]; // First 10-20 rows for user validation
+    preview_rows?: Record<string, any>[]; 
+    processed_at: string;
+}
+
+// NEW: Deposition Analyst Types
+export interface DepositionInconsistency {
+    statement: string;
+    contradiction: string;
+    source_ref: string; // e.g. "Faqja 12, Rreshti 4"
+    severity: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export interface EmotionalSegment {
+    segment: string;
+    emotion: 'ANGER' | 'FEAR' | 'CONFUSION' | 'DECEPTION_INDICATOR' | 'HESITATION';
+    analysis: string;
+}
+
+export interface StrategicQuestion {
+    question: string;
+    rationale: string;
+    strategy: 'TRAP' | 'CLARIFY' | 'PRESSURE' | 'DISCREDIT';
+}
+
+export interface DepositionAnalysisResult {
+    witness_name?: string;
+    credibility_score: number; // 0-100
+    summary: string;
+    inconsistencies: DepositionInconsistency[];
+    emotional_segments: EmotionalSegment[];
+    suggested_questions: StrategicQuestion[];
     processed_at: string;
 }

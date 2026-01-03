@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V5.3 (SYNTAX FIX)
-# 1. FIX: Reordered arguments in 'analyze_spreadsheet_endpoint' to satisfy non-default argument rules.
-# 2. STATUS: Linter clean.
+# PHOENIX PROTOCOL - ROUTER FIX V6.1 (ARGUMENT MISMATCH)
+# 1. FIX: Removed extra 'mime_type' argument from 'extract_text_from_file' call to resolve Pylance error.
+# 2. STATUS: Deposition Analysis endpoint now matches service signature.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -29,7 +29,8 @@ from ...services import (
     pdf_service,
     llm_service,
     drafting_service,
-    spreadsheet_service
+    spreadsheet_service,
+    text_extraction_service
 )
 
 # --- MODEL IMPORTS ---
@@ -327,7 +328,7 @@ async def analyze_case_risks(case_id: str, current_user: Annotated[UserInDB, Dep
         user_id=str(current_user.id)
     ))
 
-# --- NEW: SPREADSHEET ANALYST ENDPOINT (FIXED SIGNATURE) ---
+# --- FEATURE 3: SPREADSHEET ANALYST ---
 @router.post("/{case_id}/analyze/spreadsheet", tags=["Analysis"])
 async def analyze_spreadsheet_endpoint(
     case_id: str,
@@ -335,29 +336,59 @@ async def analyze_spreadsheet_endpoint(
     file: UploadFile = File(...),
     db: Database = Depends(get_db)
 ):
-    """
-    Analyzes an uploaded Excel/CSV file for financial anomalies and generates a report.
-    """
     validate_object_id(case_id)
-    # 1. Verify Case Ownership
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case: raise HTTPException(status_code=404, detail="Case not found.")
 
-    # 2. Read File
     try:
         content = await file.read()
         filename = file.filename or "unknown.xlsx"
-        
-        # 3. Process
         result = await spreadsheet_service.analyze_spreadsheet_file(content, filename)
-        
-        # Optional: Save result to DB if needed in future, currently just returning to UI
         return JSONResponse(content=result)
         
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logger.error(f"Spreadsheet Analysis Error: {e}")
+        raise HTTPException(status_code=500, detail="Analysis failed.")
+
+# --- FEATURE 4: DEPOSITION ANALYST ---
+@router.post("/{case_id}/analyze/deposition", tags=["Analysis"])
+async def analyze_deposition_endpoint(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    file: UploadFile = File(...),
+    db: Database = Depends(get_db)
+):
+    validate_object_id(case_id)
+    case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
+    if not case: raise HTTPException(status_code=404, detail="Case not found.")
+
+    try:
+        content = await file.read()
+        filename = file.filename or "transcript.pdf"
+        mime_type = file.content_type or "application/pdf"
+        
+        # 1. Extract Text (Corrected to 2 arguments)
+        text = ""
+        if filename.lower().endswith('.txt'):
+            text = content.decode('utf-8', errors='ignore')
+        else:
+            file_obj = io.BytesIO(content)
+            # FIX: Only passed file_obj and filename
+            text = await asyncio.to_thread(text_extraction_service.extract_text_from_file, file_obj, filename)
+            
+        if not text or len(text) < 50:
+            raise HTTPException(status_code=400, detail="Could not extract text. File may be scanned image.")
+
+        # 2. Analyze
+        result = await asyncio.to_thread(llm_service.analyze_deposition_transcript, text)
+        result["processed_at"] = datetime.now().isoformat()
+        
+        return JSONResponse(content=result)
+        
+    except Exception as e:
+        logger.error(f"Deposition Analysis Error: {e}")
         raise HTTPException(status_code=500, detail="Analysis failed.")
 
 @router.get("/public/{case_id}/timeline", tags=["Public Portal"])

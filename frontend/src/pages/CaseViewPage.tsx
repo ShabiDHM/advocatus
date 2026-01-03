@@ -1,33 +1,51 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - REFACTOR V10.6 (NAVIGATION UX)
-// 1. UX: Changed Analyst return button to use 'ArrowLeft' icon.
-// 2. TEXT: Prepared for 'Kthehu Mbrapa' translation.
+// PHOENIX PROTOCOL - CLEANUP V1.1 (UNUSED IMPORT)
+// 1. FIX: Removed unused 'LayoutGrid' import.
+// 2. STATUS: Clean build.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
+import { useTranslation } from 'react-i18next';
+import { TFunction } from 'i18next';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+    AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, 
+    ArrowLeft, Activity, BrainCircuit 
+} from 'lucide-react';
+
+// --- CONTEXT & HOOKS ---
+import { useAuth } from '../context/AuthContext';
+import { useDocumentSocket } from '../hooks/useDocumentSocket';
+
+// --- API & UTILS ---
 import { apiService, API_V1_URL } from '../services/api';
+import { sanitizeDocument } from '../utils/documentUtils';
+
+// --- TYPES ---
+import { 
+    Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage 
+} from '../data/types';
+
+// --- COMPONENTS ---
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel, { ChatMode, Jurisdiction } from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
-import SpreadsheetAnalyst from '../components/SpreadsheetAnalyst';
-import { useDocumentSocket } from '../hooks/useDocumentSocket';
-import { useTranslation } from 'react-i18next';
-import { useAuth } from '../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, ArrowLeft, Activity } from 'lucide-react'; // Changed LayoutGrid to ArrowLeft
-import { sanitizeDocument } from '../utils/documentUtils';
-import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
 
+// --- FEATURE COMPONENTS ---
+import SpreadsheetAnalyst from '../components/SpreadsheetAnalyst';
+import DepositionAnalyst from '../components/DepositionAnalyst';
+
+// --- LOCAL TYPES ---
 type CaseData = {
     details: Case | null;
 };
 type ActiveModal = 'none' | 'analysis';
-type ViewMode = 'workspace' | 'analyst';
+type ViewMode = 'workspace' | 'analyst' | 'deposition';
 
+// --- HELPER FUNCTIONS ---
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     if (!data) return [];
     const rawArray = data.chat_history || data.chatHistory || data.history || data.messages || [];
@@ -40,6 +58,8 @@ const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
         return { role, content, timestamp };
     }).filter(msg => msg.content.trim() !== '');
 };
+
+// --- SUB-COMPONENTS ---
 
 const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRename: (newName: string) => Promise<void>; currentName: string; t: TFunction; }> = ({ isOpen, onClose, onRename, currentName, t }) => {
     const [name, setName] = useState(currentName);
@@ -123,7 +143,7 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              {/* CONTROL BAR - Consolidated Navigation */}
+              {/* CONTROL BAR */}
               <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full animate-in fade-in slide-in-from-top-2">
                     {/* Date Badge */}
                     <div className="flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap min-w-[140px]">
@@ -141,13 +161,18 @@ const CaseHeader: React.FC<{
                                 {t('analyst.subtitle', 'Smart Financial Analysis Mode')}
                             </div>
                         )}
+                        {viewMode === 'deposition' && (
+                            <div className="w-full h-full flex items-center px-4 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-300 italic text-sm">
+                                {t('deposition.subtitle', 'Forensic Deposition Analysis Mode')}
+                            </div>
+                        )}
                     </div>
                     
                     {/* ACTION BUTTONS */}
                     
-                    {/* 1. Financial Analyst Toggle */}
+                    {/* 1. Financial Analyst */}
                     <button 
-                        onClick={() => setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
+                        onClick={() => setViewMode(viewMode === 'analyst' ? 'workspace' : 'analyst')}
                         className={`
                             w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
                             flex items-center justify-center gap-2.5 
@@ -165,16 +190,36 @@ const CaseHeader: React.FC<{
                         </span>
                     </button>
 
-                    {/* 2. Analyze Case Button */}
+                    {/* 2. Deposition Analyst (Feature 4) */}
                     <button 
-                        onClick={onAnalyze} 
-                        disabled={isAnalyzing || viewMode === 'analyst'} 
+                        onClick={() => setViewMode(viewMode === 'deposition' ? 'workspace' : 'deposition')}
                         className={`
                             w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
                             flex items-center justify-center gap-2.5 
                             text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
                             border border-transparent
-                            ${(isAnalyzing || viewMode === 'analyst') 
+                            ${viewMode === 'deposition' 
+                                ? 'bg-white/10 border-white/20 hover:bg-white/20' 
+                                : 'bg-gradient-to-r from-purple-700 to-purple-600 hover:from-purple-600 hover:to-purple-500 hover:scale-[1.02] active:scale-95 shadow-purple-900/20'
+                            }
+                        `}
+                    >
+                        {viewMode === 'deposition' ? <ArrowLeft className="h-4 w-4" /> : <BrainCircuit className="h-4 w-4" />}
+                        <span>
+                            {viewMode === 'deposition' ? t('caseView.workspace') : t('caseView.deposition')}
+                        </span>
+                    </button>
+
+                    {/* 3. Analyze Case Button */}
+                    <button 
+                        onClick={onAnalyze} 
+                        disabled={isAnalyzing || viewMode !== 'workspace'} 
+                        className={`
+                            w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
+                            flex items-center justify-center gap-2.5 
+                            text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
+                            border border-transparent
+                            ${(isAnalyzing || viewMode !== 'workspace') 
                                 ? 'bg-white/5 border border-white/10 cursor-not-allowed opacity-50' 
                                 : 'bg-gradient-to-r from-gray-700 to-gray-600 hover:from-gray-600 hover:to-gray-500 hover:scale-[1.02] active:scale-95 shadow-black/20'
                             }
@@ -208,7 +253,6 @@ const CaseViewPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // PDF Viewer State
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [minimizedDocument, setMinimizedDocument] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
@@ -278,7 +322,7 @@ const CaseViewPage: React.FC = () => {
         
         {/* MAIN CONTENT AREA - SWITCHES BASED ON VIEW MODE */}
         <AnimatePresence mode="wait">
-            {viewMode === 'workspace' ? (
+            {viewMode === 'workspace' && (
                 <motion.div 
                     key="workspace"
                     initial={{ opacity: 0, x: -20 }}
@@ -312,7 +356,9 @@ const CaseViewPage: React.FC = () => {
                         activeContextId={activeContextId} 
                     />
                 </motion.div>
-            ) : (
+            )}
+            
+            {viewMode === 'analyst' && (
                 <motion.div
                     key="analyst"
                     initial={{ opacity: 0, x: 20 }}
@@ -321,6 +367,18 @@ const CaseViewPage: React.FC = () => {
                     transition={{ duration: 0.2 }}
                 >
                     <SpreadsheetAnalyst caseId={caseData.details.id} />
+                </motion.div>
+            )}
+
+            {viewMode === 'deposition' && (
+                <motion.div
+                    key="deposition"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ duration: 0.2 }}
+                >
+                    <DepositionAnalyst caseId={caseData.details.id} />
                 </motion.div>
             )}
         </AnimatePresence>
