@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CLEANUP V1.1 (UNUSED IMPORT)
-// 1. FIX: Removed unused 'LayoutGrid' import.
-// 2. STATUS: Clean build.
+// PHOENIX PROTOCOL - REFACTOR V10.8 (UNIFIED STYLING)
+// 1. STYLE: Deposition button now matches the standard gray/metallic theme.
+// 2. STATUS: Visual consistency across all toolbar actions.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -190,7 +190,7 @@ const CaseHeader: React.FC<{
                         </span>
                     </button>
 
-                    {/* 2. Deposition Analyst (Feature 4) */}
+                    {/* 2. Deposition Analyst (Feature 4) - NOW UNIFIED STYLE */}
                     <button 
                         onClick={() => setViewMode(viewMode === 'deposition' ? 'workspace' : 'deposition')}
                         className={`
@@ -200,7 +200,7 @@ const CaseHeader: React.FC<{
                             border border-transparent
                             ${viewMode === 'deposition' 
                                 ? 'bg-white/10 border-white/20 hover:bg-white/20' 
-                                : 'bg-gradient-to-r from-purple-700 to-purple-600 hover:from-purple-600 hover:to-purple-500 hover:scale-[1.02] active:scale-95 shadow-purple-900/20'
+                                : 'bg-gradient-to-r from-gray-700 to-gray-600 hover:from-gray-600 hover:to-gray-500 hover:scale-[1.02] active:scale-95 shadow-black/20'
                             }
                         `}
                     >
