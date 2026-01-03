@@ -1,12 +1,12 @@
 // FILE: src/components/ArchiveImportModal.tsx
-// PHOENIX PROTOCOL - ARCHIVE MODAL V3.0 (SELECTOR MODE)
-// 1. FEATURE: Added 'mode' prop to support 'select-only' for Analyst tools.
-// 2. LOGIC: Returns the selected item instead of auto-importing when in 'select' mode.
+// PHOENIX PROTOCOL - ARCHIVE MODAL V3.1 (ROBUST FILTERING)
+// 1. FIX: Improved filtering to check file_type and MIME types, not just title extensions.
+// 2. LOGIC: Ensures files named without extensions (e.g. "Contract") still appear if their type matches.
 
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Folder, FileText, ChevronRight, ArrowLeft, Loader2, Check } from 'lucide-react';
+import { X, Folder, FileText, ChevronRight, ArrowLeft, Loader2, Check, File } from 'lucide-react';
 import { apiService } from '../services/api';
 import { ArchiveItemOut } from '../data/types';
 
@@ -14,10 +14,10 @@ interface ArchiveImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   caseId: string;
-  onImportComplete?: (count: number) => void; // Optional now
-  onSelectFile?: (file: ArchiveItemOut) => void; // New callback for Analyst
-  mode?: 'import' | 'select'; // Default is 'import'
-  allowedExtensions?: string[]; // Optional filter
+  onImportComplete?: (count: number) => void;
+  onSelectFile?: (file: ArchiveItemOut) => void;
+  mode?: 'import' | 'select';
+  allowedExtensions?: string[]; // e.g. ['pdf', 'docx']
 }
 
 const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ 
@@ -34,22 +34,43 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({
   useEffect(() => {
     if (isOpen) {
         fetchItems(currentFolderId);
-        setSelectedIds(new Set()); // Reset selection on open
+        setSelectedIds(new Set());
     }
   }, [isOpen, currentFolderId]);
 
   const fetchItems = async (parentId?: string) => {
     setLoading(true);
     try {
+      // 1. Fetch items filtered by Case ID
       const data = await apiService.getArchiveItems(undefined, caseId, parentId);
       
-      // Filter by extension if in select mode
+      // 2. Client-side filtering for 'select' mode
       let filteredData = data;
-      if (mode === 'select' && allowedExtensions) {
+      if (mode === 'select' && allowedExtensions && allowedExtensions.length > 0) {
           filteredData = data.filter(item => {
+              // Always show folders so we can navigate
               if (item.item_type === 'FOLDER') return true;
-              const ext = item.title.split('.').pop()?.toLowerCase() || '';
-              return allowedExtensions.includes(ext);
+              
+              // Check 1: Title Extension (e.g. "file.pdf")
+              const titleExt = item.title.split('.').pop()?.toLowerCase() || '';
+              
+              // Check 2: Database File Type (e.g. "pdf", "docx")
+              const typeExt = item.file_type?.toLowerCase() || '';
+              
+              // Check 3: Fuzzy MIME Type matching
+              let mimeMatch = false;
+              if (typeExt.includes('pdf')) mimeMatch = allowedExtensions.includes('pdf');
+              if (typeExt.includes('word') || typeExt.includes('officedocument') || typeExt.includes('docx')) {
+                  mimeMatch = allowedExtensions.includes('docx') || allowedExtensions.includes('doc');
+              }
+              if (typeExt.includes('sheet') || typeExt.includes('excel') || typeExt.includes('spreadsheet')) {
+                  mimeMatch = allowedExtensions.includes('xlsx') || allowedExtensions.includes('xls') || allowedExtensions.includes('csv');
+              }
+              if (typeExt.includes('text') || typeExt.includes('csv')) {
+                  mimeMatch = allowedExtensions.includes('txt') || allowedExtensions.includes('csv');
+              }
+
+              return allowedExtensions.includes(titleExt) || allowedExtensions.includes(typeExt) || mimeMatch;
           });
       }
       
@@ -80,8 +101,16 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => {
       const newSet = new Set<string>();
-      if (prev.has(id)) return newSet;
-      newSet.add(id); // Single selection
+      if (prev.has(id)) return newSet; // Deselect not really supported in single select logic here effectively
+      
+      // In select mode for analysis, strictly single select
+      if (mode === 'select') {
+          newSet.add(id);
+          return newSet;
+      }
+      
+      // In import mode, maybe multi? Keeping single for consistency unless requested otherwise
+      newSet.add(id);
       return newSet;
     });
   };
@@ -90,7 +119,7 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({
     if (selectedIds.size === 0) return;
     const selectedId = Array.from(selectedIds)[0];
 
-    // MODE: SELECT (For Analyst)
+    // MODE: SELECT (Analyst)
     if (mode === 'select' && onSelectFile) {
         const item = items.find(i => i.id === selectedId);
         if (item) {
@@ -100,7 +129,7 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({
         return;
     }
 
-    // MODE: IMPORT (For Case Documents)
+    // MODE: IMPORT (Copy to Case)
     setImporting(true);
     try {
       await apiService.importArchiveDocuments(caseId, Array.from(selectedIds));
@@ -111,6 +140,15 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({
     } finally {
       setImporting(false);
     }
+  };
+
+  // Helper for icons
+  const getIcon = (item: ArchiveItemOut) => {
+      if (item.item_type === 'FOLDER') return <Folder className="text-yellow-500" size={20} />;
+      const ext = item.title.split('.').pop()?.toLowerCase();
+      if (['pdf', 'docx', 'doc', 'txt'].includes(ext || '')) return <FileText className="text-blue-400" size={20} />;
+      if (['xls', 'xlsx', 'csv'].includes(ext || '')) return <FileText className="text-green-400" size={20} />;
+      return <File className="text-gray-400" size={20} />;
   };
 
   if (!isOpen) return null;
@@ -155,7 +193,7 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({
             ))}
           </div>
 
-          {/* List */}
+          {/* List Content */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
             {loading ? (
               <div className="flex justify-center items-center h-full text-gray-500">
@@ -166,12 +204,14 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({
                  <div className="bg-white/5 p-4 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-3">
                     <Folder className="text-gray-600" size={30}/>
                  </div>
-                 Dosja është e zbrazët.
+                 <p>Dosja është e zbrazët.</p>
+                 <p className="text-xs mt-2 opacity-50">(Kontrolloni nëse keni ngarkuar dokumente në këtë Rast)</p>
               </div>
             ) : (
               items.map(item => {
                 const isSelected = selectedIds.has(item.id);
-                const isDisabled = selectedIds.size > 0 && !isSelected && item.item_type === 'FILE';
+                // In select mode, disable files that are already selected? No, single select replaces.
+                // Just highlight logic.
                 
                 return (
                   <div 
@@ -184,17 +224,15 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({
                         flex items-center justify-between p-3 rounded-xl border transition-all 
                         ${item.item_type === 'FOLDER' ? 'cursor-pointer hover:bg-white/10 border-white/5 bg-white/5' : ''}
                         ${item.item_type === 'FILE' && isSelected ? 'cursor-pointer bg-blue-900/20 border-blue-500/50' : ''}
-                        ${item.item_type === 'FILE' && !isSelected && !isDisabled ? 'cursor-pointer bg-white/5 border-white/5 hover:bg-white/10' : ''}
-                        ${isDisabled ? 'opacity-50 cursor-not-allowed bg-black/20 border-transparent' : ''}
+                        ${item.item_type === 'FILE' && !isSelected ? 'cursor-pointer bg-white/5 border-white/5 hover:bg-white/10' : ''}
                     `}
                   >
                     <div className="flex items-center gap-3">
-                      {item.item_type === 'FOLDER' ? (
-                        <Folder className="text-yellow-500" size={20} />
-                      ) : (
-                        <FileText className="text-blue-400" size={20} />
-                      )}
-                      <span className={`text-sm ${isSelected ? 'text-white font-medium' : 'text-gray-300'}`}>{item.title}</span>
+                      {getIcon(item)}
+                      <div className="flex flex-col">
+                          <span className={`text-sm ${isSelected ? 'text-white font-medium' : 'text-gray-300'}`}>{item.title}</span>
+                          {/* Optional debug info if needed: <span className="text-[10px] text-gray-600">{item.file_type}</span> */}
+                      </div>
                     </div>
                     {item.item_type === 'FILE' && (
                       <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-600'}`}>
