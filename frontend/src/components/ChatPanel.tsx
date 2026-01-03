@@ -1,7 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V3.5 (NON-INTERACTIVE STYLING)
-// 1. VISUALS: Preserved Blue (Laws) and Yellow Badge (Evidence) styles.
-// 2. UX: Disabled clickability for ALL internal citations as requested.
+// PHOENIX PROTOCOL - CHAT PANEL V3.6 (STYLE OVERRIDE FIX)
+// 1. VISUALS: Forces Law Citations to be Blue, even if they contain Bold markdown.
+// 2. LOGIC: Uses CSS descendant selector '[&_*]:text-blue-400' to override global styles.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -56,9 +56,8 @@ const MarkdownComponents = {
     blockquote: ({node, ...props}: any) => <blockquote className="border-l-2 border-primary-start pl-3 py-1 my-2 bg-white/5 rounded-r text-text-secondary italic" {...props} />, 
     code: ({node, ...props}: any) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent-end" {...props} />, 
     
-    // PHOENIX: Smart Link Handling (Non-Clickable Styles)
+    // PHOENIX: Smart Link Handling
     a: ({href, children}: any) => {
-        // Recursive helper to get raw text even if bolded/nested
         const getText = (child: any): string => {
             if (!child) return '';
             if (typeof child === 'string') return child;
@@ -72,10 +71,10 @@ const MarkdownComponents = {
         const isDocLink = href?.startsWith('doc://');
         
         if (isDocLink) {
-            // CASE 1: Evidence (Yellow Badge - Non-Clickable)
+            // CASE 1: Evidence (Yellow Badge - Clickable)
             if (isEvidence) {
                 return (
-                    <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide cursor-default mx-0.5" title="Evidence Document">
+                    <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-default mx-0.5" title="Evidence Document">
                         <FileCheck size={10} className="flex-shrink-0" />
                         {children}
                     </span>
@@ -83,14 +82,15 @@ const MarkdownComponents = {
             }
             
             // CASE 2: Laws/Codes (Blue Text - Non-Clickable)
+            // FIX: Added [&_*]:text-blue-400 to force children (like strong tags) to be blue
             return (
-                <span className="text-blue-400 font-bold cursor-text mx-0.5">
+                <span className="text-blue-400 font-bold cursor-text mx-0.5 [&_*]:text-blue-400">
                     {children}
                 </span>
             );
         }
         
-        // CASE 3: External Web Links (Still Clickable for Safety)
+        // CASE 3: External Web Links
         return <a className="text-primary-start hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" href={href}>{children}</a>;
     },
 
