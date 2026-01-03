@@ -1,7 +1,6 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FIX V1.5 (PROPS CLEANUP)
-// 1. FIX: Removed unused 'documents' prop from interface.
-// 2. STATUS: Resolves TS error in CaseViewPage.
+// PHOENIX PROTOCOL - FIX V1.6 (EXTENSION RECOVERY)
+// 1. FIX: Ensures filenames have .xlsx/.csv extension when imported from archive.
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,7 +12,6 @@ import ArchiveImportModal from './ArchiveImportModal';
 
 interface SpreadsheetAnalystProps {
     caseId: string;
-    // Removed 'documents' prop as it is not used with ArchiveImportModal
 }
 
 const SimpleBarChart: React.FC<{ chart: AnalysisChartConfig }> = ({ chart }) => {
@@ -68,7 +66,23 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         setError(null);
         try {
             const blob = await apiService.getArchiveFileBlob(item.id);
-            const importedFile = new File([blob], item.title, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            
+            // PHOENIX FIX: Intelligent extension handling
+            let filename = item.title;
+            const hasExtension = filename.includes('.');
+            
+            if (!hasExtension) {
+                const ext = item.file_type ? item.file_type.toLowerCase() : 'xlsx';
+                filename = `${filename}.${ext}`;
+            }
+
+            // Determine MIME type
+            let mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+            const finalExt = filename.split('.').pop()?.toLowerCase();
+            if (finalExt === 'csv') mimeType = 'text/csv';
+            else if (finalExt === 'xls') mimeType = 'application/vnd.ms-excel';
+
+            const importedFile = new File([blob], filename, { type: mimeType });
             setFile(importedFile);
         } catch (err) {
             console.error("Failed to load archive file:", err);

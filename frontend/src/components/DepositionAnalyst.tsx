@@ -1,7 +1,7 @@
 // FILE: src/components/DepositionAnalyst.tsx
-// PHOENIX PROTOCOL - FIX V1.3 (PROPS CLEANUP)
-// 1. FIX: Removed unused 'documents' prop from interface.
-// 2. STATUS: Resolves TS error in CaseViewPage.
+// PHOENIX PROTOCOL - FIX V1.4 (EXTENSION RECOVERY)
+// 1. FIX: Ensures imported files always have an extension so backend extraction works.
+// 2. LOGIC: Checks title extension -> falls back to file_type -> falls back to PDF.
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,7 +13,6 @@ import ArchiveImportModal from './ArchiveImportModal';
 
 interface DepositionAnalystProps {
     caseId: string;
-    // Removed 'documents' prop
 }
 
 const DepositionAnalyst: React.FC<DepositionAnalystProps> = ({ caseId }) => {
@@ -37,7 +36,24 @@ const DepositionAnalyst: React.FC<DepositionAnalystProps> = ({ caseId }) => {
         setError(null);
         try {
             const blob = await apiService.getArchiveFileBlob(item.id);
-            const importedFile = new File([blob], item.title, { type: 'application/pdf' });
+            
+            // PHOENIX FIX: Construct proper filename with extension
+            let filename = item.title;
+            const hasExtension = filename.includes('.');
+            let mimeType = 'application/pdf'; // Default
+
+            // If title lacks extension, try to use file_type from DB
+            if (!hasExtension) {
+                const ext = item.file_type ? item.file_type.toLowerCase() : 'pdf'; // Default to pdf if unknown
+                filename = `${filename}.${ext}`;
+            }
+
+            // Determine MIME type based on the (now guaranteed) extension
+            const finalExt = filename.split('.').pop()?.toLowerCase();
+            if (finalExt === 'docx') mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+            else if (finalExt === 'txt') mimeType = 'text/plain';
+            
+            const importedFile = new File([blob], filename, { type: mimeType });
             setFile(importedFile);
         } catch (err) {
             console.error("Failed to load archive file:", err);
@@ -56,7 +72,7 @@ const DepositionAnalyst: React.FC<DepositionAnalystProps> = ({ caseId }) => {
             setResult(data);
         } catch (err: any) {
             console.error(err);
-            setError(t('deposition.error.failed', 'Analysis failed.'));
+            setError(t('deposition.error.failed', 'Analysis failed. Ensure the file is a readable PDF/Docx transcript.'));
         } finally {
             setIsAnalyzing(false);
         }
