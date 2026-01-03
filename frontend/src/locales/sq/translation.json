@@ -161,12 +161,43 @@
       "CLOSED": "Mbyllur",
       "PENDING": "Në Pritje",
       "ARCHIVED": "Arkivuar"
+    },
+    "workspace": "Hapësira e Punës",
+    "analyst": "Analisti Financiar"
+  },
+  "analyst": {
+    "title": "Analisti Financiar i Mençur",
+    "subtitle": "Ngarko të dhëna Excel/CSV për analizë forenzike të automatizuar.",
+    "selectFile": "Zgjidhni Spreadsheet...",
+    "analyzing": "Duke Analizuar...",
+    "run": "Ekzekuto Analizën",
+    "newAnalysis": "Analizë e Re",
+    "reportTitle": "Narrativa Forenzike",
+    "anomaliesTitle": "Anomalitë e Detektuara",
+    "noAnomalies": "Nuk u detektuan anomali të rëndësishme.",
+    "row": "Rreshti",
+    "col": "Kol",
+    "processing": "Inteligjenca Artificiale po analizon strukturën...",
+    "wait": "Kjo mund të marrë disa sekonda varësisht nga madhësia e skedarit.",
+    "error": {
+      "analysisFailed": "Analiza dështoi. Ju lutem kontrolloni formatin e skedarit."
+    },
+    "stats": {
+      "totalRecords": "Totali i Regjistrimeve",
+      "totalColumns": "Totali i Kolonave",
+      "emptyCells": "Qelizat Bosh",
+      "avg": "Mesatarja"
+    },
+    "severity": {
+      "low": "E ULËT",
+      "medium": "E MESME",
+      "high": "KRITIKE"
     }
   },
   "documentsPanel": {
     "title": "Dokumentet",
     "uploadDocument": "Ngarko Dokument",
-      "noDocuments": "Asnjë dokument i ngarkuar.",
+    "noDocuments": "Asnjë dokument i ngarkuar.",
     "statusPending": "Duke pritur...",
     "statusUploading": "Duke ngarkuar...",
     "statusProcessing": "Duke procesuar...",
@@ -284,7 +315,7 @@
     "logoUploadFailed": "Ngarkimi i logos dështoi."
   },
   "finance": {
-     "income": "Të Hyrat",
+    "income": "Të Hyrat",
     "incomeSub": "Nga faturat e paguara",
     "expense": "Shpenzimet",
     "expenseSub": "Shpenzimet operacionale",

@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V10.2 (FEATURE 3 INTEGRATION)
-// 1. ADDED: ViewMode state ('workspace' | 'analyst').
-// 2. ADDED: Integration of SpreadsheetAnalyst component.
-// 3. UI: Updated header to include navigation tabs.
+// PHOENIX PROTOCOL - REFACTOR V10.3 (UI REDESIGN)
+// 1. UI: Replaced ViewMode buttons with a high-end Glass Segmented Control.
+// 2. LAYOUT: Adjusted spacing for cleaner look.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -13,7 +12,7 @@ import ChatPanel, { ChatMode, Jurisdiction } from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
-import SpreadsheetAnalyst from '../components/SpreadsheetAnalyst'; // NEW IMPORT
+import SpreadsheetAnalyst from '../components/SpreadsheetAnalyst';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
@@ -27,7 +26,7 @@ type CaseData = {
     details: Case | null;
 };
 type ActiveModal = 'none' | 'analysis';
-type ViewMode = 'workspace' | 'analyst'; // NEW TYPE
+type ViewMode = 'workspace' | 'analyst';
 
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     if (!data) return [];
@@ -78,6 +77,7 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
+// --- NEW HEADER WITH SEGMENTED CONTROL ---
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
@@ -86,8 +86,8 @@ const CaseHeader: React.FC<{
     t: TFunction; 
     onAnalyze: () => void;
     isAnalyzing: boolean; 
-    viewMode: ViewMode; // NEW PROP
-    setViewMode: (mode: ViewMode) => void; // NEW PROP
+    viewMode: ViewMode;
+    setViewMode: (mode: ViewMode) => void;
 }> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode }) => {
     
     const analyzeButtonText = activeContextId === 'general' 
@@ -101,6 +101,7 @@ const CaseHeader: React.FC<{
             animate={{ opacity: 1, y: 0 }} 
             transition={{ duration: 0.3 }}
         >
+          {/* Visual Background */}
           <div className="absolute inset-0 rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
               <div className="absolute inset-0 bg-background-light/40 backdrop-blur-md" />
               <div className="absolute top-0 right-0 p-32 bg-primary-start/10 blur-[100px] rounded-full pointer-events-none" />
@@ -108,7 +109,7 @@ const CaseHeader: React.FC<{
 
           <div className="relative p-5 sm:p-6 flex flex-col gap-5 z-10">
               
-              {/* TOP SECTION */}
+              {/* TOP ROW: Title & Client */}
               <div className="flex flex-col gap-1">
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight leading-snug break-words">
                     {caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase', 'Rast pa Emër')}
@@ -123,61 +124,83 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              {/* NAV TABS - NEW SECTION */}
-              <div className="flex gap-2">
-                    <button 
-                        onClick={() => setViewMode('workspace')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'workspace' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-                    >
-                        <LayoutGrid size={16} />
-                        {t('caseView.workspace', 'Workspace')}
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('analyst')}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'analyst' ? 'bg-primary-start/20 text-primary-start border border-primary-start/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
-                    >
-                        <Activity size={16} />
-                        {t('caseView.analyst', 'Financial Analyst')}
-                    </button>
+              {/* NAV ROW: Segmented Control */}
+              <div className="flex justify-between items-center">
+                   {/* Segmented Control */}
+                   <div className="flex p-1 bg-black/20 backdrop-blur-lg rounded-xl border border-white/5 relative">
+                        {/* Animated Slider Background */}
+                        <motion.div 
+                            className="absolute top-1 bottom-1 bg-gradient-to-r from-primary-start/20 to-primary-end/20 border border-primary-start/30 rounded-lg shadow-sm"
+                            initial={false}
+                            animate={{ 
+                                left: viewMode === 'workspace' ? '4px' : '50%',
+                                width: 'calc(50% - 4px)',
+                                x: viewMode === 'workspace' ? 0 : 0
+                            }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        />
+
+                        <button 
+                            onClick={() => setViewMode('workspace')}
+                            className={`relative z-10 flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-colors w-36 ${viewMode === 'workspace' ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
+                        >
+                            <LayoutGrid size={16} />
+                            {t('caseView.workspace', 'Workspace')}
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('analyst')}
+                            className={`relative z-10 flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-colors w-36 ${viewMode === 'analyst' ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`}
+                        >
+                            <Activity size={16} />
+                            {t('caseView.analyst', 'Analyst')}
+                        </button>
+                  </div>
               </div>
 
-              {/* BOTTOM CONTROL BAR - Conditionally rendered based on View Mode */}
-              {viewMode === 'workspace' && (
-                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full animate-in fade-in slide-in-from-top-2">
-                    <div className="flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap min-w-[140px]">
-                        <Calendar className="h-4 w-4 text-blue-400" />
-                        {new Date(caseDetails.created_at).toLocaleDateString()}
-                    </div>
-
-                    <div className="flex-1 w-full md:w-auto h-12 md:h-11">
-                        <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
-                    </div>
-                    
-                    <button 
-                        onClick={onAnalyze} 
-                        disabled={isAnalyzing} 
-                        className={`
-                            w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
-                            flex items-center justify-center gap-2.5 
-                            text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
-                            ${isAnalyzing ? 'bg-white/5 border border-white/10 cursor-not-allowed' : 'bg-gradient-to-r from-primary-start to-primary-end hover:shadow-primary-start/20 hover:scale-[1.02] active:scale-95 border border-transparent'}
-                        `}
-                        type="button"
+              {/* CONTROL BAR (Workspace Only) */}
+              <AnimatePresence>
+                  {viewMode === 'workspace' && (
+                    <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full"
                     >
-                        {isAnalyzing ? (
-                            <>
-                                <Loader2 className="h-4 w-4 animate-spin text-white/70" />
-                                <span className="text-white/70">{t('analysis.analyzing')}...</span>
-                            </>
-                        ) : (
-                            <>
-                                <ShieldCheck className="h-4 w-4" />
-                                <span>{analyzeButtonText}</span>
-                            </>
-                        )}
-                    </button>
-                </div>
-              )}
+                        <div className="flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap min-w-[140px]">
+                            <Calendar className="h-4 w-4 text-blue-400" />
+                            {new Date(caseDetails.created_at).toLocaleDateString()}
+                        </div>
+
+                        <div className="flex-1 w-full md:w-auto h-12 md:h-11">
+                            <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
+                        </div>
+                        
+                        <button 
+                            onClick={onAnalyze} 
+                            disabled={isAnalyzing} 
+                            className={`
+                                w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
+                                flex items-center justify-center gap-2.5 
+                                text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
+                                ${isAnalyzing ? 'bg-white/5 border border-white/10 cursor-not-allowed' : 'bg-gradient-to-r from-primary-start to-primary-end hover:shadow-primary-start/20 hover:scale-[1.02] active:scale-95 border border-transparent'}
+                            `}
+                            type="button"
+                        >
+                            {isAnalyzing ? (
+                                <>
+                                    <Loader2 className="h-4 w-4 animate-spin text-white/70" />
+                                    <span className="text-white/70">{t('analysis.analyzing')}...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <ShieldCheck className="h-4 w-4" />
+                                    <span>{analyzeButtonText}</span>
+                                </>
+                            )}
+                        </button>
+                    </motion.div>
+                  )}
+              </AnimatePresence>
           </div>
         </motion.div>
     );
@@ -203,7 +226,7 @@ const CaseViewPage: React.FC = () => {
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
   
   const [activeContextId, setActiveContextId] = useState<string>('general');
-  const [viewMode, setViewMode] = useState<ViewMode>('workspace'); // NEW STATE
+  const [viewMode, setViewMode] = useState<ViewMode>('workspace');
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   const { documents: liveDocuments, setDocuments: setLiveDocuments, messages: liveMessages, setMessages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId);
