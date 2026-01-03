@@ -25,6 +25,7 @@ from . import (
     text_sterilization_service,
     user_service,
     vector_store_service,
+    spreadsheet_service,
     
     # PHOENIX NEW SERVICES
     archive_service,

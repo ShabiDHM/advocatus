@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V5.1 (ANALYSIS FIX)
-# 1. FIX: Updated analyze_case_risks endpoint to pass user_id parameter
-# 2. SECURITY: Publicly accessible but validates case existence.
+# PHOENIX PROTOCOL - CASES ROUTER V5.3 (SYNTAX FIX)
+# 1. FIX: Reordered arguments in 'analyze_spreadsheet_endpoint' to satisfy non-default argument rules.
+# 2. STATUS: Linter clean.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -28,7 +28,8 @@ from ...services import (
     archive_service,
     pdf_service,
     llm_service,
-    drafting_service 
+    drafting_service,
+    spreadsheet_service
 )
 
 # --- MODEL IMPORTS ---
@@ -319,13 +320,45 @@ async def rename_document_endpoint(case_id: str, doc_id: str, body: RenameDocume
 @router.post("/{case_id}/analyze", tags=["Analysis"])
 async def analyze_case_risks(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
-    # FIX: Added user_id parameter to match the updated function signature
     return JSONResponse(content=await asyncio.to_thread(
         analysis_service.cross_examine_case, 
         db=db, 
         case_id=case_id,
         user_id=str(current_user.id)
     ))
+
+# --- NEW: SPREADSHEET ANALYST ENDPOINT (FIXED SIGNATURE) ---
+@router.post("/{case_id}/analyze/spreadsheet", tags=["Analysis"])
+async def analyze_spreadsheet_endpoint(
+    case_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    file: UploadFile = File(...),
+    db: Database = Depends(get_db)
+):
+    """
+    Analyzes an uploaded Excel/CSV file for financial anomalies and generates a report.
+    """
+    validate_object_id(case_id)
+    # 1. Verify Case Ownership
+    case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
+    if not case: raise HTTPException(status_code=404, detail="Case not found.")
+
+    # 2. Read File
+    try:
+        content = await file.read()
+        filename = file.filename or "unknown.xlsx"
+        
+        # 3. Process
+        result = await spreadsheet_service.analyze_spreadsheet_file(content, filename)
+        
+        # Optional: Save result to DB if needed in future, currently just returning to UI
+        return JSONResponse(content=result)
+        
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logger.error(f"Spreadsheet Analysis Error: {e}")
+        raise HTTPException(status_code=500, detail="Analysis failed.")
 
 @router.get("/public/{case_id}/timeline", tags=["Public Portal"])
 async def get_public_case_timeline(case_id: str, db: Database = Depends(get_db)):
@@ -432,16 +465,11 @@ async def download_public_invoice(
         logger.error(f"Public Invoice Download Error: {e}")
         raise HTTPException(status_code=500, detail="Generation failed.")
 
-# --- PHOENIX NEW: PUBLIC LOGO ENDPOINT ---
 @router.get("/public/{case_id}/logo", tags=["Public Portal"])
 async def get_public_case_logo(
     case_id: str,
     db: Database = Depends(get_db)
 ):
-    """
-    Streams the Logo of the Case Owner (Law Firm).
-    Publicly accessible to display on the Client Portal.
-    """
     try:
         case_oid = validate_object_id(case_id)
         case = await asyncio.to_thread(db.cases.find_one, {"_id": case_oid})
@@ -450,13 +478,11 @@ async def get_public_case_logo(
         owner_id = case.get("owner_id") or case.get("user_id")
         if not owner_id: raise HTTPException(status_code=404, detail="Owner not found")
         
-        # Resolve Owner ID (String vs ObjectId)
         query_id = owner_id
         if isinstance(query_id, str):
             try: query_id = ObjectId(query_id)
             except: pass
         
-        # Fetch Business Profile
         profile = await asyncio.to_thread(db.business_profiles.find_one, {"user_id": query_id})
         if not profile and isinstance(owner_id, ObjectId):
              profile = await asyncio.to_thread(db.business_profiles.find_one, {"user_id": str(owner_id)})

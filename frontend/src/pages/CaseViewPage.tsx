@@ -1,7 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V10.1 (LINT CLEANUP)
-// 1. FIX: Removed unused imports (AnimatePresence, FileText, Maximize2) that were moved to DockedPDFViewer.
-// 2. STATUS: Clean build with no linter warnings.
+// PHOENIX PROTOCOL - CASE VIEW V10.2 (FEATURE 3 INTEGRATION)
+// 1. ADDED: ViewMode state ('workspace' | 'analyst').
+// 2. ADDED: Integration of SpreadsheetAnalyst component.
+// 3. UI: Updated header to include navigation tabs.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -12,11 +13,12 @@ import ChatPanel, { ChatMode, Jurisdiction } from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
+import SpreadsheetAnalyst from '../components/SpreadsheetAnalyst'; // NEW IMPORT
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
-import { motion } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, LayoutGrid, Activity } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -25,6 +27,7 @@ type CaseData = {
     details: Case | null;
 };
 type ActiveModal = 'none' | 'analysis';
+type ViewMode = 'workspace' | 'analyst'; // NEW TYPE
 
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     if (!data) return [];
@@ -39,7 +42,6 @@ const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     }).filter(msg => msg.content.trim() !== '');
 };
 
-// --- RENAME MODAL (GLASS STYLE) ---
 const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRename: (newName: string) => Promise<void>; currentName: string; t: TFunction; }> = ({ isOpen, onClose, onRename, currentName, t }) => {
     const [name, setName] = useState(currentName);
     const [isSaving, setIsSaving] = useState(false);
@@ -76,7 +78,6 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
-// --- HEADER COMPONENT (GLASS STYLE - Z-INDEX FIX) ---
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
@@ -85,7 +86,9 @@ const CaseHeader: React.FC<{
     t: TFunction; 
     onAnalyze: () => void;
     isAnalyzing: boolean; 
-}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing }) => {
+    viewMode: ViewMode; // NEW PROP
+    setViewMode: (mode: ViewMode) => void; // NEW PROP
+}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode }) => {
     
     const analyzeButtonText = activeContextId === 'general' 
         ? t('analysis.analyzeButton', 'Analizo Rastin')
@@ -98,13 +101,11 @@ const CaseHeader: React.FC<{
             animate={{ opacity: 1, y: 0 }} 
             transition={{ duration: 0.3 }}
         >
-          {/* 1. Visual Background Layer (Clipped) */}
           <div className="absolute inset-0 rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
               <div className="absolute inset-0 bg-background-light/40 backdrop-blur-md" />
               <div className="absolute top-0 right-0 p-32 bg-primary-start/10 blur-[100px] rounded-full pointer-events-none" />
           </div>
 
-          {/* 2. Content Layer (Visible - Allows Dropdown Overflow) */}
           <div className="relative p-5 sm:p-6 flex flex-col gap-5 z-10">
               
               {/* TOP SECTION */}
@@ -122,42 +123,61 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              {/* BOTTOM SECTION */}
-              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full">
-                  
-                  <div className="flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap min-w-[140px]">
-                      <Calendar className="h-4 w-4 text-blue-400" />
-                      {new Date(caseDetails.created_at).toLocaleDateString()}
-                  </div>
-
-                  <div className="flex-1 w-full md:w-auto h-12 md:h-11">
-                     <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
-                  </div>
-                  
-                  <button 
-                      onClick={onAnalyze} 
-                      disabled={isAnalyzing} 
-                      className={`
-                          w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
-                          flex items-center justify-center gap-2.5 
-                          text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
-                          ${isAnalyzing ? 'bg-white/5 border border-white/10 cursor-not-allowed' : 'bg-gradient-to-r from-primary-start to-primary-end hover:shadow-primary-start/20 hover:scale-[1.02] active:scale-95 border border-transparent'}
-                      `}
-                      type="button"
-                  >
-                      {isAnalyzing ? (
-                          <>
-                              <Loader2 className="h-4 w-4 animate-spin text-white/70" />
-                              <span className="text-white/70">{t('analysis.analyzing')}...</span>
-                          </>
-                      ) : (
-                          <>
-                              <ShieldCheck className="h-4 w-4" />
-                              <span>{analyzeButtonText}</span>
-                          </>
-                      )}
-                  </button>
+              {/* NAV TABS - NEW SECTION */}
+              <div className="flex gap-2">
+                    <button 
+                        onClick={() => setViewMode('workspace')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'workspace' ? 'bg-white/10 text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                    >
+                        <LayoutGrid size={16} />
+                        {t('caseView.workspace', 'Workspace')}
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('analyst')}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${viewMode === 'analyst' ? 'bg-primary-start/20 text-primary-start border border-primary-start/30' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                    >
+                        <Activity size={16} />
+                        {t('caseView.analyst', 'Financial Analyst')}
+                    </button>
               </div>
+
+              {/* BOTTOM CONTROL BAR - Conditionally rendered based on View Mode */}
+              {viewMode === 'workspace' && (
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap min-w-[140px]">
+                        <Calendar className="h-4 w-4 text-blue-400" />
+                        {new Date(caseDetails.created_at).toLocaleDateString()}
+                    </div>
+
+                    <div className="flex-1 w-full md:w-auto h-12 md:h-11">
+                        <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
+                    </div>
+                    
+                    <button 
+                        onClick={onAnalyze} 
+                        disabled={isAnalyzing} 
+                        className={`
+                            w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
+                            flex items-center justify-center gap-2.5 
+                            text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
+                            ${isAnalyzing ? 'bg-white/5 border border-white/10 cursor-not-allowed' : 'bg-gradient-to-r from-primary-start to-primary-end hover:shadow-primary-start/20 hover:scale-[1.02] active:scale-95 border border-transparent'}
+                        `}
+                        type="button"
+                    >
+                        {isAnalyzing ? (
+                            <>
+                                <Loader2 className="h-4 w-4 animate-spin text-white/70" />
+                                <span className="text-white/70">{t('analysis.analyzing')}...</span>
+                            </>
+                        ) : (
+                            <>
+                                <ShieldCheck className="h-4 w-4" />
+                                <span>{analyzeButtonText}</span>
+                            </>
+                        )}
+                    </button>
+                </div>
+              )}
           </div>
         </motion.div>
     );
@@ -183,6 +203,7 @@ const CaseViewPage: React.FC = () => {
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
   
   const [activeContextId, setActiveContextId] = useState<string>('general');
+  const [viewMode, setViewMode] = useState<ViewMode>('workspace'); // NEW STATE
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   const { documents: liveDocuments, setDocuments: setLiveDocuments, messages: liveMessages, setMessages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId);
@@ -226,36 +247,68 @@ const CaseViewPage: React.FC = () => {
       <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:py-6">
         
         <div className="mt-4 lg:mt-0">
-            <CaseHeader caseDetails={caseData.details} documents={liveDocuments} activeContextId={activeContextId} onContextChange={setActiveContextId} t={t} onAnalyze={handleAnalyze} isAnalyzing={isAnalyzing} />
+            <CaseHeader 
+                caseDetails={caseData.details} 
+                documents={liveDocuments} 
+                activeContextId={activeContextId} 
+                onContextChange={setActiveContextId} 
+                t={t} 
+                onAnalyze={handleAnalyze} 
+                isAnalyzing={isAnalyzing} 
+                viewMode={viewMode}
+                setViewMode={setViewMode}
+            />
         </div>
         
-        {/* MAIN GRID: 1 col on mobile, 2 cols on desktop */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px] relative z-0">
-            <DocumentsPanel 
-                caseId={caseData.details.id} 
-                documents={liveDocuments} 
-                t={t} 
-                connectionStatus={connectionStatus} 
-                reconnect={reconnect} 
-                onDocumentUploaded={handleDocumentUploaded} 
-                onDocumentDeleted={handleDocumentDeleted} 
-                onViewOriginal={handleViewOriginal} 
-                onRename={(doc) => setDocumentToRename(doc)} 
-                className="h-[500px] lg:h-full shadow-xl" 
-            />
-            
-            <ChatPanel 
-                messages={liveMessages} 
-                connectionStatus={connectionStatus} 
-                reconnect={reconnect} 
-                onSendMessage={handleChatSubmit} 
-                isSendingMessage={isSendingMessage} 
-                onClearChat={handleClearChat} 
-                t={t} 
-                className="!h-[600px] lg:!h-full w-full shadow-xl" 
-                activeContextId={activeContextId} 
-            />
-        </div>
+        {/* MAIN CONTENT AREA - SWITCHES BASED ON VIEW MODE */}
+        <AnimatePresence mode="wait">
+            {viewMode === 'workspace' ? (
+                <motion.div 
+                    key="workspace"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    transition={{ duration: 0.2 }}
+                    className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px] relative z-0"
+                >
+                    <DocumentsPanel 
+                        caseId={caseData.details.id} 
+                        documents={liveDocuments} 
+                        t={t} 
+                        connectionStatus={connectionStatus} 
+                        reconnect={reconnect} 
+                        onDocumentUploaded={handleDocumentUploaded} 
+                        onDocumentDeleted={handleDocumentDeleted} 
+                        onViewOriginal={handleViewOriginal} 
+                        onRename={(doc) => setDocumentToRename(doc)} 
+                        className="h-[500px] lg:h-full shadow-xl" 
+                    />
+                    
+                    <ChatPanel 
+                        messages={liveMessages} 
+                        connectionStatus={connectionStatus} 
+                        reconnect={reconnect} 
+                        onSendMessage={handleChatSubmit} 
+                        isSendingMessage={isSendingMessage} 
+                        onClearChat={handleClearChat} 
+                        t={t} 
+                        className="!h-[600px] lg:!h-full w-full shadow-xl" 
+                        activeContextId={activeContextId} 
+                    />
+                </motion.div>
+            ) : (
+                <motion.div
+                    key="analyst"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 20 }}
+                    transition={{ duration: 0.2 }}
+                >
+                    <SpreadsheetAnalyst caseId={caseData.details.id} />
+                </motion.div>
+            )}
+        </AnimatePresence>
+
       </div>
       
       {/* Modal and Viewer Logic */}

@@ -1,8 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER V7.1 (SHARING METHODS)
-// 1. ADDED: shareDocument, shareArchiveItem, shareArchiveCase methods.
-// 2. LOGIC: Enables toggling visibility for the Client Portal.
-// 3. STATUS: Frontend API layer complete.
+// PHOENIX PROTOCOL - API MASTER V7.2 (FEATURE 3: SPREADSHEET ANALYST)
+// 1. ADDED: analyzeSpreadsheet method.
+// 2. LOGIC: Handles multipart/form-data for Excel/CSV analysis.
+// 3. STATUS: Linked to SpreadsheetAnalysisResult types.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -10,7 +10,8 @@ import type {
     DeletedDocumentResponse, CalendarEvent, CalendarEventCreateRequest, CreateDraftingJobRequest,
     DraftingJobStatus, DraftingJobResult, ChangePasswordRequest, CaseAnalysisResult,
     BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest, InvoiceItem,
-    GraphData, ArchiveItemOut, CaseFinancialSummary, AnalyticsDashboardData, Expense, ExpenseCreateRequest, ExpenseUpdate
+    GraphData, ArchiveItemOut, CaseFinancialSummary, AnalyticsDashboardData, Expense, ExpenseCreateRequest, ExpenseUpdate,
+    SpreadsheetAnalysisResult
 } from '../data/types';
 
 // ... (Existing Interfaces) ...
@@ -18,9 +19,6 @@ export interface AuditIssue { id: string; severity: 'CRITICAL' | 'WARNING'; mess
 export interface TaxCalculation { period_month: number; period_year: number; total_sales_gross: number; total_purchases_gross: number; vat_collected: number; vat_deductible: number; net_obligation: number; currency: string; status: string; regime: string; tax_rate_applied: string; description: string; }
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
-
-// --- Restored Expense Interfaces ---
-// (Already present in your pasted file, kept for completeness)
 
 interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
@@ -127,21 +125,9 @@ class ApiService {
     public async deleteArchiveItem(itemId: string): Promise<void> { await this.axiosInstance.delete(`/archive/items/${itemId}`); }
     public async renameArchiveItem(itemId: string, newTitle: string): Promise<void> { await this.axiosInstance.put(`/archive/items/${itemId}/rename`, { new_title: newTitle }); }
     
-    // --- PHOENIX NEW: SHARING METHODS ---
-    public async shareDocument(caseId: string, docId: string, isShared: boolean): Promise<Document> {
-        const response = await this.axiosInstance.put<Document>(`/cases/${caseId}/documents/${docId}/share`, { is_shared: isShared });
-        return response.data;
-    }
-    
-    public async shareArchiveItem(itemId: string, isShared: boolean): Promise<ArchiveItemOut> {
-        const response = await this.axiosInstance.put<ArchiveItemOut>(`/archive/items/${itemId}/share`, { is_shared: isShared });
-        return response.data;
-    }
-
-    public async shareArchiveCase(caseId: string, isShared: boolean): Promise<void> {
-        await this.axiosInstance.put(`/archive/case/share`, { case_id: caseId, is_shared: isShared });
-    }
-
+    public async shareDocument(caseId: string, docId: string, isShared: boolean): Promise<Document> { const response = await this.axiosInstance.put<Document>(`/cases/${caseId}/documents/${docId}/share`, { is_shared: isShared }); return response.data; }
+    public async shareArchiveItem(itemId: string, isShared: boolean): Promise<ArchiveItemOut> { const response = await this.axiosInstance.put<ArchiveItemOut>(`/archive/items/${itemId}/share`, { is_shared: isShared }); return response.data; }
+    public async shareArchiveCase(caseId: string, isShared: boolean): Promise<void> { await this.axiosInstance.put(`/archive/case/share`, { case_id: caseId, is_shared: isShared }); }
     public async downloadArchiveItem(itemId: string, title: string): Promise<void> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', title); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
     public async getArchiveFileBlob(itemId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { params: { preview: true }, responseType: 'blob' }); return response.data; }
 
@@ -167,6 +153,15 @@ class ApiService {
     public async getCaseGraph(caseId: string): Promise<GraphData> { const response = await this.axiosInstance.get<GraphData>(`/graph/graph/${caseId}`); return response.data; }
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); return response.data; }
+    
+    // --- NEW: SPREADSHEET ANALYST ---
+    public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData);
+        return response.data;
+    }
+
     public async sendChatMessage(caseId: string, message: string, documentId?: string, jurisdiction?: string): Promise<string> { const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks' }); return response.data.response; }
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     
