@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - REFACTOR V10.4 (TOOLBAR CONSOLIDATION)
-// 1. REMOVED: Top Segmented Control (Workspace/Analyst tabs).
-// 2. MOVED: 'Financial Analyst' button to the main Control Bar.
-// 3. UI: Standardized button styles for consistent actions.
+// PHOENIX PROTOCOL - REFACTOR V10.6 (NAVIGATION UX)
+// 1. UX: Changed Analyst return button to use 'ArrowLeft' icon.
+// 2. TEXT: Prepared for 'Kthehu Mbrapa' translation.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -18,7 +17,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, LayoutGrid, Activity } from 'lucide-react';
+import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, ArrowLeft, Activity } from 'lucide-react'; // Changed LayoutGrid to ArrowLeft
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -78,7 +77,6 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     );
 };
 
-// --- REDESIGNED HEADER ---
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
@@ -161,13 +159,13 @@ const CaseHeader: React.FC<{
                             }
                         `}
                     >
-                        {viewMode === 'analyst' ? <LayoutGrid className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
+                        {viewMode === 'analyst' ? <ArrowLeft className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
                         <span>
                             {viewMode === 'analyst' ? t('caseView.workspace') : t('caseView.analyst')}
                         </span>
                     </button>
 
-                    {/* 2. Analyze Case Button (Standard) */}
+                    {/* 2. Analyze Case Button */}
                     <button 
                         onClick={onAnalyze} 
                         disabled={isAnalyzing || viewMode === 'analyst'} 
@@ -175,9 +173,10 @@ const CaseHeader: React.FC<{
                             w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
                             flex items-center justify-center gap-2.5 
                             text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
+                            border border-transparent
                             ${(isAnalyzing || viewMode === 'analyst') 
                                 ? 'bg-white/5 border border-white/10 cursor-not-allowed opacity-50' 
-                                : 'bg-gradient-to-r from-primary-start to-primary-end hover:shadow-primary-start/20 hover:scale-[1.02] active:scale-95 border border-transparent'
+                                : 'bg-gradient-to-r from-gray-700 to-gray-600 hover:from-gray-600 hover:to-gray-500 hover:scale-[1.02] active:scale-95 shadow-black/20'
                             }
                         `}
                         type="button"
