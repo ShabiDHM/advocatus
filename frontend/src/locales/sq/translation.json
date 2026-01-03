@@ -25,7 +25,8 @@
     "edit": "Ndrysho",
     "view": "Shiko",
     "archive": "Arkivo",
-    "delete": "Fshi"
+    "delete": "Fshi",
+     "or": "ose"
   },
   "branding": {
     "default": "Juristi Portal"
@@ -181,7 +182,9 @@
     "processing": "Sokrati duke analizuar...",
     "wait": "Kjo mund të marrë disa sekonda varësisht nga madhësia e skedarit.",
     "error": {
-      "analysisFailed": "Analiza dështoi. Ju lutem kontrolloni formatin e skedarit."
+      "analysisFailed": "Analiza dështoi. Ju lutem kontrolloni formatin e skedarit.",
+       "importFromCase": "Importo nga Dosja",
+  "noCompatibleDocuments": "Nuk u gjetën dokumente të përshtatshme."
     },
     "stats": {
       "totalRecords": "Totali i Regjistrimeve",
