@@ -1,7 +1,7 @@
 // FILE: src/components/ArchiveImportModal.tsx
-// PHOENIX PROTOCOL - ARCHIVE SELECTOR MODAL V2.2 (SCOPE FIX)
-// 1. FIX: Now passes 'caseId' to API to enforce strict case-scoped filtering.
-// 2. RESULT: Modal only shows files belonging to the current case.
+// PHOENIX PROTOCOL - ARCHIVE MODAL V3.0 (SELECTOR MODE)
+// 1. FEATURE: Added 'mode' prop to support 'select-only' for Analyst tools.
+// 2. LOGIC: Returns the selected item instead of auto-importing when in 'select' mode.
 
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
@@ -14,10 +14,15 @@ interface ArchiveImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   caseId: string;
-  onImportComplete: (count: number) => void;
+  onImportComplete?: (count: number) => void; // Optional now
+  onSelectFile?: (file: ArchiveItemOut) => void; // New callback for Analyst
+  mode?: 'import' | 'select'; // Default is 'import'
+  allowedExtensions?: string[]; // Optional filter
 }
 
-const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose, caseId, onImportComplete }) => {
+const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ 
+    isOpen, onClose, caseId, onImportComplete, onSelectFile, mode = 'import', allowedExtensions 
+}) => {
   const [currentFolderId, setCurrentFolderId] = useState<string | undefined>(undefined);
   const [items, setItems] = useState<ArchiveItemOut[]>([]);
   const [loading, setLoading] = useState(false);
@@ -27,16 +32,28 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
   const [breadcrumbs, setBreadcrumbs] = useState<{id: string | undefined, title: string}[]>([{id: undefined, title: 'Arkiva'}]);
 
   useEffect(() => {
-    if (isOpen) fetchItems(currentFolderId);
+    if (isOpen) {
+        fetchItems(currentFolderId);
+        setSelectedIds(new Set()); // Reset selection on open
+    }
   }, [isOpen, currentFolderId]);
 
   const fetchItems = async (parentId?: string) => {
     setLoading(true);
     try {
-      // PHOENIX FIX: Added 'caseId' as second argument (was undefined). 
-      // This forces the backend to filter items by the current Case ID.
       const data = await apiService.getArchiveItems(undefined, caseId, parentId);
-      setItems(data);
+      
+      // Filter by extension if in select mode
+      let filteredData = data;
+      if (mode === 'select' && allowedExtensions) {
+          filteredData = data.filter(item => {
+              if (item.item_type === 'FOLDER') return true;
+              const ext = item.title.split('.').pop()?.toLowerCase() || '';
+              return allowedExtensions.includes(ext);
+          });
+      }
+      
+      setItems(filteredData);
     } catch (error) {
       console.error("Failed to load archive items", error);
     } finally {
@@ -47,7 +64,7 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
   const handleFolderClick = (folder: ArchiveItemOut) => {
     setBreadcrumbs(prev => [...prev, { id: folder.id, title: folder.title }]);
     setCurrentFolderId(folder.id);
-    setSelectedIds(new Set()); // Clear selection when changing folders
+    setSelectedIds(new Set());
   };
 
   const handleBack = () => {
@@ -57,30 +74,37 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
     const parent = newBreadcrumbs[newBreadcrumbs.length - 1];
     setBreadcrumbs(newBreadcrumbs);
     setCurrentFolderId(parent.id);
-    setSelectedIds(new Set()); // Clear selection on back
+    setSelectedIds(new Set());
   };
 
   const toggleSelection = (id: string) => {
     setSelectedIds(prev => {
       const newSet = new Set<string>();
-      if (prev.has(id)) {
-          // If clicking the already selected one, deselect it (empty set)
-          return newSet; 
-      } else {
-          // Otherwise, select ONLY this one (Single Selection Mode for Import)
-          // Note: If multi-select is desired later, change this logic.
-          newSet.add(id);
-          return newSet;
-      }
+      if (prev.has(id)) return newSet;
+      newSet.add(id); // Single selection
+      return newSet;
     });
   };
 
-  const handleImport = async () => {
+  const handleSubmit = async () => {
     if (selectedIds.size === 0) return;
+    const selectedId = Array.from(selectedIds)[0];
+
+    // MODE: SELECT (For Analyst)
+    if (mode === 'select' && onSelectFile) {
+        const item = items.find(i => i.id === selectedId);
+        if (item) {
+            onSelectFile(item);
+            onClose();
+        }
+        return;
+    }
+
+    // MODE: IMPORT (For Case Documents)
     setImporting(true);
     try {
       await apiService.importArchiveDocuments(caseId, Array.from(selectedIds));
-      onImportComplete(selectedIds.size);
+      if (onImportComplete) onImportComplete(selectedIds.size);
       onClose();
     } catch (error) {
       alert("Import failed.");
@@ -100,23 +124,24 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
       >
         <motion.div 
           initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-          className="bg-background-dark w-full max-w-2xl rounded-2xl border border-glass-edge shadow-2xl overflow-hidden flex flex-col h-[600px]"
+          className="bg-gray-900 w-full max-w-2xl rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col h-[600px]"
           onClick={e => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="p-4 border-b border-white/10 flex justify-between items-center bg-background-light/30">
+          <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <Folder className="text-primary-400" /> Importo nga Arkiva
+              <Folder className="text-blue-400" /> 
+              {mode === 'select' ? 'Zgjidhni nga Arkiva' : 'Importo nga Arkiva'}
             </h2>
             <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full text-gray-400 hover:text-white transition-colors">
               <X size={20} />
             </button>
           </div>
 
-          {/* Breadcrumbs & Nav */}
+          {/* Breadcrumbs */}
           <div className="px-4 py-3 bg-black/20 border-b border-white/5 flex items-center gap-2 text-sm text-gray-300">
             {breadcrumbs.length > 1 && (
-              <button onClick={handleBack} className="p-1 hover:bg-white/10 rounded mr-2 text-primary-400">
+              <button onClick={handleBack} className="p-1 hover:bg-white/10 rounded mr-2 text-blue-400">
                 <ArrowLeft size={16} />
               </button>
             )}
@@ -130,7 +155,7 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
             ))}
           </div>
 
-          {/* List Content */}
+          {/* List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
             {loading ? (
               <div className="flex justify-center items-center h-full text-gray-500">
@@ -146,7 +171,6 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
             ) : (
               items.map(item => {
                 const isSelected = selectedIds.has(item.id);
-                // Disable other files if one is already selected (Visual hint)
                 const isDisabled = selectedIds.size > 0 && !isSelected && item.item_type === 'FILE';
                 
                 return (
@@ -159,7 +183,7 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
                     className={`
                         flex items-center justify-between p-3 rounded-xl border transition-all 
                         ${item.item_type === 'FOLDER' ? 'cursor-pointer hover:bg-white/10 border-white/5 bg-white/5' : ''}
-                        ${item.item_type === 'FILE' && isSelected ? 'cursor-pointer bg-primary-900/20 border-primary-500/50' : ''}
+                        ${item.item_type === 'FILE' && isSelected ? 'cursor-pointer bg-blue-900/20 border-blue-500/50' : ''}
                         ${item.item_type === 'FILE' && !isSelected && !isDisabled ? 'cursor-pointer bg-white/5 border-white/5 hover:bg-white/10' : ''}
                         ${isDisabled ? 'opacity-50 cursor-not-allowed bg-black/20 border-transparent' : ''}
                     `}
@@ -173,7 +197,7 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
                       <span className={`text-sm ${isSelected ? 'text-white font-medium' : 'text-gray-300'}`}>{item.title}</span>
                     </div>
                     {item.item_type === 'FILE' && (
-                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${isSelected ? 'bg-primary-500 border-primary-500' : 'border-gray-600'}`}>
+                      <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${isSelected ? 'bg-blue-500 border-blue-500' : 'border-gray-600'}`}>
                         {isSelected && <Check size={12} className="text-white" />}
                       </div>
                     )}
@@ -183,20 +207,18 @@ const ArchiveImportModal: React.FC<ArchiveImportModalProps> = ({ isOpen, onClose
             )}
           </div>
 
-          {/* Footer Actions */}
-          <div className="p-4 border-t border-white/10 bg-background-light/10 flex justify-between items-center">
+          {/* Footer */}
+          <div className="p-4 border-t border-white/10 bg-white/5 flex justify-between items-center">
             <span className="text-sm text-gray-400">
-                {selectedIds.size === 0 
-                    ? "Zgjidhni një dokument" 
-                    : "1 dokument i zgjedhur"}
+                {selectedIds.size === 0 ? "Zgjidhni një dokument" : "1 dokument i zgjedhur"}
             </span>
             <button 
-              onClick={handleImport}
+              onClick={handleSubmit}
               disabled={selectedIds.size === 0 || importing}
-              className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white rounded-xl font-bold transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {importing ? <Loader2 className="animate-spin" size={16} /> : null}
-              {importing ? "Duke importuar..." : "Shto në Rast"}
+              {mode === 'select' ? 'Përdor Dokumentin' : (importing ? "Duke importuar..." : "Shto në Rast")}
             </button>
           </div>
         </motion.div>
