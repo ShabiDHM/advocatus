@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
 # PHOENIX PROTOCOL - CORE INTELLIGENCE V25.1 (COMPLETE & TYPE-SAFE)
-# 1. FIX: Re-instated the missing '_call_local_llm' function definition.
-# 2. UPGRADE: Retains the advanced 'Litigation Strategist' prompt.
-# 3. STATUS: Production Ready. All known bugs and type errors are resolved.
+# 1. FIX: Includes the missing '_call_local_llm' function definition.
+# 2. UPGRADE: Implements the advanced 'Litigation Strategist' prompt for deep analysis.
+# 3. STATUS: Production Ready. Generates the required JSON for the 'Strategjia' tab.
 
 import os
 import json
@@ -74,7 +74,6 @@ def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False
         logger.warning(f"⚠️ DeepSeek Call Failed: {e}")
         return None
 
-# PHOENIX FIX: Re-instated the missing function definition
 def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
     try:
         full_prompt = f"{STRICT_FORENSIC_RULES}\n\n{prompt}"
@@ -92,7 +91,7 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
         logger.warning(f"⚠️ Local LLM call failed: {e}")
         return ""
 
-# --- THE LITIGATION STRATEGIST PROMPT ---
+# --- PHOENIX V25.1: THE LITIGATION STRATEGIST PROMPT ---
 LITIGATION_STRATEGIST_PROMPT = """
 Ti je "Këshilltar i Lartë Gjyqësor", një ekspert në strategjinë e litigimit në Kosovë. Detyra jote është të analizosh tekstin e dosjes për të gjetur jo vetëm faktet, por edhe dobësitë, pikat e presionit dhe mundësitë taktike.
 
@@ -160,7 +159,7 @@ def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
 
 def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
     clean_text = sterilize_legal_text(text[:15000])
-    system_prompt = """Ti je "Legal Calendar Clerk". DETYRA: Identifiko afatet dhe seancat. FORMATI JSON: [{"title": "Seancë Gjyqësor", "date": "YYYY-MM-DD", "description": "Detaje..."}]"""
+    system_prompt = """Ti je "Legal Calendar Clerk". DETYRA: Identifiko afatet dhe seancat. FORMATI JSON: [{"title": "Seancë Gjyqësore", "date": "YYYY-MM-DD", "description": "Detaje..."}]"""
     user_prompt = f"TEKSTI:\n{clean_text}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)

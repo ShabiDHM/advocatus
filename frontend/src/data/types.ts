@@ -1,7 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES V5.1 (FEATURE 3: SPREADSHEET ANALYST)
-// 1. ADDED: SpreadsheetAnalysisResult, ChartConfig, Anomaly, and related interfaces.
-// 2. STATUS: Contains Legal, Case, Chat, Calendar, Finance, and Analyst types.
+// PHOENIX PROTOCOL - TYPES V6.0 (LITIGATION STRATEGIST SYNC)
+// 1. UPGRADE: Added strategic_summary, emotional_leverage_points, and financial_leverage_points to CaseAnalysisResult.
+// 2. STATUS: Fully synchronized with the V25.1 backend intelligence service.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -68,49 +68,37 @@ export type DraftingJobStatus = { job_id: string; status: 'PENDING' | 'PROCESSIN
 export type DraftingJobResult = { document_text: string; document_html?: string; result_text?: string; job_id?: string; status?: string; };
 
 // --- ANALYSIS (FORENSIC & SPREADSHEET) ---
-
-// Existing Forensic Types
 export interface ConflictingParty { party_name: string; core_claim: string; }
 export interface ChronologyEvent { date: string; event: string; source_doc?: string; }
-export interface CaseAnalysisResult { summary_analysis: string; contradictions: string[]; missing_info: string[]; conflicting_parties?: ConflictingParty[]; key_evidence?: string[]; chronology?: ChronologyEvent[]; silent_parties?: string[]; active_parties?: string[]; analysis_mode?: string; target_document_id?: string; judicial_observation?: string; red_flags?: string[]; suggested_questions?: string[]; discovery_targets?: string[]; risks?: string[]; error?: string; }
 export interface GraphNode { id: string; name: string; group: string; val: number; }
 export interface GraphLink { source: string; target: string; label: string; }
 export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
 
-// NEW: Spreadsheet Analyst Types
-export interface SpreadsheetAnomaly {
-    row_index: number;
-    column: string;
-    value: string | number;
-    reason: string;
-    severity: 'LOW' | 'MEDIUM' | 'HIGH';
+// PHOENIX V6.0: Upgraded Analysis Result Type
+export interface CaseAnalysisResult {
+    // Factual Analysis
+    summary_analysis: string;
+    chronology?: ChronologyEvent[];
+    contradictions?: string[];
+    red_flags?: string[];
+    judicial_observation?: string;
+    
+    // Strategic Analysis (NEW)
+    strategic_summary?: string;
+    emotional_leverage_points?: string[];
+    financial_leverage_points?: string[];
+    suggested_questions?: string[];
+    discovery_targets?: string[];
+    
+    // Metadata
+    silent_parties?: string[];
+    missing_info?: string[];
+    analysis_mode?: string;
+    error?: string;
 }
 
-export interface AnalysisChartData {
-    name: string;
-    value: number;
-    category?: string;
-}
-
-export interface AnalysisChartConfig {
-    id: string;
-    title: string;
-    type: 'bar' | 'line' | 'pie' | 'scatter';
-    description: string;
-    x_axis_label?: string;
-    y_axis_label?: string;
-    data: AnalysisChartData[];
-}
-
-export interface SpreadsheetAnalysisResult {
-    file_id?: string;
-    filename: string;
-    record_count: number;
-    columns: string[];
-    narrative_report: string; // The "AI" story about the data
-    charts: AnalysisChartConfig[];
-    anomalies: SpreadsheetAnomaly[];
-    key_statistics: Record<string, string | number>;
-    preview_rows?: Record<string, any>[]; // First 10-20 rows for user validation
-    processed_at: string;
-}
+// Spreadsheet Analyst Types
+export interface SpreadsheetAnomaly { row_index: number; column: string; value: string | number; reason: string; severity: 'LOW' | 'MEDIUM' | 'HIGH'; }
+export interface AnalysisChartData { name: string; value: number; category?: string; }
+export interface AnalysisChartConfig { id: string; title: string; type: 'bar' | 'line' | 'pie' | 'scatter'; description: string; x_axis_label?: string; y_axis_label?: string; data: AnalysisChartData[]; }
+export interface SpreadsheetAnalysisResult { file_id?: string; filename: string; record_count: number; columns: string[]; narrative_report: string; charts: AnalysisChartConfig[]; anomalies: SpreadsheetAnomaly[]; key_statistics: Record<string, string | number>; preview_rows?: Record<string, any>[]; processed_at: string; }
