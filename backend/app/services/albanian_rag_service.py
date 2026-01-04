@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - GOLDEN STATE V1.0 (PRODUCTION)
-# 1. STABILITY: Fixed 'tool_names' prompt error permanently.
-# 2. LOGIC: Correctly wires Document IDs to Case KB.
-# 3. SAFETY: Tools return error strings instead of raising exceptions.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V26.1 (TERMINOLOGY UPDATE)
+# 1. REFACTOR: Renamed 'Global Knowledge Base' to 'BAZA E LIGJEVE'.
+# 2. PROMPT: Updated System Prompts to reflect the new strict terminology.
+# 3. UI: Visual output now cites 'BAZA E LIGJEVE'.
 
 import os
 import asyncio
@@ -33,12 +33,12 @@ STRICT_FORENSIC_RULES = """
 RREGULLAT E AUDITIMIT (STRICT LIABILITY):
 
 1. DUALITY OF BRAINS (DY MENDJET):
-   - GLOBAL KNOWLEDGE BASE = LIGJI (Codes, Regulations, Constitution).
-   - CASE KNOWLEDGE BASE = FAKTET (Uploaded Documents, Evidence, Statements).
+   - BAZA E LIGJEVE (GLOBAL) = LIGJI (Kodet, Kushtetuta, Rregulloret).
+   - BAZA E LËNDËS (CASE) = FAKTET (Dokumentet e ngarkuara, Provat, Deklaratat).
    
 2. STRICT SEPARATION:
-   - Mos përdor Case Knowledge Base për të shpikur ligje.
-   - Mos përdor Global Knowledge Base për të shpikur fakte.
+   - Mos përdor 'Baza e Lëndës' për të shpikur ligje.
+   - Mos përdor 'Baza e Ligjeve' për të shpikur fakte specifike të çështjes.
 
 3. CITIM I DETYRUESHËM: 
    - Çdo fakt duhet të ketë burimin: [**Dokumenti X**](doc://...).
@@ -49,13 +49,13 @@ VISUAL_STYLE_PROTOCOL = """
 PROTOKOLLI I STILIT VIZUAL (DETYRUESHËM):
 1. **FORMATI I LIGJIT (Blue Text)**: [**{{Emri i Ligjit}} {{Nr.}}, {{Neni X}}**](doc://{{Emri_i_Burimit_PDF}})
 2. **FORMATI I PROVAVE (Yellow Badge)**: [**PROVA: {{Përshkrimi i Dokumentit}}**](doc://{{Emri_i_Dosjes}})
-3. **STRUKTURA**: **BAZA LIGJORE** (Global), **FAKTET** (Case), **ANALIZA**.
+3. **STRUKTURA**: **BAZA E LIGJEVE**, **BAZA E LËNDËS (FAKTET)**, **ANALIZA**.
 """
 
-# --- TOOL 1: CASE KNOWLEDGE BASE (FACTS) ---
+# --- TOOL 1: BAZA E LËNDËS (FACTS) ---
 class CaseKnowledgeBaseTool(BaseTool):
     name: str = "query_case_knowledge_base"
-    description: str = "SEARCH FACTS. Use this to find specific details, dates, names, or evidence inside the User's uploaded documents."
+    description: str = "SEARCH FACTS in 'BAZA E LËNDËS'. Use this to find specific details, dates, names, or evidence inside the User's uploaded documents."
     user_id: str
     case_id: Optional[str]
     document_ids: Optional[List[str]] = None
@@ -69,26 +69,26 @@ class CaseKnowledgeBaseTool(BaseTool):
                 case_context_id=self.case_id,
                 document_ids=self.document_ids
             )
-            if not results: return "CASE KB: Nuk u gjetën të dhëna relevante në dosje."
-            return "\n\n".join([f"[FACT SOURCE: {r.get('source', 'Unknown')}]\n{r.get('text', '')}" for r in results])
+            if not results: return "BAZA E LËNDËS: Nuk u gjetën të dhëna relevante në dosje."
+            return "\n\n".join([f"[BURIMI I FAKTIT: {r.get('source', 'Unknown')}]\n{r.get('text', '')}" for r in results])
         except Exception as e:
             logger.error(f"CaseKnowledgeBase Tool error: {e}")
-            return f"Gabim teknik në aksesimin e dosjes: {e}"
+            return f"Gabim teknik në aksesimin e Bazës së Lëndës: {e}"
 
     async def _arun(self, query: str) -> str: return await asyncio.to_thread(self._run, query)
     class ArgsSchema(BaseModel): query: str = Field(description="Search query for facts.")
 
-# --- TOOL 2: GLOBAL KNOWLEDGE BASE (LAWS) ---
+# --- TOOL 2: BAZA E LIGJEVE (LAWS) ---
 class GlobalKnowledgeBaseInput(BaseModel): query: str = Field(description="Search query for laws.")
 
 @tool("query_global_knowledge_base", args_schema=GlobalKnowledgeBaseInput)
 def query_global_knowledge_base_tool(query: str) -> str:
-    """SEARCH LAWS. Use this to find Official Laws, Penal Codes, and Regulations in the Global System."""
+    """SEARCH LAWS in 'BAZA E LIGJEVE'. Use this to find Official Laws, Penal Codes, and Regulations."""
     from . import vector_store_service
     try:
         results = vector_store_service.query_global_knowledge_base(query_text=query)
-        if not results: return "GLOBAL KB: Nuk u gjetën ligje specifike."
-        return "\n\n".join([f"[LAW SOURCE: {r.get('source', 'Ligji')}]\n{r.get('text', '')}" for r in results])
+        if not results: return "BAZA E LIGJEVE: Nuk u gjetën ligje specifike."
+        return "\n\n".join([f"[BURIMI LIGJOR: {r.get('source', 'Ligji')}]\n{r.get('text', '')}" for r in results])
     except Exception as e:
         logger.error(f"GlobalKnowledgeBase Tool error: {e}")
         return f"Gabim teknik në aksesimin e ligjeve: {e}"
@@ -109,7 +109,7 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # PROMPT FIX: Properly includes {{tool_names}}
+        # PROMPT FIX: Updated terminology to "BAZA E LIGJEVE" and "BAZA E LËNDËS"
         researcher_template = f"""
         Ti je "Juristi AI", Arkitekt Ligjor Strategjik.
         
@@ -120,8 +120,8 @@ class AlbanianRAGService:
         {{tools}}
         
         PROTOKOLLI I MENDIMIT (DUAL BRAIN PROCESS):
-        1. HAPI 1: Konsulto CASE KNOWLEDGE BASE për të gjetur FAKTET e çështjes.
-        2. HAPI 2: Konsulto GLOBAL KNOWLEDGE BASE për të gjetur LIGJIN e aplikueshëm.
+        1. HAPI 1: Konsulto 'BAZA E LËNDËS' për të gjetur FAKTET e çështjes.
+        2. HAPI 2: Konsulto 'BAZA E LIGJEVE' për të gjetur LIGJIN e aplikueshëm.
         3. HAPI 3: Sintetizo përgjigjen duke aplikuar Ligjin mbi Faktet.
         
         FORMATI REACT (DETYRUESHËM):
@@ -171,13 +171,12 @@ class AlbanianRAGService:
             PYETJA: "{query}"
             JURIDIKSIONI: {jurisdiction}
             KONTEKSTI (Case Meta-Data): {case_summary}
-            DOKUMENTE TE ZGJEDHURA: {len(document_ids) if document_ids else 0}
+            DOKUMENTE TE ZGJEDHURA NË 'BAZA E LËNDËS': {len(document_ids) if document_ids else 0}
             """
             res = await executor.ainvoke({"input": input_text})
             return res.get('output', 'Nuk ka përgjigje.')
         except Exception as e:
             logger.error(f"Chat error: {e}")
-            # Fallback instead of crash
             return f"Ndjesë, ndodhi një gabim në procesimin e kërkesës. Provoni përsëri."
 
     async def generate_legal_draft(self, instruction: str, user_id: str, case_id: Optional[str]) -> str:
@@ -211,10 +210,10 @@ class AlbanianRAGService:
             {VISUAL_STYLE_PROTOCOL}
             
             --- MATERIALET ---
-            [CASE KNOWLEDGE BASE (FAKTET)]: 
+            [BAZA E LËNDËS (FAKTET)]: 
             {facts}
             
-            [GLOBAL KNOWLEDGE BASE (LIGJI)]: 
+            [BAZA E LIGJEVE (LIGJI)]: 
             {laws}
             
             [RASTI]: {case_summary}

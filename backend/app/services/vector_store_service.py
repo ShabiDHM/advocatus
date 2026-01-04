@@ -1,7 +1,7 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V14.1 (STABILITY)
-# 1. CONNECTIVITY: Robust ChromaDB connection handling.
-# 2. RETRIEVAL: Prioritizes Document ID search to prevent metadata mismatches.
+# PHOENIX PROTOCOL - VECTOR STORE V15.0 (TERMINOLOGY SYNC)
+# 1. LOCALIZATION: Aligned logging and comments with 'Baza e Lëndës' / 'Baza e Ligjeve'.
+# 2. LOGIC: Retains the robust 'Env-Aware' connection and Document ID prioritization.
 
 from __future__ import annotations
 import os
@@ -17,6 +17,8 @@ logger = logging.getLogger(__name__)
 # --- CONFIGURATION ---
 CHROMA_HOST = os.getenv("CHROMA_HOST", "chroma")
 CHROMA_PORT = int(os.getenv("CHROMA_PORT", 8000))
+
+# BAZA E LIGJEVE (Shared, Read-Only for Users)
 GLOBAL_KB_COLLECTION_NAME = "legal_knowledge_base"
 
 _client: Optional[ClientAPI] = None
@@ -56,7 +58,7 @@ def get_case_kb_collection(user_id: str) -> Collection:
     if not user_id: raise ValueError("User ID is required.")
     if user_id in _active_user_collections: return _active_user_collections[user_id]
     client = get_client()
-    # PHOENIX: User Isolation
+    # PHOENIX: User Isolation (Baza e Lëndës)
     collection = client.get_or_create_collection(name=f"user_{user_id}")
     _active_user_collections[user_id] = collection
     return collection
@@ -69,7 +71,7 @@ def create_and_store_embeddings_from_chunks(
     try:
         collection = get_case_kb_collection(user_id)
     except Exception as e:
-        logger.error(f"Failed to access Case KB for user {user_id}: {e}")
+        logger.error(f"Failed to access 'Baza e Lëndës' for user {user_id}: {e}")
         return False
     
     embeddings = []
@@ -111,6 +113,9 @@ def query_case_knowledge_base(
     case_context_id: Optional[str] = None,
     document_ids: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
+    """
+    SEARCH 'BAZA E LËNDËS' (Private Case Data).
+    """
     from . import embedding_service
     embedding = embedding_service.generate_embedding(query_text)
     if not embedding: return []
@@ -118,16 +123,20 @@ def query_case_knowledge_base(
     try:
         user_coll = get_case_kb_collection(user_id)
         
-        # PHOENIX OPTIMIZATION: Prioritize ID Search
         where_filter: Optional[Dict[str, Any]] = None
 
         if document_ids:
+            # Prioritize Specific Documents
             if len(document_ids) == 1:
                 where_filter = {"source_document_id": {"$eq": document_ids[0]}}
             else:
                 where_filter = {"source_document_id": {"$in": document_ids}}
+            logger.info(f"🔍 [Baza e Lëndës] Search Mode: Specific Docs | IDs: {document_ids}")
+        
         elif case_context_id and case_context_id != "general":
+            # Fallback to Full Case Context
             where_filter = {"case_id": {"$eq": str(case_context_id)}}
+            logger.info(f"🔍 [Baza e Lëndës] Search Mode: Full Case | Case: {case_context_id}")
         
         private_res = user_coll.query(
             query_embeddings=[embedding], n_results=n_results, where=where_filter # type: ignore
@@ -139,16 +148,23 @@ def query_case_knowledge_base(
             metas = meta_lists[0] if meta_lists and meta_lists[0] else []
             for d, m in zip(docs, metas):
                 results.append({
-                    "text": d, "source": (m or {}).get("file_name", "Dokument Case KB"), "type": "CASE_FACT"
+                    "text": d, 
+                    "source": (m or {}).get("file_name", "Dokument"), 
+                    "type": "CASE_FACT"
                 })
+        
+        logger.info(f"✅ [Baza e Lëndës] Found {len(results)} facts.")
         return results
     except Exception as e:
-        logger.warning(f"Case KB Query failed for {user_id}: {e}")
+        logger.warning(f"Baza e Lëndës Query failed for {user_id}: {e}")
         return []
 
 def query_global_knowledge_base(
     query_text: str, n_results: int = 3, jurisdiction: str = 'ks'
 ) -> List[Dict[str, Any]]:
+    """
+    SEARCH 'BAZA E LIGJEVE' (Public Global Data).
+    """
     from . import embedding_service
     embedding = embedding_service.generate_embedding(query_text)
     if not embedding: return []
@@ -167,7 +183,7 @@ def query_global_knowledge_base(
                 })
         return results
     except Exception as e:
-        logger.warning(f"Global KB Query failed: {e}")
+        logger.warning(f"Baza e Ligjeve Query failed: {e}")
         return []
 
 def delete_user_collection(user_id: str):
@@ -175,7 +191,7 @@ def delete_user_collection(user_id: str):
     try:
         client.delete_collection(name=f"user_{user_id}")
         if user_id in _active_user_collections: del _active_user_collections[user_id]
-        logger.info(f"🗑️ Deleted Case KB for User: {user_id}")
+        logger.info(f"🗑️ Deleted 'Baza e Lëndës' for User: {user_id}")
     except Exception as e:
         logger.warning(f"Failed to delete user collection: {e}")
 

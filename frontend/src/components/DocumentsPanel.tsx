@@ -1,8 +1,8 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V8.0 (GLASS STYLE)
-// 1. VISUALS: Full Glassmorphism adoption (glass-panel, glass-high).
-// 2. UX: Enhanced item interactions, progress bars, and selection states.
-// 3. LOGIC: Preserved upload, archive, and bulk delete functionality.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V8.1 (SMOOTH TRANSITION)
+// 1. FIX: Removed window.location.reload() on import.
+// 2. LOGIC: Updates the document list optimistically via 'onDocumentUploaded' callback.
+// 3. UX: Provides instant feedback without layout shifts.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ArchiveImportModal from './ArchiveImportModal';
+import { sanitizeDocument } from '../utils/documentUtils';
 
 interface DocumentsPanelProps {
   caseId: string;
@@ -151,8 +152,30 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       }
   };
 
-  const handleArchiveImportComplete = (_count: number) => {
-      window.location.reload(); 
+  // PHOENIX FIX: Replaced window.location.reload() with manual fetch logic
+  const handleArchiveImportComplete = async (_count: number) => {
+      try {
+          // Fetch the latest list of documents for this case
+          const updatedDocuments = await apiService.getDocuments(caseId);
+          
+          // We identify which documents are new by comparing IDs
+          // Or simpler: We iterate through the new list and if it's not in the current list, we call onDocumentUploaded
+          // HOWEVER, since 'onDocumentUploaded' usually appends to the top, doing it for 10 files might be weird.
+          // BUT: 'CaseViewPage' handles duplicates gracefully usually.
+          
+          // Cleaner Approach: Since DocumentsPanel doesn't own the state, we can't "setDocuments".
+          // But we can iterate the NEW files (finding the difference) and push them up.
+          
+          const currentIds = new Set(documents.map(d => d.id));
+          const newDocs = updatedDocuments.filter(d => !currentIds.has(d.id));
+          
+          newDocs.forEach(doc => {
+              onDocumentUploaded(sanitizeDocument(doc));
+          });
+          
+      } catch (error) {
+          console.error("Failed to refresh documents after import", error);
+      }
   };
 
   const statusDotColor = (status: ConnectionStatus) => {
