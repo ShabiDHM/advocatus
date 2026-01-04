@@ -1,8 +1,8 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V6.2 (CODE CLEANUP)
-// 1. FIX: Removed unused imports (ShieldAlert, FileWarning, EyeOff).
-// 2. FIX: Removed unused variable declarations (silent_parties, missing_info).
-// 3. STATUS: Production Ready. All warnings resolved.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V6.3 (PROFESSIONAL LAYOUT)
+// 1. RENAME: Changed tab 'Analiza Faktike' to the more professional 'Gjendja Faktike'.
+// 2. REORDER: The modal now defaults to the 'Gjendja Faktike' tab.
+// 3. REORDER: 'Përmbledhje' is now displayed above 'Sinjale Rreziku' for better logical flow.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -36,20 +36,20 @@ const sanitizeText = (text: string): string => {
 const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, isLoading }) => {
   const { t } = useTranslation();
   
-  const hasStrategy = result.strategic_summary || (result.emotional_leverage_points && result.emotional_leverage_points.length > 0);
-  const [activeTab, setActiveTab] = useState<'analysis' | 'strategy'>(hasStrategy ? 'strategy' : 'analysis');
+  // PHOENIX V6.3: Always default to Factual State tab first.
+  const [activeTab, setActiveTab] = useState<'analysis' | 'strategy'>('analysis');
 
   useEffect(() => {
     if (isOpen) { 
         document.body.style.overflow = 'hidden';
-        setActiveTab(hasStrategy ? 'strategy' : 'analysis');
+        // Reset to factual tab every time the modal opens
+        setActiveTab('analysis');
     } else { 
         document.body.style.overflow = 'unset'; 
     }
     return () => { document.body.style.overflow = 'unset'; };
-  }, [isOpen, hasStrategy]);
+  }, [isOpen]);
 
-  // PHOENIX V6.2: Unpack only the properties that are actually used.
   const {
       judicial_observation,
       red_flags = [],
@@ -79,7 +79,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
             <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-3 min-w-0">
               <div className="p-2 bg-gradient-to-br from-primary-start to-primary-end rounded-lg shrink-0 shadow-lg shadow-primary-start/20"><Gavel className="text-white h-5 w-5" /></div>
               <div className="flex flex-col">
-                  <span className="truncate leading-tight tracking-tight">{t('analysis.warRoomTitle', 'Salla e Strategjisë')}</span>
+                  <span className="truncate leading-tight tracking-tight">{t('analysis.warRoomTitle', 'Salla e Analizës')}</span>
                   {result.analysis_mode && (<span className="text-[10px] uppercase tracking-widest text-primary-300 font-bold mt-0.5">{getModeLabel(result.analysis_mode)}</span>)}
               </div>
             </h2>
@@ -91,8 +91,13 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           ) : (
              <>
                 <div className="flex border-b border-white/5 px-6 bg-black/20 shrink-0 overflow-x-auto no-scrollbar gap-6">
-                    <button onClick={() => setActiveTab('strategy')} className={`py-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${activeTab === 'strategy' ? 'border-accent-start text-accent-start' : 'border-transparent text-text-secondary hover:text-white'}`}><Swords size={16}/> {t('analysis.tabStrategy', 'Strategjia')}</button>
-                    <button onClick={() => setActiveTab('analysis')} className={`py-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${activeTab === 'analysis' ? 'border-primary-start text-white' : 'border-transparent text-text-secondary hover:text-white'}`}><Scale size={16}/> {t('analysis.tabFactual', 'Analiza Faktike')}</button>
+                    {/* PHOENIX V6.3: Tabs reordered and renamed */}
+                    <button onClick={() => setActiveTab('analysis')} className={`py-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${activeTab === 'analysis' ? 'border-primary-start text-white' : 'border-transparent text-text-secondary hover:text-white'}`}>
+                        <Scale size={16}/> Gjendja Faktike
+                    </button>
+                    <button onClick={() => setActiveTab('strategy')} className={`py-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${activeTab === 'strategy' ? 'border-accent-start text-accent-start' : 'border-transparent text-text-secondary hover:text-white'}`}>
+                        <Swords size={16}/> Strategjia
+                    </button>
                 </div>
 
                 <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar relative bg-black/10">
@@ -100,10 +105,63 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
                     {activeTab === 'analysis' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            {judicial_observation && (<div className="glass-panel p-6 rounded-2xl border-primary-start/20 bg-primary-start/5"><h3 className="text-xs font-bold text-primary-300 uppercase tracking-wider mb-3 flex items-center gap-2"><FileSearch size={16}/> {t('analysis.judicialObservation', 'Vlerësimi Gjyqësor')}</h3><p className="text-white text-sm leading-relaxed font-medium italic border-l-2 border-primary-start pl-4 py-1">"{sanitizeText(judicial_observation)}"</p></div>)}
-                            {red_flags.length > 0 && (<div className="glass-panel p-6 rounded-2xl border-red-500/20 bg-red-500/5"><h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Siren size={16} className="animate-pulse"/> {t('analysis.redFlags', 'Sinjale Rreziku')}</h3><ul className="space-y-2">{red_flags.map((flag: string, idx: number) => (<li key={idx} className="flex gap-3 text-sm text-red-100 bg-red-500/10 p-3 rounded-xl border border-red-500/20"><span className="text-red-500 font-bold mt-0.5">⚠</span><span className="leading-relaxed">{sanitizeText(flag)}</span></li>))}</ul></div>)}
-                            <div className="glass-panel p-6 rounded-2xl"><h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-2"><FileText size={16}/> {t('analysis.executiveSummary', 'Përmbledhje Ekzekutive')}</h3><p className="text-white text-sm leading-relaxed whitespace-pre-line">{sanitizeText(result.summary_analysis || "")}</p></div>
-                            {result.chronology && result.chronology.length > 0 && (<div className="glass-panel p-6 rounded-2xl border-white/5 bg-white/5"><h3 className="text-xs font-bold text-secondary-300 uppercase tracking-wider mb-6 flex items-center gap-2"><Clock size={16}/> {t('analysis.verifiedChronology', 'Kronologjia e Verifikuar')}</h3><div className="relative pl-4 border-l border-white/10 space-y-8 ml-2">{result.chronology.map((event, idx) => (<div key={idx} className="relative group"><div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-secondary-start shadow-[0_0_10px_rgba(124,58,237,0.5)] border border-background-dark group-hover:scale-125 transition-transform" /><div className="flex flex-col gap-1"><span className="text-secondary-300 font-bold text-[10px] tracking-wide uppercase bg-secondary-500/10 px-2 py-0.5 rounded w-fit">{event.date}</span><p className="text-gray-200 text-sm leading-snug font-medium mt-1">{sanitizeText(event.event)}</p>{event.source_doc && (<span className="text-text-secondary text-[10px] uppercase tracking-wider font-semibold flex items-center gap-1.5 mt-1 opacity-60"><FileText size={10} />{sanitizeText(event.source_doc)}</span>)}</div></div>))}</div></div>)}
+                            
+                            {/* PHOENIX V6.3: Component reordering */}
+                            <div className="glass-panel p-6 rounded-2xl">
+                                <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    <FileText size={16}/> Përmbledhje
+                                </h3>
+                                <p className="text-white text-sm leading-relaxed whitespace-pre-line">
+                                    {sanitizeText(result.summary_analysis || "Nuk ka përmbledhje.")}
+                                </p>
+                            </div>
+                            
+                            {red_flags.length > 0 && (
+                                <div className="glass-panel p-6 rounded-2xl border-red-500/20 bg-red-500/5">
+                                    <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <Siren size={16} className="animate-pulse"/> Sinjale Rreziku
+                                    </h3>
+                                    <ul className="space-y-2">
+                                        {red_flags.map((flag: string, idx: number) => (
+                                            <li key={idx} className="flex gap-3 text-sm text-red-100 bg-red-500/10 p-3 rounded-xl border border-red-500/20">
+                                                <span className="text-red-500 font-bold mt-0.5">⚠</span>
+                                                <span className="leading-relaxed">{sanitizeText(flag)}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {judicial_observation && (
+                                <div className="glass-panel p-6 rounded-2xl border-primary-start/20 bg-primary-start/5">
+                                    <h3 className="text-xs font-bold text-primary-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <FileSearch size={16}/> Vlerësimi Gjyqësor
+                                    </h3>
+                                    <p className="text-white text-sm leading-relaxed font-medium italic border-l-2 border-primary-start pl-4 py-1">
+                                        "{sanitizeText(judicial_observation)}"
+                                    </p>
+                                </div>
+                            )}
+
+                            {result.chronology && result.chronology.length > 0 && (
+                                <div className="glass-panel p-6 rounded-2xl border-white/5 bg-white/5">
+                                    <h3 className="text-xs font-bold text-secondary-300 uppercase tracking-wider mb-6 flex items-center gap-2">
+                                        <Clock size={16}/> Kronologjia e Verifikuar
+                                    </h3>
+                                    <div className="relative pl-4 border-l border-white/10 space-y-8 ml-2">
+                                        {result.chronology.map((event, idx) => (
+                                            <div key={idx} className="relative group">
+                                                <div className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-secondary-start shadow-[0_0_10px_rgba(124,58,237,0.5)] border border-background-dark group-hover:scale-125 transition-transform" />
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-secondary-300 font-bold text-[10px] tracking-wide uppercase bg-secondary-500/10 px-2 py-0.5 rounded w-fit">{event.date}</span>
+                                                    <p className="text-gray-200 text-sm leading-snug font-medium mt-1">{sanitizeText(event.event)}</p>
+                                                    {event.source_doc && (<span className="text-text-secondary text-[10px] uppercase tracking-wider font-semibold flex items-center gap-1.5 mt-1 opacity-60"><FileText size={10} />{sanitizeText(event.source_doc)}</span>)}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -120,7 +178,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
              </>
           )}
           <div className="p-4 border-t border-white/5 bg-background-dark/80 backdrop-blur-md text-center shrink-0">
-              <button onClick={onClose} className="w-full sm:w-auto px-10 py-3 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 text-white text-sm rounded-xl font-bold transition-all active:scale-95">{t('general.close', 'Mbyll Sallen')}</button>
+              <button onClick={onClose} className="w-full sm:w-auto px-10 py-3 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 text-white text-sm rounded-xl font-bold transition-all active:scale-95">{t('general.close', 'Mbyll')}</button>
           </div>
         </motion.div>
       </motion.div>
