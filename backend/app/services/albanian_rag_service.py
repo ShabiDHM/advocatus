@@ -1,7 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V25.4 (CONTEXT WIRED)
-# 1. FIX: PrivateDiaryTool now correctly passes 'document_ids' to Vector Store.
-# 2. FIX: chat() method correctly initializes tools with context.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V25.6 (END-TO-END VERIFIED)
+# 1. UPDATE: Wired to new Vector Store function names (query_case_knowledge_base / query_global_knowledge_base).
+# 2. STATUS: End-to-End Logic Restored.
 
 import os
 import asyncio
@@ -21,49 +21,40 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-# --- PERFORMANCE CONFIGURATION ---
 MAX_ITERATIONS = int(os.environ.get("RAG_MAX_ITERATIONS", "25"))  
 MAX_EXECUTION_TIME = int(os.environ.get("RAG_MAX_EXECUTION_TIME", "300"))  
 LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "120"))  
-EARLY_STOPPING_METHOD = os.environ.get("RAG_EARLY_STOPPING", "force")
 
-logger.info(f"RAG Configuration: max_iterations={MAX_ITERATIONS}, max_execution_time={MAX_EXECUTION_TIME}s")
+logger.info(f"RAG Configuration: max_iterations={MAX_ITERATIONS}")
 
 # --- THE FORENSIC CONSTITUTION ---
 STRICT_FORENSIC_RULES = """
 RREGULLAT E AUDITIMIT (STRICT LIABILITY):
 
-1. HIERARKIA E BURIMEVE:
-   - Global KB = LIGJI. Case KB = FAKTET.
-   - Mos shpik fakte. Mos shpik ligje.
+1. DUALITY OF BRAINS (DY MENDJET):
+   - GLOBAL KNOWLEDGE BASE = LIGJI (Codes, Regulations, Constitution).
+   - CASE KNOWLEDGE BASE = FAKTET (Uploaded Documents, Evidence, Statements).
+   
+2. STRICT SEPARATION:
+   - Mos përdor Case Knowledge Base për të shpikur ligje.
+   - Mos përdor Global Knowledge Base për të shpikur fakte.
 
-2. PROTOKOLLI I THJESHTËSIMIT (CHAT ONLY):
-   - Në Chat: Shpjego ligjet thjesht për klientin.
-   - Në Draftim: Përdor gjuhë profesionale juridike (për Gjykatë).
-
-3. CITIM I DETYRUESHËM: Çdo ligj ose provë duhet të ketë linkun Markdown specifik.
+3. CITIM I DETYRUESHËM: 
+   - Çdo fakt duhet të ketë burimin: [**Dokumenti X**](doc://...).
+   - Çdo ligj duhet të ketë burimin: [**Ligji Y**](doc://...).
 """
 
-# --- THE VISUAL STYLE PROTOCOL ---
 VISUAL_STYLE_PROTOCOL = """
 PROTOKOLLI I STILIT VIZUAL (DETYRUESHËM):
-
-1. **FORMATI I LIGJIT (Blue Text / Non-Clickable)**:
-   - Formati: [**{{Emri i Ligjit}} {{Nr.}}, {{Neni X}}**](doc://{{Emri_i_Burimit_PDF}})
-   - Shembull: ...bazuar në [**Ligji për Familjen Nr. 04/L-032, Neni 4**](doc://ligji.pdf).
-
-2. **FORMATI I PROVAVE (Yellow Badge / Clickable)**:
-   - Formati: [**PROVA: {{Përshkrimi i Dokumentit}}**](doc://{{Emri_i_Dosjes}})
-   - Shembull: ...siç shihet në [**PROVA: Raporti Mjekësor**](doc://raporti.pdf).
-
-3. **STRUKTURA**:
-   - Përdor tituj të qartë: **BAZA LIGJORE**, **FAKTET**, **KËRKESA**.
+1. **FORMATI I LIGJIT (Blue Text)**: [**{{Emri i Ligjit}} {{Nr.}}, {{Neni X}}**](doc://{{Emri_i_Burimit_PDF}})
+2. **FORMATI I PROVAVE (Yellow Badge)**: [**PROVA: {{Përshkrimi i Dokumentit}}**](doc://{{Emri_i_Dosjes}})
+3. **STRUKTURA**: **BAZA LIGJORE** (Global), **FAKTET** (Case), **ANALIZA**.
 """
 
-# --- Custom Tool Class for Private Diary ---
-class PrivateDiaryTool(BaseTool):
-    name: str = "query_private_diary"
-    description: str = "CASE KNOWLEDGE BASE (FACTS). Access specific documents, dates, and evidence."
+# --- TOOL 1: CASE KNOWLEDGE BASE (FACTS) ---
+class CaseKnowledgeBaseTool(BaseTool):
+    name: str = "query_case_knowledge_base"
+    description: str = "SEARCH FACTS. Use this to find specific details, dates, names, or evidence inside the User's uploaded documents."
     user_id: str
     case_id: Optional[str]
     document_ids: Optional[List[str]] = None
@@ -71,36 +62,37 @@ class PrivateDiaryTool(BaseTool):
     def _run(self, query: str) -> str:
         from . import vector_store_service
         try:
-            # PHOENIX FIX: Now correctly passing document_ids to the service
-            results = vector_store_service.query_private_diary(
+            # PHOENIX FIX: Calls the strictly named Case KB function
+            results = vector_store_service.query_case_knowledge_base(
                 user_id=self.user_id, 
                 query_text=query, 
                 case_context_id=self.case_id,
                 document_ids=self.document_ids
             )
-            if not results: return "Nuk u gjetën të dhëna private (Ska dokumente relevante)."
-            return "\n\n".join([f"[BURIMI (FACT): {r.get('source', 'Unknown')}]\n{r.get('text', '')}" for r in results])
+            if not results: return "CASE KB: Nuk u gjetën të dhëna relevante në dosje."
+            return "\n\n".join([f"[FACT SOURCE: {r.get('source', 'Unknown')}]\n{r.get('text', '')}" for r in results])
         except Exception as e:
-            logger.error(f"PrivateDiaryTool error: {e}")
-            return "Gabim në aksesimin e ditarit privat."
+            logger.error(f"CaseKnowledgeBase Tool error: {e}")
+            return "Gabim teknik në aksesimin e dosjes."
 
     async def _arun(self, query: str) -> str: return await asyncio.to_thread(self._run, query)
-    class ArgsSchema(BaseModel): query: str = Field(description="Search query for case facts.")
+    class ArgsSchema(BaseModel): query: str = Field(description="Search query for facts.")
 
-# --- Public Library Tool ---
-class PublicLibraryInput(BaseModel): query: str = Field(description="Search query for laws.")
+# --- TOOL 2: GLOBAL KNOWLEDGE BASE (LAWS) ---
+class GlobalKnowledgeBaseInput(BaseModel): query: str = Field(description="Search query for laws.")
 
-@tool("query_public_library", args_schema=PublicLibraryInput)
-def query_public_library_tool(query: str) -> str:
-    """GLOBAL KNOWLEDGE BASE (LAW). Access Official Laws & Regulations."""
+@tool("query_global_knowledge_base", args_schema=GlobalKnowledgeBaseInput)
+def query_global_knowledge_base_tool(query: str) -> str:
+    """SEARCH LAWS. Use this to find Official Laws, Penal Codes, and Regulations in the Global System."""
     from . import vector_store_service
     try:
-        results = vector_store_service.query_public_library(query_text=query)
-        if not results: return "Nuk u gjetën ligje."
-        return "\n\n".join([f"[BURIMI (LAW): {r.get('source', 'Ligji')}]\n{r.get('text', '')}" for r in results])
+        # PHOENIX FIX: Calls the strictly named Global KB function
+        results = vector_store_service.query_global_knowledge_base(query_text=query)
+        if not results: return "GLOBAL KB: Nuk u gjetën ligje specifike."
+        return "\n\n".join([f"[LAW SOURCE: {r.get('source', 'Ligji')}]\n{r.get('text', '')}" for r in results])
     except Exception as e:
-        logger.error(f"PublicLibraryTool error: {e}")
-        return "Gabim në aksesimin e ligjeve."
+        logger.error(f"GlobalKnowledgeBase Tool error: {e}")
+        return "Gabim teknik në aksesimin e ligjeve."
 
 class AlbanianRAGService:
     def __init__(self, db: Any):
@@ -118,32 +110,27 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # CHAT PROMPT (Strategic Advisor + ReAct Logic)
         researcher_template = f"""
-        Ti je "Juristi AI", këshilltar ligjor strategjik.
+        Ti je "Juristi AI", Arkitekt Ligjor Strategjik.
         
         {STRICT_FORENSIC_RULES}
         {VISUAL_STYLE_PROTOCOL}
 
-        MJETET E DISPONUESHME:
+        MJETET E DISPONUESHME (TOOLS):
         {{tools}}
         
-        PROTOKOLLI I MENDIMIT (DUAL BRAIN):
-        1. Gjej FAKTET (Private Diary).
-        2. Gjej LIGJIN (Public Library).
-        3. PËRGJIGJU:
-           - Përdor stilin shpjegues (Plain Language) për klientin.
-           - Përdor seksionin "**📌 Si ndikon kjo në rastin tuaj:**".
+        PROTOKOLLI I MENDIMIT (DUAL BRAIN PROCESS):
+        1. HAPI 1: Konsulto CASE KNOWLEDGE BASE për të gjetur FAKTET e çështjes.
+        2. HAPI 2: Konsulto GLOBAL KNOWLEDGE BASE për të gjetur LIGJIN e aplikueshëm.
+        3. HAPI 3: Sintetizo përgjigjen duke aplikuar Ligjin mbi Faktet.
         
-        FORMATI REACT (DETYRUESHËM):
-        Question: Pyetja e hyrjes
-        Thought: Mendo çfarë të bësh (Cilin mjet të përdor?)
-        Action: Një nga [{{tool_names}}]
-        Action Input: Inputi për veprimin
-        Observation: Rezultati i veprimit
-        ... (Përsërit derisa të kesh përgjigjen)
-        Thought: Tani e di përgjigjen.
-        Final Answer: Përgjigja përfundimtare për klientin.
+        FORMATI REACT:
+        Question: ...
+        Thought: ...
+        Action: ...
+        Action Input: ...
+        Observation: ...
+        Final Answer: ...
         
         Fillo!
         Question: {{input}}
@@ -153,7 +140,7 @@ class AlbanianRAGService:
         
     async def _get_case_summary(self, case_id: Optional[str]) -> str:
         try:
-            if self.db is None or not case_id: return "Nuk ka informacion specifik."
+            if self.db is None or not case_id: return ""
             oid = ObjectId(case_id)
             case = await self.db.cases.find_one({"_id": oid}, {"case_name": 1, "description": 1})
             return f"RASTI: {case.get('case_name', '')}. {case.get('description', '')}" if case else ""
@@ -170,23 +157,19 @@ class AlbanianRAGService:
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None, document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> str:
         if not self.llm: return "Sistemi AI nuk është aktiv."
         try:
-            # PHOENIX FIX: Passing document_ids to the Tool Constructor
             tools = [
-                PrivateDiaryTool(user_id=user_id, case_id=case_id, document_ids=document_ids), 
-                query_public_library_tool
+                CaseKnowledgeBaseTool(user_id=user_id, case_id=case_id, document_ids=document_ids), 
+                query_global_knowledge_base_tool
             ]
             
             executor = self._create_agent_executor(tools)
             case_summary = await self._get_case_summary(case_id)
             
-            # Enhancing the prompt context to encourage tool usage
             input_text = f"""
             PYETJA: "{query}"
             JURIDIKSIONI: {jurisdiction}
-            KONTEKSTI (Meta-Data): {case_summary}
-            DOKUMENTE SPECIFIKE TË ZGJEDHURA: {len(document_ids) if document_ids else 0}
-            
-            DETYRA: Përgjigju qartë për klientin (Strategic Advisor). Përdor mjetet për të gjetur detaje.
+            KONTEKSTI (Case Meta-Data): {case_summary}
+            DOKUMENTE TE ZGJEDHURA: {len(document_ids) if document_ids else 0}
             """
             res = await executor.ainvoke({"input": input_text})
             return res.get('output', 'Nuk ka përgjigje.')
@@ -200,60 +183,45 @@ class AlbanianRAGService:
             case_summary = await self._get_case_summary(case_id)
             from . import vector_store_service
             
+            # 1. RETRIEVE FACTS FROM CASE KB
             try:
-                # Note: Drafting currently uses broad search (no specific doc ID filtering yet)
-                p_docs = vector_store_service.query_private_diary(
+                p_docs = vector_store_service.query_case_knowledge_base(
                     user_id=user_id, 
                     query_text=instruction[:300], 
                     case_context_id=case_id
                 )
                 facts = "\n".join([d.get('text', '') for d in p_docs]) if p_docs else "S'ka dokumente specifike."
             except Exception as e:
-                logger.warning(f"Error fetching facts: {e}")
                 facts = "Gabim në marrjen e fakteve."
             
+            # 2. RETRIEVE LAW FROM GLOBAL KB
             try:
-                l_docs = vector_store_service.query_public_library(instruction[:300])
+                l_docs = vector_store_service.query_global_knowledge_base(instruction[:300])
                 laws = "\n".join([d.get('text', '') for d in l_docs]) if l_docs else "Referohu parimeve ligjore."
             except Exception as e:
-                logger.warning(f"Error fetching laws: {e}")
                 laws = "Gabim në marrjen e ligjeve."
 
             drafting_prompt = f"""
-            Ti je Avokat Kryesor (Senior Counsel).
-            Ti po harton një DOKUMENT ZYRËTAR LIGJOR (Për Gjykatë/Institucion).
+            Ti je Avokat Kryesor.
             
             {STRICT_FORENSIC_RULES}
             {VISUAL_STYLE_PROTOCOL}
             
             --- MATERIALET ---
-            [FAKTET - CASE BRAIN]: 
+            [CASE KNOWLEDGE BASE (FAKTET)]: 
             {facts}
             
-            [LIGJI - GLOBAL BRAIN]: 
+            [GLOBAL KNOWLEDGE BASE (LIGJI)]: 
             {laws}
             
-            [RASTI]: 
-            {case_summary}
+            [RASTI]: {case_summary}
+            [UDHËZIMI]: {instruction}
             
-            --- UDHËZIMI ---
-            {instruction}
-            
-            --- DETYRA ---
-            Harto dokumentin e plotë.
-            RËNDËSISHME:
-            1. Përdor gjuhë formale juridike (JO 'Plain Language' si në chat).
-            2. Përdor saktësisht formatin vizual të citimeve (Blue Text) dhe Provave (Yellow Badge).
-            3. Argumento fuqishëm duke lidhur ligjin me faktin.
+            DETYRA: Harto dokumentin.
             """
             
-            response = await asyncio.wait_for(
-                self.llm.ainvoke(drafting_prompt),
-                timeout=LLM_TIMEOUT
-            )
+            response = await asyncio.wait_for(self.llm.ainvoke(drafting_prompt), timeout=LLM_TIMEOUT)
             return str(response.content)
             
-        except asyncio.TimeoutError:
-            return f"Koha skadoi. Provoni përsëri."
         except Exception as e:
             return f"Gabim draftimi: {str(e)[:200]}"
