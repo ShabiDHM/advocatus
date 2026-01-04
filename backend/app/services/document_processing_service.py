@@ -1,7 +1,7 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - INGESTION BRIDGE V9.1 (COMPATIBILITY PATCH)
-# 1. ENSURES: 'user_id' is passed to vector store (Critical for V13.0 Store).
-# 2. FIX: Connects the Upload Pipeline to the new Private Case KB.
+# PHOENIX PROTOCOL - INGESTION PIPELINE V10.0 (SYNCED)
+# 1. CRITICAL FIX: Passes 'user_id' correctly to the V13.0 Vector Store.
+# 2. STATUS: Fixes "Context Detachment" by ensuring embeddings land in the Private Case KB.
 
 import os
 import tempfile
@@ -78,11 +78,13 @@ def orchestrate_document_processing_mongo(
     try:
         _emit_progress(redis_client, user_id, document_id_str, "Shkarkimi...", 10)
         
+        # Safe temp file creation
         suffix = os.path.splitext(doc_name)[1]
         temp_file_descriptor, temp_original_file_path = tempfile.mkstemp(suffix=suffix)
+        os.close(temp_file_descriptor) # Close immediately, we just needed the path
         
         file_stream = storage_service.download_original_document_stream(document["storage_key"])
-        with os.fdopen(temp_file_descriptor, 'wb') as temp_file:
+        with open(temp_original_file_path, 'wb') as temp_file:
             shutil.copyfileobj(file_stream, temp_file)
         if hasattr(file_stream, 'close'): file_stream.close()
 
@@ -97,7 +99,7 @@ def orchestrate_document_processing_mongo(
         raw_text = text_extraction_service.extract_text(temp_original_file_path, document.get("mime_type", ""))
         
         if not raw_text or not raw_text.strip():
-            raise ValueError("OCR dështoi: Dokumenti duket bosh.")
+            raise ValueError("OCR dështoi: Dokumenti duket bosh (Empty Text).")
 
         _emit_progress(redis_client, user_id, document_id_str, "Sterilizimi Ligjor...", 28)
         extracted_text = llm_service.sterilize_legal_text(raw_text)
@@ -105,6 +107,7 @@ def orchestrate_document_processing_mongo(
         _emit_progress(redis_client, user_id, document_id_str, "Klasifikimi...", 30)
         is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
         extracted_metadata = albanian_metadata_extractor.extract(extracted_text, document_id_str)
+        
         update_payload = {"detected_language": "sq" if is_albanian else "en", "metadata": extracted_metadata}
         try:
             detected_category = CATEGORIZATION_SERVICE.categorize_document(extracted_text)
@@ -115,6 +118,7 @@ def orchestrate_document_processing_mongo(
 
         _emit_progress(redis_client, user_id, document_id_str, "Analizë e Thellë...", 40)
         
+        # --- SUB-TASKS ---
         def task_embeddings() -> bool:
             try:
                 _emit_progress(redis_client, user_id, document_id_str, "Indeksimi Vektorial...", 50)
@@ -124,8 +128,8 @@ def orchestrate_document_processing_mongo(
                 
                 enriched_chunks = EnhancedDocumentProcessor.process_document(text_content=extracted_text, document_metadata=base_doc_metadata, is_albanian=is_albanian)
                 
-                # CRITICAL LINK: Passing 'user_id' to the new V13.0 Store
-                vector_store_service.create_and_store_embeddings_from_chunks(
+                # PHOENIX FIX: Passing 'user_id' explicitly to V13.0 Store
+                success = vector_store_service.create_and_store_embeddings_from_chunks(
                     user_id=user_id, 
                     document_id=document_id_str, 
                     case_id=case_id_str, 
@@ -133,9 +137,10 @@ def orchestrate_document_processing_mongo(
                     chunks=[c.content for c in enriched_chunks],
                     metadatas=[c.metadata for c in enriched_chunks]
                 )
-                return True
+                if not success: logger.error("Vector Store returned False")
+                return success
             except Exception as e:
-                logger.error(f"Embedding Task Failed: {e}")
+                logger.error(f"Embedding Task Failed: {e}", exc_info=True)
                 return False
 
         def task_storage() -> Optional[str]:
@@ -171,10 +176,18 @@ def orchestrate_document_processing_mongo(
             except Exception as e: logger.error(f"Graph Ingestion Error: {e}")
 
         summary_result, text_storage_key = None, None
+        
+        # Parallel Execution
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures_list = [executor.submit(task) for task in [task_embeddings, task_storage, task_summary, task_deadlines, task_graph]]
+            # Wait for critical results
             summary_result = futures_list[2].result()
             text_storage_key = futures_list[1].result()
+            
+            # Check embedding status
+            emb_status = futures_list[0].result()
+            if not emb_status:
+                logger.warning(f"⚠️ Document {doc_name} was processed but Embeddings failed.")
 
         _emit_progress(redis_client, user_id, document_id_str, "Përfunduar", 100)
         
