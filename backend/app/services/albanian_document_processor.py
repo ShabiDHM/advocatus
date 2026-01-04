@@ -1,9 +1,9 @@
 # FILE: backend/app/services/albanian_document_processor.py
-# PHOENIX PROTOCOL - DOCUMENT PROCESSOR V6 (SEMANTIC INTELLIGENCE)
-# 1. INTELLIGENCE: Uses Regex Look-Ahead to split text exactly at 'Neni/Article' boundaries.
-# 2. ACCURACY: Ensures an Article header (e.g. "Neni 5") is never separated from its content.
-# 3. CONTEXT: Increased chunk size to 1500 chars to capture full legal clauses in one go.
+# PHOENIX PROTOCOL - DOCUMENT PROCESSOR V7 (PAGE-AWARE)
+# 1. FIX: Now detects 'FAQJA X' markers and injects 'page' into metadata.
+# 2. ACCURACY: Ensures citations are traceable to the exact page number.
 
+import re
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from langchain.text_splitter import RecursiveCharacterTextSplitter
@@ -16,33 +16,24 @@ class DocumentChunk(BaseModel):
 
 class EnhancedDocumentProcessor:
     """
-    Advanced processor for splitting Albanian-language legal text (Kosovo Context).
-    Uses Semantic Regex splitting to ensure Legal Articles remain intact.
+    Advanced processor for splitting Albanian-language legal text.
+    Preserves page number metadata for accurate citations.
     """
 
     @staticmethod
     def _get_legal_regex_separators() -> List[str]:
         """
         Regex Patterns for Kosovo Legal Structure.
-        The '(?=...)' syntax is a Look-Ahead. It splits BEFORE the match,
-        keeping the header attached to its content.
         """
         return [
-            # 1. Major Divisions (Chapters)
             r"(?=\nKREU\s+[IVX0-9]+)",    
-            
-            # 2. Primary Legal Units (Articles) - The most critical split
-            r"(?=\nNENI\s+\d+)",          # Uppercase: NENI 10
-            r"(?=\nNeni\s+\d+)",          # Titlecase: Neni 10
-            r"(?=\nArtikulli\s+\d+)",     # Alternative: Artikulli 10
-            
-            # 3. Sub-divisions (Paragraphs/Points)
-            r"(?=\n\d+\.)",               # Numbered lists: 1. (Start of line)
-            r"(?=\n[a-z]\))",             # Lettered lists: a) (Start of line)
-            
-            # 4. Fallbacks
-            r"\n\n",                      # Standard paragraph break
-            r"\.\s+",                     # Sentence end
+            r"(?=\nNENI\s+\d+)",          
+            r"(?=\nNeni\s+\d+)",          
+            r"(?=\nArtikulli\s+\d+)",     
+            r"(?=\n\d+\.)",               
+            r"(?=\n[a-z]\))",             
+            r"\n\n",                      
+            r"\.\s+",                     
         ]
 
     @classmethod
@@ -53,60 +44,76 @@ class EnhancedDocumentProcessor:
         is_albanian: bool,
     ) -> List[DocumentChunk]:
         """
-        Splits text content and enriches chunks based on language detection.
+        Splits text content and enriches chunks with page number metadata.
         """
         if not text_content:
             return []
 
-        # PHOENIX OPTIMIZATION:
-        # Kosovo laws are dense. We need larger chunks to keep "Neni" and all its "Pika" together.
-        # 1500 chars is approx 300-400 words, usually enough for one full legal article.
-        chunk_size = 1500 if is_albanian else 1000
-        chunk_overlap = 200 # Overlap ensures context flows if an article is huge
+        # --- PHOENIX V7: PAGE AWARE CHUNKING ---
+        # 1. Split the entire document by our page markers first.
+        page_splits = re.split(r'--- \[FAQJA (\d+)\] ---', text_content)
         
-        if is_albanian:
-            # SEMANTIC REGEX SPLITTER
-            separators = cls._get_legal_regex_separators()
-            is_separator_regex = True
-            keep_separator = True # Important: Don't delete the "Neni" text during split
-        else:
-            # Standard Splitter for English/Other
-            separators = ["\n\n", "\n", ". ", " ", ""]
-            is_separator_regex = False
-            keep_separator = False
-
-        # Initialize Splitter
+        # The first element is any text before page 1, usually empty.
+        content_by_page = {}
+        page_number = 1
+        # Start from index 1 because the regex split gives us [text_before, page_num, text_on_page, page_num, ...]
+        for i in range(1, len(page_splits), 2):
+            page_num_str = page_splits[i]
+            page_content = page_splits[i+1]
+            try:
+                page_number = int(page_num_str)
+                content_by_page[page_number] = page_content
+            except (ValueError, IndexError):
+                continue
+        
+        # --- CHUNKING LOGIC (Applied per page) ---
+        chunk_size = 1500 if is_albanian else 1000
+        chunk_overlap = 200
+        
+        separators = cls._get_legal_regex_separators() if is_albanian else ["\n\n", "\n", ". ", " "]
+        
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
             separators=separators,
-            is_separator_regex=is_separator_regex,
-            keep_separator=keep_separator,
+            is_separator_regex=is_albanian,
+            keep_separator=is_albanian,
             length_function=len
         )
-
-        # Perform Split
-        raw_chunks = text_splitter.split_text(text_content)
-
+        
         enriched_chunks: List[DocumentChunk] = []
-        for i, content in enumerate(raw_chunks):
-            # Create a mutable copy of the base metadata
-            chunk_metadata = document_metadata.copy()
+        global_chunk_index = 0
 
-            # Add context enrichment
-            chunk_metadata.update({
-                "chunk_index": i,
-                "total_chunks": len(raw_chunks),
-                "language": "sq" if is_albanian else "en", 
-                "processor_version": "V6.0-SEMANTIC_REGEX",
-                "char_count": len(content)
-            })
+        # 2. Process each page's content individually
+        for page_num, page_text in content_by_page.items():
+            if not page_text.strip():
+                continue
 
-            enriched_chunks.append(
-                DocumentChunk(
-                    content=content,
-                    metadata=chunk_metadata
+            raw_chunks = text_splitter.split_text(page_text)
+            
+            for content in raw_chunks:
+                # Create a mutable copy of the base metadata
+                chunk_metadata = document_metadata.copy()
+
+                # PHOENIX FIX: Add the crucial page number metadata
+                chunk_metadata.update({
+                    "page": page_num,
+                    "chunk_index": global_chunk_index,
+                    "language": "sq" if is_albanian else "en", 
+                    "processor_version": "V7.0-PAGE_AWARE",
+                    "char_count": len(content)
+                })
+
+                enriched_chunks.append(
+                    DocumentChunk(
+                        content=content,
+                        metadata=chunk_metadata
+                    )
                 )
-            )
+                global_chunk_index += 1
 
+        # Re-index total chunks
+        for chunk in enriched_chunks:
+            chunk.metadata["total_chunks"] = len(enriched_chunks)
+            
         return enriched_chunks
