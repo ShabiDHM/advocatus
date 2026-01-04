@@ -1,7 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V23.2 (SPREADSHEET ANALYST)
-# 1. ADDED: analyze_financial_summary method.
-# 2. STATUS: Integrated with SpreadsheetService.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V24.0 (FULL ACTIVATION)
+# 1. LOCALIZATION: Aligned prompts with 'BAZA E LËNDËS' / 'BAZA E LIGJEVE'.
+# 2. FEATURE: Implemented 'extract_graph_data' (Knowledge Graph is now active).
+# 3. FEATURE: Implemented 'extract_deadlines_from_text' (Calendar Auto-fill active).
 
 import os
 import json
@@ -19,28 +20,28 @@ logger = logging.getLogger(__name__)
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat"
-OLLAMA_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/generate")
+OLLAMA_URL = os.environ.get("LOCAL_LLM_URL", "http://host.docker.internal:11434/api/generate")
 LOCAL_MODEL_NAME = "llama3"
 
 _deepseek_client: Optional[OpenAI] = None
 
-# --- THE FORENSIC CONSTITUTION (MASTER COPY) ---
+# --- THE FORENSIC CONSTITUTION (ALIGNED V26.1) ---
 STRICT_FORENSIC_RULES = """
 RREGULLAT E AUDITIMIT (STRICT LIABILITY):
 
-1. HIERARKIA E BURIMEVE (THE SOURCE HIERARCHY):
-   - GLOBAL KNOWLEDGE BASE = LIGJI (The Law). Kjo përmban rregullat, nenet dhe precedentët.
-   - CASE KNOWLEDGE BASE = FAKTET (The Facts). Kjo përmban vetëm dokumentet që ndodhen në "Document Panel" të dosjes.
-   - URDHËR: Ti nuk guxon të shpikësh fakte. Faktet merren VETËM nga CASE KNOWLEDGE BASE.
-   - URDHËR: Ti nuk guxon të shpikësh ligje. Ligjet merren VETËM nga GLOBAL KNOWLEDGE BASE.
+1. DUALITY OF BRAINS (DY MENDJET):
+   - BAZA E LIGJEVE (GLOBAL) = LIGJI (Kodet, Kushtetuta, Rregulloret).
+   - BAZA E LËNDËS (CASE) = FAKTET (Dokumentet e ngarkuara, Provat, Deklaratat).
+   
+2. STRICT SEPARATION:
+   - Mos përdor 'Baza e Lëndës' për të shpikur ligje.
+   - Mos përdor 'Baza e Ligjeve' për të shpikur fakte specifike të çështjes.
 
-2. ZERO HALUCINACIONE: Nëse fakti nuk ekziston në "Case Knowledge Base", shkruaj "NUK KA TË DHËNA NË DOSJE".
-3. RREGULLI I HESHTJES (THE SILENT PARTY RULE): 
-   - Nëse kemi vetëm Padinë, I Padituri "NUK KA PARAQITUR PËRGJIGJE". Mos shpik mbrojtje për të.
-4. CITIM I DETYRUESHËM:
-   - Çdo pretendim faktik duhet të ketë referencën: [Fq. X] ose [Burimi].
-5. GJUHA: Përdor Shqipe Standarde (e, ë, ç).
-6. JURIDIKSIONI: Republika e Kosovës.
+3. CITIM I DETYRUESHËM: 
+   - Çdo fakt duhet të ketë burimin: [**Dokumenti X**](doc://...).
+   - Çdo ligj duhet të ketë burimin: [**Ligji Y**](doc://...).
+   
+4. JURIDIKSIONI: Republika e Kosovës.
 """
 
 def get_deepseek_client() -> Optional[OpenAI]:
@@ -57,7 +58,9 @@ def get_deepseek_client() -> Optional[OpenAI]:
 def sterilize_legal_text(text: str) -> str:
     if not text: return ""
     text = sterilize_text_for_llm(text, redact_names=False)
+    # Normalize Page markers
     text = re.sub(r'--- \[Page (\d+)\] ---', r'--- [FAQJA \1] ---', text)
+    # Fix common OCR typos in Albanian legal terms
     replacements = {
         "Paditésja": "Paditësja", "paditésja": "paditësja",
         "Paditési": "Paditësi", "paditési": "paditësi",
@@ -65,19 +68,17 @@ def sterilize_legal_text(text: str) -> str:
     }
     for bad, good in replacements.items():
         text = text.replace(bad, good)
-    clean_text = text
-    pattern = r"(?i)(propozoj|propozim)([\s\S]{0,1500}?)(aktgjykim)" 
-    def replacer(match): return f"{match.group(1)}{match.group(2)}DRAFT-PROPOZIM (KËRKESË E PALËS - JO VENDIM)"
-    clean_text = re.sub(pattern, replacer, clean_text)
-    return clean_text
+    return text
 
 def _parse_json_safely(content: str) -> Dict[str, Any]:
     try: return json.loads(content)
     except json.JSONDecodeError:
+        # Attempt to find JSON blob inside markdown or text
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
         if match:
             try: return json.loads(match.group(1))
             except: pass
+        # Fallback: look for first { and last }
         start, end = content.find('{'), content.rfind('}')
         if start != -1 and end != -1:
             try: return json.loads(content[start:end+1])
@@ -123,6 +124,8 @@ def generate_summary(text: str) -> str:
     clean_text = sterilize_legal_text(text[:20000])
     system_prompt = "Ti je Analist Ligjor Forensik. Krijo një përmbledhje të shkurtër, objektive. Përmend statusin procedural (psh: 'Padi e dorëzuar', 'Aktgjykim i plotfuqishëm')."
     user_prompt = f"DOKUMENTI:\n{clean_text}"
+    
+    # Try Local First for simple summaries (Eco-Mode)
     res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
     if not res or len(res) < 50: 
         res = _call_deepseek(system_prompt, user_prompt)
@@ -132,7 +135,7 @@ def analyze_case_integrity(text: str) -> Dict[str, Any]:
     clean_text = sterilize_legal_text(text[:30000])
     system_prompt = """
     Ti je "Gjykatës Suprem & Detektiv Hetues".
-    DETYRA: Analizo tekstin rresht për rresht (CASE KNOWLEDGE BASE). Identifiko palët, datat dhe kontradiktat.
+    DETYRA: Analizo tekstin rresht për rresht (BAZA E LËNDËS). Identifiko palët, datat dhe kontradiktat.
     FORMATI JSON (Strict):
     {
         "document_type": "Përcakto llojin",
@@ -147,7 +150,7 @@ def analyze_case_integrity(text: str) -> Dict[str, Any]:
         "missing_info": []
     }
     """
-    user_prompt = f"DOSJA E PLOTË (CASE KNOWLEDGE BASE):\n{clean_text}"
+    user_prompt = f"DOSJA E PLOTË (BAZA E LËNDËS):\n{clean_text}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
@@ -157,7 +160,7 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
     formatted_context = "\n".join([f"- {s}" for s in context_summaries if s])
     system_prompt = """
     Ti je "Phoenix Litigation Engine".
-    DETYRA: Kryqëzo dokumentin e ri [TARGET] me historikun e dosjes [CASE KNOWLEDGE BASE]. Gjej mospërputhje.
+    DETYRA: Kryqëzo dokumentin e ri [TARGET] me historikun e dosjes [BAZA E LËNDËS]. Gjej mospërputhje.
     FORMATI JSON (Strict):
     {
         "summary_analysis": "Analizë koherencës.",
@@ -170,9 +173,8 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
         "discovery_targets": ["Dokumente shtesë."]
     }
     """
-    user_prompt = f"[CASE KNOWLEDGE BASE]:\n{formatted_context}\n\n[TARGET]:\n{clean_target}"
+    user_prompt = f"[BAZA E LËNDËS]:\n{formatted_context}\n\n[TARGET]:\n{clean_target}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
-    if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
 
 def perform_dual_source_analysis(query: str, case_context: str, global_context: str) -> Dict[str, Any]:
@@ -180,7 +182,7 @@ def perform_dual_source_analysis(query: str, case_context: str, global_context: 
     clean_global = sterilize_legal_text(global_context[:10000])
     system_prompt = """
     Ti je "Phoenix Legal Architect".
-    BURIMET: 1. GLOBAL KB (LIGJI). 2. CASE KB (FAKTET).
+    BURIMET: 1. BAZA E LIGJEVE (LIGJI). 2. BAZA E LËNDËS (FAKTET).
     DETYRA: Përgjigju pyetjes duke aplikuar LIGJIN mbi FAKTET.
     FORMATI JSON (Strict):
     {
@@ -191,40 +193,80 @@ def perform_dual_source_analysis(query: str, case_context: str, global_context: 
         "strategy": "Sugjerim."
     }
     """
-    user_prompt = f"PYETJA: {query}\n\n[LIGJI]:\n{clean_global}\n\n[FAKTET]:\n{clean_case}"
+    user_prompt = f"PYETJA: {query}\n\n[BAZA E LIGJEVE]:\n{clean_global}\n\n[BAZA E LËNDËS]:\n{clean_case}"
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
-    if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
     return _parse_json_safely(content) if content else {}
 
-# --- NEW: SPREADSHEET ANALYST ---
 def analyze_financial_summary(data_context: str) -> str:
-    """
-    Generates a narrative report based on statistical data from a spreadsheet.
-    """
     system_prompt = """
     Ti je "Phoenix Financial Forensic Analyst".
-    
-    DETYRA:
-    Analizo përmbledhjen statistikore të të dhënave financiare/tabelare.
-    Identifiko modele të dyshimta, anomali (vlerat ekstreme), ose trende që duhen hetuar.
-    
-    FORMATI I PËRGJIGJES (Narrative):
-    Shkruaj një raport profesional hetimor (3-4 paragrafë në Gjuhen Shqipe).
-    - Fillo me një përmbledhje të strukturës së të dhënave (çfarë përfaqësojnë).
-    - Evidencon vlerat e dyshimta (anomalitë) nëse ka.
-    - Shpjego shpërndarjen e të dhënave (nëse ka përqendrime te caktuara).
-    - Përfundo me një rekomandim për auditim të mëtejshëm.
+    DETYRA: Analizo përmbledhjen statistikore. Identifiko modele të dyshimta, anomali, ose trende.
+    FORMATI I PËRGJIGJES (Narrative): Raport profesional hetimor (3-4 paragrafë në Gjuhen Shqipe).
     """
-    
     user_prompt = f"TË DHËNAT STATISTIKORE:\n{data_context}"
-    
     res = _call_deepseek(system_prompt, user_prompt)
-    if not res:
-        res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
-        
+    if not res: res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
     return res or "Analiza e detajuar dështoi të gjenerohej, por statistikat bazë janë të sakta."
 
-# Placeholders
-def extract_graph_data(text: str) -> Dict[str, List[Dict]]: return {"entities": [], "relations": []}
+# --- ACTIVATED FEATURES ---
+
+def extract_graph_data(text: str) -> Dict[str, List[Dict]]:
+    """
+    Extracts Entities and Relations for the Knowledge Graph.
+    """
+    clean_text = sterilize_legal_text(text[:15000])
+    system_prompt = """
+    Ti je "Graph Topology Architect".
+    DETYRA: Ekstrakto entitetet dhe relacionet nga teksti juridik.
+    
+    ENTITETET (Types): "Person", "Organization", "Court", "Date", "Location", "Document".
+    RELACIONET (Types): "sued", "represents", "signed", "issued_by", "occurred_on", "payment_to".
+    
+    FORMATI JSON (Strict):
+    {
+      "entities": [{"name": "Emri", "type": "Person", "description": "Paditës..."}],
+      "relations": [{"source": "Emri1", "target": "Emri2", "type": "sued", "details": "Për borxh"}]
+    }
+    """
+    user_prompt = f"TEKSTI:\n{clean_text}"
+    content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
+    
+    # Fallback to local model if cloud fails
+    if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
+    
+    parsed = _parse_json_safely(content) if content else {}
+    return {"entities": parsed.get("entities", []), "relations": parsed.get("relations", [])}
+
+def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]:
+    """
+    Extracts actionable deadlines for the Calendar.
+    """
+    clean_text = sterilize_legal_text(text[:15000])
+    system_prompt = """
+    Ti je "Legal Calendar Clerk".
+    DETYRA: Identifiko afatet, seancat dhe datat e skadimit.
+    
+    FORMATI JSON (List of Objects):
+    [
+      {
+        "title": "Seancë Gjyqësore",
+        "date": "YYYY-MM-DD",
+        "time": "HH:MM" (optional),
+        "description": "Detaje mbi seancën",
+        "priority": "HIGH"
+      }
+    ]
+    """
+    user_prompt = f"TEKSTI:\n{clean_text}"
+    content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
+    
+    # Fallback
+    if not content: content = _call_local_llm(f"{system_prompt}\n\n{user_prompt}", json_mode=True)
+    
+    parsed = _parse_json_safely(content) if content else []
+    if isinstance(parsed, list): return parsed
+    if isinstance(parsed, dict) and "deadlines" in parsed: return parsed["deadlines"]
+    return []
+
+# Placeholder for future expansion
 def generate_socratic_response(socratic_context: List[Dict], question: str) -> Dict: return {}
-def extract_deadlines_from_text(text: str) -> List[Dict[str, Any]]: return []
