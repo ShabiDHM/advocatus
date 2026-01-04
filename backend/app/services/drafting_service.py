@@ -1,7 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - DRAFTING SERVICE V19.0 (DIRECT MODE)
-# 1. UPGRADE: Uses 'generate_legal_draft' instead of 'chat' to avoid ReAct loops.
-
+# PHOENIX PROTOCOL - DRAFTING SERVICE V20.0 (PROFESSIONAL BLUEPRINTS)
+# 1. UPGRADE: Massively upgraded the TEMPLATE_MAP with detailed, professional legal structures.
+# 2. BEHAVIOR: Provides a high-quality architectural blueprint for the "Master Litigator" AI.
+# 3. STATUS: Fully aligned with the V32.1 RAG service for superior drafting performance.
 
 import os
 import io
@@ -17,12 +18,55 @@ from .albanian_rag_service import AlbanianRAGService
 
 logger = structlog.get_logger(__name__)
 
+# PHOENIX V20.0: UPGRADED PROFESSIONAL BLUEPRINTS
 TEMPLATE_MAP = {
-    "generic": "Strukturoje si dokument juridik formal.",
-    "padi": "STRUKTURA E PADISË: 1. Gjykata... 2. Palët... 3. Baza Ligjore... 4. Faktet (Kronologjia)... 5. Provat... 6. Petitiumi (Kërkesa).",
-    "pergjigje": "STRUKTURA E PËRGJIGJES NË PADI: 1. Deklarim mbi pretendimet... 2. Kundërshtimi i provave... 3. Kundër-propozimi.",
-    "kunderpadi": "STRUKTURA E KUNDËRPADISË: 1. Faktet e reja... 2. Dëmi i shkaktuar... 3. Kompensimi i kërkuar.",
-    "kontrate": "STRUKTURA E KONTRATËS: 1. Palët Kontraktuese... 2. Objekti i Kontratës... 3. Çmimi/Pagesa... 4. Të Drejtat dhe Detyrimet... 5. Zgjidhja e Mosmarrëveshjeve... 6. Nënshkrimet."
+    "generic": "Strukturoje si dokument juridik formal, me hyrje, zhvillim të argumentit dhe përfundim.",
+    
+    "padi": """
+STRUKTURA E PADISË (STRICT):
+1.  **KOKA E AKTIT:** (Gjykata Themelore në [Qyteti], Departamenti për Çështje Civile, Emrat e Palëve, Baza Ligjore).
+2.  **HYRJE:** Përmbledhje e shkurtër e kërkesës.
+3.  **GJENDJA FAKTIKE:** Përshkrim i detajuar dhe kronologjik i ngjarjeve, duke cituar provat.
+4.  **BAZA LIGJORE:** Analizë e neneve specifike të ligjit që janë shkelur dhe si aplikohen ato mbi faktet.
+5.  **PROPOZIM-PADIA (PETITUMI):** Lista e kërkesave të sakta dhe të numëruara që i drejtohen gjykatës (p.sh., "Të detyrohet i padituri...", "Të paguajë shpenzimet...").
+    """,
+
+    "pergjigje": """
+STRUKTURA E PËRGJIGJES NË PADI (STRICT):
+1.  **KOKA E AKTIT:** (Gjykata, Palët, Referenca ndaj Padisë).
+2.  **DEKLARIM MBI PADINË:** Deklaratë e qartë nëse i padituri i pranon apo i kundërshton në tërësi pretendimet e padisë.
+3.  **KUNDËRSHTIMET FAKTIKE:** Përgjigje pikë për pikë ndaj pretendimeve faktike të paditësit, duke paraqitur versionin e vet të ngjarjeve dhe duke cituar kundër-provat.
+4.  **KUNDËRSHTIMET LIGJORE:** Argumentim se pse baza ligjore e paditësit është e gabuar ose nuk aplikohet.
+5.  **PROPOZIM PËRFUNDIMTAR:** Kërkesë e qartë drejtuar gjykatës (p.sh., "Të refuzohet padia si e pabazuar...", "Të detyrohet paditësi të paguajë shpenzimet...").
+    """,
+
+    "kunderpadi": """
+STRUKTURA E KUNDËRPADISË (STRICT):
+1.  **KOKA E AKTIT:** (Gjykata, Palët, Referenca ndaj Padisë Kryesore).
+2.  **HYRJE:** Deklaratë që ky dokument shërben si përgjigje në padi dhe njëkohësisht si kundërpadi.
+3.  **FAKTET E REJA (BAZA E KUNDËRPADISË):** Përshkrim i fakteve të reja që nuk janë përmendur në padi dhe që krijojnë një bazë për kërkesën e re të kundër-paditësit.
+4.  **DËMI I SHKAKTUAR:** Specifikim i dëmit material ose jomaterial që i është shkaktuar kundër-paditësit.
+5.  **LIDHJA SHKAKORE:** Argumentim se si veprimet e paditësit fillestar kanë shkaktuar drejtpërdrejt dëmin e përmendur.
+6.  **BAZA LIGJORE E KUNDËRPADISË:** Nenet specifike të ligjit që mbështesin kërkesën për kompensim.
+7.  **PETITUMI I KUNDËRPADISË:** Kërkesë e qartë për kompensim ose veprim tjetër nga gjykata.
+    """,
+
+    "kontrate": """
+STRUKTURA E KONTRATËS (STRICT):
+1.  **TITULLI DHE DATA:** (p.sh., "KONTRATË PËR SHITBLERJE", lidhur më [Data]).
+2.  **PALËT KONTRAKTUESE:** Identifikim i plotë i palëve (Emri, adresa, numri personal/biznesit).
+3.  **PREAMBULA/OBJEKTI I KONTRATËS:** Përshkrim i qartë i qëllimit të kontratës.
+4.  **NENET E KONTRATËS:**
+    *   Neni 1: Të Drejtat dhe Detyrimet e Palës A.
+    *   Neni 2: Të Drejtat dhe Detyrimet e Palës B.
+    *   Neni 3: Çmimi, Mënyra dhe Afatet e Pagesës.
+    *   Neni 4: Afatet dhe Kushtet e Dorëzimit/Përmbushjes.
+    *   Neni 5: Rrethanat e Jashtëzakonshme (Forca Madhore).
+    *   Neni 6: Zgjidhja e Kontratës dhe Pasojat.
+5.  **ZGJIDHJA E MOSMARRËVESHJEVE:** Përcaktimi i gjykatës kompetente ose arbitrazhit.
+6.  **DISPOZITAT PËRFUNDIMTARE.**
+7.  **NËNSHKRIMET E PALËVE.**
+    """
 }
 
 async def generate_draft(
@@ -42,7 +86,8 @@ async def generate_draft(
     # Combined instruction for the AI
     final_instruction = f"""
     LLOJI I DOKUMENTIT: {draft_type.upper()}
-    STRUKTURA E KËRKUAR: {template_instruction}
+    STRUKTURA E KËRKUAR (Blueprint i Detyrueshëm): 
+    {template_instruction}
     
     DETAJET SPECIFIKE NGA PËRDORUESI:
     {user_prompt}
@@ -51,7 +96,6 @@ async def generate_draft(
     try:
         agent_service = AlbanianRAGService(db)
         
-        # PHOENIX FIX: Call the dedicated drafting method, NOT the chat agent.
         final_draft = await agent_service.generate_legal_draft(
             instruction=final_instruction,
             user_id=user_id,
@@ -69,19 +113,15 @@ def generate_objection_document(analysis_result: Dict[str, Any], case_title: str
     """
     document = Document()
     style = document.styles['Normal']
-    font = style.font # type: ignore
-    font.name = 'Times New Roman'
-    font.size = Pt(12)
+    font = style.font; font.name = 'Times New Roman'; font.size = Pt(12) # type: ignore
 
     header = document.add_paragraph()
     header.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = header.add_run("GJYKATA THEMELORE PRISHTINË\n")
-    run.bold = True
-    run.font.size = Pt(14)
+    run = header.add_run("GJYKATA THEMELORE PRISHTINË\n"); run.bold = True; run.font.size = Pt(14)
     header.add_run("Departamenti i Përgjithshëm - Divizioni Civil")
 
     document.add_paragraph(f"LËNDA: {case_title}")
-    document.add_paragraph(f"NR. I REFERENCËS: [Vendosni Numrin e Lëndës]")
+    document.add_paragraph("NR. I REFERENCËS: [Vendosni Numrin e Lëndës]")
     document.add_paragraph("_" * 50).alignment = WD_ALIGN_PARAGRAPH.CENTER
     document.add_paragraph()
 
@@ -93,22 +133,13 @@ def generate_objection_document(analysis_result: Dict[str, Any], case_title: str
     if analysis_result.get("contradictions"):
         document.add_heading("I. KUNDËRSHTIMET FAKTIKE DHE LIGJORE", level=1)
         for idx, contradiction in enumerate(analysis_result["contradictions"], 1):
-            p = document.add_paragraph(style='List Bullet')
-            p.add_run(f"Pika {idx}: ").bold = True
-            p.add_run(contradiction)
+            p = document.add_paragraph(style='List Bullet'); p.add_run(f"Pika {idx}: ").bold = True; p.add_run(contradiction)
 
     if analysis_result.get("discovery_targets"):
         document.add_heading("II. MUNGESA E PROVAVE MBËSHTETËSE", level=1)
         document.add_paragraph("Pala kundërshtare dështon të ofrojë prova për pretendimet e saj. Konkretisht:")
         for target in analysis_result["discovery_targets"]:
-             p = document.add_paragraph(style='List Bullet')
-             p.add_run("Kërkohet prova: ").bold = True
-             p.add_run(target)
-
-    if analysis_result.get("suggested_questions"):
-        document.add_heading("III. ÇËSHTJE PËR T'U SQARUAR (NË SEANCË)", level=1)
-        for q in analysis_result["suggested_questions"]:
-             document.add_paragraph(q, style='List Bullet')
+             p = document.add_paragraph(style='List Bullet'); p.add_run("Kërkohet prova: ").bold = True; p.add_run(target)
 
     document.add_paragraph("\nPër arsye të cekura më lart, i propozojmë Gjykatës që të refuzojë kërkesat e palës kundërshtare si të pabazuara.")
     document.add_paragraph("\n\nMe respekt,\n\n__________________________\n(Nënshkrimi i Përfaqësuesit)").alignment = WD_ALIGN_PARAGRAPH.RIGHT

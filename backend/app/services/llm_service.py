@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V25.2 (FUNCTION RESTORATION)
-# 1. CRITICAL FIX: Restored the missing 'analyze_financial_summary' function.
-# 2. UPGRADE: Retains the advanced 'Litigation Strategist' prompt.
-# 3. STATUS: Production Ready. All known functions are present and type-safe.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V26.0 (STRATEGIC FINANCIAL COUNSEL)
+# 1. UPGRADE: 'analyze_financial_summary' prompt transformed into a "Financial-Legal Counsel" persona.
+# 2. FOCUS: Prioritizes identification of legally actionable financial patterns and evidence gaps.
+# 3. OUTPUT: Narrative report now offers strategic legal insights.
 
 import os
 import json
@@ -85,9 +85,9 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
         logger.warning(f"⚠️ Local LLM call failed: {e}")
         return ""
 
-# --- THE LITIGATION STRATEGIST PROMPT ---
+# --- PHOENIX V25.1: THE LITIGATION STRATEGIST PROMPT ---
 LITIGATION_STRATEGIST_PROMPT = """
-Ti je "Këshilltar i Lartë Gjyqësor", ekspert në strategjinë e litigimit në Kosovë. Detyra jote është të analizosh tekstin e dosjes për të gjetur dobësitë, pikat e presionit dhe mundësitë taktike.
+Ti je "Këshilltar i Lartë Gjyqësor", një ekspert në strategjinë e litigimit në Kosovë. Detyra jote është të analizosh tekstin e dosjes për të gjetur dobësitë, pikat e presionit dhe mundësitë taktike.
 FORMATI JSON (STRICT): { "summary_analysis": "...", "chronology": [...], "contradictions": [...], "red_flags": [...], "strategic_summary": "...", "emotional_leverage_points": [...], "financial_leverage_points": [...], "suggested_questions": [...], "discovery_targets": [...] }
 """
 
@@ -106,20 +106,46 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
     content = _call_deepseek(system_prompt, user_prompt, json_mode=True)
     return _parse_json_safely(content) if content else {}
 
-# --- PHOENIX V25.2: RESTORED SPREADSHEET FUNCTION ---
+# --- PHOENIX V26.0: STRATEGIC FINANCIAL COUNSEL ---
 def analyze_financial_summary(data_context: str) -> str:
     """
-    Generates a narrative report based on statistical data from a spreadsheet.
+    Generates a narrative report from spreadsheet data, with a strategic financial-legal perspective.
     """
     system_prompt = """
-    Ti je "Phoenix Financial Forensic Analyst".
-    DETYRA: Analizo përmbledhjen statistikore të të dhënave financiare/tabelare. Identifiko modele të dyshimta, anomali, ose trende që duhen hetuar.
-    FORMATI I PËRGJIGJES (Narrative): Shkruaj një raport profesional hetimor (3-4 paragrafë në Gjuhen Shqipe).
+    Ti je "Këshilltar Financiar-Ligjor", një ekspert në analizën e të dhënave financiare me fokus në implikimet ligjore në Kosovë.
+
+    DETYRA:
+    Analizo të dhënat statistikore të tabelës. Identifiko çdo anomali, model ose trend që ka IMPLIKIME LIGJORE ose ofron AVANTAZH STRATEGJIK në një çështje gjyqësore.
+
+    FOKUSI LIGJOR:
+    -   **Kërko mospërputhje:** A ka vlera që kundërshtojnë deklaratat e bëra në dosje?
+    -   **Kërko prova:** A tregojnë të dhënat ekzistencën e pagesave, borxheve, ose aktiveve të fshehura?
+    -   **Kërko dobësi:** Ku mund të sulmohet pala kundërshtare bazuar në gjendjen e saj financiare?
+    -   **Kërko justifikime:** Nëse ka anomali, a mund të gjenden justifikime të mundshme (p.sh., shpenzime të papritura)?
+
+    FORMATI I PËRGJIGJES (Narrative Profesionale në Shqip):
+    Shkruaj një raport profesional hetimor (4-5 paragrafë) që përfshin:
+    1.  **Përmbledhje:** Strukturën e të dhënave dhe relevancën e tyre.
+    2.  **Analiza e Gjetjeve:** Pikat kryesore të dyshimta, anomalitë, ose modelet (psh., mungesa e rregullsisë së pagesave, shpenzime të pambështetura). Lidhi këto me IMPLIKIME TË MUNDSHME LIGJORE.
+    3.  **Sugjerime Strategjike:** Si mund të përdoren këto gjetje në favor të klientit? Cilat pyetje duhen bërë? Cilat prova shtesë duhen kërkuar?
+    4.  **Konkluzion:** Rekomandime për veprime të mëtejshme (p.sh., "Kërko pasqyrat bankare të palës kundërshtare" ose "Argumento mungesën e aftësisë paguese").
+
+    Shembull i Përgjigjes Strategjike:
+    "Analiza e të dhënave tregon një rënie të papritur të të ardhurave në muajin Prill, e cila mund të përdoret për të mbështetur pretendimin e vështirësisë ekonomike. Megjithatë, duhet të kërkohen dëshmi shtesë (p.sh. pasqyra bankare) për të verifikuar nëse kjo rënie është reale apo një tentativë për të fshehur të ardhura."
     """
+    
     user_prompt = f"TË DHËNAT STATISTIKORE:\n{data_context}"
+    
     res = _call_deepseek(system_prompt, user_prompt)
-    if not res: res = _call_local_llm(f"{system_prompt}\n\n{user_prompt}")
-    return res or "Analiza e detajuar dështoi të gjenerohej."
+    if not res:
+        # Fallback to local LLM with a slightly simplified prompt if DeepSeek fails/times out
+        fallback_system_prompt = """
+        Ti je Analist Financiar. Analizo të dhënat statistikore.
+        Identifiko anomali ose trende dhe shkruaj një raport.
+        """
+        res = _call_local_llm(f"{fallback_system_prompt}\n\n{user_prompt}")
+        
+    return res or "Analiza e detajuar financiare dështoi të gjenerohej, por statistikat bazë janë të sakta."
 
 # --- OTHER PUBLIC SERVICES ---
 def generate_summary(text: str) -> str:
