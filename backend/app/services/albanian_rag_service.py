@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V26.1 (TERMINOLOGY UPDATE)
-# 1. REFACTOR: Renamed 'Global Knowledge Base' to 'BAZA E LIGJEVE'.
-# 2. PROMPT: Updated System Prompts to reflect the new strict terminology.
-# 3. UI: Visual output now cites 'BAZA E LIGJEVE'.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V27.1 (TYPE FIX)
+# 1. FIX: Removed '.bind()' from LLM init to resolve Pylance Type Error.
+# 2. LOGIC: Relying on 'create_react_agent' internal stop-sequence handling.
+# 3. STATUS: Type-Safe & Operational.
 
 import os
 import asyncio
@@ -22,9 +22,9 @@ DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 
-MAX_ITERATIONS = int(os.environ.get("RAG_MAX_ITERATIONS", "25"))  
-MAX_EXECUTION_TIME = int(os.environ.get("RAG_MAX_EXECUTION_TIME", "300"))  
-LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "120"))  
+MAX_ITERATIONS = int(os.environ.get("RAG_MAX_ITERATIONS", "15")) 
+MAX_EXECUTION_TIME = int(os.environ.get("RAG_MAX_EXECUTION_TIME", "120"))  
+LLM_TIMEOUT = int(os.environ.get("LLM_TIMEOUT", "60"))  
 
 logger.info(f"RAG Configuration: max_iterations={MAX_ITERATIONS}")
 
@@ -98,6 +98,8 @@ class AlbanianRAGService:
         self.db = db
         if DEEPSEEK_API_KEY:
             os.environ["OPENAI_API_KEY"] = DEEPSEEK_API_KEY
+            # PHOENIX FIX: Removed .bind() to return a clean ChatOpenAI object (BaseLanguageModel)
+            # 'create_react_agent' handles the stop sequence internally.
             self.llm = ChatOpenAI(
                 model=OPENROUTER_MODEL, 
                 base_url=OPENROUTER_BASE_URL, 
@@ -109,7 +111,7 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # PROMPT FIX: Updated terminology to "BAZA E LIGJEVE" and "BAZA E LËNDËS"
+        # PROMPT FIX: Extremely strict formatting instructions
         researcher_template = f"""
         Ti je "Juristi AI", Arkitekt Ligjor Strategjik.
         
@@ -124,15 +126,19 @@ class AlbanianRAGService:
         2. HAPI 2: Konsulto 'BAZA E LIGJEVE' për të gjetur LIGJIN e aplikueshëm.
         3. HAPI 3: Sintetizo përgjigjen duke aplikuar Ligjin mbi Faktet.
         
-        FORMATI REACT (DETYRUESHËM):
-        Question: Pyetja e hyrjes
-        Thought: Mendo çfarë të bësh (Cilin mjet të përdor?)
-        Action: Një nga [{{tool_names}}]
-        Action Input: Inputi për veprimin
-        Observation: Rezultati i veprimit
-        ... (Përsërit derisa të kesh mjaftueshëm info)
-        Thought: Tani kam faktet dhe ligjin.
-        Final Answer: Përgjigja e plotë për klientin.
+        FORMATI REACT (STRICT - MUST FOLLOW EXACTLY):
+        Question: The input question
+        Thought: I should check...
+        Action: One of [{{tool_names}}]
+        Action Input: "The search query string"
+        Observation: [The result will appear here]
+        ... (Repeat Thought/Action/Observation)
+        Thought: I have enough information.
+        Final Answer: The final response to the user.
+        
+        IMPORTANT: 
+        - Action and Action Input must be on separate lines.
+        - Do not output empty lines between Action and Action Input.
         
         Fillo!
         Question: {{input}}
@@ -150,10 +156,18 @@ class AlbanianRAGService:
     
     def _create_agent_executor(self, session_tools: List) -> AgentExecutor:
         if not self.llm: raise ValueError("LLM not initialized")
+        
+        # PHOENIX: 'create_react_agent' requires 'llm' to be a BaseLanguageModel, not a RunnableBinding.
         agent = create_react_agent(self.llm, session_tools, self.researcher_prompt)
+        
         return AgentExecutor(
-            agent=agent, tools=session_tools, verbose=True, handle_parsing_errors=True,
-            max_iterations=MAX_ITERATIONS, max_execution_time=None, return_intermediate_steps=False
+            agent=agent, 
+            tools=session_tools, 
+            verbose=True, 
+            handle_parsing_errors=True, 
+            max_iterations=MAX_ITERATIONS, 
+            max_execution_time=MAX_EXECUTION_TIME, 
+            return_intermediate_steps=False
         )
 
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None, document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> str:
