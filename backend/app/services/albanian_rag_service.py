@@ -1,7 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V25.6 (END-TO-END VERIFIED)
-# 1. UPDATE: Wired to new Vector Store function names (query_case_knowledge_base / query_global_knowledge_base).
-# 2. STATUS: End-to-End Logic Restored.
+# PHOENIX PROTOCOL - GOLDEN STATE V1.0 (PRODUCTION)
+# 1. STABILITY: Fixed 'tool_names' prompt error permanently.
+# 2. LOGIC: Correctly wires Document IDs to Case KB.
+# 3. SAFETY: Tools return error strings instead of raising exceptions.
 
 import os
 import asyncio
@@ -62,7 +63,6 @@ class CaseKnowledgeBaseTool(BaseTool):
     def _run(self, query: str) -> str:
         from . import vector_store_service
         try:
-            # PHOENIX FIX: Calls the strictly named Case KB function
             results = vector_store_service.query_case_knowledge_base(
                 user_id=self.user_id, 
                 query_text=query, 
@@ -73,7 +73,7 @@ class CaseKnowledgeBaseTool(BaseTool):
             return "\n\n".join([f"[FACT SOURCE: {r.get('source', 'Unknown')}]\n{r.get('text', '')}" for r in results])
         except Exception as e:
             logger.error(f"CaseKnowledgeBase Tool error: {e}")
-            return "Gabim teknik në aksesimin e dosjes."
+            return f"Gabim teknik në aksesimin e dosjes: {e}"
 
     async def _arun(self, query: str) -> str: return await asyncio.to_thread(self._run, query)
     class ArgsSchema(BaseModel): query: str = Field(description="Search query for facts.")
@@ -86,13 +86,12 @@ def query_global_knowledge_base_tool(query: str) -> str:
     """SEARCH LAWS. Use this to find Official Laws, Penal Codes, and Regulations in the Global System."""
     from . import vector_store_service
     try:
-        # PHOENIX FIX: Calls the strictly named Global KB function
         results = vector_store_service.query_global_knowledge_base(query_text=query)
         if not results: return "GLOBAL KB: Nuk u gjetën ligje specifike."
         return "\n\n".join([f"[LAW SOURCE: {r.get('source', 'Ligji')}]\n{r.get('text', '')}" for r in results])
     except Exception as e:
         logger.error(f"GlobalKnowledgeBase Tool error: {e}")
-        return "Gabim teknik në aksesimin e ligjeve."
+        return f"Gabim teknik në aksesimin e ligjeve: {e}"
 
 class AlbanianRAGService:
     def __init__(self, db: Any):
@@ -110,6 +109,7 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
+        # PROMPT FIX: Properly includes {{tool_names}}
         researcher_template = f"""
         Ti je "Juristi AI", Arkitekt Ligjor Strategjik.
         
@@ -124,13 +124,15 @@ class AlbanianRAGService:
         2. HAPI 2: Konsulto GLOBAL KNOWLEDGE BASE për të gjetur LIGJIN e aplikueshëm.
         3. HAPI 3: Sintetizo përgjigjen duke aplikuar Ligjin mbi Faktet.
         
-        FORMATI REACT:
-        Question: ...
-        Thought: ...
-        Action: ...
-        Action Input: ...
-        Observation: ...
-        Final Answer: ...
+        FORMATI REACT (DETYRUESHËM):
+        Question: Pyetja e hyrjes
+        Thought: Mendo çfarë të bësh (Cilin mjet të përdor?)
+        Action: Një nga [{{tool_names}}]
+        Action Input: Inputi për veprimin
+        Observation: Rezultati i veprimit
+        ... (Përsërit derisa të kesh mjaftueshëm info)
+        Thought: Tani kam faktet dhe ligjin.
+        Final Answer: Përgjigja e plotë për klientin.
         
         Fillo!
         Question: {{input}}
@@ -175,7 +177,8 @@ class AlbanianRAGService:
             return res.get('output', 'Nuk ka përgjigje.')
         except Exception as e:
             logger.error(f"Chat error: {e}")
-            return f"Gabim teknik: {str(e)[:50]}"
+            # Fallback instead of crash
+            return f"Ndjesë, ndodhi një gabim në procesimin e kërkesës. Provoni përsëri."
 
     async def generate_legal_draft(self, instruction: str, user_id: str, case_id: Optional[str]) -> str:
         if not self.llm: return "Gabim AI."

@@ -1,8 +1,8 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V13.0 (END-TO-END ARCHITECTURE)
-# 1. REFACTOR: Renamed functions to 'query_case_knowledge_base' and 'query_global_knowledge_base'.
-# 2. LOGIC: Enforced strict boundary between Private User Data (Facts) and Public Legal Data (Law).
-# 3. FILTERS: Preserved robust 'document_ids' filtering for Case KB.
+# PHOENIX PROTOCOL - GOLDEN STATE V1.0 (PRODUCTION)
+# 1. ARCHITECTURE: Strict separation of Case KB (Facts) and Global KB (Law).
+# 2. STABILITY: Retry logic on connections, robust None-checks on query results.
+# 3. FILTERS: Advanced ChromaDB filtering for Case ID and Document IDs.
 
 from __future__ import annotations
 import os
@@ -24,8 +24,6 @@ GLOBAL_KB_COLLECTION_NAME = "legal_knowledge_base"
 
 _client: Optional[ClientAPI] = None
 _global_collection: Optional[Collection] = None
-
-# Cache for Active Case Knowledge Bases (User Collections)
 _active_user_collections: Dict[str, Collection] = {}
 
 def connect_chroma_db():
@@ -43,14 +41,14 @@ def connect_chroma_db():
             if not _global_collection:
                 _global_collection = _client.get_or_create_collection(name=GLOBAL_KB_COLLECTION_NAME)
             
-            logger.info("✅ Connected to ChromaDB. Global & Case Knowledge Bases ready.")
+            logger.info("✅ [VectorStore] Connected to ChromaDB. System Ready.")
             return
         except Exception as e:
             retries -= 1
-            logger.warning(f"ChromaDB connection error: {e}. Retrying... ({retries} left)")
+            logger.warning(f"⚠️ [VectorStore] Connection failed: {e}. Retrying... ({retries} left)")
             time.sleep(5)
             
-    logger.critical("❌ Failed to connect to ChromaDB.")
+    logger.critical("❌ [VectorStore] CRITICAL FAILURE: Could not connect to Database.")
 
 def get_client() -> ClientAPI:
     if _client is None: connect_chroma_db()
@@ -64,7 +62,7 @@ def get_global_collection() -> Collection:
 # --- CASE KNOWLEDGE BASE ACCESS (FACTS) ---
 def get_case_kb_collection(user_id: str) -> Collection:
     """
-    Retrieves the Private Collection for a specific user (The Case Knowledge Base storage).
+    Retrieves the Private Collection for a specific user.
     """
     if not user_id:
         raise ValueError("User ID is required to access Case Knowledge Base.")
@@ -73,7 +71,6 @@ def get_case_kb_collection(user_id: str) -> Collection:
         return _active_user_collections[user_id]
     
     client = get_client()
-    # PHOENIX: Each user gets a dedicated collection for their cases
     collection_name = f"user_{user_id}"
     
     collection = client.get_or_create_collection(name=collection_name)
@@ -123,7 +120,7 @@ def create_and_store_embeddings_from_chunks(
         'case_id': str(case_id), 
         'file_name': file_name, 
         'owner_id': str(user_id),
-        'kb_type': 'CASE_FACT' # Explicit Type Tag
+        'kb_type': 'CASE_FACT'
     } for meta in sanitized_metadatas]
     
     try:
@@ -153,7 +150,7 @@ def query_case_knowledge_base(
     try:
         user_coll = get_case_kb_collection(user_id)
         
-        # --- PHOENIX FILTERING LOGIC ---
+        # --- FILTERS ---
         where_conditions = []
         
         # 1. Scope: Specific Case
