@@ -1,10 +1,7 @@
 // FILE: src/components/MainLayout.tsx
-// PHOENIX PROTOCOL - LAYOUT V5.0 (MOBILE NATIVE FEEL)
-// 1. MOBILE FIX: Removed 'h-screen' and 'overflow-hidden' on mobile.
-//    - This restores "Pull-to-Refresh".
-//    - This restores "Hide Address Bar on Scroll".
-// 2. DESKTOP: Kept 'lg:h-screen' and 'lg:overflow-hidden' for the dashboard feel.
-// 3. Z-INDEX: Ensured Sidebar stays above the natural scroll flow on mobile.
+// PHOENIX PROTOCOL - LAYOUT V5.1 (Z-INDEX FIX)
+// 1. FIX: Moved Header outside the main content wrapper to resolve z-index trapping.
+// 2. RESULT: Header dropdown now correctly appears above all page content.
 
 import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
@@ -21,8 +18,6 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    // PHOENIX CHANGE: 'h-screen' and 'overflow-hidden' are now DESKTOP ONLY (lg:)
-    // On mobile, we use 'min-h-screen' to allow natural browser scrolling (Pull-to-Refresh).
     <div className="flex flex-col lg:flex-row min-h-screen lg:h-screen w-full bg-background-dark text-text-primary relative selection:bg-primary-start/30">
       
       {/* --- AMBIENT BACKGROUND GLOWS (FIXED) --- */}
@@ -35,12 +30,13 @@ const MainLayout: React.FC = () => {
       {/* --- SIDEBAR (Fixed on Desktop, Overlay on Mobile) --- */}
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-      {/* --- CONTENT WRAPPER --- */}
-      {/* Mobile: Standard Block. Desktop: Flex Column with hidden overflow */}
-      <div className="flex-1 flex flex-col lg:ml-64 relative z-10 transition-all duration-300 lg:h-full lg:overflow-hidden">
+      {/* --- MAIN AREA WRAPPER --- */}
+      {/* This wrapper now contains BOTH the Header and the Content */}
+      <div className="flex-1 flex flex-col lg:ml-64 relative transition-all duration-300 lg:h-full">
         
-        {/* Desktop Header */}
-        <div className="hidden lg:block shrink-0">
+        {/* PHOENIX FIX: The Header is now a direct child of the main area,
+            allowing its z-index to function correctly. It is NOT inside the scrollable content. */}
+        <div className="hidden lg:block shrink-0 relative z-20">
           <Header toggleSidebar={toggleSidebar} />
         </div>
         
@@ -56,7 +52,8 @@ const MainLayout: React.FC = () => {
         </header>
 
         {/* Content Area */}
-        {/* Mobile: Natural Height. Desktop: Scrollable Area */}
+        {/* The 'z-10' was removed from the parent, now this main content area
+            sits naturally below the z-20/z-40 header. */}
         <main className="flex-1 p-0 lg:overflow-y-auto lg:custom-scrollbar scroll-smooth">
           {/* Outlet Wrapper */}
           <div className="relative min-h-full pb-20 lg:pb-0">
