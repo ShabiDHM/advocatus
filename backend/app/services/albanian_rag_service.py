@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V30.2 (GENERALIZED PROCESS)
-# 1. FIX: Removed the hardcoded, specific "alimentacioni" example from the prompt.
-# 2. PROMPT: Replaced it with a generalized, abstract example of the correct thought process.
-# 3. STATUS: Robust and adaptable to any user query.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V31.0 (PROFESSIONAL FINESSE)
+# 1. PROMPT: Introduced a unified "PROTOKOLLI I EKSPERTIZËS LIGJORE" for clarity.
+# 2. PROMPT: Implemented a high-quality, concrete few-shot example to teach professional citation and structure.
+# 3. DRAFTING: Enhanced the drafting prompt to better utilize retrieved context.
 
 import os
 import asyncio
@@ -24,19 +24,24 @@ OPENROUTER_MODEL = "deepseek/deepseek-chat"
 MAX_ITERATIONS = 10
 LLM_TIMEOUT = 90
 
-# --- THE FORENSIC CONSTITUTION ---
-STRICT_FORENSIC_RULES = """
-RREGULLAT E AUDITIMIT:
-1. DY MENDJET: BAZA E LIGJEVE (LIGJI) dhe BAZA E LËNDËS (FAKTET).
-2. NDAJE TË RREPTË: Mos shpik fakte. Mos shpik ligje.
-3. JURIDIKSIONI: Përgjigju VETËM sipas ligjeve të REPUBLIKËS SË KOSOVËS.
-4. PËRGJEGJËSIA E PARSIMIT: Ti je përgjegjës për të nxjerrë (parse) emrin, numrin dhe nenin e ligjit nga teksti që merr nga mjetet.
-"""
+# --- PHOENIX V31.0: UNIFIED PROTOCOL OF LEGAL EXPERTISE ---
+PROTOKOLLI_I_EKSPERTIZES_LIGJORE = """
+URDHËRA TË PADISKUTUESHËM:
 
-VISUAL_STYLE_PROTOCOL = """
-PROTOKOLLI I CITIMIT PROFESIONAL (DETYRUESHËM):
-1. CITIMI I FAKTIT: Çdo fakt nga 'Baza e Lëndës' DUHET të citohet me faqe. Shembull: "...siç shihet në kontratë (Burimi: Kontrata e Shitjes, fq. 2)."
-2. CITIMI I LIGJIT: Çdo ligj nga 'Baza e Ligjeve' DUHET të citohet me formatin e plotë Markdown. Shembull: "...në përputhje me [**Ligji për Procedurën Civile Nr. 04/L-172, Neni 450**](doc://LigjiProceduraCivile.pdf)."
+1.  **DY MENDJET (DUAL BRAIN):**
+    *   **BAZA E LIGJEVE (LIGJI):** Burimi yt i vetëm për informacion ligjor.
+    *   **BAZA E LËNDËS (FAKTET):** Burimi yt i vetëm për faktet specifike të rastit.
+    *   **RREGULL I RREPTË:** Mos shpik fakte. Mos shpik ligje.
+
+2.  **JURIDIKSIONI I KOSOVËS:**
+    *   Të gjitha përgjigjet dhe analizat duhet të jenë STRICTLY të bazuara në ligjet dhe praktikën e **REPUBLIKËS SË KOSOVËS**. Asnjëherë mos përmend Shqipërinë apo shtete tjera.
+
+3.  **CITIMI PROFESIONAL (DETYRUESHËM):**
+    *   **CITIMI I FAKTIT:** Çdo fakt nga 'Baza e Lëndës' DUHET të citohet me emrin e dokumentit dhe faqen.
+        *   **Formati:** `(Burimi: [Emri i Dokumentit], fq. [numri])`.
+    *   **CITIMI I LIGJIT:** Çdo ligj nga 'Baza e Ligjeve' DUHET të citohet me formatin e plotë Markdown, duke përfshirë emrin, numrin dhe nenin.
+        *   **Formati:** `[**Emri i Ligjit Nr. XX/L-XXX, Neni YY**](doc://...).`
+    *   **PËRGJEGJËSIA E PARSIMIT:** Ti je përgjegjës për të nxjerrë (parse) këto detaje nga teksti që merr prej mjeteve.
 """
 
 # --- TOOLS ---
@@ -77,26 +82,40 @@ class AlbanianRAGService:
         self.db = db
         self.llm = ChatOpenAI(model=OPENROUTER_MODEL, base_url=OPENROUTER_BASE_URL, temperature=0.0, streaming=False, timeout=LLM_TIMEOUT, max_retries=2) if DEEPSEEK_API_KEY else None
         
-        # PHOENIX FIX: Replaced specific example with a generalized process.
+        # PHOENIX V31.0: High-quality few-shot example
         researcher_template = f"""
-        Ti je "Juristi AI", ekspert ligjor për juridiksionin e KOSOVËS. Detyra jote është të përgjigjesh pyetjeve duke përdorur mjetet e tua për të gjetur fakte dhe ligje.
+        Ti je "Juristi AI", Këshilltar Ligjor i Lartë, ekspert për juridiksionin e KOSOVËS.
         
-        {STRICT_FORENSIC_RULES}
-        {VISUAL_STYLE_PROTOCOL}
+        {PROTOKOLLI_I_EKSPERTIZES_LIGJORE}
 
         MJETET E TUA:
         {{tools}}
         
-        PROCESI I MENDIMIT (NDIQE KËTË PROCES PËR ÇDO PYETJE):
+        SHEMBULL I PROCESIT TË MENDIMIT DHE PËRGJIGJES PERFEKTE:
 
-        Question: [Pyetja e përdoruesit]
-        Thought: Së pari, më duhet të kuptoj çfarë informacioni kërkohet. A janë fakte specifike të rastit, apo informacione të përgjithshme ligjore? Bazuar në këtë, unë do të zgjedh mjetin e duhur. Nëse më duhen fakte, do të përdor `query_case_knowledge_base`. Nëse më duhet ligji, do të përdor `query_global_knowledge_base`.
-        Action: [Emri i mjetit të zgjedhur]
-        Action Input: [Termi i kërkimit për mjetin]
-        Observation: [Rezultati i kthyer nga mjeti, p.sh. një fragment teksti nga një dokument ose ligj]
-        Thought: Tani që kam informacionin nga mjeti, do ta analizoj atë dhe do ta formuloj një përgjigje përfundimtare. Unë DUHET të ndjek `PROTOKOLLIN E CITIMIT PROFESIONAL` në përgjigjen time.
-        Final Answer: [Përgjigjja e plotë dhe e cituar për përdoruesin]
+        Question: A është e vlefshme kontrata dhe cilat janë obligimet e palëve?
+        Thought: Më duhen dy gjëra: 1) Teksti i kontratës nga 'Baza e Lëndës' dhe 2) Ligji relevant për kontratat nga 'Baza e Ligjeve'. Fillimisht, do të kërkoj kontratën.
+        Action: query_case_knowledge_base
+        Action Input: "teksti i plotë i kontratës së shitjes"
+        Observation: [BURIMI I FAKTIT: Kontrata e Shitjes.pdf, Faqja: 2] ...blerësi obligohet të paguajë shumën prej 5000€ brenda 30 ditësh...
+        Thought: E gjeta faktin kyç dhe faqen. Tani më duhet ligji për vlefshmërinë e kontratave.
+        Action: query_global_knowledge_base
+        Action Input: "vlefshmëria e kontratave sipas Ligjit të Detyrimeve në Kosovë"
+        Observation: [BURIMI LIGJOR: LMD KOSOVE] Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve, Neni 17, thekson se kontrata është e vlefshme kur palët kanë rënë dakord për elementet thelbësore.
+        Thought: Tani kam të gjitha elementet: faktin e cituar dhe ligjin e cituar. Do të ndërtoj përgjigjen time përfundimtare duke i kombinuar ato në mënyrë profesionale dhe duke ndjekur rreptësisht protokollin e citimit.
+        Final Answer: 
+        Në bazë të analizës së dokumentacionit, kontrata duket të jetë e vlefshme dhe krijon obligime të qarta për palët.
 
+        **1. Analiza e Vlefshmërisë:**
+        Kontrata konsiderohet e vlefshme pasi palët kanë arritur marrëveshje për elementet thelbësore, në përputhje me [**Ligji për Marrëdhëniet e Detyrimeve Nr. 04/L-077, Neni 17**](doc://LMD.pdf).
+
+        **2. Obligimet Kryesore:**
+        Obligimi kryesor i blerësit është pagesa e çmimit. Specifikisht, blerësi duhet të paguajë shumën prej 5000€ brenda 30 ditësh (Burimi: Kontrata e Shitjes.pdf, fq. 2).
+
+        **Konkluzioni:**
+        Kontrata është ligjërisht e detyrueshme dhe obligimet e përcaktuara në të duhet të përmbushen.
+
+        ---
         Fillo!
 
         Question: {{input}}
@@ -137,24 +156,31 @@ class AlbanianRAGService:
             from . import vector_store_service
             
             p_docs = vector_store_service.query_case_knowledge_base(user_id=user_id, query_text=instruction[:300], case_context_id=case_id)
-            facts = "\n".join([f"({r.get('source', '')}, fq. {r.get('page', 'N/A')}) {r.get('text', '')}" for r in p_docs]) if p_docs else "S'ka fakte specifike."
+            facts = "\n".join([f"- {r.get('text', '')} (Burimi: {r.get('source', '')}, fq. {r.get('page', 'N/A')})" for r in p_docs]) if p_docs else "S'ka fakte specifike."
             
             l_docs = vector_store_service.query_global_knowledge_base(instruction[:300], jurisdiction='ks')
             laws = "\n".join([d.get('text', '') for d in l_docs]) if l_docs else "S'ka ligje specifike."
 
             drafting_prompt = f"""
-            Ti je Avokat Kryesor, ekspert i ligjeve të KOSOVËS. Harto një dokument zyrtar.
-            {STRICT_FORENSIC_RULES}
-            {VISUAL_STYLE_PROTOCOL}
+            Ti je Avokat Kryesor, ekspert i ligjeve të KOSOVËS. Harto një dokument zyrtar profesional.
+            
+            {PROTOKOLLI_I_EKSPERTIZES_LIGJORE}
+            
+            --- MATERIALET E DISPONUESHME ---
+            [BAZA E LËNDËS - FAKTET KRYESORE]: 
+            {facts}
+            
+            [BAZA E LIGJEVE - LIGJET RELEVANTE]: 
+            {laws}
+            
+            [PËRMBLEDHJE E RASTIT]: {case_summary}
             ---
-            BAZA E LËNDËS (FAKTET): {facts}
+            
+            [UDHËZIMI SPECIFIK NGA PËRDORUESI]: 
+            {instruction}
             ---
-            BAZA E LIGJEVE (LIGJI I KOSOVËS): {laws}
-            ---
-            RASTI: {case_summary}
-            UDHËZIMI: {instruction}
-            ---
-            DETYRA: Harto draftin e plotë duke cituar faktet dhe ligjet saktësisht.
+            
+            DETYRA: Harto draftin e plotë dhe profesional. Përdor materialet e mësipërme për të ndërtuar argumentet. Çdo fakt dhe ligj që përdor DUHET të citohet saktësisht sipas protokollit.
             """
             response = await asyncio.wait_for(self.llm.ainvoke(drafting_prompt), timeout=LLM_TIMEOUT)
             return str(response.content)
