@@ -1,8 +1,6 @@
 // FILE: src/components/business/ArchiveTab.tsx
 // PHOENIX PROTOCOL - ARCHIVE TAB V12.4 (VISUAL CLEANUP)
 // 1. UI FIX: Removed AI Status Icons (Brain/Processing/Failed).
-// 2. STATUS: Archive is now strictly a storage view, no processing indicators.
-
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
