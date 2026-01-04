@@ -1,7 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V25.3 (PROMPT FIX)
-# 1. FIX: Restored required '{{tool_names}}' variable in Researcher Prompt.
-# 2. STATUS: Resolves 'Prompt missing required variables' crash.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V25.4 (CONTEXT WIRED)
+# 1. FIX: PrivateDiaryTool now correctly passes 'document_ids' to Vector Store.
+# 2. FIX: chat() method correctly initializes tools with context.
 
 import os
 import asyncio
@@ -71,12 +71,14 @@ class PrivateDiaryTool(BaseTool):
     def _run(self, query: str) -> str:
         from . import vector_store_service
         try:
+            # PHOENIX FIX: Now correctly passing document_ids to the service
             results = vector_store_service.query_private_diary(
                 user_id=self.user_id, 
                 query_text=query, 
-                case_context_id=self.case_id
+                case_context_id=self.case_id,
+                document_ids=self.document_ids
             )
-            if not results: return "Nuk u gjetën të dhëna private."
+            if not results: return "Nuk u gjetën të dhëna private (Ska dokumente relevante)."
             return "\n\n".join([f"[BURIMI (FACT): {r.get('source', 'Unknown')}]\n{r.get('text', '')}" for r in results])
         except Exception as e:
             logger.error(f"PrivateDiaryTool error: {e}")
@@ -168,16 +170,23 @@ class AlbanianRAGService:
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None, document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> str:
         if not self.llm: return "Sistemi AI nuk është aktiv."
         try:
-            tools = [PrivateDiaryTool(user_id=user_id, case_id=case_id), query_public_library_tool]
+            # PHOENIX FIX: Passing document_ids to the Tool Constructor
+            tools = [
+                PrivateDiaryTool(user_id=user_id, case_id=case_id, document_ids=document_ids), 
+                query_public_library_tool
+            ]
+            
             executor = self._create_agent_executor(tools)
             case_summary = await self._get_case_summary(case_id)
             
+            # Enhancing the prompt context to encourage tool usage
             input_text = f"""
             PYETJA: "{query}"
             JURIDIKSIONI: {jurisdiction}
-            KONTEKSTI: {case_summary}
+            KONTEKSTI (Meta-Data): {case_summary}
+            DOKUMENTE SPECIFIKE TË ZGJEDHURA: {len(document_ids) if document_ids else 0}
             
-            DETYRA: Përgjigju qartë për klientin (Strategic Advisor).
+            DETYRA: Përgjigju qartë për klientin (Strategic Advisor). Përdor mjetet për të gjetur detaje.
             """
             res = await executor.ainvoke({"input": input_text})
             return res.get('output', 'Nuk ka përgjigje.')
@@ -192,6 +201,7 @@ class AlbanianRAGService:
             from . import vector_store_service
             
             try:
+                # Note: Drafting currently uses broad search (no specific doc ID filtering yet)
                 p_docs = vector_store_service.query_private_diary(
                     user_id=user_id, 
                     query_text=instruction[:300], 

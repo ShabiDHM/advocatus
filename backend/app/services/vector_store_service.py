@@ -1,7 +1,7 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V11.4 (ROBUST ACCESS FIX)
-# 1. FIX: Implemented robust, safe dictionary access using walrus operator (:=).
-# 2. STATUS: Eliminates all 'NoneType' errors permanently.
+# PHOENIX PROTOCOL - VECTOR STORE V12.0 (CONTEXT AWARENESS FIX)
+# 1. ADDED: Support for 'document_ids' filtering in query_private_diary.
+# 2. FIX: Implemented complex ChromaDB '$and' / '$in' filtering logic.
 
 from __future__ import annotations
 import os
@@ -37,7 +37,10 @@ def connect_chroma_db():
         try:
             if not _client:
                 _client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
-                _client.heartbeat()
+                try:
+                    _client.heartbeat()
+                except Exception:
+                    pass # Continue if heartbeat fails but client is created
             
             if not _kb_collection:
                 _kb_collection = _client.get_or_create_collection(name=KB_COLLECTION_NAME)
@@ -119,7 +122,11 @@ def create_and_store_embeddings_from_chunks(
 # --- AGENTIC TOOLS ---
 
 def query_private_diary(
-    user_id: str, query_text: str, n_results: int = 7, case_context_id: Optional[str] = None
+    user_id: str, 
+    query_text: str, 
+    n_results: int = 7, 
+    case_context_id: Optional[str] = None,
+    document_ids: Optional[List[str]] = None # PHOENIX: Added filtering parameter
 ) -> List[Dict[str, Any]]:
     from . import embedding_service
     embedding = embedding_service.generate_embedding(query_text)
@@ -127,16 +134,35 @@ def query_private_diary(
 
     try:
         user_coll = get_private_collection(user_id)
-        where_filter = {}
+        
+        # PHOENIX: Advanced Filtering Logic
+        where_conditions = []
+        
+        # 1. Case Context Filter
         if case_context_id and case_context_id != "general":
-             where_filter = {"case_id": {"$eq": str(case_context_id)}}
+             where_conditions.append({"case_id": {"$eq": str(case_context_id)}})
+        
+        # 2. Document Specific Filter
+        if document_ids:
+            if len(document_ids) == 1:
+                where_conditions.append({"source_document_id": {"$eq": document_ids[0]}})
+            else:
+                where_conditions.append({"source_document_id": {"$in": document_ids}})
+        
+        # 3. Construct Final Where Clause
+        where_filter: Optional[Dict[str, Any]] = None
+        if len(where_conditions) > 1:
+            where_filter = {"$and": where_conditions}
+        elif len(where_conditions) == 1:
+            where_filter = where_conditions[0]
+        else:
+            where_filter = None # Search everything if no filters
         
         private_res = user_coll.query(
-            query_embeddings=[embedding], n_results=n_results, where=where_filter if where_filter else None # type: ignore
+            query_embeddings=[embedding], n_results=n_results, where=where_filter # type: ignore
         )
         
         results = []
-        # PHOENIX FIX: Use robust, safe access pattern
         if private_res and (doc_lists := private_res.get('documents')) and doc_lists and (docs := doc_lists[0]):
             meta_lists = private_res.get('metadatas', [[]])
             metas = meta_lists[0] if meta_lists and meta_lists[0] else []
@@ -160,7 +186,6 @@ def query_public_library(
         )
         
         results = []
-        # PHOENIX FIX: Use robust, safe access pattern
         if kb_res and (doc_lists := kb_res.get('documents')) and doc_lists and (docs := doc_lists[0]):
             meta_lists = kb_res.get('metadatas', [[]])
             metas = meta_lists[0] if meta_lists and meta_lists[0] else []
