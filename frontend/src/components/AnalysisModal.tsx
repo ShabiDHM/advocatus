@@ -1,8 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V6.3 (PROFESSIONAL LAYOUT)
-// 1. RENAME: Changed tab 'Analiza Faktike' to the more professional 'Gjendja Faktike'.
-// 2. REORDER: The modal now defaults to the 'Gjendja Faktike' tab.
-// 3. REORDER: 'Përmbledhje' is now displayed above 'Sinjale Rreziku' for better logical flow.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V6.4 (GRACEFUL EMPTY STATE)
+// 1. UX FIX: The 'Kronologjia' section now displays a message if no date events are found.
+// 2. STATUS: Prevents confusing empty states and provides clearer user feedback.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -36,13 +35,11 @@ const sanitizeText = (text: string): string => {
 const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, isLoading }) => {
   const { t } = useTranslation();
   
-  // PHOENIX V6.3: Always default to Factual State tab first.
   const [activeTab, setActiveTab] = useState<'analysis' | 'strategy'>('analysis');
 
   useEffect(() => {
     if (isOpen) { 
         document.body.style.overflow = 'hidden';
-        // Reset to factual tab every time the modal opens
         setActiveTab('analysis');
     } else { 
         document.body.style.overflow = 'unset'; 
@@ -91,13 +88,8 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           ) : (
              <>
                 <div className="flex border-b border-white/5 px-6 bg-black/20 shrink-0 overflow-x-auto no-scrollbar gap-6">
-                    {/* PHOENIX V6.3: Tabs reordered and renamed */}
-                    <button onClick={() => setActiveTab('analysis')} className={`py-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${activeTab === 'analysis' ? 'border-primary-start text-white' : 'border-transparent text-text-secondary hover:text-white'}`}>
-                        <Scale size={16}/> Gjendja Faktike
-                    </button>
-                    <button onClick={() => setActiveTab('strategy')} className={`py-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${activeTab === 'strategy' ? 'border-accent-start text-accent-start' : 'border-transparent text-text-secondary hover:text-white'}`}>
-                        <Swords size={16}/> Strategjia
-                    </button>
+                    <button onClick={() => setActiveTab('analysis')} className={`py-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${activeTab === 'analysis' ? 'border-primary-start text-white' : 'border-transparent text-text-secondary hover:text-white'}`}><Scale size={16}/> Gjendja Faktike</button>
+                    <button onClick={() => setActiveTab('strategy')} className={`py-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${activeTab === 'strategy' ? 'border-accent-start text-accent-start' : 'border-transparent text-text-secondary hover:text-white'}`}><Swords size={16}/> Strategjia</button>
                 </div>
 
                 <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar relative bg-black/10">
@@ -106,48 +98,18 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     {activeTab === 'analysis' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             
-                            {/* PHOENIX V6.3: Component reordering */}
-                            <div className="glass-panel p-6 rounded-2xl">
-                                <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-2">
-                                    <FileText size={16}/> Përmbledhje
-                                </h3>
-                                <p className="text-white text-sm leading-relaxed whitespace-pre-line">
-                                    {sanitizeText(result.summary_analysis || "Nuk ka përmbledhje.")}
-                                </p>
-                            </div>
+                            <div className="glass-panel p-6 rounded-2xl"><h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-2"><FileText size={16}/> Përmbledhje</h3><p className="text-white text-sm leading-relaxed whitespace-pre-line">{sanitizeText(result.summary_analysis || "Nuk ka përmbledhje.")}</p></div>
                             
-                            {red_flags.length > 0 && (
-                                <div className="glass-panel p-6 rounded-2xl border-red-500/20 bg-red-500/5">
-                                    <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                        <Siren size={16} className="animate-pulse"/> Sinjale Rreziku
-                                    </h3>
-                                    <ul className="space-y-2">
-                                        {red_flags.map((flag: string, idx: number) => (
-                                            <li key={idx} className="flex gap-3 text-sm text-red-100 bg-red-500/10 p-3 rounded-xl border border-red-500/20">
-                                                <span className="text-red-500 font-bold mt-0.5">⚠</span>
-                                                <span className="leading-relaxed">{sanitizeText(flag)}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
+                            {red_flags.length > 0 && (<div className="glass-panel p-6 rounded-2xl border-red-500/20 bg-red-500/5"><h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Siren size={16} className="animate-pulse"/> Sinjale Rreziku</h3><ul className="space-y-2">{red_flags.map((flag: string, idx: number) => (<li key={idx} className="flex gap-3 text-sm text-red-100 bg-red-500/10 p-3 rounded-xl border border-red-500/20"><span className="text-red-500 font-bold mt-0.5">⚠</span><span className="leading-relaxed">{sanitizeText(flag)}</span></li>))}</ul></div>)}
 
-                            {judicial_observation && (
-                                <div className="glass-panel p-6 rounded-2xl border-primary-start/20 bg-primary-start/5">
-                                    <h3 className="text-xs font-bold text-primary-300 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                        <FileSearch size={16}/> Vlerësimi Gjyqësor
-                                    </h3>
-                                    <p className="text-white text-sm leading-relaxed font-medium italic border-l-2 border-primary-start pl-4 py-1">
-                                        "{sanitizeText(judicial_observation)}"
-                                    </p>
-                                </div>
-                            )}
+                            {judicial_observation && (<div className="glass-panel p-6 rounded-2xl border-primary-start/20 bg-primary-start/5"><h3 className="text-xs font-bold text-primary-300 uppercase tracking-wider mb-3 flex items-center gap-2"><FileSearch size={16}/> Vlerësimi Gjyqësor</h3><p className="text-white text-sm leading-relaxed font-medium italic border-l-2 border-primary-start pl-4 py-1">"{sanitizeText(judicial_observation)}"</p></div>)}
 
-                            {result.chronology && result.chronology.length > 0 && (
-                                <div className="glass-panel p-6 rounded-2xl border-white/5 bg-white/5">
-                                    <h3 className="text-xs font-bold text-secondary-300 uppercase tracking-wider mb-6 flex items-center gap-2">
-                                        <Clock size={16}/> Kronologjia e Verifikuar
-                                    </h3>
+                            {/* PHOENIX V6.4: GRACEFUL EMPTY STATE */}
+                            <div className="glass-panel p-6 rounded-2xl border-white/5 bg-white/5">
+                                <h3 className="text-xs font-bold text-secondary-300 uppercase tracking-wider mb-6 flex items-center gap-2">
+                                    <Clock size={16}/> Kronologjia e Verifikuar
+                                </h3>
+                                {result.chronology && result.chronology.length > 0 ? (
                                     <div className="relative pl-4 border-l border-white/10 space-y-8 ml-2">
                                         {result.chronology.map((event, idx) => (
                                             <div key={idx} className="relative group">
@@ -160,20 +122,16 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                             </div>
                                         ))}
                                     </div>
-                                </div>
-                            )}
+                                ) : (
+                                    <div className="text-center text-gray-500 py-8">
+                                        <p className="text-sm italic">Nuk u gjetën data ose ngjarje të verifikueshme në dokumentacionin e analizuar.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
-                    {activeTab === 'strategy' && (
-                         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                            {strategic_summary && (<div className="glass-panel p-6 rounded-2xl border-accent-start/20 bg-accent-start/5"><h3 className="text-xs font-bold text-accent-start uppercase tracking-wider mb-3 flex items-center gap-2"><BrainCircuit size={16}/> Përmbledhje Strategjike</h3><p className="text-white text-sm leading-relaxed">{sanitizeText(strategic_summary)}</p></div>)}
-                            {emotional_leverage_points.length > 0 && (<div className="glass-panel p-6 rounded-2xl border-pink-500/20 bg-pink-500/5"><h3 className="text-xs font-bold text-pink-400 uppercase tracking-wider mb-4 flex items-center gap-2"><HeartCrack size={16}/> Pikat e Presionit Emocional</h3><ul className="space-y-3">{emotional_leverage_points.map((p: string, i: number) => (<li key={i} className="flex gap-3 text-sm text-pink-100"><span className="text-pink-400 font-bold mt-0.5">•</span><span className="leading-relaxed">{sanitizeText(p)}</span></li>))}</ul></div>)}
-                            {financial_leverage_points.length > 0 && (<div className="glass-panel p-6 rounded-2xl border-emerald-500/20 bg-emerald-500/5"><h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Banknote size={16}/> Pikat e Presionit Financiar</h3><ul className="space-y-3">{financial_leverage_points.map((p: string, i: number) => (<li key={i} className="flex gap-3 text-sm text-emerald-100"><span className="text-emerald-400 font-bold mt-0.5">•</span><span className="leading-relaxed">{sanitizeText(p)}</span></li>))}</ul></div>)}
-                            {suggested_questions.length > 0 && (<div className="glass-panel p-6 rounded-2xl border-secondary-start/20 bg-secondary-start/5"><h3 className="text-xs font-bold text-secondary-300 uppercase tracking-wider mb-4 flex items-center gap-2"><MessageCircleQuestion size={16}/> Pyetje Strategjike</h3><ul className="space-y-3">{suggested_questions.map((q: string, i: number) => (<li key={i} className="flex gap-3 text-sm text-white bg-secondary-500/10 p-3.5 rounded-xl border border-secondary-500/20 hover:border-secondary-500/40 transition-colors"><span className="text-secondary-400 font-bold whitespace-nowrap mt-0.5">{i+1}.</span><span className="leading-relaxed">{sanitizeText(q)}</span></li>))}</ul></div>)}
-                            {discovery_targets.length > 0 && (<div className="glass-panel p-6 rounded-2xl border-success-start/20 bg-success-start/5"><h3 className="text-xs font-bold text-success-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Target size={16}/> Kërkesa për Prova (Discovery)</h3><ul className="space-y-3">{discovery_targets.map((d: string, i: number) => (<li key={i} className="flex gap-3 text-sm text-white bg-success-500/10 p-3.5 rounded-xl border border-success-500/20"><span className="text-success-400 font-bold mt-0.5">➢</span><span className="leading-relaxed">{sanitizeText(d)}</span></li>))}</ul></div>)}
-                         </div>
-                    )}
+                    {activeTab === 'strategy' && ( <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">{strategic_summary && (<div className="glass-panel p-6 rounded-2xl border-accent-start/20 bg-accent-start/5"><h3 className="text-xs font-bold text-accent-start uppercase tracking-wider mb-3 flex items-center gap-2"><BrainCircuit size={16}/> Përmbledhje Strategjike</h3><p className="text-white text-sm leading-relaxed">{sanitizeText(strategic_summary)}</p></div>)} {emotional_leverage_points.length > 0 && (<div className="glass-panel p-6 rounded-2xl border-pink-500/20 bg-pink-500/5"><h3 className="text-xs font-bold text-pink-400 uppercase tracking-wider mb-4 flex items-center gap-2"><HeartCrack size={16}/> Pikat e Presionit Emocional</h3><ul className="space-y-3">{emotional_leverage_points.map((p: string, i: number) => (<li key={i} className="flex gap-3 text-sm text-pink-100"><span className="text-pink-400 font-bold mt-0.5">•</span><span className="leading-relaxed">{sanitizeText(p)}</span></li>))}</ul></div>)} {financial_leverage_points.length > 0 && (<div className="glass-panel p-6 rounded-2xl border-emerald-500/20 bg-emerald-500/5"><h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Banknote size={16}/> Pikat e Presionit Financiar</h3><ul className="space-y-3">{financial_leverage_points.map((p: string, i: number) => (<li key={i} className="flex gap-3 text-sm text-emerald-100"><span className="text-emerald-400 font-bold mt-0.5">•</span><span className="leading-relaxed">{sanitizeText(p)}</span></li>))}</ul></div>)} {suggested_questions.length > 0 && (<div className="glass-panel p-6 rounded-2xl border-secondary-start/20 bg-secondary-start/5"><h3 className="text-xs font-bold text-secondary-300 uppercase tracking-wider mb-4 flex items-center gap-2"><MessageCircleQuestion size={16}/> Pyetje Strategjike</h3><ul className="space-y-3">{suggested_questions.map((q: string, i: number) => (<li key={i} className="flex gap-3 text-sm text-white bg-secondary-500/10 p-3.5 rounded-xl border border-secondary-500/20 hover:border-secondary-500/40 transition-colors"><span className="text-secondary-400 font-bold whitespace-nowrap mt-0.5">{i+1}.</span><span className="leading-relaxed">{sanitizeText(q)}</span></li>))}</ul></div>)} {discovery_targets.length > 0 && (<div className="glass-panel p-6 rounded-2xl border-success-start/20 bg-success-start/5"><h3 className="text-xs font-bold text-success-400 uppercase tracking-wider mb-4 flex items-center gap-2"><Target size={16}/> Kërkesa për Prova (Discovery)</h3><ul className="space-y-3">{discovery_targets.map((d: string, i: number) => (<li key={i} className="flex gap-3 text-sm text-white bg-success-500/10 p-3.5 rounded-xl border border-success-500/20"><span className="text-success-400 font-bold mt-0.5">➢</span><span className="leading-relaxed">{sanitizeText(d)}</span></li>))}</ul></div>)} </div>)}
                 </div>
              </>
           )}
