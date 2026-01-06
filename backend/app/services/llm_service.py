@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V26.1 (CONSOLIDATED RECOMMENDATION)
-# 1. UPGRADE: Merged 'Sugjerime' and 'Konkluzion' in the financial prompt into a single 'Plani i Veprimit'.
-# 2. BEHAVIOR: Produces a more concise and impactful final report.
-# 3. STATUS: Final fine-tuning for financial analysis is complete.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V26.2 (CHRONOLOGY RESTORED)
+# 1. FIX: Restored the detailed 'LITIGATION_STRATEGIST_PROMPT' from V25.3 that was accidentally simplified in V26.1.
+# 2. FEATURE: Explicitly commands the AI to extract ALL dates for the chronology to prevent empty states.
+# 3. STATUS: Full feature set (Financial, Legal, Graph, Calendar, Chronology) active.
 
 import os
 import json
@@ -85,9 +85,43 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
         logger.warning(f"⚠️ Local LLM call failed: {e}")
         return ""
 
+# --- PHOENIX V26.2: THE RESTORED & HARDENED PROMPT ---
 LITIGATION_STRATEGIST_PROMPT = """
-Ti je "Këshilltar i Lartë Gjyqësor", ekspert në strategjinë e litigimit në Kosovë. Analizo tekstin për dobësi, pika presioni dhe mundësi taktike.
-FORMATI JSON (STRICT): { "summary_analysis": "...", "chronology": [...], "contradictions": [...], "red_flags": [...], "strategic_summary": "...", "emotional_leverage_points": [...], "financial_leverage_points": [...], "suggested_questions": [...], "discovery_targets": [...] }
+Ti je "Këshilltar i Lartë Gjyqësor", një ekspert në strategjinë e litigimit në Kosovë. Detyra jote është të analizosh tekstin e dosjes për të gjetur jo vetëm faktet, por edhe dobësitë, pikat e presionit dhe mundësitë taktike.
+
+DETYRA: Analizo tekstin nga 'BAZA E LËNDËS' dhe prodho një raport strategjik.
+
+**URDHËR PËR KRONOLOGJINË (PRIORITET ABSOLUT):**
+Ti DUHET të identifikosh çdo datë të përmendur në dokumente (data e padisë, data e ngjarjes, data e martesës, data e faturave, etj.).
+- Mos e lër kronologjinë bosh nëse ka data në tekst.
+- Formati i datës: DD/MM/YYYY (ose MM/YYYY nëse mungon dita).
+
+FORMATI JSON (STRICT):
+{
+  "summary_analysis": "Përmbledhje e lartë e situatës faktike dhe pretendimeve kryesore.",
+  "chronology": [
+    {"date": "DD/MM/YYYY", "event": "Ngjarja kryesore e verifikuar.", "source_doc": "Emri i Dokumentit"}
+  ],
+  "contradictions": [
+    "Identifiko çdo mospërputhje faktike. Shembull: 'Paditësi deklaron X në Padi, por dokumenti Y tregon Z.'"
+  ],
+  "red_flags": [
+    "Identifiko rreziqe procedurale, pretendime pa prova, ose afate të mundshme të humbura."
+  ],
+  "strategic_summary": "Një vlerësim i përgjithshëm i pikave të forta dhe të dobëta të rastit nga perspektiva jote.",
+  "emotional_leverage_points": [
+    "Analizo gjuhën për manipulim emocional dhe sugjero kundër-argumente."
+  ],
+  "financial_leverage_points": [
+    "Analizo pretendimet financiare dhe pikat e tyre të dobëta."
+  ],
+  "suggested_questions": [
+    "Formulo 2-3 pyetje strategjike për palën kundërshtare."
+  ],
+  "discovery_targets": [
+    "Listo dokumente specifike që duhet të kërkohen nga pala kundërshtare ('Kërkesa për Prova')."
+  ]
+}
 """
 
 def analyze_case_integrity(text: str) -> Dict[str, Any]:
@@ -109,34 +143,20 @@ def analyze_financial_summary(data_context: str) -> str:
     """
     Generates a consolidated, strategic narrative report from spreadsheet data.
     """
-    # PHOENIX V26.1: CONSOLIDATED RECOMMENDATION PROMPT
     system_prompt = """
-    Ti je "Këshilltar Financiar-Ligjor", ekspert në analizën e të dhënave financiare me fokus në implikimet ligjore në Kosovë.
-
-    DETYRA:
-    Analizo të dhënat statistikore dhe harto një raport profesional hetimor. Qëllimi yt është të identifikosh çdo anomali, model, ose trend dhe ta përkthesh atë në veprime konkrete ligjore.
+    Ti je "Këshilltar Financiar-Ligjor". Analizo të dhënat statistikore me fokus në implikimet ligjore dhe strategjike.
 
     FORMATI I PËRGJIGJES (Narrative Profesionale, 3 Seksione):
-    Shkruaj një raport të qartë dhe konciz që përmban:
-
-    1.  **PËRMBLEDHJE EKZEKUTIVE:**
-        *   Përshkruaj shkurtimisht se çfarë përfaqësojnë të dhënat (p.sh., "Analiza mbulon 20 transaksione shitjeje...").
-        *   Përmend gjetjen më të rëndësishme ose më të dyshimtë menjëherë.
-
-    2.  **ANALIZA E GJETJEVE KYÇE:**
-        *   Detajo 2-3 anomalitë ose modelet më domethënëse që ke gjetur.
-        *   Për secilën gjetje, shpjego PSE është e rëndësishme nga pikëpamja ligjore. (p.sh., "Vlera jashtëzakonisht e lartë në rreshtin 10 mund të përdoret si indicie për të fshehur të ardhura ose për të justifikuar një pretendim financiar të rremë.").
-
-    3.  **PLANI I VEPRIMIT (ACTION PLAN):**
-        *   Bazuar në analizën tënde, jep një listë të qartë dhe të numëruar të veprimeve të rekomanduara.
-        *   Këto duhet të jenë hapa konkretë që avokati mund t'i ndërmarrë. (p.sh., "1. Kërko zyrtarisht pasqyrat bankare...", "2. Përgatit pyetje specifike për dëshmitarin X në lidhje me transaksionin e datës Y...").
+    1. **PËRMBLEDHJE EKZEKUTIVE:** Përshkrim i shkurtër i të dhënave dhe gjetjeve kryesore.
+    2. **ANALIZA E GJETJEVE KYÇE:** Detajo anomalitë dhe implikimet e tyre ligjore.
+    3. **PLANI I VEPRIMIT:** Hapa konkretë për avokatin (kërkesa për prova, pyetje strategjike).
     """
     
     user_prompt = f"TË DHËNAT STATISTIKORE:\n{data_context}"
     
     res = _call_deepseek(system_prompt, user_prompt)
     if not res:
-        fallback_system_prompt = "Ti je Analist Financiar. Analizo të dhënat statistikore dhe shkruaj një raport të shkurtër me gjetjet dhe rekomandimet."
+        fallback_system_prompt = "Ti je Analist Financiar. Analizo të dhënat dhe shkruaj një raport."
         res = _call_local_llm(f"{fallback_system_prompt}\n\n{user_prompt}")
         
     return res or "Analiza e detajuar financiare dështoi të gjenerohej."
