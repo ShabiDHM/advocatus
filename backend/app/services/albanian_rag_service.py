@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V33.4 (ENV INJECTION AUTH)
-# 1. FIX: Sets 'OPENAI_API_KEY' in os.environ to bypass Pydantic v1/v2 type conflicts.
-# 2. LOGIC: Retains 'Master Litigator' drafting and '{{tool_names}}' chat fix.
-# 3. STATUS: Final Production Candidate.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V34.1 (DEEP CITATION)
+# 1. CITATION: Enforced strict law citation (Name + Number + Article + Paragraph + Content).
+# 2. PROMPT: Updated examples to show exactly how to cite specific legal clauses.
+# 3. STATUS: Optimized for high-precision legal referencing.
 
 import os
 import asyncio
@@ -26,12 +26,23 @@ LLM_TIMEOUT = 120
 
 # --- PHOENIX PROTOCOL OF LEGAL EXPERTISE ---
 PROTOKOLLI_I_EKSPERTIZES_LIGJORE = """
-URDHËRA TË PADISKUTUESHËM:
-1.  DY MENDJET (DUAL BRAIN): BAZA E LIGJEVE (LIGJI) dhe BAZA E LËNDËS (FAKTET).
-2.  JURIDIKSIONI I KOSOVËS: Analiza duhet të jetë STRICTLY e bazuar në ligjet e REPUBLIKËS SË KOSOVËS.
-3.  CITIMI PROFESIONAL (DETYRUESHËM):
-    *   CITIMI I FAKTIT: (Burimi: [Emri i Dokumentit], fq. [numri]).
-    *   CITIMI I LIGJIT: [**Emri i Ligjit Nr. XX/L-XXX, Neni YY**](doc://...).
+URDHËRA TË PADISKUTUESHËM PËR FORMATIN DHE STILIN:
+
+1.  **CITIMI I LIGJIT (STRIKT & I PLOTË):**
+    *   Duhet të përfshijë: **Emrin e Ligjit**, **Numrin e Ligjit**, **Nenin**, dhe **Paragrafin** (nëse aplikohet).
+    *   Duhet të përfshijë përmbajtjen: Trego çfarë thotë neni.
+    *   *Formati Vizual:* [**Ligji Nr. [Nr], Neni [X], paragrafi [Y]**](doc://...)
+    *   *Shembull:* "Kjo bazohet në [**Ligjin për Familjen Nr. 2004/32, Neni 331, paragrafi 2**](doc://...), i cili përcakton se alimentacioni mund të ndryshohet nëse ndryshojnë rrethanat."
+
+2.  **CITIMI I FAKTEVE:**
+    *   Integro burimin në fjali: "...siç vërtetohet në (Burimi: Padi, fq. 2)."
+    *   Mos përdor "Faqja: N/A". Nëse mungon faqja, shkruaj vetëm emrin e dokumentit.
+
+3.  **STRUKTURA:**
+    *   Përdor **TEXT BOLD** për data, shuma, dhe emra.
+    *   Përdor Lista (Bullet Points).
+
+4.  **JURIDIKSIONI:** Vetëm Ligjet e Republikës së Kosovës.
 """
 
 # --- TOOLS ---
@@ -53,7 +64,20 @@ class CaseKnowledgeBaseTool(BaseTool):
                 document_ids=self.document_ids
             )
             if not results: return "BAZA E LËNDËS: Nuk u gjetën të dhëna."
-            return "\n\n".join([f"[BURIMI I FAKTIT: {r.get('source', 'Unknown')}, Faqja: {r.get('page', 'N/A')}]\n{r.get('text', '')}" for r in results])
+            
+            formatted_results = []
+            for r in results:
+                source = r.get('source', 'Dokument')
+                page = r.get('page', 'N/A')
+                
+                # Logic to clean up "N/A" pages
+                citation = f"{source}"
+                if page and page != "N/A" and page != "None":
+                    citation += f", fq. {page}"
+                
+                formatted_results.append(f"[BURIMI: {citation}]\n{r.get('text', '')}")
+
+            return "\n\n".join(formatted_results)
         except Exception as e:
             return f"Gabim në aksesimin e Bazës së Lëndës: {e}"
 
@@ -77,7 +101,7 @@ def query_global_knowledge_base_tool(query: str) -> str:
 class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
-        # PHOENIX FIX: Inject key directly into environment to bypass Pydantic version conflicts
+        # Env Injection for Pydantic V2 compatibility
         if DEEPSEEK_API_KEY:
             os.environ["OPENAI_API_KEY"] = DEEPSEEK_API_KEY
             self.llm = ChatOpenAI(
@@ -91,35 +115,31 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # CHAT PROMPT
+        # CHAT PROMPT (DEEP CITATION STYLE)
         researcher_template = f"""
-        Ti je "Juristi AI", Këshilltar Ligjor i Lartë, ekspert për juridiksionin e KOSOVËS.
+        Ti je "Juristi AI", Këshilltar Ligjor i Lartë.
         {PROTOKOLLI_I_EKSPERTIZES_LIGJORE}
         
         MJETET E TUA: {{tools}}
         
-        SHEMBULL I PROCESIT TË MENDIMIT DHE PËRGJIGJES PERFEKTE:
-        Question: A është e vlefshme kontrata dhe cilat janë obligimet e palëve?
-        Thought: Më duhen dy gjëra: 1) Teksti i kontratës nga 'Baza e Lëndës' dhe 2) Ligji relevant për kontratat nga 'Baza e Ligjeve'. Fillimisht, do të kërkoj kontratën.
-        Action: query_case_knowledge_base
-        Action Input: "teksti i plotë i kontratës së shitjes"
-        Observation: [BURIMI I FAKTIT: Kontrata e Shitjes.pdf, Faqja: 2] ...blerësi obligohet të paguajë shumën prej 5000€ brenda 30 ditësh...
-        Thought: E gjeta faktin kyç dhe faqen. Tani më duhet ligji për vlefshmërinë e kontratave.
-        Action: query_global_knowledge_base
-        Action Input: "vlefshmëria e kontratave sipas Ligjit të Detyrimeve në Kosovë"
-        Observation: [BURIMI LIGJOR: LMD KOSOVE] Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve, Neni 17, thekson se kontrata është e vlefshme kur palët kanë rënë dakord për elementet thelbësore.
-        Thought: Tani kam të gjitha elementet. Do të ndërtoj përgjigjen duke i cituar saktë.
-        Final Answer: Në bazë të analizës... (Përgjigja e plotë e cituar)
+        SHEMBULL I PËRGJIGJES (Vini re saktësinë e citimit):
+        
+        Final Answer:
+        **Analiza Ligjore:**
+        Kërkesa e paditësit mbështetet në [**Ligjin për Marrëdhëniet e Detyrimeve Nr. 04/L-077, Neni 25, paragrafi 1**](doc://...), i cili përcakton qartë se "Kreditori ka të drejtë të kërkojë përmbushjen e detyrimit".
+        
+        **Analiza Faktike:**
+        Megjithatë, faktet tregojnë se pagesa është kryer me vonesë (Burimi: Fatura Nr. 123, fq. 1).
 
         ---
-        PËRDOR FORMATIN:
+        PËRDOR FORMATIN REACT:
         Question: ...
         Thought: ...
         Action: Një nga [{{tool_names}}]
         Action Input: ...
         Observation: ...
         ...
-        Final Answer: ...
+        Final Answer: (Këtu zbato citimin e plotë ligjor)
         
         Fillo!
         Question: {{input}}
@@ -171,7 +191,16 @@ class AlbanianRAGService:
                 query_text=instruction[:300], 
                 case_context_id=case_id
             )
-            facts = "\n".join([f"- {r.get('text', '')} (Burimi: {r.get('source', '')}, fq. {r.get('page', 'N/A')})" for r in p_docs]) if p_docs else "S'ka fakte specifike në dispozicion."
+            facts = ""
+            if p_docs:
+                for r in p_docs:
+                    src = r.get('source', '')
+                    pg = r.get('page', 'N/A')
+                    cit = f"{src}"
+                    if pg and pg != 'N/A': cit += f", fq. {pg}"
+                    facts += f"- {r.get('text', '')} (Burimi: {cit})\n"
+            else:
+                facts = "S'ka fakte specifike."
             
             l_docs = vector_store_service.query_global_knowledge_base(
                 instruction[:300], 
@@ -180,36 +209,29 @@ class AlbanianRAGService:
             laws = "\n".join([d.get('text', '') for d in l_docs]) if l_docs else "S'ka ligje specifike në dispozicion."
 
             drafting_prompt = f"""
-            Ti je "Mjeshtër i Litigimit", një avokat elitar i specializuar në hartimin e dokumenteve ligjore bindëse dhe strategjike për sistemin gjyqësor të KOSOVËS.
-            
+            Ti je "Mjeshtër i Litigimit", avokat elitar në Kosovë.
             {PROTOKOLLI_I_EKSPERTIZES_LIGJORE}
 
             **URDHËR I STRUKTURËS (Blueprint Mandate):**
-            Udhëzimi nga përdoruesi përmban një `STRUKTURA E KËRKUAR`. Kjo është një plan arkitektonik i padiskutueshëm. Ti DUHET ta ndjekësh këtë strukturë me përpikmëri, duke përdorur titujt dhe renditjen e dhënë. Kreativiteti yt duhet të shprehet *brenda* kësaj strukture, jo duke e ndryshuar atë.
+            Ndiq me përpikmëri `STRUKTURA E KËRKUAR` nga udhëzimi.
 
-            **URDHËR I ARGUMENTIMIT (Sinteza Ligjore):**
-            Mos thjesht listo faktet dhe ligjet. Detyra jote kryesore është t'i lidhësh ato në mënyrë logjike për të ndërtuar një argument të fuqishëm dhe bindës.
-
-            --- MATERIALET E DISPONUESHME ---
-            [BAZA E LËNDËS - FAKTET KRYESORE]: 
+            **URDHËR I CITIMIT (Sinteza Ligjore):**
+            Çdo argument ligjor DUHET të mbështetet me Nenin dhe Paragrafin përkatës.
+            
+            --- MATERIALET ---
+            [FAKTET]: 
             {facts}
             
-            [BAZA E LIGJEVE - LIGJET RELEVANTE]: 
+            [LIGJET]: 
             {laws}
             
-            [PËRMBLEDHJE E RASTIT]: {case_summary}
-            ---
+            [RASTI]: {case_summary}
             
-            [UDHËZIMI SPECIFIK NGA PËRDORUESI]: 
+            [UDHËZIMI]: 
             {instruction}
             ---
             
-            DETYRA JOTE:
-            1.  **NDIQ STRUKTURËN:** Zbato me përpikmëri `STRUKTURA E KËRKUAR` nga udhëzimi i përdoruesit.
-            2.  **NDËRTO ARGUMENTE BINDËSE:** Brenda çdo seksioni të strukturës, zbato "URDHËRIN E ARGUMENTIMIT".
-            3.  **PËRDOR TONIN E DUHUR:** Përshtat tonin me llojin e dokumentit.
-            4.  **OPTMIIZO KËRKESËN:** Formulo pjesën përfundimtare (Petitum-in) në mënyrë strategjike.
-            5.  **Cito me Përpikmëri:** Zbato PROTOKOLLIN E CITIMIT.
+            DETYRA: Harto draftin e plotë, profesional, me tonin e duhur dhe citime preçize ligjore.
             """
             response = await asyncio.wait_for(self.llm.ainvoke(drafting_prompt), timeout=LLM_TIMEOUT)
             return str(response.content)
