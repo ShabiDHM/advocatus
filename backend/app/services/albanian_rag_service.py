@@ -1,9 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V35.1 (COMPLETE TRINITY)
-# 1. VISUALS: Enforces Markdown Link syntax for frontend badges.
-# 2. SAFETY: 'ZERO TOLERANCE' rule preventing ghost data usage.
-# 3. LOGIC: Restored 'URDHËR I ARGUMENTIMIT' for sharp legal reasoning.
-# 4. STATUS: The definitive version.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V36.0 (GHOSTWRITER PROTOCOL)
+# 1. VISUALS: Strictly enforces Markdown Badges ([**PROVA...**]) over plain text.
+# 2. OUTPUT: "Ghostwriter Mode" enabled. Removes all conversational filler and internal analysis from the final output.
+# 3. LOGIC: Improved synthesis of user instructions (e.g., "unemployed") into legal arguments.
 
 import os
 import asyncio
@@ -13,7 +12,7 @@ from langchain.agents import AgentExecutor, create_react_agent
 from langchain.tools import BaseTool, tool
 from langchain_core.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
@@ -179,7 +178,7 @@ class AlbanianRAGService:
                 case_context_id=case_id
             )
             
-            # Construct the context for the AI
+            # Construct context
             facts = ""
             if p_docs:
                 for r in p_docs:
@@ -196,33 +195,33 @@ class AlbanianRAGService:
             laws = "\n".join([d.get('text', '') for d in l_docs]) if l_docs else "S'ka ligje specifike në dispozicion."
 
             drafting_prompt = f"""
-            Ti je "Mjeshtër i Litigimit", avokat elitar në Kosovë.
-            
+            Ti je "Mjeshtër i Litigimit" (Ghostwriter), avokat elitar në Kosovë.
             {PROTOKOLLI_I_EKSPERTIZES_LIGJORE}
 
-            **URDHËR KUNDËR HALUCINACIONEVE (ZERO TOLERANCE):**
-            1. Përdor VETËM faktet e listuara më poshtë tek "MATERIALET". 
-            2. Nëse një fakt nuk gjendet në materialet e mëposhtme, MOS E SHPIK.
+            **URDHËR: MODALI GHOSTWRITER (STRIKT):**
+            1. Prodho VETËM dokumentin ligjor final.
+            2. MOS shto asnjë tekst hyrës si "Këtu është drafti..." ose përmbyllës si "Analiza: ...".
+            3. Dokumenti duhet të jetë i gatshëm për t'u printuar dhe dorëzuar në gjykatë menjëherë.
 
-            **URDHËR I STRUKTURËS (Blueprint Mandate):**
-            Ndiq me përpikmëri `STRUKTURA E KËRKUAR` nga udhëzimi i përdoruesit.
+            **URDHËR I CITIMIT VIZUAL (ZERO TOLERANCE):**
+            MOS PËRDOR tekst të thjeshtë si "Burimi: ...".
+            PËRDOR VETËM FORMATIN MARKDOWN: `[**PROVA: Emri, fq. X**](doc://evidence)` për fakte dhe `[**Ligji...**](doc://law)` për ligje.
 
-            **URDHËR I ARGUMENTIMIT (Sinteza Ligjore):**
-            Mos thjesht listo faktet. Lidh faktet me ligjin për të ndërtuar argumente.
-            Shembull: "Veprimi X (citim) shkel Nenin Y (citim)..."
+            **URDHËR I ARGUMENTIMIT:**
+            Përdor informacionin e përdoruesit ("unemployed", "debts") për të ndërtuar argumente ligjore (p.sh. lidhur me pamundësinë financiare sipas Ligjit për Familjen).
 
             --- MATERIALET ---
             [FAKTET E VËRTETUARA]: 
             {facts}
             
-            [LIGJET]: 
+            [LIGJET RELEVANTE]: 
             {laws}
             
             [UDHËZIMI I PËRDORUESIT]: 
             {instruction}
             ---
             
-            DETYRA: Harto draftin duke respektuar Urdhërat e Strukturës, Argumentimit dhe Citimit Vizual.
+            DETYRA: Harto dokumentin final tani.
             """
             response = await asyncio.wait_for(self.llm.ainvoke(drafting_prompt), timeout=LLM_TIMEOUT)
             return str(response.content)
