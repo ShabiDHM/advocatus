@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V36.0 (GHOSTWRITER PROTOCOL)
-# 1. VISUALS: Strictly enforces Markdown Badges ([**PROVA...**]) over plain text.
-# 2. OUTPUT: "Ghostwriter Mode" enabled. Removes all conversational filler and internal analysis from the final output.
-# 3. LOGIC: Improved synthesis of user instructions (e.g., "unemployed") into legal arguments.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V36.1 (COMPILER MODE)
+# 1. VISUALS: Hard-coded the Markdown Badge syntax into the final task instruction to force compliance.
+# 2. OUTPUT: Added aggressive 'Negative Constraints' to ban conversational filler and meta-structure lists.
+# 3. LOGIC: Optimized fact context injection for better citation accuracy.
 
 import os
 import asyncio
@@ -61,7 +61,6 @@ class CaseKnowledgeBaseTool(BaseTool):
             )
             if not results: return "BAZA E LËNDËS: Nuk u gjetën të dhëna."
             
-            # Format specifically to help the AI construct the visual badges later
             formatted = []
             for r in results:
                 src = r.get('source', 'Dokument')
@@ -92,6 +91,7 @@ def query_global_knowledge_base_tool(query: str) -> str:
 class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
+        # Env Injection for Pydantic V2 compatibility
         if DEEPSEEK_API_KEY:
             os.environ["OPENAI_API_KEY"] = DEEPSEEK_API_KEY
             self.llm = ChatOpenAI(
@@ -178,7 +178,7 @@ class AlbanianRAGService:
                 case_context_id=case_id
             )
             
-            # Construct context
+            # Formatted exactly for the LLM to pick up Name and Page
             facts = ""
             if p_docs:
                 for r in p_docs:
@@ -198,17 +198,17 @@ class AlbanianRAGService:
             Ti je "Mjeshtër i Litigimit" (Ghostwriter), avokat elitar në Kosovë.
             {PROTOKOLLI_I_EKSPERTIZES_LIGJORE}
 
-            **URDHËR: MODALI GHOSTWRITER (STRIKT):**
-            1. Prodho VETËM dokumentin ligjor final.
-            2. MOS shto asnjë tekst hyrës si "Këtu është drafti..." ose përmbyllës si "Analiza: ...".
-            3. Dokumenti duhet të jetë i gatshëm për t'u printuar dhe dorëzuar në gjykatë menjëherë.
+            **URDHËRA TË HEKURT PËR FORMATIN (COMPILER MODE):**
+            1.  **VETËM DOKUMENT:** Prodho vetëm tekstin e dokumentit final.
+            2.  **NDALOHET:** Mos shkruaj "Analiza:", "Përmbledhje:", "Konkluzion:", "Struktura e Dokumentit:", apo ndonjë koment tjetër meta-tekstual.
+            3.  **NDALOHET:** Mos përshëndet ("Të nderuar...", "Ja dokumenti..."). Fillo direkt me kokën e aktit.
 
-            **URDHËR I CITIMIT VIZUAL (ZERO TOLERANCE):**
-            MOS PËRDOR tekst të thjeshtë si "Burimi: ...".
-            PËRDOR VETËM FORMATIN MARKDOWN: `[**PROVA: Emri, fq. X**](doc://evidence)` për fakte dhe `[**Ligji...**](doc://law)` për ligje.
+            **URDHËRA PËR CITIME VIZUALE:**
+            Për çdo fakt, DUHET të përdorësh formatin: `[**PROVA: Emri i Dokumentit, fq. X**](doc://evidence)`.
+            Mos përdor kurrë tekst të thjeshtë si "Burimi: ...".
 
             **URDHËR I ARGUMENTIMIT:**
-            Përdor informacionin e përdoruesit ("unemployed", "debts") për të ndërtuar argumente ligjore (p.sh. lidhur me pamundësinë financiare sipas Ligjit për Familjen).
+            Përdor informacionin e përdoruesit ("unemployed", "debts") për të ndërtuar argumente ligjore (p.sh. Neni për aftësinë financiare në Ligjin e Familjes).
 
             --- MATERIALET ---
             [FAKTET E VËRTETUARA]: 
@@ -221,7 +221,7 @@ class AlbanianRAGService:
             {instruction}
             ---
             
-            DETYRA: Harto dokumentin final tani.
+            DETYRA: Gjenero dokumentin final TANI.
             """
             response = await asyncio.wait_for(self.llm.ainvoke(drafting_prompt), timeout=LLM_TIMEOUT)
             return str(response.content)
