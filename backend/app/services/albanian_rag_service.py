@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V33.1 (PERFECT MERGE)
-# 1. CHAT FIX: Includes '{{tool_names}}' to prevent LangChain crash (from V33.0).
-# 2. DRAFTING RESTORED: Restored 'URDHËR I STRUKTURËS' (Blueprint Mandate) (from V32.1).
-# 3. STATUS: Both Chat and Drafting are now at their peak optimization.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V33.4 (ENV INJECTION AUTH)
+# 1. FIX: Sets 'OPENAI_API_KEY' in os.environ to bypass Pydantic v1/v2 type conflicts.
+# 2. LOGIC: Retains 'Master Litigator' drafting and '{{tool_names}}' chat fix.
+# 3. STATUS: Final Production Candidate.
 
 import os
 import asyncio
@@ -77,16 +77,21 @@ def query_global_knowledge_base_tool(query: str) -> str:
 class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
-        self.llm = ChatOpenAI(
-            model=OPENROUTER_MODEL, 
-            base_url=OPENROUTER_BASE_URL, 
-            temperature=0.0, 
-            streaming=False, 
-            timeout=LLM_TIMEOUT, 
-            max_retries=2
-        ) if DEEPSEEK_API_KEY else None
+        # PHOENIX FIX: Inject key directly into environment to bypass Pydantic version conflicts
+        if DEEPSEEK_API_KEY:
+            os.environ["OPENAI_API_KEY"] = DEEPSEEK_API_KEY
+            self.llm = ChatOpenAI(
+                model=OPENROUTER_MODEL, 
+                base_url=OPENROUTER_BASE_URL, 
+                temperature=0.0, 
+                streaming=False, 
+                timeout=LLM_TIMEOUT, 
+                max_retries=2
+            )
+        else:
+            self.llm = None
         
-        # CHAT PROMPT (Fixed {{tool_names}})
+        # CHAT PROMPT
         researcher_template = f"""
         Ti je "Juristi AI", Këshilltar Ligjor i Lartë, ekspert për juridiksionin e KOSOVËS.
         {PROTOKOLLI_I_EKSPERTIZES_LIGJORE}
@@ -155,7 +160,6 @@ class AlbanianRAGService:
             logger.error(f"Chat error: {e}", exc_info=True)
             return f"Ndjesë, ndodhi një gabim në procesimin e kërkesës."
 
-    # DRAFTING PROMPT (Restored Blueprint Mandate)
     async def generate_legal_draft(self, instruction: str, user_id: str, case_id: Optional[str]) -> str:
         if not self.llm: return "Gabim AI."
         try:
