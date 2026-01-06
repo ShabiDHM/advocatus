@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V26.2 (CHRONOLOGY RESTORED)
-# 1. FIX: Restored the detailed 'LITIGATION_STRATEGIST_PROMPT' from V25.3 that was accidentally simplified in V26.1.
-# 2. FEATURE: Explicitly commands the AI to extract ALL dates for the chronology to prevent empty states.
-# 3. STATUS: Full feature set (Financial, Legal, Graph, Calendar, Chronology) active.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V26.3 (CHRONOLOGY FORCE)
+# 1. PROMPT: Relaxed constraints on "Verified" dates. Now commands AI to capture ALL dates.
+# 2. EXAMPLE: Added a concrete JSON example to the prompt to force correct formatting.
+# 3. STATUS: Optimized for maximum data extraction.
 
 import os
 import json
@@ -85,42 +85,32 @@ def _call_local_llm(prompt: str, json_mode: bool = False) -> str:
         logger.warning(f"⚠️ Local LLM call failed: {e}")
         return ""
 
-# --- PHOENIX V26.2: THE RESTORED & HARDENED PROMPT ---
+# --- PHOENIX V26.3: DATA HOARDER PROMPT ---
 LITIGATION_STRATEGIST_PROMPT = """
-Ti je "Këshilltar i Lartë Gjyqësor", një ekspert në strategjinë e litigimit në Kosovë. Detyra jote është të analizosh tekstin e dosjes për të gjetur jo vetëm faktet, por edhe dobësitë, pikat e presionit dhe mundësitë taktike.
+Ti je "Këshilltar i Lartë Gjyqësor". Detyra jote është të analizosh tekstin e dosjes.
 
-DETYRA: Analizo tekstin nga 'BAZA E LËNDËS' dhe prodho një raport strategjik.
+**URDHËR PËR KRONOLOGJINË (DATA HOARDING):**
+Ti DUHET të nxjerrësh çdo datë të mundshme nga teksti.
+Përfshi:
+- Datat e dokumenteve (kur janë shkruar/nënshkruar).
+- Datat e ngjarjeve (martesa, aksidenti, pagesa).
+- Datat e faturave ose afateve.
+Nëse data nuk është e saktë, shkruaj muajin ose vitin.
 
-**URDHËR PËR KRONOLOGJINË (PRIORITET ABSOLUT):**
-Ti DUHET të identifikosh çdo datë të përmendur në dokumente (data e padisë, data e ngjarjes, data e martesës, data e faturave, etj.).
-- Mos e lër kronologjinë bosh nëse ka data në tekst.
-- Formati i datës: DD/MM/YYYY (ose MM/YYYY nëse mungon dita).
-
-FORMATI JSON (STRICT):
+FORMATI JSON I KËRKUAR (SHEMBULL):
 {
-  "summary_analysis": "Përmbledhje e lartë e situatës faktike dhe pretendimeve kryesore.",
+  "summary_analysis": "Analizë e shkurtër...",
   "chronology": [
-    {"date": "DD/MM/YYYY", "event": "Ngjarja kryesore e verifikuar.", "source_doc": "Emri i Dokumentit"}
+    {"date": "16.12.2025", "event": "Data e Përgjigjes në Padi", "source_doc": "Pergjigje.pdf"},
+    {"date": "21.03.2022", "event": "Marrëveshja e Ndërmjetësimit", "source_doc": "Marrëveshja"}
   ],
-  "contradictions": [
-    "Identifiko çdo mospërputhje faktike. Shembull: 'Paditësi deklaron X në Padi, por dokumenti Y tregon Z.'"
-  ],
-  "red_flags": [
-    "Identifiko rreziqe procedurale, pretendime pa prova, ose afate të mundshme të humbura."
-  ],
-  "strategic_summary": "Një vlerësim i përgjithshëm i pikave të forta dhe të dobëta të rastit nga perspektiva jote.",
-  "emotional_leverage_points": [
-    "Analizo gjuhën për manipulim emocional dhe sugjero kundër-argumente."
-  ],
-  "financial_leverage_points": [
-    "Analizo pretendimet financiare dhe pikat e tyre të dobëta."
-  ],
-  "suggested_questions": [
-    "Formulo 2-3 pyetje strategjike për palën kundërshtare."
-  ],
-  "discovery_targets": [
-    "Listo dokumente specifike që duhet të kërkohen nga pala kundërshtare ('Kërkesa për Prova')."
-  ]
+  "contradictions": ["Mospërputhje 1..."],
+  "red_flags": ["Rrezik 1..."],
+  "strategic_summary": "Vlerësim strategjik...",
+  "emotional_leverage_points": ["Pika emocionale..."],
+  "financial_leverage_points": ["Pika financiare..."],
+  "suggested_questions": ["Pyetje 1..."],
+  "discovery_targets": ["Dokumenti A..."]
 }
 """
 
@@ -140,25 +130,18 @@ def perform_litigation_cross_examination(target_text: str, context_summaries: Li
     return _parse_json_safely(content) if content else {}
 
 def analyze_financial_summary(data_context: str) -> str:
-    """
-    Generates a consolidated, strategic narrative report from spreadsheet data.
-    """
+    """Generates a strategic financial report."""
     system_prompt = """
     Ti je "Këshilltar Financiar-Ligjor". Analizo të dhënat statistikore me fokus në implikimet ligjore dhe strategjike.
-
     FORMATI I PËRGJIGJES (Narrative Profesionale, 3 Seksione):
-    1. **PËRMBLEDHJE EKZEKUTIVE:** Përshkrim i shkurtër i të dhënave dhe gjetjeve kryesore.
-    2. **ANALIZA E GJETJEVE KYÇE:** Detajo anomalitë dhe implikimet e tyre ligjore.
-    3. **PLANI I VEPRIMIT:** Hapa konkretë për avokatin (kërkesa për prova, pyetje strategjike).
+    1. **PËRMBLEDHJE EKZEKUTIVE**
+    2. **ANALIZA E GJETJEVE KYÇE**
+    3. **PLANI I VEPRIMIT**
     """
-    
     user_prompt = f"TË DHËNAT STATISTIKORE:\n{data_context}"
-    
     res = _call_deepseek(system_prompt, user_prompt)
     if not res:
-        fallback_system_prompt = "Ti je Analist Financiar. Analizo të dhënat dhe shkruaj një raport."
-        res = _call_local_llm(f"{fallback_system_prompt}\n\n{user_prompt}")
-        
+        res = _call_local_llm(f"Analizo këto të dhëna financiare:\n{user_prompt}")
     return res or "Analiza e detajuar financiare dështoi të gjenerohej."
 
 def generate_summary(text: str) -> str:
