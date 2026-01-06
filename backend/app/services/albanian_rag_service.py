@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V32.1 (STRUCTURED CREATIVITY)
-# 1. UPGRADE: Drafting prompt now explicitly commands the AI to follow the user-provided template structure.
-# 2. BEHAVIOR: Balances creative legal argumentation with predictable, structured output.
-# 3. STATUS: Final fine-tuning complete.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V33.1 (PERFECT MERGE)
+# 1. CHAT FIX: Includes '{{tool_names}}' to prevent LangChain crash (from V33.0).
+# 2. DRAFTING RESTORED: Restored 'URDHËR I STRUKTURËS' (Blueprint Mandate) (from V32.1).
+# 3. STATUS: Both Chat and Drafting are now at their peak optimization.
 
 import os
 import asyncio
@@ -24,7 +24,7 @@ OPENROUTER_MODEL = "deepseek/deepseek-chat"
 MAX_ITERATIONS = 10
 LLM_TIMEOUT = 120
 
-# --- PHOENIX V31.0: UNIFIED PROTOCOL OF LEGAL EXPERTISE ---
+# --- PHOENIX PROTOCOL OF LEGAL EXPERTISE ---
 PROTOKOLLI_I_EKSPERTIZES_LIGJORE = """
 URDHËRA TË PADISKUTUESHËM:
 1.  DY MENDJET (DUAL BRAIN): BAZA E LIGJEVE (LIGJI) dhe BAZA E LËNDËS (FAKTET).
@@ -38,18 +38,31 @@ URDHËRA TË PADISKUTUESHËM:
 class CaseKnowledgeBaseTool(BaseTool):
     name: str = "query_case_knowledge_base"
     description: str = "Kërko FAKTE në 'BAZA E LËNDËS' (dokumentet e ngarkuara)."
-    user_id: str; case_id: Optional[str]; document_ids: Optional[List[str]] = None
+    
+    user_id: str
+    case_id: Optional[str]
+    document_ids: Optional[List[str]] = None
+
     def _run(self, query: str) -> str:
         from . import vector_store_service
         try:
-            results = vector_store_service.query_case_knowledge_base(user_id=self.user_id, query_text=query, case_context_id=self.case_id, document_ids=self.document_ids)
+            results = vector_store_service.query_case_knowledge_base(
+                user_id=self.user_id, 
+                query_text=query, 
+                case_context_id=self.case_id, 
+                document_ids=self.document_ids
+            )
             if not results: return "BAZA E LËNDËS: Nuk u gjetën të dhëna."
             return "\n\n".join([f"[BURIMI I FAKTIT: {r.get('source', 'Unknown')}, Faqja: {r.get('page', 'N/A')}]\n{r.get('text', '')}" for r in results])
-        except Exception as e: return f"Gabim në aksesimin e Bazës së Lëndës: {e}"
+        except Exception as e:
+            return f"Gabim në aksesimin e Bazës së Lëndës: {e}"
+
     async def _arun(self, query: str) -> str: return await asyncio.to_thread(self._run, query)
     class ArgsSchema(BaseModel): query: str = Field(description="Search query for facts.")
 
-class GlobalKnowledgeBaseInput(BaseModel): query: str = Field(description="Search query for laws.")
+class GlobalKnowledgeBaseInput(BaseModel): 
+    query: str = Field(description="Search query for laws.")
+
 @tool("query_global_knowledge_base", args_schema=GlobalKnowledgeBaseInput)
 def query_global_knowledge_base_tool(query: str) -> str:
     """Kërko LIGJE në 'BAZA E LIGJEVE' (Kodet, Rregulloret)."""
@@ -58,29 +71,51 @@ def query_global_knowledge_base_tool(query: str) -> str:
         results = vector_store_service.query_global_knowledge_base(query_text=query)
         if not results: return "BAZA E LIGJEVE: Nuk u gjetën ligje."
         return "\n\n".join([f"[BURIMI LIGJOR: {r.get('source', 'Ligji')}]\n{r.get('text', '')}" for r in results])
-    except Exception as e: return f"Gabim në aksesimin e ligjeve: {e}"
+    except Exception as e:
+        return f"Gabim në aksesimin e ligjeve: {e}"
 
 class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
-        self.llm = ChatOpenAI(model=OPENROUTER_MODEL, base_url=OPENROUTER_BASE_URL, temperature=0.0, streaming=False, timeout=LLM_TIMEOUT, max_retries=2) if DEEPSEEK_API_KEY else None
+        self.llm = ChatOpenAI(
+            model=OPENROUTER_MODEL, 
+            base_url=OPENROUTER_BASE_URL, 
+            temperature=0.0, 
+            streaming=False, 
+            timeout=LLM_TIMEOUT, 
+            max_retries=2
+        ) if DEEPSEEK_API_KEY else None
         
+        # CHAT PROMPT (Fixed {{tool_names}})
         researcher_template = f"""
         Ti je "Juristi AI", Këshilltar Ligjor i Lartë, ekspert për juridiksionin e KOSOVËS.
         {PROTOKOLLI_I_EKSPERTIZES_LIGJORE}
+        
         MJETET E TUA: {{tools}}
-        SHEMBULL I PROCESIT TË MENDIMIT:
-        Question: A është e vlefshme kontrata?
-        Thought: Më duhet teksti i kontratës nga 'Baza e Lëndës' dhe ligji për kontratat nga 'Baza e Ligjeve'.
+        
+        SHEMBULL I PROCESIT TË MENDIMIT DHE PËRGJIGJES PERFEKTE:
+        Question: A është e vlefshme kontrata dhe cilat janë obligimet e palëve?
+        Thought: Më duhen dy gjëra: 1) Teksti i kontratës nga 'Baza e Lëndës' dhe 2) Ligji relevant për kontratat nga 'Baza e Ligjeve'. Fillimisht, do të kërkoj kontratën.
         Action: query_case_knowledge_base
-        Action Input: "teksti i kontratës"
-        Observation: [BURIMI I FAKTIT: Kontrata.pdf, Faqja: 2] ...
-        Thought: Tani më duhet ligji.
+        Action Input: "teksti i plotë i kontratës së shitjes"
+        Observation: [BURIMI I FAKTIT: Kontrata e Shitjes.pdf, Faqja: 2] ...blerësi obligohet të paguajë shumën prej 5000€ brenda 30 ditësh...
+        Thought: E gjeta faktin kyç dhe faqen. Tani më duhet ligji për vlefshmërinë e kontratave.
         Action: query_global_knowledge_base
-        Action Input: "vlefshmëria e kontratave Ligji i Detyrimeve Kosovë"
-        Observation: [BURIMI LIGJOR: Ligji Nr. 04/L-077...]
-        Thought: Kam faktet dhe ligjin. Tani formuloj përgjigjen duke i cituar saktë.
+        Action Input: "vlefshmëria e kontratave sipas Ligjit të Detyrimeve në Kosovë"
+        Observation: [BURIMI LIGJOR: LMD KOSOVE] Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve, Neni 17, thekson se kontrata është e vlefshme kur palët kanë rënë dakord për elementet thelbësore.
+        Thought: Tani kam të gjitha elementet. Do të ndërtoj përgjigjen duke i cituar saktë.
+        Final Answer: Në bazë të analizës... (Përgjigja e plotë e cituar)
+
+        ---
+        PËRDOR FORMATIN:
+        Question: ...
+        Thought: ...
+        Action: Një nga [{{tool_names}}]
+        Action Input: ...
+        Observation: ...
+        ...
         Final Answer: ...
+        
         Fillo!
         Question: {{input}}
         Thought: {{agent_scratchpad}}
@@ -98,7 +133,14 @@ class AlbanianRAGService:
     def _create_agent_executor(self, session_tools: List) -> AgentExecutor:
         if not self.llm: raise ValueError("LLM not initialized")
         agent = create_react_agent(self.llm, session_tools, self.researcher_prompt)
-        return AgentExecutor(agent=agent, tools=session_tools, verbose=True, handle_parsing_errors=True, max_iterations=MAX_ITERATIONS, return_intermediate_steps=False)
+        return AgentExecutor(
+            agent=agent, 
+            tools=session_tools, 
+            verbose=True, 
+            handle_parsing_errors=True, 
+            max_iterations=MAX_ITERATIONS, 
+            return_intermediate_steps=False
+        )
 
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None, document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> str:
         if not self.llm: return "Sistemi AI nuk është aktiv."
@@ -111,22 +153,26 @@ class AlbanianRAGService:
             return res.get('output', 'Nuk ka përgjigje.')
         except Exception as e:
             logger.error(f"Chat error: {e}", exc_info=True)
-            return f"Ndjesë, ndodhi një gabim i papritur."
+            return f"Ndjesë, ndodhi një gabim në procesimin e kërkesës."
 
-    # PHOENIX V32.1: STRUCTURED CREATIVITY UPGRADE
+    # DRAFTING PROMPT (Restored Blueprint Mandate)
     async def generate_legal_draft(self, instruction: str, user_id: str, case_id: Optional[str]) -> str:
         if not self.llm: return "Gabim AI."
         try:
             case_summary = await self._get_case_summary(case_id)
             from . import vector_store_service
             
-            # Use the full instruction for better context retrieval
-            full_context_query = f"{instruction}\n{case_summary}"
-            
-            p_docs = vector_store_service.query_case_knowledge_base(user_id=user_id, query_text=full_context_query, n_results=15, case_context_id=case_id)
+            p_docs = vector_store_service.query_case_knowledge_base(
+                user_id=user_id, 
+                query_text=instruction[:300], 
+                case_context_id=case_id
+            )
             facts = "\n".join([f"- {r.get('text', '')} (Burimi: {r.get('source', '')}, fq. {r.get('page', 'N/A')})" for r in p_docs]) if p_docs else "S'ka fakte specifike në dispozicion."
             
-            l_docs = vector_store_service.query_global_knowledge_base(full_context_query, n_results=7, jurisdiction='ks')
+            l_docs = vector_store_service.query_global_knowledge_base(
+                instruction[:300], 
+                jurisdiction='ks'
+            )
             laws = "\n".join([d.get('text', '') for d in l_docs]) if l_docs else "S'ka ligje specifike në dispozicion."
 
             drafting_prompt = f"""
@@ -156,10 +202,10 @@ class AlbanianRAGService:
             
             DETYRA JOTE:
             1.  **NDIQ STRUKTURËN:** Zbato me përpikmëri `STRUKTURA E KËRKUAR` nga udhëzimi i përdoruesit.
-            2.  **NDËRTO ARGUMENTE BINDËSE:** Brenda çdo seksioni të strukturës, zbato "URDHËRIN E ARGUMENTIMIT" për të krijuar një rrjedhë logjike.
-            3.  **PËRDOR TONIN E DUHUR:** Përshtat tonin e gjuhës me `LLOJI I DOKUMENTIT` (p.sh., ton assertiv për Padi, ton kundërshtues për Përgjigje në Padi).
-            4.  **OPTMIIZO KËRKESËN:** Formulo pjesën përfundimtare (Petitum-in/Kërkesën) në mënyrë të qartë dhe strategjike.
-            5.  **Cito me Përpikmëri:** Zbato PROTOKOLLIN E CITIMIT për çdo fakt dhe ligj që përdor.
+            2.  **NDËRTO ARGUMENTE BINDËSE:** Brenda çdo seksioni të strukturës, zbato "URDHËRIN E ARGUMENTIMIT".
+            3.  **PËRDOR TONIN E DUHUR:** Përshtat tonin me llojin e dokumentit.
+            4.  **OPTMIIZO KËRKESËN:** Formulo pjesën përfundimtare (Petitum-in) në mënyrë strategjike.
+            5.  **Cito me Përpikmëri:** Zbato PROTOKOLLIN E CITIMIT.
             """
             response = await asyncio.wait_for(self.llm.ainvoke(drafting_prompt), timeout=LLM_TIMEOUT)
             return str(response.content)
