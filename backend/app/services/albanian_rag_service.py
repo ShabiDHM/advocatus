@@ -1,8 +1,9 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V34.1 (DEEP CITATION)
-# 1. CITATION: Enforced strict law citation (Name + Number + Article + Paragraph + Content).
-# 2. PROMPT: Updated examples to show exactly how to cite specific legal clauses.
-# 3. STATUS: Optimized for high-precision legal referencing.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V35.1 (COMPLETE TRINITY)
+# 1. VISUALS: Enforces Markdown Link syntax for frontend badges.
+# 2. SAFETY: 'ZERO TOLERANCE' rule preventing ghost data usage.
+# 3. LOGIC: Restored 'URDHËR I ARGUMENTIMIT' for sharp legal reasoning.
+# 4. STATUS: The definitive version.
 
 import os
 import asyncio
@@ -28,21 +29,17 @@ LLM_TIMEOUT = 120
 PROTOKOLLI_I_EKSPERTIZES_LIGJORE = """
 URDHËRA TË PADISKUTUESHËM PËR FORMATIN DHE STILIN:
 
-1.  **CITIMI I LIGJIT (STRIKT & I PLOTË):**
-    *   Duhet të përfshijë: **Emrin e Ligjit**, **Numrin e Ligjit**, **Nenin**, dhe **Paragrafin** (nëse aplikohet).
-    *   Duhet të përfshijë përmbajtjen: Trego çfarë thotë neni.
-    *   *Formati Vizual:* [**Ligji Nr. [Nr], Neni [X], paragrafi [Y]**](doc://...)
-    *   *Shembull:* "Kjo bazohet në [**Ligjin për Familjen Nr. 2004/32, Neni 331, paragrafi 2**](doc://...), i cili përcakton se alimentacioni mund të ndryshohet nëse ndryshojnë rrethanat."
+1.  **STRUKTURA VIZUALE (BADGES & LINKS):**
+    *   **PËR FAKTE (DOKUMENTE):** Duhet të përdorësh këtë format ekzakt për të krijuar "Yellow Badges":
+        `[**PROVA: Emri i Dokumentit, fq. X**](doc://evidence)`
+    *   **PËR LIGJE:** Duhet të përdorësh këtë format ekzakt për të krijuar "Blue Links":
+        `[**Ligji Nr. XX, Neni Y**](doc://law)`
 
-2.  **CITIMI I FAKTEVE:**
-    *   Integro burimin në fjali: "...siç vërtetohet në (Burimi: Padi, fq. 2)."
-    *   Mos përdor "Faqja: N/A". Nëse mungon faqja, shkruaj vetëm emrin e dokumentit.
+2.  **CITIMI I DETYRUESHËM:**
+    *   Çdo paragraf faktik duhet të përfundojë me një citim vizual (Yellow Badge).
+    *   Çdo argument ligjor duhet të përmbajë citimin vizual (Blue Link).
 
-3.  **STRUKTURA:**
-    *   Përdor **TEXT BOLD** për data, shuma, dhe emra.
-    *   Përdor Lista (Bullet Points).
-
-4.  **JURIDIKSIONI:** Vetëm Ligjet e Republikës së Kosovës.
+3.  **JURIDIKSIONI:** Vetëm Ligjet e Republikës së Kosovës.
 """
 
 # --- TOOLS ---
@@ -65,19 +62,14 @@ class CaseKnowledgeBaseTool(BaseTool):
             )
             if not results: return "BAZA E LËNDËS: Nuk u gjetën të dhëna."
             
-            formatted_results = []
+            # Format specifically to help the AI construct the visual badges later
+            formatted = []
             for r in results:
-                source = r.get('source', 'Dokument')
-                page = r.get('page', 'N/A')
-                
-                # Logic to clean up "N/A" pages
-                citation = f"{source}"
-                if page and page != "N/A" and page != "None":
-                    citation += f", fq. {page}"
-                
-                formatted_results.append(f"[BURIMI: {citation}]\n{r.get('text', '')}")
-
-            return "\n\n".join(formatted_results)
+                src = r.get('source', 'Dokument')
+                pg = r.get('page', 'N/A')
+                formatted.append(f"DOKUMENTI: '{src}' (Faqja: {pg}) -> PËRMBAJTJA: {r.get('text', '')}")
+            
+            return "\n\n".join(formatted)
         except Exception as e:
             return f"Gabim në aksesimin e Bazës së Lëndës: {e}"
 
@@ -101,7 +93,6 @@ def query_global_knowledge_base_tool(query: str) -> str:
 class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
-        # Env Injection for Pydantic V2 compatibility
         if DEEPSEEK_API_KEY:
             os.environ["OPENAI_API_KEY"] = DEEPSEEK_API_KEY
             self.llm = ChatOpenAI(
@@ -115,21 +106,17 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # CHAT PROMPT (DEEP CITATION STYLE)
+        # CHAT PROMPT
         researcher_template = f"""
         Ti je "Juristi AI", Këshilltar Ligjor i Lartë.
         {PROTOKOLLI_I_EKSPERTIZES_LIGJORE}
         
         MJETET E TUA: {{tools}}
         
-        SHEMBULL I PËRGJIGJES (Vini re saktësinë e citimit):
-        
+        SHEMBULL I PËRGJIGJES SË PËRSOSUR (Visual):
         Final Answer:
-        **Analiza Ligjore:**
-        Kërkesa e paditësit mbështetet në [**Ligjin për Marrëdhëniet e Detyrimeve Nr. 04/L-077, Neni 25, paragrafi 1**](doc://...), i cili përcakton qartë se "Kreditori ka të drejtë të kërkojë përmbushjen e detyrimit".
-        
-        **Analiza Faktike:**
-        Megjithatë, faktet tregojnë se pagesa është kryer me vonesë (Burimi: Fatura Nr. 123, fq. 1).
+        Sipas provave, palët kanë nënshkruar marrëveshjen [**PROVA: Kontrata.pdf, fq. 1**](doc://evidence).
+        Kjo është në përputhje me [**Ligjin për Detyrimet, Neni 15**](doc://law).
 
         ---
         PËRDOR FORMATIN REACT:
@@ -139,7 +126,7 @@ class AlbanianRAGService:
         Action Input: ...
         Observation: ...
         ...
-        Final Answer: (Këtu zbato citimin e plotë ligjor)
+        Final Answer: ...
         
         Fillo!
         Question: {{input}}
@@ -191,16 +178,16 @@ class AlbanianRAGService:
                 query_text=instruction[:300], 
                 case_context_id=case_id
             )
+            
+            # Construct the context for the AI
             facts = ""
             if p_docs:
                 for r in p_docs:
-                    src = r.get('source', '')
+                    src = r.get('source', 'Dokument')
                     pg = r.get('page', 'N/A')
-                    cit = f"{src}"
-                    if pg and pg != 'N/A': cit += f", fq. {pg}"
-                    facts += f"- {r.get('text', '')} (Burimi: {cit})\n"
+                    facts += f"--- FAKT NGA DOKUMENTI: '{src}' (Faqja: {pg}) ---\nTEKSTI: {r.get('text', '')}\n\n"
             else:
-                facts = "S'ka fakte specifike."
+                facts = "S'ka fakte specifike në dispozicion."
             
             l_docs = vector_store_service.query_global_knowledge_base(
                 instruction[:300], 
@@ -210,28 +197,32 @@ class AlbanianRAGService:
 
             drafting_prompt = f"""
             Ti je "Mjeshtër i Litigimit", avokat elitar në Kosovë.
+            
             {PROTOKOLLI_I_EKSPERTIZES_LIGJORE}
 
-            **URDHËR I STRUKTURËS (Blueprint Mandate):**
-            Ndiq me përpikmëri `STRUKTURA E KËRKUAR` nga udhëzimi.
+            **URDHËR KUNDËR HALUCINACIONEVE (ZERO TOLERANCE):**
+            1. Përdor VETËM faktet e listuara më poshtë tek "MATERIALET". 
+            2. Nëse një fakt nuk gjendet në materialet e mëposhtme, MOS E SHPIK.
 
-            **URDHËR I CITIMIT (Sinteza Ligjore):**
-            Çdo argument ligjor DUHET të mbështetet me Nenin dhe Paragrafin përkatës.
-            
+            **URDHËR I STRUKTURËS (Blueprint Mandate):**
+            Ndiq me përpikmëri `STRUKTURA E KËRKUAR` nga udhëzimi i përdoruesit.
+
+            **URDHËR I ARGUMENTIMIT (Sinteza Ligjore):**
+            Mos thjesht listo faktet. Lidh faktet me ligjin për të ndërtuar argumente.
+            Shembull: "Veprimi X (citim) shkel Nenin Y (citim)..."
+
             --- MATERIALET ---
-            [FAKTET]: 
+            [FAKTET E VËRTETUARA]: 
             {facts}
             
             [LIGJET]: 
             {laws}
             
-            [RASTI]: {case_summary}
-            
-            [UDHËZIMI]: 
+            [UDHËZIMI I PËRDORUESIT]: 
             {instruction}
             ---
             
-            DETYRA: Harto draftin e plotë, profesional, me tonin e duhur dhe citime preçize ligjore.
+            DETYRA: Harto draftin duke respektuar Urdhërat e Strukturës, Argumentimit dhe Citimit Vizual.
             """
             response = await asyncio.wait_for(self.llm.ainvoke(drafting_prompt), timeout=LLM_TIMEOUT)
             return str(response.content)
