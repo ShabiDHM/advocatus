@@ -224,13 +224,16 @@
     "archiveFailed": "Arkivimi dështoi."
   },
   "chatPanel": {
-    "title": "Asistenti Sokratik",
-    "inputPlaceholder": "Shtypni pyetjen tuaj këtu...",
-    "thinking": "Duke analizuar...",
-    "welcomeMessage": "Përshëndetje! Unë jam asistenti juaj ligjor.",
-    "statusConnected": "Lidhur",
-    "confirmClear": "Pastro bisedën?",
-    "contextGeneral": "E gjithë Dosja"
+   "title": "Asistenti Sokratik",
+  "welcomeMessage": "Përshëndetje! Unë jam asistenti juaj ligjor.",
+  "inputPlaceholder": "Shkruaj mesazhin tuaj këtu...",
+  "inputPlaceholderDeep": "Shkruaj për hulumtim të thellë...",
+  "thinking": "Duke menduar...",
+  "confirmClear": "Pastro Historinë",
+  "modeFast": "Shpejtë",
+  "modeFastTooltip": "Bisedë e Shpejtë",
+  "modeDeep": "Thellë",
+  "modeDeepTooltip": "Hulumtim i Thellë"
   },
   "analysis": {
     "analyzeButton": "Analizo Rastin",

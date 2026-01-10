@@ -1,8 +1,8 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V4.1 (SYNTAX FIX)
-// 1. FIX: Corrected JSX nesting structures and closing tags.
-// 2. VERIFIED: All conditional renders and map functions are properly closed.
-// 3. STATUS: Visuals and Logic for 'Fast/Deep' toggle retained.
+// PHOENIX PROTOCOL - CHAT PANEL V4.2 (I18N FIX)
+// 1. FIX: Replaced hardcoded 'Fast'/'Deep' labels with 't()' calls.
+// 2. FIX: Localized tooltips and placeholders for the new modes.
+// 3. STATUS: Internationalization compliant.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -177,6 +177,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
+  // Determine placeholder based on mode
+  const getPlaceholder = () => {
+      if (reasoningMode === 'DEEP') return t('chatPanel.inputPlaceholderDeep', "Shkruaj për hulumtim të thellë...");
+      return t('chatPanel.inputPlaceholder', "Shkruaj mesazhin tuaj këtu...");
+  };
+
   return (
     <div className={`flex flex-col relative glass-panel rounded-2xl overflow-hidden h-full w-full ${className}`}>
       
@@ -196,9 +202,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         ? 'bg-blue-500/20 text-blue-400 shadow-sm' 
                         : 'text-gray-500 hover:text-gray-300'
                     }`}
-                    title="Bisedë e Shpejtë (Vector RAG)"
+                    title={t('chatPanel.modeFastTooltip', 'Bisedë e Shpejtë (Vector RAG)')}
                 >
-                    <Zap size={12} /> Fast
+                    <Zap size={12} /> {t('chatPanel.modeFast', 'Shpejtë')}
                 </button>
                 <button
                     onClick={() => setReasoningMode('DEEP')}
@@ -207,9 +213,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                         ? 'bg-purple-500/20 text-purple-400 shadow-sm' 
                         : 'text-gray-500 hover:text-gray-300'
                     }`}
-                    title="Hulumtim i Thellë (Agentic Search)"
+                    title={t('chatPanel.modeDeepTooltip', 'Hulumtim i Thellë (Agentic Search)')}
                 >
-                    <GraduationCap size={12} /> Deep
+                    <GraduationCap size={12} /> {t('chatPanel.modeDeep', 'Thellë')}
                 </button>
             </div>
 
@@ -285,7 +291,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={reasoningMode === 'DEEP' ? "Shkruaj për hulumtim të thellë..." : t('chatPanel.inputPlaceholder')}
+                placeholder={getPlaceholder()}
                 rows={1}
                 className={`glass-input w-full pl-4 pr-12 py-3.5 rounded-xl text-sm resize-none custom-scrollbar transition-colors duration-300 ${
                     reasoningMode === 'DEEP' ? 'border-purple-500/30 focus:border-purple-500/50' : ''
