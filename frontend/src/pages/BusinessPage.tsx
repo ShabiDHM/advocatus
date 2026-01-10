@@ -1,8 +1,7 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V10.0 (GLASS & GRADIENTS)
-// 1. VISUALS: Updated Tab Switcher to use 'glass-panel' and gradient active states.
-// 2. TYPOGRAPHY: aligned with global text variables (text-text-primary).
-// 3. LOGIC: Preserved conditional rendering to prevent chart dimension errors.
+// PHOENIX PROTOCOL - BUSINESS PAGE V10.1 (TITLE CASE FIX)
+// 1. FIX: Updated 'capitalize' to handle full names (e.g. "Shaban Bala").
+// 2. VISUALS: Preserved Glass & Gradient aesthetics.
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen } from 'lucide-react';
@@ -19,10 +18,13 @@ const BusinessPage: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
 
-  // Helper function to capitalize the first letter of a string
+  // PHOENIX UPDATE: Title Case function (capitalizes every word)
   const capitalize = (s: string | undefined) => {
     if (!s) return 'Përdorues';
-    return s.charAt(0).toUpperCase() + s.slice(1);
+    return s
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   };
 
   // Component mapping for conditional rendering
