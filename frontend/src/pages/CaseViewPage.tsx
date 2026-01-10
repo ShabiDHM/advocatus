@@ -1,14 +1,15 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - REFACTOR V10.6 (NAVIGATION UX)
-// 1. UX: Changed Analyst return button to use 'ArrowLeft' icon.
-// 2. TEXT: Prepared for 'Kthehu Mbrapa' translation.
+// PHOENIX PROTOCOL - REFACTOR V10.8 (CLEAN ARCHITECTURE)
+// 1. CLEANUP: Removed temporary API bypass.
+// 2. LOGIC: Fully relies on 'useDocumentSocket' for chat transport.
+// 3. STATUS: Feature Complete (Dual-Gear Chat).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
-import ChatPanel, { ChatMode, Jurisdiction } from '../components/ChatPanel';
+import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode } from '../components/ChatPanel';
 import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
@@ -17,7 +18,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, ArrowLeft, Activity } from 'lucide-react'; // Changed LayoutGrid to ArrowLeft
+import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, ArrowLeft, Activity } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -100,15 +101,12 @@ const CaseHeader: React.FC<{
             animate={{ opacity: 1, y: 0 }} 
             transition={{ duration: 0.3 }}
         >
-          {/* Visual Background */}
           <div className="absolute inset-0 rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
               <div className="absolute inset-0 bg-background-light/40 backdrop-blur-md" />
               <div className="absolute top-0 right-0 p-32 bg-primary-start/10 blur-[100px] rounded-full pointer-events-none" />
           </div>
 
           <div className="relative p-5 sm:p-6 flex flex-col gap-5 z-10">
-              
-              {/* TOP ROW: Title & Client */}
               <div className="flex flex-col gap-1">
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight leading-snug break-words">
                     {caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase', 'Rast pa Emër')}
@@ -123,15 +121,12 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              {/* CONTROL BAR - Consolidated Navigation */}
               <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full animate-in fade-in slide-in-from-top-2">
-                    {/* Date Badge */}
                     <div className="flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap min-w-[140px]">
                         <Calendar className="h-4 w-4 text-blue-400" />
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
 
-                    {/* Context Switcher - Takes remaining space */}
                     <div className="flex-1 w-full md:w-auto h-12 md:h-11">
                         {viewMode === 'workspace' && (
                              <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
@@ -143,9 +138,6 @@ const CaseHeader: React.FC<{
                         )}
                     </div>
                     
-                    {/* ACTION BUTTONS */}
-                    
-                    {/* 1. Financial Analyst Toggle */}
                     <button 
                         onClick={() => setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                         className={`
@@ -165,7 +157,6 @@ const CaseHeader: React.FC<{
                         </span>
                     </button>
 
-                    {/* 2. Analyze Case Button */}
                     <button 
                         onClick={onAnalyze} 
                         disabled={isAnalyzing || viewMode === 'analyst'} 
@@ -208,7 +199,6 @@ const CaseViewPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // PDF Viewer State
   const [viewingDocument, setViewingDocument] = useState<Document | null>(null);
   const [minimizedDocument, setMinimizedDocument] = useState<Document | null>(null);
   const [viewingUrl, setViewingUrl] = useState<string | null>(null);
@@ -222,6 +212,7 @@ const CaseViewPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('workspace');
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
+  
   const { documents: liveDocuments, setDocuments: setLiveDocuments, messages: liveMessages, setMessages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
@@ -246,7 +237,12 @@ const CaseViewPage: React.FC = () => {
   const handleClearChat = async () => { if (!caseId) return; try { await apiService.clearChatHistory(caseId); setMessages([]); localStorage.removeItem(`chat_history_${currentCaseId}`); } catch (err) { alert(t('error.generic')); } };
 
   const handleAnalyze = async () => { if (!caseId) return; setIsAnalyzing(true); setActiveModal('none'); try { let result: CaseAnalysisResult; if (activeContextId === 'general') { result = await apiService.analyzeCase(caseId); } else { result = await apiService.crossExamineDocument(caseId, activeContextId); } if (result.error) alert(result.error); else { setAnalysisResult(result); setActiveModal('analysis'); } } catch (err) { alert(t('error.generic')); } finally { setIsAnalyzing(false); } };
-  const handleChatSubmit = (text: string, _mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => { sendChatMessage(text, documentId, jurisdiction); };
+
+  // PHOENIX: Clean Handler - Using Hook Logic
+  const handleChatSubmit = (text: string, _mode: ChatMode, reasoning: ReasoningMode, documentId?: string, jurisdiction?: Jurisdiction) => { 
+      // Calls hook's sendChatMessage which now handles reasoning mode
+      sendChatMessage(text, reasoning, documentId, jurisdiction);
+  };
   
   const handleViewOriginal = (doc: Document) => { const url = `${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`; setViewingUrl(url); setViewingDocument(doc); setMinimizedDocument(null); };
   const handleCloseViewer = () => { setViewingDocument(null); setViewingUrl(null); };
@@ -276,7 +272,6 @@ const CaseViewPage: React.FC = () => {
             />
         </div>
         
-        {/* MAIN CONTENT AREA - SWITCHES BASED ON VIEW MODE */}
         <AnimatePresence mode="wait">
             {viewMode === 'workspace' ? (
                 <motion.div 
@@ -327,7 +322,6 @@ const CaseViewPage: React.FC = () => {
 
       </div>
       
-      {/* Modal and Viewer Logic */}
       {viewingDocument && (<PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={handleCloseViewer} onMinimize={handleMinimizeViewer} t={t} directUrl={viewingUrl} isAuth={true} />)}
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={handleExpandViewer} onClose={() => setMinimizedDocument(null)} />}
 

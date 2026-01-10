@@ -1,7 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V22.0 (INTEGRITY CHECK)
-# 1. FIX: Aligns with AlbanianRAGService.chat signature.
-# 2. SAFETY: Ensures strict type checking for ObjectIds.
+# PHOENIX PROTOCOL - CHAT SERVICE V23.0 (DUAL GEAR LOGIC)
+# 1. FEAT: Accepts 'mode' parameter.
+# 2. LOGIC: Switches between 'chat' (Agent) and 'fast_rag' (Direct).
+# 3. SAFETY: Type checking for all ObjectIds.
 
 from __future__ import annotations
 import logging
@@ -23,10 +24,12 @@ async def get_http_chat_response(
     user_query: str, 
     user_id: str,
     document_id: Optional[str] = None,
-    jurisdiction: Optional[str] = 'ks'
+    jurisdiction: Optional[str] = 'ks',
+    mode: Optional[str] = 'FAST'
 ) -> str:
     """
-    Orchestrates the Agentic Chat Response.
+    Orchestrates the Chat Response.
+    Routes to 'fast_rag' or 'chat' based on mode.
     """
     try:
         oid = ObjectId(case_id)
@@ -50,23 +53,30 @@ async def get_http_chat_response(
     
     response_text: str = "" 
     try:
-        # 3. DELEGATE TO AGENT EXECUTOR
         agent_service = AlbanianRAGService(db=db)
         
-        # Ensure jurisdiction is a string
         final_jurisdiction = jurisdiction if jurisdiction else 'ks'
-        
-        # Prepare document_ids list if a single doc is selected
         doc_ids = [document_id] if document_id else None
-
-        # PHOENIX: Now calling the updated signature correctly
-        response_text = await agent_service.chat(
-            query=user_query,
-            user_id=user_id,
-            case_id=case_id,
-            document_ids=doc_ids,
-            jurisdiction=final_jurisdiction
-        )
+        
+        # PHOENIX: Dual Gear Switching
+        if mode and mode.upper() == 'DEEP':
+            # Use the Agentic Loop (Slower, Reasoning-based)
+            response_text = await agent_service.chat(
+                query=user_query,
+                user_id=user_id,
+                case_id=case_id,
+                document_ids=doc_ids,
+                jurisdiction=final_jurisdiction
+            )
+        else:
+            # Use the Fast RAG (Faster, Vector-based)
+            response_text = await agent_service.fast_rag(
+                query=user_query,
+                user_id=user_id,
+                case_id=case_id,
+                document_ids=doc_ids,
+                jurisdiction=final_jurisdiction
+            )
 
     except Exception as e:
         logger.error(f"Agent Service Error: {e}", exc_info=True)

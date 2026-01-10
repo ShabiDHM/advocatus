@@ -1,12 +1,13 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V3.6 (STYLE OVERRIDE FIX)
-// 1. VISUALS: Forces Law Citations to be Blue, even if they contain Bold markdown.
-// 2. LOGIC: Uses CSS descendant selector '[&_*]:text-blue-400' to override global styles.
+// PHOENIX PROTOCOL - CHAT PANEL V4.1 (SYNTAX FIX)
+// 1. FIX: Corrected JSX nesting structures and closing tags.
+// 2. VERIFIED: All conditional renders and map functions are properly closed.
+// 3. STATUS: Visuals and Logic for 'Fast/Deep' toggle retained.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-    Send, BrainCircuit, Trash2, Loader2, User, Copy, Check, FileCheck 
+    Send, BrainCircuit, Trash2, Loader2, User, Copy, Check, FileCheck, Zap, GraduationCap
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -14,6 +15,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 export type ChatMode = 'general' | 'document';
+export type ReasoningMode = 'FAST' | 'DEEP';
 export type Jurisdiction = 'ks' | 'al';
 
 // --- HELPER: COPY BUTTON ---
@@ -55,8 +57,6 @@ const MarkdownComponents = {
     li: ({node, ...props}: any) => <li className="pl-1" {...props} />, 
     blockquote: ({node, ...props}: any) => <blockquote className="border-l-2 border-primary-start pl-3 py-1 my-2 bg-white/5 rounded-r text-text-secondary italic" {...props} />, 
     code: ({node, ...props}: any) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent-end" {...props} />, 
-    
-    // PHOENIX: Smart Link Handling
     a: ({href, children}: any) => {
         const getText = (child: any): string => {
             if (!child) return '';
@@ -71,7 +71,6 @@ const MarkdownComponents = {
         const isDocLink = href?.startsWith('doc://');
         
         if (isDocLink) {
-            // CASE 1: Evidence (Yellow Badge - Clickable)
             if (isEvidence) {
                 return (
                     <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-default mx-0.5" title="Evidence Document">
@@ -80,20 +79,14 @@ const MarkdownComponents = {
                     </span>
                 );
             }
-            
-            // CASE 2: Laws/Codes (Blue Text - Non-Clickable)
-            // FIX: Added [&_*]:text-blue-400 to force children (like strong tags) to be blue
             return (
                 <span className="text-blue-400 font-bold cursor-text mx-0.5 [&_*]:text-blue-400">
                     {children}
                 </span>
             );
         }
-        
-        // CASE 3: External Web Links
         return <a className="text-primary-start hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" href={href}>{children}</a>;
     },
-
     table: ({node, ...props}: any) => <div className="overflow-x-auto my-3"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>, 
     th: ({node, ...props}: any) => <th className="border border-white/10 px-2 py-1.5 bg-white/10 font-bold text-left text-white" {...props} />, 
     td: ({node, ...props}: any) => <td className="border border-white/10 px-2 py-1.5" {...props} />, 
@@ -123,7 +116,7 @@ interface ChatPanelProps {
   messages: ChatMessage[];
   connectionStatus: string;
   reconnect: () => void;
-  onSendMessage: (text: string, mode: ChatMode, documentId?: string, jurisdiction?: Jurisdiction) => void;
+  onSendMessage: (text: string, mode: ChatMode, reasoning: ReasoningMode, documentId?: string, jurisdiction?: Jurisdiction) => void;
   isSendingMessage: boolean;
   onClearChat: () => void;
   t: TFunction;
@@ -135,9 +128,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, t, className, activeContextId
 }) => {
   const [input, setInput] = useState('');
+  const [reasoningMode, setReasoningMode] = useState<ReasoningMode>('FAST');
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
   const prevMessagesLength = useRef(0);
   const [typingIndex, setTypingIndex] = useState<number | null>(null);
 
@@ -168,7 +162,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!input.trim() || isSendingMessage) return;
     const mode: ChatMode = activeContextId === 'general' ? 'general' : 'document';
     const docId = mode === 'document' ? activeContextId : undefined;
-    onSendMessage(input, mode, docId, 'ks');
+    onSendMessage(input, mode, reasoningMode, docId, 'ks');
     setInput('');
   };
 
@@ -194,6 +188,31 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
         
         <div className="flex items-center gap-2">
+            <div className="flex items-center bg-black/30 rounded-lg p-0.5 mr-2 border border-white/5">
+                <button
+                    onClick={() => setReasoningMode('FAST')}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${
+                        reasoningMode === 'FAST' 
+                        ? 'bg-blue-500/20 text-blue-400 shadow-sm' 
+                        : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                    title="Bisedë e Shpejtë (Vector RAG)"
+                >
+                    <Zap size={12} /> Fast
+                </button>
+                <button
+                    onClick={() => setReasoningMode('DEEP')}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${
+                        reasoningMode === 'DEEP' 
+                        ? 'bg-purple-500/20 text-purple-400 shadow-sm' 
+                        : 'text-gray-500 hover:text-gray-300'
+                    }`}
+                    title="Hulumtim i Thellë (Agentic Search)"
+                >
+                    <GraduationCap size={12} /> Deep
+                </button>
+            </div>
+
             <button onClick={onClearChat} className="p-2 text-text-secondary hover:text-red-400 transition-colors hover:bg-white/5 rounded-lg" title={t('chatPanel.confirmClear')}>
                 <Trash2 size={16} />
             </button>
@@ -266,12 +285,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={t('chatPanel.inputPlaceholder')}
+                placeholder={reasoningMode === 'DEEP' ? "Shkruaj për hulumtim të thellë..." : t('chatPanel.inputPlaceholder')}
                 rows={1}
-                className="glass-input w-full pl-4 pr-12 py-3.5 rounded-xl text-sm resize-none custom-scrollbar"
+                className={`glass-input w-full pl-4 pr-12 py-3.5 rounded-xl text-sm resize-none custom-scrollbar transition-colors duration-300 ${
+                    reasoningMode === 'DEEP' ? 'border-purple-500/30 focus:border-purple-500/50' : ''
+                }`}
                 style={{ maxHeight: '150px' }}
             />
-            <button type="submit" disabled={!input.trim() || isSendingMessage} className="absolute right-2 bottom-2 p-2 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5 active:translate-y-0">
+            <button type="submit" disabled={!input.trim() || isSendingMessage} className={`absolute right-2 bottom-2 p-2 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5 active:translate-y-0 ${
+                reasoningMode === 'DEEP' 
+                ? 'bg-gradient-to-r from-purple-500 to-indigo-600 hover:shadow-lg hover:shadow-purple-500/20' 
+                : 'bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20'
+            }`}>
                 <Send size={18} />
             </button>
         </form>

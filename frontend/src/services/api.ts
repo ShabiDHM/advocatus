@@ -1,8 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER V7.2 (FEATURE 3: SPREADSHEET ANALYST)
-// 1. ADDED: analyzeSpreadsheet method.
-// 2. LOGIC: Handles multipart/form-data for Excel/CSV analysis.
-// 3. STATUS: Linked to SpreadsheetAnalysisResult types.
+// PHOENIX PROTOCOL - API MASTER V7.3 (DUAL GEAR CHAT)
+// 1. UPDATE: sendChatMessage now accepts 'mode' ('FAST' | 'DEEP').
+// 2. STATUS: End-to-End integration ready.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -80,6 +79,7 @@ class ApiService {
             });
     }
     
+    // ... [Previous getters/setters/methods remain unchanged] ...
     public getToken(): string | null { return tokenManager.get(); }
     public async refreshToken(): Promise<boolean> { try { const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); if (response.data.access_token) { tokenManager.set(response.data.access_token); return true; } return false; } catch (error) { console.warn("[API] Session Refresh Failed (Normal if logged out):", error); return false; } }
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
@@ -90,15 +90,8 @@ class ApiService {
     public async getWizardState(month: number, year: number): Promise<WizardState> { const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', { params: { month, year } }); return response.data; }
     public async downloadMonthlyReport(month: number, year: number): Promise<void> { const response = await this.axiosInstance.get('/finance/wizard/report/pdf', { params: { month, year }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_${month}_${year}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
 
-    public async getAnalyticsDashboard(days: number = 30): Promise<AnalyticsDashboardData> {
-        const response = await this.axiosInstance.get<AnalyticsDashboardData>(`/finance/analytics/dashboard`, { params: { days } });
-        return response.data;
-    }
-    
-    public async getCaseSummaries(): Promise<CaseFinancialSummary[]> {
-        const response = await this.axiosInstance.get<CaseFinancialSummary[]>('/finance/case-summary');
-        return response.data;
-    }
+    public async getAnalyticsDashboard(days: number = 30): Promise<AnalyticsDashboardData> { const response = await this.axiosInstance.get<AnalyticsDashboardData>(`/finance/analytics/dashboard`, { params: { days } }); return response.data; }
+    public async getCaseSummaries(): Promise<CaseFinancialSummary[]> { const response = await this.axiosInstance.get<CaseFinancialSummary[]>('/finance/case-summary'); return response.data; }
 
     public async getInvoices(): Promise<Invoice[]> { const response = await this.axiosInstance.get<any>('/finance/invoices'); return Array.isArray(response.data) ? response.data : (response.data.invoices || []); }
     public async createInvoice(data: InvoiceCreateRequest): Promise<Invoice> { const response = await this.axiosInstance.post<Invoice>('/finance/invoices', data); return response.data; }
@@ -153,16 +146,25 @@ class ApiService {
     public async getCaseGraph(caseId: string): Promise<GraphData> { const response = await this.axiosInstance.get<GraphData>(`/graph/graph/${caseId}`); return response.data; }
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); return response.data; }
-    
-    // --- NEW: SPREADSHEET ANALYST ---
-    public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> {
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData);
-        return response.data;
-    }
+    public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData); return response.data; }
 
-    public async sendChatMessage(caseId: string, message: string, documentId?: string, jurisdiction?: string): Promise<string> { const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks' }); return response.data.response; }
+    // --- UPDATED CHAT METHOD ---
+    public async sendChatMessage(
+        caseId: string, 
+        message: string, 
+        documentId?: string, 
+        jurisdiction?: string,
+        mode: 'FAST' | 'DEEP' = 'FAST'
+    ): Promise<string> { 
+        const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { 
+            message, 
+            document_id: documentId || null, 
+            jurisdiction: jurisdiction || 'ks',
+            mode 
+        }); 
+        return response.data.response; 
+    }
+    
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     
     public async getCalendarEvents(): Promise<CalendarEvent[]> { const response = await this.axiosInstance.get<any>('/calendar/events'); return Array.isArray(response.data) ? response.data : (response.data.events || []); }

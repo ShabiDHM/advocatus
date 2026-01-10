@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V39.0 (UNIFIED PROFESSIONAL TEXT)
-# 1. UX FIX: Removed broken Markdown links from Chat. Switched to **Bold** text citations.
-# 2. STANDARDIZATION: Both Chat and Drafting now use the same clean, print-ready citation format.
-# 3. LOGIC: Retains "Ghostwriter" mode for drafting and "Advisor" mode for chat.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V40.0 (DUAL GEAR)
+# 1. FEAT: Added 'fast_rag' method for rapid conversational responses (~2s).
+# 2. OPTIMIZATION: Bypasses Agent Loop for standard queries.
+# 3. LEGACY: Retains 'chat' (ReAct Agent) for deep research tasks.
 
 import os
 import asyncio
@@ -24,7 +24,7 @@ OPENROUTER_MODEL = "deepseek/deepseek-chat"
 MAX_ITERATIONS = 10
 LLM_TIMEOUT = 120
 
-# --- PHOENIX VISUAL STANDARD (NO LINKS) ---
+# --- PHOENIX VISUAL STANDARD ---
 PROTOKOLLI_VIZUAL = """
 URDHËRA PËR STILIN DHE CITIMIN:
 1.  **PA LINQE:** Mos përdor asnjë format URL. Përdor vetëm tekst.
@@ -52,7 +52,6 @@ class CaseKnowledgeBaseTool(BaseTool):
             )
             if not results: return "BAZA E LËNDËS: S'ka të dhëna."
             
-            # Format cleanly for the AI to read
             formatted = []
             for r in results:
                 src = r.get('source', 'Dokument')
@@ -83,7 +82,6 @@ def query_global_knowledge_base_tool(query: str) -> str:
 class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
-        # Env Injection for Pydantic V2 compatibility
         if DEEPSEEK_API_KEY:
             os.environ["OPENAI_API_KEY"] = DEEPSEEK_API_KEY
             self.llm = ChatOpenAI(
@@ -97,7 +95,7 @@ class AlbanianRAGService:
         else:
             self.llm = None
         
-        # CHAT PROMPT (ADVISOR MODE)
+        # AGENT PROMPT
         researcher_template = f"""
         Ti je "Juristi AI", Këshilltar Ligjor.
         {PROTOKOLLI_VIZUAL}
@@ -131,6 +129,7 @@ class AlbanianRAGService:
         agent = create_react_agent(self.llm, session_tools, self.researcher_prompt)
         return AgentExecutor(agent=agent, tools=session_tools, verbose=True, handle_parsing_errors=True, max_iterations=MAX_ITERATIONS, return_intermediate_steps=False)
 
+    # --- MODE 1: DEEP RESEARCH (Agent Loop) ---
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None, document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> str:
         if not self.llm: return "Sistemi AI nuk është aktiv."
         try:
@@ -144,13 +143,68 @@ class AlbanianRAGService:
             logger.error(f"Chat error: {e}", exc_info=True)
             return f"Ndjesë, ndodhi një gabim."
 
+    # --- MODE 2: FAST TRACK (Vector RAG) ---
+    async def fast_rag(self, query: str, user_id: str, case_id: Optional[str] = None, document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> str:
+        """
+        Direct Retrieval-Augmented Generation.
+        Bypasses Agent Loop. Speed: ~2-4s.
+        """
+        if not self.llm: return "Sistemi AI nuk është aktiv."
+        try:
+            from . import vector_store_service
+            
+            # 1. Parallel Retrieval (Case + Global)
+            case_docs_future = asyncio.to_thread(
+                vector_store_service.query_case_knowledge_base,
+                user_id=user_id, query_text=query, case_context_id=case_id, document_ids=document_ids
+            )
+            global_docs_future = asyncio.to_thread(
+                vector_store_service.query_global_knowledge_base,
+                query_text=query, jurisdiction=jurisdiction
+            )
+            
+            case_docs, global_docs = await asyncio.gather(case_docs_future, global_docs_future)
+            
+            # 2. Context Construction
+            context_str = ""
+            if case_docs:
+                context_str += "\n--- FAKTE NGA DOSJA ---\n"
+                for d in case_docs:
+                    context_str += f"- {d.get('text', '')} [Burimi: {d.get('source', 'Dokument')}, Fq: {d.get('page', 'N/A')}]\n"
+            
+            if global_docs:
+                context_str += "\n--- KONTEKSTI LIGJOR ---\n"
+                for d in global_docs:
+                    context_str += f"- {d.get('text', '')} [Ligji: {d.get('source', 'Ligj')}]\n"
+
+            # 3. Direct Prompt
+            fast_prompt = f"""
+            Ti je "Juristi AI", asistent i shpejtë ligjor.
+            {PROTOKOLLI_VIZUAL}
+            
+            PYETJA E PËRDORUESIT: {query}
+            
+            INFORMACIONI I GJETUR:
+            {context_str}
+            
+            UDHËZIM:
+            Përgjigju shkurt dhe saktë duke u bazuar VETËM në informacionin e mësipërm.
+            Nëse informacioni mungon, thuaj që nuk u gjet në dokumente.
+            """
+            
+            response = await self.llm.ainvoke(fast_prompt)
+            return str(response.content)
+
+        except Exception as e:
+            logger.error(f"Fast RAG error: {e}", exc_info=True)
+            return "Ndjesë, nuk arrita të marr informacionin shpejt."
+
     async def generate_legal_draft(self, instruction: str, user_id: str, case_id: Optional[str]) -> str:
         if not self.llm: return "Gabim AI."
         try:
             case_summary = await self._get_case_summary(case_id)
             from . import vector_store_service
             
-            # 1. Facts
             p_docs = vector_store_service.query_case_knowledge_base(
                 user_id=user_id, 
                 query_text=instruction[:500], 
@@ -165,35 +219,23 @@ class AlbanianRAGService:
             else:
                 facts = "S'ka fakte specifike."
             
-            # 2. Laws
             law_keywords = "procedura civile shpenzimet familja detyrimet"
             l_docs = vector_store_service.query_global_knowledge_base(f"{instruction} {law_keywords}", jurisdiction='ks')
             laws = "\n".join([f"LIGJI: {d.get('text', '')}" for d in l_docs]) if l_docs else "S'ka ligje specifike."
 
-            # DRAFTING PROMPT (GHOSTWRITER MODE)
             drafting_prompt = f"""
             Ti je "Mjeshtër i Litigimit" (Ghostwriter), avokat elitar në Kosovë.
             {PROTOKOLLI_VIZUAL}
-
+            
             **URDHËR: MODALI GHOSTWRITER (STRIKT):**
             1. Prodho VETËM tekstin e dokumentit final.
-            2. MOS shto asnjë koment shtesë ("Ja drafti...", "Analiza...").
-            3. Dokumenti duhet të jetë gati për nënshkrim.
-
-            **URDHËR PËR KUNDËRSHTIM:**
-            Përdor termat "I pabazuar", "I paligjshëm", "Nuk provohet".
+            2. MOS shto asnjë koment shtesë.
             
             --- MATERIALET ---
-            [FAKTET]: 
-            {facts}
-            
-            [LIGJET]: 
-            {laws}
-            
-            [UDHËZIMI]: 
-            {instruction}
+            [FAKTET]: {facts}
+            [LIGJET]: {laws}
+            [UDHËZIMI]: {instruction}
             ---
-            
             DETYRA: Harto dokumentin final TANI.
             """
             response = await asyncio.wait_for(self.llm.ainvoke(drafting_prompt), timeout=LLM_TIMEOUT)
