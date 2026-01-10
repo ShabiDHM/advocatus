@@ -1,6 +1,8 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V12.4 (VISUAL CLEANUP)
-// 1. UI FIX: Removed AI Status Icons (Brain/Processing/Failed).
+// PHOENIX PROTOCOL - ARCHIVE TAB V12.5 (UX FIX)
+// 1. UX: Archive Item Actions (Download, Delete, etc.) are now ALWAYS visible.
+// 2. STATUS: No hover required for actions.
+
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -54,8 +56,6 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
                         </div>
                         
                         <div className="flex gap-1">
-                            {/* PHOENIX UPDATE: AI Status Indicators REMOVED */}
-                            
                             {isShared && (
                                 <div className="bg-emerald-500/20 text-emerald-400 p-1.5 rounded-lg border border-emerald-500/30 shadow-lg shadow-emerald-500/10" title={t('documentsPanel.shared')}>
                                     <Share2 size={14} />
@@ -93,7 +93,9 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
                 <span className="text-xs font-bold text-primary-start group-hover:text-primary-end transition-colors flex items-center gap-1 uppercase tracking-wide">
                     {isFolder ? t('archive.openFolder', 'Open Folder') : ''}
                 </span>
-                <div className="flex gap-1 items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                
+                {/* PHOENIX FIX: Removed opacity constraints. Icons are always visible. */}
+                <div className="flex gap-1 items-center">
                     {!isFolder && onShare && (
                         <button onClick={(e) => { e.stopPropagation(); onShare(); }} className={`p-2 rounded-lg transition-colors ${isShared ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'text-text-secondary hover:text-white hover:bg-white/10'}`} title={isShared ? t('documentsPanel.unshare') : t('documentsPanel.share')}>
                             <Share2 className="h-4 w-4" />
@@ -341,7 +343,6 @@ export const ArchiveTab: React.FC = () => {
                 )}
             </div>
 
-            {/* Modals... (Same as before) */}
             {showFolderModal && (
                 <div className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
                     <div className="glass-high w-full max-w-sm p-8 rounded-3xl shadow-2xl scale-100">
