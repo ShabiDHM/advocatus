@@ -1,7 +1,7 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT SERVICE V4.3 (LABEL REDUNDANCY FIX)
-# 1. FIX: Changed "invoice_num" translation from "Fatura #" to "Nr." to avoid "Fatura # Faktura-..." redundancy.
-# 2. STATUS: Production Ready.
+# PHOENIX PROTOCOL - REPORT SERVICE V4.4 (TABLE SYMMETRY FIX)
+# 1. FIX: Adjusted 'Totals' table wrapper width (105mm + 75mm = 180mm) to match main table width.
+# 2. RESULT: Perfect vertical alignment between the main table's 'Total' column and the summary values.
 
 import io
 import os
@@ -286,8 +286,10 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
         [Paragraph(_get_text('tax', lang), STYLES['TotalLabel']), Paragraph(f"{invoice.tax_amount:,.2f} EUR", STYLES['TotalLabel'])],
         [Paragraph(f"<b>{_get_text('total', lang)}</b>", STYLES['TotalValue']), Paragraph(f"<b>{invoice.total_amount:,.2f} EUR</b>", STYLES['TotalValue'])],
     ]
+    
+    # PHOENIX FIX: Wrapper width set to 105mm (Left) + 75mm (Right) = 180mm Total (Matches Main Table)
     t_totals = Table(totals_data, colWidths=[40*mm, 35*mm], style=[('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('LINEABOVE', (0, 2), (1, 2), 1.5, COLOR_PRIMARY_TEXT), ('TOPPADDING', (0, 2), (1, 2), 6)])
-    Story.append(Table([["", t_totals]], colWidths=[110*mm, 75*mm], style=[('ALIGN', (1,0), (1,0), 'RIGHT')]))
+    Story.append(Table([["", t_totals]], colWidths=[105*mm, 75*mm], style=[('ALIGN', (1,0), (1,0), 'RIGHT')]))
 
     if invoice.notes:
         Story.append(Spacer(1, 10*mm))
