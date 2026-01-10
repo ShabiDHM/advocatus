@@ -1,7 +1,8 @@
 # FILE: backend/app/services/case_service.py
-# PHOENIX PROTOCOL - CASE SERVICE V5.7 (PUBLIC DATA EXPANSION)
-# 1. UPDATE: Exposed 'client_email', 'client_phone', and 'created_at' to Public Portal.
-# 2. LOGIC: Allows frontend to render full case card details.
+# PHOENIX PROTOCOL - CASE SERVICE V5.8 (BRANDING FIX)
+# 1. FIX: Robust 'user_id' lookup for Business Profile (Handles ObjectId vs String mismatch).
+# 2. FIX: Added fallback fields for Organization Name ('firm_name', 'business_name', 'company_name').
+# 3. STATUS: Public Portal now correctly resolves User Branding and Logo.
 
 import re
 import importlib
@@ -252,18 +253,28 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
         logo_path = None
 
         if owner_id:
-            query_id = owner_id
-            if isinstance(query_id, str):
-                try: query_id = ObjectId(query_id)
-                except: pass
+            # PHOENIX FIX: Robust Lookup for Business Profile
+            # Create a query that checks both string and ObjectId versions of the ID
+            search_conditions = [{"user_id": owner_id}]
             
-            profile = db.business_profiles.find_one({"user_id": query_id})
+            if isinstance(owner_id, ObjectId):
+                search_conditions.append({"user_id": str(owner_id)})
             
-            if not profile and isinstance(owner_id, ObjectId):
-                profile = db.business_profiles.find_one({"user_id": str(owner_id)})
+            if isinstance(owner_id, str):
+                try: search_conditions.append({"user_id": ObjectId(owner_id)})
+                except InvalidId: pass
+            
+            profile = db.business_profiles.find_one({"$or": search_conditions})
 
             if profile:
-                organization_name = profile.get("firm_name") or "Zyra Ligjore"
+                # PHOENIX FIX: Check multiple possible field names for business name
+                organization_name = (
+                    profile.get("firm_name") or 
+                    profile.get("business_name") or 
+                    profile.get("company_name") or 
+                    "Zyra Ligjore"
+                )
+                
                 if profile.get("logo_storage_key"):
                     logo_path = f"/cases/public/{case_id}/logo"
 
@@ -272,7 +283,7 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
         raw_name = client_obj.get("name") if isinstance(client_obj, dict) else None
         clean_name = raw_name.strip().title() if raw_name else "Klient"
         
-        # PHOENIX UPDATE: Extracting Email, Phone, and Creation Date
+        # Extract Contact Info
         client_email = client_obj.get("email") if isinstance(client_obj, dict) else None
         client_phone = client_obj.get("phone") if isinstance(client_obj, dict) else None
         created_at = case.get("created_at")
@@ -281,9 +292,9 @@ def get_public_case_events(db: Database, case_id: str) -> Optional[Dict[str, Any
             "case_number": case.get("case_number"), 
             "title": case.get("title") or case.get("case_name"), 
             "client_name": clean_name, 
-            "client_email": client_email, # New Field
-            "client_phone": client_phone, # New Field
-            "created_at": created_at,     # New Field
+            "client_email": client_email,
+            "client_phone": client_phone,
+            "created_at": created_at,
             "status": case.get("status", "OPEN"), 
             "organization_name": organization_name,
             "logo": logo_path,
