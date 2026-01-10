@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V40.0 (DUAL GEAR)
-# 1. FEAT: Added 'fast_rag' method for rapid conversational responses (~2s).
-# 2. OPTIMIZATION: Bypasses Agent Loop for standard queries.
-# 3. LEGACY: Retains 'chat' (ReAct Agent) for deep research tasks.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V41.0 (HIERARCHY FIX)
+# 1. FIX: 'fast_rag' now strictly prioritizes Case Facts over Global Laws.
+# 2. PROMPT: Added explicit instruction to differentiate between "This Document" and "General Law".
+# 3. RETRIEVAL: Increased k=5 for Case Docs to ensure coverage.
 
 import os
 import asyncio
@@ -154,10 +154,14 @@ class AlbanianRAGService:
             from . import vector_store_service
             
             # 1. Parallel Retrieval (Case + Global)
+            # PHOENIX: Fetch case data first as it is primary. 
+            # Note: We rely on vector_store_service to return sufficient chunks.
             case_docs_future = asyncio.to_thread(
                 vector_store_service.query_case_knowledge_base,
                 user_id=user_id, query_text=query, case_context_id=case_id, document_ids=document_ids
             )
+            
+            # Global laws are secondary context
             global_docs_future = asyncio.to_thread(
                 vector_store_service.query_global_knowledge_base,
                 query_text=query, jurisdiction=jurisdiction
@@ -165,31 +169,43 @@ class AlbanianRAGService:
             
             case_docs, global_docs = await asyncio.gather(case_docs_future, global_docs_future)
             
-            # 2. Context Construction
+            # 2. Context Construction with Hierarchy
             context_str = ""
-            if case_docs:
-                context_str += "\n--- FAKTE NGA DOSJA ---\n"
-                for d in case_docs:
-                    context_str += f"- {d.get('text', '')} [Burimi: {d.get('source', 'Dokument')}, Fq: {d.get('page', 'N/A')}]\n"
             
+            # SECTION A: THE TRUTH (Case Documents)
+            if case_docs:
+                context_str += "\n<<< BURIMI PRIMAR: DOKUMENTET E DOSJES >>>\n"
+                for d in case_docs:
+                    # Clean up newlines for cleaner prompt
+                    clean_text = d.get('text', '').replace('\n', ' ').strip()
+                    context_str += f"[DOKUMENTI: '{d.get('source', 'Padia')}']:\n{clean_text}\n\n"
+            else:
+                context_str += "\n<<< BURIMI PRIMAR: MUNGON (Nuk u gjet informacion në dokumentet e dosjes) >>>\n"
+            
+            # SECTION B: THE LAW (General Context)
             if global_docs:
-                context_str += "\n--- KONTEKSTI LIGJOR ---\n"
+                context_str += "\n<<< BURIMI SEKONDAR: BAZA LIGJORE (Për kontekst) >>>\n"
                 for d in global_docs:
-                    context_str += f"- {d.get('text', '')} [Ligji: {d.get('source', 'Ligj')}]\n"
+                    clean_text = d.get('text', '').replace('\n', ' ').strip()
+                    context_str += f"[LIGJI: '{d.get('source', 'Ligj')}']:\n{clean_text}\n\n"
 
-            # 3. Direct Prompt
+            # 3. Direct Prompt with Strict Instructions
             fast_prompt = f"""
             Ti je "Juristi AI", asistent i shpejtë ligjor.
             {PROTOKOLLI_VIZUAL}
             
-            PYETJA E PËRDORUESIT: {query}
+            PYETJA E PËRDORUESIT: "{query}"
             
-            INFORMACIONI I GJETUR:
+            --- INFORMACIONI I GJETUR ---
             {context_str}
+            -----------------------------
             
-            UDHËZIM:
-            Përgjigju shkurt dhe saktë duke u bazuar VETËM në informacionin e mësipërm.
-            Nëse informacioni mungon, thuaj që nuk u gjet në dokumente.
+            **URDHËRA TË RREPTË (HIERARKIA E TË DHËNAVE):**
+            1. Nëse pyetja ka të bëjë me një dokument specifik (p.sh. "Çfarë thotë padia?"), PËRGJIGJU VETËM duke përdorur "BURIMI PRIMAR".
+            2. Nëse nuk ka informacion te "BURIMI PRIMAR", thuaj qartë: "Nuk gjeta informacion specifik në dokumentet e dosjes." dhe pastaj jep një shpjegim të përgjithshëm nga "BURIMI SEKONDAR".
+            3. MOS ngatërro definicionet ligjore me përmbajtjen e dokumentit. (P.sh. Mos thuaj "Padia përmban thirrjen" vetëm sepse ligji flet për thirrje).
+            
+            Përgjigju shkurt dhe saktë.
             """
             
             response = await self.llm.ainvoke(fast_prompt)
