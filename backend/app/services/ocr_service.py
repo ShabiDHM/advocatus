@@ -1,15 +1,17 @@
 # FILE: backend/app/services/ocr_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V3.2 (TABLE LAYOUT PRESERVATION)
-# 1. FIX: Removed aggressive space collapsing. Preserves visual gaps for Table detection.
-# 2. CONFIG: Added '--preserve-interword-spaces' to Tesseract config.
-# 3. LOGIC: Stop replacing '|' with 'I' to keep table borders intact.
+# PHOENIX PROTOCOL - OCR ENGINE V3.3 (ROBUST FALLBACK)
+# 1. FIX: Added 'sqi' -> 'eng' language fallback. If Albanian data is missing, it won't crash.
+# 2. LOGGING: Catches and logs specific Tesseract errors instead of silent failure.
+# 3. ROBUSTNESS: Handles 'TesseractNotFoundError' gracefully.
 
 import pytesseract
+from pytesseract import TesseractError
 from PIL import Image
 import logging
 import cv2
 import numpy as np
 import re
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,6 @@ def preprocess_image_for_ocr(pil_image: Image.Image) -> Image.Image:
     Aggressively cleans the image. Only used if the raw image fails.
     """
     try:
-        # 1. Convert PIL to OpenCV format
         img_np = np.array(pil_image)
         
         # Handle RGB/RGBA -> Grayscale
@@ -31,13 +32,13 @@ def preprocess_image_for_ocr(pil_image: Image.Image) -> Image.Image:
         else:
             img_gray = img_np 
 
-        # 2. Upscaling (If image is too small)
+        # Upscaling
         height, width = img_gray.shape
         if width < 1500:
             scale_factor = 2000 / width
             img_gray = cv2.resize(img_gray, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
 
-        # 3. Adaptive Thresholding (The "Shadow Killer")
+        # Adaptive Thresholding
         processed = cv2.adaptiveThreshold(
             img_gray, 255, 
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
@@ -46,7 +47,7 @@ def preprocess_image_for_ocr(pil_image: Image.Image) -> Image.Image:
             10  
         )
 
-        # 4. Denoising
+        # Denoising
         kernel = np.ones((1, 1), np.uint8)
         processed = cv2.dilate(processed, kernel, iterations=1)
         processed = cv2.erode(processed, kernel, iterations=1)
@@ -60,46 +61,62 @@ def preprocess_image_for_ocr(pil_image: Image.Image) -> Image.Image:
 def clean_ocr_garbage(text: str) -> str:
     """
     The 'Editor' Stage:
-    Fixes artifacts but PRESERVES LAYOUT (Spaces & Newlines) for AI Table Analysis.
+    Fixes artifacts but PRESERVES LAYOUT.
     """
     if not text: return ""
     
-    # 1. Fix broken hyphenations at end of lines
+    # Fix broken hyphenations
     text = text.replace("-\n", "") 
     
-    # 2. PHOENIX FIX: Do NOT destroy table separators
-    # Old logic replaced '|' with 'I'. We removed that.
-    
-    # 3. PHOENIX FIX: Preserve Visual Structure!
-    # We DO NOT collapse multiple spaces anymore. 
-    # The AI needs the gaps to see "Column A       Column B".
-    
-    # Only remove excessive vertical whitespace (3+ blank lines -> 2)
+    # Only remove excessive vertical whitespace
     text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
     
     return text.strip()
+
+def _run_tesseract(image, config: str) -> str:
+    """
+    Helper to run Tesseract with Language Fallback.
+    """
+    # Attempt 1: Albanian + English (Ideal)
+    try:
+        return pytesseract.image_to_string(image, lang='sqi+eng', config=config)
+    except TesseractError as e:
+        # Check if it's a missing language data error
+        err_msg = str(e).lower()
+        if "data" in err_msg or "lang" in err_msg or "tessdata" in err_msg:
+            logger.warning("⚠️ OCR Warning: 'sqi' language data missing. Falling back to 'eng' (Standard Mode).")
+            # Attempt 2: English Only (Fallback)
+            try:
+                return pytesseract.image_to_string(image, lang='eng', config=config)
+            except Exception as e2:
+                logger.error(f"❌ OCR Failed (English Fallback): {e2}")
+                return ""
+        else:
+            logger.error(f"❌ OCR Tesseract Error: {e}")
+            return ""
+    except FileNotFoundError:
+        logger.critical("❌ OCR CRITICAL: Tesseract binary not found! Install 'tesseract-ocr' in Docker.")
+        return ""
+    except Exception as e:
+        logger.error(f"❌ OCR Unknown Error: {e}")
+        return ""
 
 def extract_text_from_image(file_path: str) -> str:
     """
     Main Pipeline: Smart Strategy (Raw First -> Filter Fallback)
     """
+    if not os.path.exists(file_path):
+        logger.error(f"❌ OCR Error: File not found at {file_path}")
+        return ""
+
     try:
         original_image = Image.open(file_path)
         
-        # PHOENIX CONFIG: --preserve-interword-spaces is CRITICAL for Tables
-        # --psm 3 (Auto) usually works, but preserving spaces helps the LLM distinguish columns.
+        # PHOENIX CONFIG: Preserve layout for Tables
         custom_config = r'--oem 3 --psm 3 -c preserve_interword_spaces=1'
         
-        # ATTEMPT 1: Raw Image (Best for clear photos/scans)
-        try:
-            raw_text_1 = pytesseract.image_to_string(
-                original_image, 
-                lang='sqi+eng', 
-                config=custom_config
-            )
-        except Exception: 
-            raw_text_1 = ""
-
+        # ATTEMPT 1: Raw Image
+        raw_text_1 = _run_tesseract(original_image, custom_config)
         clean_text_1 = clean_ocr_garbage(raw_text_1)
 
         # CRITERIA: Is the result good?
@@ -107,19 +124,11 @@ def extract_text_from_image(file_path: str) -> str:
             logger.info(f"✅ OCR Success (Raw Mode): {len(clean_text_1)} chars.")
             return clean_text_1
 
-        # ATTEMPT 2: The "Hawk-Eye" Filter (Fallback for bad lighting/shadows)
+        # ATTEMPT 2: The "Hawk-Eye" Filter
         logger.info("⚠️ Raw OCR yielded low results. Engaging Hawk-Eye Preprocessing...")
         processed_image = preprocess_image_for_ocr(original_image)
         
-        try:
-            raw_text_2 = pytesseract.image_to_string(
-                processed_image, 
-                lang='sqi+eng', 
-                config=custom_config
-            )
-        except Exception:
-            raw_text_2 = ""
-            
+        raw_text_2 = _run_tesseract(processed_image, custom_config)
         clean_text_2 = clean_ocr_garbage(raw_text_2)
         
         # Compare results
