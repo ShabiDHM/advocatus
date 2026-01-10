@@ -1,8 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V41.0 (HIERARCHY FIX)
-# 1. FIX: 'fast_rag' now strictly prioritizes Case Facts over Global Laws.
-# 2. PROMPT: Added explicit instruction to differentiate between "This Document" and "General Law".
-# 3. RETRIEVAL: Increased k=5 for Case Docs to ensure coverage.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V41.1 (RETRIEVAL BOOST)
+# 1. FIX: Increased 'fast_rag' retrieval count to 25 chunks (was 7).
+# 2. LOGIC: Ensures broader context coverage to prevent hallucinations.
 
 import os
 import asyncio
@@ -155,16 +154,22 @@ class AlbanianRAGService:
             
             # 1. Parallel Retrieval (Case + Global)
             # PHOENIX: Fetch case data first as it is primary. 
-            # Note: We rely on vector_store_service to return sufficient chunks.
+            # We explicitly request 25 results to maximize context hit rate.
             case_docs_future = asyncio.to_thread(
                 vector_store_service.query_case_knowledge_base,
-                user_id=user_id, query_text=query, case_context_id=case_id, document_ids=document_ids
+                user_id=user_id, 
+                query_text=query, 
+                case_context_id=case_id, 
+                document_ids=document_ids,
+                n_results=25 
             )
             
             # Global laws are secondary context
             global_docs_future = asyncio.to_thread(
                 vector_store_service.query_global_knowledge_base,
-                query_text=query, jurisdiction=jurisdiction
+                query_text=query, 
+                jurisdiction=jurisdiction,
+                n_results=5 
             )
             
             case_docs, global_docs = await asyncio.gather(case_docs_future, global_docs_future)
