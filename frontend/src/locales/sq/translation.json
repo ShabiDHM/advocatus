@@ -131,9 +131,9 @@
     "logout": "Dilni"
   },
   "dashboard": {
-    "mainTitle": "Asistenti Juridik",
+    "mainTitle": "Pasqyra e Rasteve",
     "welcome": "Mirësevini, {{name}}",
-    "subtitle": "Pasqyra e rasteve tuaja.",
+    "subtitle": "Menaxhoni rastet tuaja.",
     "newCase": "Rast i Ri",
     "activeCases": "Raste Aktive",
     "pendingDocs": "Dokumente në Pritje",
@@ -148,7 +148,7 @@
     "confirmDelete": "A jeni i sigurt që doni ta fshini këtë rast?"
   },
   "caseView": {
-    "backToDashboard": "Kthehu te Juristi AI",
+    "backToDashboard": "Kthehu",
     "statusLabel": "Statusi",
     "findingsTitle": "Gjetjet",
     "errorLoadingTitle": "Gabim",
@@ -162,15 +162,15 @@
       "PENDING": "Në Pritje",
       "ARCHIVED": "Arkivuar"
     },
-    "workspace": "Kthehu Mbrapa",
+    "workspace": "Kthehu",
     "analyst": "Analisti Financiar"
   },
   "analyst": {
-    "title": "Analisti Financiar i Mençur",
+    "title": "Analisti Financiar",
     "subtitle": "Ngarko të dhëna Excel/CSV për analizë forenzike të automatizuar.",
     "selectFile": "Zgjidhni Spreadsheet...",
     "analyzing": "Duke Analizuar...",
-    "run": "Ekzekuto Analizën",
+    "run": "Analizoni",
     "newAnalysis": "Analizë e Re",
     "reportTitle": "Narrativa Forenzike",
     "anomaliesTitle": "Anomalitë e Detektuara",
