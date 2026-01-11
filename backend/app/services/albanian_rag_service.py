@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V41.2 (PROMPT POLISH)
-# 1. IMPROVEMENT: Structured 'fast_rag' prompt for cleaner, bulleted responses.
-# 2. LOGIC: Explicit instruction to group facts by Document Source (Claimant vs Defendant).
-# 3. STATUS: Optimized for readability and legal precision.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V41.4 (SEMANTIC CONTEXT V2)
+# 1. FIX: Added explicit keyword triggers to differentiate between "Proposed", "Historical", and "Final" judgments.
+# 2. LOGIC: Treats text following "Gjykatës i propozohet..." as a LAWYER'S REQUEST.
+# 3. CONTEXT: Refined prompt to solidify the AI's role as a procedural analyst.
 
 import os
 import asyncio
@@ -165,10 +165,8 @@ class AlbanianRAGService:
             
             case_docs, global_docs = await asyncio.gather(case_docs_future, global_docs_future)
             
-            # 2. Context Construction with Hierarchy
             context_str = ""
             
-            # SECTION A: THE TRUTH (Case Documents)
             if case_docs:
                 context_str += "\n<<< BURIMI PRIMAR: DOKUMENTET E DOSJES >>>\n"
                 for d in case_docs:
@@ -177,37 +175,46 @@ class AlbanianRAGService:
             else:
                 context_str += "\n<<< BURIMI PRIMAR: MUNGON (Nuk u gjet informacion në dokumentet e dosjes) >>>\n"
             
-            # SECTION B: THE LAW (General Context)
             if global_docs:
                 context_str += "\n<<< BURIMI SEKONDAR: BAZA LIGJORE (Për kontekst) >>>\n"
                 for d in global_docs:
                     clean_text = d.get('text', '').replace('\n', ' ').strip()
                     context_str += f"[LIGJI: '{d.get('source', 'Ligj')}']:\n{clean_text}\n\n"
 
-            # 3. Direct Prompt with Structural Instructions
+            # 3. Direct Prompt with JUDICIAL CONTEXT AWARENESS (V2)
             fast_prompt = f"""
-            Ti je "Juristi AI", asistent i shpejtë ligjor.
+            Ti je "Juristi AI", asistent analitik për një avokat.
             {PROTOKOLLI_VIZUAL}
             
-            PYETJA E PËRDORUESIT: "{query}"
+            PYETJA E AVOKATIT: "{query}"
             
             --- INFORMACIONI I GJETUR ---
             {context_str}
             -----------------------------
             
-            **UDHËZIME PËR PËRGJIGJEN:**
-            1. **PRIORITETI:** Përgjigju bazuar kryesisht te "BURIMI PRIMAR".
-            2. **STRUKTURA:**
-               - Nëse ka pretendime nga palë të ndryshme (Paditësi vs I Padituri), ndaji ato qartë me pika (Bullets).
-               - Përdor **Bold** për emrat, shumat dhe datat.
-            3. **LIGJI:** Përmend "BURIMI SEKONDAR" vetëm si bazë ligjore për të mbështetur faktet e gjetura, jo si zëvendësim për to.
+            **RREGULLA KYÇE PËR INTERPRETIMIN E 'AKTGJYKIMIT':**
             
-            Shembull Strukture:
-            - **Dokumenti X thotë:** [Faktet kryesore]
-            - **Dokumenti Y kundërshton:** [Argumentet kryesore]
-            - **Baza Ligjore:** [Neni përkatës]
+            Fjala "Aktgjykim" ka kuptime të ndryshme bazuar te fjalët kyçe afër saj. Analizoji me kujdes:
             
-            Përgjigju në mënyrë profesionale, të strukturuar dhe koncize.
+            1. **PROPOZIM i Avokatit:**
+               - **Nëse sheh:** "Gjykatës i propozohet...", "Kërkojmë nga gjykata...", "Të nxirret ky Aktgjykim..." ose "AKTGJYKIM" e pastaj tekst që i kërkon gjykatës diçka...
+               - **Atëherë:** Ky është **PETITUMI (Kërkesa e Avokatit)**.
+               - **Raporto si:** "Pala paditëse kërkon që gjykata të vendosë si vijon: ...". MOS thuaj "Gjykata vendosi".
+            
+            2. **HISTORIKU i Çështjes:**
+               - **Nëse sheh:** "Sipas Aktgjykimit C.nr...", "Duke iu referuar Aktgjykimit...", "Gjykata kishte vendosur me datë..."
+               - **Atëherë:** Ky është një vendim i vjetër që citohet si kontekst.
+               - **Raporto si:** "Padia i referohet një vendimi të mëparshëm (C.nr...), i cili kishte vendosur që...".
+            
+            3. **VENDIM FINAL (i vërtetë):**
+               - Vetëm nëse vetë dokumenti titullohet "AKTGJYKIM" dhe nuk ka fjalë si "propozoj" para tij.
+            
+            **STRUKTURA E PËRGJIGJES:**
+            - Ndaj qartë **Pretendimet e Paditësit** nga **Kundërshtimet e të Paditurit**.
+            - Raporto **Historikun** (aktgjykimet e vjetra).
+            - Raporto **Kërkesat** (aktgjykimet e propozuara).
+            
+            Përgjigju me saktësi procedurale.
             """
             
             response = await self.llm.ainvoke(fast_prompt)
