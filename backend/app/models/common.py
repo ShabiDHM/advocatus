@@ -1,7 +1,6 @@
 # FILE: backend/app/models/common.py
 # FINAL CANONICAL VERSION. DO NOT MODIFY.
-# This code is architecturally sound. The Pylance errors are symptoms of a
-# broken environment, which must be reset using the Environmental Sterilization Protocol.
+
 
 from bson import ObjectId
 from typing import Any
