@@ -1,7 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V41.1 (RETRIEVAL BOOST)
-# 1. FIX: Increased 'fast_rag' retrieval count to 25 chunks (was 7).
-# 2. LOGIC: Ensures broader context coverage to prevent hallucinations.
+# PHOENIX PROTOCOL - AGENTIC RAG SERVICE V41.2 (PROMPT POLISH)
+# 1. IMPROVEMENT: Structured 'fast_rag' prompt for cleaner, bulleted responses.
+# 2. LOGIC: Explicit instruction to group facts by Document Source (Claimant vs Defendant).
+# 3. STATUS: Optimized for readability and legal precision.
 
 import os
 import asyncio
@@ -27,11 +28,11 @@ LLM_TIMEOUT = 120
 PROTOKOLLI_VIZUAL = """
 URDHËRA PËR STILIN DHE CITIMIN:
 1.  **PA LINQE:** Mos përdor asnjë format URL. Përdor vetëm tekst.
-2.  **THEKSIM VIZUAL:** Përdor **BOLD** për të theksuar emrat e dokumenteve, ligjeve, dhe numrat e faqeve.
+2.  **THEKSIM VIZUAL:** Përdor **BOLD** për të theksuar emrat e dokumenteve, ligjeve, datave kyçe dhe shumave monetare.
 3.  **CITIMI I FAKTEVE:** 
-    *   Formati: "...kjo vërtetohet nga **[Emri i Dokumentit] (faqe X)**."
+    *   Formati: "...sipas **[Emri i Dokumentit] (faqe X)**."
 4.  **CITIMI I LIGJEVE:**
-    *   Formati: "...sipas **Nenit X të Ligjit për [Emri]**."
+    *   Formati: "...bazuar në **Nenin X të Ligjit për [Emri]**."
 """
 
 # --- TOOLS ---
@@ -152,24 +153,14 @@ class AlbanianRAGService:
         try:
             from . import vector_store_service
             
-            # 1. Parallel Retrieval (Case + Global)
-            # PHOENIX: Fetch case data first as it is primary. 
-            # We explicitly request 25 results to maximize context hit rate.
             case_docs_future = asyncio.to_thread(
                 vector_store_service.query_case_knowledge_base,
-                user_id=user_id, 
-                query_text=query, 
-                case_context_id=case_id, 
-                document_ids=document_ids,
-                n_results=25 
+                user_id=user_id, query_text=query, case_context_id=case_id, document_ids=document_ids, n_results=25
             )
             
-            # Global laws are secondary context
             global_docs_future = asyncio.to_thread(
                 vector_store_service.query_global_knowledge_base,
-                query_text=query, 
-                jurisdiction=jurisdiction,
-                n_results=5 
+                query_text=query, jurisdiction=jurisdiction, n_results=5
             )
             
             case_docs, global_docs = await asyncio.gather(case_docs_future, global_docs_future)
@@ -181,7 +172,6 @@ class AlbanianRAGService:
             if case_docs:
                 context_str += "\n<<< BURIMI PRIMAR: DOKUMENTET E DOSJES >>>\n"
                 for d in case_docs:
-                    # Clean up newlines for cleaner prompt
                     clean_text = d.get('text', '').replace('\n', ' ').strip()
                     context_str += f"[DOKUMENTI: '{d.get('source', 'Padia')}']:\n{clean_text}\n\n"
             else:
@@ -194,7 +184,7 @@ class AlbanianRAGService:
                     clean_text = d.get('text', '').replace('\n', ' ').strip()
                     context_str += f"[LIGJI: '{d.get('source', 'Ligj')}']:\n{clean_text}\n\n"
 
-            # 3. Direct Prompt with Strict Instructions
+            # 3. Direct Prompt with Structural Instructions
             fast_prompt = f"""
             Ti je "Juristi AI", asistent i shpejtë ligjor.
             {PROTOKOLLI_VIZUAL}
@@ -205,12 +195,19 @@ class AlbanianRAGService:
             {context_str}
             -----------------------------
             
-            **URDHËRA TË RREPTË (HIERARKIA E TË DHËNAVE):**
-            1. Nëse pyetja ka të bëjë me një dokument specifik (p.sh. "Çfarë thotë padia?"), PËRGJIGJU VETËM duke përdorur "BURIMI PRIMAR".
-            2. Nëse nuk ka informacion te "BURIMI PRIMAR", thuaj qartë: "Nuk gjeta informacion specifik në dokumentet e dosjes." dhe pastaj jep një shpjegim të përgjithshëm nga "BURIMI SEKONDAR".
-            3. MOS ngatërro definicionet ligjore me përmbajtjen e dokumentit. (P.sh. Mos thuaj "Padia përmban thirrjen" vetëm sepse ligji flet për thirrje).
+            **UDHËZIME PËR PËRGJIGJEN:**
+            1. **PRIORITETI:** Përgjigju bazuar kryesisht te "BURIMI PRIMAR".
+            2. **STRUKTURA:**
+               - Nëse ka pretendime nga palë të ndryshme (Paditësi vs I Padituri), ndaji ato qartë me pika (Bullets).
+               - Përdor **Bold** për emrat, shumat dhe datat.
+            3. **LIGJI:** Përmend "BURIMI SEKONDAR" vetëm si bazë ligjore për të mbështetur faktet e gjetura, jo si zëvendësim për to.
             
-            Përgjigju shkurt dhe saktë.
+            Shembull Strukture:
+            - **Dokumenti X thotë:** [Faktet kryesore]
+            - **Dokumenti Y kundërshton:** [Argumentet kryesore]
+            - **Baza Ligjore:** [Neni përkatës]
+            
+            Përgjigju në mënyrë profesionale, të strukturuar dhe koncize.
             """
             
             response = await self.llm.ainvoke(fast_prompt)
