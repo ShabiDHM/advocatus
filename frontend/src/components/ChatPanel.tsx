@@ -1,8 +1,8 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V4.2 (I18N FIX)
-// 1. FIX: Replaced hardcoded 'Fast'/'Deep' labels with 't()' calls.
-// 2. FIX: Localized tooltips and placeholders for the new modes.
-// 3. STATUS: Internationalization compliant.
+// PHOENIX PROTOCOL - CHAT PANEL V4.3 (TEXT SELECTION FIX)
+// 1. FIX: Added 'select-text' class to message bubbles to allow highlighting.
+// 2. UX: Enabled 'Copy Button' for User messages as well.
+// 3. STYLE: Adjusted copy button contrast for User bubbles (Blue background).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -19,7 +19,7 @@ export type ReasoningMode = 'FAST' | 'DEEP';
 export type Jurisdiction = 'ks' | 'al';
 
 // --- HELPER: COPY BUTTON ---
-const MessageCopyButton: React.FC<{ text: string }> = ({ text }) => {
+const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, isUser }) => {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = async () => {
@@ -35,10 +35,12 @@ const MessageCopyButton: React.FC<{ text: string }> = ({ text }) => {
     return (
         <button 
             onClick={handleCopy} 
-            className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all duration-200 ${
+            className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100 ${
                 copied 
                 ? 'bg-emerald-500/20 text-emerald-400' 
-                : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 opacity-0 group-hover:opacity-100'
+                : isUser 
+                    ? 'bg-white/10 text-white/70 hover:text-white hover:bg-white/20' // Brighter for Blue BG
+                    : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10' // Standard for Glass BG
             }`}
             title={copied ? "Copied!" : "Copy text"}
         >
@@ -106,7 +108,7 @@ const TypingMessage: React.FC<{ text: string; onComplete?: () => void }> = ({ te
     }, [text, onComplete]);
 
     return (
-        <div className="markdown-content space-y-2 break-words">
+        <div className="markdown-content space-y-2 break-words select-text cursor-text">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{displayedText}</ReactMarkdown>
         </div>
     );
@@ -177,7 +179,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
-  // Determine placeholder based on mode
   const getPlaceholder = () => {
       if (reasoningMode === 'DEEP') return t('chatPanel.inputPlaceholderDeep', "Shkruaj për hulumtim të thellë...");
       return t('chatPanel.inputPlaceholder', "Shkruaj mesazhin tuaj këtu...");
@@ -247,16 +248,18 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             </div>
                         )}
                         
-                        <div className={`relative group max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-lg ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none shadow-primary-start/20' : 'glass-panel text-text-primary rounded-bl-none pr-10'}`}>
+                        {/* PHOENIX FIX: Added 'select-text' here */}
+                        <div className={`relative group max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-lg select-text ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none shadow-primary-start/20' : 'glass-panel text-text-primary rounded-bl-none pr-10'}`}>
                             
-                            {isAi && !useTyping && <MessageCopyButton text={msg.content} />}
+                            {/* Copy Button enabled for both User and AI */}
+                            {!useTyping && <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />}
 
                             {msg.role === 'user' ? (
                                 msg.content
                             ) : useTyping ? (
                                 <TypingMessage text={msg.content} onComplete={() => setTypingIndex(null)} />
                             ) : (
-                                <div className="markdown-content space-y-2 break-words">
+                                <div className="markdown-content space-y-2 break-words select-text">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{msg.content}</ReactMarkdown>
                                 </div>
                             )}
