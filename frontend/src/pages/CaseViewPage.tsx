@@ -126,7 +126,7 @@ const CaseHeader: React.FC<{
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
 
-                    <div className="flex-1 w-full md:w-auto h-12 md:h-11 min-w-0">
+                    <div className="flex-1 h-12 md:h-11 min-w-0">
                         {viewMode === 'workspace' && (
                              <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
                         )}

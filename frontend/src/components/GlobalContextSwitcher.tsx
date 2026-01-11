@@ -1,8 +1,7 @@
 // FILE: src/components/GlobalContextSwitcher.tsx
-// PHOENIX PROTOCOL - COMPONENT V1.9 (NATIVE CSS POSITIONING)
-// 1. FIX: Abandoned Javascript positioning. Uses CSS 'absolute' positioning to guarantee attachment.
-// 2. LOGIC: Menu is now a direct child of the wrapper, ensuring it cannot "disappear" off-screen.
-// 3. STATUS: Maximum Stability.
+// PHOENIX PROTOCOL - COMPONENT V2.0 (FLEXBOX FIX)
+// 1. FIX: Added 'min-w-0' to the inner flex container.
+// 2. LOGIC: Allows the inner span to truncate correctly when the parent shrinks.
 
 import React, { useState, useRef, useEffect, ReactNode } from 'react';
 import { ChevronDown, Briefcase, FileText, Check } from 'lucide-react';
@@ -67,10 +66,11 @@ const GlobalContextSwitcher: React.FC<GlobalContextSwitcherProps> = ({
         {/* Trigger Button */}
         <button
             onClick={() => setIsOpen(!isOpen)}
-            className="relative z-20 flex items-center w-full justify-between gap-3 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all"
+            className="relative z-20 flex items-center w-full h-full justify-between gap-3 px-4 py-2 rounded-xl bg-black/20 hover:bg-black/40 border border-white/10 text-gray-200 text-sm font-medium transition-all"
             type="button"
         >
-            <div className="flex items-center gap-3 truncate">
+            {/* PHOENIX FIX: Added 'min-w-0' to this container */}
+            <div className="flex items-center gap-3 min-w-0">
                 {selectedItem.icon}
                 <span className="truncate">{selectedItem.label}</span>
             </div>
