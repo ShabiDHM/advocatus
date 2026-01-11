@@ -1,7 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - REFACTOR V11.0 (LAYOUT FIX)
-// 1. CRITICAL FIX: Removed 'md:w-auto' from the GlobalContextSwitcher container to enforce flex-shrinking.
-// 2. STATUS: The header layout is now stable and will truncate long document names correctly.
+// PHOENIX PROTOCOL - REFACTOR V11.1 (GRID LAYOUT)
+// 1. CRITICAL FIX: Replaced the header's Flexbox layout with a robust CSS Grid.
+// 2. LOGIC: Explicit column spans prevent the GlobalContextSwitcher from pushing other elements.
+// 3. STATUS: Layout is now stable and will correctly truncate long document names.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -120,14 +121,13 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 w-full animate-in fade-in slide-in-from-top-2">
-                    <div className="flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap min-w-[140px]">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 w-full animate-in fade-in slide-in-from-top-2">
+                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap">
                         <Calendar className="h-4 w-4 text-blue-400" />
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
 
-                    {/* PHOENIX FIX: Removed 'md:w-auto' which caused layout breaking */}
-                    <div className="flex-1 w-full h-12 md:h-11 min-w-0">
+                    <div className="md:col-span-2 h-12 md:h-11 min-w-0">
                         {viewMode === 'workspace' && (
                              <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
                         )}
@@ -140,16 +140,7 @@ const CaseHeader: React.FC<{
                     
                     <button 
                         onClick={() => setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
-                        className={`
-                            w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
-                            flex items-center justify-center gap-2.5 
-                            text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
-                            border border-transparent
-                            ${viewMode === 'analyst' 
-                                ? 'bg-white/10 border-white/20 hover:bg-white/20' 
-                                : 'bg-gradient-to-r from-gray-700 to-gray-600 hover:from-gray-600 hover:to-gray-500 hover:scale-[1.02] active:scale-95 shadow-black/20'
-                            }
-                        `}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent`}
                     >
                         {viewMode === 'analyst' ? <ArrowLeft className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
                         <span>
@@ -160,16 +151,7 @@ const CaseHeader: React.FC<{
                     <button 
                         onClick={onAnalyze} 
                         disabled={isAnalyzing || viewMode === 'analyst'} 
-                        className={`
-                            w-full md:w-auto px-6 h-12 md:h-11 rounded-xl 
-                            flex items-center justify-center gap-2.5 
-                            text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap
-                            border border-transparent
-                            ${(isAnalyzing || viewMode === 'analyst') 
-                                ? 'bg-white/5 border border-white/10 cursor-not-allowed opacity-50' 
-                                : 'bg-gradient-to-r from-gray-700 to-gray-600 hover:from-gray-600 hover:to-gray-500 hover:scale-[1.02] active:scale-95 shadow-black/20'
-                            }
-                        `}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent disabled:bg-white/5 disabled:border disabled:border-white/10 disabled:cursor-not-allowed disabled:opacity-50`}
                         type="button"
                     >
                         {isAnalyzing ? (
