@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - REFACTOR V10.9 (FLEXBOX FIX)
-// 1. FIX: Added 'min-w-0' to the flex container for the GlobalContextSwitcher.
-// 2. LOGIC: Allows the switcher to shrink and truncate its content instead of pushing other elements.
+// PHOENIX PROTOCOL - REFACTOR V11.0 (LAYOUT FIX)
+// 1. CRITICAL FIX: Removed 'md:w-auto' from the GlobalContextSwitcher container to enforce flex-shrinking.
+// 2. STATUS: The header layout is now stable and will truncate long document names correctly.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -126,7 +126,8 @@ const CaseHeader: React.FC<{
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
 
-                    <div className="flex-1 h-12 md:h-11 min-w-0">
+                    {/* PHOENIX FIX: Removed 'md:w-auto' which caused layout breaking */}
+                    <div className="flex-1 w-full h-12 md:h-11 min-w-0">
                         {viewMode === 'workspace' && (
                              <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
                         )}
