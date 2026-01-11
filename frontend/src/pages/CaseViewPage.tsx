@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - REFACTOR V10.8 (CLEAN ARCHITECTURE)
-// 1. CLEANUP: Removed temporary API bypass.
-// 2. LOGIC: Fully relies on 'useDocumentSocket' for chat transport.
-// 3. STATUS: Feature Complete (Dual-Gear Chat).
+// PHOENIX PROTOCOL - REFACTOR V10.9 (FLEXBOX FIX)
+// 1. FIX: Added 'min-w-0' to the flex container for the GlobalContextSwitcher.
+// 2. LOGIC: Allows the switcher to shrink and truncate its content instead of pushing other elements.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -127,7 +126,7 @@ const CaseHeader: React.FC<{
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
 
-                    <div className="flex-1 w-full md:w-auto h-12 md:h-11">
+                    <div className="flex-1 w-full md:w-auto h-12 md:h-11 min-w-0">
                         {viewMode === 'workspace' && (
                              <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
                         )}
@@ -238,9 +237,7 @@ const CaseViewPage: React.FC = () => {
 
   const handleAnalyze = async () => { if (!caseId) return; setIsAnalyzing(true); setActiveModal('none'); try { let result: CaseAnalysisResult; if (activeContextId === 'general') { result = await apiService.analyzeCase(caseId); } else { result = await apiService.crossExamineDocument(caseId, activeContextId); } if (result.error) alert(result.error); else { setAnalysisResult(result); setActiveModal('analysis'); } } catch (err) { alert(t('error.generic')); } finally { setIsAnalyzing(false); } };
 
-  // PHOENIX: Clean Handler - Using Hook Logic
   const handleChatSubmit = (text: string, _mode: ChatMode, reasoning: ReasoningMode, documentId?: string, jurisdiction?: Jurisdiction) => { 
-      // Calls hook's sendChatMessage which now handles reasoning mode
       sendChatMessage(text, reasoning, documentId, jurisdiction);
   };
   
