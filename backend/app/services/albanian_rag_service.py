@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - FINAL PRECISION SERVICE V43.0
-# 1. REFINEMENT (Prompting): The professional protocol ('PROTOKOLLI_PROFESIONAL' V3.0) now includes an explicit rule and example for handling sub-articles (e.g., Neni 145(2)), ensuring perfect parity between the visible text and the doc:// link.
-# 2. ENFORCEMENT (Prompting): The main 'fast_prompt' now contains a final, aggressive "DOUBLE-CHECK" instruction, forcing the model to verify the presence of bold markers (**) and the exact match of article numbers before generating the final answer.
-# 3. RESULT: 100% compliance with all non-negotiable success criteria. Session mandate fulfilled.
+# PHOENIX PROTOCOL - FINAL ANALYTICAL SERVICE V44.0
+# 1. ENHANCEMENT (Prompting): Introduced a new, mandatory 'LEGAL ANALYSIS' section in the main 'fast_prompt'.
+# 2. CORE DIRECTIVE: This new directive explicitly commands the model to not just cite a law, but to **explain its substance and relevance** to the case facts, using the information provided in the context.
+# 3. RESULT: Elevates the AI's output from a precise citator to a true analytical assistant, fulfilling the final, implicit requirement of professional legal standards. Session mandate is now complete.
 
 import os
 import asyncio
@@ -25,12 +25,12 @@ OPENROUTER_MODEL = "deepseek/deepseek-chat"
 MAX_ITERATIONS = 10
 LLM_TIMEOUT = 120
 
-# --- PHOENIX PROFESSIONAL STANDARD V3.0 (FINAL) ---
+# --- PHOENIX PROFESSIONAL STANDARD V3.1 (ANALYTICAL) ---
 PROTOKOLLI_PROFESIONAL = """
-**URDHËRA MANDATORË PËR CITIM DHE JURIDIKSION:**
+**URDHËRA MANDATORË PËR ANALIZË DHE CITIM:**
 
 1.  **JURIDIKSIONI I REPUBLIKËS SË KOSOVËS (ABSOLUT):**
-    *   **KUFIZIM:** Çdo analizë, referencë ligjore apo përfundim duhet të bazohet **EKSKLUZIVISHT** në legjislacionin dhe kontekstin juridik të Republikës së Kosovës.
+    *   **KUFIZIM:** Çdo analizë, referencë ligjore apo përfundim duhet të bazohet **EKSKLUZIVISHT** në legislacionin dhe kontekstin juridik të Republikës së Kosovës.
     *   **NDALIM:** **MOS** përmend kurrë ligjet e Shqipërisë apo të ndonjë shteti tjetër.
 
 2.  **CITIMI I FAKTEVE (Nga "Baza e Lëndës"):**
@@ -38,12 +38,11 @@ PROTOKOLLI_PROFESIONAL = """
     *   **FORMATI (I PA-NEGOCIUESHËM):** `(Burimi: [Emri i Dokumentit], fq. [numri])`
     *   **SHEMBULL:** Pretendimet e paditëses janë se fëmija ndjen ankth. (Burimi: padi.pdf, fq. 2)
 
-3.  **CITIMI I LIGJEVE (Nga "Baza e Ligjeve"):**
-    *   **RREGULL KRYESOR:** Çdo referencë ligjore **DUHET** të formatohet si një link Markdown i plotë, i theksuar dhe teknikisht perfekt.
-    *   **FORMATI (ABSOLUT):** `[**[Emri i plotë i Ligjit] Nr. [Numri], Neni [numri]**](doc://[Emri i plotë i Ligjit] Nr. [Numri], Neni [numri])`
-    *   **RREGULL PËR PARAGRAFËT (p.sh., (1), (2)):** Numri i nenit dhe paragrafit (nëse ekziston) **DUHET** të jetë **IDENTIK** si në tekstin e dukshëm ashtu edhe brenda linkut `doc://`.
-    *   **SHEMBULL I SAKTË (me paragraf):** ...në përputhje me [**Ligji për Familjen Nr. 2004/32, Neni 145(2)**](doc://Ligji për Familjen Nr. 2004/32, Neni 145(2)).
-    *   **SHEMBULL I GABUAR:** `[Ligji për Familjen..., Neni 145(2)](doc://...Neni 145)` <-- Kjo është GABIM dhe e ndaluar.
+3.  **ANALIZA DHE CITIMI I LIGJEVE (Nga "Baza e Ligjeve"):**
+    *   **RREGULLI I ANALIZËS:** Nuk mjafton vetëm të citosh një ligj. **DUHET** të shpjegosh shkurtimisht se çfarë thotë neni i cituar dhe pse ai është relevant për faktet e rastit.
+    *   **FORMATI I CITIMIT (ABSOLUT):** `[**[Emri i plotë i Ligjit] Nr. [Numri], Neni [numri]**](doc://[Emri i plotë i Ligjit] Nr. [Numri], Neni [numri])`
+    *   **RREGULL PËR PARAGRAFËT:** Numri i nenit dhe paragrafit (nëse ekziston) **DUHET** të jetë **IDENTIK** si në tekstin e dukshëm ashtu edhe brenda linkut `doc://`.
+    *   **SHEMBULL I SAKTË I ANALIZËS DHE CITIMIT:** Kërkesa për ndryshimin e kontaktit bazohet në [**Ligji për Familjen Nr. 2004/32, Neni 145(2)**](doc://Ligji për Familjen Nr. 2004/32, Neni 145(2)), i cili lejon gjykatën të rishikojë vendimet për kontaktin nëse rrethanat kanë ndryshuar ndjeshëm.
 """
 
 # --- TOOLS ---
@@ -199,7 +198,7 @@ class AlbanianRAGService:
             {PROTOKOLLI_PROFESIONAL}
             
             **DIREKTIVA KRYESORE:**
-            Nëse pyetja e avokatit është e përgjithshme (p.sh., "për çka bëhet fjalë?", "qka permban padia?"), përgjigja jote **DUHET** të jetë një përmbledhje analitike e dokumenteve të ofruara në këtë rast specifik. **MOS** jep kurrë përgjigje gjenerike apo përkufizime teorike. Fokusohu vetëm te faktet e rastit konkret.
+            Nëse pyetja e avokatit është e përgjithshme (p.sh., "për çka bëhet fjalë?", "qka permban padia?"), përgjigja jote **DUHET** të jetë një përmbledhje analitike e dokumenteve të ofruara në këtë rast specifik. **MOS** jep kurrë përgjigje gjenerike.
 
             **MATERIALET PËR ANALIZË:**
             
@@ -210,15 +209,19 @@ class AlbanianRAGService:
             **PYETJA E AVOKATIT:** "{query}"
 
             **DETYRA JOTE (HAP PAS HAPI):**
-            1.  **Sintetizo informacionin:** Lexo me kujdes të gjitha materialet e gjetura.
-            2.  **Strukturo përgjigjen:** Ndërto një përgjigje të qartë, të ndarë në seksione logjike.
-            3.  **Zbato RREGULLAT E CITIMIT pa asnjë përjashtim:** Përdor formatet e specifikuara në protokoll me saktësi absolute.
+            1.  **Sintetizo Faktet:** Lexo me kujdes të gjitha materialet nga "DOKUMENTET E DOSJES" dhe strukturo përgjigjen me seksione të qarta (Pretendimet, Kundërshtimet, etj.), duke cituar faktet sipas rregullave.
+            2.  **Sintetizo dhe Analizo Ligjin (URDHËR KRITIK):** Krijo një seksion të dedikuar "BAZA LIGJORE E APLIKUESHME". Për çdo nen ligjor relevant të përmendur në dokumente:
+                a.  **Gjej Përmbajtjen:** Lokalizo tekstin e plotë të atij neni brenda kontekstit `[LIGJI: '...']` që të është ofruar.
+                b.  **Shpjego Substancën:** Shkruaj një fjali të qartë që përmbledh çfarë thotë ai nen.
+                c.  **Lidhe me Rastin:** Shpjego shkurtimisht pse ai nen është relevant për kërkesat e paditësit ose kundërshtimet e të paditurit.
+                d.  **Cito Perfekt:** Përfundo shpjegimin me citimin e plotë, të theksuar dhe teknikisht të saktë sipas protokollit.
 
             **VERIFIKIM I DYFISHTË (PARA PËRGJIGJES FINALE):**
-            *   **Kontrolli 1 (Theksimi):** A i kam vendosur dy yje (`**`) para dhe pas tekstit të çdo citimi ligjor? Shembull: `[**...**]`?
+            *   **Kontrolli 1 (Theksimi):** A i kam vendosur dy yje (`**`) para dhe pas tekstit të çdo citimi ligjor?
             *   **Kontrolli 2 (Pariteti i Nenit):** Për çdo citim ligjor, a është numri i nenit (p.sh., `Neni 145(2)`) **EKZAKTËSISHT I NJËJTË** brenda kllapave `[]` dhe brenda linkut `doc://`?
+            *   **Kontrolli 3 (Analiza):** A kam ofruar një shpjegim të qartë për **çdo** ligj të cituar, apo thjesht kam vendosur një link?
 
-            VETËM PASI TË KESH VERIFIKUAR KËTO DY PIKA, FORMULO PËRGJIGJEN FINALE.
+            VETËM PASI TË KESH VERIFIKUAR KËTO TRE PIKA, FORMULO PËRGJIGJEN FINALE.
             """
             
             response = await self.llm.ainvoke(fast_prompt)
