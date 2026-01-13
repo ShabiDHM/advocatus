@@ -1,13 +1,10 @@
 # FILE: juristi/docker-compose.yml
-# PHOENIX PROTOCOL - INFRASTRUCTURE V3.0 (SHARED NETWORK)
-# 1. ARCHITECTURE: Modified to use a shared Docker network for gateway communication.
-# 2. CHANGE: Removed port mapping from 'backend' service.
-# 3. CHANGE: Added 'backend' to the external 'shared_gateway_net'.
+# PHOENIX PROTOCOL - INFRASTRUCTURE V3.1 (CORRECTED VOLUME MOUNT)
+# 1. FIX: Corrected the volume mount for the 'backend' and 'celery' services to map './data' to '/app/data'.
+# 2. EFFECT: The 'ingest_laws.py' script can now find the PDF files.
 
 services:
-  # -------------------------------------------------------
-  # JURISTI AI CORE (Port Offset to 8011)
-  # -------------------------------------------------------
+  # ... (other services are unchanged) ...
   ai-core-service:
     build: 
       context: ./ai-core-service
@@ -24,9 +21,6 @@ services:
       retries: 5
       start_period: 120s
 
-  # -------------------------------------------------------
-  # LOCAL LLM (Ollama)
-  # -------------------------------------------------------
   local-llm:
     image: ollama/ollama:latest
     restart: unless-stopped
@@ -35,21 +29,17 @@ services:
     networks:
       - juristi_net
 
-  # -------------------------------------------------------
-  # BACKEND API (Connects to Shared Gateway Network)
-  # -------------------------------------------------------
   backend:
     build: { context: ./backend }
     restart: unless-stopped
-    container_name: juristi-backend  # <-- Added for stable DNS name
+    container_name: juristi-backend
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info --proxy-headers
     env_file: ./.env
-    # NOTE: Port 8001 is REMOVED.
     volumes:
-      - ./backend/data:/app/data
+      - ./data:/app/data  # <-- CORRECTED PATH
     networks: 
       - juristi_net
-      - shared_gateway_net # <-- ATTACHED TO SHARED NETWORK
+      - shared_gateway_net
     depends_on: 
       mongo: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -68,16 +58,14 @@ services:
     command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=4 --prefetch-multiplier=1
     env_file: ./.env
     volumes:
-      - ./backend/data:/app/data
+      - ./data:/app/data # <-- CORRECTED PATH
     networks: [juristi_net]
     depends_on: 
       redis: { condition: service_healthy } 
       mongo: { condition: service_healthy }
       backend: { condition: service_started }
 
-  # -------------------------------------------------------
-  # DATA LAYER
-  # -------------------------------------------------------
+  # ... (mongo, redis, chroma, neo4j services are unchanged) ...
   mongo:
     image: mongo:6.0
     restart: unless-stopped
@@ -107,7 +95,6 @@ services:
       - chroma_data:/chroma/chroma
     depends_on: [backend]
 
-  # --- GRAPH DB (Neo4j) - OFFSET PORTS ---
   neo4j:
     image: neo4j:5
     restart: unless-stopped
@@ -143,5 +130,5 @@ volumes:
 networks:
   juristi_net:
     driver: bridge
-  shared_gateway_net: # <-- DEFINE THE SHARED NETWORK
+  shared_gateway_net:
     external: true
