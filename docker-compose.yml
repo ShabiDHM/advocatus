@@ -1,5 +1,8 @@
-# FILE: docker-compose.yml
-version: '3.8'
+# FILE: juristi/docker-compose.yml
+# PHOENIX PROTOCOL - INFRASTRUCTURE V3.0 (SHARED NETWORK)
+# 1. ARCHITECTURE: Modified to use a shared Docker network for gateway communication.
+# 2. CHANGE: Removed port mapping from 'backend' service.
+# 3. CHANGE: Added 'backend' to the external 'shared_gateway_net'.
 
 services:
   # -------------------------------------------------------
@@ -11,7 +14,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "8011:8000" # <--- FIXED: Moved from 8010 to 8011
+      - "8011:8000"
     networks:
       - juristi_net
     healthcheck:
@@ -33,18 +36,20 @@ services:
       - juristi_net
 
   # -------------------------------------------------------
-  # BACKEND API (Port 8001 for Gateway)
+  # BACKEND API (Connects to Shared Gateway Network)
   # -------------------------------------------------------
   backend:
     build: { context: ./backend }
     restart: unless-stopped
+    container_name: juristi-backend  # <-- Added for stable DNS name
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info --proxy-headers
     env_file: ./.env
-    ports:
-      - "8001:8000"
+    # NOTE: Port 8001 is REMOVED.
     volumes:
       - ./backend/data:/app/data
-    networks: [juristi_net]
+    networks: 
+      - juristi_net
+      - shared_gateway_net # <-- ATTACHED TO SHARED NETWORK
     depends_on: 
       mongo: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -93,7 +98,7 @@ services:
   chroma:
     image: chromadb/chroma:latest
     restart: unless-stopped
-    ports: ["8003:8000"] # <--- FIXED: Moved from 8002 to 8003
+    ports: ["8003:8000"]
     networks: [juristi_net]
     environment:
       - IS_PERSISTENT=TRUE
@@ -138,3 +143,5 @@ volumes:
 networks:
   juristi_net:
     driver: bridge
+  shared_gateway_net: # <-- DEFINE THE SHARED NETWORK
+    external: true
