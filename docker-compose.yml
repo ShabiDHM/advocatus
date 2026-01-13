@@ -3,7 +3,7 @@ version: '3.8'
 
 services:
   # -------------------------------------------------------
-  # JURISTI AI CORE
+  # JURISTI AI CORE (Port Offset to 8011)
   # -------------------------------------------------------
   ai-core-service:
     build: 
@@ -11,7 +11,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "8010:8000"
+      - "8011:8000" # <--- FIXED: Moved from 8010 to 8011
     networks:
       - juristi_net
     healthcheck:
@@ -33,14 +33,13 @@ services:
       - juristi_net
 
   # -------------------------------------------------------
-  # BACKEND API
+  # BACKEND API (Port 8001 for Gateway)
   # -------------------------------------------------------
   backend:
     build: { context: ./backend }
     restart: unless-stopped
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info --proxy-headers
     env_file: ./.env
-    # CRITICAL: Expose to Host Port 8001 (Gateway Target)
     ports:
       - "8001:8000"
     volumes:
@@ -94,7 +93,7 @@ services:
   chroma:
     image: chromadb/chroma:latest
     restart: unless-stopped
-    ports: ["8002:8000"]
+    ports: ["8003:8000"] # <--- FIXED: Moved from 8002 to 8003
     networks: [juristi_net]
     environment:
       - IS_PERSISTENT=TRUE
@@ -107,7 +106,6 @@ services:
   neo4j:
     image: neo4j:5
     restart: unless-stopped
-    # Offset ports to avoid conflict with Haveri
     ports:
       - "7475:7474"
       - "7688:7687"
