@@ -1,12 +1,9 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - INFRASTRUCTURE V2.0 (SPEED & RESOURCE OPTIMIZATION)
-# 1. OPTIMIZATION: Configured Backend & Celery to utilize 8 vCPUs efficiently (4+4 split).
-# 2. RESOURCE MGMT: Capped Neo4j RAM usage to prevent system swapping/slowdown.
-# 3. TUNING: Added prefetch limits to Celery for smoother multitasking.
+version: '3.8'
 
 services:
   # -------------------------------------------------------
-  # JURISTI AI CORE (Embeddings, NER, Categorization)
+  # JURISTI AI CORE
   # -------------------------------------------------------
   ai-core-service:
     build: 
@@ -16,7 +13,7 @@ services:
     ports:
       - "8010:8000"
     networks:
-      - phoenix_net
+      - juristi_net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -25,7 +22,7 @@ services:
       start_period: 120s
 
   # -------------------------------------------------------
-  # LOCAL LLM ENGINE (The Free Brain)
+  # LOCAL LLM (Ollama)
   # -------------------------------------------------------
   local-llm:
     image: ollama/ollama:latest
@@ -33,34 +30,22 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     networks:
-      - phoenix_net
+      - juristi_net
 
   # -------------------------------------------------------
-  # INFRASTRUCTURE & BACKEND
+  # BACKEND API
   # -------------------------------------------------------
-  caddy:
-    image: caddy:latest
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-    networks: [phoenix_net]
-    depends_on:
-      backend:
-        condition: service_healthy
-
   backend:
     build: { context: ./backend }
     restart: unless-stopped
-    # PHOENIX OPTIMIZATION: Added '--workers 4' to utilize CPU cores for parallel requests
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info --proxy-headers
     env_file: ./.env
+    # CRITICAL: Expose to Host Port 8001 (Gateway Target)
+    ports:
+      - "8001:8000"
     volumes:
       - ./backend/data:/app/data
-    networks: [phoenix_net]
+    networks: [juristi_net]
     depends_on: 
       mongo: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -76,26 +61,24 @@ services:
   celery:
     build: { context: ./backend }
     restart: unless-stopped
-    # PHOENIX OPTIMIZATION: Added '--concurrency=4' and '--prefetch-multiplier=1'
-    # This prevents the worker from hoarding RAM/CPU and keeps the system responsive.
     command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=4 --prefetch-multiplier=1
     env_file: ./.env
     volumes:
       - ./backend/data:/app/data
-    networks: [phoenix_net]
+    networks: [juristi_net]
     depends_on: 
       redis: { condition: service_healthy } 
       mongo: { condition: service_healthy }
       backend: { condition: service_started }
 
   # -------------------------------------------------------
-  # DATABASE & CACHE
+  # DATA LAYER
   # -------------------------------------------------------
   mongo:
     image: mongo:6.0
     restart: unless-stopped
     env_file: ./.env
-    networks: [phoenix_net]
+    networks: [juristi_net]
     volumes: [mongo_data:/data/db]
     healthcheck: { test: echo 'db.runCommand("ping").ok' | mongosh --quiet, interval: 15s, timeout: 10s, retries: 5 }
     stop_grace_period: 20s
@@ -104,7 +87,7 @@ services:
     image: redis:7
     restart: unless-stopped
     volumes: [redis_data:/data]
-    networks: [phoenix_net]
+    networks: [juristi_net]
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 15s, timeout: 10s, retries: 5 }
     stop_grace_period: 20s
 
@@ -112,7 +95,7 @@ services:
     image: chromadb/chroma:latest
     restart: unless-stopped
     ports: ["8002:8000"]
-    networks: [phoenix_net]
+    networks: [juristi_net]
     environment:
       - IS_PERSISTENT=TRUE
       - PERSIST_DIRECTORY=/chroma/chroma
@@ -120,18 +103,18 @@ services:
       - chroma_data:/chroma/chroma
     depends_on: [backend]
 
-  # --- GRAPH DATABASE (Neo4j) ---
+  # --- GRAPH DB (Neo4j) - OFFSET PORTS ---
   neo4j:
     image: neo4j:5
     restart: unless-stopped
+    # Offset ports to avoid conflict with Haveri
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      - "7475:7474"
+      - "7688:7687"
     environment:
       - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-password}
       - NEO4J_PLUGINS=["apoc"]
       - NEO4J_dbms_security_procedures_unrestricted=apoc.*
-      # PHOENIX OPTIMIZATION: Strict RAM Limits
       - NEO4J_dbms_memory_heap_initial__size=1G
       - NEO4J_dbms_memory_heap_max__size=2G
       - NEO4J_dbms_memory_pagecache_size=1G
@@ -139,7 +122,7 @@ services:
       - neo4j_data:/data
       - neo4j_logs:/logs
     networks:
-      - phoenix_net
+      - juristi_net
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1"]
       interval: 15s
@@ -150,11 +133,10 @@ volumes:
   mongo_data: {}
   chroma_data: {}
   redis_data: {}
-  caddy_data: {}
   ollama_data: {}
   neo4j_data: {}
   neo4j_logs: {}
 
 networks:
-  phoenix_net:
+  juristi_net:
     driver: bridge
