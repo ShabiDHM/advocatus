@@ -1,10 +1,9 @@
 # FILE: juristi/docker-compose.yml
-# PHOENIX PROTOCOL - INFRASTRUCTURE V3.1 (CORRECTED VOLUME MOUNT)
-# 1. FIX: Corrected the volume mount for the 'backend' and 'celery' services to map './data' to '/app/data'.
-# 2. EFFECT: The 'ingest_laws.py' script can now find the PDF files.
+# PHOENIX PROTOCOL - INFRASTRUCTURE V3.2 (DATABASE ISOLATION CURE)
+# 1. CURE: The 'neo4j' service is now configured to read its password from the .env file.
+# 2. ISOLATION: This ensures the Juristi Neo4j container uses its own unique credentials, preventing authentication failures and enforcing separation from the Haveri project.
 
 services:
-  # ... (other services are unchanged) ...
   ai-core-service:
     build: 
       context: ./ai-core-service
@@ -36,7 +35,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info --proxy-headers
     env_file: ./.env
     volumes:
-      - ./data:/app/data  # <-- CORRECTED PATH
+      - ./data:/app/data
     networks: 
       - juristi_net
       - shared_gateway_net
@@ -58,14 +57,13 @@ services:
     command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=4 --prefetch-multiplier=1
     env_file: ./.env
     volumes:
-      - ./data:/app/data # <-- CORRECTED PATH
+      - ./data:/app/data
     networks: [juristi_net]
     depends_on: 
       redis: { condition: service_healthy } 
       mongo: { condition: service_healthy }
       backend: { condition: service_started }
 
-  # ... (mongo, redis, chroma, neo4j services are unchanged) ...
   mongo:
     image: mongo:6.0
     restart: unless-stopped
@@ -98,11 +96,12 @@ services:
   neo4j:
     image: neo4j:5
     restart: unless-stopped
+    env_file: ./.env # <-- PHOENIX: ADDED
     ports:
       - "7475:7474"
       - "7688:7687"
     environment:
-      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-password}
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD} # <-- PHOENIX: CORRECTED
       - NEO4J_PLUGINS=["apoc"]
       - NEO4J_dbms_security_procedures_unrestricted=apoc.*
       - NEO4J_dbms_memory_heap_initial__size=1G
