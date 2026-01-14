@@ -1,7 +1,8 @@
 # FILE: juristi/docker-compose.yml
-# PHOENIX PROTOCOL - INFRASTRUCTURE V3.2 (DATABASE ISOLATION CURE)
-# 1. CURE: The 'neo4j' service is now configured to read its password from the .env file.
-# 2. ISOLATION: This ensures the Juristi Neo4j container uses its own unique credentials, preventing authentication failures and enforcing separation from the Haveri project.
+# PHOENIX PROTOCOL - INFRASTRUCTURE V3.3 (CHROMA ARCHITECTURE CURE)
+# 1. CURE 1 (Networking): Added 'CHROMA_SERVER_HOST: 0.0.0.0' to the chroma service, forcing it to be reachable on the Docker network.
+# 2. CURE 2 (Persistence): Corrected the chroma volume to map '/data', which aligns with the application's actual behavior.
+# 3. EFFECT: Resolves the "Could not connect" error and ensures the ChromaDB database persists data correctly.
 
 services:
   ai-core-service:
@@ -88,20 +89,20 @@ services:
     networks: [juristi_net]
     environment:
       - IS_PERSISTENT=TRUE
-      - PERSIST_DIRECTORY=/chroma/chroma
+      - CHROMA_SERVER_HOST=0.0.0.0 # <-- PHOENIX: CURE 1
     volumes:
-      - chroma_data:/chroma/chroma
-    depends_on: [backend]
+      - chroma_data:/data # <-- PHOENIX: CURE 2
+    # depends_on is inverted and not needed here for the script to run
 
   neo4j:
     image: neo4j:5
     restart: unless-stopped
-    env_file: ./.env # <-- PHOENIX: ADDED
+    env_file: ./.env
     ports:
       - "7475:7474"
       - "7688:7687"
     environment:
-      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD} # <-- PHOENIX: CORRECTED
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD}
       - NEO4J_PLUGINS=["apoc"]
       - NEO4J_dbms_security_procedures_unrestricted=apoc.*
       - NEO4J_dbms_memory_heap_initial__size=1G
