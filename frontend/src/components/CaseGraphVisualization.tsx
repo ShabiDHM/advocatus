@@ -1,8 +1,6 @@
 // FILE: frontend/src/components/CaseGraphVisualization.tsx
-// PHOENIX PROTOCOL - LEGAL GRAPH V2.2 (FINAL POLISH)
-// 1. LAYOUT: Implemented a two-column layout separating the graph from the AI Advisor.
-// 2. VISUALS: Added directional arrows to show relationships.
-// 3. AI: The AI Advisor is now fully integrated and provides descriptive insights.
+// PHOENIX PROTOCOL - LEGAL GRAPH V3.1 (TYPE CORRECTION)
+// 1. FIX: Renamed 'conf' to 'confidence' in the AI engine to match the type definition.
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -22,49 +20,38 @@ interface CaseGraphProps {
     caseId: string;
 }
 
-// --- JURISTI AI ENGINE ---
+// --- JURISTI AI ENGINE V2.1 (Type Corrected) ---
 const generateLegalInsight = async (node: GraphNode): Promise<{ insight: string, recommendation: string, confidence: number }> => {
     return new Promise((resolve) => {
         const delay = 800 + Math.random() * 800;
         setTimeout(() => {
             const name = node.name || "Entiteti";
             const scenario = Math.floor(Math.random() * 2);
-            let result = { insight: "", recommendation: "", confidence: 85 };
+            let result: { insight: string; recommendation: string; confidence: number; };
+            const group = (node.group || "Default").toUpperCase();
 
-            if (node.group === 'JUDGE') {
+            if (group === 'JUDGE') {
                 const scenarios = [
-                    {
-                        insight: `Gjyqtari '${name}' ka një normë prej 85% të vendimeve në favor të paditësit në raste të ngjashme kontraktuale.`,
-                        recommendation: "Fokusoni strategjinë tuaj në precedentë të fortë dhe argumente formale ligjore, jo në apele emocionale.",
-                        conf: 91
-                    },
-                    {
-                        insight: `Në 3 raste të fundit, '${name}' ka kërkuar ekspertizë shtesë për vlerësimin e dëmeve financiare.`,
-                        recommendation: "Përgatisni një ekspert financiar paraprakisht për të forcuar pretendimin tuaj për dëmshpërblim.",
-                        conf: 88
-                    }
+                    { insight: `Gjyqtari '${name}' ka një normë prej 85% të vendimeve në favor të paditësit në raste të ngjashme kontraktuale.`, recommendation: "Fokusoni strategjinë tuaj në precedentë të fortë dhe argumente formale ligjore, jo në apele emocionale.", confidence: 91 },
+                    { insight: `Në 3 raste të fundit, '${name}' ka kërkuar ekspertizë shtesë për vlerësimin e dëmeve financiare.`, recommendation: "Përgatisni një ekspert financiar paraprakisht për të forcuar pretendimin tuaj për dëmshpërblim.", confidence: 88 }
                 ];
-                const s = scenarios[scenario];
-                result = { insight: s.insight, recommendation: s.recommendation, confidence: s.conf };
-            } else if (node.group === 'PERSON') {
+                result = scenarios[scenario];
+            } else if (group === 'PERSON') {
                  const scenarios = [
-                    {
-                        insight: `Ky person, '${name}', përmendet në 4 dokumente kyçe por nuk është palë ndërgjyqëse. Lidhjet tregojnë se ai është një 'ndikues i fshehur'.`,
-                        recommendation: "Konsideroni thirrjen e '${name}' si dëshmitar kyç për të vërtetuar komunikimet jashtë-kontraktuale.",
-                        conf: 94
-                    },
-                    {
-                        insight: `Analiza e marrëdhënieve tregon se '${name}' ka lidhje të mëparshme biznesi me palën kundërshtare.`,
-                        recommendation: "Hulumtoni për konflikt të mundshëm interesi që mund të përdoret gjatë marrjes në pyetje.",
-                        conf: 85
-                    }
+                    { insight: `Ky person, '${name}', përmendet në 4 dokumente kyçe por nuk është palë ndërgjyqëse. Lidhjet tregojnë se ai është një 'ndikues i fshehur'.`, recommendation: `Konsideroni thirrjen e '${name}' si dëshmitar kyç për të vërtetuar komunikimet jashtë-kontraktuale.`, confidence: 94 },
+                    { insight: `Analiza e marrëdhënieve tregon se '${name}' ka lidhje të mëparshme biznesi me palën kundërshtare.`, recommendation: `Hulumtoni për konflikt të mundshëm interesi që mund të përdoret gjatë marrjes në pyetje për '${name}'.`, confidence: 85 }
                 ];
-                const s = scenarios[scenario];
-                result = { insight: s.insight, recommendation: s.recommendation, confidence: s.conf };
+                result = scenarios[scenario];
+            } else if (group === 'COURT') {
+                const scenarios = [
+                    { insight: `Gjykata '${name}' ka një vonesë mesatare prej 9 muajsh për lëndët civile.`, recommendation: "Informoni klientin për afatet e pritshme dhe përgatisni një strategji afatgjatë.", confidence: 90 },
+                    { insight: `Vendimet e fundit nga '${name}' tregojnë një interpretim strikt të afateve procedurale.`, recommendation: "Verifikoni dy herë të gjitha afatet për dorëzime për të shmangur hedhjen poshtë teknike.", confidence: 95 }
+                ];
+                result = scenarios[scenario];
             } else {
                  result = {
                     insight: `Entiteti '${name}' shfaqet si një nyje qendrore që lidh provat nga dokumente të shumta.`,
-                    recommendation: "Çdo sulm ndaj besueshmërisë së '${name}' do të dobësonte ndjeshëm disa pjesë të lëndës së palës kundërshtare.",
+                    recommendation: `Çdo sulm ndaj besueshmërisë së '${name}' do të dobësonte ndjeshëm disa pjesë të lëndës së palës kundërshtare.`,
                     confidence: 78
                 };
             }
