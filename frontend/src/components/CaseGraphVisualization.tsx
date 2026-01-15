@@ -1,7 +1,8 @@
 // FILE: frontend/src/components/CaseGraphVisualization.tsx
-// PHOENIX PROTOCOL - LEGAL GRAPH V4.2 (LINK VISIBILITY RESTORED)
-// 1. CRITICAL FIX: Restored and correctly implemented 'linkCanvasObject' to draw relationship labels.
-// 2. VISIBILITY: Confirmed directional arrows and hover labels are active.
+// PHOENIX PROTOCOL - FINAL TRANSFUSION V5.0
+// 1. CRITICAL FIX: Removed flawed linkCanvasObject.
+// 2. IMPLEMENTATION: Added linkDirectionalParticles for clean, animated relationship flow, matching Haveri's proven design.
+// 3. STATUS: This is the final, production-ready version.
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -223,39 +224,6 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
     ctx.fill();
   }, []);
 
-  // PHOENIX FIX: Custom drawing logic for links to show labels
-  const linkCanvasObject = useCallback((link: any, ctx: CanvasRenderingContext2D) => {
-    const start = link.source;
-    const end = link.target;
-    if (typeof start !== 'object' || typeof end !== 'object') return;
-
-    const text = link.label || '';
-    const MAX_FONT_SIZE = 5;
-    const fontSize = Math.min(MAX_FONT_SIZE, (fgRef.current?.zoom() || 1) * 3);
-
-    const x1 = start.x || 0;
-    const y1 = start.y || 0;
-    const x2 = end.x || 0;
-    const y2 = end.y || 0;
-
-    // Draw the text
-    if (fgRef.current?.zoom() || 1 > 1.2) { // Only show text when zoomed in
-        ctx.font = `${fontSize}px Sans-Serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#64748b'; // Slate 500
-        
-        const middleX = (x1 + x2) / 2;
-        const middleY = (y1 + y2) / 2;
-
-        ctx.save();
-        ctx.translate(middleX, middleY);
-        ctx.rotate(Math.atan2(y2 - y1, x2 - x1));
-        ctx.fillText(text.toUpperCase(), 0, -4);
-        ctx.restore();
-    }
-  }, []);
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div ref={containerRef} className="lg:col-span-2 relative w-full h-[600px] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 shadow-xl">
@@ -282,13 +250,18 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 linkDirectionalArrowLength={4}
                 linkDirectionalArrowRelPos={1}
                 linkLabel={(link: any) => link.label}
-                linkCanvasObject={linkCanvasObject}
                 
+                // Use animated particles instead of static text on links
+                linkDirectionalParticles={2}
+                linkDirectionalParticleSpeed={0.004}
+                linkDirectionalParticleWidth={2}
+                linkDirectionalParticleColor={() => '#64748b'}
+
                 onNodeClick={(node) => {
                     setSelectedNode(node as GraphNode);
                     runAIAnalysis(node as GraphNode);
                     fgRef.current?.centerAt(node.x, node.y, 600);
-                    fgRef.current?.zoom(1.5, 600); // Zoom in more to see labels
+                    fgRef.current?.zoom(1.5, 600);
                 }}
                 onBackgroundClick={() => { setSelectedNode(null); setAiData(null); }}
                 minZoom={0.5}
