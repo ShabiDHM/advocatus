@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V5.3 (SYNTAX FIX)
-# 1. FIX: Reordered arguments in 'analyze_spreadsheet_endpoint' to satisfy non-default argument rules.
-# 2. STATUS: Linter clean.
+# PHOENIX PROTOCOL - CASES ROUTER V6.1 (COMPLETE GRAPH SYNC)
+# 1. SYNC: delete_document and bulk_delete_documents now trigger graph_service.delete_node().
+# 2. STATUS: All deletion endpoints in this file are now synchronized with Neo4j.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -31,6 +31,7 @@ from ...services import (
     drafting_service,
     spreadsheet_service
 )
+from ...services.graph_service import graph_service 
 
 # --- MODEL IMPORTS ---
 from ...models.case import CaseCreate, CaseOut
@@ -92,7 +93,16 @@ async def get_single_case(case_id: str, current_user: Annotated[UserInDB, Depend
 @router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validated_case_id = validate_object_id(case_id)
+    
+    # 1. Delete from MongoDB
     await asyncio.to_thread(case_service.delete_case_by_id, db=db, case_id=validated_case_id, owner=current_user)
+    
+    # 2. SYNC: Delete from Graph (Fire and Forget)
+    try:
+        await asyncio.to_thread(graph_service.delete_node, node_id=case_id)
+    except Exception as e:
+        logger.warning(f"Failed to sync delete to graph for case {case_id}: {e}")
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.post("/{case_id}/drafts", status_code=status.HTTP_202_ACCEPTED, tags=["Drafting"])
@@ -169,6 +179,7 @@ async def delete_document(
     doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(doc.case_id) != case_id: raise HTTPException(status_code=403, detail="Document does not belong to this case.")
 
+    # 1. Delete from MongoDB/Redis
     result = await asyncio.to_thread(
         document_service.bulk_delete_documents, 
         db=db, 
@@ -177,7 +188,13 @@ async def delete_document(
         owner=current_user
     )
     
+    # 2. SYNC: Delete from Graph
     if result.get("deleted_count", 0) > 0:
+        try:
+            await asyncio.to_thread(graph_service.delete_node, node_id=doc_id)
+        except Exception as e:
+            logger.warning(f"Failed to sync delete to graph for document {doc_id}: {e}")
+
         return DeletedDocumentResponse(
             documentId=doc_id, 
             deletedFindingIds=result.get("deleted_finding_ids", [])
@@ -303,7 +320,18 @@ async def bulk_delete_documents(
     validate_object_id(case_id)
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case: raise HTTPException(status_code=404, detail="Case not found.")
+    
+    # 1. Delete from MongoDB/Redis
     result = await asyncio.to_thread(document_service.bulk_delete_documents, db=db, redis_client=redis_client, document_ids=body.document_ids, owner=current_user)
+    
+    # 2. SYNC: Bulk Delete from Graph
+    if result.get("deleted_count", 0) > 0:
+        for doc_id in body.document_ids:
+            try:
+                await asyncio.to_thread(graph_service.delete_node, node_id=doc_id)
+            except Exception as e:
+                logger.warning(f"Failed to sync delete to graph for document {doc_id}: {e}")
+
     return JSONResponse(status_code=200, content=result)
 
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut, tags=["Documents"])
@@ -327,7 +355,6 @@ async def analyze_case_risks(case_id: str, current_user: Annotated[UserInDB, Dep
         user_id=str(current_user.id)
     ))
 
-# --- NEW: SPREADSHEET ANALYST ENDPOINT (FIXED SIGNATURE) ---
 @router.post("/{case_id}/analyze/spreadsheet", tags=["Analysis"])
 async def analyze_spreadsheet_endpoint(
     case_id: str,
@@ -335,23 +362,14 @@ async def analyze_spreadsheet_endpoint(
     file: UploadFile = File(...),
     db: Database = Depends(get_db)
 ):
-    """
-    Analyzes an uploaded Excel/CSV file for financial anomalies and generates a report.
-    """
     validate_object_id(case_id)
-    # 1. Verify Case Ownership
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case: raise HTTPException(status_code=404, detail="Case not found.")
 
-    # 2. Read File
     try:
         content = await file.read()
         filename = file.filename or "unknown.xlsx"
-        
-        # 3. Process
         result = await spreadsheet_service.analyze_spreadsheet_file(content, filename)
-        
-        # Optional: Save result to DB if needed in future, currently just returning to UI
         return JSONResponse(content=result)
         
     except ValueError as ve:

@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - REFACTOR V11.1 (GRID LAYOUT)
-// 1. CRITICAL FIX: Replaced the header's Flexbox layout with a robust CSS Grid.
-// 2. LOGIC: Explicit column spans prevent the GlobalContextSwitcher from pushing other elements.
-// 3. STATUS: Layout is now stable and will correctly truncate long document names.
+// PHOENIX PROTOCOL - CASE VIEW V12.2 (ADMIN GATE)
+// 1. SECURITY: Graph button and view are now hidden unless user.role === 'ADMIN'.
+// 2. STATUS: Feature is now isolated to administrators.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -14,20 +13,19 @@ import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
 import SpreadsheetAnalyst from '../components/SpreadsheetAnalyst';
+import CaseGraphVisualization from '../components/CaseGraphVisualization';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, ArrowLeft, Activity } from 'lucide-react';
+import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity, Network } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
 
-type CaseData = {
-    details: Case | null;
-};
+type CaseData = { details: Case | null; };
 type ActiveModal = 'none' | 'analysis';
-type ViewMode = 'workspace' | 'analyst';
+type ViewMode = 'workspace' | 'analyst' | 'graph';
 
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     if (!data) return [];
@@ -88,7 +86,8 @@ const CaseHeader: React.FC<{
     isAnalyzing: boolean; 
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
-}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode }) => {
+    userRole: 'ADMIN' | 'LAWYER' | 'CLIENT'; // PHOENIX: Need user role for logic
+}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode, userRole }) => {
     
     const analyzeButtonText = activeContextId === 'general' 
         ? t('analysis.analyzeButton', 'Analizo Rastin')
@@ -121,7 +120,7 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 w-full animate-in fade-in slide-in-from-top-2">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-3 w-full animate-in fade-in slide-in-from-top-2">
                     <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap">
                         <Calendar className="h-4 w-4 text-blue-400" />
                         {new Date(caseDetails.created_at).toLocaleDateString()}
@@ -131,26 +130,36 @@ const CaseHeader: React.FC<{
                         {viewMode === 'workspace' && (
                              <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
                         )}
-                        {viewMode === 'analyst' && (
+                        {viewMode !== 'workspace' && (
                             <div className="w-full h-full flex items-center px-4 bg-white/5 border border-white/10 rounded-xl text-gray-400 italic text-sm">
-                                {t('analyst.subtitle', 'Smart Financial Analysis Mode')}
+                                {viewMode === 'graph' ? 'Knowledge Graph (Admin)' : t('analyst.subtitle', 'Smart Financial Analysis Mode')}
                             </div>
                         )}
                     </div>
                     
+                    {/* View Switchers */}
                     <button 
                         onClick={() => setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent`}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-white' : 'text-gray-400 border-transparent hover:text-white'}`}
                     >
-                        {viewMode === 'analyst' ? <ArrowLeft className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
-                        <span>
-                            {viewMode === 'analyst' ? t('caseView.workspace') : t('caseView.analyst')}
-                        </span>
+                        <Activity className="h-4 w-4" />
+                        <span>{t('caseView.analyst', 'Analyst')}</span>
                     </button>
+
+                    {/* PHOENIX FIX: Admin Gate for Graph Button */}
+                    {userRole === 'ADMIN' && (
+                        <button 
+                            onClick={() => setViewMode(viewMode === 'graph' ? 'workspace' : 'graph')}
+                            className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${viewMode === 'graph' ? 'bg-purple-600/20 border-purple-500 text-white' : 'text-gray-400 border-transparent hover:text-white'}`}
+                        >
+                            <Network className="h-4 w-4" />
+                            <span>Graph</span>
+                        </button>
+                    )}
 
                     <button 
                         onClick={onAnalyze} 
-                        disabled={isAnalyzing || viewMode === 'analyst'} 
+                        disabled={isAnalyzing || viewMode !== 'workspace'} 
                         className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent disabled:bg-white/5 disabled:border disabled:border-white/10 disabled:cursor-not-allowed disabled:opacity-50`}
                         type="button"
                     >
@@ -174,7 +183,7 @@ const CaseHeader: React.FC<{
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
-  const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
+  const { isLoading: isAuthLoading, isAuthenticated, user } = useAuth(); // PHOENIX: Get the full user object
   const { caseId } = useParams<{ caseId: string }>();
   
   const [caseData, setCaseData] = useState<CaseData>({ details: null });
@@ -249,11 +258,12 @@ const CaseViewPage: React.FC = () => {
                 isAnalyzing={isAnalyzing} 
                 viewMode={viewMode}
                 setViewMode={setViewMode}
+                userRole={user?.role || 'CLIENT'}
             />
         </div>
         
         <AnimatePresence mode="wait">
-            {viewMode === 'workspace' ? (
+            {viewMode === 'workspace' && (
                 <motion.div 
                     key="workspace"
                     initial={{ opacity: 0, x: -20 }}
@@ -287,7 +297,9 @@ const CaseViewPage: React.FC = () => {
                         activeContextId={activeContextId} 
                     />
                 </motion.div>
-            ) : (
+            )}
+            
+            {viewMode === 'analyst' && (
                 <motion.div
                     key="analyst"
                     initial={{ opacity: 0, x: 20 }}
@@ -296,6 +308,19 @@ const CaseViewPage: React.FC = () => {
                     transition={{ duration: 0.2 }}
                 >
                     <SpreadsheetAnalyst caseId={caseData.details.id} />
+                </motion.div>
+            )}
+
+            {/* PHOENIX FIX: Admin Gate for Graph View */}
+            {(viewMode === 'graph' && user?.role === 'ADMIN') && (
+                <motion.div
+                    key="graph"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                >
+                    <CaseGraphVisualization caseId={caseData.details.id} />
                 </motion.div>
             )}
         </AnimatePresence>
