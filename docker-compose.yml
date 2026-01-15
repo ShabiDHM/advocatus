@@ -1,9 +1,3 @@
-# FILE: juristi/docker-compose.yml
-# PHOENIX PROTOCOL - INFRASTRUCTURE V3.3 (CHROMA ARCHITECTURE CURE)
-# 1. CURE 1 (Networking): Added 'CHROMA_SERVER_HOST: 0.0.0.0' to the chroma service, forcing it to be reachable on the Docker network.
-# 2. CURE 2 (Persistence): Corrected the chroma volume to map '/data', which aligns with the application's actual behavior.
-# 3. EFFECT: Resolves the "Could not connect" error and ensures the ChromaDB database persists data correctly.
-
 services:
   ai-core-service:
     build: 
@@ -89,9 +83,9 @@ services:
     networks: [juristi_net]
     environment:
       - IS_PERSISTENT=TRUE
-      - CHROMA_SERVER_HOST=0.0.0.0 # <-- PHOENIX: CURE 1
+      - CHROMA_SERVER_HOST=0.0.0.0 
     volumes:
-      - chroma_data:/data # <-- PHOENIX: CURE 2
+      - chroma_data:/data 
     # depends_on is inverted and not needed here for the script to run
 
   neo4j:
@@ -99,8 +93,9 @@ services:
     restart: unless-stopped
     env_file: ./.env
     ports:
-      - "7475:7474"
-      - "7688:7687"
+      # PHOENIX FIX: Reverted to standard ports to allow Haveri to run on 7475/7688 without conflict
+      - "7474:7474"
+      - "7687:7687"
     environment:
       - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD}
       - NEO4J_PLUGINS=["apoc"]
