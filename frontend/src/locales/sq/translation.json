@@ -593,8 +593,31 @@
   },
   "caseGraph": {
     "title": "Harta e Inteligjencës së Rastit",
-    "loading": "DUKE ANALIZUAR PROVAT...",
-    "emptyTitle": "Nuk ka të Dhëna Grafike",
-    "emptySubtitle": "Ngarkoni dokumente ose shtoni palë për të gjeneruar hartën."
+    "liveRender": "Renderimi Live",
+    "physics": "Fizika",
+    "loading": "DUKE INICIALIZUAR RRJETIN NEURAL...",
+    "noDataTitle": "Nuk ka të dhëna grafike",
+    "noDataDesc": "Ngarkoni dokumente për të gjeneruar hartën.",
+    "panelTitle": "Paneli i Analizës",
+    "nodeId": "ID e Nyjes",
+    "importance": "Rëndësia",
+    "high": "Lartë",
+    "aiTitle": "Inteligjenca Artificiale",
+    "confidence": "Besueshmëria",
+    "strategicObs": "Vëzhgim Strategjik",
+    "recAction": "Veprim i Rekomanduar",
+    "waitingSelection": "Pritje për Selektim",
+    "selectPrompt": "Klikoni mbi një nyje për të aktivizuar analizën.",
+    "secureConnection": "LIDHJE E SIGURT",
+    "processing": "Duke procesuar...",
+    "engineActive": "Juristi AI Engine",
+    "groups": {
+      "judge": "Gjykatës",
+      "court": "Gjykata",
+      "person": "Palët",
+      "document": "Dokumente",
+      "money": "Financa",
+      "evidence": "Prova"
+    }
   }
 }

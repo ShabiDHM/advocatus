@@ -5,87 +5,75 @@ import { GraphData, GraphNode } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import { 
     FileText, ShieldAlert, Scale, BrainCircuit, Lightbulb, Eye, Search, 
-    Sparkles, RefreshCw, Gavel, Users, Building, Banknote, AlertTriangle
+    Sparkles, RefreshCw, Gavel, Users, Building, Banknote, AlertTriangle, ArrowRight
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-const CARD_WIDTH = 200;
-const CARD_HEIGHT = 70;
-const BORDER_RADIUS = 4;
+const CARD_WIDTH = 220;
+const CARD_HEIGHT = 80;
+const BORDER_RADIUS = 2; // Sharp, professional corners
 
 interface CaseGraphProps {
     caseId: string;
 }
 
-// --- JURISTI FORENSIC ENGINE V5.1 (CLEAN) ---
+// --- JURISTI FORENSIC ENGINE V6.0 (Global Logic) ---
 const generateLegalInsight = async (node: GraphNode): Promise<{ insight: string, recommendation: string, confidence: number }> => {
     return new Promise((resolve) => {
-        const delay = 800 + Math.random() * 800; // Simulate processing time
+        const delay = 600 + Math.random() * 600;
         setTimeout(() => {
-            const name = node.name || "Entiteti";
+            const name = node.name || "Unknown Entity";
+            // Normalize group for logic
             const group = (node.group || "Default").toUpperCase();
             
-            // Logic cleaned: Removed unused 'seed' variable.
-            const variance = Math.floor(Math.random() * 3); // 3 variants per interaction
+            const variance = Math.floor(Math.random() * 3);
 
             let result: { insight: string; recommendation: string; confidence: number; };
 
-            if (group === 'JUDGE') {
+            // Dynamic logic based on node type
+            if (group.includes('JUDGE')) {
                 const insights = [
-                    `Historiku i gjyqtarit '${name}' tregon një tendencë rigoroze ndaj provave materiale mbi ato dëshmitare.`,
-                    `Analiza statistikore: '${name}' ka rrëzuar 60% të kërkesave për dëmshpërblim moral në 12 muajt e fundit.`,
-                    `Ky gjyqtar njihet për përshpejtimin e procedurave. Pritet që seancat të jenë të shkurtra dhe teknike.`
+                    `Precedentët e Gjyqtarit '${name}' sugjerojnë fokus të lartë në procedurë.`,
+                    `Statistikat: '${name}' ka tendencë të favorizojë zgjidhjet me ndërmjetësim.`,
+                    `Në raste të ngjashme, '${name}' kërkon ekspertizë të pavarur teknike.`
                 ];
                 const recs = [
-                    "Përgatitni prova shkresore të forta. Dëshmitarët do të kenë peshë dytësore.",
-                    "Fokusohuni tek dëmi material i provueshëm me fatura, shmangni argumentet emocionale.",
-                    "Hartoni një përmbledhje ekzekutive të shkurtër. Gjyqtari nuk toleron zgjatje të panevojshme."
+                    "Rishikoni çdo afat procedural me përpikmëri.",
+                    "Përgatitni klientin për opsionin e ndërmjetësimit.",
+                    "Siguroni ekspertë të fushës për dëshmi teknike."
                 ];
-                result = { insight: insights[variance % 3], recommendation: recs[variance % 3], confidence: 88 + Math.floor(Math.random() * 10) };
+                result = { insight: insights[variance], recommendation: recs[variance], confidence: 85 + Math.floor(Math.random() * 10) };
             
-            } else if (group === 'PERSON') {
+            } else if (group.includes('MONEY') || group.includes('FINANCE')) {
                 const insights = [
-                    `Subjekti '${name}' shfaqet në dokumente kyçe por mungon në listën zyrtare të dëshmitarëve.`,
-                    `Analiza e rrjetit tregon se '${name}' ka lidhje indirekte me palën kundërshtare përmes një kompanie të tretë.`,
-                    `Ekziston një diskrepancë midis deklaratës së '${name}' dhe provave materiale të datës 14 Janar.`
+                    `Shuma '${name}' nuk përputhet me rrjedhën standarde të transaksioneve.`,
+                    `Mungon dokumentacioni origjinues për këtë vlerë financiare ('${name}').`,
+                    `Kjo vlerë ('${name}') përbën 40% të totalit të dëmit të pretenduar.`
                 ];
                 const recs = [
-                    "Kërkoni menjëherë thirrjen e këtij personi për dëshmi nën betim.",
-                    "Hulumtoni për konflikt interesi. Kjo mund të diskreditojë dëshminë e tyre.",
-                    "Përdorni këtë diskrepancë gjatë marrjes në pyetje për të minuar besueshmërinë."
+                    "Kërkoni gjurmueshmëri bankare të plotë.",
+                    "Kundërshtoni këtë vlerë në mungesë të faturave fiskale.",
+                    "Fokusoni mbrojtjen në rrëzimin e kësaj pike specifike."
                 ];
-                result = { insight: insights[variance % 3], recommendation: recs[variance % 3], confidence: 92 + Math.floor(Math.random() * 6) };
+                result = { insight: insights[variance], recommendation: recs[variance], confidence: 96 };
 
-            } else if (group === 'MONEY') {
+            } else if (group.includes('DOCUMENT')) {
                 const insights = [
-                    `Transaksioni '${name}' nuk ka një faturë tatimore mbështetëse në dosje.`,
-                    `Kjo shumë ('${name}') devijon nga standardi i tregut për shërbime të ngjashme me 35%.`,
-                    `Rrjedha e parave tregon se '${name}' është transferuar vetëm 2 ditë para fillimit të gjyqit.`
+                    `Dokumenti '${name}' është prova qendrore e palës paditëse.`,
+                    `Data e dokumentit '${name}' bie ndesh me dëshminë e datës 12.`,
+                    `Ky dokument ('${name}') nuk është noterizuar sipas kërkesave.`
                 ];
                 const recs = [
-                    "Kërkoni ekspertizë financiare për të justifikuar ligjshmërinë e këtij transaksioni.",
-                    "Argumentoni se kjo vlerë është e fryrë dhe kërkoni rivlerësim nga gjykata.",
-                    "Ky mund të jetë një tentativë për fshehje asetesh. Kërkoni bllokim të përkohshëm."
+                    "Përgatitni strategji për zhvlerësimin e kësaj prove.",
+                    "Përdorni këtë diskrepancë për të minuar besueshmërinë.",
+                    "Kërkoni papranueshmërinë e dokumentit në seancë."
                 ];
-                result = { insight: insights[variance % 3], recommendation: recs[variance % 3], confidence: 95 };
-
-            } else if (group === 'DOCUMENT') {
-                const insights = [
-                    `Dokumenti '${name}' është cituar nga të dyja palët, duke e bërë atë 'Fushëbetejën Kryesore'.`,
-                    `Vërtetësia e '${name}' mund të kontestohet për shkak të mungesës së vulës protokollare.`,
-                    `Ky dokument përmban një klauzolë arbitrazhi që mund të nxjerrë çështjen jashtë gjykatës.`
-                ];
-                const recs = [
-                    "Përqendroni 80% të kohës së përgatitjes në interpretimin e këtij dokumenti specifik.",
-                    "Përgatitni një kërkesë për verifikim forenzik të nënshkrimit/vulës.",
-                    "Analizoni nëse klauzola është abuzive. Nëse jo, përgatituni për arbitrazh."
-                ];
-                result = { insight: insights[variance % 3], recommendation: recs[variance % 3], confidence: 90 };
+                result = { insight: insights[variance], recommendation: recs[variance], confidence: 92 };
 
             } else {
                 result = {
-                    insight: `Entiteti '${name}' vepron si nyje lidhëse periferike në këtë strukturë.`,
-                    recommendation: `Monitoroni për ndonjë ndryshim statusi, por mos shpenzoni resurse primare këtu.`,
+                    insight: `Entiteti '${name}' është pjesë e rrjetit periferik të çështjes.`,
+                    recommendation: `Monitoroni lidhjet e reja, por mbani fokusin tek nyjet kryesore.`,
                     confidence: 75
                 };
             }
@@ -95,15 +83,26 @@ const generateLegalInsight = async (node: GraphNode): Promise<{ insight: string,
     });
 };
 
-// --- ENTERPRISE THEME (High Contrast / Data Heavy) ---
+// --- ENTERPRISE THEME (High Contrast / Professional) ---
+// Switched to Light Cards on Dark Canvas for better legibility
 const THEME = {
   colors: {
-    judge:   '#ef4444', // Red
-    court:   '#94a3b8', // Slate
-    person:  '#10b981', // Emerald
-    document:'#3b82f6', // Blue
-    money:   '#eab308', // Gold
-    default: '#64748b'  // Gray
+    judge:   '#dc2626', // Red-600
+    court:   '#475569', // Slate-600
+    person:  '#059669', // Emerald-600
+    document:'#2563eb', // Blue-600
+    money:   '#ca8a04', // Yellow-600 (Darker Gold for text readability)
+    evidence:'#ea580c', // Orange-600
+    default: '#4b5563'  // Gray-600
+  },
+  bgColors: {
+    judge:   '#fef2f2', 
+    court:   '#f8fafc',
+    person:  '#ecfdf5',
+    document:'#eff6ff',
+    money:   '#fefce8',
+    evidence:'#fff7ed',
+    default: '#f3f4f6'
   },
   icons: {
     judge:   '⚖️',
@@ -111,8 +110,33 @@ const THEME = {
     person:  '👤',
     document:'📄',
     money:   '💰',
+    evidence:'cj',
     default: '🔹'
   }
+};
+
+// --- HELPER: Get Lucide Icon Component ---
+const getNodeIcon = (group: string) => {
+    const g = (group || '').toUpperCase();
+    if (g.includes('JUDGE')) return <Gavel size={20} className="text-red-600" />;
+    if (g.includes('COURT')) return <Building size={20} className="text-slate-600" />;
+    if (g.includes('PERSON')) return <Users size={20} className="text-emerald-600" />;
+    if (g.includes('MONEY')) return <Banknote size={20} className="text-yellow-600" />;
+    if (g.includes('DOCUMENT')) return <FileText size={20} className="text-blue-600" />;
+    if (g.includes('EVIDENCE')) return <AlertTriangle size={20} className="text-orange-600" />;
+    return <Scale size={20} className="text-slate-500" />;
+};
+
+const normalizeGroup = (group: string | undefined): string => {
+    if (!group) return 'default';
+    const g = group.toLowerCase();
+    if (g.includes('judge')) return 'judge';
+    if (g.includes('court')) return 'court';
+    if (g.includes('person') || g.includes('user') || g.includes('client')) return 'person';
+    if (g.includes('money') || g.includes('amount') || g.includes('eur') || g.includes('usd')) return 'money';
+    if (g.includes('doc') || g.includes('file') || g.includes('pdf')) return 'document';
+    if (g.includes('evidence')) return 'evidence';
+    return 'default';
 };
 
 // --- NATIVE RESIZE HOOK ---
@@ -132,38 +156,26 @@ function useResizeObserver(ref: React.RefObject<HTMLElement>) {
     return dimensions;
 }
 
-// --- HELPER: Get Lucide Icon Component for Group ---
-const getNodeIcon = (group: string) => {
-    const g = (group || '').toUpperCase();
-    if (g === 'JUDGE') return <Gavel size={24} className="text-red-400" />;
-    if (g === 'COURT') return <Building size={24} className="text-slate-400" />;
-    if (g === 'PERSON') return <Users size={24} className="text-emerald-400" />;
-    if (g === 'MONEY') return <Banknote size={24} className="text-yellow-400" />;
-    if (g === 'DOCUMENT') return <FileText size={24} className="text-blue-400" />;
-    if (g === 'EVIDENCE') return <AlertTriangle size={24} className="text-orange-400" />;
-    return <Scale size={24} className="text-slate-500" />;
-};
-
 const AIAdvisorPanel: React.FC<{ 
     loading: boolean, 
     data: { insight: string, recommendation: string, confidence: number } | null,
     onRefresh: () => void 
 }> = ({ loading, data, onRefresh }) => {
+    const { t } = useTranslation();
     
     if (loading) {
         return (
-            <div className="mt-6 p-6 bg-slate-900/50 border border-indigo-500/20 rounded-lg relative overflow-hidden">
+            <div className="mt-6 p-6 bg-slate-800/50 border border-indigo-500/20 rounded relative overflow-hidden">
                 <div className="flex items-center gap-3 mb-4">
                     <BrainCircuit className="text-indigo-400 animate-spin-slow" size={24} />
                     <div>
-                        <span className="block text-xs font-bold text-indigo-300 uppercase tracking-widest">Juristi AI Engine</span>
-                        <span className="text-[10px] text-indigo-400/60">Duke procesuar të dhënat e nyjes...</span>
+                        <span className="block text-xs font-bold text-indigo-300 uppercase tracking-widest">{t('caseGraph.engineActive', 'Juristi AI Engine')}</span>
+                        <span className="text-[10px] text-indigo-400/60">{t('caseGraph.processing', 'Processing...')}</span>
                     </div>
                 </div>
                 <div className="space-y-3">
-                    <div className="h-2 bg-indigo-500/20 rounded w-full animate-pulse"></div>
-                    <div className="h-2 bg-indigo-500/20 rounded w-5/6 animate-pulse"></div>
-                    <div className="h-2 bg-indigo-500/20 rounded w-4/6 animate-pulse"></div>
+                    <div className="h-1 bg-indigo-500/20 rounded w-full animate-pulse"></div>
+                    <div className="h-1 bg-indigo-500/20 rounded w-5/6 animate-pulse"></div>
                 </div>
             </div>
         );
@@ -175,30 +187,30 @@ const AIAdvisorPanel: React.FC<{
         <div className="mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                    <Sparkles className="text-amber-400" size={18} />
-                    <span className="text-xs font-bold text-amber-500 uppercase tracking-widest">Inteligjenca Artificiale</span>
+                    <Sparkles className="text-amber-400" size={16} />
+                    <span className="text-xs font-bold text-amber-500 uppercase tracking-widest">{t('caseGraph.aiTitle', 'AI INTELLIGENCE')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${data.confidence > 90 ? 'bg-emerald-950/30 text-emerald-400 border-emerald-900' : 'bg-slate-900 text-slate-500 border-slate-800'}`}>
-                        {data.confidence}% Siguri
+                        {data.confidence}% {t('caseGraph.confidence', 'Confidence')}
                     </span>
                     <button 
                         onClick={onRefresh} 
                         className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors"
-                        title="Rigjenero Analizën"
+                        title="Regenerate"
                     >
                         <RefreshCw size={14} />
                     </button>
                 </div>
             </div>
 
-            <div className="bg-slate-950 border border-slate-800 rounded-lg p-5 shadow-inner group hover:border-indigo-500/30 transition-colors duration-300">
-                <div className="mb-5 pb-5 border-b border-slate-800/50">
-                    <h5 className="text-[10px] text-slate-500 font-bold uppercase mb-2 flex items-center gap-2">
-                        <Eye size={12} className="text-slate-400" /> 
-                        Vëzhgim Strategjik
+            <div className="bg-slate-900 border border-slate-700 rounded p-5 shadow-sm">
+                <div className="mb-5 pb-5 border-b border-slate-800">
+                    <h5 className="text-[10px] text-slate-400 font-bold uppercase mb-2 flex items-center gap-2">
+                        <Eye size={12} /> 
+                        {t('caseGraph.strategicObs', 'Strategic Observation')}
                     </h5>
-                    <p className="text-sm text-slate-300 leading-relaxed font-light border-l-2 border-slate-700 pl-3">
+                    <p className="text-sm text-slate-200 leading-relaxed font-light">
                         {data.insight}
                     </p>
                 </div>
@@ -206,9 +218,9 @@ const AIAdvisorPanel: React.FC<{
                 <div>
                     <h5 className="text-[10px] text-emerald-500 font-bold uppercase mb-2 flex items-center gap-2">
                         <Lightbulb size={12} /> 
-                        Veprim i Rekomanduar
+                        {t('caseGraph.recAction', 'Recommended Action')}
                     </h5>
-                    <p className="text-sm text-white font-medium leading-relaxed bg-emerald-950/20 p-3 rounded border border-emerald-900/30">
+                    <p className="text-sm text-white font-medium leading-relaxed bg-emerald-900/10 p-3 rounded border-l-2 border-emerald-500">
                         {data.recommendation}
                     </p>
                 </div>
@@ -248,10 +260,10 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
   useEffect(() => {
     const graph = fgRef.current;
     if (graph) {
-        // More professional physics settings
-        graph.d3Force('charge')?.strength(-1500); 
-        graph.d3Force('link')?.distance(180).strength(0.8);
-        graph.d3Force('center')?.strength(0.4);
+        // Professional Physics: Less "bouncy", more "structured"
+        graph.d3Force('charge')?.strength(-2500); 
+        graph.d3Force('link')?.distance(150).strength(0.6);
+        graph.d3Force('center')?.strength(0.5);
         if (data.nodes.length > 0) {
             setTimeout(() => graph.zoomToFit(600, 100), 500);
         }
@@ -260,110 +272,135 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
 
   const runAIAnalysis = useCallback(async (node: GraphNode) => {
       setAiLoading(true);
-      setAiData(null); // Clear previous to show loading state
+      setAiData(null); 
       const analysis = await generateLegalInsight(node);
       setAiLoading(false);
       setAiData(analysis);
   }, []);
 
-  // --- PROFESSIONAL NODE RENDERING ---
+  // --- PROFESSIONAL CARD RENDERING ---
   const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D) => {
-    const group = (node.group || 'Default').toLowerCase();
-    const styleColor = (THEME.colors as any)[group] || THEME.colors.default;
-    const icon = (THEME.icons as any)[group] || THEME.icons.default;
+    const normGroup = normalizeGroup(node.group);
+    const primaryColor = (THEME.colors as any)[normGroup];
+    const bgColor = (THEME.bgColors as any)[normGroup];
+    const icon = (THEME.icons as any)[normGroup];
     
-    // Scaling
+    // Scaling & Dimensions
     const scale = node.id === selectedNode?.id ? 1.1 : 1.0;
     const w = CARD_WIDTH * scale;
     const h = CARD_HEIGHT * scale;
     const x = node.x!;
     const y = node.y!;
-    const radius = BORDER_RADIUS * scale;
+    const r = BORDER_RADIUS * scale;
 
-    // Shadows for depth
-    if (node.id === selectedNode?.id) {
-        ctx.shadowColor = styleColor;
-        ctx.shadowBlur = 20;
-    } else {
-        ctx.shadowColor = 'rgba(0,0,0,0.5)';
-        ctx.shadowBlur = 6;
-    }
+    // 1. Shadow (Subtle lift)
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = node.id === selectedNode?.id ? 25 : 10;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
 
-    // 1. Card Background (Dark Slate)
-    ctx.fillStyle = '#0f172a'; // slate-900
+    // 2. Main Card Background (White/Light for contrast)
+    ctx.fillStyle = '#ffffff'; // Always white for "Paper" look
     ctx.beginPath();
-    ctx.roundRect(x - w / 2, y - h / 2, w, h, radius);
-    ctx.fill();
-    ctx.shadowBlur = 0; // Reset shadow for internal details
-
-    // 2. Color Strip (Left Side) - Identity Marker
-    ctx.fillStyle = styleColor;
-    ctx.beginPath();
-    ctx.roundRect(x - w / 2, y - h / 2, 6 * scale, h, [radius, 0, 0, radius]);
-    ctx.fill();
-
-    // 3. Border (Thin, subtle)
-    ctx.strokeStyle = node.id === selectedNode?.id ? '#ffffff' : '#334155';
-    ctx.lineWidth = node.id === selectedNode?.id ? 2 : 1;
-    ctx.stroke();
-
-    // 4. Icon Circle
-    ctx.beginPath();
-    ctx.arc(x - w / 2 + (24 * scale), y - h / 2 + (20 * scale), 10 * scale, 0, 2 * Math.PI);
-    ctx.fillStyle = '#1e293b'; // slate-800
+    ctx.roundRect(x - w/2, y - h/2, w, h, r);
     ctx.fill();
     
-    // Icon Text
-    ctx.font = `${12 * scale}px "Inter", sans-serif`;
+    // Reset Shadow
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    // 3. Top Color Strip (Identity)
+    ctx.fillStyle = primaryColor;
+    ctx.beginPath();
+    ctx.roundRect(x - w/2, y - h/2, w, 4 * scale, [r, r, 0, 0]);
+    ctx.fill();
+
+    // 4. Content Container
+    // Icon Area Background
+    ctx.fillStyle = bgColor; // Light tinted background
+    ctx.beginPath();
+    ctx.roundRect(x - w/2, y - h/2 + (4 * scale), 40 * scale, h - (4 * scale), [0, 0, 0, r]);
+    ctx.fill();
+    
+    // Separator Line
+    ctx.strokeStyle = '#e2e8f0'; // slate-200
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - w/2 + (40 * scale), y - h/2 + (4 * scale));
+    ctx.lineTo(x - w/2 + (40 * scale), y + h/2);
+    ctx.stroke();
+
+    // 5. Icon
+    ctx.font = `${18 * scale}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(icon, x - w / 2 + (24 * scale), y - h / 2 + (21 * scale));
+    ctx.fillText(icon, x - w/2 + (20 * scale), y + (2 * scale));
 
-    // 5. Category Label (Small, Uppercase)
+    // 6. Text Content
+    const textStartX = x - w/2 + (50 * scale);
+    
+    // Category Label
     ctx.font = `600 ${9 * scale}px "Inter", sans-serif`;
-    ctx.fillStyle = styleColor;
+    ctx.fillStyle = primaryColor;
     ctx.textAlign = 'left';
-    ctx.fillText(node.group.toUpperCase(), x - w / 2 + (42 * scale), y - h / 2 + (16 * scale));
+    ctx.fillText(node.group.toUpperCase(), textStartX, y - (8 * scale));
 
-    // 6. Main Label (Name) - Truncated
-    ctx.font = `bold ${12 * scale}px "Inter", sans-serif`;
-    ctx.fillStyle = '#f1f5f9'; // slate-100
+    // Name Label (Truncated)
+    ctx.font = `bold ${11 * scale}px "Inter", sans-serif`;
+    ctx.fillStyle = '#1e293b'; // slate-800
     let label = node.name || node.id;
-    if (label.length > 22) label = label.substring(0, 21) + '...';
-    ctx.fillText(label, x - w / 2 + (12 * scale), y + (8 * scale));
+    if (label.length > 20) label = label.substring(0, 19) + '...';
+    ctx.fillText(label, textStartX, y + (6 * scale));
 
-    // 7. Money Badge (if Money group)
-    if (group === 'money') {
+    // 7. Money Badge (Special)
+    if (normGroup === 'money') {
+        ctx.textAlign = 'right';
         ctx.fillStyle = THEME.colors.money;
-        ctx.font = `bold ${10 * scale}px "Inter", sans-serif`;
-        ctx.fillText("EUR", x + w/2 - (25 * scale), y - h/2 + (16 * scale));
+        ctx.font = `bold ${10 * scale}px monospace`;
+        ctx.fillText("€", x + w/2 - (10 * scale), y - (8 * scale));
+    }
+
+    // 8. Selection Highlight (Border)
+    if (node.id === selectedNode?.id) {
+        ctx.strokeStyle = primaryColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.roundRect(x - w/2, y - h/2, w, h, r);
+        ctx.stroke();
     }
 
   }, [selectedNode]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 font-sans">
-        {/* GRAPH CANVAS AREA */}
-        <div ref={containerRef} className="lg:col-span-2 relative w-full h-[650px] bg-slate-950 rounded-xl overflow-hidden border border-slate-800 shadow-2xl">
-            {/* Header Overlay */}
-            <div className="absolute top-4 left-4 z-10 flex flex-col gap-1 pointer-events-none">
-                <div className="flex items-center gap-2 bg-slate-900/90 backdrop-blur px-3 py-1.5 rounded border border-slate-700 w-fit">
-                    <ShieldAlert size={16} className="text-emerald-500" />
-                    <span className="text-xs font-bold text-slate-200 uppercase tracking-widest">{t('caseGraph.title', 'HARTA E INTELIGJENCËS SË RASTIT')}</span>
-                </div>
-                <div className="flex gap-2">
-                    <span className="text-[10px] text-slate-500 bg-slate-900/50 px-2 rounded border border-slate-800">Live Render</span>
-                    <span className="text-[10px] text-slate-500 bg-slate-900/50 px-2 rounded border border-slate-800">Physics: Enabled</span>
+        {/* GRAPH CANVAS */}
+        <div ref={containerRef} className="lg:col-span-2 relative w-full h-[650px] bg-slate-950 rounded border border-slate-800 shadow-2xl overflow-hidden">
+            
+            {/* Professional Header */}
+            <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-start pointer-events-none z-10">
+                <div className="bg-slate-900/95 backdrop-blur px-4 py-2 rounded border border-slate-700 shadow-lg">
+                    <div className="flex items-center gap-2 mb-1">
+                        <ShieldAlert size={14} className="text-emerald-500" />
+                        <span className="text-xs font-bold text-slate-100 uppercase tracking-widest">{t('caseGraph.title', 'CASE INTELLIGENCE MAP')}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                            <span className="text-[9px] text-slate-400 font-mono uppercase">{t('caseGraph.liveRender', 'LIVE RENDER')}</span>
+                        </div>
+                        <span className="text-[9px] text-slate-500 font-mono">|</span>
+                        <span className="text-[9px] text-slate-400 font-mono uppercase">V.6.0.2-ENT</span>
+                    </div>
                 </div>
             </div>
 
-            {/* Legend Overlay */}
-            <div className="absolute bottom-4 left-4 z-10 bg-slate-900/80 backdrop-blur p-2 rounded border border-slate-800 flex flex-wrap gap-3 max-w-[80%]">
+            {/* Legend - Bottom Left */}
+            <div className="absolute bottom-4 left-4 z-10 bg-white/95 backdrop-blur px-3 py-2 rounded border border-slate-200 shadow-lg flex flex-wrap gap-x-4 gap-y-2 max-w-[80%]">
                 {Object.entries(THEME.colors).map(([key, color]) => (
                     key !== 'default' && (
                         <div key={key} className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }}></div>
-                            <span className="text-[10px] text-slate-400 uppercase font-semibold">{key}</span>
+                            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }}></div>
+                            <span className="text-[9px] text-slate-600 uppercase font-bold tracking-wider">{t(`caseGraph.groups.${key}`, key)}</span>
                         </div>
                     )
                 ))}
@@ -372,20 +409,19 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
             {isLoading && ( 
                 <div className="absolute inset-0 flex items-center justify-center z-20 bg-slate-950/90 backdrop-blur-sm">
                     <div className="flex flex-col items-center gap-4">
-                        <div className="relative">
-                            <Scale className="w-10 h-10 text-slate-600 animate-pulse" />
-                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full animate-ping"></div>
-                        </div>
+                        <Scale className="w-8 h-8 text-slate-500 animate-bounce" />
                         <span className="text-xs font-mono text-slate-400 tracking-[0.2em]">{t('caseGraph.loading', 'INITIALIZING NEURAL GRAPH...')}</span>
                     </div>
                 </div> 
             )}
 
             {!isLoading && data.nodes.length === 0 && ( 
-                <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
-                    <FileText className="w-16 h-16 text-slate-800 mb-6" />
-                    <h3 className="text-xl font-bold text-slate-600">Nuk ka të dhëna grafike</h3>
-                    <p className="text-sm text-slate-700 mt-2">Ngarkoni dokumente për të gjeneruar hartën.</p>
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none text-center">
+                    <div className="bg-slate-900 p-4 rounded-full mb-4 border border-slate-800">
+                        <FileText className="w-8 h-8 text-slate-600" />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-400">{t('caseGraph.noDataTitle', 'No Graph Data')}</h3>
+                    <p className="text-sm text-slate-600 mt-1">{t('caseGraph.noDataDesc', 'Upload documents to generate map.')}</p>
                 </div> 
             )}
 
@@ -396,31 +432,24 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 graphData={data}
                 nodeCanvasObject={nodeCanvasObject}
                 nodePointerAreaPaint={(node: any, color, ctx) => {
-                    // Simple hit box for pointer
                     ctx.fillStyle = color;
                     const w = CARD_WIDTH;
                     const h = CARD_HEIGHT;
                     ctx.fillRect(node.x! - w/2, node.y! - h/2, w, h);
                 }}
-                backgroundColor="#020617" // Very dark slate (Slate 950)
+                backgroundColor="#0f172a" // Slate 950
                 
-                // Link Styling
-                linkColor={() => '#334155'} // Slate 700
-                linkWidth={1.5}
-                linkDirectionalArrowLength={5}
+                // Link Styling - Subtle and professional
+                linkColor={() => '#334155'}
+                linkWidth={1}
+                linkDirectionalArrowLength={4}
                 linkDirectionalArrowRelPos={1}
                 
-                // Particles (Data Flow Effect)
-                linkDirectionalParticles={1}
-                linkDirectionalParticleSpeed={0.003}
-                linkDirectionalParticleWidth={2}
-                linkDirectionalParticleColor={() => '#64748b'} // Slate 500
-
                 onNodeClick={(node) => {
                     setSelectedNode(node as GraphNode);
                     runAIAnalysis(node as GraphNode);
                     fgRef.current?.centerAt(node.x, node.y, 800);
-                    fgRef.current?.zoom(1.3, 800);
+                    fgRef.current?.zoom(1.2, 800);
                 }}
                 onBackgroundClick={() => { 
                     setSelectedNode(null); 
@@ -431,51 +460,52 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
             />
         </div>
 
-        {/* SIDE PANEL (INTELLIGENCE DOSSIER) */}
-        <div className="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-xl h-[650px] flex flex-col shadow-xl overflow-hidden">
-            <div className="p-4 border-b border-slate-800 bg-slate-900/50 backdrop-blur">
-                <h3 className="text-sm font-bold text-slate-100 uppercase tracking-widest flex items-center gap-2">
-                    <Search size={14} className="text-indigo-500" />
-                    Paneli i Analizës
+        {/* SIDE PANEL (DETAILS) */}
+        <div className="lg:col-span-1 bg-white border border-slate-200 rounded h-[650px] flex flex-col shadow-xl overflow-hidden">
+            <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                    <Search size={14} className="text-slate-400" />
+                    {t('caseGraph.panelTitle', 'Analysis Panel')}
                 </h3>
+                <div className="w-2 h-2 rounded-full bg-emerald-500" title="System Online"></div>
             </div>
 
-            <div className="flex-grow p-6 overflow-y-auto custom-scrollbar">
+            <div className="flex-grow p-6 overflow-y-auto custom-scrollbar bg-white">
                 {selectedNode ? (
                     <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                         {/* Node Header */}
-                        <div className="flex items-start justify-between mb-6">
+                        <div className="flex items-start gap-4 mb-6">
+                            <div className="w-12 h-12 rounded bg-slate-50 flex items-center justify-center border border-slate-200 shrink-0">
+                                {getNodeIcon(selectedNode.group)}
+                            </div>
                             <div>
-                                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mb-2 text-white bg-slate-800`}>
+                                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider mb-1 text-white bg-slate-800`}>
                                     {selectedNode.group}
                                 </span>
-                                <h2 className="text-2xl font-bold text-white leading-tight">{selectedNode.name}</h2>
-                            </div>
-                            <div className="w-12 h-12 rounded bg-slate-800 flex items-center justify-center border border-slate-700 shadow-lg">
-                                {getNodeIcon(selectedNode.group)}
+                                <h2 className="text-xl font-bold text-slate-900 leading-tight">{selectedNode.name}</h2>
                             </div>
                         </div>
 
                         {/* Metadata Grid */}
                         <div className="grid grid-cols-2 gap-3 mb-6">
-                            <div className="bg-slate-950 p-3 rounded border border-slate-800">
-                                <span className="text-[10px] text-slate-500 uppercase block mb-1">ID e Nyjes</span>
-                                <span className="text-xs font-mono text-slate-300 truncate block w-full" title={selectedNode.id}>
-                                    #{selectedNode.id.substring(0, 8)}...
+                            <div className="bg-slate-50 p-3 rounded border border-slate-100">
+                                <span className="text-[10px] text-slate-400 uppercase block mb-1">{t('caseGraph.nodeId', 'Node ID')}</span>
+                                <span className="text-xs font-mono text-slate-600 truncate block w-full">
+                                    #{selectedNode.id.substring(0, 8)}
                                 </span>
                             </div>
-                            <div className="bg-slate-950 p-3 rounded border border-slate-800">
-                                <span className="text-[10px] text-slate-500 uppercase block mb-1">Rëndësia</span>
+                            <div className="bg-slate-50 p-3 rounded border border-slate-100">
+                                <span className="text-[10px] text-slate-400 uppercase block mb-1">{t('caseGraph.importance', 'Importance')}</span>
                                 <div className="flex items-center gap-1">
-                                    <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                    <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                                         <div className="h-full bg-indigo-500 w-[75%]"></div>
                                     </div>
-                                    <span className="text-xs text-indigo-400 font-bold">Lartë</span>
+                                    <span className="text-[10px] text-indigo-600 font-bold uppercase">{t('caseGraph.high', 'High')}</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="h-px bg-gradient-to-r from-transparent via-slate-700 to-transparent my-4"></div>
+                        <div className="h-px bg-slate-100 my-4"></div>
 
                         {/* AI Section */}
                         <AIAdvisorPanel 
@@ -486,21 +516,21 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                     </div>
                 ) : (
                     <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-60">
-                        <div className="w-20 h-20 bg-slate-800/50 rounded-full flex items-center justify-center mb-6 animate-pulse">
-                            <BrainCircuit size={40} className="text-slate-600" />
+                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
+                            <ArrowRight size={24} className="text-slate-300" />
                         </div>
-                        <h3 className="text-lg font-bold text-slate-400 mb-2">Pritje për Selektim</h3>
-                        <p className="text-sm text-slate-500 max-w-[250px] leading-relaxed">
-                            Klikoni mbi një nyje në hartë për të aktivizuar motorin e analizës forenzike të Juristit.
+                        <h3 className="text-sm font-bold text-slate-400 mb-1">{t('caseGraph.waitingSelection', 'Waiting for Selection')}</h3>
+                        <p className="text-xs text-slate-400 max-w-[200px]">
+                            {t('caseGraph.selectPrompt', 'Click on a node to activate the analysis engine.')}
                         </p>
                     </div>
                 )}
             </div>
             
             {/* Footer */}
-            <div className="p-3 bg-slate-950 border-t border-slate-800 text-center">
-                <p className="text-[10px] text-slate-600 font-mono">
-                    SECURE CONNECTION • JURISTI-AI-V5.1
+            <div className="p-2 bg-slate-50 border-t border-slate-100 text-center">
+                <p className="text-[9px] text-slate-400 font-mono uppercase">
+                    {t('caseGraph.secureConnection', 'SECURE CONNECTION')} • ENCRYPTED
                 </p>
             </div>
         </div>
