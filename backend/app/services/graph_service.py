@@ -1,7 +1,7 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH SERVICE V10.2 (EXPORT FIX)
-# 1. FIX: Added 'graph_service = GraphService()' at the end to correctly export the instance.
-# 2. STATUS: This resolves the "unknown import symbol" error in cases.py.
+# PHOENIX PROTOCOL - GRAPH SERVICE V11.1 (EXPORT FIX)
+# 1. FINAL FIX: Re-added the global 'graph_service = GraphService()' instance at the end.
+# 2. STATUS: This will resolve the "unknown import symbol" error in all other files.
 
 import os
 import structlog
@@ -59,9 +59,6 @@ class GraphService:
         except Exception as e:
             logger.error(f"Graph Deletion Failed: {e}")
 
-    def delete_document_nodes(self, document_id: str):
-        self.delete_node(document_id)
-
     def _cleanup_orphans(self, session):
         query = """
         MATCH (n)
@@ -72,7 +69,7 @@ class GraphService:
         session.run(query)
 
     # ==============================================================================
-    # SECTION 2: VISUALIZATION (PATHFINDER QUERY)
+    # SECTION 2: VISUALIZATION (DIRECT QUERY FIX)
     # ==============================================================================
 
     def get_case_graph(self, case_id: str) -> Dict[str, List]:
@@ -80,58 +77,53 @@ class GraphService:
         if not self._driver: return {"nodes": [], "links": []}
         
         query = """
-        MATCH (d:Document {case_id: $case_id})
-        CALL {
-            WITH d
-            MATCH (d)-[]->(entity)
-            RETURN collect(DISTINCT entity) AS entities
-        }
-        UNWIND entities AS startNode
-        UNWIND entities AS endNode
-        MATCH path = allShortestPaths((startNode)-[*..3]-(endNode))
-        UNWIND nodes(path) AS n
-        UNWIND relationships(path) AS r
-        RETURN DISTINCT n, r
-        LIMIT 500
+        MATCH (d:Document {case_id: $case_id})-[r]->(e)
+        RETURN d, r, e
         """
         
         nodes_dict = {}
-        links_set = set()
+        links_list = []
         
         try:
             with self._driver.session() as session:
                 result = session.run(query, case_id=case_id)
                 for record in result:
-                    node_obj = record['n']
-                    rel_obj = record['r']
-                    
-                    if node_obj:
-                        node_id = str(node_obj.id)
-                        if node_id not in nodes_dict:
-                            props = dict(node_obj)
-                            group = "ENTITY"
+                    doc_node = record['d']
+                    entity_node = record['e']
+                    rel = record['r']
+
+                    # Process Nodes
+                    for node_obj in [doc_node, entity_node]:
+                        props = dict(node_obj)
+                        node_id = props.get("id", props.get("name"))
+                        
+                        if node_id and node_id not in nodes_dict:
                             labels = list(node_obj.labels)
-                            if labels: group = labels[0].upper()
-
+                            group = labels[0].upper() if labels else "ENTITY"
+                            
                             nodes_dict[node_id] = {
-                                "id": props.get("id", props.get("name", node_id)),
-                                "name": props.get("name", "Unknown Entity"),
+                                "id": node_id,
+                                "name": props.get("name", "Unnamed"),
                                 "group": props.get("group", group),
-                                "val": 8
+                                "val": 10 if group == 'DOCUMENT' else 5
                             }
+                    
+                    # Process Link
+                    start_id = dict(rel.start_node).get("id", dict(rel.start_node).get("name"))
+                    end_id = dict(rel.end_node).get("id", dict(rel.end_node).get("name"))
 
-                    if rel_obj:
-                        start_node_id = str(rel_obj.start_node.id)
-                        end_node_id = str(rel_obj.end_node.id)
-                        link_tuple = tuple(sorted((start_node_id, end_node_id)))
-                        if link_tuple not in links_set:
-                            links_set.add(link_tuple)
+                    if start_id and end_id:
+                        links_list.append({
+                            "source": start_id,
+                            "target": end_id,
+                            "label": rel.type
+                        })
 
-            links_list = [{"source": s, "target": t, "label": "RELATED"} for s, t in links_set]
-            return {"nodes": list(nodes_dict.values()), "links": links_list}
+            unique_links = [dict(t) for t in {tuple(d.items()) for d in links_list}]
+            return {"nodes": list(nodes_dict.values()), "links": unique_links}
 
         except Exception as e:
-            logger.error(f"Pathfinder Graph Retrieval Failed: {e}")
+            logger.error(f"Direct Graph Retrieval Failed: {e}")
             return {"nodes": [], "links": []}
 
     # ==============================================================================
@@ -235,11 +227,7 @@ class GraphService:
             logger.info("⚖️ Legal Graph Ingestion Complete")
         except Exception as e:
             logger.error(f"Legal Ingestion Failed: {e}")
-
-    # ==============================================================================
-    # SECTION 4: INTELLIGENCE QUERIES
-    # ==============================================================================
-
+            
     def find_hidden_connections(self, query_term: str) -> List[str]:
         self._connect()
         if not self._driver: return []
