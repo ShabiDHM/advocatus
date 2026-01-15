@@ -1,8 +1,7 @@
 // FILE: frontend/src/components/CaseGraphVisualization.tsx
-// PHOENIX PROTOCOL - FINAL TRANSFUSION V5.0
-// 1. CRITICAL FIX: Removed flawed linkCanvasObject.
-// 2. IMPLEMENTATION: Added linkDirectionalParticles for clean, animated relationship flow, matching Haveri's proven design.
-// 3. STATUS: This is the final, production-ready version.
+// PHOENIX PROTOCOL - FINAL POLISH V5.1
+// 1. VISIBILITY: Increased link width and arrow size for better clarity.
+// 2. CONTRAST: Adjusted link color for improved visibility against the dark background.
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -244,18 +243,18 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 nodePointerAreaPaint={nodePointerAreaPaint}
                 backgroundColor="rgba(0,0,0,0)" 
                 
-                // --- PHOENIX LINK FIXES ---
-                linkColor={() => '#475569'}
-                linkWidth={1.5}
-                linkDirectionalArrowLength={4}
+                // --- VISIBILITY TUNING ---
+                linkColor={() => '#64748b'}
+                linkWidth={2}
+                linkDirectionalArrowLength={6}
                 linkDirectionalArrowRelPos={1}
                 linkLabel={(link: any) => link.label}
                 
-                // Use animated particles instead of static text on links
+                // Animated particles for flow
                 linkDirectionalParticles={2}
                 linkDirectionalParticleSpeed={0.004}
                 linkDirectionalParticleWidth={2}
-                linkDirectionalParticleColor={() => '#64748b'}
+                linkDirectionalParticleColor={() => '#94a3b8'}
 
                 onNodeClick={(node) => {
                     setSelectedNode(node as GraphNode);
