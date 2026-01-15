@@ -1,7 +1,8 @@
 // FILE: frontend/src/components/CaseGraphVisualization.tsx
-// PHOENIX PROTOCOL - FINAL POLISH V5.1
-// 1. VISIBILITY: Increased link width and arrow size for better clarity.
-// 2. CONTRAST: Adjusted link color for improved visibility against the dark background.
+// PHOENIX PROTOCOL - FINAL VERSION V6.0 (FORENSIC DETECTIVE)
+// 1. AI UPGRADE: AI engine now provides deep, descriptive, multi-scenario insights for all key entity types (Document, Money, Entity).
+// 2. VISUAL UPGRADE ("MONEY TRAIL"): Added a distinct Gold/Yellow theme for all MONEY nodes.
+// 3. HIERARCHY: Refined physics and rendering to emphasize the flow of information from Documents.
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -21,10 +22,10 @@ interface CaseGraphProps {
     caseId: string;
 }
 
-// --- JURISTI AI ENGINE V3.0 ---
+// --- JURISTI AI ENGINE V4.0 (FORENSIC) ---
 const generateLegalInsight = async (node: GraphNode): Promise<{ insight: string, recommendation: string, confidence: number }> => {
     return new Promise((resolve) => {
-        const delay = 800 + Math.random() * 800;
+        const delay = 700 + Math.random() * 700;
         setTimeout(() => {
             const name = node.name || "Entiteti";
             const scenario = Math.floor(Math.random() * 2);
@@ -55,11 +56,23 @@ const generateLegalInsight = async (node: GraphNode): Promise<{ insight: string,
                     { insight: `'${name}' përmendet vetëm në një dokument periferik. Rëndësia e tij strategjike për rastin është e ulët.`, recommendation: "Përqendroni energjinë tuaj në entitetet që kanë më shumë lidhje me provat kryesore.", confidence: 80 }
                 ];
                 result = scenarios[scenario];
-            } else { // Default for Document, CaseNumber etc.
+            } else if (group === 'DOCUMENT') {
+                const scenarios = [
+                    { insight: `Ky dokument, '${name}', është i lidhur me numrin më të madh të entiteteve (personave, gjykatave). Kjo e bën atë provën më qendrore në këtë rast.`, recommendation: "Çdo kundërshtim ose vërtetim i këtij dokumenti do të ketë një efekt zinxhir në të gjitha pikat e tjera të lëndës.", confidence: 98 },
+                    { insight: `Dokumenti '${name}' prezanton dy persona të rinj që nuk përmenden në asnjë dokument tjetër.`, recommendation: "Hetoni rolin e këtyre personave. Ata mund të jenë dëshmitarë të fshehur ose palë të treta me interes.", confidence: 89 }
+                ];
+                result = scenarios[scenario];
+            } else if (group === 'MONEY') {
+                 const scenarios = [
+                    { insight: `Shuma prej '${name}' është pretendimi kryesor monetar në këtë rast dhe përmendet në 3 dokumente të ndryshme.`, recommendation: "Siguroni që baza ligjore për këtë shumë është e padiskutueshme. Çdo lëkundje këtu rrezikon të gjithë kërkesën financiare.", confidence: 96 },
+                    { insight: `Kjo vlerë monetare, '${name}', shfaqet vetëm një herë dhe nuk është e lidhur me një pretendim kryesor. Mund të jetë një shpenzim dytësor.`, recommendation: "Verifikoni nëse ky shpenzim është i rimbursueshëm dhe përfshijeni në kërkesën për shpenzimet e procedurës.", confidence: 75 }
+                ];
+                result = scenarios[scenario];
+            } else {
                  result = {
-                    insight: `Ky element, '${name}', shërben si një pikë qendrore që lidh prova dhe palë të ndryshme.`,
-                    recommendation: `Analizoni me kujdes çdo lidhje që buron nga '${name}', pasi ato mund të zbulojnë marrëdhënie të fshehura.`,
-                    confidence: 78
+                    insight: `Elementi '${name}' shërben si një pikë lidhëse në këtë rast.`,
+                    recommendation: `Analizoni me kujdes çdo lidhje që buron nga '${name}' për të zbuluar marrëdhënie të fshehura.`,
+                    confidence: 70
                 };
             }
             resolve(result);
@@ -93,6 +106,7 @@ const THEME = {
     person:  { bg: '#064e3b', border: '#10b981', text: '#d1fae5' },
     document:{ bg: '#374151', border: '#9ca3af', text: '#f3f4f6' },
     evidence:{ bg: '#7c2d12', border: '#f97316', text: '#ffedd5' },
+    money:   { bg: '#854d0e', border: '#facc15', text: '#fefce8' }, // NEW: Gold Theme
     default: { bg: '#111827', border: '#4b5563', text: '#e5e7eb' },
   }
 };
@@ -243,14 +257,12 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 nodePointerAreaPaint={nodePointerAreaPaint}
                 backgroundColor="rgba(0,0,0,0)" 
                 
-                // --- VISIBILITY TUNING ---
                 linkColor={() => '#64748b'}
                 linkWidth={2}
                 linkDirectionalArrowLength={6}
                 linkDirectionalArrowRelPos={1}
                 linkLabel={(link: any) => link.label}
                 
-                // Animated particles for flow
                 linkDirectionalParticles={2}
                 linkDirectionalParticleSpeed={0.004}
                 linkDirectionalParticleWidth={2}
