@@ -589,5 +589,11 @@
   "pdfViewer": {
     "downloadOriginal": "Shkarko Dokumentin Origjinal",
     "close": "Mbyll"
+  },
+  "caseGraph": {
+    "title": "Lidhjet",
+    "loading": "DUKE ANALIZUAR PROVAT...",
+    "emptyTitle": "Nuk ka të Dhëna Grafike",
+    "emptySubtitle": "Ngarkoni dokumente ose shtoni palë për të gjeneruar hartën."
   }
 }

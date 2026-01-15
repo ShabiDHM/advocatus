@@ -1,8 +1,13 @@
 // FILE: frontend/src/components/CaseGraphVisualization.tsx
+// PHOENIX PROTOCOL - LEGAL GRAPH V1.1 (INTERNATIONALIZATION)
+// 1. I18N: All user-facing strings are now wrapped in the t() function.
+// 2. STATUS: Ready for language file integration.
+
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
 import { apiService } from '../services/api';
 import { GraphData, GraphNode } from '../data/types';
+import { useTranslation } from 'react-i18next'; // NEW IMPORT
 import { 
     FileText, ShieldAlert, Scale, X 
 } from 'lucide-react';
@@ -47,6 +52,7 @@ const THEME = {
 };
 
 const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
+  const { t } = useTranslation(); // NEW: Translation hook
   const containerRef = useRef<HTMLDivElement>(null);
   const { width, height } = useResizeObserver(containerRef);
   
@@ -154,14 +160,14 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
     <div ref={containerRef} className="relative w-full h-[600px] bg-slate-950 rounded-lg overflow-hidden border border-slate-800 shadow-xl flex flex-col">
         <div className="absolute top-4 left-4 z-10 bg-slate-900/90 backdrop-blur px-3 py-1.5 rounded border border-slate-700 flex items-center gap-2">
             <ShieldAlert size={14} className="text-red-500" />
-            <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">Case Intelligence Map</span>
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">{t('caseGraph.title', 'Case Intelligence Map')}</span>
         </div>
 
         {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center z-20 bg-slate-950/80 backdrop-blur-sm">
                 <div className="flex flex-col items-center gap-3">
                     <Scale className="w-8 h-8 text-slate-500 animate-pulse" />
-                    <span className="text-xs font-mono text-slate-400">ANALYZING EVIDENCE...</span>
+                    <span className="text-xs font-mono text-slate-400">{t('caseGraph.loading', 'ANALYZING EVIDENCE...')}</span>
                 </div>
             </div>
         )}
@@ -169,8 +175,8 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
         {!isLoading && data.nodes.length === 0 && (
             <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
                 <FileText className="w-12 h-12 text-slate-700 mb-4" />
-                <h3 className="text-lg font-bold text-slate-500">No Graph Data</h3>
-                <p className="text-xs text-slate-600">Upload documents or add parties to generate the map.</p>
+                <h3 className="text-lg font-bold text-slate-500">{t('caseGraph.emptyTitle', 'No Graph Data')}</h3>
+                <p className="text-xs text-slate-600">{t('caseGraph.emptySubtitle', 'Upload documents or add parties to generate the map.')}</p>
             </div>
         )}
 
