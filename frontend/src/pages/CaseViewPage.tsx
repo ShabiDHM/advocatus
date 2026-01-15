@@ -1,7 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V12.2 (ADMIN GATE)
-// 1. SECURITY: Graph button and view are now hidden unless user.role === 'ADMIN'.
-// 2. STATUS: Feature is now isolated to administrators.
+// PHOENIX PROTOCOL - CASE VIEW V12.3 (I18N FIX)
+// 1. I18N: The "Graph" button is now translated to "Lidhjet".
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -86,7 +85,7 @@ const CaseHeader: React.FC<{
     isAnalyzing: boolean; 
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
-    userRole: 'ADMIN' | 'LAWYER' | 'CLIENT'; // PHOENIX: Need user role for logic
+    userRole: 'ADMIN' | 'LAWYER' | 'CLIENT';
 }> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode, userRole }) => {
     
     const analyzeButtonText = activeContextId === 'general' 
@@ -146,14 +145,13 @@ const CaseHeader: React.FC<{
                         <span>{t('caseView.analyst', 'Analyst')}</span>
                     </button>
 
-                    {/* PHOENIX FIX: Admin Gate for Graph Button */}
                     {userRole === 'ADMIN' && (
                         <button 
                             onClick={() => setViewMode(viewMode === 'graph' ? 'workspace' : 'graph')}
                             className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${viewMode === 'graph' ? 'bg-purple-600/20 border-purple-500 text-white' : 'text-gray-400 border-transparent hover:text-white'}`}
                         >
                             <Network className="h-4 w-4" />
-                            <span>Graph</span>
+                            <span>{t('caseView.graph', 'Lidhjet')}</span>
                         </button>
                     )}
 
@@ -183,7 +181,7 @@ const CaseHeader: React.FC<{
 
 const CaseViewPage: React.FC = () => {
   const { t } = useTranslation();
-  const { isLoading: isAuthLoading, isAuthenticated, user } = useAuth(); // PHOENIX: Get the full user object
+  const { isLoading: isAuthLoading, isAuthenticated, user } = useAuth();
   const { caseId } = useParams<{ caseId: string }>();
   
   const [caseData, setCaseData] = useState<CaseData>({ details: null });
@@ -311,7 +309,6 @@ const CaseViewPage: React.FC = () => {
                 </motion.div>
             )}
 
-            {/* PHOENIX FIX: Admin Gate for Graph View */}
             {(viewMode === 'graph' && user?.role === 'ADMIN') && (
                 <motion.div
                     key="graph"

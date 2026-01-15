@@ -163,7 +163,8 @@
       "ARCHIVED": "Arkivuar"
     },
     "workspace": "Kthehu",
-    "analyst": "Analisti Financiar"
+    "analyst": "Analisti Financiar",
+    "graph": "Lidhjet"
   },
   "analyst": {
     "title": "Analisti Financiar",
@@ -591,7 +592,7 @@
     "close": "Mbyll"
   },
   "caseGraph": {
-    "title": "Lidhjet",
+    "title": "Harta e Inteligjencës së Rastit",
     "loading": "DUKE ANALIZUAR PROVAT...",
     "emptyTitle": "Nuk ka të Dhëna Grafike",
     "emptySubtitle": "Ngarkoni dokumente ose shtoni palë për të gjeneruar hartën."
