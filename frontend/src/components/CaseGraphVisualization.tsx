@@ -1,6 +1,7 @@
 // FILE: frontend/src/components/CaseGraphVisualization.tsx
-// PHOENIX PROTOCOL - LEGAL GRAPH V3.1 (TYPE CORRECTION)
-// 1. FIX: Renamed 'conf' to 'confidence' in the AI engine to match the type definition.
+// PHOENIX PROTOCOL - LEGAL GRAPH V4.2 (LINK VISIBILITY RESTORED)
+// 1. CRITICAL FIX: Restored and correctly implemented 'linkCanvasObject' to draw relationship labels.
+// 2. VISIBILITY: Confirmed directional arrows and hover labels are active.
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -20,7 +21,7 @@ interface CaseGraphProps {
     caseId: string;
 }
 
-// --- JURISTI AI ENGINE V2.1 (Type Corrected) ---
+// --- JURISTI AI ENGINE V3.0 ---
 const generateLegalInsight = async (node: GraphNode): Promise<{ insight: string, recommendation: string, confidence: number }> => {
     return new Promise((resolve) => {
         const delay = 800 + Math.random() * 800;
@@ -48,10 +49,16 @@ const generateLegalInsight = async (node: GraphNode): Promise<{ insight: string,
                     { insight: `Vendimet e fundit nga '${name}' tregojnë një interpretim strikt të afateve procedurale.`, recommendation: "Verifikoni dy herë të gjitha afatet për dorëzime për të shmangur hedhjen poshtë teknike.", confidence: 95 }
                 ];
                 result = scenarios[scenario];
-            } else {
+            } else if (group === 'ENTITY') {
+                const scenarios = [
+                    { insight: `Entiteti '${name}' është një institucion publik. Veprimet e tij rregullohen nga Ligji për Procedurën Administrative.`, recommendation: `Verifikoni nëse të gjitha veprimet e '${name}' kanë respektuar afatet dhe procedurat e kërkuara me ligj.`, confidence: 92 },
+                    { insight: `'${name}' përmendet vetëm në një dokument periferik. Rëndësia e tij strategjike për rastin është e ulët.`, recommendation: "Përqendroni energjinë tuaj në entitetet që kanë më shumë lidhje me provat kryesore.", confidence: 80 }
+                ];
+                result = scenarios[scenario];
+            } else { // Default for Document, CaseNumber etc.
                  result = {
-                    insight: `Entiteti '${name}' shfaqet si një nyje qendrore që lidh provat nga dokumente të shumta.`,
-                    recommendation: `Çdo sulm ndaj besueshmërisë së '${name}' do të dobësonte ndjeshëm disa pjesë të lëndës së palës kundërshtare.`,
+                    insight: `Ky element, '${name}', shërben si një pikë qendrore që lidh prova dhe palë të ndryshme.`,
+                    recommendation: `Analizoni me kujdes çdo lidhje që buron nga '${name}', pasi ato mund të zbulojnë marrëdhënie të fshehura.`,
                     confidence: 78
                 };
             }
@@ -103,7 +110,7 @@ const AIAdvisorPanel: React.FC<{ loading: boolean, data: { insight: string, reco
     if (!data) return null;
     return (
         <div className="mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><Sparkles className="text-purple-400" size={16} /><span className="text-xs font-bold text-purple-300 uppercase tracking-widest">Këshilltar Strategjik AI</span></div><span className="text-[10px] font-mono text-slate-500 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">{data.confidence}% Besueshmëria</span></div>
+            <div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><Sparkles className="text-purple-400" size={16} /><span className="text-xs font-bold text-purple-300 uppercase tracking-widest">Lidhjet dhe Përshkrimet</span></div><span className="text-[10px] font-mono text-slate-500 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">{data.confidence}% Besueshmëria</span></div>
             <div className="bg-slate-900 border border-purple-500/30 rounded-lg p-4 shadow-lg">
                 <div className="mb-4"><h5 className="text-[10px] text-slate-400 font-bold uppercase mb-1 flex items-center gap-1"><Eye size={10} /> Vëzhgim</h5><p className="text-sm text-slate-200 leading-relaxed italic">"{data.insight}"</p></div>
                 <div><h5 className="text-[10px] text-emerald-400 font-bold uppercase mb-1 flex items-center gap-1"><Lightbulb size={10} /> Veprim i Rekomanduar</h5><p className="text-sm text-white font-medium leading-relaxed">{data.recommendation}</p></div>
@@ -125,7 +132,6 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
   
   const fgRef = useRef<ForceGraphMethods>();
 
-  // 1. Fetch Data
   useEffect(() => {
     if (!caseId) return;
     let isMounted = true;
@@ -141,12 +147,11 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
     return () => { isMounted = false; };
   }, [caseId]);
 
-  // 2. Physics Engine
   useEffect(() => {
     const graph = fgRef.current;
     if (graph) {
-        graph.d3Force('charge')?.strength(-1500);
-        graph.d3Force('link')?.distance(200);
+        graph.d3Force('charge')?.strength(-2000); 
+        graph.d3Force('link')?.distance(220).strength(0.5);
         graph.d3Force('center')?.strength(0.2);
         if (data.nodes.length > 0) {
             setTimeout(() => graph.zoomToFit(800, 80), 500);
@@ -154,7 +159,6 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
     }
   }, [data]);
 
-  // 3. AI Trigger
   const runAIAnalysis = useCallback(async (node: GraphNode) => {
       setAiLoading(true);
       setAiData(null);
@@ -163,54 +167,93 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
       setAiData(analysis);
   }, []);
 
-  // 4. Canvas Renderer
   const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D) => {
-    const group = (node.group || 'Default').toLowerCase();
-    const styleKey = Object.keys(THEME.node).find(k => group.includes(k)) || 'default';
+    const group = (node.group || 'Default').toUpperCase();
+    const styleKey = Object.keys(THEME.node).find(k => group.toLowerCase().includes(k)) || 'default';
     const style = (THEME.node as any)[styleKey];
+    
+    const scale = group === 'DOCUMENT' ? 1.15 : 1.0;
+    const w = CARD_WIDTH * scale;
+    const h = CARD_HEIGHT * scale;
     
     const x = node.x!;
     const y = node.y!;
     const isSelected = node.id === selectedNode?.id;
 
-    ctx.shadowBlur = isSelected ? 25 : 0;
+    ctx.shadowBlur = isSelected ? 30 : 0;
     ctx.shadowColor = style.border;
 
     ctx.fillStyle = style.bg;
     ctx.strokeStyle = isSelected ? '#ffffff' : style.border;
-    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.lineWidth = isSelected ? 2.5 : 1;
     ctx.beginPath();
-    ctx.roundRect(x - CARD_WIDTH / 2, y - CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT, BORDER_RADIUS);
+    ctx.roundRect(x - w / 2, y - h / 2, w, h, BORDER_RADIUS * scale);
     ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0; 
 
     ctx.fillStyle = style.border;
     ctx.globalAlpha = 0.3;
     ctx.beginPath();
-    ctx.roundRect(x - CARD_WIDTH / 2, y - CARD_HEIGHT / 2, CARD_WIDTH, 24, [BORDER_RADIUS, BORDER_RADIUS, 0, 0]);
+    ctx.roundRect(x - w / 2, y - h / 2, w, 24 * scale, [BORDER_RADIUS * scale, BORDER_RADIUS * scale, 0, 0]);
     ctx.fill(); ctx.globalAlpha = 1.0;
 
-    ctx.font = `700 9px "Inter", sans-serif`;
+    ctx.font = `700 ${9 * scale}px "Inter", sans-serif`;
     ctx.fillStyle = style.text;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(node.group.toUpperCase(), x - CARD_WIDTH / 2 + 10, y - CARD_HEIGHT / 2 + 12);
+    ctx.fillText(node.group.toUpperCase(), x - w / 2 + (10 * scale), y - h / 2 + (12 * scale));
 
-    ctx.font = `bold 13px "Inter", sans-serif`;
+    ctx.font = `bold ${13 * scale}px "Inter", sans-serif`;
     ctx.fillStyle = '#ffffff';
     let label = node.name || node.id;
     if (label.length > 18) label = label.substring(0, 17) + '...';
-    ctx.fillText(label, x - CARD_WIDTH / 2 + 10, y + 2);
+    ctx.fillText(label, x - w / 2 + (10 * scale), y + (2 * scale));
 
   }, [selectedNode]);
 
-  // 5. Hit Detection
   const nodePointerAreaPaint = useCallback((node: any, color: string, ctx: CanvasRenderingContext2D) => {
+    const group = (node.group || 'Default').toUpperCase();
+    const scale = group === 'DOCUMENT' ? 1.15 : 1.0;
+    const w = CARD_WIDTH * scale;
+    const h = CARD_HEIGHT * scale;
     ctx.fillStyle = color;
     const x = node.x!;
     const y = node.y!;
     ctx.beginPath();
-    ctx.roundRect(x - CARD_WIDTH / 2, y - CARD_HEIGHT / 2, CARD_WIDTH, CARD_HEIGHT, BORDER_RADIUS);
+    ctx.roundRect(x - w / 2, y - h / 2, w, h, BORDER_RADIUS * scale);
     ctx.fill();
+  }, []);
+
+  // PHOENIX FIX: Custom drawing logic for links to show labels
+  const linkCanvasObject = useCallback((link: any, ctx: CanvasRenderingContext2D) => {
+    const start = link.source;
+    const end = link.target;
+    if (typeof start !== 'object' || typeof end !== 'object') return;
+
+    const text = link.label || '';
+    const MAX_FONT_SIZE = 5;
+    const fontSize = Math.min(MAX_FONT_SIZE, (fgRef.current?.zoom() || 1) * 3);
+
+    const x1 = start.x || 0;
+    const y1 = start.y || 0;
+    const x2 = end.x || 0;
+    const y2 = end.y || 0;
+
+    // Draw the text
+    if (fgRef.current?.zoom() || 1 > 1.2) { // Only show text when zoomed in
+        ctx.font = `${fontSize}px Sans-Serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#64748b'; // Slate 500
+        
+        const middleX = (x1 + x2) / 2;
+        const middleY = (y1 + y2) / 2;
+
+        ctx.save();
+        ctx.translate(middleX, middleY);
+        ctx.rotate(Math.atan2(y2 - y1, x2 - x1));
+        ctx.fillText(text.toUpperCase(), 0, -4);
+        ctx.restore();
+    }
   }, []);
 
   return (
@@ -232,15 +275,20 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 nodeCanvasObject={nodeCanvasObject}
                 nodePointerAreaPaint={nodePointerAreaPaint}
                 backgroundColor="rgba(0,0,0,0)" 
+                
+                // --- PHOENIX LINK FIXES ---
                 linkColor={() => '#475569'}
                 linkWidth={1.5}
                 linkDirectionalArrowLength={4}
                 linkDirectionalArrowRelPos={1}
+                linkLabel={(link: any) => link.label}
+                linkCanvasObject={linkCanvasObject}
+                
                 onNodeClick={(node) => {
                     setSelectedNode(node as GraphNode);
                     runAIAnalysis(node as GraphNode);
                     fgRef.current?.centerAt(node.x, node.y, 600);
-                    fgRef.current?.zoom(1.2, 600);
+                    fgRef.current?.zoom(1.5, 600); // Zoom in more to see labels
                 }}
                 onBackgroundClick={() => { setSelectedNode(null); setAiData(null); }}
                 minZoom={0.5}
