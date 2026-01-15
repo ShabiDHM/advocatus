@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V6.1 (COMPLETE GRAPH SYNC)
-# 1. SYNC: delete_document and bulk_delete_documents now trigger graph_service.delete_node().
-# 2. STATUS: All deletion endpoints in this file are now synchronized with Neo4j.
+# PHOENIX PROTOCOL - CASES ROUTER V7.0 (INTELLIGENCE ENGINE CONNECTED)
+# 1. ADDED: get_node_analysis_endpoint for Real-Time Graph Intelligence.
+# 2. MAINTAINED: All existing Archive, Portal, and Document logic.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -519,3 +519,27 @@ async def get_public_case_logo(
     except Exception as e:
         logger.error(f"Public Logo Error: {e}")
         raise HTTPException(status_code=404, detail="Logo not available")
+
+@router.get("/{case_id}/graph/nodes/{node_id}/analysis", tags=["Analysis"])
+async def get_node_analysis_endpoint(
+    case_id: str,
+    node_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    REAL-TIME FORENSIC NODE ANALYSIS.
+    Called when a user clicks a node in the graph.
+    """
+    validate_object_id(case_id)
+    
+    # 1. Run Analysis
+    result = await asyncio.to_thread(
+        analysis_service.analyze_node_context,
+        db=db,
+        case_id=case_id,
+        node_id=node_id,
+        user_id=str(current_user.id)
+    )
+    
+    return JSONResponse(content=result)
