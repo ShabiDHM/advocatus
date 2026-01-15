@@ -1,8 +1,8 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH SERVICE V9.0 (UNIVERSAL DELETION & ORPHAN SWEEP)
-# 1. UPGRADE: Added delete_node() with Universal ID Matching (Case, Document).
-# 2. HYGIENE: Implemented specific orphan cleanup for Judges, Courts, and Persons.
-# 3. SYNC: Ensures Neo4j stays perfectly aligned with MongoDB deletions.
+# PHOENIX PROTOCOL - GRAPH SERVICE V10.0 (PATHFINDER QUERY & FULL SYNC)
+# 1. CRITICAL FIX: Replaced get_case_graph query with a multi-hop pathfinding query.
+# 2. SYNC: Includes the universal delete_node and orphan cleanup logic.
+# 3. STATUS: Complete, production-ready version.
 
 import os
 import structlog
@@ -39,7 +39,7 @@ class GraphService:
             self._driver.close()
 
     # ==============================================================================
-    # SECTION 1: MAINTENANCE & DELETION (V9 UPGRADE)
+    # SECTION 1: MAINTENANCE & DELETION
     # ==============================================================================
 
     def delete_node(self, node_id: str):
@@ -86,61 +86,81 @@ class GraphService:
         session.run(query)
 
     # ==============================================================================
-    # SECTION 2: VISUALIZATION
+    # SECTION 2: VISUALIZATION (PHOENIX UPGRADE - PATHFINDER)
     # ==============================================================================
 
     def get_case_graph(self, case_id: str) -> Dict[str, List]:
         self._connect()
         if not self._driver: return {"nodes": [], "links": []}
         
+        # This new query finds all nodes related to the case's documents and then finds
+        # all paths between those nodes, up to 3 hops away, creating a rich network.
         query = """
         MATCH (d:Document {case_id: $case_id})
-        OPTIONAL MATCH (d)-[:MENTIONS|ISSUED_BY]->(e)
-        WITH collect(DISTINCT d) + collect(DISTINCT e) as nodes
-        UNWIND nodes as n
-        OPTIONAL MATCH (n)-[r]-(m)
-        WHERE m IN nodes
-        RETURN DISTINCT n, r, m
+        CALL {
+            WITH d
+            MATCH (d)-[]->(entity)
+            RETURN collect(DISTINCT entity) AS entities
+        }
+        UNWIND entities AS startNode
+        UNWIND entities AS endNode
+        MATCH path = allShortestPaths((startNode)-[*..3]-(endNode))
+        UNWIND nodes(path) AS n
+        UNWIND relationships(path) AS r
+        RETURN DISTINCT n, r
+        LIMIT 500
         """
         
         nodes_dict = {}
-        links_list = []
+        links_set = set()
         
         try:
             with self._driver.session() as session:
                 result = session.run(query, case_id=case_id)
                 for record in result:
-                    n, m, r = record['n'], record['m'], record['r']
+                    node_obj = record['n']
+                    rel_obj = record['r']
                     
-                    for node_obj in [n, m]:
-                        if node_obj:
-                            nid = node_obj.get("id", node_obj.get("name"))
-                            if nid and nid not in nodes_dict:
-                                grp = node_obj.get("group", "ENTITY")
-                                nodes_dict[nid] = {
-                                    "id": nid,
-                                    "name": node_obj.get("name", "Unknown"),
-                                    "group": grp,
-                                    "val": 20 if grp == 'DOCUMENT' else 8
-                                }
+                    # Process Node
+                    if node_obj:
+                        node_id = str(node_obj.id)
+                        if node_id not in nodes_dict:
+                            props = dict(node_obj)
+                            group = "ENTITY"
+                            labels = list(node_obj.labels)
+                            if labels: group = labels[0].upper()
 
-                    if r and n and m:
-                        links_list.append({
-                            "source": n.get("id", n.get("name")),
-                            "target": m.get("id", m.get("name")),
-                            "label": r.type.replace("_", " ")
-                        })
+                            nodes_dict[node_id] = {
+                                "id": props.get("id", props.get("name", node_id)),
+                                "name": props.get("name", "Unknown Entity"),
+                                "group": props.get("group", group),
+                                "val": 8
+                            }
 
+                    # Process Relationship
+                    if rel_obj:
+                        start_node_id = str(rel_obj.start_node.id)
+                        end_node_id = str(rel_obj.end_node.id)
+                        link_tuple = tuple(sorted((start_node_id, end_node_id)))
+                        if link_tuple not in links_set:
+                            links_set.add(link_tuple)
+
+            links_list = [{"source": s, "target": t, "label": "RELATED"} for s, t in links_set]
             return {"nodes": list(nodes_dict.values()), "links": links_list}
+
         except Exception as e:
-            logger.error(f"Graph Retrieval Failed: {e}")
+            logger.error(f"Pathfinder Graph Retrieval Failed: {e}")
             return {"nodes": [], "links": []}
 
+
     # ==============================================================================
-    # SECTION 3: DATA INGESTION
+    # SECTION 3: DATA INGESTION (ENTITIES & RELATIONSHIPS)
     # ==============================================================================
 
     def ingest_entities_and_relations(self, case_id: str, document_id: str, doc_name: str, entities: List[Dict], relations: List[Dict], doc_metadata: Optional[Dict] = None):
+        """
+        Ingests People, Money, Orgs, AND rich legal metadata (Court, Judge).
+        """
         self._connect()
         if not self._driver: return
 
@@ -150,6 +170,7 @@ class GraphService:
                 SET d.case_id = $case_id, d.name = $doc_name, d.group = 'DOCUMENT'
             """, doc_id=d_id, case_id=c_id, doc_name=d_name)
 
+            # PHOENIX UPGRADE: Ingest rich legal metadata first
             if meta:
                 if meta.get("court"):
                     tx.run("""
@@ -170,6 +191,7 @@ class GraphService:
                         MERGE (d)-[:MENTIONS]->(cn)
                     """, case_num=meta["case_number"], doc_id=d_id)
 
+            # Ingest standard entities from LLM
             for ent in ents:
                 raw_label = ent.get("type", "Entity").strip().capitalize()
                 label = "ENTITY"
@@ -192,6 +214,7 @@ class GraphService:
                 subj = rel.get("subject", "").strip().title()
                 obj = rel.get("object", "").strip().title()
                 predicate = rel.get("relation", "RELATED_TO").upper().replace(" ", "_")
+                
                 if subj and obj:
                     tx.run(f"""
                     MATCH (a {{name: $subj}})
@@ -204,6 +227,10 @@ class GraphService:
                 session.execute_write(_tx_ingest, case_id, document_id, doc_name, entities, relations, doc_metadata)
         except Exception as e:
             logger.error(f"Graph Ingestion Error: {e}")
+
+    # ==============================================================================
+    # SECTION 4: LITIGATION ENGINE (V6 - CLAIMS & CONTRADICTIONS)
+    # ==============================================================================
 
     def ingest_legal_analysis(self, case_id: str, doc_id: str, analysis: List[Dict]):
         self._connect()
@@ -239,7 +266,7 @@ class GraphService:
             logger.error(f"Legal Ingestion Failed: {e}")
 
     # ==============================================================================
-    # SECTION 4: INTELLIGENCE QUERIES
+    # SECTION 5: INTELLIGENCE QUERIES (DETECTIVE TOOLS)
     # ==============================================================================
 
     def find_hidden_connections(self, query_term: str) -> List[str]:

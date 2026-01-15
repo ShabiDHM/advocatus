@@ -1,7 +1,8 @@
 // FILE: frontend/src/components/CaseGraphVisualization.tsx
-// PHOENIX PROTOCOL - LEGAL GRAPH V2.1 (FINAL HYGIENE)
-// 1. FIX: Added 'Sparkles' icon to imports for the AI Advisor panel.
-// 2. CLEANUP: Removed other unused icons.
+// PHOENIX PROTOCOL - LEGAL GRAPH V2.0 (AI-POWERED)
+// 1. AI INTEGRATION: Added a full "AI Strategic Advisor" panel with descriptive recommendations.
+// 2. PHYSICS: Implemented "Command Center" gravity to create a tight, professional cluster.
+// 3. VISUALS: Upgraded node cards to an Enterprise-grade aesthetic.
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ForceGraph2D, { ForceGraphMethods } from 'react-force-graph-2d';
@@ -21,7 +22,7 @@ interface CaseGraphProps {
     caseId: string;
 }
 
-// --- JURISTI AI ENGINE ---
+// --- JURISTI AI ENGINE (Simulated Legal Analysis) ---
 const generateLegalInsight = async (node: GraphNode): Promise<{ insight: string, recommendation: string, confidence: number }> => {
     return new Promise((resolve) => {
         const delay = 800 + Math.random() * 800;
@@ -30,7 +31,7 @@ const generateLegalInsight = async (node: GraphNode): Promise<{ insight: string,
             const scenario = Math.floor(Math.random() * 2);
             let result = { insight: "", recommendation: "", confidence: 85 };
 
-            if (node.group === 'Judge') {
+            if (node.group === 'JUDGE') {
                 const scenarios = [
                     {
                         insight: `Gjyqtari '${name}' ka një normë prej 85% të vendimeve në favor të paditësit në raste të ngjashme kontraktuale.`,
@@ -45,7 +46,7 @@ const generateLegalInsight = async (node: GraphNode): Promise<{ insight: string,
                 ];
                 const s = scenarios[scenario];
                 result = { insight: s.insight, recommendation: s.recommendation, confidence: s.conf };
-            } else if (node.group === 'Person') {
+            } else if (node.group === 'PERSON') {
                  const scenarios = [
                     {
                         insight: `Ky person, '${name}', përmendet në 4 dokumente kyçe por nuk është palë ndërgjyqëse. Lidhjet tregojnë se ai është një 'ndikues i fshehur'.`,
