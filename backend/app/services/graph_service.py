@@ -1,8 +1,8 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH SERVICE V8 (LEGAL ENTITY AWARE)
-# 1. NEW NODES: Added 'Court', 'Judge', and 'CaseNumber' as first-class citizens.
-# 2. NEW RELATIONSHIP: Added ':ISSUED_BY' to link Documents to Courts.
-# 3. CAPABILITY: Enables queries like "Find all cases from Gjykata Themelore".
+# PHOENIX PROTOCOL - GRAPH SERVICE V9.0 (UNIVERSAL DELETION & ORPHAN SWEEP)
+# 1. UPGRADE: Added delete_node() with Universal ID Matching (Case, Document).
+# 2. HYGIENE: Implemented specific orphan cleanup for Judges, Courts, and Persons.
+# 3. SYNC: Ensures Neo4j stays perfectly aligned with MongoDB deletions.
 
 import os
 import structlog
@@ -39,19 +39,55 @@ class GraphService:
             self._driver.close()
 
     # ==============================================================================
-    # SECTION 1: MAINTENANCE & VISUALIZATION (V5)
+    # SECTION 1: MAINTENANCE & DELETION (V9 UPGRADE)
     # ==============================================================================
 
-    def delete_document_nodes(self, document_id: str):
+    def delete_node(self, node_id: str):
+        """
+        Universally removes a node (Case or Document) and cleans up resulting orphans.
+        Called by API endpoints when deleting items from MongoDB.
+        """
         self._connect()
         if not self._driver: return
+
         try:
             with self._driver.session() as session:
-                session.run("MATCH (d:Document {id: $doc_id}) DETACH DELETE d", doc_id=document_id)
-                session.run("MATCH (n) WHERE NOT (n)--() DELETE n") # Cleanup orphans
-            logger.info(f"🗑️ Deleted Graph Nodes for Document {document_id}")
+                # 1. Delete the target node (Document or Case context)
+                session.run("""
+                    MATCH (n) 
+                    WHERE n.id = $id 
+                       OR n.case_id = $id 
+                       OR n.documentId = $id
+                    DETACH DELETE n
+                """, id=node_id)
+                
+                # 2. Targeted Orphan Sweep (Don't leave stray Judges/People)
+                self._cleanup_orphans(session)
+                
+            logger.info(f"🗑️ Deleted Graph Node {node_id} and cleaned orphans")
         except Exception as e:
             logger.error(f"Graph Deletion Failed: {e}")
+
+    def delete_document_nodes(self, document_id: str):
+        """Legacy wrapper for backward compatibility"""
+        self.delete_node(document_id)
+
+    def _cleanup_orphans(self, session):
+        """
+        Removes secondary nodes that have lost all connections.
+        Targeting: Person, Judge, Court, Claim, Evidence, Entity.
+        """
+        query = """
+        MATCH (n)
+        WHERE (n:Person OR n:Judge OR n:Court OR n:Claim OR n:Evidence OR n:Entity)
+          AND NOT (n)--()
+        DELETE n
+        """
+        session.run(query)
+
+    # ==============================================================================
+    # SECTION 2: VISUALIZATION
+    # ==============================================================================
 
     def get_case_graph(self, case_id: str) -> Dict[str, List]:
         self._connect()
@@ -101,13 +137,10 @@ class GraphService:
             return {"nodes": [], "links": []}
 
     # ==============================================================================
-    # SECTION 2: DATA INGESTION (ENTITIES & RELATIONSHIPS)
+    # SECTION 3: DATA INGESTION
     # ==============================================================================
 
     def ingest_entities_and_relations(self, case_id: str, document_id: str, doc_name: str, entities: List[Dict], relations: List[Dict], doc_metadata: Optional[Dict] = None):
-        """
-        Ingests People, Money, Orgs, AND rich legal metadata (Court, Judge).
-        """
         self._connect()
         if not self._driver: return
 
@@ -117,7 +150,6 @@ class GraphService:
                 SET d.case_id = $case_id, d.name = $doc_name, d.group = 'DOCUMENT'
             """, doc_id=d_id, case_id=c_id, doc_name=d_name)
 
-            # PHOENIX UPGRADE: Ingest rich legal metadata first
             if meta:
                 if meta.get("court"):
                     tx.run("""
@@ -138,7 +170,6 @@ class GraphService:
                         MERGE (d)-[:MENTIONS]->(cn)
                     """, case_num=meta["case_number"], doc_id=d_id)
 
-            # Ingest standard entities from LLM
             for ent in ents:
                 raw_label = ent.get("type", "Entity").strip().capitalize()
                 label = "ENTITY"
@@ -161,7 +192,6 @@ class GraphService:
                 subj = rel.get("subject", "").strip().title()
                 obj = rel.get("object", "").strip().title()
                 predicate = rel.get("relation", "RELATED_TO").upper().replace(" ", "_")
-                
                 if subj and obj:
                     tx.run(f"""
                     MATCH (a {{name: $subj}})
@@ -174,10 +204,6 @@ class GraphService:
                 session.execute_write(_tx_ingest, case_id, document_id, doc_name, entities, relations, doc_metadata)
         except Exception as e:
             logger.error(f"Graph Ingestion Error: {e}")
-
-    # ==============================================================================
-    # SECTION 3: LITIGATION ENGINE (V6 - CLAIMS & CONTRADICTIONS)
-    # ==============================================================================
 
     def ingest_legal_analysis(self, case_id: str, doc_id: str, analysis: List[Dict]):
         self._connect()
@@ -213,7 +239,7 @@ class GraphService:
             logger.error(f"Legal Ingestion Failed: {e}")
 
     # ==============================================================================
-    # SECTION 4: INTELLIGENCE QUERIES (DETECTIVE TOOLS)
+    # SECTION 4: INTELLIGENCE QUERIES
     # ==============================================================================
 
     def find_hidden_connections(self, query_term: str) -> List[str]:
