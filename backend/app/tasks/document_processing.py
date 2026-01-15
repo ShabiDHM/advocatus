@@ -1,7 +1,7 @@
 # FILE: backend/app/tasks/document_processing.py
-# PHOENIX PROTOCOL - REVERT TO STABLE (LEGAL APP) V1.1
-# 1. FIX: Corrected typo 'REDIS_USL' to 'REDIS_URL'.
-# 2. STATUS: Clean build.
+# PHOENIX PROTOCOL - GRAPH SYNC ACTIVATION V2.0
+# 1. CRITICAL FIX: Ingests processed entities into the GraphService.
+# 2. STATUS: This activates the link between document processing and Neo4j.
 
 from celery import shared_task
 import structlog
@@ -14,6 +14,8 @@ from redis import Redis
 from app.core.db import db_instance, redis_sync_client
 from app.core.config import settings 
 from app.services import document_processing_service
+# PHOENIX: Import the graph service
+from app.services.graph_service import graph_service
 from app.services.document_processing_service import DocumentNotFoundInDBError
 from app.models.document import DocumentStatus
 
@@ -25,7 +27,6 @@ def publish_sse_update(document_id: str, status: str, error: Optional[str] = Non
     """
     redis_client = None
     try:
-        # PHOENIX FIX: Corrected typo from REDIS_USL to REDIS_URL
         redis_client = Redis.from_url(settings.REDIS_URL, decode_responses=True)
         doc = db_instance.documents.find_one({"_id": ObjectId(document_id)})
         if not doc:
@@ -68,11 +69,28 @@ def process_document_task(self, document_id_str: str):
         time.sleep(2) 
 
     try:
-        document_processing_service.orchestrate_document_processing_mongo(
+        # Step 1: Perform core document processing (OCR, MongoDB updates)
+        processed_data = document_processing_service.orchestrate_document_processing_mongo(
             db=db_instance,
             redis_client=redis_sync_client, 
             document_id_str=document_id_str
         )
+        log.info("task.mongo_processing_complete")
+
+        # --- PHOENIX CRITICAL FIX: Ingest into Graph ---
+        if processed_data:
+            log.info("task.graph_ingestion_started")
+            graph_service.ingest_entities_and_relations(
+                case_id=processed_data.get("case_id"),
+                document_id=document_id_str,
+                doc_name=processed_data.get("doc_name"),
+                entities=processed_data.get("entities", []),
+                relations=processed_data.get("relations", []),
+                doc_metadata=processed_data.get("metadata", {})
+            )
+            log.info("task.graph_ingestion_complete")
+        # -----------------------------------------------
+
         log.info("task.completed.success")
         publish_sse_update(document_id_str, DocumentStatus.READY)
 
