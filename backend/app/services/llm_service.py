@@ -1,8 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V28.1 (GLOBAL-AWARE)
-# 1. PERSONA UPGRADE: 'SeniorLitigator' now explicitly handles 'GRAPH INTELLIGENCE' and 'GLOBAL KNOWLEDGE'.
-# 2. FINANCIAL BRAIN: 'ForensicAccountant' retains strict VAT/Tax logic.
-# 3. CITATIONS: Enforced International Law citations (UNCRC, ECHR) alongside local laws.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V28.2 (DESCRIPTIVE LAW)
+# 1. PROMPT UPGRADE: 'legal_basis' now requires specific application context, not just titles.
+# 2. GLOBAL CITATIONS: Reinforced instruction to cite international conventions.
 
 import os
 import json
@@ -84,10 +83,10 @@ Përdor metodën IRAC (Issue, Rule, Analysis, Conclusion).
 
 RREGULLAT E ANALIZËS:
 1. INTEGRO GRAPH-IN: Nëse Graph Intelligence tregon një "Conflict of Interest" ose "Hidden Money Flow", përdore këtë për të sulmuar besueshmërinë e palës tjetër.
-2. BAZA LIGJORE E DYFISHTË (HIBRIDE):
-   - Cito saktë Nenet e ligjeve të Kosovës (psh. LPK, Ligji për Familjen).
-   - Cito STANDARDET GLOBALE (psh. Neni 8 i KEDNJ, Neni 3 i UNCRC) që mbështesin argumentin tënd.
-   - Krahaso praktikën vendore me atë ndërkombëtare ku është e nevojshme.
+2. BAZA LIGJORE (APLIKIMI KONKRET):
+   - Mos listo vetëm titullin e ligjit. SHPJEGO pse aplikohet në këtë rast.
+   - Psh: "Neni 331 (LFK): Aplikohet pasi të ardhurat e babait janë rritur ndjeshëm, që përbën 'ndryshim rrethanash'."
+   - Cito STANDARDET GLOBALE (UNCRC, KEDNJ) dhe trego si shkelen/mbrohen në këtë rast.
 3. GJUETIA E AFATEVE: Identifiko çdo afat ligjor (psh. "Afati për ankesë është 15 ditë sipas LPK").
 4. DOBËSITË E KUNDËRSHTARIT: Gjej pika të dobëta në argumentin e palës tjetër.
 5. STRATEGJIA: Sugjero 3 hapa konkretë proceduralë.
@@ -95,15 +94,15 @@ RREGULLAT E ANALIZËS:
 FORMATI I PËRGJIGJES (JSON STRICT):
 {{
   "summary": "Përmbledhje profesionale ekzekutive e rastit, duke përfshirë gjetjet nga Graph dhe kontekstin ndërkombëtar...",
-  "key_issues": ["Çështja 1: Konflikti i interesit...", "Çështja 2: Interesi më i mirë i fëmijës (UNCRC)..."],
+  "key_issues": ["Çështja 1: Konflikti i interesit te pala tjetër...", "Çështja 2: Interesi më i mirë i fëmijës (UNCRC)..."],
   "legal_basis": [
-     "Neni 331 i Ligjit për Familjen: Ndryshimi i aktgjykimit...", 
-     "Neni 3 i Konventës për të Drejtat e Fëmijës (UNCRC): Interesi më i mirë i fëmijës.",
-     "Neni 8 i KEDNJ: E drejta për respektimin e jetës private dhe familjare."
+     "Neni 331 i Ligjit për Familjen: Aplikohet drejtpërdrejt sepse klienti kërkon rishikim të alimentacionit bazuar në rritje rroge.", 
+     "Neni 3 i Konventës (UNCRC): Gjykata duhet ta vendosë interesin e fëmijës mbi interesat financiare të prindit.",
+     "Neni 8 i KEDNJ: Refuzimi i kontaktit pa arsye madhore përbën shkelje të jetës familjare."
   ],
   "strategic_analysis": "Analizë e thellë që lidh dokumentet, rrjetin e lidhjeve dhe standardet ndërkombëtare...",
-  "weaknesses": ["Mungesë dëshmitarësh...", "Mospërputhje me standardet e Strasburgut..."],
-  "action_plan": ["Hapi 1: Dërgo Kundërshtim duke cituar KEDNJ...", "Hapi 2: Kërko masë të përkohshme..."],
+  "weaknesses": ["Mungesë dëshmitarësh për dhunën e pretenduar...", "Mospërputhje me standardet e Strasburgut për kontaktin..."],
+  "action_plan": ["Hapi 1: Dërgo Kundërshtim brenda 3 ditësh duke cituar KEDNJ...", "Hapi 2: Kërko masë të përkohshme për mbrojtjen e pasurisë..."],
   "risk_level": "HIGH / MEDIUM / LOW"
 }}
 """
@@ -118,12 +117,10 @@ def get_deepseek_client() -> Optional[OpenAI]:
 def _parse_json_safely(content: str) -> Dict[str, Any]:
     try: return json.loads(content)
     except json.JSONDecodeError:
-        # Try to extract JSON blob from markdown code blocks
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
         if match:
             try: return json.loads(match.group(1))
             except: pass
-        # Try to find first { and last }
         start, end = content.find('{'), content.rfind('}')
         if start != -1 and end != -1:
             try: return json.loads(content[start:end+1])
@@ -170,34 +167,21 @@ def _call_local_llm(system_prompt: str, user_prompt: str, json_mode: bool = Fals
 # --- PUBLIC INTERFACE ---
 
 def analyze_financial_portfolio(financial_data_json: str) -> str:
-    """
-    Called by FinanceService.
-    Generates a Forensic Markdown Report.
-    """
-    # 0.2 Temp allows slightly creative analysis but strict math
     result = _call_deepseek(PROMPT_FORENSIC_ACCOUNTANT, financial_data_json, json_mode=False, temperature=0.2)
     return result or "Analiza financiare dështoi të gjenerohej për momentin."
 
 def analyze_case_integrity(text: str) -> Dict[str, Any]:
-    """
-    Called by AnalysisService.
-    Generates a Legal Strategic JSON.
-    NOTE: 'text' input here now contains both GRAPH INTELLIGENCE and DOCUMENTS.
-    """
     clean_text = sterilize_text_for_llm(text[:35000], redact_names=False)
     content = _call_deepseek(PROMPT_SENIOR_LITIGATOR, clean_text, json_mode=True, temperature=0.1)
     
-    # Fallback to Local LLM if API fails
     if not content:
         content = _call_local_llm(PROMPT_SENIOR_LITIGATOR, clean_text, json_mode=True)
         
     return _parse_json_safely(content) if content else {}
 
-# Legacy Support
 def generate_summary(text: str) -> str:
     clean = sterilize_text_for_llm(text[:15000])
     return _call_deepseek("Përmblidh këtë dokument shkurtimisht në shqip.", clean) or "S'ka përmbledhje."
 
 def extract_graph_data(text: str) -> Dict[str, Any]:
-    # Placeholder for graph extraction logic (ingestion phase)
     return {"entities": [], "relations": []}

@@ -1,8 +1,8 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V7.1 (GLOBAL CITATION AWARE)
-// 1. UI UPDATE: Detects and highlights Global Citations (UNCRC, ECHR) with distinct iconography.
-// 2. DATA MAPPING: Remains aligned with Backend JSON.
-// 3. UX: 'Risk Level' badge visual improvements.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V7.2 (I18N + VISUALS)
+// 1. I18N: All hardcoded strings replaced with useTranslation hooks.
+// 2. UX: Enhanced visual parsing for Global vs Local citations.
+// 3. STYLE: Preserved the 'Glassmorphism' senior aesthetic.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -33,9 +33,8 @@ const sanitizeText = (text: string | undefined | null): string => {
     return text.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
 };
 
-// Helper to detect global laws
 const isGlobalCitation = (text: string) => {
-    const globalKeywords = ["UNCRC", "KEDNJ", "ECHR", "Konventa", "Convention", "Strasburg", "Global", "International"];
+    const globalKeywords = ["UNCRC", "KEDNJ", "ECHR", "Konventa", "Convention", "Strasburg", "Global", "International", "OKB"];
     return globalKeywords.some(keyword => text.includes(keyword));
 };
 
@@ -53,7 +52,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
     return () => { document.body.style.overflow = 'unset'; };
   }, [isOpen]);
 
-  // SAFE DESTRUCTURING (New Backend Schema)
   const {
       summary = "",
       key_issues = [],
@@ -64,7 +62,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       risk_level = "MEDIUM"
   } = result || {};
 
-  // Risk Badge Logic
   const getRiskColor = (level: string) => {
       if (level?.includes('HIGH')) return 'bg-red-500/20 text-red-400 border-red-500/50';
       if (level?.includes('LOW')) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50';
@@ -85,9 +82,9 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   <Gavel className="text-white h-5 w-5" />
               </div>
               <div className="flex flex-col">
-                  <span className="truncate leading-tight tracking-tight">Salla e Strategjisë Ligjore</span>
+                  <span className="truncate leading-tight tracking-tight">{t('analysis.title', 'Salla e Strategjisë Ligjore')}</span>
                   <div className={`text-[10px] uppercase tracking-widest font-bold mt-1 px-1.5 py-0.5 rounded border w-fit ${getRiskColor(risk_level)}`}>
-                      RREZIKU: {risk_level}
+                      {t('analysis.risk_label', 'RREZIKU')}: {risk_level}
                   </div>
               </div>
             </h2>
@@ -95,16 +92,20 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           </div>
 
           {isLoading ? (
-             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center"><div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6"></div><h3 className="text-xl font-bold text-white mb-2">Duke Analizuar Ligjet & Faktet...</h3><p className="text-text-secondary text-sm max-w-sm mx-auto">Avokati AI po verifikon bazën ligjore, përfshirë Konventat Ndërkombëtare.</p></div>
+             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                 <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6"></div>
+                 <h3 className="text-xl font-bold text-white mb-2">{t('analysis.loading_title', 'Duke Analizuar Ligjet & Faktet...')}</h3>
+                 <p className="text-text-secondary text-sm max-w-sm mx-auto">{t('analysis.loading_desc', 'Avokati AI po verifikon bazën ligjore dhe po kërkon dobësitë e kundërshtarit.')}</p>
+             </div>
           ) : (
              <>
                 {/* TABS */}
                 <div className="flex border-b border-white/5 px-6 bg-black/20 shrink-0 overflow-x-auto no-scrollbar gap-6">
                     <button onClick={() => setActiveTab('legal')} className={`py-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${activeTab === 'legal' ? 'border-primary-start text-white' : 'border-transparent text-text-secondary hover:text-white'}`}>
-                        <Scale size={16}/> Analiza Ligjore
+                        <Scale size={16}/> {t('analysis.tab_legal', 'Analiza Ligjore')}
                     </button>
                     <button onClick={() => setActiveTab('action')} className={`py-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${activeTab === 'action' ? 'border-accent-start text-accent-start' : 'border-transparent text-text-secondary hover:text-white'}`}>
-                        <Target size={16}/> Plani Strategjik
+                        <Target size={16}/> {t('analysis.tab_strategic', 'Plani Strategjik')}
                     </button>
                 </div>
 
@@ -118,10 +119,10 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                             {/* SUMMARY */}
                             <div className="glass-panel p-6 rounded-2xl">
                                 <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-2">
-                                    <FileText size={16}/> Përmbledhje Ekzekutive
+                                    <FileText size={16}/> {t('analysis.section_summary', 'Përmbledhje Ekzekutive')}
                                 </h3>
                                 <p className="text-white text-sm leading-relaxed whitespace-pre-line border-l-2 border-white/20 pl-4">
-                                    {sanitizeText(summary || "Nuk ka përmbledhje të disponueshme.")}
+                                    {sanitizeText(summary || t('analysis.no_summary', 'Nuk ka përmbledhje të disponueshme.'))}
                                 </p>
                             </div>
 
@@ -129,7 +130,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                             {key_issues && key_issues.length > 0 && (
                                 <div className="glass-panel p-6 rounded-2xl border-white/5 bg-white/5">
                                     <h3 className="text-xs font-bold text-primary-300 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        <Swords size={16}/> Çështjet Kryesore (Issues)
+                                        <Swords size={16}/> {t('analysis.section_issues', 'Çështjet Kryesore (Issues)')}
                                     </h3>
                                     <div className="grid gap-3">
                                         {key_issues.map((issue: string, idx: number) => (
@@ -146,17 +147,17 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                             {legal_basis && legal_basis.length > 0 && (
                                 <div className="glass-panel p-6 rounded-2xl border-secondary-start/20 bg-secondary-start/5">
                                     <h3 className="text-xs font-bold text-secondary-300 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        <BookOpen size={16}/> Baza Ligjore (Rules)
+                                        <BookOpen size={16}/> {t('analysis.section_rules', 'Baza Ligjore (Rules)')}
                                     </h3>
                                     <ul className="space-y-2">
                                         {legal_basis.map((law: string, i: number) => {
                                             const isGlobal = isGlobalCitation(law);
                                             return (
-                                                <li key={i} className={`flex gap-3 text-sm items-center p-2 rounded-lg transition-colors ${isGlobal ? 'bg-indigo-500/10 border border-indigo-500/30' : ''}`}>
+                                                <li key={i} className={`flex gap-3 text-sm items-start p-3 rounded-lg transition-colors ${isGlobal ? 'bg-indigo-500/10 border border-indigo-500/30' : 'hover:bg-white/5'}`}>
                                                     {isGlobal ? (
-                                                        <Globe size={16} className="text-indigo-400 shrink-0"/>
+                                                        <Globe size={18} className="text-indigo-400 shrink-0 mt-0.5"/>
                                                     ) : (
-                                                        <Scale size={16} className="text-secondary-400 shrink-0"/>
+                                                        <Scale size={18} className="text-secondary-400 shrink-0 mt-0.5"/>
                                                     )}
                                                     <span className={`leading-relaxed font-mono text-xs ${isGlobal ? 'text-indigo-200' : 'text-secondary-100'}`}>
                                                         {sanitizeText(law)}
@@ -177,7 +178,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                             {strategic_analysis && (
                                 <div className="glass-panel p-6 rounded-2xl border-accent-start/20 bg-accent-start/5">
                                     <h3 className="text-xs font-bold text-accent-start uppercase tracking-wider mb-3 flex items-center gap-2">
-                                        <MessageCircleQuestion size={16}/> Analiza Strategjike (Analysis)
+                                        <MessageCircleQuestion size={16}/> {t('analysis.section_analysis', 'Analiza Strategjike (Analysis)')}
                                     </h3>
                                     <p className="text-white text-sm leading-relaxed">{sanitizeText(strategic_analysis)}</p>
                                 </div>
@@ -187,7 +188,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                             {weaknesses && weaknesses.length > 0 && (
                                 <div className="glass-panel p-6 rounded-2xl border-red-500/20 bg-red-500/5">
                                     <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        <ShieldAlert size={16}/> Dobësitë e Kundërshtarit
+                                        <ShieldAlert size={16}/> {t('analysis.section_weaknesses', 'Dobësitë e Kundërshtarit')}
                                     </h3>
                                     <ul className="space-y-3">
                                         {weaknesses.map((w: string, i: number) => (
@@ -204,7 +205,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                             {action_plan && action_plan.length > 0 && (
                                 <div className="glass-panel p-6 rounded-2xl border-emerald-500/20 bg-emerald-500/5">
                                     <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        <CheckCircle2 size={16}/> Plani i Veprimit (Conclusion)
+                                        <CheckCircle2 size={16}/> {t('analysis.section_conclusion', 'Plani i Veprimit (Conclusion)')}
                                     </h3>
                                     <div className="space-y-3">
                                         {action_plan.map((step: string, i: number) => (
