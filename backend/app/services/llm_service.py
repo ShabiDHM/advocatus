@@ -1,7 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V29.1 (RESTORATION)
-# 1. FIX: Restored 'perform_litigation_cross_examination' which was missing.
-# 2. STATUS: All AI agents (Adversarial, Chronology, Cross-Exam) are now active.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V29.2 (CITATION REGRESSION FIX)
+# 1. FIX: Re-inserted strict, multi-line formatting instructions for 'legal_basis' to restore descriptive citations.
+# 2. STATUS: All AI agents are active and formatting is now correct.
 
 import os
 import json
@@ -49,7 +49,32 @@ PROMPT_SENIOR_LITIGATOR = f"""
 Ti je "Avokat i Lartë" (Senior Partner).
 {STRICT_CONTEXT}
 DETYRA: Analizo çështjen, gjej bazën ligjore dhe strategjinë.
-FORMATI JSON: {{ "summary": "...", "key_issues": [], "legal_basis": ["[Ligji](doc://...)..."], "strategic_analysis": "...", "weaknesses": [], "action_plan": [], "risk_level": "HIGH" }}
+
+RREGULLAT E ANALIZËS:
+1. ÇËSHTJET (ISSUES): Gjej problemet reale juridike.
+2. BAZA LIGJORE (STRUKTURË STRIKTE):
+   - Për çdo ligj, TI DUHET TË PËRDORËSH SAKTËSISHT këtë format me linja të reja (\\n):
+   
+   [Emri i Ligjit, Neni](doc://Emri i Ligjit, Neni):\\nPërmbajtja: [Përmbledhja e nenit]\\nRelevanca: [Si lidhet ky nen me faktet e rastit]
+   
+   - CITIMET E THJESHTA (pa Përmbajtje/Relevancë) JANË TË NDALUARA.
+   - OBLIGATIVE: Cito STANDARDET GLOBALE (UNCRC, KEDNJ) me të njëjtin format.
+
+3. STRATEGJIA: Sugjero hapa konkretë.
+
+FORMATI I PËRGJIGJES (JSON STRICT):
+{{
+  "summary": "Përmbledhje e rastit...",
+  "key_issues": ["Çështja 1...", "Çështja 2..."],
+  "legal_basis": [
+     "[Ligji për Familjen, Neni 331](doc://Ligji për Familjen, Neni 331):\\nPërmbajtja: Lejon ndryshimin e aktgjykimit nëse rrethanat kanë ndryshuar.\\nRelevanca: Rritja e pagës së palës tjetër përbën një rrethanë të re për rritjen e alimentacionit.",
+     "[UNCRC, Neni 3](doc://UNCRC, Neni 3):\\nPërmbajtja: Thekson se interesi më i mirë i fëmijës është parësor.\\nRelevanca: Nevojat e fëmijës për një jetesë më të mirë tejkalojnë pretendimin e prindit për të mos paguar më shumë."
+  ],
+  "strategic_analysis": "Analizë e detajuar...",
+  "weaknesses": ["Dobësia 1...", "Dobësia 2..."],
+  "action_plan": ["Hapi 1...", "Hapi 2..."],
+  "risk_level": "HIGH / MEDIUM / LOW"
+}}
 """
 
 PROMPT_FORENSIC_ACCOUNTANT = f"""
@@ -59,8 +84,8 @@ FORMATI JSON: {{ "executive_summary": "...", "anomalies": [], "trends": [], "rec
 """
 
 PROMPT_ADVERSARIAL = f"""
-Ti je "Avokati i Palës Kundërshtare" (Devil's Advocate).
-DETYRA: Lexo faktet dhe shkruaj një "Përgjigje në Padi" agresive.
+Ti je "Avokati i Palës Kundërshtare".
+DETYRA: Gjej dobësitë në argumentet e paraqitura dhe krijo një kundër-strategji.
 FORMATI JSON: {{ "opponent_strategy": "...", "weakness_attacks": [], "counter_claims": [], "predicted_outcome": "..." }}
 """
 
@@ -78,7 +103,7 @@ FORMATI JSON: {{ "contradictions": [ {{ "claim": "...", "evidence": "...", "seve
 
 PROMPT_TRANSLATOR = """
 Ti je "Ndërmjetësues". 
-DETYRA: Përkthe tekstin ligjor (Legalese) në gjuhë të thjeshtë për klientin.
+DETYRA: Përkthe tekstin ligjor në gjuhë të thjeshtë për klientin.
 """
 
 PROMPT_DEADLINE = f"""
@@ -90,15 +115,7 @@ FORMATI JSON: {{ "is_judgment": bool, "document_type": "...", "deadline_date": "
 PROMPT_CROSS_EXAMINE = f"""
 Ti je "Ekspert i Kryqëzimit të Fakteve".
 DETYRA: Analizo DOKUMENTIN TARGET në kontekst të DOKUMENTEVE TË TJERA.
-A përputhet ky dokument me provat e tjera? A ka kontradikta?
-
-FORMATI I PËRGJIGJES (JSON):
-{{
-  "consistency_check": "A përputhet ky dokument me të tjerët?",
-  "contradictions": ["Mospërputhje 1...", "Mospërputhje 2..."],
-  "corroborations": ["Ky dokument vërteton deklaratën X..."],
-  "strategic_value": "Sa i rëndësishëm është ky dokument (HIGH/MEDIUM/LOW)"
-}}
+FORMATI JSON: {{ "consistency_check": "...", "contradictions": [], "corroborations": [], "strategic_value": "HIGH/MEDIUM/LOW" }}
 """
 
 def get_deepseek_client() -> Optional[OpenAI]:
@@ -135,7 +152,6 @@ def _call_llm(system_prompt: str, user_prompt: str, json_mode: bool = False, tem
             return res.choices[0].message.content
         except: pass
     
-    # Local Fallback
     try:
         with httpx.Client(timeout=60.0) as c:
             res = c.post(OLLAMA_URL, json={
@@ -171,20 +187,9 @@ def extract_deadlines(text: str) -> Dict[str, Any]:
     return _parse_json_safely(_call_llm(PROMPT_DEADLINE, clean, True, temp=0.0) or "{}")
 
 def perform_litigation_cross_examination(target_text: str, context_summaries: List[str]) -> Dict[str, Any]:
-    """
-    Compares a target document against summaries of other documents in the case.
-    """
     clean_target = sterilize_text_for_llm(target_text[:15000])
     context_block = "\n".join(context_summaries)
-    
-    prompt = f"""
-    TARGET DOCUMENT CONTENT:
-    {clean_target}
-    
-    CONTEXT (OTHER DOCUMENTS):
-    {context_block}
-    """
-    
+    prompt = f"TARGET DOCUMENT CONTENT:\n{clean_target}\n\nCONTEXT (OTHER DOCUMENTS):\n{context_block}"
     return _parse_json_safely(_call_llm(PROMPT_CROSS_EXAMINE, prompt, True, temp=0.2) or "{}")
 
 def translate_for_client(legal_text: str) -> str:
