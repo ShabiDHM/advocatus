@@ -1,7 +1,8 @@
 /* FILE: src/components/CaseGraphVisualization.tsx
-   PHOENIX PROTOCOL - LEGAL INTELLIGENCE MAP V4.1 (CLEANUP)
-   1. CLEANUP: Removed unused ShieldAlert import.
-   2. FUNCTIONALITY: Retains all High-Contrast and Smart-Insight features.
+   PHOENIX PROTOCOL - LEGAL INTELLIGENCE MAP V5 (READABILITY & SIGNAL-TO-NOISE)
+   1. READABILITY: Implements 'Billboard' text. Text is either 12px+ and readable, or hidden. No 'ant text'.
+   2. SIGNAL: Hides "MENTIONS" link labels to declutter the view. Only displays "CONFLICT/FINANCE".
+   3. LOGIC: Correctly identifies Laws as 'Legal Basis', not procedural entities.
 */
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
@@ -14,7 +15,7 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-const NODE_REL_SIZE = 8; // Larger base size
+const NODE_REL_SIZE = 7;
 const ARROW_REL_POS = 1;
 const ARROW_LENGTH = 5;
 
@@ -46,21 +47,21 @@ interface RealAnalysisData {
     details: string[];
 }
 
-// --- LEGAL THEME ENGINE (HIGH CONTRAST) ---
+// --- LEGAL THEME ENGINE ---
 const THEME = {
   nodes: {
     court:      '#334155', // Slate-700
-    judge:      '#ef4444', // Red-500
+    judge:      '#dc2626', // Red-600
     person:     '#10b981', // Emerald-500
     document:   '#3b82f6', // Blue-500
-    law:        '#f59e0b', // Amber-500
+    law:        '#d97706', // Amber-600
     default:    '#64748b'
   },
   links: {
     CONFLICT:   '#ef4444', // Red-500
     FAMILY:     '#10b981', // Emerald-500
-    FINANCE:    '#d97706', // Amber-600 (Darker for visibility)
-    PROCEDURAL: '#e2e8f0'  // Slate-200 (Very light to fade into background)
+    FINANCE:    '#b45309', // Amber-700 (Darker for readability)
+    PROCEDURAL: '#cbd5e1'  // Slate-300 (Faint)
   },
   icons: {
     court:      <Landmark size={24} className="text-slate-700" />,
@@ -79,7 +80,7 @@ const classifyNode = (node: any): string => {
 
     if (rawGroup === 'DOCUMENT') return 'document';
     if (name.includes('gjykata') || name.includes('themelore')) return 'court';
-    if (name.includes('ligji') || name.includes('neni')) return 'law';
+    if (name.includes('ligji') || name.includes('neni') || name.includes('kodi')) return 'law';
     if (name.includes('ministria') || name.includes('policia')) return 'court'; 
     if (name.includes('aktvendim') || name.includes('aktgjykim')) return 'document';
     if (rawGroup === 'PERSON' || rawGroup === 'USER') return 'person';
@@ -107,7 +108,6 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
   const [hoverNode, setHoverNode] = useState<SimulationNode | null>(null);
   const [viewMode, setViewMode] = useState<'ALL' | 'PEOPLE_ONLY' | 'DOCS_ONLY'>('ALL');
 
-  // Analysis State
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [realAnalysis, setRealAnalysis] = useState<RealAnalysisData | null>(null);
   
@@ -137,7 +137,8 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 const processedNodes = raw.nodes.map((n: any) => ({
                     ...n,
                     detectedGroup: classifyNode(n),
-                    displayLabel: n.name.length > 20 ? n.name.substring(0, 19) + '...' : n.name
+                    // Trucate very long names for display
+                    displayLabel: n.name.length > 25 ? n.name.substring(0, 24) + '...' : n.name
                 }));
                 const processedLinks = raw.links.map((l: any) => ({
                     ...l,
@@ -179,54 +180,49 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
       setTimeout(() => fgRef.current?.zoomToFit(400, 50), 450);
   }, [viewMode, fullData]);
 
-  // 3. Physics
+  // 3. Physics Tuning
   useEffect(() => {
     const graph = fgRef.current;
     if (graph) {
-        graph.d3Force('charge')?.strength(-600); // Stronger repulsion for clarity
-        graph.d3Force('link')?.distance(viewMode === 'PEOPLE_ONLY' ? 200 : 100);
-        graph.d3Force('center')?.strength(0.4);
+        graph.d3Force('charge')?.strength(-500);
+        graph.d3Force('link')?.distance(viewMode === 'PEOPLE_ONLY' ? 180 : 120);
+        graph.d3Force('center')?.strength(0.5);
     }
   }, [activeData, viewMode]);
 
-  // 4. GENERATE REAL INSIGHTS (No more placeholders)
+  // 4. Insight Generation
   const generateInsight = (node: SimulationNode) => {
-      // Find connections
       const links = activeData.links.filter(l => 
           (l.source as any).id === node.id || (l.target as any).id === node.id
       );
 
       const conflicts = links.filter(l => l.type === 'CONFLICT');
       const financial = links.filter(l => l.type === 'FINANCE');
-      const family = links.filter(l => l.type === 'FAMILY');
-
+      
       let summary = "";
       let details: string[] = [];
       let score = 0.5;
 
-      if (conflicts.length > 0) {
-          summary += `⚠️ Active participant in ${conflicts.length} Conflict(s). `;
-          score += 0.3;
-          conflicts.forEach(c => details.push(`Dispute with ${(c.target as any).name}: "${c.label}"`));
-      }
-      if (financial.length > 0) {
-          summary += `💰 Linked to ${financial.length} Financial Transaction(s) or Obligations. `;
-          score += 0.15;
-          financial.forEach(f => details.push(`Financial Link: "${f.label}"`));
-      }
-      if (family.length > 0) {
-          summary += `Linked to ${family.length} Family Member(s). `;
-          details.push(`Family ties detected.`);
-      }
-      if (node.detectedGroup === 'document') {
-          summary = "Key evidentiary document. ";
-          if (links.length > 3) {
-              summary += "High centrality: Referenced by multiple entities.";
-              score += 0.4;
+      // Smart Summaries
+      if (node.detectedGroup === 'law') {
+           summary = "Statutory Basis (Legal Authority). Used to justify claims or verdicts in this case.";
+           score = 0.9;
+      } else if (node.detectedGroup === 'court') {
+           summary = "Adjudicating Body / Institution. Issues verdicts and procedural orders.";
+           score = 0.7;
+      } else {
+          if (conflicts.length > 0) {
+              summary += `⚠️ Involved in ${conflicts.length} Conflict(s). `;
+              score += 0.3;
+              conflicts.forEach(c => details.push(`Conflict with ${(c.target as any).name}: "${c.label}"`));
           }
+          if (financial.length > 0) {
+              summary += `💰 Linked to financial obligations. `;
+              score += 0.15;
+              financial.forEach(f => details.push(`Financial: "${f.label}"`));
+          }
+          if (summary === "") summary = "Standard entity with procedural connections.";
       }
-
-      if (summary === "") summary = "Procedural entity with standard connections.";
 
       return {
           summary,
@@ -241,87 +237,82 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
       setRealAnalysis(null);
       setAnalysisLoading(true);
 
-      // Simulate specific legal analysis fetch (fast)
       setTimeout(() => {
           const insight = generateInsight(node);
           setRealAnalysis(insight);
           setAnalysisLoading(false);
-      }, 400);
+      }, 300);
 
       fgRef.current?.centerAt(node.x, node.y, 800);
       fgRef.current?.zoom(3.0, 800);
   };
 
-  // 5. Canvas Renderer
+  // 5. RENDERER: NODE
   const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const group = node.detectedGroup || 'default';
     const color = (THEME.nodes as any)[group] || THEME.nodes.default;
     const isSelected = node.id === selectedNode?.id;
     const isHovered = node.id === hoverNode?.id;
+    
+    // --- DRAW NODE ---
+    const baseSize = NODE_REL_SIZE;
+    const size = isSelected ? baseSize * 1.5 : baseSize;
 
-    // Node Size Logic
-    let size = NODE_REL_SIZE;
-    if (group === 'person' || group === 'judge') size = 12;
-    if (group === 'document') size = 8;
-    if (isSelected) size *= 1.4;
-
-    // Draw Node
     ctx.beginPath();
     ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
     ctx.fillStyle = color;
     ctx.fill();
 
-    // Selection Ring
     if (isSelected || isHovered) {
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 4 / globalScale;
-        ctx.stroke();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2 / globalScale;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 3 / globalScale;
         ctx.stroke();
     }
 
-    // --- TYPOGRAPHY ENGINE ---
-    // Calculate optimum font size: Never smaller than 12px visually
-    // globalScale = zoom level. If zoom=0.5, font in world space must be 24 to look like 12.
-    // We clamp the minimum scale factor to ensure text is always readable.
-    const label = node.displayLabel;
-    const fontSize = Math.max(14 / globalScale, 4); // Absolute floor in world space
+    // --- DRAW TEXT (The Billboard Protocol) ---
+    // Rule: Text is either READABLE (12px+) or HIDDEN. No tiny text.
+    // Exception: Selected node or Key Parties are always shown if possible.
     
-    // Only show labels for important nodes when zoomed out, or all nodes when zoomed in
-    const showLabel = isSelected || isHovered || globalScale > 1.0 || ['person', 'judge'].includes(group);
+    const isKeyEntity = group === 'person' || group === 'judge' || group === 'law';
+    const shouldShow = isSelected || isHovered || (globalScale > 1.2) || (globalScale > 0.8 && isKeyEntity);
 
-    if (showLabel) {
-        ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+    if (shouldShow) {
+        const fontSize = Math.max(14 / globalScale, 12); // Minimum 12px logical size
+        
+        ctx.font = `${isSelected ? 'bold' : 'normal'} ${fontSize}px Inter, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
+        const label = node.displayLabel;
         const textWidth = ctx.measureText(label).width;
         const pad = fontSize * 0.4;
-        
-        // Label Background Pill (High Contrast)
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-        ctx.shadowColor = 'rgba(0,0,0,0.3)';
+        const offset = size + 6;
+
+        // Background
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        ctx.shadowColor = 'rgba(0,0,0,0.2)';
         ctx.shadowBlur = 4;
         ctx.beginPath();
-        ctx.roundRect(node.x - textWidth/2 - pad, node.y + size + 4, textWidth + pad*2, fontSize + pad*1.5, 4);
+        ctx.roundRect(node.x - textWidth/2 - pad, node.y + offset, textWidth + pad*2, fontSize + pad, 4);
         ctx.fill();
-        ctx.shadowBlur = 0; // Reset shadow
+        ctx.shadowBlur = 0;
 
-        // Label Text
-        ctx.fillStyle = '#0f172a'; // Dark Slate text
-        ctx.fillText(label, node.x, node.y + size + 4 + fontSize/2 + pad*0.5);
+        // Text
+        ctx.fillStyle = '#1e293b'; // Slate-800
+        ctx.fillText(label, node.x, node.y + offset + fontSize/2 + pad/2);
     }
   }, [selectedNode, hoverNode]);
 
+  // 6. RENDERER: LINK
   const linkCanvasObject = useCallback((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const type = link.type || 'PROCEDURAL';
       const color = THEME.links[type as keyof typeof THEME.links];
+      const isImportant = type === 'CONFLICT' || type === 'FINANCE' || type === 'FAMILY';
       
-      // Line Thickness: Money/Conflict lines are thicker
-      const isImportant = type === 'CONFLICT' || type === 'FINANCE';
-      const width = isImportant ? 3 / globalScale : 1 / globalScale;
-      
+      // procedural links fade out when zoomed out
+      if (type === 'PROCEDURAL' && globalScale < 0.8) return;
+
+      const width = isImportant ? 2 / globalScale : 1 / globalScale;
       ctx.lineWidth = width;
       ctx.strokeStyle = color;
       
@@ -330,35 +321,39 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
       ctx.lineTo(link.target.x, link.target.y);
       ctx.stroke();
 
-      // --- EDGE LABELS (The "Why") ---
-      // Important links (Alimony, Conflict) get big labels. Procedural gets hidden when zoomed out.
-      if (isImportant || globalScale > 1.2) {
+      // --- LINK TEXT ---
+      // Rule: Hide "MENTIONS", "ISSUED BY" unless strictly hovered.
+      // Show "ALIMONY", "PADITËSE" always if zoomed in.
+      
+      const isHovered = link.source.id === hoverNode?.id || link.target.id === hoverNode?.id;
+      const shouldShowLabel = (isImportant && globalScale > 1.2) || isHovered;
+
+      if (shouldShowLabel) {
           const midX = link.source.x + (link.target.x - link.source.x) * 0.5;
           const midY = link.source.y + (link.target.y - link.source.y) * 0.5;
           
-          const fontSize = isImportant ? Math.max(12 / globalScale, 3) : Math.max(10 / globalScale, 2);
+          const fontSize = Math.max(10 / globalScale, 10); // Readable min size
           ctx.font = `bold ${fontSize}px Inter, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           
-          const labelText = link.label;
-          const textWidth = ctx.measureText(labelText).width;
+          const textWidth = ctx.measureText(link.label).width;
           const pad = 4 / globalScale;
-          
-          // Label Background (Color-coded)
-          ctx.fillStyle = color; 
+
+          // Label Background
+          ctx.fillStyle = color;
           ctx.beginPath();
           ctx.roundRect(midX - textWidth/2 - pad, midY - fontSize/2 - pad, textWidth + pad*2, fontSize + pad*2, 3);
           ctx.fill();
 
-          ctx.fillStyle = '#ffffff'; // White text on colored background
-          ctx.fillText(labelText, midX, midY);
+          ctx.fillStyle = '#fff';
+          ctx.fillText(link.label, midX, midY);
       }
-  }, []);
+  }, [hoverNode]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 font-sans h-full">
-        {/* GRAPH AREA */}
+        {/* GRAPH */}
         <div ref={containerRef} className="lg:col-span-3 relative w-full h-[650px] bg-slate-950 rounded border border-slate-800 shadow-xl overflow-hidden group flex flex-col">
             
             {/* VIEW CONTROLS */}
@@ -387,18 +382,16 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 linkCanvasObject={linkCanvasObject}
                 backgroundColor="#0f172a"
                 
-                // Interaction
                 onNodeClick={(node) => handleNodeClick(node as SimulationNode)}
                 onNodeHover={(node) => setHoverNode(node as SimulationNode || null)}
                 onBackgroundClick={() => { setSelectedNode(null); setRealAnalysis(null); }}
                 
-                // Arrows
                 linkDirectionalArrowLength={ARROW_LENGTH}
                 linkDirectionalArrowRelPos={ARROW_REL_POS}
                 linkDirectionalArrowColor={(link: any) => THEME.links[link.type as keyof typeof THEME.links] || '#334155'}
                 
-                minZoom={0.2}
-                maxZoom={8.0}
+                minZoom={0.5}
+                maxZoom={6.0}
             />
         </div>
 
@@ -452,7 +445,7 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                                             {realAnalysis.details.map((detail, i) => (
                                                 <div key={i} className="flex items-start gap-2 text-xs opacity-90">
                                                     {detail.includes('Financial') ? <Banknote size={12} className="mt-0.5 text-amber-500" /> : 
-                                                     detail.includes('Dispute') ? <AlertTriangle size={12} className="mt-0.5 text-red-500" /> :
+                                                     detail.includes('Conflict') ? <AlertTriangle size={12} className="mt-0.5 text-red-500" /> :
                                                      <Network size={12} className="mt-0.5" />}
                                                     <span>{detail}</span>
                                                 </div>
