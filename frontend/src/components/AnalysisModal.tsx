@@ -1,15 +1,15 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V7.3 (FINAL POLISH)
-// 1. CLEANUP: Automatically strips 'Ligji/Neni...' prefixes since we have Icons now.
-// 2. I18N: Full translation support maintained.
-// 3. UI: Crisp, professional typography for legal citations.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V7.4 (STRUCTURED RENDERER)
+// 1. FORMATTING: Renders '[Law](doc://...)' citations with rich styling.
+// 2. PARSING: Detects "Përmbajtja:" and "Relevanca:" keys for bold highlighting.
+// 3. UI: Preserves clean Senior aesthetic.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Scale, FileText, Swords, Target, MessageCircleQuestion, 
-    Gavel, ShieldAlert, CheckCircle2, BookOpen, AlertTriangle, Globe
+    Gavel, ShieldAlert, CheckCircle2, BookOpen, AlertTriangle, Globe, Link as LinkIcon
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CaseAnalysisResult } from '../data/types'; 
@@ -28,21 +28,54 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 `;
 
-// Helper to clean up raw AI text
-const cleanLegalText = (text: string | undefined | null): string => {
+const sanitizeText = (text: string | undefined | null): string => {
     if (!text) return "";
-    let clean = text.replace(/\[\[?([^\]]+)\]?\]/g, '$1'); // Remove [[Wiki Links]]
+    return text.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
+};
+
+// Helper to render the specific structure user requested
+const renderStructuredCitation = (text: string) => {
+    // Check if it matches the [Title](Link) pattern
+    const linkMatch = text.match(/^\[(.*?)\]\((.*?)\):?(.*)/s);
     
-    // Remove the prefixes we forced in the prompt, to keep UI clean
-    clean = clean.replace(/^Ligji\/Neni \(Kosovë\):\s*/i, '');
-    clean = clean.replace(/^Konventa \(Global\):\s*/i, '');
-    clean = clean.replace(/^Global Standards:\s*/i, '');
+    if (linkMatch) {
+        const title = linkMatch[1];
+        const link = linkMatch[2]; // Can be used for future navigation
+        const rest = linkMatch[3]; // The content/relevance body
+
+        return (
+            <div className="flex flex-col gap-1 w-full">
+                <div className="flex items-center gap-2 font-bold text-primary-200 text-xs uppercase tracking-wide mb-1 cursor-pointer hover:text-white transition-colors">
+                    <LinkIcon size={12} />
+                    <span title={link}>{title}</span>
+                </div>
+                <div className="text-gray-300 whitespace-pre-wrap leading-relaxed">
+                    {rest.split('\n').map((line, i) => {
+                        const trimmed = line.trim();
+                        if (!trimmed) return null;
+                        
+                        // Highlight "Përmbajtja:" and "Relevanca:"
+                        if (trimmed.startsWith('Përmbajtja:') || trimmed.startsWith('Relevanca:')) {
+                            const [key, ...val] = trimmed.split(':');
+                            return (
+                                <div key={i} className="mb-1">
+                                    <span className="text-secondary-300 font-semibold">{key}:</span>
+                                    <span className="text-gray-300">{val.join(':')}</span>
+                                </div>
+                            );
+                        }
+                        return <div key={i}>{trimmed}</div>;
+                    })}
+                </div>
+            </div>
+        );
+    }
     
-    return clean;
+    // Fallback for standard text
+    return <span className="leading-relaxed font-mono text-xs whitespace-pre-wrap">{sanitizeText(text)}</span>;
 };
 
 const isGlobalCitation = (text: string) => {
-    // We check the raw text or the cleaned text, usually keywords persist
     const globalKeywords = ["UNCRC", "KEDNJ", "ECHR", "Konventa", "Convention", "Strasburg", "Global", "International", "OKB"];
     return globalKeywords.some(keyword => text.includes(keyword));
 };
@@ -131,7 +164,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     <FileText size={16}/> {t('analysis.section_summary', 'Përmbledhje Ekzekutive')}
                                 </h3>
                                 <p className="text-white text-sm leading-relaxed whitespace-pre-line border-l-2 border-white/20 pl-4">
-                                    {cleanLegalText(summary || t('analysis.no_summary', 'Nuk ka përmbledhje të disponueshme.'))}
+                                    {sanitizeText(summary || t('analysis.no_summary', 'Nuk ka përmbledhje të disponueshme.'))}
                                 </p>
                             </div>
 
@@ -145,7 +178,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         {key_issues.map((issue: string, idx: number) => (
                                             <div key={idx} className="flex items-start gap-3 bg-white/5 p-3 rounded-lg border border-white/10">
                                                 <span className="text-primary-400 font-bold mt-0.5">#{idx + 1}</span>
-                                                <p className="text-sm text-gray-200 font-medium leading-snug">{cleanLegalText(issue)}</p>
+                                                <p className="text-sm text-gray-200 font-medium leading-snug">{sanitizeText(issue)}</p>
                                             </div>
                                         ))}
                                     </div>
@@ -158,19 +191,17 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     <h3 className="text-xs font-bold text-secondary-300 uppercase tracking-wider mb-4 flex items-center gap-2">
                                         <BookOpen size={16}/> {t('analysis.section_rules', 'Baza Ligjore (Rules)')}
                                     </h3>
-                                    <ul className="space-y-2">
+                                    <ul className="space-y-3">
                                         {legal_basis.map((law: string, i: number) => {
                                             const isGlobal = isGlobalCitation(law);
                                             return (
-                                                <li key={i} className={`flex gap-3 text-sm items-start p-3 rounded-lg transition-colors ${isGlobal ? 'bg-indigo-500/10 border border-indigo-500/30' : 'hover:bg-white/5'}`}>
+                                                <li key={i} className={`flex gap-3 text-sm items-start p-4 rounded-xl transition-colors ${isGlobal ? 'bg-indigo-500/10 border border-indigo-500/30' : 'bg-white/5 border border-white/5 hover:border-white/10'}`}>
                                                     {isGlobal ? (
-                                                        <Globe size={18} className="text-indigo-400 shrink-0 mt-0.5"/>
+                                                        <Globe size={20} className="text-indigo-400 shrink-0 mt-0.5"/>
                                                     ) : (
-                                                        <Scale size={18} className="text-secondary-400 shrink-0 mt-0.5"/>
+                                                        <Scale size={20} className="text-secondary-400 shrink-0 mt-0.5"/>
                                                     )}
-                                                    <span className={`leading-relaxed font-mono text-xs ${isGlobal ? 'text-indigo-200' : 'text-secondary-100'}`}>
-                                                        {cleanLegalText(law)}
-                                                    </span>
+                                                    {renderStructuredCitation(law)}
                                                 </li>
                                             );
                                         })}
@@ -189,7 +220,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     <h3 className="text-xs font-bold text-accent-start uppercase tracking-wider mb-3 flex items-center gap-2">
                                         <MessageCircleQuestion size={16}/> {t('analysis.section_analysis', 'Analiza Strategjike (Analysis)')}
                                     </h3>
-                                    <p className="text-white text-sm leading-relaxed">{cleanLegalText(strategic_analysis)}</p>
+                                    <p className="text-white text-sm leading-relaxed whitespace-pre-line">{sanitizeText(strategic_analysis)}</p>
                                 </div>
                             )}
                             
@@ -203,7 +234,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         {weaknesses.map((w: string, i: number) => (
                                             <li key={i} className="flex gap-3 text-sm text-red-100 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
                                                 <AlertTriangle size={16} className="text-red-500 shrink-0"/>
-                                                <span className="leading-relaxed">{cleanLegalText(w)}</span>
+                                                <span className="leading-relaxed">{sanitizeText(w)}</span>
                                             </li>
                                         ))}
                                     </ul>
@@ -222,7 +253,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-black font-bold text-xs shrink-0">
                                                     {i + 1}
                                                 </span>
-                                                <span className="leading-relaxed font-medium">{cleanLegalText(step)}</span>
+                                                <span className="leading-relaxed font-medium">{sanitizeText(step)}</span>
                                             </div>
                                         ))}
                                     </div>

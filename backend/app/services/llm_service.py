@@ -1,6 +1,6 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V28.5 (CLEAN EXPORTS)
-# 1. EXPORTS: Explicit __all__ definition to help Pylance/Linters.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V28.6 (STRUCTURED CITATIONS)
+# 1. CITATIONS: Enforced strict '[Law](doc://...)' format with Content/Relevance sections.
 # 2. LOGIC: Maintained 'Smart JSON' and 'Anti-Parrot' logic.
 
 import os
@@ -93,9 +93,16 @@ MOS PËRDOR SHEMBUJ GJENERIKË.
 
 RREGULLAT E ANALIZËS:
 1. ÇËSHTJET (ISSUES): Gjej problemet reale juridike.
-2. BAZA LIGJORE (HIBRIDE):
-   - Cito Nenin e ligjit të Kosovës.
-   - OBLIGATIVE: Cito STANDARDET GLOBALE (UNCRC, KEDNJ).
+2. BAZA LIGJORE (STRUKTURË STRIKTE):
+   - Për çdo ligj, përdor SAKTËSISHT këtë format (përfshirë kllapat dhe linjat e reja):
+   
+   Format:
+   [Emri i Ligjit, Neni](doc://Emri i Ligjit, Neni):
+   Përmbajtja: [Çfarë thotë neni shkurt]
+   Relevanca: [Si lidhet specifikisht me faktet e këtij rasti]
+
+   - OBLIGATIVE: Cito STANDARDET GLOBALE (UNCRC, KEDNJ) nëse ka implikime të të drejtave të njeriut.
+
 3. STRATEGJIA: Sugjero hapa konkretë.
 
 FORMATI I PËRGJIGJES (JSON STRICT):
@@ -103,8 +110,8 @@ FORMATI I PËRGJIGJES (JSON STRICT):
   "summary": "Përmbledhje e rastit...",
   "key_issues": ["Çështja 1...", "Çështja 2..."],
   "legal_basis": [
-     "Ligji/Neni (Kosovë): Shpjegimi.",
-     "Konventa (Global): Shpjegimi."
+     "[Ligji për Familjen, Neni 331](doc://Ligji për Familjen, Neni 331):\\nPërmbajtja: Ndryshimi i rrethanave kërkon ndryshim aktgjykimi.\\nRelevanca: Rroga e babait është rritur, prandaj kërkohet rritja e alimentacionit.",
+     "[UNCRC, Neni 3](doc://UNCRC, Neni 3):\\nPërmbajtja: Interesi më i mirë i fëmijës është parësor.\\nRelevanca: Mirëqenia e fëmijës prevalon mbi interesat financiare të prindit."
   ],
   "strategic_analysis": "Analizë e detajuar...",
   "weaknesses": ["Dobësia 1...", "Dobësia 2..."],
