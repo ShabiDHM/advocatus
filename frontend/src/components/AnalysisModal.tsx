@@ -1,8 +1,8 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V7.2 (I18N + VISUALS)
-// 1. I18N: All hardcoded strings replaced with useTranslation hooks.
-// 2. UX: Enhanced visual parsing for Global vs Local citations.
-// 3. STYLE: Preserved the 'Glassmorphism' senior aesthetic.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V7.3 (FINAL POLISH)
+// 1. CLEANUP: Automatically strips 'Ligji/Neni...' prefixes since we have Icons now.
+// 2. I18N: Full translation support maintained.
+// 3. UI: Crisp, professional typography for legal citations.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -28,12 +28,21 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 `;
 
-const sanitizeText = (text: string | undefined | null): string => {
+// Helper to clean up raw AI text
+const cleanLegalText = (text: string | undefined | null): string => {
     if (!text) return "";
-    return text.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
+    let clean = text.replace(/\[\[?([^\]]+)\]?\]/g, '$1'); // Remove [[Wiki Links]]
+    
+    // Remove the prefixes we forced in the prompt, to keep UI clean
+    clean = clean.replace(/^Ligji\/Neni \(Kosovë\):\s*/i, '');
+    clean = clean.replace(/^Konventa \(Global\):\s*/i, '');
+    clean = clean.replace(/^Global Standards:\s*/i, '');
+    
+    return clean;
 };
 
 const isGlobalCitation = (text: string) => {
+    // We check the raw text or the cleaned text, usually keywords persist
     const globalKeywords = ["UNCRC", "KEDNJ", "ECHR", "Konventa", "Convention", "Strasburg", "Global", "International", "OKB"];
     return globalKeywords.some(keyword => text.includes(keyword));
 };
@@ -122,7 +131,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     <FileText size={16}/> {t('analysis.section_summary', 'Përmbledhje Ekzekutive')}
                                 </h3>
                                 <p className="text-white text-sm leading-relaxed whitespace-pre-line border-l-2 border-white/20 pl-4">
-                                    {sanitizeText(summary || t('analysis.no_summary', 'Nuk ka përmbledhje të disponueshme.'))}
+                                    {cleanLegalText(summary || t('analysis.no_summary', 'Nuk ka përmbledhje të disponueshme.'))}
                                 </p>
                             </div>
 
@@ -136,7 +145,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         {key_issues.map((issue: string, idx: number) => (
                                             <div key={idx} className="flex items-start gap-3 bg-white/5 p-3 rounded-lg border border-white/10">
                                                 <span className="text-primary-400 font-bold mt-0.5">#{idx + 1}</span>
-                                                <p className="text-sm text-gray-200 font-medium leading-snug">{sanitizeText(issue)}</p>
+                                                <p className="text-sm text-gray-200 font-medium leading-snug">{cleanLegalText(issue)}</p>
                                             </div>
                                         ))}
                                     </div>
@@ -160,7 +169,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                         <Scale size={18} className="text-secondary-400 shrink-0 mt-0.5"/>
                                                     )}
                                                     <span className={`leading-relaxed font-mono text-xs ${isGlobal ? 'text-indigo-200' : 'text-secondary-100'}`}>
-                                                        {sanitizeText(law)}
+                                                        {cleanLegalText(law)}
                                                     </span>
                                                 </li>
                                             );
@@ -180,7 +189,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     <h3 className="text-xs font-bold text-accent-start uppercase tracking-wider mb-3 flex items-center gap-2">
                                         <MessageCircleQuestion size={16}/> {t('analysis.section_analysis', 'Analiza Strategjike (Analysis)')}
                                     </h3>
-                                    <p className="text-white text-sm leading-relaxed">{sanitizeText(strategic_analysis)}</p>
+                                    <p className="text-white text-sm leading-relaxed">{cleanLegalText(strategic_analysis)}</p>
                                 </div>
                             )}
                             
@@ -194,7 +203,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         {weaknesses.map((w: string, i: number) => (
                                             <li key={i} className="flex gap-3 text-sm text-red-100 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
                                                 <AlertTriangle size={16} className="text-red-500 shrink-0"/>
-                                                <span className="leading-relaxed">{sanitizeText(w)}</span>
+                                                <span className="leading-relaxed">{cleanLegalText(w)}</span>
                                             </li>
                                         ))}
                                     </ul>
@@ -213,7 +222,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-black font-bold text-xs shrink-0">
                                                     {i + 1}
                                                 </span>
-                                                <span className="leading-relaxed font-medium">{sanitizeText(step)}</span>
+                                                <span className="leading-relaxed font-medium">{cleanLegalText(step)}</span>
                                             </div>
                                         ))}
                                     </div>

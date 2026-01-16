@@ -1,7 +1,8 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - SPREADSHEET FORENSICS V2.1 (TYPE SAFETY FIX)
-# 1. FIX: Replaced .dt.strftime with .apply() to satisfy Pylance strict typing.
-# 2. CORE: Retains all delimiter detection, currency cleaning, and Forensic AI connection.
+# PHOENIX PROTOCOL - SPREADSHEET FORENSICS V3.0 (SMART MERGE)
+# 1. INTEGRATION: Consumes 'Smart JSON' from LLM Service.
+# 2. HYBRID INTEL: Merges Statistical Anomalies (Z-Score) with Semantic Anomalies (AI).
+# 3. OUTPUT: Returns structure fully compatible with 'SmartFinancialReport' frontend interface.
 
 import pandas as pd
 import numpy as np
@@ -9,9 +10,12 @@ import io
 import logging
 import re
 import csv
+import json
 from typing import Dict, Any, List, Optional
 from datetime import datetime
-from . import llm_service
+
+# Safe Import
+import app.services.llm_service as llm_service
 
 logger = logging.getLogger(__name__)
 
@@ -21,38 +25,33 @@ MAX_ANOMALIES = 20
 
 # --- HELPER: CLEAN CURRENCY ---
 def _clean_currency_column(df: pd.DataFrame, col: str) -> pd.Series:
-    """
-    Forces a column to be numeric, stripping 'EUR', '$', ',' etc.
-    """
+    """Forces a column to be numeric, stripping 'EUR', '$', ',' etc."""
     try:
-        # Convert to string, strip whitespace
         series = df[col].astype(str).str.strip()
-        # Remove currency symbols and thousand separators (assuming '.' is decimal)
         series = series.str.replace(r'[€$£EUR\s,]', '', regex=True)
-        # Convert to numeric, turning errors to NaN
         return pd.to_numeric(series, errors='coerce')
     except Exception:
         return df[col]
 
 def _detect_delimiter(file_content: bytes) -> str:
-    """Sniffs the CSV delimiter (comma, semicolon, pipe)."""
+    """Sniffs the CSV delimiter."""
     try:
         sample = file_content[:2048].decode('utf-8', errors='ignore')
         sniffer = csv.Sniffer()
         dialect = sniffer.sniff(sample, delimiters=',;\t|')
         return dialect.delimiter
     except:
-        return ',' # Fallback to standard comma
+        return ','
 
-def _detect_anomalies(df: pd.DataFrame) -> List[Dict[str, Any]]:
+def _detect_statistical_anomalies(df: pd.DataFrame) -> List[Dict[str, Any]]:
     """
-    Forensic Z-Score Analysis.
+    Forensic Z-Score Analysis (The 'Math' part of the brain).
+    Detects mathematical outliers irrespective of context.
     """
     anomalies = []
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     
     for col in numeric_cols:
-        # Skip ID columns or boring columns
         if df[col].nunique() < 3: continue
         
         mean = df[col].mean()
@@ -64,29 +63,24 @@ def _detect_anomalies(df: pd.DataFrame) -> List[Dict[str, Any]]:
         outliers = df[np.abs((df[col] - mean) / std) > 3]
         
         for idx, row in outliers.iterrows():
-            row_idx = int(idx) + 2 if isinstance(idx, int) else 0
             val = float(row[col])
             z_score = round((val - mean) / std, 1)
             
-            # Severity Logic
-            severity = "HIGH" if abs(z_score) > 5 else "MEDIUM"
-            reason = f"Devijim ekstrem ({z_score}x sigma). Mesatarja: {mean:.2f}"
-            
             anomalies.append({
-                "row_index": row_idx,
-                "column": col,
-                "value": val,
-                "reason": reason,
-                "severity": severity
+                "date": str(idx), # Fallback if no date col
+                "amount": val,
+                "description": f"Row {idx} in {col}",
+                "risk_level": "HIGH" if abs(z_score) > 5 else "MEDIUM",
+                "explanation": f"Statistical Outlier ({z_score}x Sigma). Average: {mean:.2f}"
             })
             
-    # Return top severe anomalies
-    return sorted(anomalies, key=lambda x: abs(x['value']), reverse=True)[:MAX_ANOMALIES]
+    return sorted(anomalies, key=lambda x: abs(x['amount']), reverse=True)[:10]
 
 def _generate_chart_config(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Generates chart configs for the UI."""
     charts = []
     
-    # 1. Distribution of Categorical Data (e.g., "Category", "Vendor")
+    # 1. Distribution of Categorical Data
     categorical_cols = df.select_dtypes(include=['object', 'category']).columns
     for col in categorical_cols:
         if df[col].nunique() < 20: 
@@ -101,37 +95,6 @@ def _generate_chart_config(df: pd.DataFrame) -> List[Dict[str, Any]]:
             })
             if len(charts) >= 3: break 
 
-    # 2. Time Series Estimate (if Date exists)
-    date_cols = [c for c in df.columns if 'date' in c.lower() or 'data' in c.lower()]
-    amount_cols = [c for c in df.select_dtypes(include=[np.number]).columns if 'amount' in c.lower() or 'shuma' in c.lower() or 'total' in c.lower()]
-    
-    if date_cols and amount_cols:
-        d_col = date_cols[0]
-        a_col = amount_cols[0]
-        try:
-            # Create a lightweight copy to not mess up main DF
-            temp_df = df[[d_col, a_col]].copy()
-            temp_df[d_col] = pd.to_datetime(temp_df[d_col], errors='coerce')
-            temp_df = temp_df.dropna(subset=[d_col]).sort_values(by=d_col)
-            
-            if not temp_df.empty:
-                # Group by Month if spans > 60 days
-                time_span = (temp_df[d_col].max() - temp_df[d_col].min()).days
-                if time_span > 60:
-                    # FIX: Use lambda apply instead of .dt accessor to satisfy Pylance
-                    temp_df['Month'] = temp_df[d_col].apply(lambda x: x.strftime('%Y-%m'))
-                    trend = temp_df.groupby('Month')[a_col].sum().reset_index()
-                    
-                    charts.append({
-                        "id": "financial_trend",
-                        "title": "Trendi Financiar (Mujor)",
-                        "type": "line",
-                        "description": f"Lëvizja e {a_col} përgjatë kohës",
-                        "data": [{"name": r['Month'], "value": float(r[a_col])} for _, r in trend.iterrows()]
-                    })
-        except Exception as e:
-            logger.warning(f"Failed to generate time chart: {e}")
-
     return charts
 
 async def analyze_spreadsheet_file(file_content: bytes, filename: str) -> Dict[str, Any]:
@@ -139,84 +102,82 @@ async def analyze_spreadsheet_file(file_content: bytes, filename: str) -> Dict[s
         filename_clean = filename.lower().strip()
         df = None
         
-        # 1. LOAD & PARSE
+        # 1. LOAD
         if filename_clean.endswith('.csv'):
             delimiter = _detect_delimiter(file_content)
             try:
-                # Try reading with detected delimiter
                 df = pd.read_csv(io.BytesIO(file_content), delimiter=delimiter)
             except:
-                # Fallback to standard
                 df = pd.read_csv(io.BytesIO(file_content), on_bad_lines='skip')
-                
         elif filename_clean.endswith(('.xls', '.xlsx')):
             try:
                 df = pd.read_excel(io.BytesIO(file_content))
             except ImportError:
                 raise ValueError("Mungon libraria 'openpyxl'.")
         else:
-            raise ValueError("Format i panjohur. Përdorni CSV ose Excel.")
+            raise ValueError("Format i panjohur.")
 
         if df is None or df.empty:
             raise ValueError("Skedari është bosh.")
 
-        # 2. DATA CLEANING (The Forensic Wash)
-        # Attempt to convert "Amount (EUR)" etc. to numbers
+        # 2. CLEAN
         for col in df.columns:
             if df[col].dtype == 'object':
-                # Heuristic: If column name contains currency keywords or looks numeric
                 is_money = any(x in col.lower() for x in ['eur', 'usd', 'amount', 'shuma', 'total', 'cmimi', 'price'])
                 if is_money:
                     df[col] = _clean_currency_column(df, col)
 
-        # 3. ANALYSIS
-        record_count = len(df)
-        columns = df.columns.tolist()
-        anomalies = _detect_anomalies(df)
+        # 3. STATISTICAL ANALYSIS (Local Math)
+        math_anomalies = _detect_statistical_anomalies(df)
         charts = _generate_chart_config(df)
         
-        # Generate Statistics safe for JSON (no NaN/Inf)
         stats = {}
         for col in df.select_dtypes(include=[np.number]).columns:
             total_val = float(df[col].sum())
-            avg_val = float(df[col].mean())
-            stats[f"Total {col}"] = total_val if not pd.isna(total_val) else 0.0
-            stats[f"Avg {col}"] = avg_val if not pd.isna(avg_val) else 0.0
-
-        # 4. PREPARE FOR AI (The Forensic Accountant Persona)
-        # Convert DataFrame to a JSON structure the AI can read
+            stats[f"Total {col}"] = total_val
         
-        # Smart Sampling: Take head, tail, and anomaly rows
-        sample_rows = df.head(5).to_dict(orient='records')
+        # 4. AI ANALYSIS (Semantic Intelligence)
+        # Prepare context for AI
+        sample_rows = df.head(10).replace({np.nan: None}).to_dict(orient='records')
         
         ai_context = {
             "file_name": filename,
-            "columns": columns,
-            "total_rows": record_count,
+            "columns": df.columns.tolist(),
             "key_stats": stats,
-            "sample_data": sample_rows,
-            "detected_anomalies": anomalies[:5] # Feed the top anomalies to the AI
+            "sample_data": sample_rows, # AI sees real rows to understand context
+            "math_flags": math_anomalies[:3] # AI sees what math flagged
         }
         
-        # Call the new "Forensic Accountant" logic
-        import json
         json_context = json.dumps(ai_context, default=str)
-        narrative = llm_service.analyze_financial_portfolio(json_context)
-
-        # 5. PREVIEW ROWS (Replace NaN with null for JSON safety)
-        preview_rows = df.head(10).replace({np.nan: None}).to_dict(orient='records')
-
-        return {
+        
+        # Call LLM (Returns Dict)
+        ai_result = llm_service.analyze_financial_portfolio(json_context)
+        
+        # 5. MERGE RESULTS (Hybrid Intelligence)
+        # We prioritize AI anomalies as they have context, but keep math anomalies if unique
+        final_anomalies = ai_result.get("anomalies", [])
+        
+        # If AI failed to return anomalies, fallback to math ones
+        if not final_anomalies:
+            final_anomalies = math_anomalies
+            
+        # Ensure proper structure
+        final_response = {
             "filename": filename,
-            "record_count": record_count,
-            "columns": columns,
-            "narrative_report": narrative,
-            "charts": charts,
-            "anomalies": anomalies,
+            "record_count": len(df),
             "key_statistics": stats,
-            "preview_rows": preview_rows,
+            "charts": charts,
+            
+            # Map AI fields to Frontend Interface
+            "executive_summary": ai_result.get("executive_summary", "Analiza përfundoi, por mungon përmbledhja."),
+            "anomalies": final_anomalies,
+            "trends": ai_result.get("trends", []),
+            "recommendations": ai_result.get("recommendations", []),
+            
             "processed_at": datetime.now().isoformat()
         }
+
+        return final_response
 
     except ValueError as ve:
         raise ve
