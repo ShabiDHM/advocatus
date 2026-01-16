@@ -1,20 +1,22 @@
 # FILE: backend/app/services/finance_service.py
-# PHOENIX PROTOCOL - FINANCE LOGIC V5.5 (CLEAN STATE)
-# 1. REVERT: Removed manual string conversion for IDs. Models handle serialization now.
-# 2. STATUS: Fully functional and type-safe.
+# PHOENIX PROTOCOL - FINANCE LOGIC V6.0
+# 1. ADDED: generate_ai_report() to aggregate data and call the Forensic Persona.
+# 2. CRUD: Fully preserved all Invoice/Expense logic.
 
 import structlog
+import json
 from datetime import datetime, timezone
 from bson import ObjectId
 from pymongo.database import Database
 from fastapi import HTTPException, UploadFile
-from typing import Any
+from typing import Any, Dict, List
 
-# ABSOLUTE IMPORTS
 from app.models.finance import (
-    InvoiceCreate, InvoiceInDB, InvoiceUpdate, InvoiceItem, 
+    InvoiceCreate, InvoiceInDB, InvoiceUpdate, 
     ExpenseCreate, ExpenseInDB, ExpenseUpdate
 )
+from app.services.llm_service import analyze_financial_portfolio
+from app.services.storage_service import upload_file_raw
 
 logger = structlog.get_logger(__name__)
 
@@ -22,7 +24,8 @@ class FinanceService:
     def __init__(self, db: Database):
         self.db = db
 
-    # --- POS / INTEGRATION HUB LOGIC ---
+    # --- ANALYTICS & AI ---
+
     async def get_monthly_pos_revenue(self, async_db: Any, user_id: str, month: int, year: int) -> float:
         try:
             start_date = datetime(year, month, 1)
@@ -35,10 +38,7 @@ class FinanceService:
                 {
                     "$match": {
                         "user_id": ObjectId(user_id),
-                        "date_time": {
-                            "$gte": start_date,
-                            "$lt": end_date
-                        }
+                        "date_time": {"$gte": start_date, "$lt": end_date}
                     }
                 },
                 {
@@ -57,7 +57,58 @@ class FinanceService:
             logger.error(f"Error calculating POS revenue: {e}")
             return 0.0
 
-    # --- INVOICE LOGIC ---
+    async def generate_ai_report(self, user_id: str, async_db: Any) -> str:
+        """
+        Aggregates last 30 days of data and asks the Forensic Accountant for a report.
+        """
+        try:
+            # 1. Fetch Recent Data (Limit 50 to fit context window)
+            invoices = list(self.db.invoices.find({"user_id": ObjectId(user_id)}).sort("issue_date", -1).limit(30))
+            expenses = list(self.db.expenses.find({"user_id": ObjectId(user_id)}).sort("date", -1).limit(30))
+            
+            # POS Data (Current Month)
+            now = datetime.now()
+            pos_revenue = await self.get_monthly_pos_revenue(async_db, user_id, now.month, now.year)
+
+            # 2. Serialize for AI
+            financial_snapshot = {
+                "report_period": now.strftime("%B %Y"),
+                "currency": "EUR",
+                "cash_flow_summary": {
+                    "pos_revenue": pos_revenue,
+                    "invoices_total": sum(i.get("total_amount", 0) for i in invoices),
+                    "expenses_total": sum(e.get("amount", 0) for e in expenses)
+                },
+                "recent_invoices": [
+                    {
+                        "date": str(i.get("issue_date")),
+                        "amount": i.get("total_amount"),
+                        "status": i.get("status"),
+                        "client": i.get("client_name", "Unknown")
+                    } for i in invoices
+                ],
+                "recent_expenses": [
+                    {
+                        "date": str(e.get("date")),
+                        "amount": e.get("amount"),
+                        "category": e.get("category"),
+                        "description": e.get("description", "")
+                    } for e in expenses
+                ]
+            }
+
+            # 3. Call The Forensic Brain
+            json_context = json.dumps(financial_snapshot, default=str)
+            ai_report_markdown = analyze_financial_portfolio(json_context)
+            
+            return ai_report_markdown
+
+        except Exception as e:
+            logger.error(f"AI Report Gen Failed: {e}")
+            return "❌ Gabim gjatë gjenerimit të analizës financiare. Ju lutem provoni më vonë."
+
+    # --- INVOICE CRUD ---
+
     def _generate_invoice_number(self, user_id: str) -> str:
         count = self.db.invoices.count_documents({"user_id": ObjectId(user_id)})
         year = datetime.now().year
@@ -105,7 +156,7 @@ class FinanceService:
         
         existing = self.db.invoices.find_one({"_id": oid, "user_id": ObjectId(user_id)})
         if not existing: raise HTTPException(status_code=404, detail="Invoice not found")
-        if existing.get("is_locked"): raise HTTPException(status_code=403, detail="Cannot edit a locked/closed invoice.")
+        if existing.get("is_locked"): raise HTTPException(status_code=403, detail="Cannot edit a locked invoice.")
 
         update_dict = update_data.model_dump(exclude_unset=True)
         
@@ -146,11 +197,12 @@ class FinanceService:
         try: oid = ObjectId(invoice_id)
         except: raise HTTPException(status_code=400, detail="Invalid Invoice ID")
         existing = self.db.invoices.find_one({"_id": oid, "user_id": ObjectId(user_id)})
-        if existing and existing.get("is_locked"): raise HTTPException(status_code=403, detail="Cannot delete a locked/closed invoice.")
+        if existing and existing.get("is_locked"): raise HTTPException(status_code=403, detail="Cannot delete a locked invoice.")
         result = self.db.invoices.delete_one({"_id": oid, "user_id": ObjectId(user_id)})
         if result.deleted_count == 0: raise HTTPException(status_code=404, detail="Invoice not found")
 
-    # --- EXPENSE LOGIC ---
+    # --- EXPENSE CRUD ---
+
     def create_expense(self, user_id: str, data: ExpenseCreate) -> ExpenseInDB:
         expense_doc = data.model_dump()
         expense_doc.update({
@@ -190,9 +242,6 @@ class FinanceService:
         except: raise HTTPException(status_code=400, detail="Invalid Expense ID")
         expense = self.db.expenses.find_one({"_id": oid, "user_id": ObjectId(user_id)})
         if not expense: raise HTTPException(status_code=404, detail="Expense not found")
-        
-        # Lazy import to break circular dependency
-        from app.services.storage_service import upload_file_raw
         
         folder = f"expenses/{user_id}"
         storage_key = upload_file_raw(file, folder)

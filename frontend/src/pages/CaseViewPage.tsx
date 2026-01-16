@@ -1,6 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V12.3 (I18N FIX)
-// 1. I18N: The "Graph" button is now translated to "Lidhjet".
+// PHOENIX PROTOCOL - CASE VIEW V13.0 (GRAPH REMOVAL)
+// 1. UI CLEANUP: Removed the "Lidhjet" (Graph) button and component.
+// 2. TYPES: Removed 'graph' from ViewMode.
+// 3. LOGIC: Preserved Workspace (Docs/Chat) and Analyst (Spreadsheet) views.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -12,19 +14,18 @@ import PDFViewerModal from '../components/PDFViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
 import SpreadsheetAnalyst from '../components/SpreadsheetAnalyst';
-import CaseGraphVisualization from '../components/CaseGraphVisualization';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity, Network } from 'lucide-react';
+import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
 
 type CaseData = { details: Case | null; };
 type ActiveModal = 'none' | 'analysis';
-type ViewMode = 'workspace' | 'analyst' | 'graph';
+type ViewMode = 'workspace' | 'analyst';
 
 const extractAndNormalizeHistory = (data: any): ChatMessage[] => {
     if (!data) return [];
@@ -86,7 +87,7 @@ const CaseHeader: React.FC<{
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
     userRole: 'ADMIN' | 'LAWYER' | 'CLIENT';
-}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode, userRole }) => {
+}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode }) => {
     
     const analyzeButtonText = activeContextId === 'general' 
         ? t('analysis.analyzeButton', 'Analizo Rastin')
@@ -131,7 +132,7 @@ const CaseHeader: React.FC<{
                         )}
                         {viewMode !== 'workspace' && (
                             <div className="w-full h-full flex items-center px-4 bg-white/5 border border-white/10 rounded-xl text-gray-400 italic text-sm">
-                                {viewMode === 'graph' ? 'Knowledge Graph (Admin)' : t('analyst.subtitle', 'Smart Financial Analysis Mode')}
+                                {t('analyst.subtitle', 'Smart Financial Analysis Mode')}
                             </div>
                         )}
                     </div>
@@ -142,23 +143,15 @@ const CaseHeader: React.FC<{
                         className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-white' : 'text-gray-400 border-transparent hover:text-white'}`}
                     >
                         <Activity className="h-4 w-4" />
-                        <span>{t('caseView.analyst', 'Analyst')}</span>
+                        <span>{t('caseView.analyst', 'Analisti Financiar')}</span>
                     </button>
 
-                    {userRole === 'ADMIN' && (
-                        <button 
-                            onClick={() => setViewMode(viewMode === 'graph' ? 'workspace' : 'graph')}
-                            className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${viewMode === 'graph' ? 'bg-purple-600/20 border-purple-500 text-white' : 'text-gray-400 border-transparent hover:text-white'}`}
-                        >
-                            <Network className="h-4 w-4" />
-                            <span>{t('caseView.graph', 'Lidhjet')}</span>
-                        </button>
-                    )}
+                    {/* GRAPH BUTTON REMOVED HERE */}
 
                     <button 
                         onClick={onAnalyze} 
                         disabled={isAnalyzing || viewMode !== 'workspace'} 
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent disabled:bg-white/5 disabled:border disabled:border-white/10 disabled:cursor-not-allowed disabled:opacity-50`}
+                        className={`md:col-span-2 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent disabled:bg-white/5 disabled:border disabled:border-white/10 disabled:cursor-not-allowed disabled:opacity-50`}
                         type="button"
                     >
                         {isAnalyzing ? (
@@ -306,18 +299,6 @@ const CaseViewPage: React.FC = () => {
                     transition={{ duration: 0.2 }}
                 >
                     <SpreadsheetAnalyst caseId={caseData.details.id} />
-                </motion.div>
-            )}
-
-            {(viewMode === 'graph' && user?.role === 'ADMIN') && (
-                <motion.div
-                    key="graph"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                >
-                    <CaseGraphVisualization caseId={caseData.details.id} />
                 </motion.div>
             )}
         </AnimatePresence>
