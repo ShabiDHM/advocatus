@@ -1,8 +1,8 @@
 /* FILE: src/components/CaseGraphVisualization.tsx
-   PHOENIX PROTOCOL - LEGAL INTELLIGENCE MAP V5 (READABILITY & SIGNAL-TO-NOISE)
-   1. READABILITY: Implements 'Billboard' text. Text is either 12px+ and readable, or hidden. No 'ant text'.
-   2. SIGNAL: Hides "MENTIONS" link labels to declutter the view. Only displays "CONFLICT/FINANCE".
-   3. LOGIC: Correctly identifies Laws as 'Legal Basis', not procedural entities.
+   PHOENIX PROTOCOL - LEGAL INTELLIGENCE MAP V6 (FOCUS MODE)
+   1. STRATEGY: "Dimming" instead of "Deleting". Prevents broken/empty graphs.
+   2. READABILITY: dynamic text visibility. If a node is dimmed, its text is hidden.
+   3. PHYSICS: Increased repulsion to stop nodes from overlapping.
 */
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
@@ -11,11 +11,11 @@ import { apiService } from '../services/api';
 import { GraphNode } from '../data/types';
 import { 
     FileText, Search, Sparkles, Gavel, Users, 
-    FileCheck, Landmark, Network, Scale, Banknote, AlertTriangle
+    FileCheck, Landmark, Network, Scale, Banknote, AlertTriangle, Eye
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-const NODE_REL_SIZE = 7;
+const NODE_REL_SIZE = 8;
 const ARROW_REL_POS = 1;
 const ARROW_LENGTH = 5;
 
@@ -50,7 +50,7 @@ interface RealAnalysisData {
 // --- LEGAL THEME ENGINE ---
 const THEME = {
   nodes: {
-    court:      '#334155', // Slate-700
+    court:      '#475569', // Slate-600
     judge:      '#dc2626', // Red-600
     person:     '#10b981', // Emerald-500
     document:   '#3b82f6', // Blue-500
@@ -58,10 +58,10 @@ const THEME = {
     default:    '#64748b'
   },
   links: {
-    CONFLICT:   '#ef4444', // Red-500
-    FAMILY:     '#10b981', // Emerald-500
-    FINANCE:    '#b45309', // Amber-700 (Darker for readability)
-    PROCEDURAL: '#cbd5e1'  // Slate-300 (Faint)
+    CONFLICT:   '#ef4444', 
+    FAMILY:     '#10b981', 
+    FINANCE:    '#b45309', 
+    PROCEDURAL: '#cbd5e1'
   },
   icons: {
     court:      <Landmark size={24} className="text-slate-700" />,
@@ -80,7 +80,7 @@ const classifyNode = (node: any): string => {
 
     if (rawGroup === 'DOCUMENT') return 'document';
     if (name.includes('gjykata') || name.includes('themelore')) return 'court';
-    if (name.includes('ligji') || name.includes('neni') || name.includes('kodi')) return 'law';
+    if (name.includes('ligji') || name.includes('neni')) return 'law';
     if (name.includes('ministria') || name.includes('policia')) return 'court'; 
     if (name.includes('aktvendim') || name.includes('aktgjykim')) return 'document';
     if (rawGroup === 'PERSON' || rawGroup === 'USER') return 'person';
@@ -100,14 +100,16 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
   const [width, setWidth] = useState(800);
   const [height, setHeight] = useState(600);
   
-  const [fullData, setFullData] = useState<{nodes: SimulationNode[], links: SimulationLink[]}>({ nodes: [], links: [] });
-  const [activeData, setActiveData] = useState<{nodes: SimulationNode[], links: SimulationLink[]}>({ nodes: [], links: [] });
-  
+  // Data State
+  const [graphData, setGraphData] = useState<{nodes: SimulationNode[], links: SimulationLink[]}>({ nodes: [], links: [] });
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Interaction State
   const [selectedNode, setSelectedNode] = useState<SimulationNode | null>(null);
   const [hoverNode, setHoverNode] = useState<SimulationNode | null>(null);
   const [viewMode, setViewMode] = useState<'ALL' | 'PEOPLE_ONLY' | 'DOCS_ONLY'>('ALL');
 
+  // Analysis State
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [realAnalysis, setRealAnalysis] = useState<RealAnalysisData | null>(null);
   
@@ -137,15 +139,13 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 const processedNodes = raw.nodes.map((n: any) => ({
                     ...n,
                     detectedGroup: classifyNode(n),
-                    // Trucate very long names for display
                     displayLabel: n.name.length > 25 ? n.name.substring(0, 24) + '...' : n.name
                 }));
                 const processedLinks = raw.links.map((l: any) => ({
                     ...l,
                     type: classifyLink(l.label)
                 }));
-                setFullData({ nodes: processedNodes, links: processedLinks });
-                setActiveData({ nodes: processedNodes, links: processedLinks });
+                setGraphData({ nodes: processedNodes, links: processedLinks });
             }
         } catch (e) { console.error(e); } 
         finally { if (isMounted) setIsLoading(false); }
@@ -154,45 +154,21 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
     return () => { isMounted = false; };
   }, [caseId]);
 
-  // 2. View Filter
-  useEffect(() => {
-      if (fullData.nodes.length === 0) return;
-      let filteredNodes = fullData.nodes;
-      let filteredLinks = fullData.links;
-
-      if (viewMode === 'PEOPLE_ONLY') {
-          filteredNodes = fullData.nodes.filter(n => ['person', 'judge'].includes(n.detectedGroup || ''));
-          const nodeIds = new Set(filteredNodes.map(n => n.id));
-          filteredLinks = fullData.links.filter(l => 
-              nodeIds.has((l.source as any).id || l.source) && 
-              nodeIds.has((l.target as any).id || l.target)
-          );
-      } else if (viewMode === 'DOCS_ONLY') {
-        filteredNodes = fullData.nodes.filter(n => n.detectedGroup === 'document');
-         const nodeIds = new Set(filteredNodes.map(n => n.id));
-          filteredLinks = fullData.links.filter(l => 
-              nodeIds.has((l.source as any).id || l.source) && 
-              nodeIds.has((l.target as any).id || l.target)
-          );
-      }
-
-      setActiveData({ nodes: filteredNodes, links: filteredLinks });
-      setTimeout(() => fgRef.current?.zoomToFit(400, 50), 450);
-  }, [viewMode, fullData]);
-
-  // 3. Physics Tuning
+  // 2. Physics Tuning (Strong Repulsion to Prevent Clutter)
   useEffect(() => {
     const graph = fgRef.current;
     if (graph) {
-        graph.d3Force('charge')?.strength(-500);
-        graph.d3Force('link')?.distance(viewMode === 'PEOPLE_ONLY' ? 180 : 120);
-        graph.d3Force('center')?.strength(0.5);
+        // Very strong repulsion to spread nodes out
+        graph.d3Force('charge')?.strength(-800).distanceMax(600);
+        // Loose springs so they don't bunch up
+        graph.d3Force('link')?.distance(120);
+        graph.d3Force('center')?.strength(0.3);
     }
-  }, [activeData, viewMode]);
+  }, [graphData]);
 
-  // 4. Insight Generation
+  // 3. Insight Generation
   const generateInsight = (node: SimulationNode) => {
-      const links = activeData.links.filter(l => 
+      const links = graphData.links.filter(l => 
           (l.source as any).id === node.id || (l.target as any).id === node.id
       );
 
@@ -203,18 +179,17 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
       let details: string[] = [];
       let score = 0.5;
 
-      // Smart Summaries
       if (node.detectedGroup === 'law') {
-           summary = "Statutory Basis (Legal Authority). Used to justify claims or verdicts in this case.";
+           summary = "Statutory Basis (Legal Authority).";
            score = 0.9;
       } else if (node.detectedGroup === 'court') {
-           summary = "Adjudicating Body / Institution. Issues verdicts and procedural orders.";
+           summary = "Adjudicating Body.";
            score = 0.7;
       } else {
           if (conflicts.length > 0) {
               summary += `⚠️ Involved in ${conflicts.length} Conflict(s). `;
               score += 0.3;
-              conflicts.forEach(c => details.push(`Conflict with ${(c.target as any).name}: "${c.label}"`));
+              conflicts.forEach(c => details.push(`Conflict with ${(c.target as any).name}`));
           }
           if (financial.length > 0) {
               summary += `💰 Linked to financial obligations. `;
@@ -247,37 +222,65 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
       fgRef.current?.zoom(3.0, 800);
   };
 
-  // 5. RENDERER: NODE
+  // --- RENDERING HELPERS (The Focus Engine) ---
+  
+  const isNodeDimmed = (node: SimulationNode) => {
+      if (viewMode === 'ALL') return false;
+      const group = node.detectedGroup;
+      
+      if (viewMode === 'PEOPLE_ONLY') {
+          // Dim everything that is NOT a person, judge, or conflict-related
+          return !['person', 'judge'].includes(group || '');
+      }
+      if (viewMode === 'DOCS_ONLY') {
+          // Dim everything that is NOT a document
+          return group !== 'document';
+      }
+      return false;
+  };
+
+  // 4. NODE CANVAS OBJECT
   const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    const dimmed = isNodeDimmed(node);
     const group = node.detectedGroup || 'default';
     const color = (THEME.nodes as any)[group] || THEME.nodes.default;
     const isSelected = node.id === selectedNode?.id;
     const isHovered = node.id === hoverNode?.id;
-    
-    // --- DRAW NODE ---
-    const baseSize = NODE_REL_SIZE;
+
+    // DIMMING LOGIC: Dimmed nodes are tiny ghosts
+    const alpha = dimmed ? 0.1 : 1;
+    const baseSize = dimmed ? 3 : NODE_REL_SIZE; 
     const size = isSelected ? baseSize * 1.5 : baseSize;
 
+    ctx.globalAlpha = alpha;
+    
+    // Draw Node
     ctx.beginPath();
     ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
     ctx.fillStyle = color;
     ctx.fill();
 
-    if (isSelected || isHovered) {
+    // Selection Ring
+    if ((isSelected || isHovered) && !dimmed) {
+        ctx.globalAlpha = 1;
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 3 / globalScale;
         ctx.stroke();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2 / globalScale;
+        ctx.stroke();
     }
 
-    // --- DRAW TEXT (The Billboard Protocol) ---
-    // Rule: Text is either READABLE (12px+) or HIDDEN. No tiny text.
-    // Exception: Selected node or Key Parties are always shown if possible.
+    // --- TEXT RENDERING (STRICT) ---
+    // 1. If dimmed, NEVER show text.
+    // 2. If zoom is too far out, NEVER show text (except selected).
+    // 3. This solves the "Ant Text" and "Clutter" issues.
     
-    const isKeyEntity = group === 'person' || group === 'judge' || group === 'law';
-    const shouldShow = isSelected || isHovered || (globalScale > 1.2) || (globalScale > 0.8 && isKeyEntity);
+    ctx.globalAlpha = 1; // Reset alpha for text
+    const showText = !dimmed && (isSelected || isHovered || globalScale > 1.0);
 
-    if (shouldShow) {
-        const fontSize = Math.max(14 / globalScale, 12); // Minimum 12px logical size
+    if (showText) {
+        const fontSize = Math.max(12 / globalScale, 12); // Minimum 12px logical size
         
         ctx.font = `${isSelected ? 'bold' : 'normal'} ${fontSize}px Inter, sans-serif`;
         ctx.textAlign = 'center';
@@ -285,34 +288,40 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
         
         const label = node.displayLabel;
         const textWidth = ctx.measureText(label).width;
-        const pad = fontSize * 0.4;
+        const pad = fontSize * 0.5;
         const offset = size + 6;
 
-        // Background
+        // Background Pill
         ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
         ctx.shadowColor = 'rgba(0,0,0,0.2)';
         ctx.shadowBlur = 4;
         ctx.beginPath();
-        ctx.roundRect(node.x - textWidth/2 - pad, node.y + offset, textWidth + pad*2, fontSize + pad, 4);
+        ctx.roundRect(node.x - textWidth/2 - pad/2, node.y + offset, textWidth + pad, fontSize + pad/2, 4);
         ctx.fill();
         ctx.shadowBlur = 0;
 
         // Text
-        ctx.fillStyle = '#1e293b'; // Slate-800
-        ctx.fillText(label, node.x, node.y + offset + fontSize/2 + pad/2);
+        ctx.fillStyle = '#1e293b'; 
+        ctx.fillText(label, node.x, node.y + offset + fontSize/2 + 2);
     }
-  }, [selectedNode, hoverNode]);
+  }, [selectedNode, hoverNode, viewMode]);
 
-  // 6. RENDERER: LINK
+  // 5. LINK CANVAS OBJECT
   const linkCanvasObject = useCallback((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      // If either end is dimmed, the link is ghosted
+      const sourceDimmed = isNodeDimmed(link.source);
+      const targetDimmed = isNodeDimmed(link.target);
+      const isDimmed = sourceDimmed || targetDimmed;
+
       const type = link.type || 'PROCEDURAL';
       const color = THEME.links[type as keyof typeof THEME.links];
-      const isImportant = type === 'CONFLICT' || type === 'FINANCE' || type === 'FAMILY';
+      const isImportant = type === 'CONFLICT' || type === 'FINANCE';
       
-      // procedural links fade out when zoomed out
-      if (type === 'PROCEDURAL' && globalScale < 0.8) return;
+      // Opacity control
+      const alpha = isDimmed ? 0.05 : (type === 'PROCEDURAL' ? 0.4 : 1);
+      const width = (isImportant && !isDimmed) ? 2 / globalScale : 1 / globalScale;
 
-      const width = isImportant ? 2 / globalScale : 1 / globalScale;
+      ctx.globalAlpha = alpha;
       ctx.lineWidth = width;
       ctx.strokeStyle = color;
       
@@ -322,45 +331,50 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
       ctx.stroke();
 
       // --- LINK TEXT ---
-      // Rule: Hide "MENTIONS", "ISSUED BY" unless strictly hovered.
-      // Show "ALIMONY", "PADITËSE" always if zoomed in.
-      
+      // Strict rule: Only show text if hovered OR if important and zoomed in.
+      // Never show text on dimmed links.
       const isHovered = link.source.id === hoverNode?.id || link.target.id === hoverNode?.id;
-      const shouldShowLabel = (isImportant && globalScale > 1.2) || isHovered;
+      const shouldShowLabel = !isDimmed && ((isImportant && globalScale > 1.2) || isHovered);
 
       if (shouldShowLabel) {
+          ctx.globalAlpha = 1;
           const midX = link.source.x + (link.target.x - link.source.x) * 0.5;
           const midY = link.source.y + (link.target.y - link.source.y) * 0.5;
           
-          const fontSize = Math.max(10 / globalScale, 10); // Readable min size
+          const fontSize = Math.max(10 / globalScale, 10);
           ctx.font = `bold ${fontSize}px Inter, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           
-          const textWidth = ctx.measureText(link.label).width;
-          const pad = 4 / globalScale;
+          const labelText = link.label;
+          const textWidth = ctx.measureText(labelText).width;
+          const pad = 6 / globalScale;
 
           // Label Background
           ctx.fillStyle = color;
           ctx.beginPath();
-          ctx.roundRect(midX - textWidth/2 - pad, midY - fontSize/2 - pad, textWidth + pad*2, fontSize + pad*2, 3);
+          ctx.roundRect(midX - textWidth/2 - pad/2, midY - fontSize/2 - pad/2, textWidth + pad, fontSize + pad, 3);
           ctx.fill();
 
           ctx.fillStyle = '#fff';
-          ctx.fillText(link.label, midX, midY);
+          ctx.fillText(labelText, midX, midY);
       }
-  }, [hoverNode]);
+  }, [hoverNode, viewMode]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 font-sans h-full">
-        {/* GRAPH */}
+        {/* GRAPH AREA */}
         <div ref={containerRef} className="lg:col-span-3 relative w-full h-[650px] bg-slate-950 rounded border border-slate-800 shadow-xl overflow-hidden group flex flex-col">
             
             {/* VIEW CONTROLS */}
             <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 flex gap-2">
-                <button onClick={() => setViewMode('ALL')} className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all ${viewMode === 'ALL' ? 'bg-white text-slate-900' : 'bg-slate-900/80 text-slate-400 border border-slate-700'}`}>Overview</button>
-                <button onClick={() => setViewMode('PEOPLE_ONLY')} className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all ${viewMode === 'PEOPLE_ONLY' ? 'bg-emerald-500 text-white' : 'bg-slate-900/80 text-slate-400 border border-slate-700'}`}>Parties & Conflict</button>
-                <button onClick={() => setViewMode('DOCS_ONLY')} className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all ${viewMode === 'DOCS_ONLY' ? 'bg-blue-500 text-white' : 'bg-slate-900/80 text-slate-400 border border-slate-700'}`}>Evidence</button>
+                <button onClick={() => setViewMode('ALL')} className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all ${viewMode === 'ALL' ? 'bg-white text-slate-900 shadow-lg scale-105' : 'bg-slate-900/80 text-slate-400 border border-slate-700'}`}>Overview</button>
+                <button onClick={() => setViewMode('PEOPLE_ONLY')} className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all flex items-center gap-2 ${viewMode === 'PEOPLE_ONLY' ? 'bg-emerald-500 text-white shadow-lg scale-105' : 'bg-slate-900/80 text-slate-400 border border-slate-700'}`}>
+                    <Users size={12} /> Parties & Conflict
+                </button>
+                <button onClick={() => setViewMode('DOCS_ONLY')} className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all flex items-center gap-2 ${viewMode === 'DOCS_ONLY' ? 'bg-blue-500 text-white shadow-lg scale-105' : 'bg-slate-900/80 text-slate-400 border border-slate-700'}`}>
+                    <FileText size={12} /> Evidence
+                </button>
             </div>
 
             {/* LOADING */}
@@ -377,7 +391,7 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 ref={fgRef}
                 width={width}
                 height={height}
-                graphData={activeData}
+                graphData={graphData} // Use FULL data, renderer handles hiding
                 nodeCanvasObject={nodeCanvasObject}
                 linkCanvasObject={linkCanvasObject}
                 backgroundColor="#0f172a"
@@ -388,7 +402,11 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 
                 linkDirectionalArrowLength={ARROW_LENGTH}
                 linkDirectionalArrowRelPos={ARROW_REL_POS}
-                linkDirectionalArrowColor={(link: any) => THEME.links[link.type as keyof typeof THEME.links] || '#334155'}
+                linkDirectionalArrowColor={(link: any) => {
+                     // Ghost arrows if dimmed
+                     if (isNodeDimmed(link.source) || isNodeDimmed(link.target)) return 'rgba(255,255,255,0.05)';
+                     return THEME.links[link.type as keyof typeof THEME.links] || '#334155';
+                }}
                 
                 minZoom={0.5}
                 maxZoom={6.0}
@@ -402,6 +420,12 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                     <Search size={14} className="text-slate-400" />
                     Case Analysis
                 </h3>
+                <div className="flex items-center gap-1">
+                    <Eye size={12} className="text-slate-400" />
+                    <span className="text-[10px] text-slate-400 font-mono">
+                         {graphData.nodes.length} Ent.
+                    </span>
+                </div>
             </div>
 
             <div className="flex-grow p-5 overflow-y-auto bg-white custom-scrollbar">
@@ -416,7 +440,7 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                                 <span className="inline-block mb-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
                                     {selectedNode.detectedGroup?.toUpperCase()}
                                 </span>
-                                <h2 className="text-lg font-bold text-slate-900 leading-tight">{selectedNode.name}</h2>
+                                <h2 className="text-lg font-bold text-slate-900 leading-tight break-words">{selectedNode.name}</h2>
                             </div>
                         </div>
 
@@ -427,7 +451,7 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                             <div className="flex items-center gap-2 mb-3">
                                 <Sparkles size={14} className={realAnalysis?.strategic_value === 'CRITICAL' ? 'text-red-500' : 'text-amber-400'} />
                                 <span className={`text-[10px] font-bold uppercase ${realAnalysis?.strategic_value === 'CRITICAL' ? 'text-red-800' : 'text-slate-400'}`}>
-                                    Relationship Assessment
+                                    Assessment
                                 </span>
                             </div>
                             
