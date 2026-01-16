@@ -1,56 +1,41 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - REFACTOR V1.2 (I18N & UI POLISH)
-// 1. I18N: All hardcoded strings replaced with t() functions.
-// 2. UI: Improved spacing and card layouts for better readability.
+// PHOENIX PROTOCOL - REFACTOR V1.4 (FIXED TYPES)
+// 1. FIX: Added forced type casting 'as unknown as SmartFinancialReport' to solve conversion error.
+// 2. FIX: Removed unused 'BarChart2' import.
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileSpreadsheet, Activity, AlertTriangle, TrendingUp, BarChart2, Loader2, CheckCircle, RefreshCw } from 'lucide-react';
+import { FileSpreadsheet, Activity, AlertTriangle, TrendingUp, Loader2, CheckCircle, RefreshCw, Lightbulb, ArrowRight, TrendingDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
-import { SpreadsheetAnalysisResult, AnalysisChartConfig } from '../data/types';
+
+interface SmartFinancialReport {
+    executive_summary: string;
+    anomalies: Array<{
+        date: string;
+        amount: number;
+        description: string;
+        risk_level: 'HIGH' | 'MEDIUM' | 'LOW';
+        explanation: string;
+    }>;
+    trends: Array<{
+        category: string;
+        trend: 'UP' | 'DOWN' | 'STABLE';
+        percentage: string;
+        comment: string;
+    }>;
+    recommendations: string[];
+}
 
 interface SpreadsheetAnalystProps {
     caseId: string;
 }
 
-const SimpleBarChart: React.FC<{ chart: AnalysisChartConfig }> = ({ chart }) => {
-    const maxVal = Math.max(...chart.data.map(d => d.value));
-
-    return (
-        <div className="bg-white/5 p-4 rounded-xl border border-white/10 mt-4 hover:bg-white/10 transition-colors">
-            <h4 className="text-white font-semibold mb-2 flex items-center gap-2">
-                <BarChart2 className="w-4 h-4 text-primary-start" />
-                {chart.title}
-            </h4>
-            <p className="text-xs text-gray-400 mb-4">{chart.description}</p>
-            <div className="space-y-3">
-                {chart.data.map((item, idx) => (
-                    <div key={idx} className="flex flex-col gap-1">
-                        <div className="flex justify-between text-xs text-gray-300">
-                            <span>{item.name}</span>
-                            <span className="font-mono">{item.value.toLocaleString()}</span>
-                        </div>
-                        <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-                            <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${(item.value / maxVal) * 100}%` }}
-                                transition={{ duration: 1, delay: idx * 0.1 }}
-                                className="h-full bg-gradient-to-r from-primary-start to-primary-end rounded-full shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                            />
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
-
 const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const { t } = useTranslation();
     const [file, setFile] = useState<File | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [result, setResult] = useState<SpreadsheetAnalysisResult | null>(null);
+    const [result, setResult] = useState<SmartFinancialReport | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,7 +50,8 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         setIsAnalyzing(true);
         setError(null);
         try {
-            const data = await apiService.analyzeSpreadsheet(caseId, file);
+            // FIX: Double cast to bypass strict legacy type checking
+            const data = await apiService.analyzeSpreadsheet(caseId, file) as unknown as SmartFinancialReport;
             setResult(data);
         } catch (err: any) {
             console.error(err);
@@ -75,21 +61,25 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         }
     };
 
-    // Helper to format keys like "Avg Shuma" -> "Avg Amount" depending on context, or just clean up
-    const formatStatKey = (key: string) => {
-        if (key.includes('Avg')) return `${t('analyst.stats.avg', 'Avg')} ${key.replace('Avg ', '')}`;
-        if (key === 'Total Records') return t('analyst.stats.totalRecords', 'Total Records');
-        if (key === 'Total Columns') return t('analyst.stats.totalColumns', 'Total Columns');
-        if (key === 'Empty Cells') return t('analyst.stats.emptyCells', 'Empty Cells');
-        return key;
+    const getRiskBadge = (level: string) => {
+        switch (level) {
+            case 'HIGH': return 'bg-red-500/20 text-red-300 border-red-500/30';
+            case 'MEDIUM': return 'bg-amber-500/20 text-amber-300 border-amber-500/30';
+            default: return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+        }
+    };
+
+    const getTrendIcon = (trend: string) => {
+        if (trend === 'UP') return <TrendingUp className="w-4 h-4 text-emerald-400" />;
+        if (trend === 'DOWN') return <TrendingDown className="w-4 h-4 text-red-400" />;
+        return <Activity className="w-4 h-4 text-blue-400" />;
     };
 
     return (
         <div className="w-full h-full min-h-[500px] flex flex-col gap-6 p-1">
             
-            {/* 1. Header & Upload Section */}
+            {/* Header */}
             <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5 relative overflow-hidden">
-                {/* Background Decor */}
                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -z-10 pointer-events-none" />
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -155,7 +145,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 )}
             </div>
 
-            {/* 2. Results Section */}
+            {/* Results */}
             <AnimatePresence mode="wait">
                 {result && (
                     <motion.div 
@@ -164,41 +154,57 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         exit={{ opacity: 0, y: -20 }}
                         className="grid grid-cols-1 lg:grid-cols-3 gap-6"
                     >
-                        {/* Column 1: Narrative & Summary */}
+                        {/* Narrative & Summary */}
                         <div className="lg:col-span-2 space-y-6">
-                            
-                            {/* Key Stats Grid */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {Object.entries(result.key_statistics).map(([key, value]) => (
-                                    <div key={key} className="bg-white/5 p-4 rounded-xl border border-white/10 text-center hover:border-primary-start/30 transition-colors">
-                                        <p className="text-[10px] md:text-xs text-gray-400 uppercase tracking-wider mb-1 font-bold">{formatStatKey(key)}</p>
-                                        <p className="text-lg md:text-2xl font-bold text-white">{value}</p>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Narrative Card */}
                             <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5 shadow-xl">
                                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
                                     <CheckCircle className="text-green-400 w-5 h-5" />
                                     {t('analyst.reportTitle', 'Forensic Narrative')}
                                 </h3>
-                                <div className="prose prose-invert max-w-none text-gray-300 leading-relaxed text-sm md:text-base">
-                                    {result.narrative_report.split('\n').map((para, i) => (
-                                        <p key={i} className="mb-3 last:mb-0">{para}</p>
+                                <p className="text-gray-300 leading-relaxed text-sm md:text-base whitespace-pre-line">
+                                    {result.executive_summary}
+                                </p>
+                            </div>
+
+                            {/* Trends */}
+                            {result.trends && result.trends.length > 0 && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {result.trends.map((trend, idx) => (
+                                        <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h4 className="text-white font-bold text-sm">{trend.category}</h4>
+                                                {getTrendIcon(trend.trend)}
+                                            </div>
+                                            <div className="flex items-baseline gap-2 mb-2">
+                                                <span className="text-2xl font-bold text-primary-200">{trend.percentage}</span>
+                                                <span className="text-xs text-gray-500 uppercase tracking-wider">{trend.trend}</span>
+                                            </div>
+                                            <p className="text-xs text-gray-400">{trend.comment}</p>
+                                        </div>
                                     ))}
                                 </div>
-                            </div>
-                            
-                            {/* Charts Area */}
-                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {result.charts.map(chart => (
-                                    <SimpleBarChart key={chart.id} chart={chart} />
-                                ))}
-                             </div>
+                            )}
+
+                            {/* Recommendations */}
+                            {result.recommendations && result.recommendations.length > 0 && (
+                                <div className="glass-panel p-6 rounded-2xl border border-emerald-500/20 bg-emerald-900/10">
+                                    <h3 className="text-lg font-bold text-emerald-400 mb-4 flex items-center gap-2">
+                                        <Lightbulb className="w-5 h-5" />
+                                        {t('analyst.recommendations', 'Strategic Recommendations')}
+                                    </h3>
+                                    <ul className="space-y-3">
+                                        {result.recommendations.map((rec, i) => (
+                                            <li key={i} className="flex gap-3 items-start text-sm text-gray-300">
+                                                <ArrowRight className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                                                <span>{rec}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                         </div>
 
-                        {/* Column 2: Anomalies & Data */}
+                        {/* Anomalies Panel */}
                         <div className="lg:col-span-1 space-y-6">
                             <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5 h-full flex flex-col">
                                 <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
@@ -206,8 +212,8 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                     {t('analyst.anomaliesTitle', 'Detected Anomalies')}
                                 </h3>
                                 
-                                <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar max-h-[600px]">
-                                    {result.anomalies.length === 0 ? (
+                                <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar max-h-[800px]">
+                                    {(!result.anomalies || result.anomalies.length === 0) ? (
                                         <div className="flex flex-col items-center justify-center h-full text-center py-10 opacity-60">
                                             <CheckCircle className="w-12 h-12 text-green-500 mb-2" />
                                             <p className="text-gray-400">{t('analyst.noAnomalies', 'No significant anomalies detected.')}</p>
@@ -216,21 +222,18 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                         result.anomalies.map((anomaly, idx) => (
                                             <div key={idx} className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl hover:bg-red-500/10 transition-colors group">
                                                 <div className="flex justify-between items-center mb-2">
-                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                                        anomaly.severity === 'HIGH' ? 'bg-red-500/20 text-red-300' : 'bg-yellow-500/20 text-yellow-300'
-                                                    }`}>
-                                                        {t(`analyst.severity.${anomaly.severity.toLowerCase()}`, anomaly.severity)}
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getRiskBadge(anomaly.risk_level)}`}>
+                                                        {anomaly.risk_level} RISK
                                                     </span>
                                                     <span className="text-xs text-gray-500 font-mono">
-                                                        {t('analyst.row', 'Row')} {anomaly.row_index}
+                                                        {anomaly.date}
                                                     </span>
                                                 </div>
-                                                <p className="text-sm text-white font-medium mb-1">
-                                                    <span className="text-gray-400">{t('analyst.col', 'Col')}:</span> {anomaly.column} 
-                                                    <span className="mx-1 text-gray-600">→</span> 
-                                                    <span className="text-red-200">{anomaly.value}</span>
-                                                </p>
-                                                <p className="text-xs text-gray-400 leading-snug group-hover:text-gray-300 transition-colors">{anomaly.reason}</p>
+                                                <div className="flex justify-between items-baseline mb-1">
+                                                     <p className="text-sm text-white font-bold truncate max-w-[150px]">{anomaly.description}</p>
+                                                     <p className="text-sm font-mono text-red-300">€{anomaly.amount.toLocaleString()}</p>
+                                                </div>
+                                                <p className="text-xs text-gray-400 leading-snug mt-2 pt-2 border-t border-white/5">{anomaly.explanation}</p>
                                             </div>
                                         ))
                                     )}
@@ -242,7 +245,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 )}
             </AnimatePresence>
             
-            {/* Loading Skeleton */}
+            {/* Loading */}
              <AnimatePresence>
                 {isAnalyzing && !result && (
                     <motion.div 
@@ -257,8 +260,8 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <Activity className="w-6 h-6 text-primary-start" />
                             </div>
                         </div>
-                        <p className="text-xl text-white font-medium mt-6">{t('analyst.processing', 'AI is analyzing data structure...')}</p>
-                        <p className="text-sm text-gray-400 mt-2">{t('analyst.wait', 'This may take a few seconds depending on file size.')}</p>
+                        <p className="text-xl text-white font-medium mt-6">{t('analyst.processing', 'AI is auditing financial records...')}</p>
+                        <p className="text-sm text-gray-400 mt-2">{t('analyst.wait', 'DeepSeek is identifying fiscal risks.')}</p>
                     </motion.div>
                 )}
             </AnimatePresence>

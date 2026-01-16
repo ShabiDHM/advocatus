@@ -1,8 +1,7 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V15.0 (ROBUST CONTEXT)
-# 1. FIX: "Desperate Data Grabber" ensures text is found even if OCR is pending.
-# 2. LOGGING: Added specific logs to track exactly how many characters are sent to AI.
-# 3. FALLBACK: Uses Summaries/Metadata if raw text is missing.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V15.1 (SAFE IMPORTS)
+# 1. FIX: Switched to 'import app.services.llm_service as llm_service' to fix Pylance resolution.
+# 2. LOGIC: Unchanged.
 
 import structlog
 import hashlib
@@ -13,7 +12,8 @@ from typing import List, Dict, Any, Optional, Tuple
 from pymongo.database import Database
 from bson import ObjectId
 
-from . import llm_service
+# SAFE IMPORT
+import app.services.llm_service as llm_service
 from .graph_service import graph_service
 
 logger = structlog.get_logger(__name__)
@@ -21,7 +21,7 @@ logger = structlog.get_logger(__name__)
 # --- CONFIGURATION ---
 MAX_CONTEXT_CHARS_PER_DOC = 6000
 MIN_TEXT_LENGTH = 20
-CACHE_TTL_SECONDS = 60 # Reduced to 1 min for debugging (normally 300)
+CACHE_TTL_SECONDS = 60 
 MAX_CACHE_SIZE = 1000
 
 # Document priority
@@ -94,23 +94,17 @@ def _get_document_priority(doc_name: str) -> int:
     return 999
 
 def _get_full_case_text(db: Database, case_id: str) -> str:
-    """
-    Aggregates text from all documents in a case.
-    Uses MULTIPLE fallbacks to ensure data is found.
-    """
     try:
         query = {"case_id": ObjectId(case_id)}
         documents = list(db.documents.find(query))
         
         if not documents:
-            # Retry with string ID if ObjectId failed
             documents = list(db.documents.find({"case_id": str(case_id)}))
             
         if not documents:
             logger.warning(f"Analysis: No documents found for case {case_id}")
             return ""
         
-        # Sort by importance
         documents.sort(key=lambda x: _get_document_priority(x.get("file_name", "")))
         
         context_buffer = []
@@ -118,23 +112,14 @@ def _get_full_case_text(db: Database, case_id: str) -> str:
         
         for doc in documents:
             name = doc.get("file_name", "Untitled")
-            
-            # STRATEGY 1: Extracted Text (Best)
             content = doc.get("extracted_text")
-            
-            # STRATEGY 2: OCR Text (Backup)
             if not content or len(str(content)) < MIN_TEXT_LENGTH:
                 content = doc.get("ocr_text")
-                
-            # STRATEGY 3: Summary (Fallback)
             if not content or len(str(content)) < MIN_TEXT_LENGTH:
                 content = doc.get("summary")
-            
-            # STRATEGY 4: Metadata (Last Resort)
             if not content or len(str(content)) < MIN_TEXT_LENGTH:
                 content = f"[Metadata Only] This file '{name}' exists but has no readable text content yet."
 
-            # Sanitize & Append
             clean_content = str(content)[:MAX_CONTEXT_CHARS_PER_DOC]
             entry = f"\n=== DOKUMENTI: {name} ===\n{clean_content}\n"
             context_buffer.append(entry)
@@ -155,23 +140,17 @@ def cross_examine_case(
     user_id: str,
     force_refresh: bool = False
 ) -> Dict[str, Any]:
-    """
-    Called by the 'Analyze Tab'.
-    """
     start_time = time.time()
     try:
-        # 1. Auth
         authorized, auth_result = authorize_case_access(db, case_id, user_id)
         if not authorized: return auth_result
         
-        # 2. Cache Check
         cache_key = analysis_cache.get_key(case_id, user_id)
         if not force_refresh:
             if cached := analysis_cache.get(cache_key): 
                 logger.info("Analysis served from cache.")
                 return cached
 
-        # 3. Data Gathering
         full_text = _get_full_case_text(db, case_id)
         
         if not full_text or len(full_text) < 50:
@@ -182,10 +161,8 @@ def cross_examine_case(
                 "error": True
             }
 
-        # 4. Graph Intelligence (The "Invisible" Context)
         graph_context = graph_service.get_strategic_context(case_id)
         
-        # 5. Fuse & Call AI
         final_prompt_payload = f"""
         === GRAPH INTELLIGENCE (RELATIONSHIPS) ===
         {graph_context}
@@ -194,14 +171,13 @@ def cross_examine_case(
         {full_text}
         """
 
+        # SAFE CALL using module.function
         result = llm_service.analyze_case_integrity(final_prompt_payload)
         
-        # 6. Validate & Cache
         if isinstance(result, dict) and result.get("summary"):
             result["processing_time_ms"] = int((time.time() - start_time) * 1000)
             analysis_cache.set(cache_key, result)
         else:
-             # Fallback if AI returned garbage
              result = {
                  "summary": "Analiza dështoi të strukturohej nga AI.",
                  "strategic_analysis": "Sistemi mori të dhënat por nuk arriti të gjenerojë formatin JSON të kërkuar.",
@@ -215,7 +191,5 @@ def cross_examine_case(
         logger.error(f"Analysis Critical Failure: {e}")
         return {"error": "Gabim i brendshëm i sistemit gjatë analizës."}
 
-# --- NODE ANALYSIS (GRAPH CLICK) ---
 def analyze_node_context(db: Database, case_id: str, node_id: str, user_id: str) -> Dict[str, Any]:
-    # Placeholder for graph node click actions
     return {"summary": "Node analysis placeholder."}

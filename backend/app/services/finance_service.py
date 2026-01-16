@@ -1,8 +1,7 @@
 # FILE: backend/app/services/finance_service.py
-# PHOENIX PROTOCOL - FINANCE LOGIC V6.1
-# 1. STATUS: VALIDATED against updated LLM Service.
-# 2. FEATURE: Generates AI Forensic Reports using the 'ForensicAccountant' persona.
-# 3. CRUD: Full Invoice/Expense lifecycle management.
+# PHOENIX PROTOCOL - FINANCE LOGIC V6.3 (SAFE IMPORTS)
+# 1. FIX: Changed import strategy to 'import app.services.llm_service as llm_service' to avoid Pylance errors.
+# 2. LOGIC: Smart JSON processing maintained.
 
 import structlog
 import json
@@ -10,14 +9,14 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from pymongo.database import Database
 from fastapi import HTTPException, UploadFile
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from app.models.finance import (
     InvoiceCreate, InvoiceInDB, InvoiceUpdate, 
     ExpenseCreate, ExpenseInDB, ExpenseUpdate
 )
-# Ensure llm_service has been updated to V28.1 before running this.
-from app.services.llm_service import analyze_financial_portfolio
+# SAFE IMPORT: Importing the module prevents "unknown symbol" if circular refs exist
+import app.services.llm_service as llm_service
 from app.services.storage_service import upload_file_raw
 
 logger = structlog.get_logger(__name__)
@@ -59,20 +58,17 @@ class FinanceService:
             logger.error(f"Error calculating POS revenue: {e}")
             return 0.0
 
-    async def generate_ai_report(self, user_id: str, async_db: Any) -> str:
+    async def generate_ai_report(self, user_id: str, async_db: Any) -> Dict[str, Any]:
         """
-        Aggregates last 30 days of data and asks the Forensic Accountant for a report.
+        Aggregates data and asks the Forensic Accountant for a JSON report.
         """
         try:
-            # 1. Fetch Recent Data (Limit 50 to fit context window)
             invoices = list(self.db.invoices.find({"user_id": ObjectId(user_id)}).sort("issue_date", -1).limit(30))
             expenses = list(self.db.expenses.find({"user_id": ObjectId(user_id)}).sort("date", -1).limit(30))
             
-            # POS Data (Current Month)
             now = datetime.now()
             pos_revenue = await self.get_monthly_pos_revenue(async_db, user_id, now.month, now.year)
 
-            # 2. Serialize for AI
             financial_snapshot = {
                 "report_period": now.strftime("%B %Y"),
                 "currency": "EUR",
@@ -99,18 +95,18 @@ class FinanceService:
                 ]
             }
 
-            # 3. Call The Forensic Brain
             json_context = json.dumps(financial_snapshot, default=str)
-            ai_report_markdown = analyze_financial_portfolio(json_context)
             
-            return ai_report_markdown
+            # SAFE CALL: Using module.function syntax
+            ai_report_json = llm_service.analyze_financial_portfolio(json_context)
+            
+            return ai_report_json
 
         except Exception as e:
             logger.error(f"AI Report Gen Failed: {e}")
-            return "❌ Gabim gjatë gjenerimit të analizës financiare. Ju lutem provoni më vonë."
+            return {"error": "Gabim gjatë gjenerimit.", "executive_summary": "Nuk mund të gjenerohej raporti."}
 
-    # --- INVOICE CRUD ---
-
+    # --- INVOICE CRUD (Preserved) ---
     def _generate_invoice_number(self, user_id: str) -> str:
         count = self.db.invoices.count_documents({"user_id": ObjectId(user_id)})
         year = datetime.now().year
@@ -203,8 +199,7 @@ class FinanceService:
         result = self.db.invoices.delete_one({"_id": oid, "user_id": ObjectId(user_id)})
         if result.deleted_count == 0: raise HTTPException(status_code=404, detail="Invoice not found")
 
-    # --- EXPENSE CRUD ---
-
+    # --- EXPENSE CRUD (Preserved) ---
     def create_expense(self, user_id: str, data: ExpenseCreate) -> ExpenseInDB:
         expense_doc = data.model_dump()
         expense_doc.update({
