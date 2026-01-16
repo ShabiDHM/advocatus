@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V13.0 (GRAPH REMOVAL)
-// 1. UI CLEANUP: Removed the "Lidhjet" (Graph) button and component.
-// 2. TYPES: Removed 'graph' from ViewMode.
-// 3. LOGIC: Preserved Workspace (Docs/Chat) and Analyst (Spreadsheet) views.
+// PHOENIX PROTOCOL - CASE VIEW V13.1 (LAYOUT SYMMETRY)
+// 1. LAYOUT: Switched to 'grid-cols-5' for perfect balance (1-2-1-1 distribution).
+// 2. STYLING: Restored primary background color to the 'Analyze' button.
+// 3. CONSISTENCY: Analyst and Analyze buttons now have equal width and visual weight.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -120,12 +120,16 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-3 w-full animate-in fade-in slide-in-from-top-2">
+              {/* LAYOUT GRID: 1 - 2 - 1 - 1 (5 Columns for Balance) */}
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 w-full animate-in fade-in slide-in-from-top-2">
+                    
+                    {/* 1. DATE */}
                     <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap">
                         <Calendar className="h-4 w-4 text-blue-400" />
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
 
+                    {/* 2. CONTEXT SWITCHER (Middle) */}
                     <div className="md:col-span-2 h-12 md:h-11 min-w-0">
                         {viewMode === 'workspace' && (
                              <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
@@ -137,21 +141,20 @@ const CaseHeader: React.FC<{
                         )}
                     </div>
                     
-                    {/* View Switchers */}
+                    {/* 3. ANALYST TOGGLE */}
                     <button 
                         onClick={() => setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-white' : 'text-gray-400 border-transparent hover:text-white'}`}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-white' : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'}`}
                     >
                         <Activity className="h-4 w-4" />
                         <span>{t('caseView.analyst', 'Analisti Financiar')}</span>
                     </button>
 
-                    {/* GRAPH BUTTON REMOVED HERE */}
-
+                    {/* 4. ANALYZE ACTION (Primary) */}
                     <button 
                         onClick={onAnalyze} 
                         disabled={isAnalyzing || viewMode !== 'workspace'} 
-                        className={`md:col-span-2 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent disabled:bg-white/5 disabled:border disabled:border-white/10 disabled:cursor-not-allowed disabled:opacity-50`}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent bg-primary-start hover:bg-primary-end shadow-primary-start/20 disabled:bg-white/5 disabled:border disabled:border-white/10 disabled:cursor-not-allowed disabled:opacity-50`}
                         type="button"
                     >
                         {isAnalyzing ? (
