@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V13.1 (LAYOUT SYMMETRY)
-// 1. LAYOUT: Switched to 'grid-cols-5' for perfect balance (1-2-1-1 distribution).
-// 2. STYLING: Restored primary background color to the 'Analyze' button.
-// 3. CONSISTENCY: Analyst and Analyze buttons now have equal width and visual weight.
+// PHOENIX PROTOCOL - CASE VIEW V13.2 (FIXED PROPS)
+// 1. FIX: Added missing 'caseId' prop to AnalysisModal.
+// 2. STATUS: War Room features now fully accessible.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -120,16 +119,12 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              {/* LAYOUT GRID: 1 - 2 - 1 - 1 (5 Columns for Balance) */}
               <div className="grid grid-cols-1 md:grid-cols-5 gap-3 w-full animate-in fade-in slide-in-from-top-2">
-                    
-                    {/* 1. DATE */}
                     <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap">
                         <Calendar className="h-4 w-4 text-blue-400" />
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
 
-                    {/* 2. CONTEXT SWITCHER (Middle) */}
                     <div className="md:col-span-2 h-12 md:h-11 min-w-0">
                         {viewMode === 'workspace' && (
                              <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
@@ -141,7 +136,6 @@ const CaseHeader: React.FC<{
                         )}
                     </div>
                     
-                    {/* 3. ANALYST TOGGLE */}
                     <button 
                         onClick={() => setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                         className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-white' : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'}`}
@@ -150,7 +144,6 @@ const CaseHeader: React.FC<{
                         <span>{t('caseView.analyst', 'Analisti Financiar')}</span>
                     </button>
 
-                    {/* 4. ANALYZE ACTION (Primary) */}
                     <button 
                         onClick={onAnalyze} 
                         disabled={isAnalyzing || viewMode !== 'workspace'} 
@@ -311,7 +304,8 @@ const CaseViewPage: React.FC = () => {
       {viewingDocument && (<PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={handleCloseViewer} onMinimize={handleMinimizeViewer} t={t} directUrl={viewingUrl} isAuth={true} />)}
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={handleExpandViewer} onClose={() => setMinimizedDocument(null)} />}
 
-      {analysisResult && (<AnalysisModal isOpen={activeModal === 'analysis'} onClose={() => setActiveModal('none')} result={analysisResult} />)}
+      {/* PHOENIX FIX: Added 'caseId' prop here */}
+      {analysisResult && (<AnalysisModal isOpen={activeModal === 'analysis'} onClose={() => setActiveModal('none')} result={analysisResult} caseId={currentCaseId} />)}
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRename} currentName={documentToRename?.file_name || ''} t={t} />
     </motion.div>
   );
