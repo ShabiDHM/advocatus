@@ -1,8 +1,8 @@
 /* FILE: src/components/CaseGraphVisualization.tsx
-   PHOENIX PROTOCOL - LEGAL INTELLIGENCE MAP V6 (FOCUS MODE)
-   1. STRATEGY: "Dimming" instead of "Deleting". Prevents broken/empty graphs.
-   2. READABILITY: dynamic text visibility. If a node is dimmed, its text is hidden.
-   3. PHYSICS: Increased repulsion to stop nodes from overlapping.
+   PHOENIX PROTOCOL - LEGAL INTELLIGENCE MAP V7 (VISIBILITY FIX)
+   1. CRITICAL FIX: Classifier now checks 'properties.group' to correctly identify People/Judges.
+   2. VISIBILITY: Raised dimming floor to 25% so nodes are never invisible.
+   3. LOGIC: Any node involved in a CONFLICT link is forced visible, regardless of type.
 */
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
@@ -60,7 +60,7 @@ const THEME = {
   links: {
     CONFLICT:   '#ef4444', 
     FAMILY:     '#10b981', 
-    FINANCE:    '#b45309', 
+    FINANCE:    '#d97706', 
     PROCEDURAL: '#cbd5e1'
   },
   icons: {
@@ -73,8 +73,16 @@ const THEME = {
   }
 };
 
-// --- CLASSIFIERS ---
+// --- ROBUST CLASSIFIER ---
 const classifyNode = (node: any): string => {
+    // 1. Check Deep Properties First (Critical Fix)
+    const propGroup = (node.properties?.group || '').toUpperCase();
+    if (propGroup === 'PERSON') return 'person';
+    if (propGroup === 'JUDGE') return 'judge';
+    if (propGroup === 'COURT') return 'court';
+    if (propGroup === 'DOCUMENT') return 'document';
+
+    // 2. Fallback to Name Analysis
     const name = (node.name || '').toLowerCase();
     const rawGroup = (node.group || '').toUpperCase();
 
@@ -83,7 +91,10 @@ const classifyNode = (node: any): string => {
     if (name.includes('ligji') || name.includes('neni')) return 'law';
     if (name.includes('ministria') || name.includes('policia')) return 'court'; 
     if (name.includes('aktvendim') || name.includes('aktgjykim')) return 'document';
+    
+    // 3. Last Resort
     if (rawGroup === 'PERSON' || rawGroup === 'USER') return 'person';
+    
     return 'default';
 };
 
@@ -100,16 +111,13 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
   const [width, setWidth] = useState(800);
   const [height, setHeight] = useState(600);
   
-  // Data State
   const [graphData, setGraphData] = useState<{nodes: SimulationNode[], links: SimulationLink[]}>({ nodes: [], links: [] });
   const [isLoading, setIsLoading] = useState(true);
   
-  // Interaction State
   const [selectedNode, setSelectedNode] = useState<SimulationNode | null>(null);
   const [hoverNode, setHoverNode] = useState<SimulationNode | null>(null);
   const [viewMode, setViewMode] = useState<'ALL' | 'PEOPLE_ONLY' | 'DOCS_ONLY'>('ALL');
 
-  // Analysis State
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [realAnalysis, setRealAnalysis] = useState<RealAnalysisData | null>(null);
   
@@ -154,17 +162,20 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
     return () => { isMounted = false; };
   }, [caseId]);
 
-  // 2. Physics Tuning (Strong Repulsion to Prevent Clutter)
+  // 2. Physics - Auto Re-Center when filtering
   useEffect(() => {
     const graph = fgRef.current;
     if (graph) {
-        // Very strong repulsion to spread nodes out
-        graph.d3Force('charge')?.strength(-800).distanceMax(600);
-        // Loose springs so they don't bunch up
-        graph.d3Force('link')?.distance(120);
-        graph.d3Force('center')?.strength(0.3);
+        graph.d3Force('charge')?.strength(-600).distanceMax(500);
+        graph.d3Force('link')?.distance(150);
+        graph.d3Force('center')?.strength(0.4);
+        
+        // Slight delay to allow filter to apply before re-centering
+        setTimeout(() => {
+            if (graphData.nodes.length > 0) graph.zoomToFit(400, 50);
+        }, 500);
     }
-  }, [graphData]);
+  }, [graphData, viewMode]);
 
   // 3. Insight Generation
   const generateInsight = (node: SimulationNode) => {
@@ -222,24 +233,37 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
       fgRef.current?.zoom(3.0, 800);
   };
 
-  // --- RENDERING HELPERS (The Focus Engine) ---
+  // --- RENDERING LOGIC (The Safe Focus Engine) ---
   
   const isNodeDimmed = (node: SimulationNode) => {
       if (viewMode === 'ALL') return false;
-      const group = node.detectedGroup;
       
+      // If selected, never dim
+      if (node.id === selectedNode?.id) return false;
+
+      const group = node.detectedGroup || '';
+      
+      // Check connections: If a node is part of a CONFLICT link, NEVER dim it in Party view
       if (viewMode === 'PEOPLE_ONLY') {
-          // Dim everything that is NOT a person, judge, or conflict-related
-          return !['person', 'judge'].includes(group || '');
+          const isParty = ['person', 'judge'].includes(group);
+          if (isParty) return false;
+
+          // Check if this node is connected via Conflict/Finance
+          const hasConflict = graphData.links.some(l => 
+            ((l.source as any).id === node.id || (l.target as any).id === node.id) && 
+            (l.type === 'CONFLICT' || l.type === 'FINANCE')
+          );
+          if (hasConflict) return false;
+          
+          return true; // Dim everyone else
       }
+      
       if (viewMode === 'DOCS_ONLY') {
-          // Dim everything that is NOT a document
           return group !== 'document';
       }
       return false;
   };
 
-  // 4. NODE CANVAS OBJECT
   const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
     const dimmed = isNodeDimmed(node);
     const group = node.detectedGroup || 'default';
@@ -247,9 +271,9 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
     const isSelected = node.id === selectedNode?.id;
     const isHovered = node.id === hoverNode?.id;
 
-    // DIMMING LOGIC: Dimmed nodes are tiny ghosts
-    const alpha = dimmed ? 0.1 : 1;
-    const baseSize = dimmed ? 3 : NODE_REL_SIZE; 
+    // DIMMING: 0.25 is safe (visible but faint). 0.1 was too low.
+    const alpha = dimmed ? 0.25 : 1;
+    const baseSize = dimmed ? 4 : NODE_REL_SIZE; 
     const size = isSelected ? baseSize * 1.5 : baseSize;
 
     ctx.globalAlpha = alpha;
@@ -260,7 +284,6 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
     ctx.fillStyle = color;
     ctx.fill();
 
-    // Selection Ring
     if ((isSelected || isHovered) && !dimmed) {
         ctx.globalAlpha = 1;
         ctx.strokeStyle = '#fff';
@@ -271,16 +294,12 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
         ctx.stroke();
     }
 
-    // --- TEXT RENDERING (STRICT) ---
-    // 1. If dimmed, NEVER show text.
-    // 2. If zoom is too far out, NEVER show text (except selected).
-    // 3. This solves the "Ant Text" and "Clutter" issues.
-    
-    ctx.globalAlpha = 1; // Reset alpha for text
+    // --- TEXT RENDERING ---
+    ctx.globalAlpha = 1; 
     const showText = !dimmed && (isSelected || isHovered || globalScale > 1.0);
 
     if (showText) {
-        const fontSize = Math.max(12 / globalScale, 12); // Minimum 12px logical size
+        const fontSize = Math.max(12 / globalScale, 12);
         
         ctx.font = `${isSelected ? 'bold' : 'normal'} ${fontSize}px Inter, sans-serif`;
         ctx.textAlign = 'center';
@@ -291,34 +310,27 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
         const pad = fontSize * 0.5;
         const offset = size + 6;
 
-        // Background Pill
         ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-        ctx.shadowColor = 'rgba(0,0,0,0.2)';
-        ctx.shadowBlur = 4;
         ctx.beginPath();
         ctx.roundRect(node.x - textWidth/2 - pad/2, node.y + offset, textWidth + pad, fontSize + pad/2, 4);
         ctx.fill();
-        ctx.shadowBlur = 0;
 
-        // Text
         ctx.fillStyle = '#1e293b'; 
         ctx.fillText(label, node.x, node.y + offset + fontSize/2 + 2);
     }
   }, [selectedNode, hoverNode, viewMode]);
 
-  // 5. LINK CANVAS OBJECT
   const linkCanvasObject = useCallback((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      // If either end is dimmed, the link is ghosted
       const sourceDimmed = isNodeDimmed(link.source);
       const targetDimmed = isNodeDimmed(link.target);
-      const isDimmed = sourceDimmed || targetDimmed;
+      // Link is dimmed only if BOTH ends are dimmed
+      const isDimmed = sourceDimmed && targetDimmed;
 
       const type = link.type || 'PROCEDURAL';
       const color = THEME.links[type as keyof typeof THEME.links];
       const isImportant = type === 'CONFLICT' || type === 'FINANCE';
       
-      // Opacity control
-      const alpha = isDimmed ? 0.05 : (type === 'PROCEDURAL' ? 0.4 : 1);
+      const alpha = isDimmed ? 0.1 : (type === 'PROCEDURAL' ? 0.4 : 1);
       const width = (isImportant && !isDimmed) ? 2 / globalScale : 1 / globalScale;
 
       ctx.globalAlpha = alpha;
@@ -330,9 +342,6 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
       ctx.lineTo(link.target.x, link.target.y);
       ctx.stroke();
 
-      // --- LINK TEXT ---
-      // Strict rule: Only show text if hovered OR if important and zoomed in.
-      // Never show text on dimmed links.
       const isHovered = link.source.id === hoverNode?.id || link.target.id === hoverNode?.id;
       const shouldShowLabel = !isDimmed && ((isImportant && globalScale > 1.2) || isHovered);
 
@@ -350,7 +359,6 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
           const textWidth = ctx.measureText(labelText).width;
           const pad = 6 / globalScale;
 
-          // Label Background
           ctx.fillStyle = color;
           ctx.beginPath();
           ctx.roundRect(midX - textWidth/2 - pad/2, midY - fontSize/2 - pad/2, textWidth + pad, fontSize + pad, 3);
@@ -391,7 +399,7 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 ref={fgRef}
                 width={width}
                 height={height}
-                graphData={graphData} // Use FULL data, renderer handles hiding
+                graphData={graphData}
                 nodeCanvasObject={nodeCanvasObject}
                 linkCanvasObject={linkCanvasObject}
                 backgroundColor="#0f172a"
@@ -404,7 +412,7 @@ const CaseGraphVisualization: React.FC<CaseGraphProps> = ({ caseId }) => {
                 linkDirectionalArrowRelPos={ARROW_REL_POS}
                 linkDirectionalArrowColor={(link: any) => {
                      // Ghost arrows if dimmed
-                     if (isNodeDimmed(link.source) || isNodeDimmed(link.target)) return 'rgba(255,255,255,0.05)';
+                     if (isNodeDimmed(link.source) && isNodeDimmed(link.target)) return 'rgba(255,255,255,0.05)';
                      return THEME.links[link.type as keyof typeof THEME.links] || '#334155';
                 }}
                 
