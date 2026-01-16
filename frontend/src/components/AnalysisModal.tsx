@@ -1,15 +1,15 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V7.0 (SENIOR LITIGATOR EDITION)
-// 1. DATA MAPPING: Aligned with new Backend JSON (key_issues, legal_basis, action_plan).
-// 2. LAYOUT: Updated tabs to 'Analiza Ligjore' and 'Plani i Veprimit'.
-// 3. UI: Uses 'Risk Level' badge to show case urgency.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V7.1 (GLOBAL CITATION AWARE)
+// 1. UI UPDATE: Detects and highlights Global Citations (UNCRC, ECHR) with distinct iconography.
+// 2. DATA MAPPING: Remains aligned with Backend JSON.
+// 3. UX: 'Risk Level' badge visual improvements.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Scale, FileText, Swords, Target, MessageCircleQuestion, 
-    Gavel, ShieldAlert, CheckCircle2, BookOpen, AlertTriangle
+    Gavel, ShieldAlert, CheckCircle2, BookOpen, AlertTriangle, Globe
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CaseAnalysisResult } from '../data/types'; 
@@ -31,6 +31,12 @@ const scrollbarStyles = `
 const sanitizeText = (text: string | undefined | null): string => {
     if (!text) return "";
     return text.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
+};
+
+// Helper to detect global laws
+const isGlobalCitation = (text: string) => {
+    const globalKeywords = ["UNCRC", "KEDNJ", "ECHR", "Konventa", "Convention", "Strasburg", "Global", "International"];
+    return globalKeywords.some(keyword => text.includes(keyword));
 };
 
 const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, isLoading }) => {
@@ -89,7 +95,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           </div>
 
           {isLoading ? (
-             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center"><div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6"></div><h3 className="text-xl font-bold text-white mb-2">Duke Analizuar Ligjet & Faktet...</h3><p className="text-text-secondary text-sm max-w-sm mx-auto">Avokati AI po verifikon bazën ligjore dhe po kërkon dobësitë e kundërshtarit.</p></div>
+             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center"><div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6"></div><h3 className="text-xl font-bold text-white mb-2">Duke Analizuar Ligjet & Faktet...</h3><p className="text-text-secondary text-sm max-w-sm mx-auto">Avokati AI po verifikon bazën ligjore, përfshirë Konventat Ndërkombëtare.</p></div>
           ) : (
              <>
                 {/* TABS */}
@@ -143,12 +149,21 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         <BookOpen size={16}/> Baza Ligjore (Rules)
                                     </h3>
                                     <ul className="space-y-2">
-                                        {legal_basis.map((law: string, i: number) => (
-                                            <li key={i} className="flex gap-3 text-sm text-secondary-100 items-center">
-                                                <Scale size={14} className="text-secondary-400 shrink-0"/>
-                                                <span className="leading-relaxed font-mono text-xs">{sanitizeText(law)}</span>
-                                            </li>
-                                        ))}
+                                        {legal_basis.map((law: string, i: number) => {
+                                            const isGlobal = isGlobalCitation(law);
+                                            return (
+                                                <li key={i} className={`flex gap-3 text-sm items-center p-2 rounded-lg transition-colors ${isGlobal ? 'bg-indigo-500/10 border border-indigo-500/30' : ''}`}>
+                                                    {isGlobal ? (
+                                                        <Globe size={16} className="text-indigo-400 shrink-0"/>
+                                                    ) : (
+                                                        <Scale size={16} className="text-secondary-400 shrink-0"/>
+                                                    )}
+                                                    <span className={`leading-relaxed font-mono text-xs ${isGlobal ? 'text-indigo-200' : 'text-secondary-100'}`}>
+                                                        {sanitizeText(law)}
+                                                    </span>
+                                                </li>
+                                            );
+                                        })}
                                     </ul>
                                 </div>
                             )}

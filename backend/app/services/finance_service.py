@@ -1,7 +1,8 @@
 # FILE: backend/app/services/finance_service.py
-# PHOENIX PROTOCOL - FINANCE LOGIC V6.0
-# 1. ADDED: generate_ai_report() to aggregate data and call the Forensic Persona.
-# 2. CRUD: Fully preserved all Invoice/Expense logic.
+# PHOENIX PROTOCOL - FINANCE LOGIC V6.1
+# 1. STATUS: VALIDATED against updated LLM Service.
+# 2. FEATURE: Generates AI Forensic Reports using the 'ForensicAccountant' persona.
+# 3. CRUD: Full Invoice/Expense lifecycle management.
 
 import structlog
 import json
@@ -9,12 +10,13 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from pymongo.database import Database
 from fastapi import HTTPException, UploadFile
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from app.models.finance import (
     InvoiceCreate, InvoiceInDB, InvoiceUpdate, 
     ExpenseCreate, ExpenseInDB, ExpenseUpdate
 )
+# Ensure llm_service has been updated to V28.1 before running this.
 from app.services.llm_service import analyze_financial_portfolio
 from app.services.storage_service import upload_file_raw
 
@@ -139,7 +141,7 @@ class FinanceService:
         invoice_doc["_id"] = result.inserted_id
         return InvoiceInDB(**invoice_doc)
 
-    def get_invoices(self, user_id: str) -> list[InvoiceInDB]:
+    def get_invoices(self, user_id: str) -> List[InvoiceInDB]:
         cursor = self.db.invoices.find({"user_id": ObjectId(user_id)}).sort("created_at", -1)
         return [InvoiceInDB(**doc) for doc in cursor]
 
@@ -214,7 +216,7 @@ class FinanceService:
         expense_doc["_id"] = result.inserted_id
         return ExpenseInDB(**expense_doc)
 
-    def get_expenses(self, user_id: str) -> list[ExpenseInDB]:
+    def get_expenses(self, user_id: str) -> List[ExpenseInDB]:
         cursor = self.db.expenses.find({"user_id": ObjectId(user_id)}).sort("date", -1)
         return [ExpenseInDB(**doc) for doc in cursor]
 
