@@ -1,7 +1,7 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH SERVICE V11.1 (EXPORT FIX)
-# 1. FINAL FIX: Re-added the global 'graph_service = GraphService()' instance at the end.
-# 2. STATUS: This will resolve the "unknown import symbol" error in all other files.
+# PHOENIX PROTOCOL - GRAPH SERVICE V12.0 (SUBGRAPH & SANITIZATION)
+# 1. TOPOLOGY: Implements "Subgraph" query to show connections BETWEEN entities, not just from Documents.
+# 2. SANITIZATION: Filters out "Unknown", "N/A", and single-character nodes.
 
 import os
 import structlog
@@ -69,16 +69,40 @@ class GraphService:
         session.run(query)
 
     # ==============================================================================
-    # SECTION 2: VISUALIZATION (DIRECT QUERY FIX)
+    # SECTION 2: VISUALIZATION (ENHANCED SUBGRAPH QUERY)
     # ==============================================================================
 
     def get_case_graph(self, case_id: str) -> Dict[str, List]:
+        """
+        Retrieves a fully connected subgraph for the case.
+        Fetches:
+        1. Documents in the case.
+        2. All entities connected to those documents.
+        3. All relationships BETWEEN those entities (The "Web").
+        4. Filters out garbage nodes (e.g. 'Unknown', 'N/A').
+        """
         self._connect()
         if not self._driver: return {"nodes": [], "links": []}
         
+        # This query collects the "Neighborhood" of the case, then finds internal links
         query = """
-        MATCH (d:Document {case_id: $case_id})-[r]->(e)
-        RETURN d, r, e
+        MATCH (d:Document {case_id: $case_id})
+        
+        // 1. Find all directly connected nodes (First Hop)
+        OPTIONAL MATCH (d)-[r1]-(n)
+        WHERE NOT n.name IS NULL 
+          AND size(n.name) > 1
+          AND NOT toLower(n.name) IN ['unknown', 'n/a', 'undefined', 'null', 'none']
+        
+        // 2. Collect the pool of valid nodes
+        WITH collect(distinct d) + collect(distinct n) as valid_nodes
+        
+        // 3. Find all relationships strictly WITHIN this pool
+        UNWIND valid_nodes as node_a
+        MATCH (node_a)-[r]-(node_b)
+        WHERE node_b IN valid_nodes
+        
+        RETURN node_a, r, node_b
         """
         
         nodes_dict = {}
@@ -87,25 +111,39 @@ class GraphService:
         try:
             with self._driver.session() as session:
                 result = session.run(query, case_id=case_id)
+                
                 for record in result:
-                    doc_node = record['d']
-                    entity_node = record['e']
+                    node_a = record['node_a']
+                    node_b = record['node_b']
                     rel = record['r']
 
                     # Process Nodes
-                    for node_obj in [doc_node, entity_node]:
+                    for node_obj in [node_a, node_b]:
                         props = dict(node_obj)
+                        # Prefer ID, fallback to Name
                         node_id = props.get("id", props.get("name"))
                         
                         if node_id and node_id not in nodes_dict:
                             labels = list(node_obj.labels)
-                            group = labels[0].upper() if labels else "ENTITY"
+                            # Determine Primary Group
+                            if "Document" in labels: group = "DOCUMENT"
+                            elif "Person" in labels: group = "PERSON"
+                            elif "Organization" in labels: group = "ORGANIZATION"
+                            elif "Claim" in labels: group = "CLAIM"
+                            elif "Evidence" in labels: group = "EVIDENCE"
+                            elif "Judge" in labels: group = "JUDGE"
+                            else: group = "ENTITY"
                             
+                            # Determine Size (Val)
+                            val = 20 if group == 'DOCUMENT' else 5
+                            if group in ['CLAIM', 'EVIDENCE']: val = 3
+
                             nodes_dict[node_id] = {
                                 "id": node_id,
-                                "name": props.get("name", "Unnamed"),
-                                "group": props.get("group", group),
-                                "val": 10 if group == 'DOCUMENT' else 5
+                                "name": props.get("name", props.get("text", "Unnamed")),
+                                "group": group,
+                                "val": val,
+                                "properties": props  # Send all props for frontend tooltip
                             }
                     
                     # Process Link
@@ -116,14 +154,20 @@ class GraphService:
                         links_list.append({
                             "source": start_id,
                             "target": end_id,
-                            "label": rel.type
+                            "label": rel.type.replace("_", " ")
                         })
 
+            # Deduplicate links
             unique_links = [dict(t) for t in {tuple(d.items()) for d in links_list}]
+            
+            # Post-processing: If no nodes found (empty case), return empty
+            if not nodes_dict:
+                return {"nodes": [], "links": []}
+
             return {"nodes": list(nodes_dict.values()), "links": unique_links}
 
         except Exception as e:
-            logger.error(f"Direct Graph Retrieval Failed: {e}")
+            logger.error(f"Graph Retrieval Failed: {e}")
             return {"nodes": [], "links": []}
 
     # ==============================================================================
@@ -169,7 +213,8 @@ class GraphService:
                 elif raw_label in ["Date", "Time"]: label = "DATE"
                 
                 name = ent.get("name", "").strip().title()
-                if not name or len(name) < 2: continue
+                # STRICTER INGESTION FILTER
+                if not name or len(name) < 2 or name.lower() in ["unknown", "n/a"]: continue
 
                 tx.run(f"""
                 MERGE (e:{label} {{name: $name}})
@@ -205,6 +250,10 @@ class GraphService:
                     accuser = item.get('source', 'Unknown').title()
                     accused = item.get('target', 'Unknown').title()
                     claim_text = item.get('text', 'Unspecified Claim')
+                    
+                    # Filter bad actors
+                    if accuser.lower() == 'unknown' or accused.lower() == 'unknown': continue
+
                     tx.run("""
                     MERGE (p1:Person {name: $accuser})
                     MERGE (p2:Person {name: $accused})
@@ -283,5 +332,4 @@ class GraphService:
         except Exception:
             return []
 
-# PHOENIX FIX: Create and export the global instance
 graph_service = GraphService()
