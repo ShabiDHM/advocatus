@@ -1,13 +1,12 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V4.3 (TEXT SELECTION FIX)
-// 1. FIX: Added 'select-text' class to message bubbles to allow highlighting.
-// 2. UX: Enabled 'Copy Button' for User messages as well.
-// 3. STYLE: Adjusted copy button contrast for User bubbles (Blue background).
+// PHOENIX PROTOCOL - CHAT PANEL V4.5 (CLEAN CODE)
+// 1. CLEANUP: Removed unused 'LinkIcon' import to resolve TS warning.
+// 2. LOGIC: Smart Citation Logic remains intact.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-    Send, BrainCircuit, Trash2, Loader2, User, Copy, Check, FileCheck, Zap, GraduationCap
+    Send, BrainCircuit, Trash2, Loader2, User, Copy, Check, FileCheck, Zap, GraduationCap, Scale, Globe 
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -17,6 +16,18 @@ import remarkGfm from 'remark-gfm';
 export type ChatMode = 'general' | 'document';
 export type ReasoningMode = 'FAST' | 'DEEP';
 export type Jurisdiction = 'ks' | 'al';
+
+// --- HELPER: CLEAN TEXT ---
+const cleanChatText = (text: string) => {
+    // 1. Hide the raw doc:// links if they are not in markdown format
+    let clean = text.replace(/([^(]+)\(doc:\/\/[^)]+\):?/g, '$1');
+    
+    // 2. Remove AI prefixes
+    clean = clean.replace(/^Ligji\/Neni \(Kosovë\):\s*/gm, '');
+    clean = clean.replace(/^Konventa \(Global\):\s*/gm, '');
+    
+    return clean;
+};
 
 // --- HELPER: COPY BUTTON ---
 const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, isUser }) => {
@@ -39,8 +50,8 @@ const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, 
                 copied 
                 ? 'bg-emerald-500/20 text-emerald-400' 
                 : isUser 
-                    ? 'bg-white/10 text-white/70 hover:text-white hover:bg-white/20' // Brighter for Blue BG
-                    : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10' // Standard for Glass BG
+                    ? 'bg-white/10 text-white/70 hover:text-white hover:bg-white/20' 
+                    : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10' 
             }`}
             title={copied ? "Copied!" : "Copy text"}
         >
@@ -51,7 +62,7 @@ const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, 
 
 // --- HELPER: CUSTOM MARKDOWN COMPONENTS ---
 const MarkdownComponents = {
-    p: ({node, ...props}: any) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />, 
+    p: ({node, ...props}: any) => <p className="mb-2 last:mb-0 leading-relaxed whitespace-pre-wrap" {...props} />, 
     strong: ({node, ...props}: any) => <span className="font-bold text-accent-end" {...props} />, 
     em: ({node, ...props}: any) => <span className="italic text-text-secondary" {...props} />, 
     ul: ({node, ...props}: any) => <ul className="list-disc pl-4 space-y-1 my-2 marker:text-primary-start" {...props} />, 
@@ -59,6 +70,8 @@ const MarkdownComponents = {
     li: ({node, ...props}: any) => <li className="pl-1" {...props} />, 
     blockquote: ({node, ...props}: any) => <blockquote className="border-l-2 border-primary-start pl-3 py-1 my-2 bg-white/5 rounded-r text-text-secondary italic" {...props} />, 
     code: ({node, ...props}: any) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent-end" {...props} />, 
+    
+    // SMART LINK HANDLER
     a: ({href, children}: any) => {
         const getText = (child: any): string => {
             if (!child) return '';
@@ -69,26 +82,36 @@ const MarkdownComponents = {
         };
 
         const contentStr = getText(children);
-        const isEvidence = contentStr.includes("PROVA") || contentStr.includes("Dokument");
         const isDocLink = href?.startsWith('doc://');
         
         if (isDocLink) {
+            const isGlobal = ["UNCRC", "KEDNJ", "ECHR", "Konventa"].some(k => contentStr.includes(k));
+            const isEvidence = contentStr.includes("PROVA") || contentStr.includes("Dokument");
+
             if (isEvidence) {
                 return (
-                    <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-default mx-0.5" title="Evidence Document">
-                        <FileCheck size={10} className="flex-shrink-0" />
+                    <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-2 py-0.5 rounded-md text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-default mx-1 align-middle" title="Evidence Document">
+                        <FileCheck size={12} className="flex-shrink-0" />
                         {children}
                     </span>
                 );
             }
+
+            // Legal Citation Chip
             return (
-                <span className="text-blue-400 font-bold cursor-text mx-0.5 [&_*]:text-blue-400">
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold border mx-1 align-middle cursor-help transition-colors ${
+                    isGlobal 
+                    ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20' 
+                    : 'bg-blue-500/10 text-blue-300 border-blue-500/30 hover:bg-blue-500/20'
+                }`}>
+                    {isGlobal ? <Globe size={12} /> : <Scale size={12} />}
                     {children}
                 </span>
             );
         }
         return <a className="text-primary-start hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" href={href}>{children}</a>;
     },
+    
     table: ({node, ...props}: any) => <div className="overflow-x-auto my-3"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>, 
     th: ({node, ...props}: any) => <th className="border border-white/10 px-2 py-1.5 bg-white/10 font-bold text-left text-white" {...props} />, 
     td: ({node, ...props}: any) => <td className="border border-white/10 px-2 py-1.5" {...props} />, 
@@ -96,16 +119,27 @@ const MarkdownComponents = {
 
 const TypingMessage: React.FC<{ text: string; onComplete?: () => void }> = ({ text, onComplete }) => {
     const [displayedText, setDisplayedText] = useState("");
+    const cleanedFullText = cleanChatText(text);
+
     useEffect(() => {
-        setDisplayedText(""); let index = 0; const speed = 10;
+        setDisplayedText(""); 
+        let index = 0; 
+        const speed = 10;
+        
         const intervalId = setInterval(() => {
             setDisplayedText((prev) => {
-                if (index >= text.length) { clearInterval(intervalId); if (onComplete) onComplete(); return text; }
-                const nextChar = text.charAt(index); index++; return prev + nextChar;
+                if (index >= cleanedFullText.length) { 
+                    clearInterval(intervalId); 
+                    if (onComplete) onComplete(); 
+                    return cleanedFullText; 
+                }
+                const nextChar = cleanedFullText.charAt(index); 
+                index++; 
+                return prev + nextChar;
             });
         }, speed);
         return () => clearInterval(intervalId);
-    }, [text, onComplete]);
+    }, [cleanedFullText, onComplete]);
 
     return (
         <div className="markdown-content space-y-2 break-words select-text cursor-text">
@@ -239,6 +273,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             messages.map((msg, idx) => {
                 const isAi = msg.role === 'ai';
                 const useTyping = isAi && idx === typingIndex;
+                const cleanContent = cleanChatText(msg.content);
 
                 return (
                     <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex items-end gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -248,11 +283,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             </div>
                         )}
                         
-                        {/* PHOENIX FIX: Added 'select-text' here */}
                         <div className={`relative group max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-lg select-text ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none shadow-primary-start/20' : 'glass-panel text-text-primary rounded-bl-none pr-10'}`}>
                             
-                            {/* Copy Button enabled for both User and AI */}
-                            {!useTyping && <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />}
+                            {!useTyping && <MessageCopyButton text={cleanContent} isUser={msg.role === 'user'} />}
 
                             {msg.role === 'user' ? (
                                 msg.content
@@ -260,7 +293,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                                 <TypingMessage text={msg.content} onComplete={() => setTypingIndex(null)} />
                             ) : (
                                 <div className="markdown-content space-y-2 break-words select-text">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{msg.content}</ReactMarkdown>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{cleanContent}</ReactMarkdown>
                                 </div>
                             )}
                         </div>

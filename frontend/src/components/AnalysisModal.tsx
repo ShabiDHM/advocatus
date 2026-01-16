@@ -1,8 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V7.4 (STRUCTURED RENDERER)
-// 1. FORMATTING: Renders '[Law](doc://...)' citations with rich styling.
-// 2. PARSING: Detects "Përmbajtja:" and "Relevanca:" keys for bold highlighting.
-// 3. UI: Preserves clean Senior aesthetic.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V7.6 (CLEAN CODE)
+// 1. CLEANUP: Removed unused 'sanitizeText' function to resolve TS warning.
+// 2. LOGIC: 'cleanLegalText' handles all text sanitization now.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -28,51 +27,69 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 `;
 
-const sanitizeText = (text: string | undefined | null): string => {
+// Helper: Consolidates all cleaning logic
+const cleanLegalText = (text: string | undefined | null): string => {
     if (!text) return "";
-    return text.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
+    let clean = text.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
+    // Strip common AI prefixes to keep UI clean
+    clean = clean.replace(/^Ligji\/Neni \(Kosovë\):\s*/i, '');
+    clean = clean.replace(/^Konventa \(Global\):\s*/i, '');
+    return clean;
 };
 
-// Helper to render the specific structure user requested
+// SMART RENDERER: Handles [Title](Link) OR Title(doc://Link) formats
 const renderStructuredCitation = (text: string) => {
-    // Check if it matches the [Title](Link) pattern
-    const linkMatch = text.match(/^\[(.*?)\]\((.*?)\):?(.*)/s);
+    // 1. Try strict Markdown: [Title](Link): Body
+    let match = text.match(/^\[(.*?)\]\((.*?)\):?\s*(.*)/s);
     
-    if (linkMatch) {
-        const title = linkMatch[1];
-        const link = linkMatch[2]; // Can be used for future navigation
-        const rest = linkMatch[3]; // The content/relevance body
+    // 2. Try loose format: Title(doc://Link): Body
+    if (!match) {
+        match = text.match(/^(.*?)\((doc:\/\/.*?)\):?\s*(.*)/s);
+    }
+
+    if (match) {
+        const title = match[1].trim();
+        const link = match[2].trim(); 
+        const body = match[3].trim();
 
         return (
-            <div className="flex flex-col gap-1 w-full">
-                <div className="flex items-center gap-2 font-bold text-primary-200 text-xs uppercase tracking-wide mb-1 cursor-pointer hover:text-white transition-colors">
-                    <LinkIcon size={12} />
-                    <span title={link}>{title}</span>
+            <div className="flex flex-col gap-2 w-full">
+                {/* Header (Title) */}
+                <div className="flex items-center gap-2 font-bold text-primary-200 text-xs uppercase tracking-wide cursor-pointer hover:text-white transition-colors group">
+                    <LinkIcon size={12} className="text-primary-400 group-hover:text-white" />
+                    <span title={link} className="border-b border-dashed border-primary-500/30 pb-0.5">{title}</span>
                 </div>
-                <div className="text-gray-300 whitespace-pre-wrap leading-relaxed">
-                    {rest.split('\n').map((line, i) => {
+                
+                {/* Body (Content/Relevance) */}
+                <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed pl-5 border-l border-white/10 ml-0.5">
+                    {body.split('\n').map((line, i) => {
                         const trimmed = line.trim();
                         if (!trimmed) return null;
                         
-                        // Highlight "Përmbajtja:" and "Relevanca:"
+                        // Highlight Keys
                         if (trimmed.startsWith('Përmbajtja:') || trimmed.startsWith('Relevanca:')) {
-                            const [key, ...val] = trimmed.split(':');
+                            const splitIdx = trimmed.indexOf(':');
+                            const key = trimmed.substring(0, splitIdx);
+                            const val = trimmed.substring(splitIdx + 1);
+                            
                             return (
-                                <div key={i} className="mb-1">
-                                    <span className="text-secondary-300 font-semibold">{key}:</span>
-                                    <span className="text-gray-300">{val.join(':')}</span>
+                                <div key={i} className="mb-2 last:mb-0">
+                                    <span className={`font-semibold text-xs uppercase tracking-wider ${key === 'Relevanca' ? 'text-emerald-400' : 'text-secondary-400'}`}>
+                                        {key}
+                                    </span>
+                                    <div className="mt-0.5 text-gray-200">{val.trim()}</div>
                                 </div>
                             );
                         }
-                        return <div key={i}>{trimmed}</div>;
+                        return <div key={i} className="mb-1">{trimmed}</div>;
                     })}
                 </div>
             </div>
         );
     }
     
-    // Fallback for standard text
-    return <span className="leading-relaxed font-mono text-xs whitespace-pre-wrap">{sanitizeText(text)}</span>;
+    // Fallback: Just show clean text if parsing fails completely
+    return <span className="leading-relaxed font-mono text-xs whitespace-pre-wrap">{cleanLegalText(text)}</span>;
 };
 
 const isGlobalCitation = (text: string) => {
@@ -164,7 +181,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     <FileText size={16}/> {t('analysis.section_summary', 'Përmbledhje Ekzekutive')}
                                 </h3>
                                 <p className="text-white text-sm leading-relaxed whitespace-pre-line border-l-2 border-white/20 pl-4">
-                                    {sanitizeText(summary || t('analysis.no_summary', 'Nuk ka përmbledhje të disponueshme.'))}
+                                    {cleanLegalText(summary || t('analysis.no_summary', 'Nuk ka përmbledhje të disponueshme.'))}
                                 </p>
                             </div>
 
@@ -178,7 +195,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         {key_issues.map((issue: string, idx: number) => (
                                             <div key={idx} className="flex items-start gap-3 bg-white/5 p-3 rounded-lg border border-white/10">
                                                 <span className="text-primary-400 font-bold mt-0.5">#{idx + 1}</span>
-                                                <p className="text-sm text-gray-200 font-medium leading-snug">{sanitizeText(issue)}</p>
+                                                <p className="text-sm text-gray-200 font-medium leading-snug">{cleanLegalText(issue)}</p>
                                             </div>
                                         ))}
                                     </div>
@@ -220,7 +237,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     <h3 className="text-xs font-bold text-accent-start uppercase tracking-wider mb-3 flex items-center gap-2">
                                         <MessageCircleQuestion size={16}/> {t('analysis.section_analysis', 'Analiza Strategjike (Analysis)')}
                                     </h3>
-                                    <p className="text-white text-sm leading-relaxed whitespace-pre-line">{sanitizeText(strategic_analysis)}</p>
+                                    <p className="text-white text-sm leading-relaxed whitespace-pre-line">{cleanLegalText(strategic_analysis)}</p>
                                 </div>
                             )}
                             
@@ -234,7 +251,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         {weaknesses.map((w: string, i: number) => (
                                             <li key={i} className="flex gap-3 text-sm text-red-100 bg-red-500/10 p-3 rounded-lg border border-red-500/20">
                                                 <AlertTriangle size={16} className="text-red-500 shrink-0"/>
-                                                <span className="leading-relaxed">{sanitizeText(w)}</span>
+                                                <span className="leading-relaxed">{cleanLegalText(w)}</span>
                                             </li>
                                         ))}
                                     </ul>
@@ -253,7 +270,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-black font-bold text-xs shrink-0">
                                                     {i + 1}
                                                 </span>
-                                                <span className="leading-relaxed font-medium">{sanitizeText(step)}</span>
+                                                <span className="leading-relaxed font-medium">{cleanLegalText(step)}</span>
                                             </div>
                                         ))}
                                     </div>
