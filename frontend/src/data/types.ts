@@ -1,8 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES V7.1 (COMPLETE & VERIFIED)
-// 1. CONTENT: Includes ALL interfaces for Auth, Cases, Finance, Calendar, and Analysis.
-// 2. STATUS: Fully synchronized with Backend V28.0 (Senior Litigator) and V6.0 (Forensic Finance).
-// 3. GUARANTEE: No truncation.
+// PHOENIX PROTOCOL - TYPES V7.2 (DEEP STRATEGY)
+// 1. ADDED: DeepAnalysisResult interface for Adversarial/Chronology/Contradiction agents.
+// 2. STATUS: Fully synchronized with Backend V16.0.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -197,38 +196,52 @@ export type DraftingJobResult = { document_text: string; document_html?: string;
 
 // --- ANALYSIS (FORENSIC & SPREADSHEET) ---
 export interface ConflictingParty { party_name: string; core_claim: string; }
-export interface ChronologyEvent { date: string; event: string; source_doc?: string; }
+export interface ChronologyEvent { date: string; event: string; source_doc?: string; source?: string; }
 export interface GraphNode { id: string; name: string; group: string; val: number; }
 export interface GraphLink { source: string; target: string; label: string; }
 export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
 
-// PHOENIX V7.1: Upgraded Analysis Result Type (Hybrid Schema)
-// Matches both Legacy output and New Senior Litigator output
+// --- NEW DEEP ANALYSIS TYPES ---
+export interface AdversarialSimulation {
+    opponent_strategy: string;
+    weakness_attacks: string[];
+    counter_claims: string[];
+    predicted_outcome: string;
+}
+
+export interface Contradiction {
+    claim: string;
+    evidence: string;
+    severity: 'HIGH' | 'MEDIUM' | 'LOW';
+    impact: string;
+}
+
+export interface DeepAnalysisResult {
+    adversarial_simulation: AdversarialSimulation;
+    chronology: ChronologyEvent[];
+    contradictions: Contradiction[];
+    error?: string;
+}
+
+// --- LEGACY ANALYSIS ---
 export interface CaseAnalysisResult {
-    // --- LEGACY FIELDS (Maintain for old cache) ---
     summary_analysis?: string;
     chronology?: ChronologyEvent[];
     contradictions?: string[];
     red_flags?: string[];
     judicial_observation?: string;
-    
-    // --- STRATEGIC ANALYSIS (V25 Legacy) ---
     strategic_summary?: string;
     emotional_leverage_points?: string[];
     financial_leverage_points?: string[];
     suggested_questions?: string[];
     discovery_targets?: string[];
-    
-    // --- SENIOR LITIGATOR FIELDS (V28+ NEW) ---
-    summary?: string;               // Executive Summary (Markdown safe)
-    key_issues?: string[];          // The "Issue" in IRAC
-    legal_basis?: string[];         // The "Rule" in IRAC
-    strategic_analysis?: string;    // The "Analysis" in IRAC
-    weaknesses?: string[];          // Counter-arguments / Vulnerabilities
-    action_plan?: string[];         // Concrete next steps
-    risk_level?: string;            // "HIGH", "MEDIUM", "LOW"
-
-    // Metadata
+    summary?: string;               
+    key_issues?: string[];          
+    legal_basis?: string[];         
+    strategic_analysis?: string;    
+    weaknesses?: string[];          
+    action_plan?: string[];         
+    risk_level?: string;            
     silent_parties?: string[];
     missing_info?: string[];
     analysis_mode?: string;

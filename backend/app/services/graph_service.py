@@ -1,7 +1,7 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH INTELLIGENCE V2.1 (TYPE SAFETY FIX)
-# 1. FIX: Added explicit checks for 'self._driver' in private methods to satisfy Pylance.
-# 2. LOGIC: Preserved all "Invisible Graph" intelligence queries.
+# PHOENIX PROTOCOL - GRAPH INTELLIGENCE V2.2 (METHODS RESTORED)
+# 1. FIX: Added missing 'delete_node' and 'delete_document_nodes' methods to resolve API errors.
+# 2. TYPE SAFETY: Maintained explicit driver checks.
 
 import os
 import structlog
@@ -56,7 +56,7 @@ class GraphService:
         if money_flows:
             insights.append(f"💰 MONEY TRAIL: {'; '.join(money_flows)}")
             
-        # 3. Central Actors (Who is most involved?)
+        # 3. Central Actors
         key_players = self._identify_central_actors(case_id)
         if key_players:
             insights.append(f"👥 KEY ACTORS (Graph Centrality): {', '.join(key_players)}")
@@ -64,10 +64,7 @@ class GraphService:
         return "\n".join(insights)
 
     def _find_hidden_conflicts(self, case_id: str) -> List[str]:
-        """Finds indirect connections between opposing parties."""
-        # Explicit Type Check for Pylance
         if not self._driver: return []
-        
         query = """
         MATCH (p1:Person)-[:ACCUSES|:KUNDËRSHTON]->(p2:Person)
         MATCH (p1)-[:RELATION*1..2]-(common)-[:RELATION*1..2]-(p2)
@@ -80,14 +77,11 @@ class GraphService:
                 res = session.run(query)
                 for r in res:
                     results.append(f"{r['p1.name']} and {r['p2.name']} share a hidden link via '{r['common.name']}'")
-        except Exception: 
-            return []
+        except Exception: return []
         return results
 
     def _trace_money_flows(self, case_id: str) -> List[str]:
-        """Finds who owes money to whom."""
         if not self._driver: return []
-
         query = """
         MATCH (a)-[r:ALIMENTACION|BORXH|PAGUAN|FINANCE]->(b)
         WHERE a.case_id = $case_id OR r.case_id = $case_id
@@ -99,14 +93,11 @@ class GraphService:
                 res = session.run(query, case_id=case_id)
                 for r in res:
                     results.append(f"{r['a.name']} -> {r['type(r)']} -> {r['b.name']}")
-        except Exception:
-            return []
+        except Exception: return []
         return results
 
     def _identify_central_actors(self, case_id: str) -> List[str]:
-        """Finds who appears in the most documents."""
         if not self._driver: return []
-
         query = """
         MATCH (n:Person)-[:MENTIONS]-(d:Document {case_id: $case_id})
         RETURN n.name, count(d) as docs
@@ -119,19 +110,17 @@ class GraphService:
                 res = session.run(query, case_id=case_id)
                 for r in res:
                     results.append(f"{r['n.name']} ({r['docs']} docs)")
-        except Exception:
-            return []
+        except Exception: return []
         return results
 
     # ==============================================================================
-    # DATA INGESTION (Keep feeding the brain)
+    # CRUD & SYNC OPERATIONS
     # ==============================================================================
 
     def ingest_entities_and_relations(self, case_id: str, document_id: str, doc_name: str, entities: List[Dict], relations: List[Dict]):
         self._connect()
         if not self._driver: return
 
-        # We perform the writes so the queries above have data to work with.
         def _tx_ingest(tx, c_id, d_id, d_name, ents, rels):
             tx.run("MERGE (d:Document {id: $d_id}) SET d.case_id = $c_id, d.name = $d_name", d_id=d_id, c_id=c_id, d_name=d_name)
             
@@ -155,5 +144,26 @@ class GraphService:
                 session.execute_write(_tx_ingest, case_id, document_id, doc_name, entities, relations)
         except Exception as e:
             logger.error(f"Graph Ingestion Error: {e}")
+
+    def delete_node(self, node_id: str):
+        """
+        Deletes a specific node (Document or Case) by its ID and detaches relationships.
+        Used by cases.py
+        """
+        self._connect()
+        if not self._driver: return
+        query = "MATCH (n {id: $id}) DETACH DELETE n"
+        try:
+            with self._driver.session() as session:
+                session.run(query, id=node_id)
+        except Exception as e:
+            logger.error(f"Graph Delete Error (Node {node_id}): {e}")
+
+    def delete_document_nodes(self, doc_id: str):
+        """
+        Alias for delete_node, strictly for documents.
+        Used by case_service.py
+        """
+        self.delete_node(doc_id)
 
 graph_service = GraphService()

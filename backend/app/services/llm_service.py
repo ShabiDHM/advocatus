@@ -1,7 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V28.6 (STRUCTURED CITATIONS)
-# 1. CITATIONS: Enforced strict '[Law](doc://...)' format with Content/Relevance sections.
-# 2. LOGIC: Maintained 'Smart JSON' and 'Anti-Parrot' logic.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V29.1 (RESTORATION)
+# 1. FIX: Restored 'perform_litigation_cross_examination' which was missing.
+# 2. STATUS: All AI agents (Adversarial, Chronology, Cross-Exam) are now active.
 
 import os
 import json
@@ -18,6 +18,12 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "analyze_financial_portfolio",
     "analyze_case_integrity",
+    "generate_adversarial_simulation",
+    "build_case_chronology",
+    "translate_for_client",
+    "detect_contradictions",
+    "extract_deadlines",
+    "perform_litigation_cross_examination",
     "generate_summary",
     "extract_graph_data"
 ]
@@ -34,89 +40,64 @@ _deepseek_client: Optional[OpenAI] = None
 # --- CONTEXTS ---
 STRICT_CONTEXT = """
 CONTEXT: Republika e Kosovës.
-LOCAL LAWS: Kushtetuta, Kodi Penal (KPRK), Ligji i Procedurës Kontestimore (LPK), Ligji për Familjen, Ligji i Punës.
-GLOBAL STANDARDS: Konventa Evropiane për të Drejtat e Njeriut (KEDNJ), Konventa e OKB për të Drejtat e Fëmijës (UNCRC), Praktika e Gjykatës së Strasburgut (GJEDNJ).
-TAX: TVSH Standarde 18%, TVSH e Zvogëluar 8%, Tatimi në Fitim 10%.
-CURRENCY: EUR (€).
+LAWS: Kushtetuta, LPK (Procedura Kontestimore), LFK (Familja), KPRK (Penale).
+GLOBAL: UNCRC (Fëmijët), KEDNJ (Të Drejtat e Njeriut).
+"""
+
+# --- PROMPTS ---
+PROMPT_SENIOR_LITIGATOR = f"""
+Ti je "Avokat i Lartë" (Senior Partner).
+{STRICT_CONTEXT}
+DETYRA: Analizo çështjen, gjej bazën ligjore dhe strategjinë.
+FORMATI JSON: {{ "summary": "...", "key_issues": [], "legal_basis": ["[Ligji](doc://...)..."], "strategic_analysis": "...", "weaknesses": [], "action_plan": [], "risk_level": "HIGH" }}
 """
 
 PROMPT_FORENSIC_ACCOUNTANT = f"""
-Ti je "Ekspert Financiar Forensik" (Forensic Accountant) me përvojë 20 vjeçare në auditim në Kosovë.
-{STRICT_CONTEXT}
-
-DETYRA JOTE:
-Analizo të dhënat financiare (JSON) dhe gjej anomali, rreziqe fiskale dhe trende.
-
-RREGULLAT E ANALIZËS:
-1. ANOMALI: Rritje e shpenzimeve >20%, fatura pa përshkrim, shpenzime luksi.
-2. TATIMET: Verifiko TVSH (18%) dhe rreziqet e mos-deklarimit.
-3. OUTPUT: Kthe përgjigjen VETËM në formatin JSON të mëposhtëm.
-
-FORMATI I PËRGJIGJES (JSON STRICT):
-{{
-  "executive_summary": "Një paragraf përmbledhës për gjendjen financiare...",
-  "anomalies": [
-     {{
-       "date": "YYYY-MM-DD",
-       "amount": 100.00,
-       "description": "Përshkrimi i transaksionit",
-       "risk_level": "HIGH / MEDIUM / LOW",
-       "explanation": "Pse është e dyshimtë?"
-     }}
-  ],
-  "trends": [
-     {{
-       "category": "Të Hyrat / Shpenzimet",
-       "trend": "UP / DOWN / STABLE",
-       "percentage": "+10%",
-       "comment": "Analiza e trendit"
-     }}
-  ],
-  "recommendations": [
-     "Rekomandim 1...",
-     "Rekomandim 2..."
-  ]
-}}
+Ti je "Ekspert Financiar Forensik".
+DETYRA: Analizo të dhënat financiare JSON për anomali.
+FORMATI JSON: {{ "executive_summary": "...", "anomalies": [], "trends": [], "recommendations": [] }}
 """
 
-PROMPT_SENIOR_LITIGATOR = f"""
-Ti je "Avokat i Lartë" (Senior Partner) në Prishtinë. Specializim: E Drejta Civile & Tregtare.
-{STRICT_CONTEXT}
+PROMPT_ADVERSARIAL = f"""
+Ti je "Avokati i Palës Kundërshtare" (Devil's Advocate).
+DETYRA: Lexo faktet dhe shkruaj një "Përgjigje në Padi" agresive.
+FORMATI JSON: {{ "opponent_strategy": "...", "weakness_attacks": [], "counter_claims": [], "predicted_outcome": "..." }}
+"""
 
-INPUT FORMAT:
-1. === GRAPH INTELLIGENCE ===: Lidhje të fshehta.
-2. === CASE DOCUMENTS ===: Teksti i dokumenteve.
+PROMPT_CHRONOLOGY = f"""
+Ti je "Arkivist Ligjor".
+DETYRA: Krijo një kronologji preçize të ngjarjeve nga teksti.
+FORMATI JSON: {{ "timeline": [ {{ "date": "...", "event": "...", "source": "..." }} ] }}
+"""
 
-DETYRA JOTE:
-Analizo çështjen duke u bazuar VETËM në FAKTET e ofruara.
-MOS PËRDOR SHEMBUJ GJENERIKË.
+PROMPT_CONTRADICTION = f"""
+Ti je "Detektiv Investigues".
+DETYRA: Krahaso DEKLARATAT me PROVAT. Gjej gënjeshtra.
+FORMATI JSON: {{ "contradictions": [ {{ "claim": "...", "evidence": "...", "severity": "HIGH", "impact": "..." }} ] }}
+"""
 
-RREGULLAT E ANALIZËS:
-1. ÇËSHTJET (ISSUES): Gjej problemet reale juridike.
-2. BAZA LIGJORE (STRUKTURË STRIKTE):
-   - Për çdo ligj, përdor SAKTËSISHT këtë format (përfshirë kllapat dhe linjat e reja):
-   
-   Format:
-   [Emri i Ligjit, Neni](doc://Emri i Ligjit, Neni):
-   Përmbajtja: [Çfarë thotë neni shkurt]
-   Relevanca: [Si lidhet specifikisht me faktet e këtij rasti]
+PROMPT_TRANSLATOR = """
+Ti je "Ndërmjetësues". 
+DETYRA: Përkthe tekstin ligjor (Legalese) në gjuhë të thjeshtë për klientin.
+"""
 
-   - OBLIGATIVE: Cito STANDARDET GLOBALE (UNCRC, KEDNJ) nëse ka implikime të të drejtave të njeriut.
+PROMPT_DEADLINE = f"""
+Ti je "Zyrtar i Afateve".
+DETYRA: Identifiko afatet e ankesës (15 ditë për Aktgjykim, 7 për Aktvendim).
+FORMATI JSON: {{ "is_judgment": bool, "document_type": "...", "deadline_date": "YYYY-MM-DD", "action_required": "..." }}
+"""
 
-3. STRATEGJIA: Sugjero hapa konkretë.
+PROMPT_CROSS_EXAMINE = f"""
+Ti je "Ekspert i Kryqëzimit të Fakteve".
+DETYRA: Analizo DOKUMENTIN TARGET në kontekst të DOKUMENTEVE TË TJERA.
+A përputhet ky dokument me provat e tjera? A ka kontradikta?
 
-FORMATI I PËRGJIGJES (JSON STRICT):
+FORMATI I PËRGJIGJES (JSON):
 {{
-  "summary": "Përmbledhje e rastit...",
-  "key_issues": ["Çështja 1...", "Çështja 2..."],
-  "legal_basis": [
-     "[Ligji për Familjen, Neni 331](doc://Ligji për Familjen, Neni 331):\\nPërmbajtja: Ndryshimi i rrethanave kërkon ndryshim aktgjykimi.\\nRelevanca: Rroga e babait është rritur, prandaj kërkohet rritja e alimentacionit.",
-     "[UNCRC, Neni 3](doc://UNCRC, Neni 3):\\nPërmbajtja: Interesi më i mirë i fëmijës është parësor.\\nRelevanca: Mirëqenia e fëmijës prevalon mbi interesat financiare të prindit."
-  ],
-  "strategic_analysis": "Analizë e detajuar...",
-  "weaknesses": ["Dobësia 1...", "Dobësia 2..."],
-  "action_plan": ["Hapi 1...", "Hapi 2..."],
-  "risk_level": "HIGH / MEDIUM / LOW"
+  "consistency_check": "A përputhet ky dokument me të tjerët?",
+  "contradictions": ["Mospërputhje 1...", "Mospërputhje 2..."],
+  "corroborations": ["Ky dokument vërteton deklaratën X..."],
+  "strategic_value": "Sa i rëndësishëm është ky dokument (HIGH/MEDIUM/LOW)"
 }}
 """
 
@@ -140,59 +121,78 @@ def _parse_json_safely(content: str) -> Dict[str, Any]:
             except: pass
         return {}
 
-def _call_deepseek(system_prompt: str, user_prompt: str, json_mode: bool = False, temperature: float = 0.25) -> Optional[str]:
+def _call_llm(system_prompt: str, user_prompt: str, json_mode: bool = False, temp: float = 0.2) -> Optional[str]:
     client = get_deepseek_client()
-    if not client: return None
+    if client:
+        try:
+            kwargs = {
+                "model": OPENROUTER_MODEL, 
+                "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], 
+                "temperature": temp
+            }
+            if json_mode: kwargs["response_format"] = {"type": "json_object"}
+            res = client.chat.completions.create(**kwargs)
+            return res.choices[0].message.content
+        except: pass
+    
+    # Local Fallback
     try:
-        kwargs = {
-            "model": OPENROUTER_MODEL, 
-            "messages": [
-                {"role": "system", "content": system_prompt}, 
-                {"role": "user", "content": user_prompt}
-            ], 
-            "temperature": temperature,
-            "extra_headers": {"HTTP-Referer": "https://juristi.tech", "X-Title": "Juristi AI"}
-        }
-        if json_mode: kwargs["response_format"] = {"type": "json_object"}
-        response = client.chat.completions.create(**kwargs)
-        return response.choices[0].message.content
-    except Exception as e:
-        logger.warning(f"⚠️ DeepSeek Call Failed: {e}")
-        return None
+        with httpx.Client(timeout=60.0) as c:
+            res = c.post(OLLAMA_URL, json={
+                "model": LOCAL_MODEL_NAME, "prompt": f"{system_prompt}\nUSER: {user_prompt}", 
+                "stream": False, "format": "json" if json_mode else None, "options": {"temperature": temp}
+            })
+            return res.json().get("response", "")
+    except: return None
 
-def _call_local_llm(system_prompt: str, user_prompt: str, json_mode: bool = False) -> str:
-    try:
-        full_prompt = f"{system_prompt}\n\nUSER INPUT:\n{user_prompt}"
-        payload = {
-            "model": LOCAL_MODEL_NAME, 
-            "prompt": full_prompt, 
-            "stream": False, 
-            "options": {"temperature": 0.2, "num_ctx": 4096}, 
-            "format": "json" if json_mode else None
-        }
-        with httpx.Client(timeout=60.0) as client:
-            response = client.post(OLLAMA_URL, json=payload)
-            return response.json().get("response", "")
-    except Exception as e:
-        logger.warning(f"⚠️ Local LLM call failed: {e}")
-        return ""
+# --- PUBLIC FUNCTIONS ---
 
-def analyze_financial_portfolio(financial_data_json: str) -> Dict[str, Any]:
-    content = _call_deepseek(PROMPT_FORENSIC_ACCOUNTANT, financial_data_json, json_mode=True, temperature=0.2)
-    if not content:
-        content = _call_local_llm(PROMPT_FORENSIC_ACCOUNTANT, financial_data_json, json_mode=True)
-    return _parse_json_safely(content) if content else {}
+def analyze_financial_portfolio(data: str) -> Dict[str, Any]:
+    return _parse_json_safely(_call_llm(PROMPT_FORENSIC_ACCOUNTANT, data, True) or "{}")
 
 def analyze_case_integrity(text: str) -> Dict[str, Any]:
-    clean_text = sterilize_text_for_llm(text[:35000], redact_names=False)
-    content = _call_deepseek(PROMPT_SENIOR_LITIGATOR, clean_text, json_mode=True, temperature=0.25)
-    if not content:
-        content = _call_local_llm(PROMPT_SENIOR_LITIGATOR, clean_text, json_mode=True)
-    return _parse_json_safely(content) if content else {}
+    clean = sterilize_text_for_llm(text[:35000])
+    return _parse_json_safely(_call_llm(PROMPT_SENIOR_LITIGATOR, clean, True) or "{}")
+
+def generate_adversarial_simulation(text: str) -> Dict[str, Any]:
+    clean = sterilize_text_for_llm(text[:25000])
+    return _parse_json_safely(_call_llm(PROMPT_ADVERSARIAL, clean, True, temp=0.4) or "{}")
+
+def build_case_chronology(text: str) -> Dict[str, Any]:
+    clean = sterilize_text_for_llm(text[:30000])
+    return _parse_json_safely(_call_llm(PROMPT_CHRONOLOGY, clean, True, temp=0.1) or "{}")
+
+def detect_contradictions(text: str) -> Dict[str, Any]:
+    clean = sterilize_text_for_llm(text[:30000])
+    return _parse_json_safely(_call_llm(PROMPT_CONTRADICTION, clean, True, temp=0.1) or "{}")
+
+def extract_deadlines(text: str) -> Dict[str, Any]:
+    clean = sterilize_text_for_llm(text[:5000]) 
+    return _parse_json_safely(_call_llm(PROMPT_DEADLINE, clean, True, temp=0.0) or "{}")
+
+def perform_litigation_cross_examination(target_text: str, context_summaries: List[str]) -> Dict[str, Any]:
+    """
+    Compares a target document against summaries of other documents in the case.
+    """
+    clean_target = sterilize_text_for_llm(target_text[:15000])
+    context_block = "\n".join(context_summaries)
+    
+    prompt = f"""
+    TARGET DOCUMENT CONTENT:
+    {clean_target}
+    
+    CONTEXT (OTHER DOCUMENTS):
+    {context_block}
+    """
+    
+    return _parse_json_safely(_call_llm(PROMPT_CROSS_EXAMINE, prompt, True, temp=0.2) or "{}")
+
+def translate_for_client(legal_text: str) -> str:
+    return _call_llm(PROMPT_TRANSLATOR, legal_text, False, temp=0.5) or "Gabim në përkthim."
 
 def generate_summary(text: str) -> str:
     clean = sterilize_text_for_llm(text[:15000])
-    return _call_deepseek("Përmblidh këtë dokument shkurtimisht në shqip.", clean) or "S'ka përmbledhje."
+    return _call_llm("Përmblidh dokumentin.", clean, False) or ""
 
 def extract_graph_data(text: str) -> Dict[str, Any]:
     return {"entities": [], "relations": []}

@@ -1,13 +1,14 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER V7.3 (DUAL GEAR CHAT)
-// 1. UPDATE: sendChatMessage now accepts 'mode' ('FAST' | 'DEEP').
-// 2. STATUS: End-to-End integration ready.
+// PHOENIX PROTOCOL - API MASTER V7.4 (DEEP STRATEGY CONNECTED)
+// 1. ADDED: analyzeDeepStrategy() to call the Senior Partner backend endpoint.
+// 2. TYPES: Imported 'DeepAnalysisResult'.
+// 3. STATUS: Full End-to-End wiring complete.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
     LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, User, UpdateUserRequest,
     DeletedDocumentResponse, CalendarEvent, CalendarEventCreateRequest, CreateDraftingJobRequest,
-    DraftingJobStatus, DraftingJobResult, ChangePasswordRequest, CaseAnalysisResult,
+    DraftingJobStatus, DraftingJobResult, ChangePasswordRequest, CaseAnalysisResult, DeepAnalysisResult, // <--- NEW IMPORT
     BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest, InvoiceItem,
     GraphData, ArchiveItemOut, CaseFinancialSummary, AnalyticsDashboardData, Expense, ExpenseCreateRequest, ExpenseUpdate,
     SpreadsheetAnalysisResult
@@ -79,7 +80,7 @@ class ApiService {
             });
     }
     
-    // ... [Previous getters/setters/methods remain unchanged] ...
+    // ... [Basic getters/setters/methods remain unchanged] ...
     public getToken(): string | null { return tokenManager.get(); }
     public async refreshToken(): Promise<boolean> { try { const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); if (response.data.access_token) { tokenManager.set(response.data.access_token); return true; } return false; } catch (error) { console.warn("[API] Session Refresh Failed (Normal if logged out):", error); return false; } }
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
@@ -144,11 +145,19 @@ class ApiService {
     public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); }
     
     public async getCaseGraph(caseId: string): Promise<GraphData> { const response = await this.axiosInstance.get<GraphData>(`/graph/graph/${caseId}`); return response.data; }
+    
+    // --- ANALYSIS ---
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
+    
+    // --- NEW: DEEP STRATEGY ---
+    public async analyzeDeepStrategy(caseId: string): Promise<DeepAnalysisResult> {
+        const response = await this.axiosInstance.post<DeepAnalysisResult>(`/cases/${caseId}/deep-analysis`);
+        return response.data;
+    }
+
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); return response.data; }
     public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData); return response.data; }
 
-    // --- UPDATED CHAT METHOD ---
     public async sendChatMessage(
         caseId: string, 
         message: string, 
@@ -167,6 +176,7 @@ class ApiService {
     
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     
+    // ... [Rest of file unchanged] ...
     public async getCalendarEvents(): Promise<CalendarEvent[]> { const response = await this.axiosInstance.get<any>('/calendar/events'); return Array.isArray(response.data) ? response.data : (response.data.events || []); }
     public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); return response.data; }
     public async deleteCalendarEvent(eventId: string): Promise<void> { await this.axiosInstance.delete(`/calendar/events/${eventId}`); }
