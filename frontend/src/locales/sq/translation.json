@@ -205,7 +205,7 @@
   "analyst": {
     "title": "Dhoma e Hulumtimit Financiar",
     "subtitle": "Hulumtimi.",
-    "selectFile": "Ngarko Dokumentin (Excel/CSV)...",
+    "selectFile": "Excel/CSV...",
     "processing": "Skanimi Forenzik në Proces...",
     "wait": "Duke gjeneruar vektorë për çdo transaksion.",
     "newAnalysis": "Rivendos Dhomën",

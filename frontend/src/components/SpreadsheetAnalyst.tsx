@@ -1,7 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V2.2 (i18n FINAL)
-// 1. I18N: Replaced ALL hardcoded English strings with t('analyst.*').
-// 2. FEATURE: Supports the uploaded 'financa_test_complex.csv' structure.
+// PHOENIX PROTOCOL - FRONTEND V2.3 (MARKDOWN VISUALIZER)
+// 1. UI: Added 'renderMarkdown()' to visualize the Forensic Report (Bold, Headers, Lists).
+// 2. I18N: Full Albanian support maintained.
+// 3. STATUS: Production Ready.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -70,7 +71,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
             setError(null);
-            // Reset state on new file
             setResult(null);
             setChatHistory([]);
         }
@@ -83,7 +83,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         try {
             const data = await apiService.analyzeSpreadsheet(caseId, file) as unknown as SmartFinancialReport;
             setResult(data);
-            // Add initial system welcome message (Translated)
             setChatHistory([{
                 id: 'init',
                 role: 'agent',
@@ -139,7 +138,53 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         }
     };
 
-    // --- HELPERS ---
+    // --- UTILS: NATIVE MARKDOWN RENDERER (No external deps) ---
+    // Parses: **Bold**, #### Header, - List
+    const renderMarkdown = (text: string) => {
+        if (!text) return null;
+        
+        return text.split('\n').map((line, i) => {
+            // 1. Headers (####)
+            if (line.startsWith('####')) {
+                return <h4 key={i} className="text-white font-bold text-sm mt-4 mb-2 border-b border-white/10 pb-1">{line.replace(/#/g, '')}</h4>;
+            }
+            if (line.startsWith('###')) {
+                return <h3 key={i} className="text-primary-start font-bold text-base mt-4 mb-2">{line.replace(/#/g, '')}</h3>;
+            }
+
+            // 2. List Items (-)
+            if (line.trim().startsWith('- ')) {
+                const content = line.trim().substring(2);
+                return (
+                    <li key={i} className="ml-4 list-disc text-gray-300 text-sm mb-1">
+                        {parseBold(content)}
+                    </li>
+                );
+            }
+
+            // 3. Regular Paragraphs (with Bold support)
+            if (line.trim() === '') return <br key={i} />;
+            
+            return (
+                <p key={i} className="text-gray-300 text-sm leading-relaxed mb-1">
+                    {parseBold(line)}
+                </p>
+            );
+        });
+    };
+
+    // Helper to parse **Bold** inside a line
+    const parseBold = (line: string) => {
+        const parts = line.split(/(\*\*.*?\*\*)/g);
+        return parts.map((part, index) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+                return <strong key={index} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+            }
+            return part;
+        });
+    };
+
+    // --- UI HELPERS ---
 
     const getRiskBadge = (level: string) => {
         switch (level) {
@@ -236,15 +281,15 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         {/* LEFT COLUMN: EVIDENCE BOARD (Static) */}
                         <div className="flex flex-col gap-6 overflow-hidden h-full">
                             
-                            {/* Summary Card */}
+                            {/* Summary Card (With Markdown Rendering) */}
                             <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex-shrink-0">
                                 <h3 className="text-md font-bold text-white mb-2 flex items-center gap-2">
                                     <ShieldAlert className="text-primary-start w-4 h-4" />
                                     {t('analyst.narrative', 'Forensic Narrative')}
                                 </h3>
-                                <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-line max-h-32 overflow-y-auto custom-scrollbar">
-                                    {result.executive_summary}
-                                </p>
+                                <div className="max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                                    {renderMarkdown(result.executive_summary)}
+                                </div>
                             </div>
 
                              {/* Recommendations */}
@@ -336,7 +381,9 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                                     ? 'bg-primary-start text-white rounded-br-none' 
                                                     : 'bg-white/10 text-gray-200 border border-white/5 rounded-bl-none'}
                                             `}>
-                                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                                                {/* Use renderMarkdown for chat messages too */}
+                                                <div>{renderMarkdown(msg.content)}</div>
+                                                
                                                 {msg.role === 'agent' && msg.evidenceCount !== undefined && (
                                                     <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2 text-[10px] text-gray-400">
                                                         <ShieldAlert className="w-3 h-3" />
