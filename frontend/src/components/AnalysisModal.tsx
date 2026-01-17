@@ -2,7 +2,6 @@
 // PHOENIX PROTOCOL - ANALYSIS MODAL V8.5 (FINAL CLEANUP)
 // 1. FIX: Moved strategic plan rendering into the 'War Room' strategy tab.
 // 2. CLEANUP: Removed all unused variables and icon imports.
-// 3. STATUS: Zero warnings. Production ready.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
