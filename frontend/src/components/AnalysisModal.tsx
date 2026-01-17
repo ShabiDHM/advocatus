@@ -1,7 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V8.5 (FINAL CLEANUP)
-// 1. FIX: Moved strategic plan rendering into the 'War Room' strategy tab.
-// 2. CLEANUP: Removed all unused variables and icon imports.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V8.6 (CRASH HOTFIX)
+// 1. HOTFIX: Added strict type checking (typeof === 'string') inside .map() loops.
+// 2. STABILITY: Prevents 'F.includes is not a function' crashes when AI returns objects instead of strings.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -30,15 +30,25 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 `;
 
-const cleanLegalText = (text: string | undefined | null): string => {
-    if (!text) return "";
-    let clean = text.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
+// Helper: Safely converts any AI output to a string
+const safeString = (val: any): string => {
+    if (!val) return "";
+    if (typeof val === 'string') return val;
+    // If AI returns an object like { "title": "Law", "desc": "..." }, flatten it
+    if (typeof val === 'object') return Object.values(val).join(': ');
+    return String(val);
+};
+
+const cleanLegalText = (text: any): string => {
+    let clean = safeString(text);
+    clean = clean.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
     clean = clean.replace(/^Ligji\/Neni \(Kosovë\):\s*/i, '');
     clean = clean.replace(/^Konventa \(Global\):\s*/i, '');
     return clean;
 };
 
-const renderStructuredCitation = (text: string) => {
+const renderStructuredCitation = (rawText: any) => {
+    const text = safeString(rawText);
     let match = text.match(/^\[(.*?)\]\((.*?)\):?\s*(.*)/s);
     if (!match) match = text.match(/^(.*?)\((doc:\/\/.*?)\):?\s*(.*)/s);
 
@@ -199,7 +209,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         <Swords size={16}/> {t('analysis.section_issues', 'Çështjet Kryesore')}
                                     </h3>
                                     <div className="grid gap-3">
-                                        {key_issues.map((issue: string, idx: number) => (
+                                        {key_issues.map((issue: any, idx: number) => (
                                             <div key={idx} className="flex items-start gap-3 bg-white/5 p-3 rounded-lg border border-white/10">
                                                 <span className="text-primary-400 font-bold mt-0.5">#{idx + 1}</span>
                                                 <p className="text-sm text-gray-200 font-medium leading-snug">{cleanLegalText(issue)}</p>
@@ -215,12 +225,14 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         <BookOpen size={16}/> {t('analysis.section_rules', 'Baza Ligjore')}
                                     </h3>
                                     <ul className="space-y-3">
-                                        {legal_basis.map((law: string, i: number) => {
-                                            const isGlobal = law.includes("UNCRC") || law.includes("Konventa") || law.includes("KEDNJ");
+                                        {legal_basis.map((law: any, i: number) => {
+                                            // PHOENIX FIX: Strict type check before .includes()
+                                            const lawStr = safeString(law);
+                                            const isGlobal = lawStr.includes("UNCRC") || lawStr.includes("Konventa") || lawStr.includes("KEDNJ");
                                             return (
                                                 <li key={i} className={`flex gap-3 text-sm items-start p-4 rounded-xl transition-colors ${isGlobal ? 'bg-indigo-500/10 border border-indigo-500/30' : 'bg-white/5 border border-white/5 hover:border-white/10'}`}>
                                                     {isGlobal ? <Globe size={20} className="text-indigo-400 shrink-0 mt-0.5"/> : <Scale size={20} className="text-secondary-400 shrink-0 mt-0.5"/>}
-                                                    {renderStructuredCitation(law)}
+                                                    {renderStructuredCitation(lawStr)}
                                                 </li>
                                             );
                                         })}
@@ -260,7 +272,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         <div className="glass-panel p-6 rounded-2xl border-red-500/20 bg-red-500/5">
                                             <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-4">{t('analysis.section_weaknesses', 'Dobësitë e Kundërshtarit')}</h3>
                                             <ul className="space-y-3">
-                                                {weaknesses.map((w: string, i: number) => (
+                                                {weaknesses.map((w: any, i: number) => (
                                                     <li key={i} className="flex gap-3 text-sm text-red-100 bg-red-500/10 p-3 rounded-lg border border-red-500/20">{cleanLegalText(w)}</li>
                                                 ))}
                                             </ul>
@@ -268,7 +280,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         <div className="glass-panel p-6 rounded-2xl border-emerald-500/20 bg-emerald-500/5">
                                             <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-4">{t('analysis.section_conclusion', 'Plani i Veprimit')}</h3>
                                             <div className="space-y-3">
-                                                {action_plan.map((step: string, i: number) => (
+                                                {action_plan.map((step: any, i: number) => (
                                                     <div key={i} className="flex gap-4 text-sm text-white bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20">
                                                         <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-black font-bold text-xs shrink-0">{i + 1}</span>
                                                         <span className="leading-relaxed font-medium">{cleanLegalText(step)}</span>

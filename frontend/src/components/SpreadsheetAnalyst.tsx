@@ -1,7 +1,7 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - REFACTOR V1.4 (FIXED TYPES)
-// 1. FIX: Added forced type casting 'as unknown as SmartFinancialReport' to solve conversion error.
-// 2. FIX: Removed unused 'BarChart2' import.
+// PHOENIX PROTOCOL - REFACTOR V1.5 (CRASH HOTFIX)
+// 1. HOTFIX: Added null check 'anomaly.amount || 0' to prevent crash on 'toLocaleString'.
+// 2. STABILITY: The component is now resilient to AI responses with missing 'amount' fields.
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -50,7 +50,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         setIsAnalyzing(true);
         setError(null);
         try {
-            // FIX: Double cast to bypass strict legacy type checking
             const data = await apiService.analyzeSpreadsheet(caseId, file) as unknown as SmartFinancialReport;
             setResult(data);
         } catch (err: any) {
@@ -231,7 +230,10 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                                 </div>
                                                 <div className="flex justify-between items-baseline mb-1">
                                                      <p className="text-sm text-white font-bold truncate max-w-[150px]">{anomaly.description}</p>
-                                                     <p className="text-sm font-mono text-red-300">€{anomaly.amount.toLocaleString()}</p>
+                                                     <p className="text-sm font-mono text-red-300">
+                                                         {/* PHOENIX FIX: Added null-check to prevent crash */}
+                                                         €{(anomaly.amount || 0).toLocaleString()}
+                                                     </p>
                                                 </div>
                                                 <p className="text-xs text-gray-400 leading-snug mt-2 pt-2 border-t border-white/5">{anomaly.explanation}</p>
                                             </div>
