@@ -203,27 +203,28 @@
     "graph": "Lidhjet"
   },
   "analyst": {
-    "title": "Analisti Financiar",
-    "subtitle": "Ngarko të dhëna Excel/CSV për analizë forenzike të automatizuar.",
-    "selectFile": "Zgjidhni Spreadsheet...",
-    "analyzing": "Duke Analizuar...",
-    "run": "Analizoni",
-    "newAnalysis": "Analizë e Re",
-    "reportTitle": "Narrativa Forenzike",
-    "anomaliesTitle": "Anomalitë e Detektuara",
-    "noAnomalies": "Nuk u detektuan anomali të rëndësishme.",
-    "row": "Rreshti",
-    "col": "Kol",
-    "processing": "Inteligjenca Artificiale po analizon strukturën...",
-    "wait": "Kjo mund të marrë disa sekonda varësisht nga madhësia e skedarit.",
+    "title": "Dhoma e Hulumtimit Financiar",
+    "subtitle": "Ngarko librin e llogarive. Vektorët gjenerohen automatikisht. Hulumtoni të dhënat më poshtë.",
+    "selectFile": "Zgjidh Dokumentin (Excel/CSV)...",
+    "processing": "Skanimi Forenzik në Proces...",
+    "wait": "Duke gjeneruar vektorë për çdo transaksion.",
+    "newAnalysis": "Rivendos Dhomën",
+    "runAnalysis": "Vektorizo & Analizo",
+    "analyzing": "Duke Skanuar...",
+    "narrative": "Narrativa Forenzike",
+    "recommendations": "Rekomandime",
+    "redFlags": "Prova",
+    "agentTitle": "Agjenti Forenzik",
+    "context": "Kontekst",
+    "flags": "Vëmendje",
+    "consoleReady": "Konsola Gati. Po pres pyetjet tuaja mbi të dhënat.",
+    "verifiedAgainst": "Verifikuar kundrejt {{count}} rreshtave të transaksioneve",
+    "askPlaceholder": "Pyet për transaksione specifike (psh: 'Shfaq pagesat e bixhozit')...",
+    "noRelevantData": "Nuk u gjetën të dhëna relevante në dosje.",
+    "connectionFailed": "Lidhja me Bërthamën Forenzike dështoi.",
+    "systemWelcome": "Të dhënat u vektorizuan. Kam skanuar librin. Tabela e Provave është më sipër. Tani mund të merrni në pyetje rreshtat specifikë.",
     "error": {
-      "analysisFailed": "Analiza dështoi. Ju lutem kontrolloni formatin e skedarit."
-    },
-    "stats": {
-      "totalRecords": "Totali i Regjistrimeve",
-      "totalColumns": "Totali i Kolonave",
-      "emptyCells": "Qelizat Bosh",
-      "avg": "Mesatarja"
+      "analysisFailed": "Analiza dështoi. Ju lutemi kontrolloni formatin e skedarit."
     },
     "severity": {
       "low": "E ULËT",

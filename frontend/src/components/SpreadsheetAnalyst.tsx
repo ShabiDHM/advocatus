@@ -1,8 +1,7 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V2.1 (SYMBOLS INTEGRATED)
-// 1. FIX: Integrated 'Lightbulb', 'ArrowRight', 'CheckCircle', 'MessageSquare' to resolve TS warnings.
-// 2. FEATURE: Added "Strategic Recommendations" section to the Evidence Board.
-// 3. UX: Added Empty State for Chat using MessageSquare.
+// PHOENIX PROTOCOL - FRONTEND V2.2 (i18n FINAL)
+// 1. I18N: Replaced ALL hardcoded English strings with t('analyst.*').
+// 2. FEATURE: Supports the uploaded 'financa_test_complex.csv' structure.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -84,11 +83,11 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         try {
             const data = await apiService.analyzeSpreadsheet(caseId, file) as unknown as SmartFinancialReport;
             setResult(data);
-            // Add initial system welcome message to chat
+            // Add initial system welcome message (Translated)
             setChatHistory([{
                 id: 'init',
                 role: 'agent',
-                content: "Data vectorized. I have scanned the ledger. The Evidence Board is above. You may now interrogate the specific transaction rows.",
+                content: t('analyst.systemWelcome', "Data vectorized. I have scanned the ledger. The Evidence Board is above. You may now interrogate the specific transaction rows."),
                 timestamp: new Date()
             }]);
         } catch (err: any) {
@@ -122,7 +121,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             const agentMsg: ChatMessage = {
                 id: (Date.now() + 1).toString(),
                 role: 'agent',
-                content: response.answer || "No relevant data found.",
+                content: response.answer || t('analyst.noRelevantData', "No relevant data found."),
                 timestamp: new Date(),
                 evidenceCount: response.referenced_rows_count
             };
@@ -131,7 +130,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             const errorMsg: ChatMessage = {
                 id: (Date.now() + 1).toString(),
                 role: 'agent',
-                content: "Connection to Forensic Core failed.",
+                content: t('analyst.connectionFailed', "Connection to Forensic Core failed."),
                 timestamp: new Date()
             };
             setChatHistory(prev => [...prev, errorMsg]);
@@ -202,7 +201,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 className="px-6 py-2.5 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-primary-start/20 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
                             >
                                 {isAnalyzing ? <Loader2 className="animate-spin w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
-                                {isAnalyzing ? 'Scanning...' : 'Vectorize & Analyze'}
+                                {isAnalyzing ? t('analyst.analyzing', 'Scanning...') : t('analyst.runAnalysis', 'Vectorize & Analyze')}
                             </button>
                         )}
                         
@@ -241,19 +240,19 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex-shrink-0">
                                 <h3 className="text-md font-bold text-white mb-2 flex items-center gap-2">
                                     <ShieldAlert className="text-primary-start w-4 h-4" />
-                                    Forensic Narrative
+                                    {t('analyst.narrative', 'Forensic Narrative')}
                                 </h3>
                                 <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-line max-h-32 overflow-y-auto custom-scrollbar">
                                     {result.executive_summary}
                                 </p>
                             </div>
 
-                             {/* Recommendations (Using Lightbulb and ArrowRight) */}
+                             {/* Recommendations */}
                              {result.recommendations && result.recommendations.length > 0 && (
                                 <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 bg-emerald-900/10 flex-shrink-0">
                                     <h3 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-2">
                                         <Lightbulb className="w-4 h-4" />
-                                        Strategic Recommendations
+                                        {t('analyst.recommendations', 'Strategic Recommendations')}
                                     </h3>
                                     <ul className="space-y-1">
                                         {result.recommendations.map((rec, i) => (
@@ -283,7 +282,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex-1 overflow-hidden flex flex-col min-h-0">
                                 <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2">
                                     <AlertTriangle className="text-yellow-400 w-4 h-4" />
-                                    Red Flags (Evidence)
+                                    {t('analyst.redFlags', 'Red Flags (Evidence)')}
                                 </h3>
                                 <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 space-y-3">
                                     {result.anomalies.map((anomaly, idx) => (
@@ -314,8 +313,10 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3">
                                 <Bot className="text-primary-start w-5 h-5" />
                                 <div>
-                                    <h3 className="text-sm font-bold text-white">Forensic Agent</h3>
-                                    <p className="text-[10px] text-gray-400">Context: {file?.name} ({result.anomalies.length} Flags)</p>
+                                    <h3 className="text-sm font-bold text-white">{t('analyst.agentTitle', 'Forensic Agent')}</h3>
+                                    <p className="text-[10px] text-gray-400">
+                                        {t('analyst.context', 'Context')}: {file?.name} ({result.anomalies.length} {t('analyst.flags', 'Flags')})
+                                    </p>
                                 </div>
                             </div>
 
@@ -324,7 +325,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 {chatHistory.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
                                         <MessageSquare className="w-8 h-8 opacity-50" />
-                                        <p className="text-xs">Console Ready. Awaiting Questions.</p>
+                                        <p className="text-xs">{t('analyst.consoleReady', 'Console Ready. Awaiting Questions.')}</p>
                                     </div>
                                 ) : (
                                     chatHistory.map((msg) => (
@@ -339,7 +340,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                                 {msg.role === 'agent' && msg.evidenceCount !== undefined && (
                                                     <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2 text-[10px] text-gray-400">
                                                         <ShieldAlert className="w-3 h-3" />
-                                                        Verified against {msg.evidenceCount} transaction rows
+                                                        {t('analyst.verifiedAgainst', { count: msg.evidenceCount })}
                                                     </div>
                                                 )}
                                             </div>
@@ -364,7 +365,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                     type="text"
                                     value={question}
                                     onChange={(e) => setQuestion(e.target.value)}
-                                    placeholder="Ask about specific transactions (e.g., 'Show gambling payments')..."
+                                    placeholder={t('analyst.askPlaceholder', "Ask about specific transactions...")}
                                     className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary-start/50 transition-colors"
                                 />
                                 <button 
