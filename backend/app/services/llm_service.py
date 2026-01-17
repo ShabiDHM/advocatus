@@ -1,6 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V30.1 (FORENSIC AGENT)
-# 1. ADDED: PROMPT_FORENSIC_INTERROGATOR for data-driven financial answers.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V31.0 (ALBANIAN INTERROGATOR)
+# 1. UPGRADE: Prompts forced to Albanian (SQ).
+# 2. STATUS: All AI Agents output localized content.
 
 import os
 import json
@@ -26,7 +27,7 @@ __all__ = [
     "generate_summary",
     "extract_graph_data",
     "get_embedding",
-    "forensic_interrogation" # NEW
+    "forensic_interrogation"
 ]
 
 # --- CONFIGURATION ---
@@ -34,7 +35,7 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
-EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_MODEL = "text-embedding-3-small" 
 
 OLLAMA_URL = os.environ.get("LOCAL_LLM_URL", "http://host.docker.internal:11434/api/generate")
 OLLAMA_EMBED_URL = os.environ.get("LOCAL_LLM_EMBED_URL", "http://host.docker.internal:11434/api/embeddings")
@@ -56,23 +57,51 @@ PROMPT_SENIOR_LITIGATOR = f"""
 Ti je "Avokat i Lartë" (Senior Partner).
 {STRICT_CONTEXT}
 DETYRA: Analizo çështjen, gjej bazën ligjore dhe strategjinë.
-... (Rest of the prompt remains the same) ...
-"""
 
-# ... (Other existing prompts remain the same) ...
+RREGULLAT E ANALIZËS:
+1. ÇËSHTJET (ISSUES): Gjej problemet reale juridike.
+2. BAZA LIGJORE (STRUKTURË STRIKTE):
+   - Për çdo ligj, TI DUHET TË PËRDORËSH SAKTËSISHT këtë format me linja të reja (\\n):
+   
+   [Emri i Ligjit, Neni](doc://Emri i Ligjit, Neni):\\nPërmbajtja: [Përmbledhja e nenit]\\nRelevanca: [Si lidhet ky nen me faktet e rastit]
+   
+   - CITIMET E THJESHTA (pa Përmbajtje/Relevancë) JANË TË NDALUARA.
+   - OBLIGATIVE: Cito STANDARDET GLOBALE (UNCRC, KEDNJ) me të njëjtin format.
+
+3. STRATEGJIA: Sugjero hapa konkretë.
+
+FORMATI I PËRGJIGJES (JSON STRICT):
+{{
+  "summary": "Përmbledhje e rastit...",
+  "key_issues": ["Çështja 1...", "Çështja 2..."],
+  "legal_basis": [
+     "[Ligji për Familjen, Neni 331](doc://Ligji për Familjen, Neni 331):\\nPërmbajtja: Lejon ndryshimin e aktgjykimit nëse rrethanat kanë ndryshuar.\\nRelevanca: Rritja e pagës së palës tjetër përbën një rrethanë të re për rritjen e alimentacionit.",
+     "[UNCRC, Neni 3](doc://UNCRC, Neni 3):\\nPërmbajtja: Thekson se interesi më i mirë i fëmijës është parësor.\\nRelevanca: Nevojat e fëmijës për një jetesë më të mirë tejkalojnë pretendimin e prindit për të mos paguar më shumë."
+  ],
+  "strategic_analysis": "Analizë e detajuar...",
+  "weaknesses": ["Dobësia 1...", "Dobësia 2..."],
+  "action_plan": ["Hapi 1...", "Hapi 2..."],
+  "risk_level": "HIGH / MEDIUM / LOW"
+}}
+"""
 
 PROMPT_FORENSIC_INTERROGATOR = """
 Ti je "Forensic Financial Agent" (Agjent Financiar Ligjor).
 DETYRA: Përgjigju pyetjes së avokatit duke u bazuar VETËM në rreshtat e transaksioneve të ofruara.
 
-RREGULLAT:
-1. Përdor Referenca: Çdo fakt duhet të ketë referencë (psh: "Row 54, 10 Maj").
+RREGULLAT E GJUHËS:
+1. Përgjigju VETËM NË GJUHËN SHQIPE.
+2. Përdor terminologji ligjore/financiare të përshtatshme për Kosovën.
+
+RREGULLAT E ANALIZËS:
+1. Përdor Referenca: Çdo fakt duhet të ketë referencë (psh: "Rreshti 54, 10 Maj").
 2. Ji Agresiv: Nëse gjen shpenzime luksi (bixhoz, hotele, online), theksoji ato si "Mospërputhje me të ardhurat".
 3. Llogarit Totale: Nëse kërkohet, mblidh shumat.
-4. FORMATI I PËRGJIGJES (Markdown):
-   - **Direct Answer**: Përgjigja direkte.
-   - **Evidence**: Lista e transaksioneve (Data | Përshkrimi | Shuma).
-   - **Strategic Note**: Si mund të përdoret kjo në gjykatë.
+
+FORMATI I PËRGJIGJES (Markdown):
+- **Përgjigje Direkte**: Përgjigja direkte në Shqip.
+- **Provat**: Lista e transaksioneve (Data | Përshkrimi | Shuma).
+- **Implikimi Strategjik**: Si mund të përdoret kjo në gjykatë kundër palës tjetër.
 
 CONTEXT (TRANSACTIONS FOUND):
 {context}
@@ -81,42 +110,49 @@ CONTEXT (TRANSACTIONS FOUND):
 PROMPT_FORENSIC_ACCOUNTANT = f"""
 Ti je "Ekspert Financiar Forensik".
 DETYRA: Analizo të dhënat financiare JSON për anomali.
+GJUHA: SHQIP.
 FORMATI JSON: {{ "executive_summary": "...", "anomalies": [], "trends": [], "recommendations": [] }}
 """
 
 PROMPT_ADVERSARIAL = f"""
 Ti je "Avokati i Palës Kundërshtare".
 DETYRA: Gjej dobësitë në argumentet e paraqitura dhe krijo një kundër-strategji.
+GJUHA: SHQIP.
 FORMATI JSON: {{ "opponent_strategy": "...", "weakness_attacks": [], "counter_claims": [], "predicted_outcome": "..." }}
 """
 
 PROMPT_CHRONOLOGY = f"""
 Ti je "Arkivist Ligjor".
 DETYRA: Krijo një kronologji preçize të ngjarjeve nga teksti.
+GJUHA: SHQIP.
 FORMATI JSON: {{ "timeline": [ {{ "date": "...", "event": "...", "source": "..." }} ] }}
 """
 
 PROMPT_CONTRADICTION = f"""
 Ti je "Detektiv Investigues".
 DETYRA: Krahaso DEKLARATAT me PROVAT. Gjej gënjeshtra.
+GJUHA: SHQIP.
 FORMATI JSON: {{ "contradictions": [ {{ "claim": "...", "evidence": "...", "severity": "HIGH", "impact": "..." }} ] }}
 """
 
 PROMPT_DEADLINE = f"""
 Ti je "Zyrtar i Afateve".
 DETYRA: Identifiko afatet e ankesës (15 ditë për Aktgjykim, 7 për Aktvendim).
+GJUHA: SHQIP.
 FORMATI JSON: {{ "is_judgment": bool, "document_type": "...", "deadline_date": "YYYY-MM-DD", "action_required": "..." }}
 """
 
 PROMPT_CROSS_EXAMINE = f"""
 Ti je "Ekspert i Kryqëzimit të Fakteve".
 DETYRA: Analizo DOKUMENTIN TARGET në kontekst të DOKUMENTEVE TË TJERA.
+GJUHA: SHQIP.
 FORMATI JSON: {{ "consistency_check": "...", "contradictions": [], "corroborations": [], "strategic_value": "HIGH/MEDIUM/LOW" }}
 """
 
 PROMPT_TRANSLATOR = """
 Ti je "Ndërmjetësues". 
 DETYRA: Përkthe tekstin ligjor në gjuhë të thjeshtë për klientin.
+GJUHA: SHQIP.
 """
 
 def get_deepseek_client() -> Optional[OpenAI]:
@@ -127,6 +163,7 @@ def get_deepseek_client() -> Optional[OpenAI]:
     return _deepseek_client
 
 def get_openai_client() -> Optional[OpenAI]:
+    """Specific client for Embeddings if using standard OpenAI models"""
     global _openai_client
     if not _openai_client and OPENAI_API_KEY:
         try: _openai_client = OpenAI(api_key=OPENAI_API_KEY)
@@ -169,10 +206,16 @@ def _call_llm(system_prompt: str, user_prompt: str, json_mode: bool = False, tem
             return res.json().get("response", "")
     except: return None
 
-# --- PUBLIC FUNCTIONS ---
+# --- NEW: VECTORIZATION SUPPORT ---
 
 def get_embedding(text: str) -> List[float]:
+    """
+    Generates a vector embedding for the provided text.
+    Prioritizes OpenAI (text-embedding-3-small) for quality, falls back to Ollama.
+    """
     clean_text = text.replace("\n", " ")
+    
+    # 1. Try OpenAI/OpenRouter Standard
     client = get_openai_client()
     if client:
         try:
@@ -180,14 +223,22 @@ def get_embedding(text: str) -> List[float]:
         except Exception as e:
             logger.warning(f"OpenAI Embedding failed, falling back: {e}")
 
+    # 2. Try Ollama (Local)
     try:
         with httpx.Client(timeout=10.0) as c:
-            res = c.post(OLLAMA_EMBED_URL, json={ "model": LOCAL_EMBED_MODEL, "prompt": clean_text })
+            res = c.post(OLLAMA_EMBED_URL, json={
+                "model": LOCAL_EMBED_MODEL,
+                "prompt": clean_text
+            })
             data = res.json()
             if "embedding" in data: return data["embedding"]
-    except Exception: pass
-    logger.error("All embedding methods failed.")
-    return [0.0] * 1536 
+    except Exception:
+        pass
+        
+    logger.error("All embedding methods failed. Returning zero-vector.")
+    return [0.0] * 1536 # Default to 1536 dimensions to prevent crash
+
+# --- PUBLIC FUNCTIONS ---
 
 def forensic_interrogation(question: str, context_rows: List[str]) -> str:
     """

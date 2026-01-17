@@ -1,7 +1,7 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - FINANCIAL INTERROGATION ENGINE V1.2 (VECTOR QUERY)
-# 1. ADDED: ask_financial_question() - Performs vector search on financial rows.
-# 2. LOGIC: Retrieves top 20 relevant rows -> Sends to LLM for forensic answer.
+# PHOENIX PROTOCOL - FINANCIAL ENGINE V2.0 (ALBANIAN LOCALIZATION)
+# 1. LANGUAGE: All heuristic outputs and prompts converted to SQ (Albanian).
+# 2. LOGIC: Full analysis, vectorization, and storage pipeline maintained.
 
 import pandas as pd
 import io
@@ -20,12 +20,19 @@ from . import llm_service
 logger = logging.getLogger(__name__)
 
 # --- HEURISTICS CONSTANTS ---
-THRESHOLD_STRUCTURING = 1900.0  
+THRESHOLD_STRUCTURING = 1900.0  # Just below 2000 EUR reporting limit
 THRESHOLD_CASH_LARGE = 500.0
-SUSPICIOUS_KEYWORDS = ["baste", "bet", "casino", "crypto", "binance", "kredi", "hua", "debt"]
+SUSPICIOUS_KEYWORDS = ["baste", "bet", "casino", "crypto", "binance", "kredi", "hua", "debt", "borxh"]
 
 async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, db: Database) -> Dict[str, Any]:
-    # ... (Same as previous version, see V1.1) ...
+    """
+    Primary Entry Point:
+    1. Parses Excel/CSV.
+    2. Runs Forensic Heuristics (Evidence Board).
+    3. Vectorizes Rows (Interrogation Room).
+    4. Stores Data in DB (using passed DB session).
+    """
+    # 1. Load Data
     try:
         if filename.endswith('.csv'):
             df = pd.read_csv(io.BytesIO(content))
@@ -33,36 +40,79 @@ async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, 
             df = pd.read_excel(io.BytesIO(content))
     except Exception as e:
         logger.error(f"Spreadsheet parse error: {e}")
-        raise ValueError("Invalid file format. Please upload .xlsx or .csv")
+        raise ValueError("Formati i skedarit nuk është valid. Ju lutemi ngarkoni .xlsx ose .csv")
 
+    # Normalize Columns (Lower case, strip)
     df.columns = [str(c).lower().strip() for c in df.columns]
+    
+    # Identify Key Columns (Heuristic Mapping)
     col_date = next((c for c in df.columns if 'date' in c or 'data' in c), None)
-    col_desc = next((c for c in df.columns if 'desc' in c or 'pershkrim' in c or 'details' in c), None)
-    col_amount = next((c for c in df.columns if 'amount' in c or 'shuma' in c or 'vlere' in c), None)
+    col_desc = next((c for c in df.columns if 'desc' in c or 'pershkrim' in c or 'përshkrim' in c or 'details' in c), None)
+    col_amount = next((c for c in df.columns if 'amount' in c or 'shuma' in c or 'vlere' in c or 'vlera' in c), None)
 
-    if not col_amount: raise ValueError("Could not identify 'Amount/Shuma' column.")
+    if not col_amount:
+        raise ValueError("Nuk u gjet kolona 'Shuma' ose 'Amount'.")
 
+    # 2. Pre-process Data
     records = []
     df = df.fillna('')
+    
     for idx, row in df.iterrows():
+        # Clean Amount
         raw_amt = row[col_amount]
         try:
-            if isinstance(raw_amt, str): raw_amt = raw_amt.replace('€', '').replace(',', '')
+            if isinstance(raw_amt, str):
+                raw_amt = raw_amt.replace('€', '').replace(',', '')
             amount = float(raw_amt)
-        except: amount = 0.0
+        except:
+            amount = 0.0
             
         date_val = str(row[col_date]) if col_date else "N/A"
-        desc_val = str(row[col_desc]) if col_desc else "No Description"
-        records.append({"row_id": idx, "date": date_val, "description": desc_val, "amount": amount, "raw_row": row.to_dict()})
+        desc_val = str(row[col_desc]) if col_desc else "Pa Përshkrim"
+        
+        records.append({
+            "row_id": idx,
+            "date": date_val,
+            "description": desc_val,
+            "amount": amount,
+            "raw_row": row.to_dict()
+        })
 
+    # 3. Run Forensic Scans (The "Evidence Board")
     anomalies = _detect_anomalies(records)
     trends = _calculate_trends(records)
-    await _vectorize_and_store(records, case_id, db)
     
-    summary_prompt = f"Analyze these top anomalies: {str(anomalies[:5])} and trends: {str(trends[:3])}. Write a short Forensic Executive Summary for a lawyer."
-    exec_summary = llm_service._call_llm("Ti je Ekspert Financiar.", summary_prompt, False)
+    # 4. Vectorize & Store (The "Interrogation Room")
+    await _vectorize_and_store(records, case_id, db)
 
-    return {"executive_summary": exec_summary, "anomalies": anomalies, "trends": trends, "recommendations": ["Request bank statements.", "Cross-examine withdrawals."]}
+    # 5. Generate Executive Summary via LLM (STRICTLY ALBANIAN)
+    summary_prompt = f"""
+    Vepro si një Ekspert i Forenzikës Financiare në Kosovë.
+    Analizo këto anomali: {str(anomalies[:5])} 
+    dhe këto trende: {str(trends[:3])}.
+    
+    Shkruaj një "Përmbledhje Ekzekutive Forenzike" profesionale për një avokat.
+    
+    RREGULLAT:
+    1. Gjuha: SHQIP (Strictly Albanian).
+    2. Tono: Profesional, Ligjor, Objektiv.
+    3. Struktura:
+       - **Përmbledhje**: Çfarë po ndodh me llogarinë?
+       - **Flamujt e Kuq**: Cilat janë rreziqet kryesore (pastrim parash, fshehje asetesh)?
+       - **Rekomandim**: Çfarë duhet të bëjë avokati (të kërkojë fatura, etj)?
+    """
+    exec_summary = llm_service._call_llm("Ti je Ekspert Financiar Forensik që flet vetëm Shqip.", summary_prompt, False)
+
+    return {
+        "executive_summary": exec_summary,
+        "anomalies": anomalies,
+        "trends": trends,
+        "recommendations": [
+            "Kërkoni deklaratat bankare për transfertat 'e panjohura'.",
+            "Bëni kryqëzim të tërheqjeve cash me shpenzimet e deklaruara.",
+            "Verifikoni burimin e fondeve për depozitat e mëdha."
+        ]
+    }
 
 async def ask_financial_question(case_id: str, question: str, db: Database) -> Dict[str, Any]:
     """
@@ -75,9 +125,7 @@ async def ask_financial_question(case_id: str, question: str, db: Database) -> D
     q_vector = llm_service.get_embedding(question)
     
     # 2. Vector Search (Using Atlas Vector Search Syntax - Standard)
-    # Note: Requires an Atlas Vector Search Index on 'embedding' field.
     # Fallback to simple Cosine Similarity if index not set (InMemory approach for dev)
-    
     rows = await asyncio.to_thread(list, db.financial_vectors.find({"case_id": ObjectId(case_id)}))
     
     # Calculate Similarity (InMemory for reliability without Atlas triggers)
@@ -111,31 +159,79 @@ async def ask_financial_question(case_id: str, question: str, db: Database) -> D
 
 def _detect_anomalies(records: List[Dict]) -> List[Dict]:
     anomalies = []
-    records.sort(key=lambda x: x['date'])
+    records.sort(key=lambda x: x['date']) # Sort for timeline analysis
+    
     for i, r in enumerate(records):
         amt = abs(r['amount'])
         desc = r['description'].lower()
+        
+        # Check 1: Structuring (Smurfing)
         if 1500 < amt < 2000:
-            anomalies.append({"date": r['date'], "amount": r['amount'], "description": r['description'], "risk_level": "HIGH", "explanation": "Potential Structuring < €2000."})
+            anomalies.append({
+                "date": r['date'],
+                "amount": r['amount'],
+                "description": r['description'],
+                "risk_level": "HIGH",
+                "explanation": "Strukturim i Mundshëm (Smurfing): Shuma është pak nën pragun e raportimit prej 2,000€. Kjo tregon qëllim për të shmangur gjurmët bankare."
+            })
+            
+        # Check 2: Suspicious Keywords
         for kw in SUSPICIOUS_KEYWORDS:
             if kw in desc:
-                anomalies.append({"date": r['date'], "amount": r['amount'], "description": r['description'], "risk_level": "HIGH", "explanation": f"Suspicious Activity: {kw}"})
+                anomalies.append({
+                    "date": r['date'],
+                    "amount": r['amount'],
+                    "description": r['description'],
+                    "risk_level": "HIGH",
+                    "explanation": f"Aktivitet i Dyshimtë: Transaksion i lidhur me '{kw}' (Bixhoz/Kripto/Borxhe)."
+                })
+                
+        # Check 3: Large Round Cash
         if amt >= 500 and amt % 50 == 0 and ("atm" in desc or "cash" in desc):
-             anomalies.append({"date": r['date'], "amount": r['amount'], "description": r['description'], "risk_level": "MEDIUM", "explanation": "Large Cash Withdrawal."})
+             anomalies.append({
+                "date": r['date'],
+                "amount": r['amount'],
+                "description": r['description'],
+                "risk_level": "MEDIUM",
+                "explanation": "Tërheqje e Madhe Cash: Tërheqje e parave të gatshme pa gjurmë të qartë destinacioni."
+            })
+
     return anomalies
 
 def _calculate_trends(records: List[Dict]) -> List[Dict]:
+    # Simplified trend logic
     total_in = sum(r['amount'] for r in records if r['amount'] > 0)
     total_out = sum(abs(r['amount']) for r in records if r['amount'] < 0)
-    return [{"category": "Total Inflow", "trend": "STABLE", "percentage": f"€{total_in:,.2f}", "comment": "Total deposits."}, {"category": "Total Outflow", "trend": "UP", "percentage": f"€{total_out:,.2f}", "comment": "Total spending."}]
+    
+    return [
+        {"category": "Totali i Hyrjeve", "trend": "STABLE", "percentage": f"€{total_in:,.2f}", "comment": "Totali i depozitave të detektuara."},
+        {"category": "Totali i Daljeve", "trend": "UP", "percentage": f"€{total_out:,.2f}", "comment": "Totali i shpenzimeve të detektuara."}
+    ]
 
 async def _vectorize_and_store(records: List[Dict], case_id: str, db: Database):
+    """
+    Converts each financial row into a vector and stores it in MongoDB.
+    Uses the provided DB session.
+    """
     vectors = []
+    
     for r in records:
-        semantic_text = f"Date: {r['date']}. Amount: {r['amount']} EUR. Desc: {r['description']}."
+        semantic_text = f"Data: {r['date']}. Shuma: {r['amount']} EUR. Përshkrimi: {r['description']}."
+        
+        # This calls the LLM service
         embedding = llm_service.get_embedding(semantic_text)
-        vectors.append({"case_id": ObjectId(case_id), "row_id": r['row_id'], "content": semantic_text, "metadata": r['raw_row'], "embedding": embedding, "created_at": datetime.now(timezone.utc)})
+        
+        vectors.append({
+            "case_id": ObjectId(case_id),
+            "row_id": r['row_id'],
+            "content": semantic_text,
+            "metadata": r['raw_row'],
+            "embedding": embedding,
+            "created_at": datetime.now(timezone.utc)
+        })
+
     if vectors:
+        # Clear old vectors for this case to prevent duplicates on re-upload
         await asyncio.to_thread(db.financial_vectors.delete_many, {"case_id": ObjectId(case_id)})
         await asyncio.to_thread(db.financial_vectors.insert_many, vectors)
-        logger.info(f"Vectorized {len(vectors)} rows for {case_id}")
+        logger.info(f"Vectorized and stored {len(vectors)} financial rows for case {case_id}")
