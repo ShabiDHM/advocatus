@@ -1,7 +1,8 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - FINANCIAL ENGINE V2.0 (ALBANIAN LOCALIZATION)
-# 1. LANGUAGE: All heuristic outputs and prompts converted to SQ (Albanian).
-# 2. LOGIC: Full analysis, vectorization, and storage pipeline maintained.
+# PHOENIX PROTOCOL - FINANCIAL ENGINE V2.1 (PREMIUM LEGAL OUTPUT)
+# 1. LANGUAGE: Albanian (SQ) - High Professional Tier.
+# 2. OUTPUT: Generates "Strategic Memorandums" instead of simple reports.
+# 3. LOGIC: Full Vectorization & Heuristic Pipeline.
 
 import pandas as pd
 import io
@@ -85,32 +86,44 @@ async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, 
     # 4. Vectorize & Store (The "Interrogation Room")
     await _vectorize_and_store(records, case_id, db)
 
-    # 5. Generate Executive Summary via LLM (STRICTLY ALBANIAN)
+    # 5. Generate Executive Summary via LLM (PROFESSIONAL LEGAL TIER)
     summary_prompt = f"""
-    Vepro si një Ekspert i Forenzikës Financiare në Kosovë.
-    Analizo këto anomali: {str(anomalies[:5])} 
-    dhe këto trende: {str(trends[:3])}.
+    Vepro si një "Partner i Lartë" në një firmë ligjore prestigjioze në Prishtinë.
     
-    Shkruaj një "Përmbledhje Ekzekutive Forenzike" profesionale për një avokat.
+    TË DHËNAT E ANALIZËS:
+    - Anomalitë Kryesore: {str(anomalies[:5])}
+    - Trendet Financiare: {str(trends[:3])}
     
-    RREGULLAT:
-    1. Gjuha: SHQIP (Strictly Albanian).
-    2. Tono: Profesional, Ligjor, Objektiv.
-    3. Struktura:
-       - **Përmbledhje**: Çfarë po ndodh me llogarinë?
-       - **Flamujt e Kuq**: Cilat janë rreziqet kryesore (pastrim parash, fshehje asetesh)?
-       - **Rekomandim**: Çfarë duhet të bëjë avokati (të kërkojë fatura, etj)?
+    DETYRA:
+    Shkruaj një "RAPORT FORENZIK PARAPRAK: ANALIZA E QËNDRUESHMËRISË FINANCIARE" me estetikë të lartë dhe gjuhë juridike autoritare.
+    
+    STRUKTURA E DETYRUESHME (Përdor Markdown):
+    
+    #### 1. KONKLUZION EKZEKUTIV
+    (Këtu jep një gjykim të prerë: A ka rrezik? Cili është disproporcioni hyrje/dalje? Përdor terma si "Diskrepancë Materiale", "Deficit i Pajustifikuar", "Indikatorë të Lartë Risku".)
+    
+    #### 2. EVIDENCA KRITIKE (FLAMUJT E KUQ)
+    (Listo anomalitë me bullet points. Për çdo anomali, shpjego *Pse* është e rrezikshme ligjërisht. Psh: Përmend "Tentativë për shmangie të raportimit" për shumat afër 2000€, ose "Mungesë Transparence".)
+    
+    #### 3. STRATEGJIA LIGJORE & VEPRIMET E REKOMANDUARA
+    (Mos jep thjesht këshilla. Jep hapa taktikë: "Kërkesë për Zbulim (Discovery)", "Kryqëzim Asetesh", "Auditimi i Stilit të Jetesës", "Verifikim i Burimit të Fondeve".)
+    
+    TONI:
+    - Përdor fjalor elitar (psh: jo "ngre dyshime", por "indikatorë të evazionit").
+    - Përdoruesi është Avokat, jo klient i thjeshtë. Fol si koleg.
+    - GJUHA: SHQIP LETRAR (PA GABIME).
     """
-    exec_summary = llm_service._call_llm("Ti je Ekspert Financiar Forensik që flet vetëm Shqip.", summary_prompt, False)
+    
+    exec_summary = llm_service._call_llm("Ti je Ekspert Forenzik i Nivelit të Lartë që flet vetëm Shqip.", summary_prompt, False)
 
     return {
         "executive_summary": exec_summary,
         "anomalies": anomalies,
         "trends": trends,
         "recommendations": [
-            "Kërkoni deklaratat bankare për transfertat 'e panjohura'.",
-            "Bëni kryqëzim të tërheqjeve cash me shpenzimet e deklaruara.",
-            "Verifikoni burimin e fondeve për depozitat e mëdha."
+            "Iniconi procedurën 'Discovery' për faturat e dyshimta.",
+            "Kryeni auditim të stilit të jetesës vs. të ardhurave të deklaruara.",
+            "Verifikoni përputhshmërinë me ligjet AML (Neni 288 KPRK)."
         ]
     }
 
@@ -172,7 +185,7 @@ def _detect_anomalies(records: List[Dict]) -> List[Dict]:
                 "amount": r['amount'],
                 "description": r['description'],
                 "risk_level": "HIGH",
-                "explanation": "Strukturim i Mundshëm (Smurfing): Shuma është pak nën pragun e raportimit prej 2,000€. Kjo tregon qëllim për të shmangur gjurmët bankare."
+                "explanation": "Strukturim i Mundshëm (Smurfing): Shuma është pak nën pragun e raportimit prej 2,000€. Indikator i shmangies së gjurmëve bankare."
             })
             
         # Check 2: Suspicious Keywords
@@ -183,7 +196,7 @@ def _detect_anomalies(records: List[Dict]) -> List[Dict]:
                     "amount": r['amount'],
                     "description": r['description'],
                     "risk_level": "HIGH",
-                    "explanation": f"Aktivitet i Dyshimtë: Transaksion i lidhur me '{kw}' (Bixhoz/Kripto/Borxhe)."
+                    "explanation": f"Aktivitet me Risk të Lartë: Transaksion i lidhur me '{kw}' (Potencialisht Bixhoz/Kripto/Borxhe joformale)."
                 })
                 
         # Check 3: Large Round Cash
@@ -193,7 +206,7 @@ def _detect_anomalies(records: List[Dict]) -> List[Dict]:
                 "amount": r['amount'],
                 "description": r['description'],
                 "risk_level": "MEDIUM",
-                "explanation": "Tërheqje e Madhe Cash: Tërheqje e parave të gatshme pa gjurmë të qartë destinacioni."
+                "explanation": "Tërheqje Cash Signifikante: Tërheqje e likuiditetit pa gjurmë destinacioni përfundimtar."
             })
 
     return anomalies
@@ -204,8 +217,8 @@ def _calculate_trends(records: List[Dict]) -> List[Dict]:
     total_out = sum(abs(r['amount']) for r in records if r['amount'] < 0)
     
     return [
-        {"category": "Totali i Hyrjeve", "trend": "STABLE", "percentage": f"€{total_in:,.2f}", "comment": "Totali i depozitave të detektuara."},
-        {"category": "Totali i Daljeve", "trend": "UP", "percentage": f"€{total_out:,.2f}", "comment": "Totali i shpenzimeve të detektuara."}
+        {"category": "Totali i Hyrjeve", "trend": "STABLE", "percentage": f"€{total_in:,.2f}", "comment": "Totali i depozitave/të ardhurave të detektuara."},
+        {"category": "Totali i Daljeve", "trend": "UP", "percentage": f"€{total_out:,.2f}", "comment": "Totali i shpenzimeve operative dhe personale."}
     ]
 
 async def _vectorize_and_store(records: List[Dict], case_id: str, db: Database):
