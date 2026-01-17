@@ -1,14 +1,20 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - REFACTOR V1.5 (CRASH HOTFIX)
-// 1. HOTFIX: Added null check 'anomaly.amount || 0' to prevent crash on 'toLocaleString'.
-// 2. STABILITY: The component is now resilient to AI responses with missing 'amount' fields.
+// PHOENIX PROTOCOL - FRONTEND V2.1 (SYMBOLS INTEGRATED)
+// 1. FIX: Integrated 'Lightbulb', 'ArrowRight', 'CheckCircle', 'MessageSquare' to resolve TS warnings.
+// 2. FEATURE: Added "Strategic Recommendations" section to the Evidence Board.
+// 3. UX: Added Empty State for Chat using MessageSquare.
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileSpreadsheet, Activity, AlertTriangle, TrendingUp, Loader2, CheckCircle, RefreshCw, Lightbulb, ArrowRight, TrendingDown } from 'lucide-react';
+import { 
+    FileSpreadsheet, Activity, AlertTriangle, TrendingUp, Loader2, 
+    CheckCircle, RefreshCw, Lightbulb, ArrowRight, TrendingDown, 
+    MessageSquare, Send, ShieldAlert, Bot 
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
 
+// --- TYPES ---
 interface SmartFinancialReport {
     executive_summary: string;
     anomalies: Array<{
@@ -27,21 +33,47 @@ interface SmartFinancialReport {
     recommendations: string[];
 }
 
+interface ChatMessage {
+    id: string;
+    role: 'user' | 'agent';
+    content: string;
+    timestamp: Date;
+    evidenceCount?: number;
+}
+
 interface SpreadsheetAnalystProps {
     caseId: string;
 }
 
 const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const { t } = useTranslation();
+    
+    // State: File & Report
     const [file, setFile] = useState<File | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState<SmartFinancialReport | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    // State: Interrogation Room
+    const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+    const [question, setQuestion] = useState('');
+    const [isInterrogating, setIsInterrogating] = useState(false);
+    const chatEndRef = useRef<HTMLDivElement>(null);
+
+    // Auto-scroll chat
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [chatHistory]);
+
+    // --- HANDLERS ---
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
             setError(null);
+            // Reset state on new file
+            setResult(null);
+            setChatHistory([]);
         }
     };
 
@@ -52,6 +84,13 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         try {
             const data = await apiService.analyzeSpreadsheet(caseId, file) as unknown as SmartFinancialReport;
             setResult(data);
+            // Add initial system welcome message to chat
+            setChatHistory([{
+                id: 'init',
+                role: 'agent',
+                content: "Data vectorized. I have scanned the ledger. The Evidence Board is above. You may now interrogate the specific transaction rows.",
+                timestamp: new Date()
+            }]);
         } catch (err: any) {
             console.error(err);
             setError(t('analyst.error.analysisFailed', 'Analysis failed. Please check the file format.'));
@@ -59,6 +98,49 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             setIsAnalyzing(false);
         }
     };
+
+    const handleInterrogate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!question.trim() || isInterrogating) return;
+
+        const currentQ = question;
+        setQuestion('');
+        
+        // Add User Message
+        const userMsg: ChatMessage = {
+            id: Date.now().toString(),
+            role: 'user',
+            content: currentQ,
+            timestamp: new Date()
+        };
+        setChatHistory(prev => [...prev, userMsg]);
+        setIsInterrogating(true);
+
+        try {
+            const response = await apiService.interrogateFinancialRecords(caseId, currentQ);
+            
+            const agentMsg: ChatMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'agent',
+                content: response.answer || "No relevant data found.",
+                timestamp: new Date(),
+                evidenceCount: response.referenced_rows_count
+            };
+            setChatHistory(prev => [...prev, agentMsg]);
+        } catch (err) {
+            const errorMsg: ChatMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'agent',
+                content: "Connection to Forensic Core failed.",
+                timestamp: new Date()
+            };
+            setChatHistory(prev => [...prev, errorMsg]);
+        } finally {
+            setIsInterrogating(false);
+        }
+    };
+
+    // --- HELPERS ---
 
     const getRiskBadge = (level: string) => {
         switch (level) {
@@ -77,18 +159,18 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     return (
         <div className="w-full h-full min-h-[500px] flex flex-col gap-6 p-1">
             
-            {/* Header */}
+            {/* Header Area */}
             <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -z-10 pointer-events-none" />
-
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                             <Activity className="text-primary-start" />
-                            {t('analyst.title', 'Smart Financial Analyst')}
+                            {t('analyst.title', 'Financial Interrogation Room')}
+                            {result && <CheckCircle className="w-5 h-5 text-emerald-500" />} 
                         </h2>
                         <p className="text-gray-400 mt-1 max-w-xl">
-                            {t('analyst.subtitle', 'Upload Excel/CSV records for automated forensic analysis and anomaly detection.')}
+                            {t('analyst.subtitle', 'Upload ledger. Vectors are generated automatically. Interrogate data below.')}
                         </p>
                     </div>
 
@@ -107,7 +189,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 `}>
                                     <FileSpreadsheet className={`w-5 h-5 ${file ? 'text-primary-start' : 'text-gray-400'}`} />
                                     <span className="text-sm text-gray-300 truncate max-w-[200px]">
-                                        {file ? file.name : t('analyst.selectFile', 'Select Spreadsheet...')}
+                                        {file ? file.name : t('analyst.selectFile', 'Select Ledger...')}
                                     </span>
                                 </div>
                             </div>
@@ -120,22 +202,21 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 className="px-6 py-2.5 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-primary-start/20 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
                             >
                                 {isAnalyzing ? <Loader2 className="animate-spin w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
-                                {isAnalyzing ? t('analyst.analyzing', 'Analyzing...') : t('analyst.run', 'Run Analysis')}
+                                {isAnalyzing ? 'Scanning...' : 'Vectorize & Analyze'}
                             </button>
                         )}
                         
                         {result && (
                              <button
-                                onClick={() => { setResult(null); setFile(null); }}
+                                onClick={() => { setResult(null); setFile(null); setChatHistory([]); }}
                                 className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex items-center gap-2 hover:bg-white/5"
                              >
                                 <RefreshCw className="w-4 h-4" />
-                                {t('analyst.newAnalysis', 'New Analysis')}
+                                {t('analyst.newAnalysis', 'Reset Room')}
                              </button>
                         )}
                     </div>
                 </div>
-
                 {error && (
                     <div className="mt-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-200 animate-in fade-in slide-in-from-top-2">
                         <AlertTriangle className="w-5 h-5" />
@@ -144,110 +225,163 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 )}
             </div>
 
-            {/* Results */}
+            {/* MAIN CONTENT GRID */}
             <AnimatePresence mode="wait">
                 {result && (
                     <motion.div 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+                        className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[800px]"
                     >
-                        {/* Narrative & Summary */}
-                        <div className="lg:col-span-2 space-y-6">
-                            <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5 shadow-xl">
-                                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2 border-b border-white/5 pb-2">
-                                    <CheckCircle className="text-green-400 w-5 h-5" />
-                                    {t('analyst.reportTitle', 'Forensic Narrative')}
+                        {/* LEFT COLUMN: EVIDENCE BOARD (Static) */}
+                        <div className="flex flex-col gap-6 overflow-hidden h-full">
+                            
+                            {/* Summary Card */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex-shrink-0">
+                                <h3 className="text-md font-bold text-white mb-2 flex items-center gap-2">
+                                    <ShieldAlert className="text-primary-start w-4 h-4" />
+                                    Forensic Narrative
                                 </h3>
-                                <p className="text-gray-300 leading-relaxed text-sm md:text-base whitespace-pre-line">
+                                <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-line max-h-32 overflow-y-auto custom-scrollbar">
                                     {result.executive_summary}
                                 </p>
                             </div>
 
-                            {/* Trends */}
-                            {result.trends && result.trends.length > 0 && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {result.trends.map((trend, idx) => (
-                                        <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/10 hover:bg-white/10 transition-colors">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <h4 className="text-white font-bold text-sm">{trend.category}</h4>
-                                                {getTrendIcon(trend.trend)}
-                                            </div>
-                                            <div className="flex items-baseline gap-2 mb-2">
-                                                <span className="text-2xl font-bold text-primary-200">{trend.percentage}</span>
-                                                <span className="text-xs text-gray-500 uppercase tracking-wider">{trend.trend}</span>
-                                            </div>
-                                            <p className="text-xs text-gray-400">{trend.comment}</p>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Recommendations */}
-                            {result.recommendations && result.recommendations.length > 0 && (
-                                <div className="glass-panel p-6 rounded-2xl border border-emerald-500/20 bg-emerald-900/10">
-                                    <h3 className="text-lg font-bold text-emerald-400 mb-4 flex items-center gap-2">
-                                        <Lightbulb className="w-5 h-5" />
-                                        {t('analyst.recommendations', 'Strategic Recommendations')}
+                             {/* Recommendations (Using Lightbulb and ArrowRight) */}
+                             {result.recommendations && result.recommendations.length > 0 && (
+                                <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 bg-emerald-900/10 flex-shrink-0">
+                                    <h3 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-2">
+                                        <Lightbulb className="w-4 h-4" />
+                                        Strategic Recommendations
                                     </h3>
-                                    <ul className="space-y-3">
+                                    <ul className="space-y-1">
                                         {result.recommendations.map((rec, i) => (
-                                            <li key={i} className="flex gap-3 items-start text-sm text-gray-300">
-                                                <ArrowRight className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                                            <li key={i} className="flex gap-2 items-start text-xs text-gray-300">
+                                                <ArrowRight className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
                                                 <span>{rec}</span>
                                             </li>
                                         ))}
                                     </ul>
                                 </div>
                             )}
-                        </div>
 
-                        {/* Anomalies Panel */}
-                        <div className="lg:col-span-1 space-y-6">
-                            <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5 h-full flex flex-col">
-                                <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                                    <AlertTriangle className="text-yellow-400 w-5 h-5" />
-                                    {t('analyst.anomaliesTitle', 'Detected Anomalies')}
-                                </h3>
-                                
-                                <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar max-h-[800px]">
-                                    {(!result.anomalies || result.anomalies.length === 0) ? (
-                                        <div className="flex flex-col items-center justify-center h-full text-center py-10 opacity-60">
-                                            <CheckCircle className="w-12 h-12 text-green-500 mb-2" />
-                                            <p className="text-gray-400">{t('analyst.noAnomalies', 'No significant anomalies detected.')}</p>
+                            {/* Trends & Metrics */}
+                            <div className="grid grid-cols-2 gap-4 flex-shrink-0">
+                                {result.trends.map((trend, idx) => (
+                                    <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/10">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="text-gray-400 text-xs font-bold uppercase">{trend.category}</span>
+                                            {getTrendIcon(trend.trend)}
                                         </div>
-                                    ) : (
-                                        result.anomalies.map((anomaly, idx) => (
-                                            <div key={idx} className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl hover:bg-red-500/10 transition-colors group">
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getRiskBadge(anomaly.risk_level)}`}>
-                                                        {anomaly.risk_level} RISK
-                                                    </span>
-                                                    <span className="text-xs text-gray-500 font-mono">
-                                                        {anomaly.date}
-                                                    </span>
-                                                </div>
-                                                <div className="flex justify-between items-baseline mb-1">
-                                                     <p className="text-sm text-white font-bold truncate max-w-[150px]">{anomaly.description}</p>
-                                                     <p className="text-sm font-mono text-red-300">
-                                                         {/* PHOENIX FIX: Added null-check to prevent crash */}
-                                                         €{(anomaly.amount || 0).toLocaleString()}
-                                                     </p>
-                                                </div>
-                                                <p className="text-xs text-gray-400 leading-snug mt-2 pt-2 border-t border-white/5">{anomaly.explanation}</p>
+                                        <div className="text-xl font-bold text-white">{trend.percentage}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Anomalies List (Scrollable) */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex-1 overflow-hidden flex flex-col min-h-0">
+                                <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2">
+                                    <AlertTriangle className="text-yellow-400 w-4 h-4" />
+                                    Red Flags (Evidence)
+                                </h3>
+                                <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 space-y-3">
+                                    {result.anomalies.map((anomaly, idx) => (
+                                        <div key={idx} className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${getRiskBadge(anomaly.risk_level)}`}>
+                                                    {anomaly.risk_level}
+                                                </span>
+                                                <span className="text-xs text-gray-500 font-mono">{anomaly.date}</span>
                                             </div>
-                                        ))
-                                    )}
+                                            <div className="flex justify-between items-baseline">
+                                                 <p className="text-xs text-white font-bold truncate max-w-[200px]">{anomaly.description}</p>
+                                                 <p className="text-xs font-mono text-red-300">€{(anomaly.amount || 0).toLocaleString()}</p>
+                                            </div>
+                                            <p className="text-[10px] text-gray-400 mt-1">{anomaly.explanation}</p>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
+                        </div>
+
+                        {/* RIGHT COLUMN: INTERROGATION CONSOLE (Dynamic) */}
+                        <div className="glass-panel rounded-2xl border border-primary-start/30 bg-black/40 flex flex-col h-full overflow-hidden shadow-2xl relative">
+                            {/* Decorative Grid Background */}
+                            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
+                            
+                            {/* Header */}
+                            <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3">
+                                <Bot className="text-primary-start w-5 h-5" />
+                                <div>
+                                    <h3 className="text-sm font-bold text-white">Forensic Agent</h3>
+                                    <p className="text-[10px] text-gray-400">Context: {file?.name} ({result.anomalies.length} Flags)</p>
+                                </div>
+                            </div>
+
+                            {/* Chat History */}
+                            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+                                {chatHistory.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
+                                        <MessageSquare className="w-8 h-8 opacity-50" />
+                                        <p className="text-xs">Console Ready. Awaiting Questions.</p>
+                                    </div>
+                                ) : (
+                                    chatHistory.map((msg) => (
+                                        <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                            <div className={`
+                                                max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed
+                                                ${msg.role === 'user' 
+                                                    ? 'bg-primary-start text-white rounded-br-none' 
+                                                    : 'bg-white/10 text-gray-200 border border-white/5 rounded-bl-none'}
+                                            `}>
+                                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                                                {msg.role === 'agent' && msg.evidenceCount !== undefined && (
+                                                    <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2 text-[10px] text-gray-400">
+                                                        <ShieldAlert className="w-3 h-3" />
+                                                        Verified against {msg.evidenceCount} transaction rows
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                                {isInterrogating && (
+                                    <div className="flex justify-start">
+                                        <div className="bg-white/5 rounded-2xl rounded-bl-none p-4 border border-white/5 flex gap-1">
+                                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                        </div>
+                                    </div>
+                                )}
+                                <div ref={chatEndRef} />
+                            </div>
+
+                            {/* Input Area */}
+                            <form onSubmit={handleInterrogate} className="p-4 border-t border-white/10 bg-white/5 flex gap-2">
+                                <input
+                                    type="text"
+                                    value={question}
+                                    onChange={(e) => setQuestion(e.target.value)}
+                                    placeholder="Ask about specific transactions (e.g., 'Show gambling payments')..."
+                                    className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary-start/50 transition-colors"
+                                />
+                                <button 
+                                    type="submit" 
+                                    disabled={!question.trim() || isInterrogating}
+                                    className="p-3 bg-primary-start text-white rounded-xl hover:bg-primary-end disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <Send className="w-5 h-5" />
+                                </button>
+                            </form>
                         </div>
 
                     </motion.div>
                 )}
             </AnimatePresence>
             
-            {/* Loading */}
+            {/* Loading State */}
              <AnimatePresence>
                 {isAnalyzing && !result && (
                     <motion.div 
@@ -262,12 +396,11 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <Activity className="w-6 h-6 text-primary-start" />
                             </div>
                         </div>
-                        <p className="text-xl text-white font-medium mt-6">{t('analyst.processing', 'AI is auditing financial records...')}</p>
-                        <p className="text-sm text-gray-400 mt-2">{t('analyst.wait', 'DeepSeek is identifying fiscal risks.')}</p>
+                        <p className="text-xl text-white font-medium mt-6">{t('analyst.processing', 'Deep Forensic Scan in Progress...')}</p>
+                        <p className="text-sm text-gray-400 mt-2">{t('analyst.wait', 'Generating vector embeddings for every transaction.')}</p>
                     </motion.div>
                 )}
             </AnimatePresence>
-
         </div>
     );
 };

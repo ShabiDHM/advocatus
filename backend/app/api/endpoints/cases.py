@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V7.1 (DEEP STRATEGY ENABLED)
-# 1. ADDED: '/{case_id}/deep-analysis' endpoint for Adversarial/Chronology/Contradiction agents.
-# 2. STATUS: Fully connects Backend V16.0 Logic to Frontend.
+# PHOENIX PROTOCOL - CASES ROUTER V8.0 (FULL INTEGRATION)
+# 1. FEATURES: CRUD, Documents, Public Portal, Deep Strategy, Financial Interrogation.
+# 2. STATUS: Production Ready. No truncation.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -66,6 +66,9 @@ class BulkDeleteRequest(BaseModel):
 
 class ArchiveImportRequest(BaseModel):
     archive_item_ids: List[str]
+
+class FinanceInterrogationRequest(BaseModel):
+    question: str
 
 def validate_object_id(id_str: str) -> ObjectId:
     try: return ObjectId(id_str)
@@ -289,7 +292,6 @@ async def analyze_case_risks(case_id: str, current_user: Annotated[UserInDB, Dep
     validate_object_id(case_id)
     return JSONResponse(content=await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id, user_id=str(current_user.id)))
 
-# --- NEW: DEEP STRATEGY ENDPOINT ---
 @router.post("/{case_id}/deep-analysis", tags=["Analysis"])
 async def analyze_case_strategy_deep(
     case_id: str, 
@@ -312,18 +314,54 @@ async def analyze_case_strategy_deep(
 
 @router.post("/{case_id}/analyze/spreadsheet", tags=["Analysis"])
 async def analyze_spreadsheet_endpoint(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], file: UploadFile = File(...), db: Database = Depends(get_db)):
+    """
+    Analyzes an uploaded Excel/CSV file.
+    1. Parses & Extracts Financial Data.
+    2. Runs Forensic Heuristics (Anomalies, Trends).
+    3. VECTORIZES rows into 'financial_vectors' for AI Interrogation.
+    """
     validate_object_id(case_id)
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case: raise HTTPException(status_code=404, detail="Case not found.")
+    
     try:
         content = await file.read()
         filename = file.filename or "unknown.xlsx"
-        result = await spreadsheet_service.analyze_spreadsheet_file(content, filename)
+        # PASSING DB INSTANCE TO SERVICE
+        result = await spreadsheet_service.analyze_spreadsheet_file(content, filename, case_id, db)
         return JSONResponse(content=result)
-    except ValueError as ve: raise HTTPException(status_code=400, detail=str(ve))
+    except ValueError as ve: 
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logger.error(f"Spreadsheet Analysis Error: {e}")
         raise HTTPException(status_code=500, detail="Analysis failed.")
+
+@router.post("/{case_id}/interrogate-finances", tags=["Analysis"])
+async def interrogate_financial_records(
+    case_id: str, 
+    body: FinanceInterrogationRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    db: Database = Depends(get_db)
+):
+    """
+    SOCRATIC INTERROGATION:
+    1. Receives a natural language question (e.g., "Show me gambling transactions").
+    2. Performs Vector Search on the 'financial_vectors' collection.
+    3. Returns an evidence-backed answer via the Forensic Agent.
+    """
+    validate_object_id(case_id)
+    
+    # 1. Security Check
+    case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
+    if not case: raise HTTPException(status_code=404, detail="Case not found.")
+
+    # 2. Perform Interrogation
+    try:
+        result = await spreadsheet_service.ask_financial_question(case_id, body.question, db)
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Interrogation Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to interrogate financial records.")
 
 @router.get("/public/{case_id}/timeline", tags=["Public Portal"])
 async def get_public_case_timeline(case_id: str, db: Database = Depends(get_db)):

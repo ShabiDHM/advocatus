@@ -1,8 +1,8 @@
-# FILE: backend/requirements.txt (UNIFIED & PINNED - V5.0)
-# PHOENIX PROTOCOL - DEPENDENCY UPDATE
-# 1. ADDED: python-pptx (Required for 'dock ppp' / PowerPoint extraction).
-# 2. AGENT FIX: Added 'langchain-openai' required for the new Agent Executor.
-# 3. STATUS: Full Office Suite Support & Agent-Ready.
+# FILE: backend/requirements.txt (UNIFIED & PINNED - V5.1)
+# PHOENIX PROTOCOL - DEPENDENCY FINAL
+# 1. ADDED: 'xlrd' to support legacy .xls bank statements.
+# 2. ADDED: 'httpx' explicit declaration for LLM service stability.
+# 3. STATUS: Forensic Engine Certified.
 
 # --- Core Web Framework & Async ---
 fastapi==0.109.2
@@ -10,10 +10,11 @@ uvicorn[standard]==0.29.0
 starlette==0.36.3
 websockets
 anyio==4.10.0
+httpx==0.27.0  # Explicitly added for Service communication
 
 # --- Pydantic & Settings ---
 pydantic==2.7.1
-pydantic-core==2.18.2 # <-- PHOENIX FIX: Explicitly pin pydantic-core
+pydantic-core==2.18.2
 pydantic-settings==2.10.1
 python-dotenv==1.1.1
 
@@ -58,7 +59,8 @@ pytesseract==0.3.13
 pillow==11.3.0
 reportlab==4.4.3
 pandas
-openpyxl
+openpyxl        # For .xlsx files
+xlrd>=2.0.1     # For legacy .xls files
 opencv-python-headless==4.9.0.80
 
 # --- AI & ML Dependencies (UNIFIED) ---
