@@ -1,13 +1,16 @@
 // FILE: vite.config.ts
-// PHOENIX PROTOCOL - BUILD FIX
-// 1. FIX: Added 'workbox' configuration to handle large JS chunks.
-// 2. LOGIC: 'maximumFileSizeToCacheInBytes' prevents build failure from PWA caching.
+// PHOENIX PROTOCOL - BUILD FIX V2.0 (BASE PATH)
+// 1. FIX: Added 'base: "/"' to ensure absolute paths are generated.
+// 2. LOGIC: This corrects the asset paths in index.html and resolves the "text/html" MIME type error.
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // PHOENIX FIX: Define the base path for asset URLs
+  base: '/', 
+  
   plugins: [
     react(),
     VitePWA({
@@ -40,10 +43,7 @@ export default defineConfig({
           }
         ]
       },
-      // PHOENIX FIX: Added workbox config to solve build error
       workbox: {
-        // This setting tells the service worker to ignore large files.
-        // We increase the limit to 5MB, which is more than enough for our large JS chunk.
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       }
     })
