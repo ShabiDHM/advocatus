@@ -1,7 +1,7 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V2.2 (CLIENT PORTAL ENABLED)
-// 1. FEATURE: Added public route '/portal/:caseId'.
-// 2. LOGIC: Allows external clients to access the portal without login.
+// PHOENIX PROTOCOL - ROUTING V2.3 (JOIN ROUTE ENABLED)
+// 1. FEATURE: Added public route '/join'.
+// 2. LOGIC: Handles "Magic Links" for team invitations.
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -11,6 +11,7 @@ import MainLayout from './pages/MainLayout';
 // Pages
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import JoinPage from './pages/JoinPage'; // PHOENIX: Imported Join Page
 import DashboardPage from './pages/DashboardPage';
 import CaseViewPage from './pages/CaseViewPage';
 import CalendarPage from './pages/CalendarPage';
@@ -21,7 +22,7 @@ import BusinessPage from './pages/BusinessPage';
 import AccountPage from './pages/AccountPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import FinanceWizardPage from './pages/FinanceWizardPage';
-import ClientPortalPage from './pages/ClientPortalPage'; // PHOENIX: Imported Portal
+import ClientPortalPage from './pages/ClientPortalPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -65,7 +66,10 @@ const AppRoutes: React.FC = () => {
       <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <LoginPage />} />
       <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RegisterPage />} />
       
-      {/* PHOENIX: Client Portal Route (Public Access via Link) */}
+      {/* PHOENIX: Join Route (Invitation Magic Link) */}
+      <Route path="/join" element={<JoinPage />} />
+
+      {/* Client Portal Route (Public Access via Link) */}
       <Route path="/portal/:caseId" element={<ClientPortalPage />} />
 
       {/* Standalone Protected Routes (No Sidebar) */}

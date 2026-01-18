@@ -1,7 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER V8.0 (INTERROGATION READY)
-// 1. ADDED: interrogateFinancialRecords() to support the Forensic Console.
-// 2. MERGED: All Deep Strategy, Auth, and Document logic preserved.
+// PHOENIX PROTOCOL - API MASTER V11.0 (ADMIN TENANCY)
+// 1. ADDED: getOrganizations() for the new admin dashboard.
+// 2. ADDED: upgradeOrganizationTier() to allow admins to manage Tiers.
+// 3. STATUS: Final & Complete.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -10,10 +11,10 @@ import type {
     DraftingJobStatus, DraftingJobResult, ChangePasswordRequest, CaseAnalysisResult, DeepAnalysisResult,
     BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest, InvoiceItem,
     GraphData, ArchiveItemOut, CaseFinancialSummary, AnalyticsDashboardData, Expense, ExpenseCreateRequest, ExpenseUpdate,
-    SpreadsheetAnalysisResult
+    SpreadsheetAnalysisResult, Organization
 } from '../data/types';
 
-// ... (Existing Interfaces) ...
+// --- Interfaces ---
 export interface AuditIssue { id: string; severity: 'CRITICAL' | 'WARNING'; message: string; related_item_id?: string; item_type?: 'INVOICE' | 'EXPENSE'; }
 export interface TaxCalculation { period_month: number; period_year: number; total_sales_gross: number; total_purchases_gross: number; vat_collected: number; vat_deductible: number; net_obligation: number; currency: string; status: string; regime: string; tax_rate_applied: string; description: string; }
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
@@ -23,6 +24,7 @@ interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
 interface FinanceInterrogationResponse { answer: string; referenced_rows_count: number; }
 
+// --- Configuration ---
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
 if (typeof window !== 'undefined' && window.location.protocol === 'https:' && normalizedUrl.startsWith('http:')) { normalizedUrl = normalizedUrl.replace('http:', 'https:'); }
@@ -30,6 +32,7 @@ export const API_BASE_URL = normalizedUrl;
 export const API_V1_URL = `${API_BASE_URL}/api/v1`;
 export const API_V2_URL = `${API_BASE_URL}/api/v2`;
 
+// --- Token Management ---
 class TokenManager {
     private accessToken: string | null = null;
     get(): string | null { return this.accessToken; }
@@ -37,6 +40,7 @@ class TokenManager {
 }
 const tokenManager = new TokenManager();
 
+// --- API Service Class ---
 class ApiService {
     public axiosInstance: AxiosInstance;
     public onUnauthorized: (() => void) | null = null;
@@ -85,6 +89,16 @@ class ApiService {
     public async refreshToken(): Promise<boolean> { try { const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); if (response.data.access_token) { tokenManager.set(response.data.access_token); return true; } return false; } catch (error) { console.warn("[API] Session Refresh Failed (Normal if logged out):", error); return false; } }
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
     public logout() { tokenManager.set(null); }
+
+    // --- ORGANIZATION MANAGEMENT ---
+    public async createOrganization(data: { name: string }): Promise<any> { const response = await this.axiosInstance.post('/organizations/', data); return response.data; }
+    public async inviteMember(email: string): Promise<any> { const response = await this.axiosInstance.post('/organizations/invite', { email }); return response.data; }
+    public async getOrganizationMembers(): Promise<User[]> { const response = await this.axiosInstance.get<User[]>('/organizations/members'); return response.data; }
+    public async joinOrganization(token: string, username: string, password: string): Promise<any> { const response = await this.axiosInstance.post('/organizations/join', { token, username, password }); if (response.data.access_token) { tokenManager.set(response.data.access_token); } return response.data; }
+
+    // --- ADMIN (NEW) ---
+    public async getOrganizations(): Promise<Organization[]> { const response = await this.axiosInstance.get<Organization[]>('/admin/organizations'); return response.data; }
+    public async upgradeOrganizationTier(orgId: string, tier: string): Promise<Organization> { const response = await this.axiosInstance.put<Organization>(`/admin/organizations/${orgId}/tier`, { tier }); return response.data; }
 
     // --- UTILS & DOWNLOADS ---
     public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
@@ -158,47 +172,14 @@ class ApiService {
     
     // --- ANALYSIS & FORENSICS ---
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
-    
-    public async analyzeDeepStrategy(caseId: string): Promise<DeepAnalysisResult> {
-        const response = await this.axiosInstance.post<DeepAnalysisResult>(`/cases/${caseId}/deep-analysis`);
-        return response.data;
-    }
-
+    public async analyzeDeepStrategy(caseId: string): Promise<DeepAnalysisResult> { const response = await this.axiosInstance.post<DeepAnalysisResult>(`/cases/${caseId}/deep-analysis`); return response.data; }
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); return response.data; }
-    
-    public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> { 
-        const formData = new FormData(); 
-        formData.append('file', file); 
-        const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData); 
-        return response.data; 
-    }
-
-    /**
-     * Socratic Interrogation Endpoint
-     * Sends a question to the backend vector agent for financial data interrogation.
-     */
-    public async interrogateFinancialRecords(caseId: string, question: string): Promise<FinanceInterrogationResponse> {
-        const response = await this.axiosInstance.post<FinanceInterrogationResponse>(`/cases/${caseId}/interrogate-finances`, { question });
-        return response.data;
-    }
+    public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData); return response.data; }
+    public async interrogateFinancialRecords(caseId: string, question: string): Promise<FinanceInterrogationResponse> { const response = await this.axiosInstance.post<FinanceInterrogationResponse>(`/cases/${caseId}/interrogate-finances`, { question }); return response.data; }
+    public async downloadForensicReport(caseId: string, data: any): Promise<void> { const response = await this.axiosInstance.post(`/cases/${caseId}/report/forensic`, data, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
 
     // --- CHAT ---
-    public async sendChatMessage(
-        caseId: string, 
-        message: string, 
-        documentId?: string, 
-        jurisdiction?: string,
-        mode: 'FAST' | 'DEEP' = 'FAST'
-    ): Promise<string> { 
-        const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { 
-            message, 
-            document_id: documentId || null, 
-            jurisdiction: jurisdiction || 'ks',
-            mode 
-        }); 
-        return response.data.response; 
-    }
-    
+    public async sendChatMessage( caseId: string, message: string, documentId?: string, jurisdiction?: string, mode: 'FAST' | 'DEEP' = 'FAST' ): Promise<string> { const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks', mode }); return response.data.response; }
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     
     // --- CALENDAR & SUPPORT ---

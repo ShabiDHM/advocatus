@@ -1,167 +1,130 @@
-# FILE: backend/app/services/categorization_service.py
-# PHOENIX PROTOCOL - CATEGORIZATION ENGINE V4.1
-# 1. ENGINE: DeepSeek V3 (OpenRouter) for "Semantic Understanding" classification.
-# 2. HIERARCHY: Cloud API -> Local Microservice -> Local LLM.
-# 3. LABELS: Optimized for Kosovo Legal System.
+# FILE: backend/app/services/organization_service.py
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V1.5 (METHOD RESTORATION)
+# 1. FIX: Re-adding 'join_organization' which was missing/unrecognized.
+# 2. STATUS: Final Logic.
 
-import os
-import httpx
-import logging
-import json
-from typing import List, Optional
-from openai import OpenAI
+from typing import List, Optional, Any
+from bson import ObjectId
+from datetime import datetime
+from fastapi import HTTPException
+from app.core.db import async_db_instance
+from app.models.organization import OrganizationInDB
+from app.models.user import UserOut, UserInDB
+from app.core.security import get_password_hash
 
-logger = logging.getLogger(__name__)
+class OrganizationService:
+    # --- Lazy Connection Properties ---
+    @property
+    def db(self) -> Any:
+        if async_db_instance is None:
+            return None 
+        return async_db_instance
 
-# --- CONFIGURATION ---
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_MODEL = "deepseek/deepseek-chat"
+    @property
+    def org_collection(self) -> Any:
+        if self.db is None:
+            raise RuntimeError("Database not connected")
+        return self.db["organizations"]
 
-# Legacy/Local Services
-AI_CORE_URL = os.getenv("AI_CORE_URL", "http://ai-core-service:8000")
-LOCAL_LLM_URL = os.environ.get("LOCAL_LLM_URL", "http://local-llm:11434/api/chat")
-LOCAL_MODEL_NAME = "llama3"
+    @property
+    def user_collection(self) -> Any:
+        if self.db is None:
+            raise RuntimeError("Database not connected")
+        return self.db["users"]
 
-class CategorizationService:
-    """
-    Service responsible for smart document tagging.
-    Tier 1: DeepSeek V3 (Cloud) - High Precision
-    Tier 2: Juristi AI Core (Local Zero-Shot) - Fast Backup
-    Tier 3: Ollama (Local GenAI) - Last Resort
-    """
-    def __init__(self):
-        self.timeout = 15.0
+    # --- Business Logic ---
+
+    async def create_organization_for_user(self, user_id: str, user_name: str) -> OrganizationInDB:
+        org_entry = OrganizationInDB(
+            name=f"{user_name}'s Firm",
+            owner_id=ObjectId(user_id), # type: ignore
+            tier="TIER_1",
+            max_seats=1,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
         
-        # OpenRouter Client
-        if DEEPSEEK_API_KEY:
-            self.client = OpenAI(
-                api_key=DEEPSEEK_API_KEY,
-                base_url=OPENROUTER_BASE_URL
-            )
-        else:
-            self.client = None
-
-        # Standardized Categories for Kosovo Law
-        self.default_labels = [
-            "Kontratë",                 
-            "Vendim Gjyqësor",          
-            "Padi / Kërkesëpadi",      
-            "Ankesë",
-            "Provë Materiale",
-            "Ligj / Akt Nënligjor",      
-            "Faturë / Financat",
-            "Korrespondencë Zyrtare"
-        ]
-
-    def _categorize_with_deepseek(self, text: str, labels: List[str]) -> Optional[str]:
-        """
-        Uses DeepSeek V3 to understand the document type.
-        """
-        if not self.client: return None
-
-        # Truncate to first 3000 chars (usually contains the Title/Header/Intro)
-        truncated_text = text[:3000] 
-        labels_str = ", ".join([f'"{l}"' for l in labels])
-
-        system_prompt = f"""
-        Ti je "Juristi AI - Arkivisti", një ekspert për klasifikimin e dokumenteve ligjore.
+        org_dict = org_entry.model_dump(by_alias=True, exclude={"id"})
+        new_org = await self.org_collection.insert_one(org_dict)
         
-        DETYRA:
-        Analizo tekstin e dhënë dhe caktoje në SAKTËSISHT NJË nga kategoritë e mëposhtme:
-        [{labels_str}]
-        
-        RREGULLA:
-        1. Nëse është e paqartë, zgjidh kategorinë më të afërt.
-        2. Kthe vetëm JSON: {{"category": "Emri i Kategorisë"}}
-        3. Mos shto asnjë tekst tjetër.
-        """
+        created_org = await self.get_organization_by_id(str(new_org.inserted_id))
+        if not created_org:
+            raise HTTPException(status_code=500, detail="Failed to create organization")
+        return created_org
 
-        try:
-            response = self.client.chat.completions.create(
-                model=OPENROUTER_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"DOKUMENTI:\n{truncated_text}"}
-                ],
-                temperature=0.1, # Deterministic
-                response_format={"type": "json_object"},
-                extra_headers={
-                    "HTTP-Referer": "https://juristi.tech", 
-                    "X-Title": "Juristi AI Categorization"
-                }
-            )
-            
-            content = response.choices[0].message.content
-            if content:
-                data = json.loads(content)
-                return data.get("category")
-                
-        except Exception as e:
-            logger.warning(f"⚠️ DeepSeek Categorization Failed: {e}")
+    async def get_organization_by_id(self, org_id: str) -> Optional[OrganizationInDB]:
+        if not org_id:
             return None
-        
+        try:
+            oid = ObjectId(org_id)
+        except:
+            return None
+            
+        org = await self.org_collection.find_one({"_id": oid})
+        if org:
+            return OrganizationInDB(**org)
         return None
 
-    def _categorize_with_ai_core(self, text: str, labels: List[str]) -> Optional[str]:
-        """Fallback: Local Zero-Shot Model."""
+    async def get_members(self, org_id: str) -> List[UserOut]:
         try:
-            with httpx.Client(timeout=self.timeout) as client:
-                response = client.post(
-                    f"{AI_CORE_URL}/categorization/categorize",
-                    json={"text": text, "candidate_labels": labels}
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data.get("predicted_category")
-        except Exception as e:
-            logger.warning(f"⚠️ AI Core Categorization Failed: {e}")
-            return None
+            oid = ObjectId(org_id)
+        except:
+            return []
 
-    def _categorize_with_ollama(self, text: str, labels: List[str]) -> Optional[str]:
-        """Last Resort: Local Llama."""
-        try:
-            truncated_text = text[:1000]
-            labels_str = ", ".join([f'"{l}"' for l in labels])
-            
-            payload = {
-                "model": LOCAL_MODEL_NAME,
-                "messages": [{"role": "user", "content": f"Classify this text into one of [{labels_str}]. Return JSON {{'category': 'name'}}.\n\nText: {truncated_text}"}],
-                "stream": False,
-                "format": "json"
-            }
-            
-            with httpx.Client(timeout=30.0) as client:
-                response = client.post(LOCAL_LLM_URL, json=payload)
-                data = response.json()
-                content = data.get("message", {}).get("content", "")
-                result = json.loads(content)
-                return result.get("category")
-        except Exception:
-            return None
+        users_cursor = self.user_collection.find({"org_id": oid})
+        users = await users_cursor.to_list(length=100)
+        return [UserOut(**u) for u in users]
 
-    def categorize_document(self, text: str, custom_labels: Optional[List[str]] = None) -> str:
-        """
-        Main pipeline execution.
-        """
-        if not text or len(text.strip()) < 10:
-            return "E Papërcaktuar"
-            
-        labels = custom_labels if custom_labels else self.default_labels
+    async def check_seat_availability(self, org_id: str) -> bool:
+        org = await self.get_organization_by_id(org_id)
+        if not org:
+            raise HTTPException(status_code=404, detail="Organization not found")
+
+        current_count = await self.user_collection.count_documents({"org_id": ObjectId(org_id)})
         
-        # 1. Tier 1: DeepSeek (Smartest)
-        category = self._categorize_with_deepseek(text, labels)
-        if category: return category
+        if current_count >= org.max_seats:
+            return False
+        return True
 
-        # 2. Tier 2: AI Core (Fastest Local)
-        category = self._categorize_with_ai_core(text, labels)
-        if category: return category
+    async def upgrade_tier(self, org_id: str, new_tier: str):
+        seats = 5 if new_tier == "TIER_2" else 1
+        await self.org_collection.update_one(
+            {"_id": ObjectId(org_id)},
+            {"$set": {"tier": new_tier, "max_seats": seats, "updated_at": datetime.utcnow()}}
+        )
 
-        # 3. Tier 3: Ollama (Backup Local)
-        category = self._categorize_with_ollama(text, labels)
-        if category: return category
+    async def join_organization(self, org_id: str, email: str, username: str, password: str) -> UserInDB:
+        """
+        Registers a new user directly into an organization via invite token.
+        """
+        # 1. Final Gatekeeper Check
+        if not await self.check_seat_availability(org_id):
+             raise HTTPException(status_code=403, detail="Organization is full. Ask admin to upgrade.")
+        
+        # 2. Check if user already exists
+        existing = await self.user_collection.find_one({"email": email})
+        if existing:
+             raise HTTPException(status_code=400, detail="Email already registered")
 
-        return "E Papërcaktuar"
+        # 3. Create Member User
+        hashed = get_password_hash(password)
+        new_user_data = UserInDB(
+            username=username,
+            email=email,
+            hashed_password=hashed,
+            role="STANDARD",
+            org_id=ObjectId(org_id), # type: ignore
+            org_role="MEMBER",
+            status="active",
+            subscription_status="ACTIVE",
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        
+        user_dict = new_user_data.model_dump(by_alias=True, exclude={"id"})
+        result = await self.user_collection.insert_one(user_dict)
+        
+        new_user_data.id = result.inserted_id
+        return new_user_data
 
-# --- Global Instance ---
-CATEGORIZATION_SERVICE = CategorizationService()
+organization_service = OrganizationService()

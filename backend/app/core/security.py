@@ -1,3 +1,8 @@
+# FILE: backend/app/core/security.py
+# PHOENIX PROTOCOL - SECURITY V5.1 (INVITATION TOKENS)
+# 1. ADDED: create_invitation_token() with 7-day expiry and strict 'invite' type.
+# 2. STATUS: Enhanced for Multi-Tenancy.
+
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
@@ -27,7 +32,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    # Type safety: Ensure we have required fields with proper types
     user_id = data.get("id")
     if not user_id or not isinstance(user_id, str):
         raise ValueError("User ID ('id') must be provided and must be a string")
@@ -38,13 +42,12 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         "type": "access"
     })
     
-    # Type safety: Ensure SECRET_KEY is not None
     if not settings.SECRET_KEY:
         raise ValueError("SECRET_KEY is not configured")
     
     encoded_jwt = jwt.encode(
         to_encode, 
-        settings.SECRET_KEY,  # This is now guaranteed to be str
+        settings.SECRET_KEY,
         algorithm=settings.ALGORITHM
     )
     return encoded_jwt
@@ -57,7 +60,6 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
         
-    # Type safety: Ensure we have required fields with proper types
     user_id = data.get("id")
     if not user_id or not isinstance(user_id, str):
         raise ValueError("User ID ('id') must be provided and must be a string")
@@ -68,22 +70,45 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
         "type": "refresh"
     })
     
-    # Type safety: Ensure SECRET_KEY is not None
     if not settings.SECRET_KEY:
         raise ValueError("SECRET_KEY is not configured")
     
     encoded_jwt = jwt.encode(
         to_encode, 
-        settings.SECRET_KEY,  # This is now guaranteed to be str
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM
+    )
+    return encoded_jwt
+
+# PHOENIX NEW: Specialized Invitation Token
+def create_invitation_token(org_id: str, email: str) -> str:
+    """
+    Creates a long-lived JWT specifically for joining an organization.
+    Valid for 7 days.
+    """
+    expire = datetime.now(timezone.utc) + timedelta(days=7)
+    
+    to_encode = {
+        "exp": expire,
+        "sub": email,       # Subject is the invitee's email
+        "org_id": org_id,   # The target organization
+        "type": "invite"    # Critical for security differentiation
+    }
+    
+    if not settings.SECRET_KEY:
+        raise ValueError("SECRET_KEY is not configured")
+    
+    encoded_jwt = jwt.encode(
+        to_encode, 
+        settings.SECRET_KEY,
         algorithm=settings.ALGORITHM
     )
     return encoded_jwt
 
 def decode_token(token: str) -> dict[str, Any]:
     """
-    Decodes and verifies a JWT token, relying on the JOSE library for correct validation.
+    Decodes and verifies a JWT token.
     """
-    # Type safety: Validate token parameter
     if not token or not isinstance(token, str):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -91,7 +116,6 @@ def decode_token(token: str) -> dict[str, Any]:
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Type safety: Ensure SECRET_KEY is not None
     if not settings.SECRET_KEY:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -99,15 +123,12 @@ def decode_token(token: str) -> dict[str, Any]:
         )
     
     try:
-        # The python-jose library correctly handles Base64Url decoding and padding.
-        # Manually altering the token string before decoding invalidates the signature.
         return jwt.decode(
             token, 
-            settings.SECRET_KEY,  # This is now guaranteed to be str
+            settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM]
         )
     except JWTError as e:
-        # Raise a standard HTTPException to be handled by FastAPI endpoints.
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Token validation failed: {e}",

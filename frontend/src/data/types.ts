@@ -1,7 +1,6 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES V7.2 (DEEP STRATEGY)
-// 1. ADDED: DeepAnalysisResult interface for Adversarial/Chronology/Contradiction agents.
-// 2. STATUS: Fully synchronized with Backend V16.0.
+// PHOENIX PROTOCOL - TYPES V7.3 (ORGANIZATION SYNC)
+// 1. ADDED: 'Organization' interface to match new backend model.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -263,4 +262,15 @@ export interface SpreadsheetAnalysisResult {
     key_statistics: Record<string, string | number>; 
     preview_rows?: Record<string, any>[]; 
     processed_at: string; 
+}
+
+// --- PHOENIX NEW: ORGANIZATION ---
+export interface Organization {
+    id: string;
+    name: string;
+    owner_id: string;
+    tier: 'TIER_1' | 'TIER_2';
+    max_seats: number;
+    current_member_count: number;
+    created_at: string;
 }

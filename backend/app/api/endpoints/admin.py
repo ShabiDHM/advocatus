@@ -1,79 +1,82 @@
 # FILE: backend/app/api/endpoints/admin.py
-# PHOENIX PROTOCOL - UNIFIED UPDATE ENDPOINT
-# 1. REFACTOR: The main PUT /{user_id} endpoint now uses the new, comprehensive UserUpdateRequest model.
-# 2. LOGIC: All update logic is now handled by this single, robust endpoint.
-# 3. DEPRECATION: The redundant /subscription endpoint has been removed to eliminate confusion.
+# PHOENIX PROTOCOL - ADMIN ROUTER V2.1 (DIRECT IMPORT FIX)
+# 1. FIX: Changed module import to a direct relative path to resolve Pylance errors.
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from typing import List, Annotated
-from pymongo.database import Database
-from bson import ObjectId
-from bson.errors import InvalidId
 
-from ...services import admin_service, user_service
-from ...models.user import UserInDB
-# PHOENIX FIX: Import the new unified model
-from ...models.admin import UserAdminView, UserUpdateRequest
-from .dependencies import get_current_admin_user, get_db
+# DIRECT IMPORT: This is more robust against module resolution issues.
+from app.services.admin_service import admin_service
+from app.models.user import UserInDB
+from app.models.admin import UserAdminView, UserUpdateRequest
+from app.models.organization import OrganizationOut
+from .dependencies import get_current_admin_user
 
-router = APIRouter(prefix="/users", tags=["Administrator"])
+# Prefix entire router with /admin
+router = APIRouter(prefix="/admin", tags=["Administrator"])
 
-@router.get("", response_model=List[UserAdminView])
-def get_all_users(
+# --- NEW: Organization Management ---
+
+@router.get("/organizations", response_model=List[OrganizationOut])
+async def get_all_organizations(
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
-    db: Database = Depends(get_db)
+):
+    """
+    Retrieves a list of all organizations (tenants). (Admin only)
+    """
+    return await admin_service.get_all_organizations()
+
+@router.put("/organizations/{org_id}/tier", response_model=OrganizationOut)
+async def upgrade_organization_tier(
+    org_id: str,
+    current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
+    tier: str = Body(..., embed=True), # Expects a simple {"tier": "TIER_2"}
+):
+    """
+    Upgrades an organization's tier and seat limit. (Admin only)
+    """
+    if tier not in ["TIER_1", "TIER_2"]:
+        raise HTTPException(status_code=400, detail="Invalid tier specified.")
+        
+    updated_org = await admin_service.update_organization_tier(org_id, tier)
+    if not updated_org:
+        raise HTTPException(status_code=404, detail="Organization not found.")
+    return updated_org
+
+# --- LEGACY: User Management ---
+
+@router.get("/users", response_model=List[UserAdminView])
+async def get_all_users(
+    current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
 ):
     """Retrieves a list of all users. (Admin only)"""
-    return admin_service.get_all_users(db=db)
+    return await admin_service.get_all_users_legacy()
 
-# PHOENIX FIX: This is now the single, authoritative endpoint for all user updates.
-@router.put("/{user_id}", response_model=UserAdminView)
-def update_user(
+
+@router.put("/users/{user_id}", response_model=UserAdminView)
+async def update_user(
     user_id: str,
-    update_data: UserUpdateRequest, # Use the new comprehensive model
+    update_data: UserUpdateRequest,
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
-    db: Database = Depends(get_db)
 ):
-    """Updates a user's details, including role and subscription status (Gatekeeper). (Admin only)"""
-    try:
-        updated_user = admin_service.update_user_details(
-            user_id=user_id, 
-            update_data=update_data, 
-            db=db
-        )
-        if not updated_user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
-        return updated_user
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    """Updates a user's details. (Admin only)"""
+    updated_user = await admin_service.update_user_details_legacy(user_id, update_data)
+    if not updated_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+    return updated_user
 
-# PHOENIX FIX: This redundant endpoint is now removed.
-# @router.put("/{user_id}/subscription", ...)
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_user(
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
     user_id: str,
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
-    db: Database = Depends(get_db)
 ):
     """Permanently deletes a user and ALL their associated data."""
-    try:
-        oid = ObjectId(user_id)
-    except InvalidId:
-        raise HTTPException(status_code=400, detail="Invalid User ID format")
-
     if str(current_admin.id) == user_id:
         raise HTTPException(status_code=400, detail="You cannot delete your own admin account.")
 
-    user_to_delete = user_service.get_user_by_id(db, oid)
-    if not user_to_delete:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    try:
-        user_service.delete_user_and_all_data(db=db, user=user_to_delete)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
-        
+    success = await admin_service.delete_user_and_data_legacy(user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="User not found or delete failed.")
+    
     return None

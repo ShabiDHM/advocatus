@@ -1,7 +1,7 @@
 // FILE: src/context/AuthContext.tsx
-// PHOENIX PROTOCOL - REVISED AUTHENTICATION CONTEXT
-// 1. UPDATE: Implements 'Proactive Refresh' to prevent 401 console errors on reload.
-// 2. LOGIC: Tries to restore session via refresh token before fetching user profile.
+// PHOENIX PROTOCOL - AUTH CONTEXT V2.0 (REFRESHABLE)
+// 1. ADDED: 'refreshUser' function to allow manual re-fetch of user profile.
+// 2. LOGIC: Allows pages like JoinPage to update context after a key action.
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';
@@ -17,6 +17,7 @@ interface AuthContextType {
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
+  refreshUser: () => Promise<void>; // PHOENIX NEW
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,31 +31,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
   }, []);
 
+  // PHOENIX NEW: Function to manually re-fetch user profile
+  const refreshUser = useCallback(async () => {
+    try {
+      // We assume if this is called, a token should exist.
+      const fullUser = await apiService.fetchUserProfile();
+      setUser(fullUser);
+    } catch (error) {
+      console.error("Failed to refresh user, logging out.", error);
+      logout(); // Logout if refresh fails
+    }
+  }, [logout]);
+
   useEffect(() => {
     apiService.setLogoutHandler(logout);
   }, [logout]);
 
-  // PHOENIX FIX: Proactive Initialization
-  // Instead of failing on /users/me then refreshing, we refresh first.
+  // Proactive Initialization
   useEffect(() => {
     let isMounted = true;
 
     const initializeApp = async () => {
       try {
-        // Step 1: Proactively try to refresh the token using the HttpOnly cookie.
-        // This suppresses the 401 error that would otherwise occur on the first request.
         const refreshed = await apiService.refreshToken();
         
         if (refreshed) {
-            // Step 2: If refresh succeeded, we have a valid token. Fetch user.
             const fullUser = await apiService.fetchUserProfile();
             if (isMounted) setUser(fullUser);
         } else {
-            // Step 3: If refresh failed (no cookie or expired), we are logged out.
             if (isMounted) setUser(null);
         }
       } catch (error) {
-        // Fallback for any unexpected network errors
         console.error("Session initialization failed:", error);
         if (isMounted) setUser(null);
       } finally {
@@ -101,7 +108,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, register, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, register, logout, isLoading, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
