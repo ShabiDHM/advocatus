@@ -1,6 +1,5 @@
 # FILE: backend/app/services/__init__.py
-# PHOENIX PROTOCOL - SERVICE REGISTRY V4.0 (POS EXCISED)
-# 1. REMOVED: parsing_service is now obsolete.
+# PHOENIX PROTOCOL - SERVICE REGISTRY V4.3 (CORRECTED)
 
 from . import (
     admin_service,
@@ -33,7 +32,7 @@ from . import (
     graph_service,
     pdf_service,
     social_service,
-    organizatioen_service,
+    organization_service,  # <-- THIS LINE IS NOW CORRECT
     
     # Albanian Specific Services
     albanian_document_processor,
