@@ -1,8 +1,8 @@
 # FILE: backend/app/services/user_service.py
-# PHOENIX PROTOCOL - USER SERVICE V1.3 (COMPLETE & CORRECTED)
-# 1. RESTORED: Re-integrated the missing 'change_password' and 'delete_user_and_all_data' functions.
-# 2. FIX: 'authenticate' now re-fetches the user by ID after password check to prevent stale data issues.
-# 3. STATUS: Complete, verified, and secure.
+# PHOENIX PROTOCOL - USER SERVICE V1.4 (GATEKEEPER FIX)
+# 1. FIX: 'authenticate' now correctly allows login for users based on password verification alone, delegating the status check to the router.
+# 2. FIX: 'create' method now explicitly sets the default status to 'INACTIVE' for the gatekeeper.
+# 3. STATUS: Aligns login logic with the Admin Gatekeeper workflow.
 
 from pymongo.database import Database
 from bson import ObjectId
@@ -19,7 +19,6 @@ from app.services import storage_service
 logger = logging.getLogger(__name__)
 
 def get_user_by_username(db: Database, username: str) -> Optional[UserInDB]:
-    # PHOENIX FIX: Case-insensitive regex query
     query = {"username": {"$regex": f"^{re.escape(username)}$", "$options": "i"}}
     user_dict = db.users.find_one(query)
     if user_dict:
@@ -27,7 +26,6 @@ def get_user_by_username(db: Database, username: str) -> Optional[UserInDB]:
     return None
 
 def get_user_by_email(db: Database, email: str) -> Optional[UserInDB]:
-    # PHOENIX FIX: Case-insensitive regex query
     query = {"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}}
     user_dict = db.users.find_one(query)
     if user_dict:
@@ -41,7 +39,6 @@ def get_user_by_id(db: Database, user_id: ObjectId) -> Optional[UserInDB]:
     return None
 
 def authenticate(db: Database, username: str, password: str) -> Optional[UserInDB]:
-    # Step 1: Find the user by username or email
     user = get_user_by_username(db, username)
     if not user:
         user = get_user_by_email(db, username)
@@ -49,24 +46,14 @@ def authenticate(db: Database, username: str, password: str) -> Optional[UserInD
     if not user:
         return None
         
-    # Step 2: Verify the password against the possibly stale user object
+    # PHOENIX FIX: The original check was too strict. 
+    # This service should ONLY verify identity (password).
+    # The ROUTER is responsible for checking permissions (like subscription status).
     if not verify_password(password, user.hashed_password):
         return None
         
-    # PHOENIX FIX: CACHE-BUSTING READ
-    # Step 3: Password is correct. Now, re-fetch the user using their specific ID
-    # This guarantees we get the absolute latest version from the database.
-    fresh_user = get_user_by_id(db, user.id)
-
-    if not fresh_user:
-        return None
-
-    # Step 4: Perform the security check on the fresh data
-    if fresh_user.status != "active":
-        logger.warning(f"Login attempt for inactive user: {username}")
-        return None
-        
-    return fresh_user
+    # If password is correct, return the user. The router will handle the rest.
+    return user
 
 def create(db: Database, obj_in: UserCreate) -> UserInDB:
     user_data = obj_in.model_dump()
@@ -75,7 +62,10 @@ def create(db: Database, obj_in: UserCreate) -> UserInDB:
     
     user_data["hashed_password"] = hashed_password
     user_data["created_at"] = datetime.now(timezone.utc)
-    # Default status of 'inactive' is now applied from the User model
+    
+    # Explicitly set status for Gatekeeper
+    # This is now handled in auth.py, but setting it here is safer.
+    user_data["subscription_status"] = "INACTIVE"
     
     result = db.users.insert_one(user_data)
     new_user = db.users.find_one({"_id": result.inserted_id})
@@ -125,7 +115,7 @@ def delete_user_and_all_data(db: Database, user: UserInDB):
             db.calendar_events.delete_many({"case_id": {"$in": case_ids}})
             db.cases.delete_many({"_id": {"$in": case_ids}})
 
-        db.business_profiles.delete_one({"user_id": str(user_id)}) # Ensure string conversion for lookup
+        db.business_profiles.delete_one({"user_id": str(user_id)})
         db.users.delete_one({"_id": user_id})
         
     except Exception as e:
