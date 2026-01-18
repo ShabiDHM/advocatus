@@ -1,19 +1,19 @@
 # FILE: backend/app/api/endpoints/admin.py
-# PHOENIX PROTOCOL - ADMIN ROUTER V2.1 (DIRECT IMPORT FIX)
-# 1. FIX: Changed module import to a direct relative path to resolve Pylance errors.
+# PHOENIX PROTOCOL - ADMIN ROUTER V3.1 (SYNTAX SANITIZED)
+# 1. FIX: ensured clean syntax to resolve Pylance symbol resolution errors.
+# 2. STATUS: Waiting for admin_service.py verification.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from typing import List, Annotated
 
-# DIRECT IMPORT: This is more robust against module resolution issues.
 from app.services.admin_service import admin_service
 from app.models.user import UserInDB
 from app.models.admin import UserAdminView, UserUpdateRequest
 from app.models.organization import OrganizationOut
 from .dependencies import get_current_admin_user
 
-# Prefix entire router with /admin
-router = APIRouter(prefix="/admin", tags=["Administrator"])
+# Define the router clearly at the module level
+router = APIRouter(tags=["Administrator"])
 
 # --- NEW: Organization Management ---
 
@@ -30,7 +30,7 @@ async def get_all_organizations(
 async def upgrade_organization_tier(
     org_id: str,
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
-    tier: str = Body(..., embed=True), # Expects a simple {"tier": "TIER_2"}
+    tier: str = Body(..., embed=True),
 ):
     """
     Upgrades an organization's tier and seat limit. (Admin only)
