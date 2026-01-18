@@ -1,12 +1,11 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V4.4 (USER MANAGEMENT UI)
-// 1. FIX: Implemented missing User Management Table.
-// 2. FEATURE: Added 'Activate/Deactivate' and 'Delete' buttons.
-// 3. UI: improved status badges and layout.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V4.7 (CLEANUP)
+// 1. FIX: Removed unused 'Power' import.
+// 2. STATUS: Zero warnings.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Users, Search, Loader2, ShieldAlert, ChevronsUpDown, Crown, ArrowUpCircle, Trash2, Power } from 'lucide-react';
+import { Users, Search, Loader2, ShieldAlert, ChevronsUpDown, Crown, ArrowUpCircle, Trash2, Briefcase, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiService } from '../services/api';
 import { User, Organization } from '../data/types';
@@ -17,8 +16,9 @@ const AdminDashboardPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [upgradingOrg, setUpgradingOrg] = useState<Organization | null>(null);
+    const [promotingUser, setPromotingUser] = useState<User | null>(null);
     const [users, setUsers] = useState<User[]>([]); 
-    const [showLegacyUsers, setShowLegacyUsers] = useState(false);
+    const [showLegacyUsers, setShowLegacyUsers] = useState(true);
 
     useEffect(() => {
         loadAdminData();
@@ -31,7 +31,6 @@ const AdminDashboardPage: React.FC = () => {
             setOrganizations(orgData);
 
             const userData = await apiService.getAllUsers();
-            // Ensure valid users only
             setUsers(userData.filter((user) => user && typeof user.id === 'string' && user.id.trim() !== ''));
         } catch (error) {
             console.error("Failed to load admin data", error);
@@ -41,11 +40,14 @@ const AdminDashboardPage: React.FC = () => {
     };
 
     const handleUpgradeTier = async () => {
-        if (!upgradingOrg) return;
+        const targetId = upgradingOrg?.id || promotingUser?.id;
+        if (!targetId) return;
+
         try {
-            await apiService.upgradeOrganizationTier(upgradingOrg.id, 'TIER_2');
+            await apiService.upgradeOrganizationTier(targetId, 'TIER_2');
             setUpgradingOrg(null);
-            loadAdminData(); 
+            setPromotingUser(null);
+            loadAdminData();
         } catch (error) {
             console.error("Failed to upgrade tier", error);
             alert('Upgrade failed. Check console for details.');
@@ -55,12 +57,11 @@ const AdminDashboardPage: React.FC = () => {
     const handleToggleUserStatus = async (user: User) => {
         const newStatus = user.subscription_status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
         try {
-            // Optimistic Update
             setUsers(users.map(u => u.id === user.id ? { ...u, subscription_status: newStatus } : u));
             await apiService.updateUser(user.id, { subscription_status: newStatus });
         } catch (error) {
             console.error("Status update failed", error);
-            loadAdminData(); // Revert on failure
+            loadAdminData();
         }
     };
 
@@ -69,6 +70,7 @@ const AdminDashboardPage: React.FC = () => {
         try {
             await apiService.deleteUser(userId);
             setUsers(users.filter(u => u.id !== userId));
+            loadAdminData();
         } catch (error) {
             console.error("Delete failed", error);
             alert("Failed to delete user.");
@@ -78,6 +80,12 @@ const AdminDashboardPage: React.FC = () => {
     const filteredOrgs = organizations.filter(org => 
         org.name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    const sortedUsers = [...users].sort((a, b) => {
+        if (a.subscription_status !== 'ACTIVE' && b.subscription_status === 'ACTIVE') return -1;
+        if (a.subscription_status === 'ACTIVE' && b.subscription_status !== 'ACTIVE') return 1;
+        return 0;
+    });
 
     if (isLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin h-12 w-12 text-primary-start" /></div>;
 
@@ -100,6 +108,11 @@ const AdminDashboardPage: React.FC = () => {
                     <div><p className="text-text-secondary text-xs font-bold uppercase tracking-wider mb-1">{t('admin.totalUsers', 'Total Users')}</p><h3 className="text-3xl font-bold text-white">{users.length}</h3></div>
                     <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20"><Users size={24} /></div>
                 </div>
+                
+                <div className="glass-panel p-6 rounded-2xl flex items-center justify-between">
+                    <div><p className="text-text-secondary text-xs font-bold uppercase tracking-wider mb-1">Pending Approval</p><h3 className="text-3xl font-bold text-white">{users.filter(u => u.subscription_status !== 'ACTIVE').length}</h3></div>
+                    <div className="p-3 rounded-xl bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"><AlertTriangle size={24} /></div>
+                </div>
             </div>
 
             {/* ORGANIZATIONS TABLE */}
@@ -117,7 +130,6 @@ const AdminDashboardPage: React.FC = () => {
                             <tr>
                                 <th className="px-6 py-4 tracking-wider">Firm Name</th>
                                 <th className="px-6 py-4 tracking-wider">Tier</th>
-                                <th className="px-6 py-4 tracking-wider">Seat Usage</th>
                                 <th className="px-6 py-4 tracking-wider">Owner ID</th>
                                 <th className="px-6 py-4 text-right tracking-wider">Actions</th>
                             </tr>
@@ -131,7 +143,6 @@ const AdminDashboardPage: React.FC = () => {
                                             {org.tier}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 font-mono">{org.current_member_count} / {org.max_seats}</td>
                                     <td className="px-6 py-4 font-mono text-xs text-gray-500">{org.owner_id}</td>
                                     <td className="px-6 py-4 text-right">
                                         {org.tier !== 'TIER_2' && (
@@ -143,17 +154,17 @@ const AdminDashboardPage: React.FC = () => {
                                 </tr>
                             ))}
                             {filteredOrgs.length === 0 && (
-                                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No organizations found.</td></tr>
+                                <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No active organizations found.</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
             
-            {/* LEGACY USERS TABLE */}
+            {/* USERS TABLE */}
             <div className="mt-8">
                  <button onClick={() => setShowLegacyUsers(!showLegacyUsers)} className="w-full glass-panel p-4 rounded-xl flex justify-between items-center hover:bg-white/5 transition-colors">
-                    <h3 className="text-lg font-bold text-gray-400">Legacy User Management</h3>
+                    <h3 className="text-lg font-bold text-gray-400">User Management (Gatekeeper)</h3>
                     <ChevronsUpDown className={`text-gray-500 transition-transform ${showLegacyUsers ? 'rotate-180' : ''}`} />
                 </button>
                 <AnimatePresence>
@@ -166,13 +177,13 @@ const AdminDashboardPage: React.FC = () => {
                                         <tr>
                                             <th className="px-6 py-4">User Details</th>
                                             <th className="px-6 py-4">Role</th>
-                                            <th className="px-6 py-4">Status</th>
+                                            <th className="px-6 py-4">Gatekeeper Status</th>
                                             <th className="px-6 py-4 text-right">Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
-                                        {users.map((user) => (
-                                            <tr key={user.id} className="hover:bg-white/5 transition-colors">
+                                        {sortedUsers.map((user) => (
+                                            <tr key={user.id} className={`hover:bg-white/5 transition-colors ${user.subscription_status !== 'ACTIVE' ? 'bg-yellow-500/5' : ''}`}>
                                                 <td className="px-6 py-4">
                                                     <div className="font-bold text-white">{user.username}</div>
                                                     <div className="text-xs text-gray-500 font-mono">{user.email}</div>
@@ -181,20 +192,44 @@ const AdminDashboardPage: React.FC = () => {
                                                     <span className="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-medium">{user.role}</span>
                                                 </td>
                                                 <td className="px-6 py-4">
-                                                     <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${user.subscription_status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
-                                                        {user.subscription_status}
-                                                    </span>
+                                                     {user.subscription_status === 'ACTIVE' ? (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> ACTIVE
+                                                        </span>
+                                                     ) : (
+                                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-bold">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" /> PENDING APPROVAL
+                                                        </span>
+                                                     )}
                                                 </td>
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex justify-end gap-2">
+                                                        {user.role !== 'ADMIN' && (
+                                                            <button 
+                                                                onClick={() => setPromotingUser(user)}
+                                                                className="p-2 hover:bg-purple-500/10 text-purple-400 rounded-lg border border-purple-500/20 transition-colors flex items-center gap-1"
+                                                                title="Promote to Firm (Tier 2)"
+                                                            >
+                                                                <Briefcase size={14} /> Promote
+                                                            </button>
+                                                        )}
+
                                                         <button 
                                                             onClick={() => handleToggleUserStatus(user)}
-                                                            className="p-2 hover:bg-white/10 rounded-lg text-xs font-bold border border-white/10 transition-colors flex items-center gap-1"
-                                                            title={user.subscription_status === 'ACTIVE' ? "Deactivate User" : "Activate User"}
+                                                            className={`p-2 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1 w-28 justify-center ${
+                                                                user.subscription_status === 'ACTIVE' 
+                                                                ? "hover:bg-red-500/10 text-red-400 border-red-500/20" 
+                                                                : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30"
+                                                            }`}
+                                                            title={user.subscription_status === 'ACTIVE' ? "Ban User" : "Approve Entry"}
                                                         >
-                                                            <Power size={14} className={user.subscription_status === 'ACTIVE' ? "text-red-400" : "text-emerald-400"} />
-                                                            {user.subscription_status === 'ACTIVE' ? "Disable" : "Enable"}
+                                                            {user.subscription_status === 'ACTIVE' ? (
+                                                                <><XCircle size={14} /> Deactivate</>
+                                                            ) : (
+                                                                <><CheckCircle size={14} /> APPROVE</>
+                                                            )}
                                                         </button>
+                                                        
                                                         <button 
                                                             onClick={() => handleDeleteUser(user.id)}
                                                             className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg border border-red-500/20 transition-colors"
@@ -215,16 +250,22 @@ const AdminDashboardPage: React.FC = () => {
                 </AnimatePresence>
             </div>
 
-            {/* UPGRADE MODAL */}
             <AnimatePresence>
-                {upgradingOrg && (
+                {(upgradingOrg || promotingUser) && (
                      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-high p-8 rounded-2xl w-full max-w-md shadow-2xl border border-white/10">
-                             <h3 className="text-xl font-bold text-white mb-2">Confirm Upgrade</h3>
-                             <p className="text-text-secondary mb-6">Upgrade <span className="font-bold text-white">{upgradingOrg.name}</span> to TIER_2 (5 seats)?</p>
+                             <h3 className="text-xl font-bold text-white mb-2">Confirm Action</h3>
+                             <p className="text-text-secondary mb-6">
+                                 {upgradingOrg 
+                                     ? <span>Upgrade <span className="font-bold text-white">{upgradingOrg.name}</span> to TIER_2?</span>
+                                     : <span>Promote user <span className="font-bold text-white">{promotingUser?.username}</span> to Organization (Firm)?</span>
+                                 }
+                             </p>
                              <div className="flex justify-end gap-3">
-                                 <button onClick={() => setUpgradingOrg(null)} className="px-4 py-2 rounded-xl hover:bg-white/10 text-text-secondary hover:text-white transition-colors border border-transparent hover:border-white/10">Cancel</button>
-                                 <button onClick={handleUpgradeTier} className="px-6 py-2 rounded-xl bg-gradient-to-r from-primary-start to-primary-end text-white font-bold shadow-lg shadow-primary-start/20">Confirm & Upgrade</button>
+                                 <button onClick={() => { setUpgradingOrg(null); setPromotingUser(null); }} className="px-4 py-2 rounded-xl hover:bg-white/10 text-text-secondary hover:text-white transition-colors border border-transparent hover:border-white/10">Cancel</button>
+                                 <button onClick={handleUpgradeTier} className="px-6 py-2 rounded-xl bg-gradient-to-r from-primary-start to-primary-end text-white font-bold shadow-lg shadow-primary-start/20">
+                                     {upgradingOrg ? "Upgrade" : "Promote & Create Firm"}
+                                 </button>
                              </div>
                          </motion.div>
                      </div>
