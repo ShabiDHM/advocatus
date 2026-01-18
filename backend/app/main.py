@@ -1,12 +1,15 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V6.1 (CORS STANDARDIZATION)
-# 1. FIX: Replaced static CORS list with Dynamic Regex (Matches Haveri Logic).
-# 2. STATUS: Synchronized with Gateway V6.0.
+# PHOENIX PROTOCOL - MAIN APPLICATION V7.1 (TYPE SAFE DIAGNOSTIC)
+# 1. FIX: Added 'isinstance(route, APIRoute)' to satisfy Pylance.
+# 2. FIX: Added type suppression for Middleware (Standard FastAPI pattern).
+# 3. GOAL: Print route list to debug 404 Login error.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.routing import APIRoute
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import logging
+import sys
 from app.core.lifespan import lifespan
 
 # --- Router Imports ---
@@ -33,12 +36,10 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ---
-# Trust Caddy to pass the correct Host and IP
+# Pylance ignore: Uvicorn middleware typing often conflicts with Starlette strict types
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
 
 # --- CORS CONFIGURATION ---
-# Regex allows: localhost, juristi.tech (plus subdomains), and vercel.app (for previews)
-# This solves the 'www' vs non-'www' mismatch automatically.
 allow_origin_regex = r"https?://(localhost(:\d+)?|([\w-]+\.)?juristi\.tech|([\w-]+\.)?vercel\.app)"
 
 app.add_middleware(
@@ -84,3 +85,14 @@ app.include_router(api_v2_router)
 @app.get("/health", status_code=status.HTTP_200_OK, tags=["Health Check"])
 def health_check():
     return {"status": "ok", "version": "1.0.0"}
+
+# --- DIAGNOSTIC: PRINT ROUTES ON STARTUP ---
+@app.on_event("startup")
+async def log_all_routes():
+    logger.info("PHOENIX PROTOCOL - ROUTE AUDIT")
+    logger.info("------------------------------")
+    for route in app.routes:
+        # Check if it is an API route (has path and methods)
+        if isinstance(route, APIRoute):
+            logger.info(f"Route: {route.path} [{','.join(route.methods)}]")
+    logger.info("------------------------------")
