@@ -1,7 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V31.0 (ALBANIAN INTERROGATOR)
-# 1. UPGRADE: Prompts forced to Albanian (SQ).
-# 2. STATUS: All AI Agents output localized content.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V31.1 (CATEGORIZATION ADDED)
+# 1. ADDED: categorize_document_text() function for document classification.
+# 2. STATUS: Synchronized and ready for integration.
 
 import os
 import json
@@ -27,7 +27,8 @@ __all__ = [
     "generate_summary",
     "extract_graph_data",
     "get_embedding",
-    "forensic_interrogation"
+    "forensic_interrogation",
+    "categorize_document_text"  # PHOENIX: Exported new function
 ]
 
 # --- CONFIGURATION ---
@@ -155,6 +156,15 @@ DETYRA: Përkthe tekstin ligjor në gjuhë të thjeshtë për klientin.
 GJUHA: SHQIP.
 """
 
+# PHOENIX NEW: Prompt for categorization
+PROMPT_CATEGORIZER = f"""
+Ti je "Arkivist Ligjor".
+DETYRA: Klasifiko dokumentin në njërën prej këtyre kategorive:
+[ "Padi", "Aktgjykim", "Vendim", "Përgjigje në Padi", "Ankesë", "Procesverbal", "Kontratë", "Faturë", "Dëshmi", "Të tjera" ]
+GJUHA: SHQIP.
+FORMATI JSON: {{ "category": "..." }}
+"""
+
 def get_deepseek_client() -> Optional[OpenAI]:
     global _deepseek_client
     if not _deepseek_client and DEEPSEEK_API_KEY:
@@ -215,7 +225,6 @@ def get_embedding(text: str) -> List[float]:
     """
     clean_text = text.replace("\n", " ")
     
-    # 1. Try OpenAI/OpenRouter Standard
     client = get_openai_client()
     if client:
         try:
@@ -223,7 +232,6 @@ def get_embedding(text: str) -> List[float]:
         except Exception as e:
             logger.warning(f"OpenAI Embedding failed, falling back: {e}")
 
-    # 2. Try Ollama (Local)
     try:
         with httpx.Client(timeout=10.0) as c:
             res = c.post(OLLAMA_EMBED_URL, json={
@@ -236,14 +244,11 @@ def get_embedding(text: str) -> List[float]:
         pass
         
     logger.error("All embedding methods failed. Returning zero-vector.")
-    return [0.0] * 1536 # Default to 1536 dimensions to prevent crash
+    return [0.0] * 1536 
 
 # --- PUBLIC FUNCTIONS ---
 
 def forensic_interrogation(question: str, context_rows: List[str]) -> str:
-    """
-    Constructs the prompt for the forensic agent.
-    """
     context_str = "\n".join(context_rows)
     prompt_filled = PROMPT_FORENSIC_INTERROGATOR.replace("{context}", context_str)
     return _call_llm(prompt_filled, question, False, temp=0.3) or "Sistemi nuk mundi të analizojë të dhënat."
@@ -286,3 +291,12 @@ def generate_summary(text: str) -> str:
 
 def extract_graph_data(text: str) -> Dict[str, Any]:
     return {"entities": [], "relations": []}
+
+# PHOENIX NEW: Function for categorization
+def categorize_document_text(text: str) -> str:
+    """
+    Categorizes the document text using a specific LLM prompt.
+    """
+    clean = sterilize_text_for_llm(text[:4000]) # Use a smaller chunk for speed
+    result = _parse_json_safely(_call_llm(PROMPT_CATEGORIZER, clean, True, temp=0.0) or "{}")
+    return result.get("category", "Të tjera")
