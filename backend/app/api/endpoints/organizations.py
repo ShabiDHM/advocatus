@@ -1,35 +1,72 @@
 # FILE: backend/app/api/endpoints/organizations.py
-# PHOENIX PROTOCOL - ORGANIZATIONS ROUTER V1.0 (STUB)
-# 1. PURPOSE: Prevents 'main.py' import errors causing backend crash.
-# 2. STATUS: Basic implementation for Tier 2 Organization logic.
+# PHOENIX PROTOCOL - ORGANIZATIONS ROUTER V3.1 (IMPORT FIX)
+# 1. FIX: Changed import path to be direct, resolving circular dependency errors.
+# 2. STATUS: All Pylance errors are now resolved.
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Annotated, Optional
+from typing import Annotated, Optional, List
 from pymongo.database import Database
+from pydantic import BaseModel, EmailStr, Field
 import asyncio
 
-from app.models.user import UserInDB
+from app.models.user import UserInDB, UserOut
 from app.models.organization import OrganizationOut
 from app.api.endpoints.dependencies import get_current_user, get_db
-from app.services.admin_service import admin_service
+# PHOENIX FIX: Direct import to bypass circular dependency issues in services/__init__.py
+from app.services.organization_service import organization_service
 
 router = APIRouter()
+
+class InviteRequest(BaseModel):
+    email: EmailStr
+
+class AcceptInviteRequest(BaseModel):
+    token: str
+    password: str = Field(..., min_length=8)
+    username: str = Field(..., min_length=3)
 
 @router.get("/me", response_model=Optional[OrganizationOut])
 async def get_my_organization(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     db: Database = Depends(get_db)
 ):
+    org = await asyncio.to_thread(organization_service.get_organization_for_user, db, current_user)
+    return org
+
+@router.get("/members", response_model=List[UserOut])
+async def get_organization_members(
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    members = await asyncio.to_thread(organization_service.get_members, db, current_user)
+    return members
+
+@router.post("/invite", status_code=status.HTTP_200_OK)
+async def invite_organization_member(
+    invite_data: InviteRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    try:
+        result = await asyncio.to_thread(organization_service.invite_member, db, owner=current_user, invitee_email=invite_data.email)
+        return result
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/accept-invite", status_code=status.HTTP_200_OK)
+async def accept_invitation(
+    request_data: AcceptInviteRequest,
+    db: Database = Depends(get_db)
+):
     """
-    Get the organization the current user belongs to.
+    Allows a user with a valid token to set their password and activate their account.
     """
-    # If user has an org_id, fetch it. 
-    # For now, we reuse the admin logic or return None if not part of one.
-    org_id = getattr(current_user, "org_id", None)
-    if not org_id:
-        # Fallback: Check if they own a business profile (Tier 1 -> Tier 2 bridge)
-        # We can reuse the admin service logic but scoped to single user
-        pass
-    
-    # Returning None for now to prevent crashes until fully implemented
-    return None
+    try:
+        result = await asyncio.to_thread(organization_service.accept_invitation, db, token=request_data.token, password=request_data.password, username=request_data.username)
+        return result
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to activate account.")

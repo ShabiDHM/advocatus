@@ -1,8 +1,7 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - CONFIGURATION V6.1 (CLEANUP)
-# 1. CLEANUP: Removed dead 'GROQ_API_KEY' and 'GROQ_MODEL' fields.
-# 2. UPDATE: Added 'DEEPSEEK_API_KEY' and 'LOCAL_LLM_URL' to the schema.
-# 3. TYPE SAFETY: Maintains Pydantic strict validation.
+# PHOENIX PROTOCOL - CONFIGURATION V6.2 (INVITE URL)
+# 1. ADDED: 'FRONTEND_URL' to generate correct email invitation links.
+# 2. STATUS: End-to-end ready.
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Union
@@ -14,7 +13,9 @@ class Settings(BaseSettings):
 
     # --- API Setup ---
     API_V1_STR: str = "/api/v1"
-    ENVIRONMENT: str = "production" 
+    ENVIRONMENT: str = "production"
+    # PHOENIX ADDITION: URL for email links
+    FRONTEND_URL: str = "https://juristi.tech"
     
     # --- Auth ---
     SECRET_KEY: str = "changeme"
@@ -44,7 +45,7 @@ class Settings(BaseSettings):
     B2_ENDPOINT_URL: str = ""
     B2_BUCKET_NAME: str = ""
 
-    # --- AI Engines (Hybrid Architecture) ---
+    # --- AI Engines ---
     DEEPSEEK_API_KEY: str = ""
     LOCAL_LLM_URL: str = "http://host.docker.internal:11434/api/generate"
     HF_TOKEN: str = ""
