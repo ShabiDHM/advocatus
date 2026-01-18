@@ -25,7 +25,23 @@
     "edit": "Ndrysho",
     "view": "Shiko",
     "archive": "Arkivo",
-    "delete": "Fshi"
+    "delete": "Fshi",
+    "email": "Email"
+  },
+  "team": {
+    "manageTeam": "Menaxhimi i Ekipit",
+    "description": "Ftoni kolegët për të bashkëpunuar në raste dhe dokumente.",
+    "inviteButton": "Fto Anëtar",
+    "planUsage": "Përdorimi i Planit",
+    "upgradePrompt": "Përmirësoni planin për më shumë vende",
+    "seatsRemaining": "{{count}} vende të mbetura",
+    "user": "Përdoruesi",
+    "role": "Roli",
+    "status": "Statusi",
+    "actions": "Veprime",
+    "inviteTitle": "Fto Anëtar",
+    "inviteSubtitle": "Dërgoni një lidhje ftese një kolegu.",
+    "sendInvite": "Dërgo Ftesën"
   },
   "analysis": {
     "title": "Salla e Strategjisë Ligjore",
@@ -499,7 +515,11 @@
     "title": "Paneli i Administratorit",
     "subtitle": "Menaxhimi i përdoruesve dhe sistemit.",
     "userUpdated": "Përdoruesi u përditësua.",
-    "confirmDelete": "A jeni të sigurt që doni të fshini këtë përdorues?"
+    "confirmDelete": "A jeni të sigurt që doni të fshini këtë përdorues?",
+    "totalOrgs": "Total Firma",
+    "totalUsers": "Total Përdorues",
+    "organizations": "Organizatat",
+    "searchOrgs": "Kërko Firma..."
   },
   "calendar": {
     "loadFailure": "Dështoi ngarkimi i të dhënave të kalendarit.",
@@ -604,6 +624,5 @@
   "pdfViewer": {
     "downloadOriginal": "Shkarko Dokumentin Origjinal",
     "close": "Mbyll"
- 
   }
 }

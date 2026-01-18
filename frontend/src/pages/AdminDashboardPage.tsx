@@ -1,11 +1,12 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V4.3 (CLEANUP)
-// 1. FIX: Removed local 'AdminApiService' type hack.
-// 2. LOGIC: Now directly and correctly calls methods on the updated 'apiService'.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V4.4 (USER MANAGEMENT UI)
+// 1. FIX: Implemented missing User Management Table.
+// 2. FEATURE: Added 'Activate/Deactivate' and 'Delete' buttons.
+// 3. UI: improved status badges and layout.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Users, Search, Loader2, ShieldAlert, ChevronsUpDown, Crown, ArrowUpCircle } from 'lucide-react';
+import { Users, Search, Loader2, ShieldAlert, ChevronsUpDown, Crown, ArrowUpCircle, Trash2, Power } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiService } from '../services/api';
 import { User, Organization } from '../data/types';
@@ -16,7 +17,7 @@ const AdminDashboardPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [upgradingOrg, setUpgradingOrg] = useState<Organization | null>(null);
-    const [users, setUsers] = useState<User[]>([]); // For stats card
+    const [users, setUsers] = useState<User[]>([]); 
     const [showLegacyUsers, setShowLegacyUsers] = useState(false);
 
     useEffect(() => {
@@ -30,6 +31,7 @@ const AdminDashboardPage: React.FC = () => {
             setOrganizations(orgData);
 
             const userData = await apiService.getAllUsers();
+            // Ensure valid users only
             setUsers(userData.filter((user) => user && typeof user.id === 'string' && user.id.trim() !== ''));
         } catch (error) {
             console.error("Failed to load admin data", error);
@@ -43,10 +45,33 @@ const AdminDashboardPage: React.FC = () => {
         try {
             await apiService.upgradeOrganizationTier(upgradingOrg.id, 'TIER_2');
             setUpgradingOrg(null);
-            loadAdminData(); // Refresh data after update
+            loadAdminData(); 
         } catch (error) {
             console.error("Failed to upgrade tier", error);
             alert('Upgrade failed. Check console for details.');
+        }
+    };
+
+    const handleToggleUserStatus = async (user: User) => {
+        const newStatus = user.subscription_status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+        try {
+            // Optimistic Update
+            setUsers(users.map(u => u.id === user.id ? { ...u, subscription_status: newStatus } : u));
+            await apiService.updateUser(user.id, { subscription_status: newStatus });
+        } catch (error) {
+            console.error("Status update failed", error);
+            loadAdminData(); // Revert on failure
+        }
+    };
+
+    const handleDeleteUser = async (userId: string) => {
+        if (!window.confirm('Are you sure you want to permanently delete this user? Data cannot be recovered.')) return;
+        try {
+            await apiService.deleteUser(userId);
+            setUsers(users.filter(u => u.id !== userId));
+        } catch (error) {
+            console.error("Delete failed", error);
+            alert("Failed to delete user.");
         }
     };
     
@@ -77,7 +102,8 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="glass-panel rounded-2xl overflow-hidden shadow-2xl">
+            {/* ORGANIZATIONS TABLE */}
+            <div className="glass-panel rounded-2xl overflow-hidden shadow-2xl mb-8">
                 <div className="p-5 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/5">
                     <h3 className="text-lg font-bold text-white">{t('admin.organizations', 'Organizations')}</h3>
                     <div className="relative w-full sm:w-auto">
@@ -116,32 +142,89 @@ const AdminDashboardPage: React.FC = () => {
                                     </td>
                                 </tr>
                             ))}
+                            {filteredOrgs.length === 0 && (
+                                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No organizations found.</td></tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
             </div>
             
+            {/* LEGACY USERS TABLE */}
             <div className="mt-8">
-                 <button onClick={() => setShowLegacyUsers(!showLegacyUsers)} className="w-full glass-panel p-4 rounded-xl flex justify-between items-center hover:bg-white/5">
+                 <button onClick={() => setShowLegacyUsers(!showLegacyUsers)} className="w-full glass-panel p-4 rounded-xl flex justify-between items-center hover:bg-white/5 transition-colors">
                     <h3 className="text-lg font-bold text-gray-400">Legacy User Management</h3>
                     <ChevronsUpDown className={`text-gray-500 transition-transform ${showLegacyUsers ? 'rotate-180' : ''}`} />
                 </button>
                 <AnimatePresence>
-                {showLegacyUsers && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mt-4">
-                    {/* The legacy user table would go here if needed */}
-                </motion.div>}
+                {showLegacyUsers && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden mt-4">
+                        <div className="glass-panel rounded-2xl overflow-hidden shadow-2xl">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm text-text-secondary">
+                                    <thead className="bg-black/20 text-gray-400 uppercase text-xs font-bold">
+                                        <tr>
+                                            <th className="px-6 py-4">User Details</th>
+                                            <th className="px-6 py-4">Role</th>
+                                            <th className="px-6 py-4">Status</th>
+                                            <th className="px-6 py-4 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {users.map((user) => (
+                                            <tr key={user.id} className="hover:bg-white/5 transition-colors">
+                                                <td className="px-6 py-4">
+                                                    <div className="font-bold text-white">{user.username}</div>
+                                                    <div className="text-xs text-gray-500 font-mono">{user.email}</div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-medium">{user.role}</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                     <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${user.subscription_status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+                                                        {user.subscription_status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        <button 
+                                                            onClick={() => handleToggleUserStatus(user)}
+                                                            className="p-2 hover:bg-white/10 rounded-lg text-xs font-bold border border-white/10 transition-colors flex items-center gap-1"
+                                                            title={user.subscription_status === 'ACTIVE' ? "Deactivate User" : "Activate User"}
+                                                        >
+                                                            <Power size={14} className={user.subscription_status === 'ACTIVE' ? "text-red-400" : "text-emerald-400"} />
+                                                            {user.subscription_status === 'ACTIVE' ? "Disable" : "Enable"}
+                                                        </button>
+                                                        <button 
+                                                            onClick={() => handleDeleteUser(user.id)}
+                                                            className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg border border-red-500/20 transition-colors"
+                                                            title="Delete User"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
                 </AnimatePresence>
             </div>
 
+            {/* UPGRADE MODAL */}
             <AnimatePresence>
                 {upgradingOrg && (
-                     <div className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-high p-8 rounded-2xl w-full max-w-md shadow-2xl">
+                     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                         <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-high p-8 rounded-2xl w-full max-w-md shadow-2xl border border-white/10">
                              <h3 className="text-xl font-bold text-white mb-2">Confirm Upgrade</h3>
                              <p className="text-text-secondary mb-6">Upgrade <span className="font-bold text-white">{upgradingOrg.name}</span> to TIER_2 (5 seats)?</p>
                              <div className="flex justify-end gap-3">
-                                 <button onClick={() => setUpgradingOrg(null)} className="px-4 py-2 rounded-xl hover:bg-white/10 text-text-secondary hover:text-white transition-colors">Cancel</button>
-                                 <button onClick={handleUpgradeTier} className="px-6 py-2 rounded-xl bg-gradient-to-r from-primary-start to-primary-end text-white font-bold">Confirm & Upgrade</button>
+                                 <button onClick={() => setUpgradingOrg(null)} className="px-4 py-2 rounded-xl hover:bg-white/10 text-text-secondary hover:text-white transition-colors border border-transparent hover:border-white/10">Cancel</button>
+                                 <button onClick={handleUpgradeTier} className="px-6 py-2 rounded-xl bg-gradient-to-r from-primary-start to-primary-end text-white font-bold shadow-lg shadow-primary-start/20">Confirm & Upgrade</button>
                              </div>
                          </motion.div>
                      </div>
