@@ -33,6 +33,7 @@ from . import (
     graph_service,
     pdf_service,
     social_service,
+    organizatioen_servic,
     
     # Albanian Specific Services
     albanian_document_processor,

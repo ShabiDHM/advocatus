@@ -1,6 +1,6 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V5.3 (ADDED SHARE ROUTER)
-# 1. ADDED: share_router for Smart Social Media Links.
+# PHOENIX PROTOCOL - MAIN APPLICATION V6.0 (ORGANIZATION ENABLED)
+# 1. ADDED: organizations_router for Multi-Tenant Logic.
 # 2. STATUS: Production Ready.
 
 from fastapi import FastAPI, status, APIRouter
@@ -26,7 +26,8 @@ from app.api.endpoints import finance_wizard
 from app.api.endpoints.graph import router as graph_router
 from app.api.endpoints.archive import router as archive_router
 from app.api.endpoints.drafting_v2 import router as drafting_v2_router
-from app.api.endpoints.share import router as share_router # PHOENIX NEW
+from app.api.endpoints.share import router as share_router
+from app.api.endpoints.organizations import router as organizations_router # PHOENIX NEW
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,6 +72,7 @@ api_v1_router = APIRouter(prefix="/api/v1")
 api_v1_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 api_v1_router.include_router(users_router, prefix="/users", tags=["Users"])
 api_v1_router.include_router(cases_router, prefix="/cases", tags=["Cases"])
+api_v1_router.include_router(organizations_router, prefix="/organizations", tags=["Organizations"]) # PHOENIX NEW
 api_v1_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
 api_v1_router.include_router(calendar_router, prefix="/calendar", tags=["Calendar"])
 api_v1_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
@@ -85,7 +87,7 @@ api_v1_router.include_router(finance_wizard.router, prefix="/finance/wizard", ta
 # Advanced Modules
 api_v1_router.include_router(graph_router, prefix="/graph", tags=["Graph"])
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
-api_v1_router.include_router(share_router, prefix="/share", tags=["Share"]) # PHOENIX NEW
+api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 
 # V2 Modules
 api_v2_router = APIRouter(prefix="/api/v2")

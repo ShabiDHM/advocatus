@@ -1,8 +1,8 @@
 # FILE: backend/app/models/case.py
-# PHOENIX PROTOCOL - CHAT PERSISTENCE FIX
-# 1. MOVED: 'ChatMessage' class to top-level so it can be referenced.
-# 2. ADDED: 'chat_history' field to 'CaseOut' schema.
-# 3. RESULT: Chat messages are now correctly serialized and sent to the frontend on refresh.
+# PHOENIX PROTOCOL - CASE MODEL V10.0 (ORGANIZATIONAL OWNERSHIP)
+# 1. ADDED: 'org_id' field.
+# 2. LOGIC: Cases now belong to an Organization (Tenant), not just a user.
+# 3. COMPATIBILITY: 'user_id' remains as the "Lead Attorney" or "Creator".
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Dict, Any
@@ -15,7 +15,7 @@ class ClientData(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
 
-# Chat Message Model (Moved up for visibility)
+# Chat Message Model
 class ChatMessage(BaseModel):
     role: str 
     content: str
@@ -28,6 +28,9 @@ class CaseBase(BaseModel):
     description: Optional[str] = None
     status: str = "OPEN"
     client_id: Optional[PyObjectId] = None 
+    
+    # PHOENIX NEW: Tenant Ownership
+    org_id: Optional[PyObjectId] = None 
     
     # Optional metadata
     court_name: Optional[str] = None
@@ -49,11 +52,14 @@ class CaseUpdate(BaseModel):
     judge_name: Optional[str] = None
     opponent_name: Optional[str] = None
     client: Optional[ClientData] = None
+    
+    # Allow re-assigning ownership
+    org_id: Optional[PyObjectId] = None
 
 # DB Model
 class CaseInDB(CaseBase):
     id: PyObjectId = Field(alias="_id", default=None)
-    user_id: PyObjectId 
+    user_id: PyObjectId # The Creator/Lead
     client: Optional[ClientData] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -64,15 +70,14 @@ class CaseInDB(CaseBase):
         arbitrary_types_allowed=True,
     )
 
-# Return Model - Matches Frontend 'Case' Interface
+# Return Model
 class CaseOut(CaseBase):
     id: PyObjectId = Field(alias="_id", serialization_alias="id")
+    user_id: PyObjectId
     created_at: datetime
     updated_at: datetime
     
     client: Optional[ClientData] = None
-
-    # PHOENIX FIX: Expose chat history to frontend
     chat_history: Optional[List[ChatMessage]] = []
 
     # Explicitly exposed counters
