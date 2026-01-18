@@ -1,7 +1,8 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V5.1 (CLEANUP)
-// 1. FIX: Removed unused 'ArrowUpCircle' and 'Organization' imports.
-// 2. STATUS: Zero warnings. Unified view is stable.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V5.2 (UI ACCURACY FIX)
+// 1. FIX: Corrected 'TOTAL FIRMA' count to reflect users who have a firm name.
+// 2. FIX: Added the missing 'ROLE' column to the user table for clarity.
+// 3. STATUS: The dashboard now presents a consistent and accurate view of the data.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +11,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { apiService } from '../services/api';
 import { User } from '../data/types';
 
-// A new combined type for our unified list
 type UnifiedAdminUser = User & { firmName?: string; tier?: string };
 
 const AdminDashboardPage: React.FC = () => {
@@ -27,7 +27,6 @@ const AdminDashboardPage: React.FC = () => {
     const loadAdminData = async () => {
         setIsLoading(true);
         try {
-            // Fetch both and merge them
             const orgData = await apiService.getOrganizations();
             const userData = await apiService.getAllUsers();
             
@@ -42,7 +41,6 @@ const AdminDashboardPage: React.FC = () => {
                     };
                 });
             
-            // Sort to put pending users at the top
             mergedUsers.sort((a, b) => {
                 if (a.subscription_status !== 'ACTIVE' && b.subscription_status === 'ACTIVE') return -1;
                 if (a.subscription_status === 'ACTIVE' && b.subscription_status !== 'ACTIVE') return 1;
@@ -95,7 +93,8 @@ const AdminDashboardPage: React.FC = () => {
         user.firmName?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const totalFirms = unifiedUsers.filter(u => u.tier === 'TIER_2').length;
+    // PHOENIX FIX: Count firms based on whether they have a firm name, matching the table logic.
+    const totalFirms = unifiedUsers.filter(u => u.firmName && u.firmName !== 'N/A').length;
     const pendingUsers = unifiedUsers.filter(u => u.subscription_status !== 'ACTIVE').length;
 
     if (isLoading) return <div className="flex justify-center items-center h-screen"><Loader2 className="animate-spin h-12 w-12 text-primary-start" /></div>;
@@ -110,7 +109,6 @@ const AdminDashboardPage: React.FC = () => {
                 <p className="text-text-secondary">{t('admin.subtitle')}</p>
             </div>
 
-            {/* STATS CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div className="glass-panel p-6 rounded-2xl flex items-center justify-between">
                     <div><p className="text-text-secondary text-xs font-bold uppercase tracking-wider mb-1">{t('admin.totalOrgs')}</p><h3 className="text-3xl font-bold text-white">{totalFirms}</h3></div>
@@ -126,7 +124,6 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* UNIFIED USER MANAGEMENT TABLE */}
             <div className="mt-8">
                  <button onClick={() => setShowUsers(!showUsers)} className="w-full glass-panel p-4 rounded-xl flex justify-between items-center hover:bg-white/5 transition-colors">
                     <h3 className="text-lg font-bold text-gray-400">{t('admin.userManagement')}</h3>
@@ -148,6 +145,8 @@ const AdminDashboardPage: React.FC = () => {
                                         <tr>
                                             <th className="px-6 py-4">{t('admin.userDetails')}</th>
                                             <th className="px-6 py-4">{t('admin.firmName')}</th>
+                                            {/* PHOENIX FIX: Added ROLE column */}
+                                            <th className="px-6 py-4">{t('admin.role')}</th>
                                             <th className="px-6 py-4">{t('admin.tier')}</th>
                                             <th className="px-6 py-4">{t('admin.gatekeeperStatus')}</th>
                                             <th className="px-6 py-4 text-right">{t('admin.actions')}</th>
@@ -161,6 +160,10 @@ const AdminDashboardPage: React.FC = () => {
                                                     <div className="text-xs text-gray-500 font-mono">{user.email}</div>
                                                 </td>
                                                 <td className="px-6 py-4 font-bold text-white">{user.firmName || 'N/A'}</td>
+                                                {/* PHOENIX FIX: Added ROLE data cell */}
+                                                <td className="px-6 py-4">
+                                                    <span className="px-2 py-1 bg-white/5 border border-white/10 rounded text-xs font-medium">{user.role}</span>
+                                                </td>
                                                 <td className="px-6 py-4">
                                                      <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${user.tier === 'TIER_2' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}>
                                                         {user.tier}
