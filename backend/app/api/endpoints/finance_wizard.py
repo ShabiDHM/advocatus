@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/finance_wizard.py
-# PHOENIX PROTOCOL - FINANCE WIZARD ENDPOINT v3.0 (ASYNC UPGRADE)
-# 1. UPGRADE: Converted endpoints to 'async def'.
-# 2. FEATURE: Now fetches POS revenue from FinanceService.
-# 3. FIX: Injected 'get_async_db' dependency.
+# PHOENIX PROTOCOL - FINANCE WIZARD ENDPOINT v3.1 (IMPORT FIX)
+# 1. FIX: Corrected import of 'get_current_user' from 'dependencies'.
+# 2. STATUS: Resolves backend crash.
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -11,8 +10,8 @@ from datetime import datetime
 
 # ABSOLUTE IMPORTS
 from app.models.user import UserInDB
-from app.api.endpoints.auth import get_current_user
-from app.api.endpoints.dependencies import get_async_db
+# PHOENIX FIX: Correct import path
+from app.api.endpoints.dependencies import get_current_user, get_async_db
 from app.services.finance_service import FinanceService
 from app.core.db import db_instance
 from app.models.finance import WizardState, AuditIssue, TaxCalculation
