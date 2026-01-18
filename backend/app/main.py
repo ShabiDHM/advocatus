@@ -1,14 +1,12 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V6.0 (ORGANIZATION ENABLED)
-# 1. ADDED: organizations_router for Multi-Tenant Logic.
-# 2. STATUS: Production Ready.
+# PHOENIX PROTOCOL - MAIN APPLICATION V6.1 (CORS STANDARDIZATION)
+# 1. FIX: Replaced static CORS list with Dynamic Regex (Matches Haveri Logic).
+# 2. STATUS: Synchronized with Gateway V6.0.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import logging
-import os
-import json
 from app.core.lifespan import lifespan
 
 # --- Router Imports ---
@@ -27,7 +25,7 @@ from app.api.endpoints.graph import router as graph_router
 from app.api.endpoints.archive import router as archive_router
 from app.api.endpoints.drafting_v2 import router as drafting_v2_router
 from app.api.endpoints.share import router as share_router
-from app.api.endpoints.organizations import router as organizations_router # PHOENIX NEW
+from app.api.endpoints.organizations import router as organizations_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,31 +33,17 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ---
+# Trust Caddy to pass the correct Host and IP
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
 
 # --- CORS CONFIGURATION ---
-allowed_origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://juristi.tech",
-    "https://www.juristi.tech"
-]
-
-try:
-    env_origins_str = os.getenv("BACKEND_CORS_ORIGINS")
-    if env_origins_str:
-        parsed_origins = json.loads(env_origins_str)
-        allowed_origins.extend(parsed_origins)
-except (json.JSONDecodeError, TypeError) as e:
-    logger.warning(f"⚠️ CORS Warning: Could not parse BACKEND_CORS_ORIGINS. Using defaults. Error: {e}")
-
-allowed_origins = sorted(list(set(allowed_origins)))
-logger.info(f"✅ CORS Allowed Origins: {allowed_origins}")
+# Regex allows: localhost, juristi.tech (plus subdomains), and vercel.app (for previews)
+# This solves the 'www' vs non-'www' mismatch automatically.
+allow_origin_regex = r"https?://(localhost(:\d+)?|([\w-]+\.)?juristi\.tech|([\w-]+\.)?vercel\.app)"
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_origin_regex=r"https?://.*\.vercel\.app", 
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,7 +56,7 @@ api_v1_router = APIRouter(prefix="/api/v1")
 api_v1_router.include_router(auth_router, prefix="/auth", tags=["Authentication"])
 api_v1_router.include_router(users_router, prefix="/users", tags=["Users"])
 api_v1_router.include_router(cases_router, prefix="/cases", tags=["Cases"])
-api_v1_router.include_router(organizations_router, prefix="/organizations", tags=["Organizations"]) # PHOENIX NEW
+api_v1_router.include_router(organizations_router, prefix="/organizations", tags=["Organizations"])
 api_v1_router.include_router(admin_router, prefix="/admin", tags=["Admin"])
 api_v1_router.include_router(calendar_router, prefix="/calendar", tags=["Calendar"])
 api_v1_router.include_router(chat_router, prefix="/chat", tags=["Chat"])
