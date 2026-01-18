@@ -1,14 +1,14 @@
 // FILE: vite.config.ts
-// PHOENIX PROTOCOL - BUILD FIX V2.0 (BASE PATH)
-// 1. FIX: Added 'base: "/"' to ensure absolute paths are generated.
-// 2. LOGIC: This corrects the asset paths in index.html and resolves the "text/html" MIME type error.
+// PHOENIX PROTOCOL - BUILD FIX V2.1 (RE-APPLY)
+// 1. FIX: Enforces 'base: "/"' to ensure Vite injects absolute paths into the clean index.html.
+// 2. STATUS: This is the definitive configuration for Vercel deployment.
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  // PHOENIX FIX: Define the base path for asset URLs
+  // Enforce absolute paths for all generated assets
   base: '/', 
   
   plugins: [
