@@ -1,7 +1,7 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V4.7 (CLEANUP)
-// 1. FIX: Removed unused 'Power' import.
-// 2. STATUS: Zero warnings.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V4.8 (I18N COMPLETE)
+// 1. FIX: Replaced all hardcoded English strings with 't()' calls.
+// 2. STATUS: Fully localized (Albanian/English).
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -66,7 +66,7 @@ const AdminDashboardPage: React.FC = () => {
     };
 
     const handleDeleteUser = async (userId: string) => {
-        if (!window.confirm('Are you sure you want to permanently delete this user? Data cannot be recovered.')) return;
+        if (!window.confirm(t('admin.confirmDelete', 'Are you sure?'))) return;
         try {
             await apiService.deleteUser(userId);
             setUsers(users.filter(u => u.id !== userId));
@@ -110,7 +110,7 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
                 
                 <div className="glass-panel p-6 rounded-2xl flex items-center justify-between">
-                    <div><p className="text-text-secondary text-xs font-bold uppercase tracking-wider mb-1">Pending Approval</p><h3 className="text-3xl font-bold text-white">{users.filter(u => u.subscription_status !== 'ACTIVE').length}</h3></div>
+                    <div><p className="text-text-secondary text-xs font-bold uppercase tracking-wider mb-1">{t('admin.pendingApproval', 'Pending Approval')}</p><h3 className="text-3xl font-bold text-white">{users.filter(u => u.subscription_status !== 'ACTIVE').length}</h3></div>
                     <div className="p-3 rounded-xl bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"><AlertTriangle size={24} /></div>
                 </div>
             </div>
@@ -128,10 +128,10 @@ const AdminDashboardPage: React.FC = () => {
                     <table className="w-full text-left text-sm text-text-secondary">
                         <thead className="bg-black/20 text-gray-400 uppercase text-xs font-bold">
                             <tr>
-                                <th className="px-6 py-4 tracking-wider">Firm Name</th>
-                                <th className="px-6 py-4 tracking-wider">Tier</th>
-                                <th className="px-6 py-4 tracking-wider">Owner ID</th>
-                                <th className="px-6 py-4 text-right tracking-wider">Actions</th>
+                                <th className="px-6 py-4 tracking-wider">{t('admin.firmName', 'Firm Name')}</th>
+                                <th className="px-6 py-4 tracking-wider">{t('admin.tier', 'Tier')}</th>
+                                <th className="px-6 py-4 tracking-wider">{t('admin.ownerId', 'Owner ID')}</th>
+                                <th className="px-6 py-4 text-right tracking-wider">{t('admin.actions', 'Actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -147,14 +147,14 @@ const AdminDashboardPage: React.FC = () => {
                                     <td className="px-6 py-4 text-right">
                                         {org.tier !== 'TIER_2' && (
                                             <button onClick={() => setUpgradingOrg(org)} className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 p-2 rounded-lg transition-colors border border-emerald-500/20 flex items-center gap-2 text-xs font-bold">
-                                                <ArrowUpCircle className="w-4 h-4" /> Upgrade
+                                                <ArrowUpCircle className="w-4 h-4" /> {t('admin.upgrade', 'Upgrade')}
                                             </button>
                                         )}
                                     </td>
                                 </tr>
                             ))}
                             {filteredOrgs.length === 0 && (
-                                <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">No active organizations found.</td></tr>
+                                <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-500">{t('admin.noOrgsFound', 'No active organizations found.')}</td></tr>
                             )}
                         </tbody>
                     </table>
@@ -164,7 +164,7 @@ const AdminDashboardPage: React.FC = () => {
             {/* USERS TABLE */}
             <div className="mt-8">
                  <button onClick={() => setShowLegacyUsers(!showLegacyUsers)} className="w-full glass-panel p-4 rounded-xl flex justify-between items-center hover:bg-white/5 transition-colors">
-                    <h3 className="text-lg font-bold text-gray-400">User Management (Gatekeeper)</h3>
+                    <h3 className="text-lg font-bold text-gray-400">{t('admin.userManagement', 'User Management')}</h3>
                     <ChevronsUpDown className={`text-gray-500 transition-transform ${showLegacyUsers ? 'rotate-180' : ''}`} />
                 </button>
                 <AnimatePresence>
@@ -175,10 +175,10 @@ const AdminDashboardPage: React.FC = () => {
                                 <table className="w-full text-left text-sm text-text-secondary">
                                     <thead className="bg-black/20 text-gray-400 uppercase text-xs font-bold">
                                         <tr>
-                                            <th className="px-6 py-4">User Details</th>
-                                            <th className="px-6 py-4">Role</th>
-                                            <th className="px-6 py-4">Gatekeeper Status</th>
-                                            <th className="px-6 py-4 text-right">Actions</th>
+                                            <th className="px-6 py-4">{t('admin.userDetails', 'User Details')}</th>
+                                            <th className="px-6 py-4">{t('admin.role', 'Role')}</th>
+                                            <th className="px-6 py-4">{t('admin.gatekeeperStatus', 'Gatekeeper Status')}</th>
+                                            <th className="px-6 py-4 text-right">{t('admin.actions', 'Actions')}</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-white/5">
@@ -194,11 +194,11 @@ const AdminDashboardPage: React.FC = () => {
                                                 <td className="px-6 py-4">
                                                      {user.subscription_status === 'ACTIVE' ? (
                                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> ACTIVE
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> {t('admin.active', 'ACTIVE')}
                                                         </span>
                                                      ) : (
                                                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-xs font-bold">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" /> PENDING APPROVAL
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" /> {t('admin.pending', 'PENDING')}
                                                         </span>
                                                      )}
                                                 </td>
@@ -208,15 +208,15 @@ const AdminDashboardPage: React.FC = () => {
                                                             <button 
                                                                 onClick={() => setPromotingUser(user)}
                                                                 className="p-2 hover:bg-purple-500/10 text-purple-400 rounded-lg border border-purple-500/20 transition-colors flex items-center gap-1"
-                                                                title="Promote to Firm (Tier 2)"
+                                                                title={t('admin.promote', 'Promote')}
                                                             >
-                                                                <Briefcase size={14} /> Promote
+                                                                <Briefcase size={14} /> {t('admin.promote', 'Promote')}
                                                             </button>
                                                         )}
 
                                                         <button 
                                                             onClick={() => handleToggleUserStatus(user)}
-                                                            className={`p-2 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1 w-28 justify-center ${
+                                                            className={`p-2 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1 min-w-[100px] justify-center ${
                                                                 user.subscription_status === 'ACTIVE' 
                                                                 ? "hover:bg-red-500/10 text-red-400 border-red-500/20" 
                                                                 : "bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border-emerald-500/30"
@@ -224,16 +224,16 @@ const AdminDashboardPage: React.FC = () => {
                                                             title={user.subscription_status === 'ACTIVE' ? "Ban User" : "Approve Entry"}
                                                         >
                                                             {user.subscription_status === 'ACTIVE' ? (
-                                                                <><XCircle size={14} /> Deactivate</>
+                                                                <><XCircle size={14} /> {t('admin.deactivate', 'Deactivate')}</>
                                                             ) : (
-                                                                <><CheckCircle size={14} /> APPROVE</>
+                                                                <><CheckCircle size={14} /> {t('admin.activate', 'Approve')}</>
                                                             )}
                                                         </button>
                                                         
                                                         <button 
                                                             onClick={() => handleDeleteUser(user.id)}
                                                             className="p-2 hover:bg-red-500/10 text-red-400 rounded-lg border border-red-500/20 transition-colors"
-                                                            title="Delete User"
+                                                            title={t('admin.delete', 'Delete')}
                                                         >
                                                             <Trash2 size={16} />
                                                         </button>
@@ -254,17 +254,17 @@ const AdminDashboardPage: React.FC = () => {
                 {(upgradingOrg || promotingUser) && (
                      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }} className="glass-high p-8 rounded-2xl w-full max-w-md shadow-2xl border border-white/10">
-                             <h3 className="text-xl font-bold text-white mb-2">Confirm Action</h3>
+                             <h3 className="text-xl font-bold text-white mb-2">{t('admin.confirmAction', 'Confirm Action')}</h3>
                              <p className="text-text-secondary mb-6">
                                  {upgradingOrg 
-                                     ? <span>Upgrade <span className="font-bold text-white">{upgradingOrg.name}</span> to TIER_2?</span>
-                                     : <span>Promote user <span className="font-bold text-white">{promotingUser?.username}</span> to Organization (Firm)?</span>
+                                     ? <span>{t('admin.upgradePrompt', 'Upgrade')} <span className="font-bold text-white">{upgradingOrg.name}</span> {t('admin.toTier2', 'to TIER_2?')}</span>
+                                     : <span>{t('admin.promotePrompt', 'Promote user')} <span className="font-bold text-white">{promotingUser?.username}</span> {t('admin.toFirm', 'to Organization?')}</span>
                                  }
                              </p>
                              <div className="flex justify-end gap-3">
-                                 <button onClick={() => { setUpgradingOrg(null); setPromotingUser(null); }} className="px-4 py-2 rounded-xl hover:bg-white/10 text-text-secondary hover:text-white transition-colors border border-transparent hover:border-white/10">Cancel</button>
+                                 <button onClick={() => { setUpgradingOrg(null); setPromotingUser(null); }} className="px-4 py-2 rounded-xl hover:bg-white/10 text-text-secondary hover:text-white transition-colors border border-transparent hover:border-white/10">{t('admin.cancel', 'Cancel')}</button>
                                  <button onClick={handleUpgradeTier} className="px-6 py-2 rounded-xl bg-gradient-to-r from-primary-start to-primary-end text-white font-bold shadow-lg shadow-primary-start/20">
-                                     {upgradingOrg ? "Upgrade" : "Promote & Create Firm"}
+                                     {upgradingOrg ? t('admin.upgrade', 'Upgrade') : t('admin.promoteAndCreate', 'Promote & Create Firm')}
                                  </button>
                              </div>
                          </motion.div>

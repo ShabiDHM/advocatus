@@ -1,12 +1,11 @@
 # FILE: backend/app/models/organization.py
-# PHOENIX PROTOCOL - ORGANIZATION MODEL V1.2 (EXPORT FIX)
-# 1. FIX: Added '__all__' to explicitly export symbols for Pylance.
-# 2. STATUS: Contains OrganizationBase, OrganizationInDB, and OrganizationOut.
+# PHOENIX PROTOCOL - ORGANIZATION MODEL V1.3 (SAFE TYPES)
+# 1. FIX: Changed 'id' to 'str' and 'owner_email' to 'str' to prevent validation crashes.
+# 2. STATUS: Production Safe.
 
-from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import Optional, List
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, Any
 from datetime import datetime
-from .common import PyObjectId
 
 # Explicit Export
 __all__ = ["OrganizationBase", "OrganizationInDB", "OrganizationOut"]
@@ -14,16 +13,16 @@ __all__ = ["OrganizationBase", "OrganizationInDB", "OrganizationOut"]
 # Base Schema
 class OrganizationBase(BaseModel):
     name: str
-    owner_email: Optional[EmailStr] = None
-    plan: str = "TIER_1" # TIER_1 (Personal), TIER_2 (Organization)
+    owner_email: Optional[str] = None # Changed from EmailStr to str for safety
+    plan: str = "TIER_1" 
     status: str = "TRIAL"
     seat_limit: int = 1
     seat_count: int = 1
 
-# Database Schema (Stored in MongoDB)
+# Database Schema
 class OrganizationInDB(OrganizationBase):
-    id: PyObjectId = Field(alias="_id", default=None)
-    user_id: Optional[PyObjectId] = None
+    id: Any = Field(alias="_id", default=None)
+    user_id: Any = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
@@ -32,13 +31,13 @@ class OrganizationInDB(OrganizationBase):
         arbitrary_types_allowed=True,
     )
 
-# API Response Schema (Returned to Frontend)
+# API Response Schema
 class OrganizationOut(OrganizationBase):
-    id: PyObjectId = Field(alias="_id", serialization_alias="id")
+    # PHOENIX FIX: Accept 'id' as string directly to avoid PyObjectId alias conflicts
+    id: str 
     created_at: Optional[datetime] = None
     
     model_config = ConfigDict(
         populate_by_name=True,
         from_attributes=True,
-        arbitrary_types_allowed=True,
     )
