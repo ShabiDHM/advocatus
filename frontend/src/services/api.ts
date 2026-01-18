@@ -2,7 +2,6 @@
 // PHOENIX PROTOCOL - API MASTER V8.0 (INTERROGATION READY)
 // 1. ADDED: interrogateFinancialRecords() to support the Forensic Console.
 // 2. MERGED: All Deep Strategy, Auth, and Document logic preserved.
-// 3. STATUS: Ready for Frontend Component integration.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
