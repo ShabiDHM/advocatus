@@ -1,7 +1,7 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.3 (VALIDATION FIX)
-# 1. FIX: Added 'created_at' field when creating a placeholder user for an invitation.
-# 2. STATUS: Resolves the Pydantic 'ValidationError' and the 500 crash on 'get_members'.
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.4 (VALIDATION FIX)
+# 1. FIX: Added 'created_at' field when creating a placeholder user.
+# 2. STATUS: Resolves the Pydantic ValidationError and 500 crash on GET /members.
 
 from typing import List, Optional, Dict
 from bson import ObjectId
@@ -66,14 +66,14 @@ class OrganizationService:
         if existing_user:
             db.users.update_one({"_id": existing_user["_id"]}, {"$set": update_fields})
         else:
-            # PHOENIX FIX: Add 'created_at' field to the placeholder document
+            # PHOENIX FIX: Add 'created_at' to satisfy the UserOut model
             db.users.insert_one({
                 "email": invitee_email,
                 "username": invitee_email.split('@')[0],
                 "hashed_password": None,
                 "role": "STANDARD",
                 "subscription_status": "INACTIVE",
-                "created_at": datetime.now(timezone.utc), # <-- This was missing
+                "created_at": datetime.now(timezone.utc), # <-- THIS WAS MISSING
                 **update_fields
             })
             
