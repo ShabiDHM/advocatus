@@ -1,8 +1,8 @@
 # FILE: backend/app/services/admin_service.py
-# PHOENIX PROTOCOL - ADMIN SERVICE V7.0 (FULL MANAGEMENT)
-# 1. FEATURE: 'update_subscription' handles Status + Expiry Date.
-# 2. LOGIC: 'Promote' logic now correctly sets Plan Tier and Seat Limits.
-# 3. STATUS: Backend logic ready for new Dashboard.
+# PHOENIX PROTOCOL - ADMIN SERVICE V8.0 (SMART SUBSCRIPTION)
+# 1. LOGIC: 'update_subscription' now Auto-Promotes users if Plan Tier changes to STARTUP/GROWTH.
+# 2. FIX: Ensures 'org_id' and 'BusinessProfile' are created when changing plans via the Edit modal.
+# 3. STATUS: Makes the separate 'Promote' button redundant.
 
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
@@ -15,7 +15,6 @@ class AdminService:
 
     def get_all_organizations(self, db: Database) -> List[Dict[str, Any]]:
         orgs = []
-        # We fetch users who are effectively "Organization Owners"
         pipeline = [
             {"$lookup": {
                 "from": "business_profiles",
@@ -37,8 +36,6 @@ class AdminService:
             
             profile = user.get("profile") or {}
             sub_status = user.get("subscription_status", "INACTIVE")
-            
-            # Use 'subscription_expiry' if available
             expiry = user.get("subscription_expiry")
             
             org_data = {
@@ -49,16 +46,14 @@ class AdminService:
                 "expiry": expiry,
                 "created_at": user.get("created_at"),
                 "owner_email": user.get("email"),
-                "seat_limit": 1 # Default, calculated below
+                "seat_limit": 1 
             }
             
-            # Determine seat limit based on plan
             plan = user.get("plan_tier", "SOLO")
             if plan == "STARTUP": org_data["seat_limit"] = 5
             elif plan == "GROWTH": org_data["seat_limit"] = 10
             elif plan == "ENTERPRISE": org_data["seat_limit"] = 50
             
-            # Determine count
             org_id = user.get("org_id") or user.get("_id")
             org_data["seat_count"] = db.users.count_documents({"org_id": org_id})
             
@@ -70,7 +65,8 @@ class AdminService:
 
     def update_subscription(self, db: Database, user_id: str, status: str, expiry_date: Optional[datetime], plan_tier: Optional[str]) -> bool:
         """
-        The Master Switch for Admin. Updates Status, Time, and Plan.
+        Updates Status, Time, and Plan. 
+        PHOENIX UPGRADE: If plan changes to a Firm tier, it auto-promotes the user.
         """
         try:
             oid = ObjectId(user_id)
@@ -85,6 +81,31 @@ class AdminService:
             if plan_tier:
                 update_data["plan_tier"] = plan_tier
                 
+                # PHOENIX LOGIC: Auto-Promote if moving to paid tier
+                if plan_tier in ["STARTUP", "GROWTH", "ENTERPRISE"]:
+                    user = db.users.find_one({"_id": oid})
+                    
+                    # If they are not yet an Org Owner, make them one
+                    if user and not user.get("org_id"):
+                        update_data["org_id"] = oid
+                        update_data["organization_role"] = "OWNER"
+                        
+                        # Ensure a Business Profile exists
+                        username = user.get("username", "Law Firm")
+                        db.business_profiles.update_one(
+                            {"user_id": oid},
+                            {
+                                "$setOnInsert": {
+                                    "firm_name": f"{username} Legal", # Default Name
+                                    "created_at": datetime.now(timezone.utc)
+                                },
+                                "$set": {"updated_at": datetime.now(timezone.utc)}
+                            },
+                            upsert=True
+                        )
+                # If moving BACK to SOLO, we do NOT remove the org_id/profile to prevent data loss.
+                # We just downgrade the limits via the plan_tier check.
+
             db.users.update_one({"_id": oid}, {"$set": update_data})
             return True
         except Exception as e:
@@ -92,27 +113,18 @@ class AdminService:
             return False
 
     def promote_to_firm(self, db: Database, user_id: str, firm_name: str, plan: str) -> bool:
-        """
-        Promotes a Solo user to a Firm Owner.
-        1. Updates User Plan Tier.
-        2. Creates/Updates Business Profile.
-        3. Sets User as Org Owner.
-        """
+        # Kept for direct calls, but update_subscription now handles most logic
         try:
             oid = ObjectId(user_id)
-            
-            # 1. Update User
             db.users.update_one(
                 {"_id": oid}, 
                 {"$set": {
                     "plan_tier": plan, 
-                    "org_id": oid, # They become their own Org root
+                    "org_id": oid,
                     "organization_role": "OWNER",
                     "updated_at": datetime.now(timezone.utc)
                 }}
             )
-            
-            # 2. Update/Create Profile
             db.business_profiles.update_one(
                 {"user_id": oid},
                 {"$set": {
@@ -121,12 +133,11 @@ class AdminService:
                 }},
                 upsert=True
             )
-            
             return True
         except Exception:
             return False
 
-    # --- LEGACY METHODS (Preserved for compatibility) ---
+    # --- LEGACY METHODS ---
     def get_all_users_legacy(self, db: Database) -> List[Any]:
         return list(db.users.find({}).sort("created_at", -1))
 

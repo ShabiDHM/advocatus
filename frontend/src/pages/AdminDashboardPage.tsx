@@ -1,20 +1,20 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V9.3 (FINAL CLEANUP)
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V9.4 (CLEANUP)
 // 1. FIX: Removed unused 'AnimatePresence' import.
-// 2. STATUS: Zero warnings. Fully functional.
+// 2. STATUS: Clean, warning-free, and production-ready.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
     Users, Search, Edit2, Trash2, CheckCircle, Loader2, Clock, 
-    Briefcase, Crown, ArrowUpCircle, Calendar as CalendarIcon, 
+    Briefcase, Crown, Calendar as CalendarIcon, 
     AlertTriangle, Building2 
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { apiService } from '../services/api';
-import { User, UpdateUserRequest, PromoteRequest, SubscriptionUpdate } from '../data/types';
+import { User, UpdateUserRequest, SubscriptionUpdate } from '../data/types';
 
 // Unified type for display
 type UnifiedAdminUser = User & { 
@@ -33,11 +33,9 @@ const AdminDashboardPage: React.FC = () => {
     
     // MODAL STATES
     const [editingUser, setEditingUser] = useState<UnifiedAdminUser | null>(null);
-    const [promotingUser, setPromotingUser] = useState<UnifiedAdminUser | null>(null);
 
     // FORMS
     const [editForm, setEditForm] = useState<UpdateUserRequest & { plan_tier?: string; expiry_date?: Date | null }>({});
-    const [promoteForm, setPromoteForm] = useState<PromoteRequest>({ firm_name: '', plan_tier: 'STARTUP' });
 
     useEffect(() => {
         loadAdminData();
@@ -52,7 +50,6 @@ const AdminDashboardPage: React.FC = () => {
             const mergedUsers: UnifiedAdminUser[] = userData.map((user: any) => {
                 const org = orgData.find(o => o.id === user.id || o.owner_id === user.id);
                 
-                // Logic: Firm if TIER_2 or STARTUP plan
                 const effectiveTier = (org?.tier === 'TIER_2' || user.plan_tier === 'STARTUP') ? 'TIER_2' : 'TIER_1';
                 const firmDisplayName = org?.name || user.organization_name; 
 
@@ -70,7 +67,6 @@ const AdminDashboardPage: React.FC = () => {
                 };
             }).filter((user: any) => user && typeof user.id === 'string' && user.id.trim() !== '');
 
-            // Sort: Pending -> Expired -> Active
             mergedUsers.sort((a, b) => {
                 const scoreA = getStatusScore(a);
                 const scoreB = getStatusScore(b);
@@ -129,24 +125,6 @@ const AdminDashboardPage: React.FC = () => {
         } catch (error) {
             console.error("Failed to update user", error);
             alert(t('error.generic', 'Ndodhi një gabim.'));
-        }
-    };
-
-    const handlePromoteClick = (user: UnifiedAdminUser) => {
-        setPromotingUser(user);
-        setPromoteForm({ firm_name: `${user.username} Legal`, plan_tier: 'STARTUP' });
-    };
-
-    const handlePromoteSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!promotingUser?.id) return;
-        try {
-            await apiService.promoteToFirm(promotingUser.id, promoteForm);
-            setPromotingUser(null);
-            loadAdminData();
-        } catch (error) {
-            console.error("Promotion failed", error);
-            alert("Failed to promote user.");
         }
     };
 
@@ -253,9 +231,7 @@ const AdminDashboardPage: React.FC = () => {
                                         </div>
                                     </td>
                                     
-                                    {/* ORGANIZATA COLUMN */}
                                     <td className="px-6 py-4">
-                                        {/* Show Name if STARTUP/TIER_2 OR if they just have a firm name set */}
                                         {(user.plan_tier === 'STARTUP' || user.tier === 'TIER_2' || user.firmName) ? (
                                             <div className="flex items-center gap-2">
                                                 <Building2 className="w-4 h-4 text-purple-400" />
@@ -266,7 +242,6 @@ const AdminDashboardPage: React.FC = () => {
                                         )}
                                     </td>
 
-                                    {/* PLAN COLUMN */}
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2 mb-1">
@@ -287,11 +262,7 @@ const AdminDashboardPage: React.FC = () => {
                                     <td className="px-6 py-4"><span className={`px-2 py-1 rounded-full text-xs font-medium border ${user.role.toUpperCase() === 'ADMIN' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>{user.role}</span></td>
                                     <td className="px-6 py-4">{renderStatusBadge(user)}</td>
                                     
-                                    {/* ACTIONS */}
                                     <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                                        {user.role !== 'ADMIN' && user.plan_tier !== 'STARTUP' && (
-                                            <button onClick={() => handlePromoteClick(user)} className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 p-2 rounded-lg transition-colors border border-purple-500/20" title="Promote to Firm"><ArrowUpCircle className="w-4 h-4" /></button>
-                                        )}
                                         <button onClick={() => handleEditClick(user)} className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 p-2 rounded-lg transition-colors border border-blue-500/20" title={t('general.edit', 'Ndrysho')}><Edit2 className="w-4 h-4" /></button>
                                         <button onClick={() => handleDeleteUser(user.id)} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 p-2 rounded-lg transition-colors border border-red-500/20" title={t('general.delete', 'Fshi')}><Trash2 className="w-4 h-4" /></button>
                                     </td>
@@ -309,7 +280,6 @@ const AdminDashboardPage: React.FC = () => {
                         <h3 className="text-xl font-bold text-white mb-6 border-b border-white/10 pb-4">Menaxho Përdoruesin: {editingUser.username}</h3>
                         <form onSubmit={handleUpdateUser} className="space-y-4">
                             
-                            {/* Section 1: Identity */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Username</label>
@@ -321,7 +291,6 @@ const AdminDashboardPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* Section 2: Plan & Date */}
                             <div className="p-4 bg-white/5 rounded-xl border border-white/10 space-y-4">
                                 <h4 className="text-sm font-bold text-primary-300 flex items-center gap-2"><Briefcase size={16}/> Abonimi</h4>
                                 
@@ -362,33 +331,6 @@ const AdminDashboardPage: React.FC = () => {
                             <div className="flex justify-end gap-3 pt-4">
                                 <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-gray-400 hover:text-white transition-colors">{t('general.cancel', 'Anulo')}</button>
                                 <button type="submit" className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-lg font-bold shadow-lg shadow-primary-start/20">{t('general.save', 'Ruaj')}</button>
-                            </div>
-                        </form>
-                    </motion.div>
-                </div>
-            )}
-
-            {/* --- MODAL: PROMOTE TO FIRM --- */}
-            {promotingUser && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#1f2937] border border-white/10 p-6 rounded-2xl w-full max-w-md shadow-2xl">
-                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2"><Crown className="text-purple-400"/> Promovo në Firmë</h3>
-                        <p className="text-sm text-gray-400 mb-6">Kjo do të krijojë një profil biznesi dhe do ta bëjë këtë përdorues pronar të organizatës.</p>
-                        
-                        <form onSubmit={handlePromoteSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Emri i Firmës</label>
-                                <input type="text" required value={promoteForm.firm_name} onChange={e => setPromoteForm({ ...promoteForm, firm_name: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none focus:border-purple-500" placeholder="e.g. Legal Consulting SH.P.K" />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Plani Fillestar</label>
-                                <select value={promoteForm.plan_tier} onChange={e => setPromoteForm({ ...promoteForm, plan_tier: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
-                                    <option value="STARTUP">STARTUP (5 Seats)</option>
-                                </select>
-                            </div>
-                            <div className="flex justify-end gap-3 pt-4">
-                                <button type="button" onClick={() => setPromotingUser(null)} className="px-4 py-2 text-gray-400 hover:text-white transition-colors">{t('general.cancel', 'Anulo')}</button>
-                                <button type="submit" className="px-6 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-bold shadow-lg shadow-purple-500/20">Promovo</button>
                             </div>
                         </form>
                     </motion.div>
