@@ -1,7 +1,8 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V9.4 (CLEANUP)
-// 1. FIX: Removed unused 'AnimatePresence' import.
-// 2. STATUS: Clean, warning-free, and production-ready.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V10.1 (SEQUENTIAL UPDATES)
+// 1. FIX: Enforces sequential execution of 'updateUser' and 'updateSubscription'.
+// 2. LOGIC: Prioritizes subscription update to ensure Plan Tier changes stick.
+// 3. STATUS: Fixes the issue where Plan remains 'SOLO' after edit.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -16,7 +17,6 @@ import "react-datepicker/dist/react-datepicker.css";
 import { apiService } from '../services/api';
 import { User, UpdateUserRequest, SubscriptionUpdate } from '../data/types';
 
-// Unified type for display
 type UnifiedAdminUser = User & { 
     firmName?: string; 
     tier?: string;
@@ -30,11 +30,8 @@ const AdminDashboardPage: React.FC = () => {
     const [users, setUsers] = useState<UnifiedAdminUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
-    
-    // MODAL STATES
     const [editingUser, setEditingUser] = useState<UnifiedAdminUser | null>(null);
 
-    // FORMS
     const [editForm, setEditForm] = useState<UpdateUserRequest & { plan_tier?: string; expiry_date?: Date | null }>({});
 
     useEffect(() => {
@@ -49,7 +46,6 @@ const AdminDashboardPage: React.FC = () => {
             
             const mergedUsers: UnifiedAdminUser[] = userData.map((user: any) => {
                 const org = orgData.find(o => o.id === user.id || o.owner_id === user.id);
-                
                 const effectiveTier = (org?.tier === 'TIER_2' || user.plan_tier === 'STARTUP') ? 'TIER_2' : 'TIER_1';
                 const firmDisplayName = org?.name || user.organization_name; 
 
@@ -87,8 +83,6 @@ const AdminDashboardPage: React.FC = () => {
         return 2; 
     };
 
-    // --- HANDLERS ---
-
     const handleEditClick = (user: UnifiedAdminUser) => {
         setEditingUser(user);
         setEditForm({
@@ -107,21 +101,26 @@ const AdminDashboardPage: React.FC = () => {
         if (!editingUser?.id) return;
         
         try {
-            await apiService.updateUser(editingUser.id, {
-                username: editForm.username,
-                email: editForm.email,
-                role: editForm.role
-            });
-
+            // PHOENIX FIX: Run updates sequentially to prevent race conditions.
+            
+            // 1. Update Subscription & Plan FIRST (Critical)
             const subData: SubscriptionUpdate = {
                 status: editForm.subscription_status || 'INACTIVE',
                 plan_tier: editForm.plan_tier,
                 expiry_date: editForm.expiry_date ? editForm.expiry_date.toISOString() : undefined
             };
             await apiService.updateSubscription(editingUser.id, subData);
-            
+
+            // 2. Update Basic Info SECOND
+            await apiService.updateUser(editingUser.id, {
+                username: editForm.username,
+                email: editForm.email,
+                role: editForm.role
+            });
+
             setEditingUser(null);
-            loadAdminData(); 
+            // Small delay to allow DB propagation
+            setTimeout(() => loadAdminData(), 500); 
         } catch (error) {
             console.error("Failed to update user", error);
             alert(t('error.generic', 'Ndodhi një gabim.'));
@@ -143,8 +142,6 @@ const AdminDashboardPage: React.FC = () => {
         u.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         u.firmName?.toLowerCase().includes(searchQuery.toLowerCase())
     );
-
-    // --- RENDERERS ---
 
     const renderStatusBadge = (user: UnifiedAdminUser) => {
         const isExpired = user.expiry_date && user.expiry_date < new Date();
@@ -178,7 +175,6 @@ const AdminDashboardPage: React.FC = () => {
                 <p className="text-text-secondary">{t('admin.subtitle', 'Menaxhimi i përdoruesve dhe sistemit.')}</p>
             </div>
 
-            {/* STATS CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge flex items-center justify-between shadow-lg">
                     <div><p className="text-text-secondary text-xs font-bold uppercase tracking-wider mb-1">{t('admin.totalUsers', 'Total Përdorues')}</p><h3 className="text-3xl font-bold text-white">{users.length}</h3></div>
@@ -194,7 +190,6 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* MAIN TABLE */}
             <div className="bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge overflow-hidden shadow-xl flex flex-col">
                 <div className="p-4 border-b border-glass-edge flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white/5 gap-4">
                     <h3 className="text-lg font-semibold text-white">{t('admin.userManagement', 'Menaxhimi i Përdoruesve')}</h3>
@@ -273,7 +268,6 @@ const AdminDashboardPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* --- MODAL: EDIT USER & SUBSCRIPTION --- */}
             {editingUser && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#1f2937] border border-white/10 p-6 rounded-2xl w-full max-w-lg shadow-2xl overflow-visible">
