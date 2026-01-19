@@ -1,8 +1,7 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V1.7 (TABLE SCROLL FIX)
-// 1. FIX: Added 'overflow-x-auto' to the table's parent div.
-// 2. FIX: Added a 'min-w-[600px]' to the table to prevent columns from collapsing.
-// 3. STATUS: Table is now horizontally scrollable on mobile devices.
+// PHOENIX PROTOCOL - TEAM TAB V1.8 (WHITESPACE FIX)
+// 1. FIX: Added 'whitespace-nowrap' to table cells (td, th) to prevent text wrapping.
+// 2. RESULT: Columns now maintain their width, fixing the compressed text on mobile.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -145,16 +144,15 @@ export const TeamTab: React.FC = () => {
                 </div>
             </div>
 
-            {/* PHOENIX FIX: Added responsive wrapper for the table */}
             <div className="glass-panel rounded-3xl overflow-hidden min-h-[300px]">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left min-w-[600px]">
                         <thead className="bg-white/5 text-gray-400 text-xs uppercase tracking-wider">
                             <tr>
-                                <th className="px-6 py-4 font-bold">{t('team.user')}</th>
-                                <th className="px-6 py-4 font-bold">{t('team.role')}</th>
-                                <th className="px-6 py-4 font-bold">{t('team.status')}</th>
-                                <th className="px-6 py-4 font-bold text-right">{t('team.actions')}</th>
+                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.user')}</th>
+                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.role')}</th>
+                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.status')}</th>
+                                <th className="px-6 py-4 font-bold text-right whitespace-nowrap">{t('team.actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5 text-sm">
@@ -165,7 +163,7 @@ export const TeamTab: React.FC = () => {
 
                                 return (
                                     <tr key={member.id} className="hover:bg-white/5 transition-colors group relative">
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white font-bold border border-white/10">
                                                     {member.username.substring(0, 2).toUpperCase()}
@@ -176,19 +174,19 @@ export const TeamTab: React.FC = () => {
                                                 </div>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
                                                 {isMemberOwner ? <Crown size={14} className="text-yellow-500" /> : <Briefcase size={14} className="text-gray-500" />}
                                                 <span className={isMemberOwner ? 'text-yellow-500 font-bold' : 'text-gray-300'}>{memberRole}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold ${member.subscription_status === 'INACTIVE' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
                                                 <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${member.subscription_status === 'INACTIVE' ? 'bg-yellow-400' : 'bg-emerald-400'}`} /> 
                                                 {member.subscription_status === 'INACTIVE' ? 'Pending' : 'Active'}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
+                                        <td className="px-6 py-4 text-right whitespace-nowrap">
                                             <div className="relative inline-block text-left" ref={openMenuId === member.id ? menuRef : null}>
                                                 <button 
                                                     onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)}
