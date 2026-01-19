@@ -1,7 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES V7.5 (RESTORATION)
-// 1. FIX: Restored missing fields in 'CaseAnalysisResult' (risk_level, red_flags, etc.) to fix build errors.
-// 2. STATUS: Hybrid support for Legacy and Deep analysis.
+// PHOENIX PROTOCOL - TYPES V8.0 (SUBSCRIPTION DATA)
+// 1. ADDED: 'subscription_expiry' and 'plan_tier' to User.
+// 2. ADDED: Request interfaces for SubscriptionUpdate and PromoteRequest.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -10,12 +10,16 @@ export interface User {
     id: string; 
     email: string; 
     username: string; 
-    // PHOENIX: Expanded roles to include STANDARD
     role: 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD'; 
     status: 'active' | 'inactive'; 
     created_at: string; 
     token?: string; 
+    
+    // SaaS Fields
     subscription_status?: string; 
+    subscription_expiry?: string; // ISO Date String
+    plan_tier?: 'SOLO' | 'STARTUP' | 'GROWTH' | 'ENTERPRISE';
+    
     business_profile?: BusinessProfile; 
 }
 
@@ -26,6 +30,18 @@ export interface RegisterRequest { email: string; password: string; username: st
 export interface ChangePasswordRequest { current_password: string; new_password: string; }
 export interface UpdateUserRequest { username?: string; email?: string; role?: string; subscription_status?: string; status?: 'active' | 'inactive'; }
 export interface AcceptInviteRequest { token: string; username: string; password: string; }
+
+// --- ADMIN MANAGEMENT REQUESTS ---
+export interface SubscriptionUpdate {
+    status: string;
+    expiry_date?: string; // ISO Date
+    plan_tier?: string;
+}
+
+export interface PromoteRequest {
+    firm_name: string;
+    plan_tier: string;
+}
 
 // --- BUSINESS PROFILE ---
 export interface BusinessProfile { 
@@ -201,7 +217,6 @@ export interface GraphNode { id: string; name: string; group: string; val: numbe
 export interface GraphLink { source: string; target: string; label: string; }
 export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
 
-// Re-instated ChronologyEvent to separate from DeepAnalysis result
 export interface ChronologyEvent { date: string; event: string; source_doc?: string; source?: string; }
 
 export interface AdversarialSimulation {
@@ -225,7 +240,6 @@ export interface DeepAnalysisResult {
     error?: string;
 }
 
-// PHOENIX: Restored LEGACY fields to prevent AnalysisModal.tsx errors
 export interface CaseAnalysisResult {
     summary?: string;
     key_issues?: string[];
@@ -233,15 +247,12 @@ export interface CaseAnalysisResult {
     strategic_analysis?: string;
     weaknesses?: string[];
     action_plan?: string[];
-    
-    // Restored Legacy Fields
     risk_level?: string;
     red_flags?: string[];
-    contradictions?: string[]; // Note: Simple string array for legacy
+    contradictions?: string[]; 
     chronology?: ChronologyEvent[];
     judicial_observation?: string;
     strategic_summary?: string;
-    
     error?: string;
 }
 
@@ -264,7 +275,11 @@ export interface Organization {
     name: string;
     owner_id: string;
     tier: 'TIER_1' | 'TIER_2';
-    max_seats: number;
-    current_member_count: number;
+    plan: string; // STARTUP, GROWTH, etc.
+    status: string;
+    expiry?: string;
+    seat_limit: number;
+    seat_count: number;
     created_at: string;
+    owner_email?: string;
 }
