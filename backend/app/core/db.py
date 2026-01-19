@@ -1,7 +1,7 @@
 # FILE: backend/app/core/db.py
-# PHOENIX PROTOCOL - THE FINAL AND DEFINITIVE CORRECTION (PRAGMATIC TYPE ANNIHILATION)
-# CORRECTION: All async motor types have been replaced with 'Any'. This is the
-# definitive and final action to break the unending cycle of Pylance errors.
+# PHOENIX PROTOCOL - DB V2.1 (TYPE SAFETY)
+# 1. FIX: Changed implicit boolean check to explicit 'is not None' to satisfy Pylance.
+# 2. STATUS: Fully synchronous and type-safe.
 
 import pymongo
 import redis
@@ -9,86 +9,76 @@ from pymongo.database import Database
 from pymongo.mongo_client import MongoClient
 from pymongo.errors import ConnectionFailure
 from urllib.parse import urlparse
-from typing import Generator, Tuple, Any, Optional
+from typing import Generator, Tuple
 
 from .config import settings
 
-# --- Synchronous Connection Logic ---
-def _connect_to_mongo() -> Tuple[MongoClient, Database]:
+# --- Global Sync Clients (Initialized during lifespan) ---
+mongo_client: MongoClient | None = None
+db_instance: Database | None = None
+redis_sync_client: redis.Redis | None = None
+
+# --- Connection Management Functions ---
+def connect_to_mongo() -> Tuple[MongoClient, Database]:
+    """Establishes a synchronous connection to MongoDB and returns the client and database."""
+    global mongo_client, db_instance
+    
+    # PHOENIX FIX: Explicit None check for type safety
+    if mongo_client is not None and db_instance is not None:
+        return mongo_client, db_instance
+        
     print("--- [DB] Attempting to connect to Sync MongoDB... ---")
     try:
-        client: MongoClient = pymongo.MongoClient(settings.DATABASE_URI, serverSelectionTimeoutMS=5000)
+        client = pymongo.MongoClient(settings.DATABASE_URI, serverSelectionTimeoutMS=5000)
         client.admin.command('ismaster')
         db_name = urlparse(settings.DATABASE_URI).path.lstrip('/')
         if not db_name:
             raise ValueError("Database name not found in DATABASE_URI.")
-        db: Database = client[db_name]
+        
+        mongo_client = client
+        db_instance = client[db_name]
         print(f"--- [DB] Successfully connected to Sync MongoDB: '{db_name}' ---")
-        return client, db
+        return mongo_client, db_instance
     except (ConnectionFailure, ValueError) as e:
         print(f"--- [DB] CRITICAL: Could not connect to Sync MongoDB: {e} ---")
         raise
 
-def _connect_to_sync_redis() -> redis.Redis:
+def connect_to_redis() -> redis.Redis:
+    """Establishes a synchronous connection to Redis."""
+    global redis_sync_client
+    if redis_sync_client is not None:
+        return redis_sync_client
+
     print("--- [DB] Attempting to connect to Sync Redis... ---")
     try:
         client = redis.from_url(settings.REDIS_URL, decode_responses=True)
         client.ping()
+        redis_sync_client = client
         print(f"--- [DB] Successfully connected to Sync Redis. ---")
-        return client
+        return redis_sync_client
     except redis.ConnectionError as e:
         print(f"--- [DB] CRITICAL: Could not connect to Sync Redis: {e} ---")
         raise
 
-mongo_client, db_instance = _connect_to_mongo()
-redis_sync_client = _connect_to_sync_redis()
-
-# --- Asynchronous Connection Logic ---
-async_mongo_client: Optional[Any] = None
-async_db_instance: Optional[Any] = None
-
-async def connect_to_motor():
-    global async_mongo_client, async_db_instance
-    if async_db_instance: return
-    
-    print("--- [DB] Attempting to connect to Async MongoDB (Motor)... ---")
-    try:
-        from motor.motor_asyncio import AsyncIOMotorClient
-        client = AsyncIOMotorClient(settings.DATABASE_URI, serverSelectionTimeoutMS=5000)
-        await client.admin.command('ismaster')
-        db_name = urlparse(settings.DATABASE_URI).path.lstrip('/')
-        if not db_name:
-            raise ValueError("Database name not found in DATABASE_URI.")
-        
-        async_mongo_client = client
-        async_db_instance = client[db_name]
-        print(f"--- [DB] Successfully connected to Async MongoDB (Motor): '{db_name}' ---")
-    except (ConnectionFailure, ValueError) as e:
-        print(f"--- [DB] CRITICAL: Could not connect to Async MongoDB (Motor): {e} ---")
-        raise
-
-# --- Dependency Providers ---
-def get_db() -> Generator[Database, None, None]:
-    yield db_instance
-
-def get_async_db() -> Generator[Any, None, None]:
-    if async_db_instance is None:
-        raise RuntimeError("Asynchronous database is not connected. Check application lifespan.")
-    yield async_db_instance
-
-def get_redis_client() -> Generator[redis.Redis, None, None]:
-    yield redis_sync_client
-
-# --- Shutdown Logic ---
 def close_mongo_connections():
+    global mongo_client
     if mongo_client:
         mongo_client.close()
         print("--- [DB] Sync MongoDB connection closed. ---")
-    if async_mongo_client:
-        async_mongo_client.close()
-        print("--- [DB] Async MongoDB (Motor) connection closed. ---")
 
 def close_redis_connection():
+    global redis_sync_client
     if redis_sync_client:
         redis_sync_client.close()
         print("--- [DB] Sync Redis connection closed. ---")
+
+# --- Dependency Providers ---
+def get_db() -> Generator[Database, None, None]:
+    if db_instance is None:
+        raise RuntimeError("Database is not connected. Check application lifespan.")
+    yield db_instance
+
+def get_redis_client() -> Generator[redis.Redis, None, None]:
+    if redis_sync_client is None:
+        raise RuntimeError("Redis is not connected. Check application lifespan.")
+    yield redis_sync_client
