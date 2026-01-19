@@ -1,10 +1,11 @@
 # FILE: backend/app/api/endpoints/share.py
-# PHOENIX PROTOCOL - SMART SHARE ENDPOINT
-# 1. FEATURE: Generates Open Graph (OG) Metadata for Social Media Previews.
-# 2. LOGIC: Bots see the Case Card; Humans are redirected to Client Portal.
+# PHOENIX PROTOCOL - SMART SHARE ENDPOINT V2.0 (LANDING FIX)
+# 1. FIX: Added '/landing/preview' endpoint to resolve 404 errors in social media parsers.
+# 2. LOGIC: Redirects to the static PWA icon hosted by the frontend.
+# 3. FEATURE: Retains dynamic case preview logic for bots.
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pymongo.database import Database
 from typing import Optional
 from bson import ObjectId
@@ -16,8 +17,19 @@ router = APIRouter()
 
 # CONFIGURATION
 FRONTEND_URL = "https://juristi.tech"
-API_URL = "https://api.juristi.tech" # Adjust if your API domain is different
+API_URL = "https://api.juristi.tech" 
 
+# --- LANDING PREVIEW (Fixes 404) ---
+@router.get("/landing/preview", include_in_schema=False)
+async def get_landing_preview():
+    """
+    Redirects social media bots to the main high-res application icon.
+    Used by index.html meta tags.
+    """
+    # Points to the static PWA asset served by Vercel/Frontend
+    return RedirectResponse(url=f"{FRONTEND_URL}/pwa-512x512.png")
+
+# --- CASE PREVIEW ---
 @router.get("/{case_id}", response_class=HTMLResponse)
 async def get_smart_share_preview(
     request: Request, 
@@ -32,7 +44,6 @@ async def get_smart_share_preview(
     case_data = case_service.get_public_case_events(db, case_id)
     
     if not case_data:
-        # If case is private or doesn't exist, redirect to home
         return f"""
         <html>
             <head>
@@ -49,21 +60,17 @@ async def get_smart_share_preview(
     status = case_data.get("status", "OPEN").upper()
     org_name = case_data.get("organization_name", "Juristi Portal")
     
-    # 3. Handle Logo URL (Must be Absolute for WhatsApp)
+    # 3. Handle Logo URL
     logo_path = case_data.get("logo")
-    logo_url = f"{FRONTEND_URL}/static/logo.png" # Default fallback
+    logo_url = f"{FRONTEND_URL}/static/logo.png" 
     
     if logo_path:
         if logo_path.startswith("http"):
             logo_url = logo_path
         elif logo_path.startswith("/"):
-            # Construct absolute API URL for the logo
             logo_url = f"{API_URL}{logo_path}"
 
     # 4. Construct the HTML Response
-    # The 'og:' tags are what WhatsApp/Viber read.
-    # The <script> window.location is what redirects the user.
-    
     html_content = f"""
     <!DOCTYPE html>
     <html lang="sq">
@@ -71,7 +78,6 @@ async def get_smart_share_preview(
         <meta charset="UTF-8">
         <title>{title} | {org_name}</title>
         
-        <!-- Open Graph / Facebook / WhatsApp -->
         <meta property="og:type" content="website" />
         <meta property="og:url" content="{FRONTEND_URL}/portal/{case_id}" />
         <meta property="og:title" content="{title} (#{case_number})" />
@@ -80,13 +86,11 @@ async def get_smart_share_preview(
         <meta property="og:image:width" content="300" />
         <meta property="og:image:height" content="300" />
         
-        <!-- Twitter -->
         <meta property="twitter:card" content="summary" />
         <meta property="twitter:title" content="{title} (#{case_number})" />
         <meta property="twitter:description" content="Klient: {client} | Status: {status}" />
         <meta property="twitter:image" content="{logo_url}" />
 
-        <!-- Automatic Redirect for Humans -->
         <script>
             window.location.replace("{FRONTEND_URL}/portal/{case_id}");
         </script>
