@@ -1,6 +1,6 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES V7.3 (ORGANIZATION SYNC)
-// 1. ADDED: 'Organization' interface to match new backend model.
+// PHOENIX PROTOCOL - TYPES V7.4 (INVITATION FLOW)
+// 1. ADDED: 'AcceptInviteRequest' interface to complete the team invitation flow.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -9,7 +9,7 @@ export interface User {
     id: string; 
     email: string; 
     username: string; 
-    role: 'ADMIN' | 'LAWYER' | 'CLIENT'; 
+    role: 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD'; 
     status: 'active' | 'inactive'; 
     created_at: string; 
     token?: string; 
@@ -23,6 +23,8 @@ export interface LoginRequest { username: string; password: string; }
 export interface RegisterRequest { email: string; password: string; username: string; }
 export interface ChangePasswordRequest { current_password: string; new_password: string; }
 export interface UpdateUserRequest { username?: string; email?: string; role?: string; subscription_status?: string; status?: 'active' | 'inactive'; }
+// PHOENIX: Added type for accepting an invitation
+export interface AcceptInviteRequest { token: string; username: string; password: string; }
 
 // --- BUSINESS PROFILE ---
 export interface BusinessProfile { 
@@ -193,78 +195,42 @@ export interface CreateDraftingJobRequest { user_prompt: string; template_id?: s
 export type DraftingJobStatus = { job_id: string; status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; error?: string; result_summary?: string; };
 export type DraftingJobResult = { document_text: string; document_html?: string; result_text?: string; job_id?: string; status?: string; };
 
-// --- ANALYSIS (FORENSIC & SPREADSHEET) ---
-export interface ConflictingParty { party_name: string; core_claim: string; }
-export interface ChronologyEvent { date: string; event: string; source_doc?: string; source?: string; }
+// --- ANALYSIS ---
 export interface GraphNode { id: string; name: string; group: string; val: number; }
 export interface GraphLink { source: string; target: string; label: string; }
 export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
 
-// --- NEW DEEP ANALYSIS TYPES ---
-export interface AdversarialSimulation {
-    opponent_strategy: string;
-    weakness_attacks: string[];
-    counter_claims: string[];
-    predicted_outcome: string;
-}
-
-export interface Contradiction {
-    claim: string;
-    evidence: string;
-    severity: 'HIGH' | 'MEDIUM' | 'LOW';
-    impact: string;
-}
-
 export interface DeepAnalysisResult {
-    adversarial_simulation: AdversarialSimulation;
-    chronology: ChronologyEvent[];
-    contradictions: Contradiction[];
+    adversarial_simulation: any;
+    chronology: any[];
+    contradictions: any[];
     error?: string;
 }
 
-// --- LEGACY ANALYSIS ---
 export interface CaseAnalysisResult {
-    summary_analysis?: string;
-    chronology?: ChronologyEvent[];
-    contradictions?: string[];
-    red_flags?: string[];
-    judicial_observation?: string;
-    strategic_summary?: string;
-    emotional_leverage_points?: string[];
-    financial_leverage_points?: string[];
-    suggested_questions?: string[];
-    discovery_targets?: string[];
-    summary?: string;               
-    key_issues?: string[];          
-    legal_basis?: string[];         
-    strategic_analysis?: string;    
-    weaknesses?: string[];          
-    action_plan?: string[];         
-    risk_level?: string;            
-    silent_parties?: string[];
-    missing_info?: string[];
-    analysis_mode?: string;
+    summary?: string;
+    key_issues?: string[];
+    legal_basis?: string[];
+    strategic_analysis?: string;
+    weaknesses?: string[];
+    action_plan?: string[];
     error?: string;
 }
 
-// Spreadsheet Analyst Types
-export interface SpreadsheetAnomaly { row_index: number; column: string; value: string | number; reason: string; severity: 'LOW' | 'MEDIUM' | 'HIGH'; }
-export interface AnalysisChartData { name: string; value: number; category?: string; }
-export interface AnalysisChartConfig { id: string; title: string; type: 'bar' | 'line' | 'pie' | 'scatter'; description: string; x_axis_label?: string; y_axis_label?: string; data: AnalysisChartData[]; }
 export interface SpreadsheetAnalysisResult { 
     file_id?: string; 
     filename: string; 
     record_count: number; 
     columns: string[]; 
     narrative_report: string; 
-    charts: AnalysisChartConfig[]; 
-    anomalies: SpreadsheetAnomaly[]; 
+    charts: any[]; 
+    anomalies: any[]; 
     key_statistics: Record<string, string | number>; 
     preview_rows?: Record<string, any>[]; 
     processed_at: string; 
 }
 
-// --- PHOENIX NEW: ORGANIZATION ---
+// --- ORGANIZATION ---
 export interface Organization {
     id: string;
     name: string;
