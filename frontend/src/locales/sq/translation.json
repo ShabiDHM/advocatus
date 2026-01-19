@@ -339,10 +339,11 @@
     "clearTitle": "Pastro"
   },
   "business": {
-    "title": "Qendra e Biznesit",
+     "title": "Qendra e Biznesit",
     "subtitle": "Menaxhoni zyrën tuaj.",
     "dashboard": "Pasqyra",
     "profile": "Profili",
+    "team": "Ekipi",
     "finance": "Financat",
     "archive": "Arkiva",
     "totalCases": "Raste Totale",

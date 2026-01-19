@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V11.0 (TEAM INTEGRATION)
-// 1. FEATURE: Added 'Team' tab for Organization Management.
-// 2. LAYOUT: Updated tab grid to support 4 items (Profile, Team, Finance, Archive).
-// 3. LOGIC: Connected TeamTab component.
+// PHOENIX PROTOCOL - BUSINESS PAGE V11.1 (RESPONSIVE TABS)
+// 1. FIX: Correctly applied 'hidden sm:inline' to text labels for mobile view.
+// 2. FIX: Removed hardcoded text abbreviations ('Fin.', 'Arch.').
+// 3. UI: Tabs now correctly show Icon-Only on mobile and Icon+Text on desktop.
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen, Users } from 'lucide-react';
@@ -13,7 +13,6 @@ import { FinanceTab } from '../components/business/FinanceTab';
 import { ArchiveTab } from '../components/business/ArchiveTab';
 import { TeamTab } from '../components/business/TeamTab';
 
-// PHOENIX UPDATE: Added 'team' to allowed tabs
 type ActiveTab = 'profile' | 'team' | 'finance' | 'archive';
 
 const BusinessPage: React.FC = () => {
@@ -29,7 +28,6 @@ const BusinessPage: React.FC = () => {
       .join(' ');
   };
 
-  // Component mapping
   const renderActiveTab = () => {
     switch (activeTab) {
       case 'profile':
@@ -57,7 +55,6 @@ const BusinessPage: React.FC = () => {
             </p>
         </div>
         
-        {/* Tab Switcher - Updated for 4 cols on mobile */}
         <div className="w-full sm:w-auto grid grid-cols-4 sm:flex glass-panel p-1.5 rounded-xl gap-1 sm:gap-0">
             <button 
                 onClick={() => setActiveTab('profile')} 
@@ -66,7 +63,6 @@ const BusinessPage: React.FC = () => {
             >
                 <Building2 size={16} className="sm:w-[18px] sm:h-[18px]" />
                 <span className="truncate hidden sm:inline">{t('business.profile')}</span>
-                <span className="sm:hidden">Profile</span>
             </button>
             <button 
                 onClick={() => setActiveTab('team')} 
@@ -75,7 +71,6 @@ const BusinessPage: React.FC = () => {
             >
                 <Users size={16} className="sm:w-[18px] sm:h-[18px]" />
                 <span className="truncate hidden sm:inline">{t('business.team', 'Team')}</span>
-                <span className="sm:hidden">Team</span>
             </button>
             <button 
                 onClick={() => setActiveTab('finance')} 
@@ -84,7 +79,6 @@ const BusinessPage: React.FC = () => {
             >
                 <FileText size={16} className="sm:w-[18px] sm:h-[18px]" />
                 <span className="truncate hidden sm:inline">{t('business.finance')}</span>
-                <span className="sm:hidden">Fin.</span>
             </button>
             <button 
                 onClick={() => setActiveTab('archive')} 
@@ -93,7 +87,6 @@ const BusinessPage: React.FC = () => {
             >
                 <FolderOpen size={16} className="sm:w-[18px] sm:h-[18px]" />
                 <span className="truncate hidden sm:inline">{t('business.archive')}</span>
-                <span className="sm:hidden">Arch.</span>
             </button>
         </div>
       </div>
