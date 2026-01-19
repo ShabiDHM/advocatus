@@ -1,8 +1,8 @@
 # FILE: backend/app/services/admin_service.py
-# PHOENIX PROTOCOL - ADMIN SERVICE V6.1 (PROMOTION LOGIC)
-# 1. FEATURE: 'update_organization_tier' now auto-creates a BusinessProfile.
-# 2. LOGIC: This ensures upgraded users appear as "Firms" in the dashboard.
-# 3. FIX: Helper methods standardized.
+# PHOENIX PROTOCOL - ADMIN SERVICE V7.0 (FULL MANAGEMENT)
+# 1. FEATURE: 'update_subscription' handles Status + Expiry Date.
+# 2. LOGIC: 'Promote' logic now correctly sets Plan Tier and Seat Limits.
+# 3. STATUS: Backend logic ready for new Dashboard.
 
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
@@ -11,16 +11,11 @@ from pymongo.database import Database
 
 class AdminService:
     
-    # --- ORGANIZATION MANAGEMENT ---
+    # --- DASHBOARD DATA ---
 
     def get_all_organizations(self, db: Database) -> List[Dict[str, Any]]:
         orgs = []
-        # Fetch ALL users who might be organizations (excluding Super Admins if desired, 
-        # but for testing we might want to see everyone)
-        # To see everyone, remove the $match or adjust it.
-        # For now, let's keep Admins hidden from the "Firms" list to avoid clutter,
-        # UNLESS they have a profile.
-        
+        # We fetch users who are effectively "Organization Owners"
         pipeline = [
             {"$lookup": {
                 "from": "business_profiles",
@@ -35,107 +30,122 @@ class AdminService:
         try:
             users = list(db.users.aggregate(pipeline))
         except Exception as e:
-            print(f"Admin Service Error: {e}")
             return []
 
         for user in users:
             if not user: continue
             
-            # PHOENIX LOGIC: Only show as "Organization" if they are TIER_2 OR have a profile
             profile = user.get("profile") or {}
-            sub_status = user.get("subscription_status", "TRIAL")
+            sub_status = user.get("subscription_status", "INACTIVE")
             
-            # Filter: If you want ONLY Tier 2 to show as Orgs:
-            # if sub_status != "ACTIVE" and not profile: continue 
-
-            org_id = user.get("org_id") or user.get("_id")
+            # Use 'subscription_expiry' if available
+            expiry = user.get("subscription_expiry")
             
-            orgs.append({
-                "id": str(org_id),
+            org_data = {
+                "id": str(user.get("_id")),
                 "name": profile.get("firm_name") or profile.get("company_name") or user.get("username", "Unknown"),
-                "plan": "TIER_2" if sub_status == "ACTIVE" else "TIER_1", 
+                "plan": user.get("plan_tier", "SOLO"),
                 "status": sub_status,
+                "expiry": expiry,
                 "created_at": user.get("created_at"),
                 "owner_email": user.get("email"),
-                "seat_limit": 5 if sub_status == "ACTIVE" else 1,
-                "seat_count": 1
-            })
+                "seat_limit": 1 # Default, calculated below
+            }
+            
+            # Determine seat limit based on plan
+            plan = user.get("plan_tier", "SOLO")
+            if plan == "STARTUP": org_data["seat_limit"] = 5
+            elif plan == "GROWTH": org_data["seat_limit"] = 10
+            elif plan == "ENTERPRISE": org_data["seat_limit"] = 50
+            
+            # Determine count
+            org_id = user.get("org_id") or user.get("_id")
+            org_data["seat_count"] = db.users.count_documents({"org_id": org_id})
+            
+            orgs.append(org_data)
             
         return orgs
 
-    def update_organization_tier(self, db: Database, org_id: str, tier: str) -> Optional[Dict[str, Any]]:
-        sub_status = "ACTIVE" if tier == "TIER_2" else "TRIAL"
+    # --- MANAGEMENT ACTIONS ---
+
+    def update_subscription(self, db: Database, user_id: str, status: str, expiry_date: Optional[datetime], plan_tier: Optional[str]) -> bool:
+        """
+        The Master Switch for Admin. Updates Status, Time, and Plan.
+        """
         try:
-            oid = ObjectId(org_id)
+            oid = ObjectId(user_id)
+            update_data = {
+                "subscription_status": status,
+                "updated_at": datetime.now(timezone.utc)
+            }
             
-            # 1. Update User Status
-            result = db.users.update_one(
-                {"_id": oid},
+            if expiry_date:
+                update_data["subscription_expiry"] = expiry_date
+            
+            if plan_tier:
+                update_data["plan_tier"] = plan_tier
+                
+            db.users.update_one({"_id": oid}, {"$set": update_data})
+            return True
+        except Exception as e:
+            print(f"Update Sub Error: {e}")
+            return False
+
+    def promote_to_firm(self, db: Database, user_id: str, firm_name: str, plan: str) -> bool:
+        """
+        Promotes a Solo user to a Firm Owner.
+        1. Updates User Plan Tier.
+        2. Creates/Updates Business Profile.
+        3. Sets User as Org Owner.
+        """
+        try:
+            oid = ObjectId(user_id)
+            
+            # 1. Update User
+            db.users.update_one(
+                {"_id": oid}, 
                 {"$set": {
-                    "subscription_status": sub_status, 
+                    "plan_tier": plan, 
+                    "org_id": oid, # They become their own Org root
+                    "organization_role": "OWNER",
                     "updated_at": datetime.now(timezone.utc)
                 }}
             )
             
-            # 2. PROMOTION LOGIC: If upgrading to TIER_2, ensure Business Profile exists
-            if tier == "TIER_2":
-                existing_profile = db.business_profiles.find_one({"user_id": oid})
-                if not existing_profile:
-                    user = db.users.find_one({"_id": oid})
-                    username = user.get("username", "Law Firm") if user else "Law Firm"
-                    
-                    db.business_profiles.insert_one({
-                        "user_id": oid,
-                        "firm_name": f"{username} Legal", # Default name
-                        "created_at": datetime.now(timezone.utc),
-                        "updated_at": datetime.now(timezone.utc)
-                    })
-
-            # Fetch updated data
-            user = db.users.find_one({"_id": oid})
-            if not user: return None
-            profile = db.business_profiles.find_one({"user_id": oid}) or {}
+            # 2. Update/Create Profile
+            db.business_profiles.update_one(
+                {"user_id": oid},
+                {"$set": {
+                    "firm_name": firm_name,
+                    "updated_at": datetime.now(timezone.utc)
+                }},
+                upsert=True
+            )
             
-            return {
-                "id": str(user["_id"]),
-                "name": profile.get("firm_name") or user.get("username"),
-                "plan": tier,
-                "status": sub_status,
-                "created_at": user.get("created_at"),
-                "owner_email": user.get("email"),
-                "seat_limit": 5 if tier == "TIER_2" else 1,
-                "seat_count": 1
-            }
-        except Exception as e:
-            print(f"Error updating tier: {e}")
-            return None
+            return True
+        except Exception:
+            return False
 
-    # --- LEGACY USER MANAGEMENT ---
-
+    # --- LEGACY METHODS (Preserved for compatibility) ---
     def get_all_users_legacy(self, db: Database) -> List[Any]:
-        users = list(db.users.find({}).sort("created_at", -1))
-        return users
+        return list(db.users.find({}).sort("created_at", -1))
 
     def update_user_details_legacy(self, db: Database, user_id: str, update_data: Any) -> Optional[Any]:
         try:
             oid = ObjectId(user_id)
             data = update_data.model_dump(exclude_unset=True)
-            if not data: return None
-            data["updated_at"] = datetime.now(timezone.utc)
             db.users.update_one({"_id": oid}, {"$set": data})
             return db.users.find_one({"_id": oid})
-        except:
-            return None
+        except: return None
 
     def delete_user_and_data_legacy(self, db: Database, user_id: str) -> bool:
         try:
             oid = ObjectId(user_id)
             db.cases.delete_many({"user_id": oid})
             db.documents.delete_many({"user_id": oid})
-            db.business_profiles.delete_many({"user_id": oid}) # Cleanup profile too
+            db.business_profiles.delete_many({"user_id": oid})
             result = db.users.delete_one({"_id": oid})
             return result.deleted_count > 0
-        except:
-            return False
+        except: return False
 
 admin_service = AdminService()

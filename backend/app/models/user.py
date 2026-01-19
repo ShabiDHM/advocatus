@@ -1,11 +1,10 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - USER MODEL V6.0 (MULTI-TENANT SUPPORT)
-# 1. ADDED: 'org_id' (Optional -> Required later) to link user to Organization.
-# 2. ADDED: 'org_role' to distinguish OWNER vs MEMBER.
-# 3. PRESERVED: Legacy branding fields for backward compatibility during migration.
+# PHOENIX PROTOCOL - USER MODEL V7.0 (SUBSCRIPTION DATES)
+# 1. ADDED: 'subscription_expiry' field to manage SaaS time limits.
+# 2. STATUS: Critical for the new Admin Dashboard logic.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 from .common import PyObjectId
 
@@ -13,16 +12,18 @@ from .common import PyObjectId
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    role: str = "STANDARD" # System Level Role (e.g. SUPER_ADMIN vs USER)
+    role: str = "STANDARD" # ADMIN, LAWYER, CLIENT, STANDARD
     
     # Organization Context
-    org_id: Optional[PyObjectId] = None # The Tenant ID
-    org_role: str = "OWNER"             # OWNER, ADMIN, MEMBER
+    org_id: Optional[PyObjectId] = None 
+    org_role: str = "OWNER"             
     
-    subscription_status: str = "TRIAL"
-    status: str = "inactive"
+    # SaaS Logic
+    subscription_status: str = "INACTIVE" # ACTIVE, INACTIVE, EXPIRED, TRIAL
+    subscription_expiry: Optional[datetime] = None # PHOENIX: Added Date
+    plan_tier: str = "SOLO" # SOLO, STARTUP, GROWTH, ENTERPRISE
     
-    # Legacy / Individual Branding (Kept for Tier 1 compatibility)
+    # Legacy
     organization_name: Optional[str] = None
     logo: Optional[str] = None 
 
@@ -32,25 +33,32 @@ class UserCreate(UserBase):
 
 # Model for updating user details
 class UserUpdate(BaseModel):
+    username: Optional[str] = None
     email: Optional[EmailStr] = None
-    password: Optional[str] = None
     role: Optional[str] = None
     
     org_id: Optional[PyObjectId] = None
     org_role: Optional[str] = None
     
     subscription_status: Optional[str] = None
+    subscription_expiry: Optional[datetime] = None # Admin can update this
+    plan_tier: Optional[str] = None
     status: Optional[str] = None
+    
     organization_name: Optional[str] = None
     logo: Optional[str] = None
 
 # Model stored in DB
 class UserInDB(UserBase):
     id: PyObjectId = Field(alias="_id", default=None)
-    hashed_password: str
+    hashed_password: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     last_login: Optional[datetime] = None
+    
+    # For Invitation Flow
+    invitation_token: Optional[str] = None
+    invitation_token_expiry: Optional[datetime] = None
     
     model_config = ConfigDict(
         populate_by_name=True,
@@ -72,3 +80,11 @@ class UserOut(UserBase):
 class UserLogin(BaseModel):
     username: str
     password: str
+
+# Limits based on Plan Tier
+PLAN_LIMITS = {
+    "SOLO": 1,
+    "STARTUP": 5,
+    "GROWTH": 10,
+    "ENTERPRISE": 50
+}
