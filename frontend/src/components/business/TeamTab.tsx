@@ -1,7 +1,8 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V1.5 (TYPE SAFE PERMISSIONS)
-// 1. FIX: Removed 'as any' cast by using the updated 'User' type.
-// 2. LOGIC: Permission checks are now fully type-safe.
+// PHOENIX PROTOCOL - TEAM TAB V1.6 (RESPONSIVE FIX)
+// 1. FIX: Header card now stacks vertically on mobile ('flex-col') and horizontally on larger screens ('sm:flex-row').
+// 2. UI: Added a 'gap-4' to ensure proper spacing on all screen sizes.
+// 3. STATUS: Mobile view is now clean and functional.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -98,16 +99,16 @@ export const TeamTab: React.FC = () => {
     const availableSeats = MAX_SEATS - usedSeats;
     const progressPercent = (usedSeats / MAX_SEATS) * 100;
 
-    // PHOENIX FIX: Type-safe permission check
     const isCurrentUserOwner = currentUser?.role === 'ADMIN' || currentUser?.organization_role === 'OWNER';
 
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-20">
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 glass-panel rounded-3xl p-8 relative overflow-hidden">
+                <div className="md:col-span-2 glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
-                    <div className="flex justify-between items-start">
+                    {/* PHOENIX FIX: Responsive Flex Container */}
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                         <div>
                             <h2 className="text-2xl font-bold text-white mb-2">{t('team.manageTeam')}</h2>
                             <p className="text-text-secondary text-sm max-w-lg">{t('team.description')}</p>
@@ -116,7 +117,7 @@ export const TeamTab: React.FC = () => {
                             <button 
                                 onClick={() => setShowInviteModal(true)}
                                 disabled={availableSeats <= 0}
-                                className="bg-primary-start/20 hover:bg-primary-start/30 text-primary-300 border border-primary-start/50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="bg-primary-start/20 hover:bg-primary-start/30 text-primary-300 border border-primary-start/50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 w-full sm:w-auto justify-center"
                             >
                                 <UserPlus size={18} /> {t('team.inviteButton')}
                             </button>
