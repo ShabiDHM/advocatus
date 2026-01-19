@@ -1,8 +1,8 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V10.1 (SEQUENTIAL UPDATES)
-// 1. FIX: Enforces sequential execution of 'updateUser' and 'updateSubscription'.
-// 2. LOGIC: Prioritizes subscription update to ensure Plan Tier changes stick.
-// 3. STATUS: Fixes the issue where Plan remains 'SOLO' after edit.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V10.2 (DATA SYNC)
+// 1. FIX: The data merging logic now prioritizes the 'user.plan_tier' field.
+// 2. LOGIC: Ensures that when an Admin promotes a user, the UI correctly reflects the 'STARTUP' plan immediately.
+// 3. STATUS: Final, robust data synchronization.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -46,8 +46,11 @@ const AdminDashboardPage: React.FC = () => {
             
             const mergedUsers: UnifiedAdminUser[] = userData.map((user: any) => {
                 const org = orgData.find(o => o.id === user.id || o.owner_id === user.id);
-                const effectiveTier = (org?.tier === 'TIER_2' || user.plan_tier === 'STARTUP') ? 'TIER_2' : 'TIER_1';
-                const firmDisplayName = org?.name || user.organization_name; 
+                
+                // PHOENIX FIX: Trust the user object's plan_tier as the primary source of truth.
+                const effectivePlan = user.plan_tier || 'SOLO';
+                const effectiveTier = (effectivePlan === 'STARTUP') ? 'TIER_2' : 'TIER_1';
+                const firmDisplayName = org?.name || user.organization_name;
 
                 return {
                     ...user,
@@ -55,7 +58,7 @@ const AdminDashboardPage: React.FC = () => {
                     role: user.role || 'STANDARD',
                     status: user.status || 'inactive',
                     subscription_status: user.subscription_status || 'INACTIVE',
-                    plan_tier: user.plan_tier || 'SOLO',
+                    plan_tier: effectivePlan,
                     organization_role: user.organization_role || 'OWNER',
                     firmName: firmDisplayName, 
                     tier: effectiveTier,
@@ -101,9 +104,6 @@ const AdminDashboardPage: React.FC = () => {
         if (!editingUser?.id) return;
         
         try {
-            // PHOENIX FIX: Run updates sequentially to prevent race conditions.
-            
-            // 1. Update Subscription & Plan FIRST (Critical)
             const subData: SubscriptionUpdate = {
                 status: editForm.subscription_status || 'INACTIVE',
                 plan_tier: editForm.plan_tier,
@@ -111,7 +111,6 @@ const AdminDashboardPage: React.FC = () => {
             };
             await apiService.updateSubscription(editingUser.id, subData);
 
-            // 2. Update Basic Info SECOND
             await apiService.updateUser(editingUser.id, {
                 username: editForm.username,
                 email: editForm.email,
@@ -119,8 +118,7 @@ const AdminDashboardPage: React.FC = () => {
             });
 
             setEditingUser(null);
-            // Small delay to allow DB propagation
-            setTimeout(() => loadAdminData(), 500); 
+            setTimeout(() => loadAdminData(), 200); 
         } catch (error) {
             console.error("Failed to update user", error);
             alert(t('error.generic', 'Ndodhi një gabim.'));
@@ -230,7 +228,7 @@ const AdminDashboardPage: React.FC = () => {
                                         {(user.plan_tier === 'STARTUP' || user.tier === 'TIER_2' || user.firmName) ? (
                                             <div className="flex items-center gap-2">
                                                 <Building2 className="w-4 h-4 text-purple-400" />
-                                                <span className="text-white font-medium">{user.firmName || "Firm (No Name)"}</span>
+                                                <span className="text-white font-medium">{user.firmName || user.username}</span>
                                             </div>
                                         ) : (
                                             <span className="text-xs text-gray-500">Individual</span>
