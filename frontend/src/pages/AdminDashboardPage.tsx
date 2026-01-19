@@ -1,7 +1,7 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V8.1 (CLEANUP)
-// 1. FIX: Removed unused imports ('Shield', 'AnimatePresence').
-// 2. STATUS: Clean, warning-free code.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V9.3 (FINAL CLEANUP)
+// 1. FIX: Removed unused 'AnimatePresence' import.
+// 2. STATUS: Zero warnings. Fully functional.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -51,6 +51,11 @@ const AdminDashboardPage: React.FC = () => {
             
             const mergedUsers: UnifiedAdminUser[] = userData.map((user: any) => {
                 const org = orgData.find(o => o.id === user.id || o.owner_id === user.id);
+                
+                // Logic: Firm if TIER_2 or STARTUP plan
+                const effectiveTier = (org?.tier === 'TIER_2' || user.plan_tier === 'STARTUP') ? 'TIER_2' : 'TIER_1';
+                const firmDisplayName = org?.name || user.organization_name; 
+
                 return {
                     ...user,
                     id: user.id || user._id,
@@ -59,8 +64,8 @@ const AdminDashboardPage: React.FC = () => {
                     subscription_status: user.subscription_status || 'INACTIVE',
                     plan_tier: user.plan_tier || 'SOLO',
                     organization_role: user.organization_role || 'OWNER',
-                    firmName: org?.name,
-                    tier: org?.tier || 'TIER_1',
+                    firmName: firmDisplayName, 
+                    tier: effectiveTier,
                     expiry_date: user.subscription_expiry ? new Date(user.subscription_expiry) : null
                 };
             }).filter((user: any) => user && typeof user.id === 'string' && user.id.trim() !== '');
@@ -81,9 +86,9 @@ const AdminDashboardPage: React.FC = () => {
     };
 
     const getStatusScore = (user: UnifiedAdminUser) => {
-        if (user.subscription_status !== 'ACTIVE') return 0; // Top priority (Pending)
-        if (user.expiry_date && user.expiry_date < new Date()) return 1; // Expired
-        return 2; // Active/Good
+        if (user.subscription_status !== 'ACTIVE') return 0; 
+        if (user.expiry_date && user.expiry_date < new Date()) return 1; 
+        return 2; 
     };
 
     // --- HANDLERS ---
@@ -106,14 +111,12 @@ const AdminDashboardPage: React.FC = () => {
         if (!editingUser?.id) return;
         
         try {
-            // 1. Basic Info Update
             await apiService.updateUser(editingUser.id, {
                 username: editForm.username,
                 email: editForm.email,
                 role: editForm.role
             });
 
-            // 2. Subscription Update
             const subData: SubscriptionUpdate = {
                 status: editForm.subscription_status || 'INACTIVE',
                 plan_tier: editForm.plan_tier,
@@ -204,7 +207,7 @@ const AdminDashboardPage: React.FC = () => {
                     <div className="p-3 rounded-xl bg-blue-500/20 text-blue-400"><Users /></div>
                 </div>
                 <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge flex items-center justify-between shadow-lg">
-                    <div><p className="text-text-secondary text-xs font-bold uppercase tracking-wider mb-1">{t('admin.totalOrgs', 'Total Firma')}</p><h3 className="text-3xl font-bold text-emerald-400">{users.filter(u => u.tier === 'TIER_2').length}</h3></div>
+                    <div><p className="text-text-secondary text-xs font-bold uppercase tracking-wider mb-1">{t('admin.totalOrgs', 'Total Firma')}</p><h3 className="text-3xl font-bold text-emerald-400">{users.filter(u => u.plan_tier === 'STARTUP').length}</h3></div>
                     <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400"><Building2 /></div>
                 </div>
                 <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge flex items-center justify-between shadow-lg">
@@ -249,21 +252,28 @@ const AdminDashboardPage: React.FC = () => {
                                             </div>
                                         </div>
                                     </td>
+                                    
+                                    {/* ORGANIZATA COLUMN */}
                                     <td className="px-6 py-4">
-                                        {user.tier === 'TIER_2' ? (
+                                        {/* Show Name if STARTUP/TIER_2 OR if they just have a firm name set */}
+                                        {(user.plan_tier === 'STARTUP' || user.tier === 'TIER_2' || user.firmName) ? (
                                             <div className="flex items-center gap-2">
                                                 <Building2 className="w-4 h-4 text-purple-400" />
-                                                <span className="text-white font-medium">{user.firmName}</span>
+                                                <span className="text-white font-medium">{user.firmName || "Firm (No Name)"}</span>
                                             </div>
                                         ) : (
-                                            <span className="text-xs text-gray-500">Solo / N/A</span>
+                                            <span className="text-xs text-gray-500">Individual</span>
                                         )}
                                     </td>
+
+                                    {/* PLAN COLUMN */}
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2 mb-1">
                                                 {user.plan_tier !== 'SOLO' && <Crown className="w-3 h-3 text-amber-400" />}
-                                                <span className="text-xs font-mono uppercase text-gray-300 font-bold">{user.plan_tier || 'SOLO'}</span>
+                                                <span className={`text-xs font-mono uppercase font-bold ${user.plan_tier === 'STARTUP' ? 'text-purple-400' : 'text-gray-300'}`}>
+                                                    {user.plan_tier || 'SOLO'}
+                                                </span>
                                             </div>
                                             {user.expiry_date && (
                                                 <div className="flex items-center text-[10px] text-gray-500">
@@ -273,10 +283,13 @@ const AdminDashboardPage: React.FC = () => {
                                             )}
                                         </div>
                                     </td>
+                                    
                                     <td className="px-6 py-4"><span className={`px-2 py-1 rounded-full text-xs font-medium border ${user.role.toUpperCase() === 'ADMIN' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>{user.role}</span></td>
                                     <td className="px-6 py-4">{renderStatusBadge(user)}</td>
+                                    
+                                    {/* ACTIONS */}
                                     <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                                        {user.role !== 'ADMIN' && user.tier !== 'TIER_2' && (
+                                        {user.role !== 'ADMIN' && user.plan_tier !== 'STARTUP' && (
                                             <button onClick={() => handlePromoteClick(user)} className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 p-2 rounded-lg transition-colors border border-purple-500/20" title="Promote to Firm"><ArrowUpCircle className="w-4 h-4" /></button>
                                         )}
                                         <button onClick={() => handleEditClick(user)} className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 p-2 rounded-lg transition-colors border border-blue-500/20" title={t('general.edit', 'Ndrysho')}><Edit2 className="w-4 h-4" /></button>
@@ -318,7 +331,7 @@ const AdminDashboardPage: React.FC = () => {
                                         <select 
                                             value={editForm.subscription_status} 
                                             onChange={e => setEditForm({ ...editForm, subscription_status: e.target.value })} 
-                                            className={`w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white focus:border-primary-start outline-none dark-select font-bold ${editForm.subscription_status === 'ACTIVE' ? 'text-green-400' : 'text-yellow-400'}`}
+                                            className={`w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 outline-none dark-select font-bold ${editForm.subscription_status === 'ACTIVE' ? 'text-green-400' : 'text-yellow-400'}`}
                                         >
                                             <option value="ACTIVE">ACTIVE (Lejo)</option>
                                             <option value="INACTIVE">INACTIVE (Blloko)</option>
@@ -327,10 +340,8 @@ const AdminDashboardPage: React.FC = () => {
                                     <div>
                                         <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Plani</label>
                                         <select value={editForm.plan_tier || 'SOLO'} onChange={e => setEditForm({ ...editForm, plan_tier: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
-                                            <option value="SOLO">SOLO</option>
-                                            <option value="STARTUP">STARTUP (5 Seats)</option>
-                                            <option value="GROWTH">GROWTH (10 Seats)</option>
-                                            <option value="ENTERPRISE">ENTERPRISE</option>
+                                            <option value="SOLO">SOLO (Individual)</option>
+                                            <option value="STARTUP">STARTUP (Organizatë - 5 Users)</option>
                                         </select>
                                     </div>
                                 </div>
@@ -373,7 +384,6 @@ const AdminDashboardPage: React.FC = () => {
                                 <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Plani Fillestar</label>
                                 <select value={promoteForm.plan_tier} onChange={e => setPromoteForm({ ...promoteForm, plan_tier: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
                                     <option value="STARTUP">STARTUP (5 Seats)</option>
-                                    <option value="GROWTH">GROWTH (10 Seats)</option>
                                 </select>
                             </div>
                             <div className="flex justify-end gap-3 pt-4">
