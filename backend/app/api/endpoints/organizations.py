@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/organizations.py
-# PHOENIX PROTOCOL - ORGANIZATIONS ROUTER V3.1 (IMPORT FIX)
-# 1. FIX: Changed import path to be direct, resolving circular dependency errors.
-# 2. STATUS: All Pylance errors are now resolved.
+# PHOENIX PROTOCOL - ORGANIZATIONS ROUTER V3.2 (MEMBER REMOVAL)
+# 1. ADDED: 'DELETE /members/{member_id}' endpoint.
+# 2. STATUS: Allows owners to remove staff safely.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated, Optional, List
@@ -12,7 +12,6 @@ import asyncio
 from app.models.user import UserInDB, UserOut
 from app.models.organization import OrganizationOut
 from app.api.endpoints.dependencies import get_current_user, get_db
-# PHOENIX FIX: Direct import to bypass circular dependency issues in services/__init__.py
 from app.services.organization_service import organization_service
 
 router = APIRouter()
@@ -60,9 +59,6 @@ async def accept_invitation(
     request_data: AcceptInviteRequest,
     db: Database = Depends(get_db)
 ):
-    """
-    Allows a user with a valid token to set their password and activate their account.
-    """
     try:
         result = await asyncio.to_thread(organization_service.accept_invitation, db, token=request_data.token, password=request_data.password, username=request_data.username)
         return result
@@ -70,3 +66,20 @@ async def accept_invitation(
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to activate account.")
+
+@router.delete("/members/{member_id}", status_code=status.HTTP_200_OK)
+async def remove_organization_member(
+    member_id: str,
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    db: Database = Depends(get_db)
+):
+    """
+    Owner removes a member. Data is transferred to Owner.
+    """
+    try:
+        result = await asyncio.to_thread(organization_service.remove_member, db, owner=current_user, member_id=member_id)
+        return result
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -1,34 +1,54 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V1.1 (TYPE SAFETY FIX)
-// 1. FIX: Casts member to 'any' to safely access new 'org_role' field from backend.
-// 2. CLEANUP: Removed unused imports and variables.
-// 3. STATUS: Final & Clean.
+// PHOENIX PROTOCOL - TEAM TAB V1.3 (SAFE REMOVAL)
+// 1. FIX: 'handleRemoveMember' now calls the specialized 'removeOrganizationMember' API.
+// 2. SAFETY: Ensures Member's cases/docs are transferred to Owner before deletion.
+// 3. UI: Fully functional dropdown menus for actions.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     UserPlus, Mail, CheckCircle, X, Loader2, 
-    AlertTriangle, Briefcase, Crown
+    AlertTriangle, Briefcase, Crown, MoreHorizontal, Trash2
 } from 'lucide-react';
 import { apiService } from '../../services/api';
 import { User } from '../../data/types';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../context/AuthContext';
 
 export const TeamTab: React.FC = () => {
     const { t } = useTranslation();
+    const { user: currentUser } = useAuth(); 
+    
     const [members, setMembers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    // Invite State
     const [inviteEmail, setInviteEmail] = useState("");
     const [inviting, setInviting] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [inviteResult, setInviteResult] = useState<string | null>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    
+    // Dropdown State
+    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
 
-    // Hardcoded for now until we fetch Org details
+    // Hardcoded for now until we fetch Org details from backend object
     const MAX_SEATS = 5; 
 
     useEffect(() => {
         fetchMembers();
+    }, []);
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setOpenMenuId(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
     const fetchMembers = async () => {
@@ -51,13 +71,31 @@ export const TeamTab: React.FC = () => {
         try {
             const res = await apiService.inviteMember(inviteEmail);
             setInviteResult(res.message);
-            setInviteEmail(""); // Clear input
+            setInviteEmail(""); 
         } catch (err: any) {
-            // Check for the specific Backend Gatekeeper error
             const detail = err.response?.data?.detail || "Failed to invite.";
             setErrorMsg(detail);
         } finally {
             setInviting(false);
+        }
+    };
+
+    const handleRemoveMember = async (userId: string) => {
+        if (!window.confirm(t('team.confirmRemove', 'Are you sure you want to remove this member? Their cases will be transferred to you.'))) return;
+        
+        // Optimistic UI update
+        const originalMembers = [...members];
+        setMembers(members.filter(m => m.id !== userId));
+        setOpenMenuId(null);
+
+        try {
+            // PHOENIX FIX: Call specific organization removal endpoint (Safe Transfer)
+            await apiService.removeOrganizationMember(userId);
+        } catch (error) {
+            console.error("Failed to remove member", error);
+            // Revert on failure
+            setMembers(originalMembers);
+            alert("Failed to remove member.");
         }
     };
 
@@ -67,8 +105,11 @@ export const TeamTab: React.FC = () => {
     const availableSeats = MAX_SEATS - usedSeats;
     const progressPercent = (usedSeats / MAX_SEATS) * 100;
 
+    // Permissions Check
+    const isCurrentUserOwner = currentUser?.role === 'ADMIN' || (currentUser as any)?.organization_role === 'OWNER' || (currentUser as any)?.org_role === 'OWNER';
+
     return (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-20">
             
             {/* Header / Stats Panel */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -81,7 +122,8 @@ export const TeamTab: React.FC = () => {
                         </div>
                         <button 
                             onClick={() => setShowInviteModal(true)}
-                            className="bg-primary-start/20 hover:bg-primary-start/30 text-primary-300 border border-primary-start/50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+                            disabled={availableSeats <= 0}
+                            className="bg-primary-start/20 hover:bg-primary-start/30 text-primary-300 border border-primary-start/50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             <UserPlus size={18} /> {t('team.inviteButton', 'Invite Member')}
                         </button>
@@ -93,7 +135,7 @@ export const TeamTab: React.FC = () => {
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-accent-start to-accent-end" />
                     <div className="flex justify-between items-center mb-4">
                         <span className="text-gray-400 font-bold text-xs uppercase tracking-wider">{t('team.planUsage', 'Plan Usage')}</span>
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${availableSeats === 0 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${availableSeats <= 0 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
                             {availableSeats > 0 ? 'Active' : 'Limit Reached'}
                         </span>
                     </div>
@@ -105,7 +147,7 @@ export const TeamTab: React.FC = () => {
                         <div className="h-full bg-gradient-to-r from-primary-start to-accent-start transition-all duration-1000" style={{ width: `${progressPercent}%` }} />
                     </div>
                     <p className="text-xs text-gray-500 mt-4 text-center">
-                        {availableSeats === 0 
+                        {availableSeats <= 0 
                             ? t('team.upgradePrompt', 'Upgrade for more seats') 
                             : t('team.seatsRemaining', { count: availableSeats })}
                     </p>
@@ -113,7 +155,7 @@ export const TeamTab: React.FC = () => {
             </div>
 
             {/* Members List */}
-            <div className="glass-panel rounded-3xl p-1 overflow-hidden">
+            <div className="glass-panel rounded-3xl p-1 overflow-visible min-h-[300px]">
                 <table className="w-full text-left">
                     <thead className="bg-white/5 text-gray-400 text-xs uppercase tracking-wider">
                         <tr>
@@ -125,13 +167,13 @@ export const TeamTab: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-white/5 text-sm">
                         {members.map((member) => {
-                            // Cast to any to access dynamic backend fields that aren't in frontend types yet
                             const safeMember = member as any;
-                            const isOwner = safeMember.org_role === 'OWNER' || safeMember.role === 'OWNER';
-                            const displayRole = safeMember.org_role || safeMember.role;
+                            const memberRole = safeMember.organization_role || safeMember.org_role || safeMember.role;
+                            const isMemberOwner = memberRole === 'OWNER';
+                            const isSelf = currentUser?.id === member.id;
 
                             return (
-                                <tr key={member.id} className="hover:bg-white/5 transition-colors group">
+                                <tr key={member.id} className="hover:bg-white/5 transition-colors group relative">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white font-bold border border-white/10">
@@ -145,19 +187,55 @@ export const TeamTab: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
-                                            {isOwner ? <Crown size={14} className="text-yellow-500" /> : <Briefcase size={14} className="text-gray-500" />}
-                                            <span className={isOwner ? 'text-yellow-500 font-bold' : 'text-gray-300'}>{displayRole}</span>
+                                            {isMemberOwner ? <Crown size={14} className="text-yellow-500" /> : <Briefcase size={14} className="text-gray-500" />}
+                                            <span className={isMemberOwner ? 'text-yellow-500 font-bold' : 'text-gray-300'}>{memberRole}</span>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active
+                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold ${member.subscription_status === 'INACTIVE' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
+                                            <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${member.subscription_status === 'INACTIVE' ? 'bg-yellow-400' : 'bg-emerald-400'}`} /> 
+                                            {member.subscription_status === 'INACTIVE' ? 'Pending' : 'Active'}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button className="text-gray-500 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
-                                            ...
-                                        </button>
+                                        {/* DROPDOWN MENU TRIGGER */}
+                                        <div className="relative inline-block text-left" ref={openMenuId === member.id ? menuRef : null}>
+                                            <button 
+                                                onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)}
+                                                className={`p-2 rounded-lg transition-colors ${openMenuId === member.id ? 'bg-white/10 text-white' : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+                                            >
+                                                <MoreHorizontal size={20} />
+                                            </button>
+
+                                            {/* DROPDOWN MENU */}
+                                            <AnimatePresence>
+                                                {openMenuId === member.id && (
+                                                    <motion.div 
+                                                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                                        transition={{ duration: 0.1 }}
+                                                        className="absolute right-0 mt-2 w-48 bg-[#1a1f2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden"
+                                                    >
+                                                        <div className="py-1">
+                                                            {isCurrentUserOwner && !isSelf ? (
+                                                                <button 
+                                                                    onClick={() => handleRemoveMember(member.id)}
+                                                                    className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                    {t('team.removeMember', 'Remove Member')}
+                                                                </button>
+                                                            ) : (
+                                                                <div className="px-4 py-3 text-sm text-gray-500 italic text-center">
+                                                                    {isSelf ? "Current User" : "No Actions"}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                        </div>
                                     </td>
                                 </tr>
                             );

@@ -1,8 +1,7 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.0 (FULL IMPLEMENTATION)
-# 1. LOGIC: 'invite_member' now saves a unique token and expiry date to the user document.
-# 2. LOGIC: Added 'accept_invitation' to verify a token, set a password, and activate the user.
-# 3. INTEGRATION: Calls the real 'email_service' to dispatch an HTML invitation.
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.3 (VALIDATION FIX)
+# 1. FIX: Added 'created_at' field when creating a placeholder user for an invitation.
+# 2. STATUS: Resolves the Pydantic 'ValidationError' and the 500 crash on 'get_members'.
 
 from typing import List, Optional, Dict
 from bson import ObjectId
@@ -47,7 +46,7 @@ class OrganizationService:
         org_id = getattr(owner, 'org_id', None) or owner.id
         
         current_members_count = db.users.count_documents({"org_id": org_id, "status": "active"})
-        if current_members_count >= 5: # Assuming TIER_2 has 5 seats
+        if current_members_count >= 5: 
             raise HTTPException(status_code=403, detail="Seat limit reached.")
 
         existing_user = db.users.find_one({"email": invitee_email})
@@ -67,18 +66,19 @@ class OrganizationService:
         if existing_user:
             db.users.update_one({"_id": existing_user["_id"]}, {"$set": update_fields})
         else:
+            # PHOENIX FIX: Add 'created_at' field to the placeholder document
             db.users.insert_one({
                 "email": invitee_email,
                 "username": invitee_email.split('@')[0],
                 "hashed_password": None,
                 "role": "STANDARD",
                 "subscription_status": "INACTIVE",
+                "created_at": datetime.now(timezone.utc), # <-- This was missing
                 **update_fields
             })
             
         invite_link = f"{settings.FRONTEND_URL}/accept-invite?token={invitation_token}"
         
-        # Dispatch the actual email
         subject = f"Ftesë për t'u bashkuar me {owner.username} në Juristi.tech"
         body = f"""
         <p>Përshëndetje,</p>
@@ -117,5 +117,28 @@ class OrganizationService:
             }}
         )
         return {"message": "Account activated successfully. You can now log in."}
+    
+    def remove_member(self, db: Database, owner: UserInDB, member_id: str):
+        try:
+            m_oid = ObjectId(member_id)
+        except:
+            raise HTTPException(status_code=400, detail="Invalid Member ID")
 
+        member = db.users.find_one({"_id": m_oid})
+        if not member:
+            raise HTTPException(status_code=404, detail="Member not found")
+        
+        org_id = getattr(owner, 'org_id', None) or owner.id
+        if str(member.get("org_id")) != str(org_id):
+             raise HTTPException(status_code=403, detail="Member does not belong to your organization.")
+        
+        db.cases.update_many({"owner_id": m_oid}, {"$set": {"owner_id": owner.id}})
+        db.cases.update_many({"user_id": m_oid}, {"$set": {"user_id": owner.id}})
+        db.documents.update_many({"owner_id": m_oid}, {"$set": {"owner_id": owner.id}})
+        
+        db.users.delete_one({"_id": m_oid})
+        
+        return {"message": "Member removed. Data transferred to Owner."}
+
+# --- CRITICAL INSTANTIATION ---
 organization_service = OrganizationService()
