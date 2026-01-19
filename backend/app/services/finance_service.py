@@ -1,7 +1,8 @@
 # FILE: backend/app/services/finance_service.py
-# PHOENIX PROTOCOL - FINANCE LOGIC V6.3 (SAFE IMPORTS)
-# 1. FIX: Changed import strategy to 'import app.services.llm_service as llm_service' to avoid Pylance errors.
-# 2. LOGIC: Smart JSON processing maintained.
+# PHOENIX PROTOCOL - FINANCE SERVICE V7.0 (SYNC ARCHITECTURE)
+# 1. FIX: Converted 'get_monthly_pos_revenue' to use synchronous PyMongo aggregation.
+# 2. FIX: Converted 'generate_ai_report' to sync.
+# 3. STATUS: Fully compatible with the unified synchronous DB architecture.
 
 import structlog
 import json
@@ -15,7 +16,6 @@ from app.models.finance import (
     InvoiceCreate, InvoiceInDB, InvoiceUpdate, 
     ExpenseCreate, ExpenseInDB, ExpenseUpdate
 )
-# SAFE IMPORT: Importing the module prevents "unknown symbol" if circular refs exist
 import app.services.llm_service as llm_service
 from app.services.storage_service import upload_file_raw
 
@@ -27,7 +27,10 @@ class FinanceService:
 
     # --- ANALYTICS & AI ---
 
-    async def get_monthly_pos_revenue(self, async_db: Any, user_id: str, month: int, year: int) -> float:
+    def get_monthly_pos_revenue(self, db: Database, user_id: str, month: int, year: int) -> float:
+        """
+        Synchronous calculation of POS revenue using PyMongo.
+        """
         try:
             start_date = datetime(year, month, 1)
             if month == 12:
@@ -50,7 +53,9 @@ class FinanceService:
                 }
             ]
 
-            result = await async_db["transactions"].aggregate(pipeline).to_list(length=1)
+            # Sync aggregation
+            result = list(db["transactions"].aggregate(pipeline))
+            
             if result:
                 return float(result[0]["total_revenue"])
             return 0.0
@@ -58,16 +63,17 @@ class FinanceService:
             logger.error(f"Error calculating POS revenue: {e}")
             return 0.0
 
-    async def generate_ai_report(self, user_id: str, async_db: Any) -> Dict[str, Any]:
+    def generate_ai_report(self, user_id: str, db: Database) -> Dict[str, Any]:
         """
-        Aggregates data and asks the Forensic Accountant for a JSON report.
+        Aggregates data and asks the Forensic Accountant for a JSON report (Sync).
         """
         try:
             invoices = list(self.db.invoices.find({"user_id": ObjectId(user_id)}).sort("issue_date", -1).limit(30))
             expenses = list(self.db.expenses.find({"user_id": ObjectId(user_id)}).sort("date", -1).limit(30))
             
             now = datetime.now()
-            pos_revenue = await self.get_monthly_pos_revenue(async_db, user_id, now.month, now.year)
+            # Sync call
+            pos_revenue = self.get_monthly_pos_revenue(db, user_id, now.month, now.year)
 
             financial_snapshot = {
                 "report_period": now.strftime("%B %Y"),
@@ -96,8 +102,6 @@ class FinanceService:
             }
 
             json_context = json.dumps(financial_snapshot, default=str)
-            
-            # SAFE CALL: Using module.function syntax
             ai_report_json = llm_service.analyze_financial_portfolio(json_context)
             
             return ai_report_json

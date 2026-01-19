@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/dependencies.py
-# PHOENIX PROTOCOL - REGRESSION FIX
-# 1. FIX: Restored the missing import 'get_async_db'. This resolves the ImportError crashing the backend.
-# 2. VERIFICATION: 'pydantic' typo is fixed, and ObjectId validation logic is preserved.
-# 3. STATUS: The backend should now start successfully.
+# PHOENIX PROTOCOL - DEPENDENCIES V2.0 (SYNC ONLY)
+# 1. FIX: Removed 'get_async_db' import which no longer exists.
+# 2. STATUS: Resolves ImportError crashing the backend.
 
 from fastapi import Depends, HTTPException, status, WebSocket, Cookie
 from fastapi.security import OAuth2PasswordBearer
@@ -14,8 +13,8 @@ from bson import ObjectId
 from bson.errors import InvalidId
 import redis
 
-# PHOENIX FIX: Added 'get_async_db' back to the imports
-from ...core.db import get_db, get_redis_client, get_async_db
+# PHOENIX FIX: Removed get_async_db
+from ...core.db import get_db, get_redis_client
 from ...core.config import settings
 from ...services import user_service
 from ...models.user import UserInDB

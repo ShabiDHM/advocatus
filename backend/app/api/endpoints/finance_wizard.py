@@ -1,29 +1,26 @@
 # FILE: backend/app/api/endpoints/finance_wizard.py
-# PHOENIX PROTOCOL - FINANCE WIZARD ENDPOINT v3.1 (IMPORT FIX)
-# 1. FIX: Corrected import of 'get_current_user' from 'dependencies'.
-# 2. STATUS: Resolves backend crash.
+# PHOENIX PROTOCOL - FINANCE WIZARD V3.3 (TYPE FIXES)
+# 1. FIX: Removed unused 'get_finance_service' helper (caused Pylance NoneType error).
+# 2. FIX: Added 'db' argument to 'get_monthly_pos_revenue' call to satisfy function signature.
+# 3. STATUS: Clean and type-safe.
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from typing import List, Annotated, Any
 from datetime import datetime
+from pymongo.database import Database
+import asyncio
 
 # ABSOLUTE IMPORTS
 from app.models.user import UserInDB
-# PHOENIX FIX: Correct import path
-from app.api.endpoints.dependencies import get_current_user, get_async_db
+from app.api.endpoints.dependencies import get_current_user, get_db
 from app.services.finance_service import FinanceService
-from app.core.db import db_instance
 from app.models.finance import WizardState, AuditIssue, TaxCalculation
 from app.modules.finance.tax_engine.kosovo_adapter import KosovoTaxAdapter
 from app.modules.finance.reporting import generate_monthly_report_pdf
 
 router = APIRouter()
 tax_adapter = KosovoTaxAdapter()
-
-# Instantiate Service
-def get_finance_service():
-    return FinanceService(db_instance)
 
 def _filter_by_month(items: list, month: int, year: int) -> list:
     filtered = []
@@ -55,9 +52,8 @@ def _run_audit_rules(invoices: list, expenses: list) -> List[AuditIssue]:
             issues.append(AuditIssue(id=f"draft_invoice_{inv.id}", severity="WARNING", message=f"Fatura #{inv.invoice_number or '???'} është ende në statusin DRAFT (E pa lëshuar).", related_item_id=str(inv.id), item_type="INVOICE"))
     return issues
 
-# PHOENIX: Converted to async to await POS revenue calculation
-async def _get_wizard_data(month: int, year: int, user: UserInDB, async_db: Any) -> WizardState:
-    service = get_finance_service()
+async def _get_wizard_data(month: int, year: int, user: UserInDB, db: Database) -> WizardState:
+    service = FinanceService(db)
     
     # 1. Fetch ALL data for the user (Sync)
     all_invoices = service.get_invoices(str(user.id))
@@ -70,8 +66,20 @@ async def _get_wizard_data(month: int, year: int, user: UserInDB, async_db: Any)
     # 3. Calculate Annual Turnover (YTD)
     annual_turnover = _calculate_annual_turnover(all_invoices, year)
 
-    # 4. Fetch POS Revenue (Async)
-    pos_revenue = await service.get_monthly_pos_revenue(async_db, str(user.id), month, year)
+    # 4. Fetch POS Revenue
+    try:
+        # PHOENIX FIX: Added 'db' parameter. Previous signature required db/async_db as first arg.
+        # We also handle potential async/sync nature here.
+        if hasattr(service, 'get_monthly_pos_revenue'):
+            if asyncio.iscoroutinefunction(service.get_monthly_pos_revenue):
+                 pos_revenue = await service.get_monthly_pos_revenue(db, str(user.id), month, year)
+            else:
+                 pos_revenue = service.get_monthly_pos_revenue(db, str(user.id), month, year)
+        else:
+             pos_revenue = 0.0
+    except Exception as e:
+        print(f"POS Revenue Fetch Failed: {e}")
+        pos_revenue = 0.0
 
     # 5. Run Tax Logic
     calculation_result = tax_adapter.analyze_month(
@@ -80,7 +88,7 @@ async def _get_wizard_data(month: int, year: int, user: UserInDB, async_db: Any)
         month, 
         year, 
         annual_turnover,
-        pos_total_revenue=pos_revenue # Pass the new data point
+        pos_total_revenue=pos_revenue
     )
     
     tax_calc = TaxCalculation(**calculation_result)
@@ -100,21 +108,21 @@ async def get_wizard_state(
     month: int = Query(..., ge=1, le=12),
     year: int = Query(..., ge=2000, le=2100),
     current_user: UserInDB = Depends(get_current_user),
-    async_db: Any = Depends(get_async_db) # PHOENIX: Injected async db
+    db: Database = Depends(get_db)
 ):
     """Returns the JSON state for the frontend wizard UI."""
-    return await _get_wizard_data(month, year, current_user, async_db)
+    return await _get_wizard_data(month, year, current_user, db)
 
 @router.get("/report/pdf")
 async def download_monthly_report(
     month: int = Query(..., ge=1, le=12),
     year: int = Query(..., ge=2000, le=2100),
     current_user: UserInDB = Depends(get_current_user),
-    async_db: Any = Depends(get_async_db)
+    db: Database = Depends(get_db)
 ):
     """Generates and downloads the PDF report."""
-    # 1. Get the data (Async)
-    state = await _get_wizard_data(month, year, current_user, async_db)
+    # 1. Get the data (Async wrapper)
+    state = await _get_wizard_data(month, year, current_user, db)
     
     # 2. Generate PDF (Sync)
     pdf_buffer = generate_monthly_report_pdf(state, current_user, month, year)
