@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/chat.py
-# PHOENIX PROTOCOL - CHAT ROUTER V6.0 (MODE SUPPORT)
-# 1. FEAT: Added 'mode' field to ChatMessageRequest ('FAST' | 'DEEP').
-# 2. DEFAULT: Defaults to 'FAST' for responsiveness.
+# PHOENIX PROTOCOL - CHAT ROUTER V6.1 (SYNC DB ADAPTER)
+# 1. FIX: Removed 'get_async_db' import. Uses 'get_db' (Sync).
+# 2. STATUS: Resolves backend startup crash.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from typing import Annotated, Any, Optional
@@ -9,10 +9,12 @@ from pydantic import BaseModel
 import json
 import logging
 from bson import ObjectId
+from pymongo.database import Database
+
 from app.services import chat_service
 from app.models.user import UserInDB
-from app.api.endpoints.dependencies import get_current_active_user
-from app.core.db import get_async_db, redis_sync_client
+from app.api.endpoints.dependencies import get_current_active_user, get_db, get_redis_client
+import redis
 
 router = APIRouter(tags=["Chat"])
 logger = logging.getLogger(__name__)
@@ -21,7 +23,7 @@ class ChatMessageRequest(BaseModel):
     message: str
     document_id: Optional[str] = None
     jurisdiction: Optional[str] = 'ks'
-    mode: Optional[str] = "FAST" # Options: FAST, DEEP
+    mode: Optional[str] = "FAST"
 
 class ChatResponse(BaseModel):
     response: str
@@ -31,7 +33,8 @@ async def handle_chat_message(
     case_id: str, 
     chat_request: ChatMessageRequest, 
     current_user: Annotated[UserInDB, Depends(get_current_active_user)], 
-    db: Any = Depends(get_async_db)
+    db: Database = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis_client)
 ):
     """
     Sends a message to the AI Case Chat.
@@ -39,13 +42,8 @@ async def handle_chat_message(
     if not chat_request.message: 
         raise HTTPException(status_code=400, detail="Empty message")
         
-    scope_log = f"Document {chat_request.document_id}" if chat_request.document_id else "Full Case"
-    jur_log = chat_request.jurisdiction.upper() if chat_request.jurisdiction else 'KS'
-    mode_log = chat_request.mode.upper() if chat_request.mode else 'FAST'
-    
-    logger.info(f"📨 API Recv: Chat from User {current_user.id} [Scope: {scope_log}] [Mode: {mode_log}]")
-
     try:
+        # PHOENIX: Pass Sync DB. Service must handle it synchronously.
         response_text = await chat_service.get_http_chat_response(
             db=db, 
             case_id=case_id, 
@@ -53,9 +51,10 @@ async def handle_chat_message(
             user_id=str(current_user.id),
             document_id=chat_request.document_id,
             jurisdiction=chat_request.jurisdiction,
-            mode=chat_request.mode # Passing mode down
+            mode=chat_request.mode
         )
         
+        # Publish to Redis (Sync client)
         try:
             channel = f"user:{current_user.id}:updates"
             payload = {
@@ -65,7 +64,7 @@ async def handle_chat_message(
                 "document_id": chat_request.document_id,
                 "jurisdiction": chat_request.jurisdiction
             }
-            redis_sync_client.publish(channel, json.dumps(payload))
+            redis_client.publish(channel, json.dumps(payload))
         except Exception as e:
             logger.warning(f"SSE Publish failed: {e}")
             
@@ -73,18 +72,19 @@ async def handle_chat_message(
         
     except HTTPException as he:
         raise he
-    except TypeError as te:
-        logger.error(f"Service Layer Signature Mismatch: {te}")
-        raise HTTPException(status_code=500, detail="Server update pending: Chat Service signature mismatch.")
     except Exception as e:
         logger.error(f"Unhandled Chat API Error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/case/{case_id}/history", status_code=status.HTTP_204_NO_CONTENT)
-async def clear_chat_history(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_active_user)], db: Any = Depends(get_async_db)):
+def clear_chat_history(
+    case_id: str, 
+    current_user: Annotated[UserInDB, Depends(get_current_active_user)], 
+    db: Database = Depends(get_db)
+):
     try:
-        case_collection = db.cases
-        result = await case_collection.update_one(
+        # Sync DB operation
+        result = db.cases.update_one(
             {"_id": ObjectId(case_id), "owner_id": current_user.id},
             {"$set": {"chat_history": []}}
         )

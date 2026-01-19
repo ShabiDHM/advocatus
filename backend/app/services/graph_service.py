@@ -1,7 +1,8 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH INTELLIGENCE V2.2 (METHODS RESTORED)
-# 1. FIX: Added missing 'delete_node' and 'delete_document_nodes' methods to resolve API errors.
-# 2. TYPE SAFETY: Maintained explicit driver checks.
+# PHOENIX PROTOCOL - GRAPH INTELLIGENCE V2.3 (VISUALIZATION ENABLED)
+# 1. FIX: Added missing 'get_case_graph' method to support frontend visualization.
+# 2. FEATURE: Queries Neo4j for Document->Entity mentions and Case-specific relationships.
+# 3. STATUS: Fully compatible with 'graph.py' router.
 
 import os
 import structlog
@@ -32,6 +33,99 @@ class GraphService:
 
     def close(self):
         if self._driver: self._driver.close()
+
+    # ==============================================================================
+    # VISUALIZATION (Frontend Data)
+    # ==============================================================================
+
+    def get_case_graph(self, case_id: str) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Retrieves the 2D Node/Link structure for the specific case.
+        Used by the 'Detective Board' visualization.
+        """
+        self._connect()
+        if not self._driver: 
+            return {"nodes": [], "links": []}
+        
+        nodes_dict = {}
+        links_list = []
+        
+        # 1. Fetch Documents and their Entity Mentions
+        query_docs = """
+        MATCH (d:Document {case_id: $case_id})
+        OPTIONAL MATCH (d)-[:MENTIONS]->(e)
+        RETURN d, e
+        """
+        
+        # 2. Fetch Semantic Relationships explicitly tagged with this case
+        query_rels = """
+        MATCH (a)-[r]->(b)
+        WHERE r.case_id = $case_id
+        RETURN a, type(r) as label, b
+        """
+        
+        try:
+            with self._driver.session() as session:
+                # Execution 1: Documents & Mentions
+                res1 = session.run(query_docs, case_id=case_id)
+                for record in res1:
+                    d = record['d']
+                    e = record['e']
+                    
+                    # Add Document Node
+                    # Use 'id' prop if available, else Neo4j internal element_id
+                    d_id = d.get('id') or str(d.element_id)
+                    if d_id not in nodes_dict:
+                        nodes_dict[d_id] = {
+                            "id": d_id, 
+                            "name": d.get('name', 'Doc'), 
+                            "group": "DOCUMENT", 
+                            "val": 20
+                        }
+                    
+                    # Add Entity Node & Link
+                    if e:
+                        e_id = str(e.element_id)
+                        if e_id not in nodes_dict:
+                            # Use the first label as the group (e.g., Person, Organization)
+                            grp = list(e.labels)[0] if e.labels else "ENTITY"
+                            nodes_dict[e_id] = {
+                                "id": e_id, 
+                                "name": e.get('name', 'Unknown'), 
+                                "group": grp, 
+                                "val": 10
+                            }
+                        
+                        links_list.append({"source": d_id, "target": e_id, "label": "MENTIONS"})
+
+                # Execution 2: Relationships (Person -> Person, etc.)
+                res2 = session.run(query_rels, case_id=case_id)
+                for record in res2:
+                    a = record['a']
+                    b = record['b']
+                    lbl = record['label']
+                    
+                    a_id = str(a.element_id)
+                    b_id = str(b.element_id)
+                    
+                    # Ensure nodes exist (safety check)
+                    for node, nid in [(a, a_id), (b, b_id)]:
+                        if nid not in nodes_dict:
+                            grp = list(node.labels)[0] if node.labels else "ENTITY"
+                            nodes_dict[nid] = {
+                                "id": nid, 
+                                "name": node.get('name', 'Unknown'), 
+                                "group": grp, 
+                                "val": 10
+                            }
+                            
+                    links_list.append({"source": a_id, "target": b_id, "label": lbl})
+                    
+        except Exception as e:
+            logger.error(f"Graph Fetch Error: {e}")
+            return {"nodes": [], "links": []}
+            
+        return {"nodes": list(nodes_dict.values()), "links": links_list}
 
     # ==============================================================================
     # INTELLIGENCE QUERIES (The "Invisible" Brain)
@@ -148,7 +242,6 @@ class GraphService:
     def delete_node(self, node_id: str):
         """
         Deletes a specific node (Document or Case) by its ID and detaches relationships.
-        Used by cases.py
         """
         self._connect()
         if not self._driver: return
@@ -160,10 +253,6 @@ class GraphService:
             logger.error(f"Graph Delete Error (Node {node_id}): {e}")
 
     def delete_document_nodes(self, doc_id: str):
-        """
-        Alias for delete_node, strictly for documents.
-        Used by case_service.py
-        """
         self.delete_node(doc_id)
 
 graph_service = GraphService()

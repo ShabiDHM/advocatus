@@ -1,9 +1,9 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - V11.1 (ANALYTICS FIELD ALIGNMENT)
-# 1. FIX: Updated invoice_pipeline to group by 'related_case_id' instead of 'case_id'.
-# 2. STATUS: Production Ready.
+# PHOENIX PROTOCOL - FINANCE ROUTER V12.0 (SYNC ARCHITECTURE)
+# 1. FIX: Removed 'get_async_db' dependency.
+# 2. FIX: Converted Aggregation pipelines from Motor (Async) to PyMongo (Sync).
+# 3. ARCHITECTURE: Endpoints defined as 'def' are automatically threaded by FastAPI.
 
-import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from typing import List, Annotated, Optional, Any, Dict
@@ -22,21 +22,20 @@ from app.models.archive import ArchiveItemOut
 from app.services.finance_service import FinanceService
 from app.services.archive_service import ArchiveService
 from app.services import report_service
-from app.api.endpoints.dependencies import get_current_user, get_db, get_async_db, get_current_active_user
+from app.api.endpoints.dependencies import get_current_user, get_db, get_current_active_user
 
 router = APIRouter(tags=["Finance"])
 
-
-# --- ANALYTICS & HISTORY ENDPOINTS ---
+# --- ANALYTICS & HISTORY ENDPOINTS (SYNC) ---
 
 @router.get("/case-summary", response_model=List[CaseFinancialSummary])
-async def get_case_financial_summaries(
+def get_case_financial_summaries(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
-    db: Any = Depends(get_async_db)
+    db: Database = Depends(get_db)
 ):
     user_oid = ObjectId(current_user.id)
 
-    # PHOENIX FIX: Updated to use 'related_case_id' to match current data model
+    # Pipeline grouped by related_case_id
     invoice_pipeline = [
         {"$match": {"user_id": user_oid, "status": {"$ne": "CANCELLED"}, "related_case_id": {"$exists": True, "$ne": None}}},
         {"$group": {"_id": "$related_case_id", "total_billed": {"$sum": "$total_amount"}}}
@@ -47,9 +46,9 @@ async def get_case_financial_summaries(
         {"$group": {"_id": "$related_case_id", "total_expenses": {"$sum": "$amount"}}}
     ]
     
-    billed_data_task = db["invoices"].aggregate(invoice_pipeline).to_list(length=None)
-    expense_data_task = db["expenses"].aggregate(expense_pipeline).to_list(length=None)
-    billed_data, expense_data = await asyncio.gather(billed_data_task, expense_data_task)
+    # Synchronous Execution (PyMongo)
+    billed_data = list(db["invoices"].aggregate(invoice_pipeline))
+    expense_data = list(db["expenses"].aggregate(expense_pipeline))
     
     billed_map = {item['_id']: item['total_billed'] for item in billed_data}
     expense_map = {item['_id']: item['total_expenses'] for item in expense_data}
@@ -58,8 +57,9 @@ async def get_case_financial_summaries(
     if not all_case_ids: return []
 
     case_oids = [ObjectId(cid) for cid in all_case_ids if ObjectId.is_valid(cid)]
-    cases_cursor = db["cases"].find({"_id": {"$in": case_oids}}, {"title": 1, "case_number": 1})
-    cases = await cases_cursor.to_list(length=len(case_oids))
+    
+    # Sync Find
+    cases = list(db["cases"].find({"_id": {"$in": case_oids}}, {"title": 1, "case_number": 1}))
     case_map = {str(c["_id"]): c for c in cases}
 
     summaries = []
@@ -80,9 +80,9 @@ async def get_case_financial_summaries(
 
 
 @router.get("/analytics/dashboard", response_model=AnalyticsDashboardData)
-async def get_analytics_dashboard(
+def get_analytics_dashboard(
     current_user: Annotated[UserInDB, Depends(get_current_active_user)],
-    db: Any = Depends(get_async_db),
+    db: Database = Depends(get_db),
     days: int = 30
 ):
     end_date = datetime.utcnow()
@@ -99,9 +99,9 @@ async def get_analytics_dashboard(
         {"$project": {"date": "$date", "amount": {"$multiply": ["$amount", -1]}}}
     ]
     
-    inv_data_task = db["invoices"].aggregate(inv_pipeline).to_list(length=None)
-    exp_data_task = db["expenses"].aggregate(exp_pipeline).to_list(length=None)
-    inv_data, exp_data = await asyncio.gather(inv_data_task, exp_data_task)
+    # Synchronous Execution
+    inv_data = list(db["invoices"].aggregate(inv_pipeline))
+    exp_data = list(db["expenses"].aggregate(exp_pipeline))
     
     total_revenue = sum(item['amount'] for item in inv_data)
     total_count = len(inv_data)
@@ -110,7 +110,14 @@ async def get_analytics_dashboard(
     product_map: Dict[str, Dict[str, float]] = {}
 
     for item in inv_data:
-        date_key = item["date"].strftime("%Y-%m-%d")
+        # Handle date parsing if it's a string or datetime object
+        date_obj = item["date"]
+        if isinstance(date_obj, str):
+            try: date_obj = datetime.fromisoformat(date_obj)
+            except: pass
+        
+        date_key = date_obj.strftime("%Y-%m-%d") if isinstance(date_obj, datetime) else str(date_obj)
+        
         trend_map[date_key] = trend_map.get(date_key, 0.0) + item['amount']
         prod_name = item.get("product", "Shërbim")
         if prod_name not in product_map: product_map[prod_name] = {"qty": 0, "rev": 0.0}
@@ -118,7 +125,12 @@ async def get_analytics_dashboard(
         product_map[prod_name]["rev"] += item['amount']
 
     for exp in exp_data:
-        date_key = exp["date"].strftime("%Y-%m-%d")
+        date_obj = exp["date"]
+        if isinstance(date_obj, str):
+            try: date_obj = datetime.fromisoformat(date_obj)
+            except: pass
+        
+        date_key = date_obj.strftime("%Y-%m-%d") if isinstance(date_obj, datetime) else str(date_obj)
         trend_map[date_key] = trend_map.get(date_key, 0.0) + exp['amount']
 
     sales_trend = [SalesTrendPoint(date=k, amount=round(v, 2)) for k, v in sorted(trend_map.items())]
@@ -164,13 +176,18 @@ def download_invoice_pdf(invoice_id: str, current_user: Annotated[UserInDB, Depe
 
 @router.post("/invoices/{invoice_id}/archive", response_model=ArchiveItemOut)
 async def archive_invoice(invoice_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db), case_id: Optional[str] = Query(None), lang: Optional[str] = Query("sq")):
+    # Hybrid: Sync Logic wrapped in Async Endpoint (FastAPI handles it)
     finance_service = FinanceService(db)
     archive_service = ArchiveService(db)
+    
     invoice = finance_service.get_invoice(str(current_user.id), invoice_id)
     pdf_buffer = report_service.generate_invoice_pdf(invoice, db, str(current_user.id), lang=lang or "sq")
     pdf_content = pdf_buffer.getvalue()
+    
     filename = f"Invoice_{invoice.invoice_number}.pdf"
     title = f"Fatura #{invoice.invoice_number} - {invoice.client_name}"
+    
+    # Archive service might still be async in parts, so we await
     archived_item = await archive_service.save_generated_file(user_id=str(current_user.id), filename=filename, content=pdf_content, category="INVOICE", title=title, case_id=case_id)
     return archived_item
 
