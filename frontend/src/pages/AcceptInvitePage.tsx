@@ -1,16 +1,18 @@
 // FILE: src/pages/AcceptInvitePage.tsx
-// PHOENIX PROTOCOL - INVITATION ACCEPTANCE V1.1 (PATH FIX)
-// 1. FIX: Corrected import path for BrandLogo component.
-// 2. CLEANUP: Removed unused 'Link' import.
+// PHOENIX PROTOCOL - INVITATION ACCEPTANCE V1.2 (I18N)
+// 1. I18N: Replaced all hardcoded English strings with 't()' calls.
+// 2. STATUS: Fully translated.
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
-import BrandLogo from '../components/BrandLogo'; // Corrected Path
+import BrandLogo from '../components/BrandLogo';
 import { Loader2, User, KeyRound, CheckCircle, AlertTriangle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 const AcceptInvitePage: React.FC = () => {
+    const { t } = useTranslation();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const [token, setToken] = useState<string | null>(null);
@@ -25,16 +27,16 @@ const AcceptInvitePage: React.FC = () => {
         if (urlToken) {
             setToken(urlToken);
         } else {
-            setError("Invitation token is missing or invalid.");
+            setError(t('invite.errorToken'));
         }
-    }, [searchParams]);
+    }, [searchParams, t]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!token) return;
 
         if (password.length < 8) {
-            setError("Password must be at least 8 characters long.");
+            setError(t('invite.errorPassword'));
             return;
         }
 
@@ -46,7 +48,7 @@ const AcceptInvitePage: React.FC = () => {
             setSuccess(response.message);
             setTimeout(() => navigate('/login'), 3000);
         } catch (err: any) {
-            const errorMessage = err.response?.data?.detail || "Failed to activate account. The token may be invalid or expired.";
+            const errorMessage = err.response?.data?.detail || t('invite.errorGeneric');
             setError(errorMessage);
         } finally {
             setIsLoading(false);
@@ -66,8 +68,8 @@ const AcceptInvitePage: React.FC = () => {
                 <div className="glass-high p-8 rounded-2xl shadow-2xl border border-white/10">
                     {!success ? (
                         <>
-                            <h2 className="text-2xl font-bold text-white text-center mb-2">Activate Your Account</h2>
-                            <p className="text-text-secondary text-center mb-8">Welcome! Set your username and password to join the team.</p>
+                            <h2 className="text-2xl font-bold text-white text-center mb-2">{t('invite.title')}</h2>
+                            <p className="text-text-secondary text-center mb-8">{t('invite.subtitle')}</p>
 
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {error && (
@@ -77,7 +79,7 @@ const AcceptInvitePage: React.FC = () => {
                                     </div>
                                 )}
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase">Username</label>
+                                    <label className="text-xs font-bold text-gray-400 uppercase">{t('invite.username')}</label>
                                     <div className="relative mt-2">
                                         <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                                         <input
@@ -86,12 +88,12 @@ const AcceptInvitePage: React.FC = () => {
                                             onChange={(e) => setUsername(e.target.value)}
                                             required
                                             className="glass-input w-full pl-10 pr-3 py-2.5 rounded-lg"
-                                            placeholder="Choose a username"
+                                            placeholder={t('invite.usernamePlaceholder')}
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase">Password</label>
+                                    <label className="text-xs font-bold text-gray-400 uppercase">{t('invite.password')}</label>
                                     <div className="relative mt-2">
                                         <KeyRound size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                                         <input
@@ -100,7 +102,7 @@ const AcceptInvitePage: React.FC = () => {
                                             onChange={(e) => setPassword(e.target.value)}
                                             required
                                             className="glass-input w-full pl-10 pr-3 py-2.5 rounded-lg"
-                                            placeholder="Minimum 8 characters"
+                                            placeholder={t('invite.passwordPlaceholder')}
                                         />
                                     </div>
                                 </div>
@@ -109,16 +111,16 @@ const AcceptInvitePage: React.FC = () => {
                                     disabled={isLoading || !token}
                                     className="w-full bg-gradient-to-r from-primary-start to-primary-end text-white font-bold py-3 rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
-                                    {isLoading ? <Loader2 className="animate-spin" /> : 'Create Account & Join'}
+                                    {isLoading ? <Loader2 className="animate-spin" /> : t('invite.submitButton')}
                                 </button>
                             </form>
                         </>
                     ) : (
                         <div className="text-center">
                             <CheckCircle size={48} className="mx-auto text-emerald-400 mb-4" />
-                            <h2 className="text-2xl font-bold text-white mb-2">Success!</h2>
-                            <p className="text-text-secondary mb-6">{success}</p>
-                            <p className="text-sm text-gray-500">Redirecting to login...</p>
+                            <h2 className="text-2xl font-bold text-white mb-2">{t('invite.successTitle')}</h2>
+                            <p className="text-text-secondary mb-6">{t('invite.successMessage')}</p>
+                            <p className="text-sm text-gray-500">{t('invite.redirecting')}</p>
                         </div>
                     )}
                 </div>

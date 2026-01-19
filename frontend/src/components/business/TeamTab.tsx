@@ -1,8 +1,7 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V1.3 (SAFE REMOVAL)
-// 1. FIX: 'handleRemoveMember' now calls the specialized 'removeOrganizationMember' API.
-// 2. SAFETY: Ensures Member's cases/docs are transferred to Owner before deletion.
-// 3. UI: Fully functional dropdown menus for actions.
+// PHOENIX PROTOCOL - TEAM TAB V1.5 (TYPE SAFE PERMISSIONS)
+// 1. FIX: Removed 'as any' cast by using the updated 'User' type.
+// 2. LOGIC: Permission checks are now fully type-safe.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -33,14 +32,12 @@ export const TeamTab: React.FC = () => {
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    // Hardcoded for now until we fetch Org details from backend object
     const MAX_SEATS = 5; 
 
     useEffect(() => {
         fetchMembers();
     }, []);
 
-    // Close menu when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -67,7 +64,6 @@ export const TeamTab: React.FC = () => {
         setInviting(true);
         setErrorMsg(null);
         setInviteResult(null);
-
         try {
             const res = await apiService.inviteMember(inviteEmail);
             setInviteResult(res.message);
@@ -83,17 +79,14 @@ export const TeamTab: React.FC = () => {
     const handleRemoveMember = async (userId: string) => {
         if (!window.confirm(t('team.confirmRemove', 'Are you sure you want to remove this member? Their cases will be transferred to you.'))) return;
         
-        // Optimistic UI update
         const originalMembers = [...members];
         setMembers(members.filter(m => m.id !== userId));
         setOpenMenuId(null);
 
         try {
-            // PHOENIX FIX: Call specific organization removal endpoint (Safe Transfer)
             await apiService.removeOrganizationMember(userId);
         } catch (error) {
             console.error("Failed to remove member", error);
-            // Revert on failure
             setMembers(originalMembers);
             alert("Failed to remove member.");
         }
@@ -105,36 +98,36 @@ export const TeamTab: React.FC = () => {
     const availableSeats = MAX_SEATS - usedSeats;
     const progressPercent = (usedSeats / MAX_SEATS) * 100;
 
-    // Permissions Check
-    const isCurrentUserOwner = currentUser?.role === 'ADMIN' || (currentUser as any)?.organization_role === 'OWNER' || (currentUser as any)?.org_role === 'OWNER';
+    // PHOENIX FIX: Type-safe permission check
+    const isCurrentUserOwner = currentUser?.role === 'ADMIN' || currentUser?.organization_role === 'OWNER';
 
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-20">
             
-            {/* Header / Stats Panel */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="md:col-span-2 glass-panel rounded-3xl p-8 relative overflow-hidden">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
                     <div className="flex justify-between items-start">
                         <div>
-                            <h2 className="text-2xl font-bold text-white mb-2">{t('team.manageTeam', 'Manage Team')}</h2>
-                            <p className="text-text-secondary text-sm max-w-lg">{t('team.description', 'Invite colleagues to collaborate on cases and documents.')}</p>
+                            <h2 className="text-2xl font-bold text-white mb-2">{t('team.manageTeam')}</h2>
+                            <p className="text-text-secondary text-sm max-w-lg">{t('team.description')}</p>
                         </div>
-                        <button 
-                            onClick={() => setShowInviteModal(true)}
-                            disabled={availableSeats <= 0}
-                            className="bg-primary-start/20 hover:bg-primary-start/30 text-primary-300 border border-primary-start/50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <UserPlus size={18} /> {t('team.inviteButton', 'Invite Member')}
-                        </button>
+                        {isCurrentUserOwner && (
+                            <button 
+                                onClick={() => setShowInviteModal(true)}
+                                disabled={availableSeats <= 0}
+                                className="bg-primary-start/20 hover:bg-primary-start/30 text-primary-300 border border-primary-start/50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <UserPlus size={18} /> {t('team.inviteButton')}
+                            </button>
+                        )}
                     </div>
                 </div>
 
-                {/* Seat Usage Card */}
                 <div className="glass-panel rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-accent-start to-accent-end" />
                     <div className="flex justify-between items-center mb-4">
-                        <span className="text-gray-400 font-bold text-xs uppercase tracking-wider">{t('team.planUsage', 'Plan Usage')}</span>
+                        <span className="text-gray-400 font-bold text-xs uppercase tracking-wider">{t('team.planUsage')}</span>
                         <span className={`px-2 py-1 rounded text-xs font-bold ${availableSeats <= 0 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
                             {availableSeats > 0 ? 'Active' : 'Limit Reached'}
                         </span>
@@ -148,27 +141,25 @@ export const TeamTab: React.FC = () => {
                     </div>
                     <p className="text-xs text-gray-500 mt-4 text-center">
                         {availableSeats <= 0 
-                            ? t('team.upgradePrompt', 'Upgrade for more seats') 
+                            ? t('team.upgradePrompt') 
                             : t('team.seatsRemaining', { count: availableSeats })}
                     </p>
                 </div>
             </div>
 
-            {/* Members List */}
             <div className="glass-panel rounded-3xl p-1 overflow-visible min-h-[300px]">
                 <table className="w-full text-left">
                     <thead className="bg-white/5 text-gray-400 text-xs uppercase tracking-wider">
                         <tr>
-                            <th className="px-6 py-4 font-bold">{t('team.user', 'User')}</th>
-                            <th className="px-6 py-4 font-bold">{t('team.role', 'Role')}</th>
-                            <th className="px-6 py-4 font-bold">{t('team.status', 'Status')}</th>
-                            <th className="px-6 py-4 font-bold text-right">{t('team.actions', 'Actions')}</th>
+                            <th className="px-6 py-4 font-bold">{t('team.user')}</th>
+                            <th className="px-6 py-4 font-bold">{t('team.role')}</th>
+                            <th className="px-6 py-4 font-bold">{t('team.status')}</th>
+                            <th className="px-6 py-4 font-bold text-right">{t('team.actions')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 text-sm">
                         {members.map((member) => {
-                            const safeMember = member as any;
-                            const memberRole = safeMember.organization_role || safeMember.org_role || safeMember.role;
+                            const memberRole = member.organization_role || member.role;
                             const isMemberOwner = memberRole === 'OWNER';
                             const isSelf = currentUser?.id === member.id;
 
@@ -198,7 +189,6 @@ export const TeamTab: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        {/* DROPDOWN MENU TRIGGER */}
                                         <div className="relative inline-block text-left" ref={openMenuId === member.id ? menuRef : null}>
                                             <button 
                                                 onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)}
@@ -207,7 +197,6 @@ export const TeamTab: React.FC = () => {
                                                 <MoreHorizontal size={20} />
                                             </button>
 
-                                            {/* DROPDOWN MENU */}
                                             <AnimatePresence>
                                                 {openMenuId === member.id && (
                                                     <motion.div 
@@ -260,8 +249,8 @@ export const TeamTab: React.FC = () => {
                                 <div className="w-12 h-12 rounded-2xl bg-primary-start/20 flex items-center justify-center mb-4 text-primary-start">
                                     <UserPlus size={24} />
                                 </div>
-                                <h3 className="text-2xl font-bold text-white">{t('team.inviteTitle', 'Invite Member')}</h3>
-                                <p className="text-gray-400 text-sm mt-1">{t('team.inviteSubtitle', 'Send an invitation link to a colleague.')}</p>
+                                <h3 className="text-2xl font-bold text-white">{t('team.inviteTitle')}</h3>
+                                <p className="text-gray-400 text-sm mt-1">{t('team.inviteSubtitle')}</p>
                             </div>
 
                             {!inviteResult ? (
@@ -299,7 +288,7 @@ export const TeamTab: React.FC = () => {
                                             className="flex-1 py-3.5 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold shadow-lg shadow-primary-start/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-wait flex items-center justify-center gap-2"
                                         >
                                             {inviting ? <Loader2 className="animate-spin w-5 h-5" /> : <UserPlus size={18} />}
-                                            {t('team.sendInvite', 'Send Invite')}
+                                            {t('team.sendInvite')}
                                         </button>
                                     </div>
                                 </form>

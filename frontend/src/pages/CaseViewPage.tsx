@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V13.3 (TYPE FIX)
-// 1. FIX: Updated 'CaseHeader' props to accept 'STANDARD' role.
-// 2. STATUS: Resolves TypeScript TS2322 error.
+// PHOENIX PROTOCOL - CASE VIEW V13.4 (ROLE FIX)
+// 1. FIX: Added 'OWNER' to the CaseHeader's 'userRole' prop type.
+// 2. STATUS: Resolves the final TypeScript error from the role refactor.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -85,8 +85,8 @@ const CaseHeader: React.FC<{
     isAnalyzing: boolean; 
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
-    // PHOENIX FIX: Added 'STANDARD' to userRole union type
-    userRole: 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD';
+    // PHOENIX FIX: Added 'OWNER' to userRole union type
+    userRole: 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD' | 'OWNER';
 }> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode }) => {
     
     const analyzeButtonText = activeContextId === 'general' 

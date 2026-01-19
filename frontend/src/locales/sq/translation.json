@@ -43,6 +43,21 @@
     "inviteSubtitle": "Dërgoni një lidhje ftese një kolegu.",
     "sendInvite": "Dërgo Ftesën"
   },
+  "invite": {
+    "title": "Aktivizo Llogarinë Tënde",
+    "subtitle": "Mirësevini! Vendosni emrin e përdoruesit dhe fjalëkalimin për t'u bashkuar me ekipin.",
+    "username": "Emri i Përdoruesit",
+    "usernamePlaceholder": "Zgjidhni një emër përdoruesi",
+    "password": "Fjalëkalimi",
+    "passwordPlaceholder": "Minimumi 8 karaktere",
+    "submitButton": "Krijo Llogari & Bashkohu",
+    "successTitle": "Sukses!",
+    "successMessage": "Llogaria u aktivizua me sukses.",
+    "redirecting": "Duke ju ridrejtuar te hyrja...",
+    "errorToken": "Ftesa mungon ose është e pavlefshme.",
+    "errorPassword": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.",
+    "errorGeneric": "Aktivizimi dështoi. Tokeni mund të jetë i pavlefshëm ose i skaduar."
+  },
   "analysis": {
     "title": "Salla e Strategjisë Ligjore",
     "risk_label": "RREZIKU",
@@ -648,5 +663,6 @@
   "pdfViewer": {
     "downloadOriginal": "Shkarko Dokumentin Origjinal",
     "close": "Mbyll"
+ 
   }
 }

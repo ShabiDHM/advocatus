@@ -1,7 +1,8 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES V8.0 (SUBSCRIPTION DATA)
-// 1. ADDED: 'subscription_expiry' and 'plan_tier' to User.
-// 2. ADDED: Request interfaces for SubscriptionUpdate and PromoteRequest.
+// PHOENIX PROTOCOL - TYPES V8.2 (ROLE REFACTOR)
+// 1. REFACTOR: Separated permissions ('role') from hierarchy ('organization_role').
+// 2. LOGIC: 'role' is now for system access (ADMIN, LAWYER, etc.).
+// 3. LOGIC: 'organization_role' is for team status (OWNER, MEMBER).
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -10,7 +11,11 @@ export interface User {
     id: string; 
     email: string; 
     username: string; 
+    // System-level permissions
     role: 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD'; 
+    // Role within a team/organization
+    organization_role?: 'OWNER' | 'MEMBER';
+    
     status: 'active' | 'inactive'; 
     created_at: string; 
     token?: string; 
@@ -216,70 +221,23 @@ export type DraftingJobResult = { document_text: string; document_html?: string;
 export interface GraphNode { id: string; name: string; group: string; val: number; }
 export interface GraphLink { source: string; target: string; label: string; }
 export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
-
 export interface ChronologyEvent { date: string; event: string; source_doc?: string; source?: string; }
-
-export interface AdversarialSimulation {
-    opponent_strategy: string;
-    weakness_attacks: string[];
-    counter_claims: string[];
-    predicted_outcome: string;
-}
-
-export interface Contradiction {
-    claim: string;
-    evidence: string;
-    severity: 'HIGH' | 'MEDIUM' | 'LOW';
-    impact: string;
-}
-
-export interface DeepAnalysisResult {
-    adversarial_simulation: AdversarialSimulation;
-    chronology: ChronologyEvent[];
-    contradictions: Contradiction[];
-    error?: string;
-}
+export interface AdversarialSimulation { opponent_strategy: string; weakness_attacks: string[]; counter_claims: string[]; predicted_outcome: string; }
+export interface Contradiction { claim: string; evidence: string; severity: 'HIGH' | 'MEDIUM' | 'LOW'; impact: string; }
+export interface DeepAnalysisResult { adversarial_simulation: AdversarialSimulation; chronology: ChronologyEvent[]; contradictions: Contradiction[]; error?: string; }
 
 export interface CaseAnalysisResult {
-    summary?: string;
-    key_issues?: string[];
-    legal_basis?: string[];
-    strategic_analysis?: string;
-    weaknesses?: string[];
-    action_plan?: string[];
-    risk_level?: string;
-    red_flags?: string[];
-    contradictions?: string[]; 
-    chronology?: ChronologyEvent[];
-    judicial_observation?: string;
-    strategic_summary?: string;
-    error?: string;
+    summary?: string; key_issues?: string[]; legal_basis?: string[]; strategic_analysis?: string; weaknesses?: string[]; action_plan?: string[]; risk_level?: string; red_flags?: string[];
+    contradictions?: string[]; chronology?: ChronologyEvent[]; judicial_observation?: string; strategic_summary?: string; error?: string;
 }
 
 export interface SpreadsheetAnalysisResult { 
-    file_id?: string; 
-    filename: string; 
-    record_count: number; 
-    columns: string[]; 
-    narrative_report: string; 
-    charts: any[]; 
-    anomalies: any[]; 
-    key_statistics: Record<string, string | number>; 
-    preview_rows?: Record<string, any>[]; 
-    processed_at: string; 
+    file_id?: string; filename: string; record_count: number; columns: string[]; narrative_report: string; charts: any[]; anomalies: any[]; 
+    key_statistics: Record<string, string | number>; preview_rows?: Record<string, any>[]; processed_at: string; 
 }
 
 // --- ORGANIZATION ---
 export interface Organization {
-    id: string;
-    name: string;
-    owner_id: string;
-    tier: 'TIER_1' | 'TIER_2';
-    plan: string; // STARTUP, GROWTH, etc.
-    status: string;
-    expiry?: string;
-    seat_limit: number;
-    seat_count: number;
-    created_at: string;
-    owner_email?: string;
+    id: string; name: string; owner_id: string; tier: 'TIER_1' | 'TIER_2'; plan: string; status: string; expiry?: string;
+    seat_limit: number; seat_count: number; created_at: string; owner_email?: string;
 }
