@@ -1,7 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V13.2 (FIXED PROPS)
-// 1. FIX: Added missing 'caseId' prop to AnalysisModal.
-// 2. STATUS: War Room features now fully accessible.
+// PHOENIX PROTOCOL - CASE VIEW V13.3 (TYPE FIX)
+// 1. FIX: Updated 'CaseHeader' props to accept 'STANDARD' role.
+// 2. STATUS: Resolves TypeScript TS2322 error.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -85,7 +85,8 @@ const CaseHeader: React.FC<{
     isAnalyzing: boolean; 
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
-    userRole: 'ADMIN' | 'LAWYER' | 'CLIENT';
+    // PHOENIX FIX: Added 'STANDARD' to userRole union type
+    userRole: 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD';
 }> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode }) => {
     
     const analyzeButtonText = activeContextId === 'general' 
@@ -304,7 +305,6 @@ const CaseViewPage: React.FC = () => {
       {viewingDocument && (<PDFViewerModal documentData={viewingDocument} caseId={caseData.details.id} onClose={handleCloseViewer} onMinimize={handleMinimizeViewer} t={t} directUrl={viewingUrl} isAuth={true} />)}
       {minimizedDocument && <DockedPDFViewer document={minimizedDocument} onExpand={handleExpandViewer} onClose={() => setMinimizedDocument(null)} />}
 
-      {/* PHOENIX FIX: Added 'caseId' prop here */}
       {analysisResult && (<AnalysisModal isOpen={activeModal === 'analysis'} onClose={() => setActiveModal('none')} result={analysisResult} caseId={currentCaseId} />)}
       <RenameDocumentModal isOpen={!!documentToRename} onClose={() => setDocumentToRename(null)} onRename={handleRename} currentName={documentToRename?.file_name || ''} t={t} />
     </motion.div>

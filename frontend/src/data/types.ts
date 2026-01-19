@@ -1,6 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES V7.4 (INVITATION FLOW)
-// 1. ADDED: 'AcceptInviteRequest' interface to complete the team invitation flow.
+// PHOENIX PROTOCOL - TYPES V7.5 (RESTORATION)
+// 1. FIX: Restored missing fields in 'CaseAnalysisResult' (risk_level, red_flags, etc.) to fix build errors.
+// 2. STATUS: Hybrid support for Legacy and Deep analysis.
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
@@ -9,6 +10,7 @@ export interface User {
     id: string; 
     email: string; 
     username: string; 
+    // PHOENIX: Expanded roles to include STANDARD
     role: 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD'; 
     status: 'active' | 'inactive'; 
     created_at: string; 
@@ -23,7 +25,6 @@ export interface LoginRequest { username: string; password: string; }
 export interface RegisterRequest { email: string; password: string; username: string; }
 export interface ChangePasswordRequest { current_password: string; new_password: string; }
 export interface UpdateUserRequest { username?: string; email?: string; role?: string; subscription_status?: string; status?: 'active' | 'inactive'; }
-// PHOENIX: Added type for accepting an invitation
 export interface AcceptInviteRequest { token: string; username: string; password: string; }
 
 // --- BUSINESS PROFILE ---
@@ -200,13 +201,31 @@ export interface GraphNode { id: string; name: string; group: string; val: numbe
 export interface GraphLink { source: string; target: string; label: string; }
 export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
 
+// Re-instated ChronologyEvent to separate from DeepAnalysis result
+export interface ChronologyEvent { date: string; event: string; source_doc?: string; source?: string; }
+
+export interface AdversarialSimulation {
+    opponent_strategy: string;
+    weakness_attacks: string[];
+    counter_claims: string[];
+    predicted_outcome: string;
+}
+
+export interface Contradiction {
+    claim: string;
+    evidence: string;
+    severity: 'HIGH' | 'MEDIUM' | 'LOW';
+    impact: string;
+}
+
 export interface DeepAnalysisResult {
-    adversarial_simulation: any;
-    chronology: any[];
-    contradictions: any[];
+    adversarial_simulation: AdversarialSimulation;
+    chronology: ChronologyEvent[];
+    contradictions: Contradiction[];
     error?: string;
 }
 
+// PHOENIX: Restored LEGACY fields to prevent AnalysisModal.tsx errors
 export interface CaseAnalysisResult {
     summary?: string;
     key_issues?: string[];
@@ -214,6 +233,15 @@ export interface CaseAnalysisResult {
     strategic_analysis?: string;
     weaknesses?: string[];
     action_plan?: string[];
+    
+    // Restored Legacy Fields
+    risk_level?: string;
+    red_flags?: string[];
+    contradictions?: string[]; // Note: Simple string array for legacy
+    chronology?: ChronologyEvent[];
+    judicial_observation?: string;
+    strategic_summary?: string;
+    
     error?: string;
 }
 

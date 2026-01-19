@@ -1,7 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V8.6 (CRASH HOTFIX)
-// 1. HOTFIX: Added strict type checking (typeof === 'string') inside .map() loops.
-// 2. STABILITY: Prevents 'F.includes is not a function' crashes when AI returns objects instead of strings.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V8.7 (STRICT TYPING)
+// 1. FIX: Added explicit types to all .map() callbacks to resolve 'implicitly has any type' errors.
+// 2. STABILITY: Uses safe defaults for all data fields to prevent runtime crashes.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -12,7 +12,7 @@ import {
     Link as LinkIcon, Clock, Skull, AlertOctagon, BrainCircuit
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { CaseAnalysisResult, DeepAnalysisResult } from '../data/types'; 
+import { CaseAnalysisResult, DeepAnalysisResult, ChronologyEvent, Contradiction } from '../data/types'; 
 import { apiService } from '../services/api';
 
 interface AnalysisModalProps {
@@ -34,7 +34,6 @@ const scrollbarStyles = `
 const safeString = (val: any): string => {
     if (!val) return "";
     if (typeof val === 'string') return val;
-    // If AI returns an object like { "title": "Law", "desc": "..." }, flatten it
     if (typeof val === 'object') return Object.values(val).join(': ');
     return String(val);
 };
@@ -64,7 +63,7 @@ const renderStructuredCitation = (rawText: any) => {
                     <span title={link} className="border-b border-dashed border-primary-500/30 pb-0.5">{title}</span>
                 </div>
                 <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed pl-5 border-l border-white/10 ml-0.5">
-                    {body.split('\n').map((line, i) => {
+                    {body.split('\n').map((line: string, i: number) => {
                         const trimmed = line.trim();
                         if (!trimmed) return null;
                         if (trimmed.startsWith('Përmbajtja:') || trimmed.startsWith('Relevanca:')) {
@@ -155,7 +154,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-[100] p-0 sm:p-4" onClick={onClose}>
         <motion.div initial={{ scale: 0.98, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.98, opacity: 0, y: 10 }} className="glass-high w-full h-full sm:h-[90vh] sm:max-w-6xl rounded-none sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-white/10" onClick={(e) => e.stopPropagation()}>
           
-          {/* HEADER */}
           <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/5 backdrop-blur-md shrink-0">
             <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-3 min-w-0">
               <div className="p-2 bg-gradient-to-br from-primary-start to-primary-end rounded-lg shrink-0 shadow-lg shadow-primary-start/20">
@@ -179,7 +177,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
              </div>
           ) : (
              <>
-                {/* MAIN TABS */}
                 <div className="flex border-b border-white/5 px-6 bg-black/20 shrink-0 overflow-x-auto no-scrollbar gap-6">
                     <button onClick={() => setActiveTab('legal')} className={`py-4 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all whitespace-nowrap ${activeTab === 'legal' ? 'border-primary-start text-white' : 'border-transparent text-text-secondary hover:text-white'}`}>
                         <Scale size={16}/> {t('analysis.tab_legal', 'Analiza Ligjore')}
@@ -189,11 +186,9 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     </button>
                 </div>
 
-                {/* CONTENT AREA */}
                 <div className="p-6 overflow-y-auto space-y-6 flex-1 custom-scrollbar relative bg-black/10">
                     <style>{scrollbarStyles}</style>
 
-                    {/* --- TAB 1: LEGAL ANALYSIS --- */}
                     {activeTab === 'legal' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <div className="glass-panel p-6 rounded-2xl">
@@ -226,7 +221,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     </h3>
                                     <ul className="space-y-3">
                                         {legal_basis.map((law: any, i: number) => {
-                                            // PHOENIX FIX: Strict type check before .includes()
                                             const lawStr = safeString(law);
                                             const isGlobal = lawStr.includes("UNCRC") || lawStr.includes("Konventa") || lawStr.includes("KEDNJ");
                                             return (
@@ -242,10 +236,8 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                         </div>
                     )}
                     
-                    {/* --- TAB 2: WAR ROOM (MERGED) --- */}
                     {activeTab === 'war_room' && (
                         <div className="h-full flex flex-col">
-                            {/* SUB-TABS for War Room */}
                             <div className="flex gap-2 mb-6 shrink-0 border-b border-white/5 pb-4">
                                 <button onClick={() => setWarRoomSubTab('strategy')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'strategy' ? 'bg-accent-start text-white shadow-lg shadow-accent-start/20' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
                                     <Target size={14} className="inline mr-2" /> {t('analysis.subtab_strategy', 'Plani Strategjik')}
@@ -262,7 +254,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                             </div>
 
                             <div className="space-y-6 animate-in fade-in">
-                                {/* STANDARD STRATEGY CONTENT */}
                                 {warRoomSubTab === 'strategy' && (
                                     <div className="space-y-6">
                                         <div className="glass-panel p-6 rounded-2xl border-accent-start/20 bg-accent-start/5">
@@ -291,7 +282,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                     </div>
                                 )}
 
-                                {/* DEEP ANALYSIS CONTENT */}
                                 {warRoomSubTab !== 'strategy' && (
                                     isDeepLoading ? (
                                         <div className="flex-1 flex flex-col items-center justify-center text-center py-20">
@@ -307,7 +297,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                         <p className="text-white/90 text-sm leading-relaxed">{deepResult.adversarial_simulation.opponent_strategy}</p>
                                                     </div>
                                                     <div className="grid gap-3">
-                                                        {deepResult.adversarial_simulation.weakness_attacks.map((attack, i) => (
+                                                        {deepResult.adversarial_simulation.weakness_attacks.map((attack: string, i: number) => (
                                                             <div key={i} className="flex gap-3 bg-white/5 p-3 rounded-lg border border-white/10">
                                                                 <Target size={16} className="text-red-400 shrink-0 mt-0.5" />
                                                                 <span className="text-sm text-gray-300">{attack}</span>
@@ -318,7 +308,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                             )}
                                             {warRoomSubTab === 'timeline' && (
                                                 <div className="space-y-4 relative border-l-2 border-white/10 ml-3 pl-6 py-2">
-                                                    {deepResult.chronology.map((event, i) => (
+                                                    {deepResult.chronology.map((event: ChronologyEvent, i: number) => (
                                                         <div key={i} className="relative group">
                                                             <div className="absolute -left-[31px] top-1.5 w-3 h-3 rounded-full bg-blue-500 border-2 border-black" />
                                                             <div className="flex gap-4">
@@ -337,7 +327,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                             <p>{t('analysis.no_contradictions', 'Nuk u gjetën kontradikta.')}</p>
                                                         </div>
                                                     ) : (
-                                                        deepResult.contradictions.map((c, i) => (
+                                                        deepResult.contradictions.map((c: Contradiction, i: number) => (
                                                             <div key={i} className="bg-yellow-500/5 border border-yellow-500/20 p-4 rounded-xl">
                                                                 <div className="flex justify-between items-start mb-2">
                                                                     <div className="flex items-center gap-2 text-yellow-400 font-bold text-xs uppercase tracking-wider">{t('analysis.contradiction_label', 'Mospërputhje')}</div>
