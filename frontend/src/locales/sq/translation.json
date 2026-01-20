@@ -26,7 +26,8 @@
     "view": "Shiko",
     "archive": "Arkivo",
     "delete": "Fshi",
-    "email": "Email"
+    "email": "Email",
+    "actions": "Veprime"
   },
   "team": {
     "manageTeam": "Menaxhimi i Ekipit",
@@ -41,7 +42,9 @@
     "actions": "Veprime",
     "inviteTitle": "Fto Anëtar",
     "inviteSubtitle": "Dërgoni një lidhje ftese një kolegu.",
-    "sendInvite": "Dërgo Ftesën"
+    "sendInvite": "Dërgo Ftesën",
+    "removeMember": "Largo Anëtarin",
+    "confirmRemove": "A jeni të sigurt që doni të largoni këtë anëtar? Rastet e tyre do të transferohen tek ju."
   },
   "invite": {
     "title": "Aktivizo Llogarinë Tënde",
@@ -57,6 +60,88 @@
     "errorToken": "Ftesa mungon ose është e pavlefshme.",
     "errorPassword": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.",
     "errorGeneric": "Aktivizimi dështoi. Tokeni mund të jetë i pavlefshëm ose i skaduar."
+  },
+  "admin": {
+    "title": "Paneli i Administratorit",
+    "subtitle": "Menaxhimi i përdoruesve dhe sistemit.",
+    "totalUsers": "Total Përdorues",
+    "totalOrgs": "Total Firma",
+    "pendingApproval": "Në Pritje",
+    "userManagement": "Menaxhimi i Përdoruesve",
+    "searchOrgs": "Kërko...",
+    "table": {
+      "user": "Përdoruesi",
+      "status": "Statusi",
+      "role": "Roli",
+      "registered": "Regjistruar"
+    },
+    "statuses": {
+      "ACTIVE": "Aktiv",
+      "INACTIVE": "Në Pritje"
+    },
+    "editModal": {
+      "title": "Ndrysho Përdoruesin",
+      "username": "Emri i Përdoruesit",
+      "email": "Email",
+      "role": "Roli",
+      "subscriptionStatus": "Statusi (Gatekeeper)",
+      "planTier": "Paketa (Plan Tier)",
+      "accountStatus": "Llogaria (Gatekeeper)"
+    },
+    "roles": {
+      "STANDARD": "Përdorues",
+      "ADMIN": "Admin"
+    },
+    "confirmDelete": "A jeni të sigurt? Kjo do të fshijë TË GJITHA të dhënat.",
+    "firmName": "Emri i Firmës",
+    "tier": "Niveli",
+    "ownerId": "ID e Pronarit",
+    "actions": "Veprime",
+    "userDetails": "Përdoruesi",
+    "gatekeeperStatus": "Statusi i Llogarisë",
+    "noOrgsFound": "Nuk u gjetën organizata aktive.",
+    "confirmAction": "Konfirmo Veprimin",
+    "upgradePrompt": "Përmirëso",
+    "promotePrompt": "Promovo përdoruesin",
+    "toTier2": "në TIER_2?",
+    "toFirm": "në Organizatë (Firmë)?",
+    "cancel": "Anulo",
+    "upgrade": "Përmirëso",
+    "promoteAndCreate": "Promovo & Krijo Firmë",
+    "promote": "Promovo",
+    "deactivate": "Çaktivizo",
+    "activate": "Mirato / Aktivo",
+    "delete": "Fshi",
+    "active": "AKTIV",
+    "pending": "NË PRITJE",
+    "organizations": "Organizatat",
+    "registeredUsers": "Përdoruesit e Regjistruar"
+  },
+  "business": {
+    "title": "Qendra e Biznesit",
+    "subtitle": "Menaxhoni zyrën tuaj.",
+    "dashboard": "Pasqyra",
+    "profile": "Profili",
+    "team": "Ekipi",
+    "finance": "Financat",
+    "archive": "Arkiva",
+    "totalCases": "Raste Totale",
+    "documentsProcessed": "Dokumente të Procesuara",
+    "efficiency": "Efiçenca",
+    "logoIdentity": "Logo & Identiteti",
+    "upload": "Ngarko",
+    "branding": "Branding",
+    "saveColor": "Ruaj Ngjyrën",
+    "firmData": "Të Dhënat e Zyrës",
+    "firmNameLabel": "Emri i Zyrës Ligjore",
+    "firmNamePlaceholder": "p.sh. Drejtësia Sh.p.k",
+    "publicEmail": "Email Publik",
+    "phone": "Telefon",
+    "address": "Adresa",
+    "city": "Qyteti",
+    "website": "Webfaqja",
+    "taxId": "Numri Fiskal / NUI",
+    "logoUploadFailed": "Ngarkimi i logos dështoi."
   },
   "analysis": {
     "title": "Salla e Strategjisë Ligjore",
@@ -156,29 +241,30 @@
   },
   "landing": {
     "heroTitle": "Inteligjenca Artificiale",
-    "heroHighlight": "për Profesionistët Ligjorë",
-    "heroSubtitle": "Analizoni kontrata, menaxhoni raste dhe gjeneroni dokumente me fuqinë e AI.",
+    "heroHighlight": "për Zyrën Ligjore Moderne",
+    "heroSubtitle": "Më shumë se thjesht dokumente. Zbuloni kontradikta, gjurmoni paratë dhe menaxhoni ekipin tuaj me fuqinë e AI.",
     "getStarted": "Fillo Falas",
-    "feature1Title": "Analizë e Sigurt",
-    "feature1Desc": "Skanoni dokumente për rreziqe ligjore dhe shkelje të kodit civil/penal.",
-    "feature2Title": "AI Sokratike",
-    "feature2Desc": "Bisedoni me dokumentet tuaja. Bëni pyetje dhe merrni përgjigje me citime.",
-    "feature3Title": "Hartim Inteligjent",
-    "feature3Desc": "Krijoni kontrata dhe padi të personalizuara bazuar në shabllone të verifikuara."
+    "login": "Hyr në Portal",
+    "feature1Title": "Dhoma e Luftës",
+    "feature1Desc": "Analizë strategjike e dosjeve. AI gjen dobësitë e kundërshtarit dhe ndërton kronologjinë e ngjarjeve.",
+    "feature2Title": "Forenzika Financiare",
+    "feature2Desc": "Ngarko skedarë Excel. Agjenti ynë zbulon anomali, pastrim parash dhe fshehje asetesh.",
+    "feature3Title": "Menaxhimi i Ekipit",
+    "feature3Desc": "Nga Solo në Studio. Ftoni bashkëpunëtorë, ndani dosje dhe menaxhoni rolet (Tier 2)."
   },
   "showcase": {
-    "title": "Jo Thjesht Softuer. Partneri Juaj.",
-    "subtitle": "Platforma e vetme që kombinon Inteligjencën Artificiale me procedurën ligjore të Kosovës.",
+    "title": "Një Sistem. Fuqi e Pakufizuar.",
+    "subtitle": "Inteligjencë Artificiale e ndërtuar për sistemin e Kosovës.",
     "slide1_title": "Dhoma e Luftës",
-    "slide1_desc": "Gjeni gënjeshtrat automatikisht. AI kryqëzon deklaratat e palës tjetër me provat në dosje dhe zbulon çdo kontradiktë.",
-    "slide2_title": "Skanim I Thellë OCR",
-    "slide2_desc": "Skanoni dokumente. Teknologjia jonë 'Hawk-Eye' lexon edhe skanimet më të dobëta.",
+    "slide1_desc": "Gjeni gënjeshtrat automatikisht. AI kryqëzon deklaratat me provat.",
+    "slide2_title": "Deep Scan OCR",
+    "slide2_desc": "Skanoni 50+ dokumente në sekonda. Asnjë faqe nuk humbet.",
     "slide3_title": "Hartim i Padukshëm",
-    "slide3_desc": "Ju shkruani strategjinë, ne shkruajmë nenet. Gjeneroni Padi, Ankesa dhe Kontrata me formatim perfekt ligjor.",
+    "slide3_desc": "Ju shkruani strategjinë, ne shkruajmë nenet ligjore.",
     "slide4_title": "Arkiva e Gjallë",
-    "slide4_desc": "Mos kërkoni kurrë më nëpër dosje fizike. Çdo dokument indeksohet, ruhet dhe është gati për t'u importuar në raste.",
+    "slide4_desc": "Çdo dokument, i indeksuar dhe i sigurt në Cloud.",
     "slide5_title": "Kontabilisti i Zyrës",
-    "slide5_desc": "Menaxhoni financat, faturat dhe llogaritni tatimet automatikisht. Gati për ATK."
+    "slide5_desc": "Menaxhoni financat dhe tatimet (ATK) automatikisht."
   },
   "sidebar": {
     "dashboard": "Juristi AI",
@@ -231,7 +317,8 @@
     },
     "workspace": "Kthehu",
     "analyst": "Analisti Financiar",
-    "graph": "Lidhjet"
+    "graph": "Lidhjet",
+    "unnamedCase": "Rast pa Emër"
   },
   "analyst": {
     "title": "Dhoma e Hulumtimit Financiar",
@@ -337,32 +424,6 @@
     "confirmTemplateSwitch": "Ndryshimi i shabllonit do të zëvendësojë tekstin aktual. Vazhdo?",
     "regenerate": "Rigjenero",
     "clearTitle": "Pastro"
-  },
-  "business": {
-     "title": "Qendra e Biznesit",
-    "subtitle": "Menaxhoni zyrën tuaj.",
-    "dashboard": "Pasqyra",
-    "profile": "Profili",
-    "team": "Ekipi",
-    "finance": "Financat",
-    "archive": "Arkiva",
-    "totalCases": "Raste Totale",
-    "documentsProcessed": "Dokumente të Procesuara",
-    "efficiency": "Efiçenca",
-    "logoIdentity": "Logo & Identiteti",
-    "upload": "Ngarko",
-    "branding": "Branding",
-    "saveColor": "Ruaj Ngjyrën",
-    "firmData": "Të Dhënat e Zyrës",
-    "firmNameLabel": "Emri i Zyrës Ligjore",
-    "firmNamePlaceholder": "p.sh. Drejtësia Sh.p.k",
-    "publicEmail": "Email Publik",
-    "phone": "Telefon",
-    "address": "Adresa",
-    "city": "Qyteti",
-    "website": "Webfaqja",
-    "taxId": "Numri Fiskal / NUI",
-    "logoUploadFailed": "Ngarkimi i logos dështoi."
   },
   "finance": {
     "income": "Të Hyrat",
@@ -492,75 +553,6 @@
     "delete": "Fshi",
     "deleteConfirm": "A jeni i sigurt që doni ta fshini këtë element? Veprimi është i pakthyeshëm."
   },
-  "category": {
-    "general": "Të Përgjithshme",
-    "evidence": "Dëshmi",
-    "legalDocs": "Dokumente Ligjore",
-    "invoices": "Fatura",
-    "contracts": "Kontrata"
-  },
-  "caseCard": {
-    "createdOn": "Krijuar më",
-    "client": "Informacioni i Klientit",
-    "documents": "Dokumente",
-    "alerts": "Alarme",
-    "events": "Ngjarje",
-    "viewDetails": "Shiko Detajet",
-    "deleteCase": "Fshij Rastin",
-    "untitled": "Rast pa Titull",
-    "caseNumber": "Rasti"
-  },
-  "account": {
-    "title": "Llogaria Ime",
-    "profileInfo": "Informacione Personale",
-    "username": "Emri i përdoruesit",
-    "email": "Email",
-    "role": "Roli",
-    "security": "Siguria",
-    "currentPassword": "Fjalëkalimi Aktual",
-    "newPassword": "Fjalëkalimi i Ri",
-    "confirmPassword": "Konfirmo Fjalëkalimin",
-    "passwordMismatch": "Fjalëkalimet nuk përputhen.",
-    "passwordUpdated": "Fjalëkalimi u ndryshua me sukses.",
-    "dangerZone": "Zona e Rrezikut",
-    "deleteWarning": "Fshirja e llogarisë do të largojë të gjitha të dhënat tuaja përgjithmonë.",
-    "deleteAccount": "Fshij Llogarinë",
-    "confirmDelete": "A jeni të sigurt? Ky veprim është i pakthyeshëm."
-  },
-  "admin": {
-    "title": "Paneli i Administratorit",
-    "subtitle": "Menaxhimi i përdoruesve dhe sistemit.",
-    "userUpdated": "Përdoruesi u përditësua.",
-    "confirmDelete": "A jeni të sigurt që doni të fshini këtë përdorues?",
-    "totalOrgs": "Total Firma",
-    "totalUsers": "Total Përdorues",
-    "pendingApproval": "Në Pritje",
-    "organizations": "Organizatat",
-    "searchOrgs": "Kërko Firma...",
-    "userManagement": "Menaxhimi i Përdoruesve",
-    "firmName": "Emri i Firmës",
-    "tier": "Niveli",
-    "ownerId": "ID e Pronarit",
-    "actions": "Veprime",
-    "userDetails": "Përdoruesi",
-    "role": "Roli",
-    "gatekeeperStatus": "Statusi i Llogarisë",
-    "noOrgsFound": "Nuk u gjetën organizata aktive.",
-    "confirmAction": "Konfirmo Veprimin",
-    "upgradePrompt": "Përmirëso",
-    "promotePrompt": "Promovo përdoruesin",
-    "toTier2": "në TIER_2?",
-    "toFirm": "në Organizatë (Firmë)?",
-    "cancel": "Anulo",
-    "upgrade": "Përmirëso",
-    "promoteAndCreate": "Promovo & Krijo Firmë",
-    "promote": "Promovo",
-    "deactivate": "Çaktivizo",
-    "activate": "Mirato / Aktivo",
-    "delete": "Fshi",
-    "active": "AKTIV",
-    "pending": "NË PRITJE"
-  },
   "calendar": {
     "loadFailure": "Dështoi ngarkimi i të dhënave të kalendarit.",
     "noEventsFound": "Nuk u gjetën ngjarje.",
@@ -664,6 +656,5 @@
   "pdfViewer": {
     "downloadOriginal": "Shkarko Dokumentin Origjinal",
     "close": "Mbyll"
- 
   }
 }

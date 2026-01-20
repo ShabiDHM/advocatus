@@ -1,7 +1,8 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT SERVICE V4.4 (TABLE SYMMETRY FIX)
-# 1. FIX: Adjusted 'Totals' table wrapper width (105mm + 75mm = 180mm) to match main table width.
-# 2. RESULT: Perfect vertical alignment between the main table's 'Total' column and the summary values.
+# PHOENIX PROTOCOL - REPORT SERVICE V4.5 (SYMMETRY ALIGNMENT)
+# 1. FIX: Calculated exact column widths for the totals table wrapper.
+# 2. LOGIC: Items Table Width (180mm) = Spacer (105mm) + Totals Table (75mm).
+# 3. RESULT: The 'Total' value column now vertically aligns perfectly with the body table.
 
 import io
 import os
@@ -261,6 +262,8 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     Story.append(t_addr)
     Story.append(Spacer(1, 10*mm))
 
+    # --- ITEMS TABLE ---
+    # Widths: 95 + 20 + 30 + 35 = 180mm Total Width
     headers = [_get_text('desc', lang), _get_text('qty', lang), _get_text('price', lang), _get_text('total', lang)]
     data = [[Paragraph(h, STYLES['TableHeader']) for h in headers]]
     for item in invoice.items:
@@ -281,15 +284,31 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     ]))
     Story.append(t_items)
 
+    # --- TOTALS TABLE ---
+    # Wrapper Logic:
+    # 1. Spacer Column: 105mm (Keeps the totals pushed to the right)
+    # 2. Totals Container: 75mm (Aligns with the last two columns of the items table: 30+35 = 65, plus padding)
+    # Inner Table:
+    # 1. Label Column: 40mm
+    # 2. Value Column: 35mm (Matches the 'Total' column of items table exactly)
+    
     totals_data = [
         [Paragraph(_get_text('subtotal', lang), STYLES['TotalLabel']), Paragraph(f"{invoice.subtotal:,.2f} EUR", STYLES['TotalLabel'])],
         [Paragraph(_get_text('tax', lang), STYLES['TotalLabel']), Paragraph(f"{invoice.tax_amount:,.2f} EUR", STYLES['TotalLabel'])],
         [Paragraph(f"<b>{_get_text('total', lang)}</b>", STYLES['TotalValue']), Paragraph(f"<b>{invoice.total_amount:,.2f} EUR</b>", STYLES['TotalValue'])],
     ]
     
-    # PHOENIX FIX: Wrapper width set to 105mm (Left) + 75mm (Right) = 180mm Total (Matches Main Table)
-    t_totals = Table(totals_data, colWidths=[40*mm, 35*mm], style=[('VALIGN', (0,0), (-1,-1), 'MIDDLE'), ('LINEABOVE', (0, 2), (1, 2), 1.5, COLOR_PRIMARY_TEXT), ('TOPPADDING', (0, 2), (1, 2), 6)])
-    Story.append(Table([["", t_totals]], colWidths=[105*mm, 75*mm], style=[('ALIGN', (1,0), (1,0), 'RIGHT')]))
+    t_totals = Table(totals_data, colWidths=[40*mm, 35*mm], style=[
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('LINEABOVE', (0, 2), (1, 2), 1.5, COLOR_PRIMARY_TEXT), # Bold line above Grand Total
+        ('TOPPADDING', (0, 2), (1, 2), 6)
+    ])
+    
+    # Outer wrapper to position the totals table on the right side
+    Story.append(Table([["", t_totals]], colWidths=[105*mm, 75*mm], style=[
+        ('ALIGN', (1,0), (1,0), 'RIGHT'),
+        ('VALIGN', (0,0), (-1,-1), 'TOP')
+    ]))
 
     if invoice.notes:
         Story.append(Spacer(1, 10*mm))

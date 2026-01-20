@@ -1,7 +1,8 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V8.7 (STRICT TYPING)
-// 1. FIX: Added explicit types to all .map() callbacks to resolve 'implicitly has any type' errors.
-// 2. STABILITY: Uses safe defaults for all data fields to prevent runtime crashes.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V9.0 (UI POLISH)
+// 1. UI: Redesigned 'Risk Level' badge to be professional, pill-shaped, and icon-enhanced.
+// 2. FIX: Added 'Shield', 'ShieldCheck', 'ShieldAlert' to imports.
+// 3. STATUS: Visuals match the high-end dashboard aesthetic.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -9,7 +10,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Scale, FileText, Swords, Target,
     Gavel, CheckCircle2, BookOpen, Globe, 
-    Link as LinkIcon, Clock, Skull, AlertOctagon, BrainCircuit
+    Link as LinkIcon, Clock, Skull, AlertOctagon, BrainCircuit,
+    Shield, ShieldAlert, ShieldCheck 
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CaseAnalysisResult, DeepAnalysisResult, ChronologyEvent, Contradiction } from '../data/types'; 
@@ -133,10 +135,33 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       risk_level = "MEDIUM"
   } = result || {};
 
-  const getRiskColor = (level: string) => {
-      if (level?.includes('HIGH')) return 'bg-red-500/20 text-red-400 border-red-500/50';
-      if (level?.includes('LOW')) return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50';
-      return 'bg-amber-500/20 text-amber-400 border-amber-500/50';
+  // PHOENIX: Redesigned Risk Badge
+  const renderRiskBadge = (level: string) => {
+      const l = level?.toUpperCase() || 'MEDIUM';
+      let styles = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      let icon = <Shield size={14} />;
+      let label = t('analysis.risk_medium', 'I MESËM');
+
+      if (l.includes('HIGH')) {
+          styles = 'bg-red-500/10 text-red-400 border-red-500/20';
+          icon = <ShieldAlert size={14} />;
+          label = t('analysis.risk_high', 'I LARTË');
+      } else if (l.includes('LOW')) {
+          styles = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+          icon = <ShieldCheck size={14} />;
+          label = t('analysis.risk_low', 'I ULËT');
+      }
+
+      return (
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${styles} backdrop-blur-md shadow-sm`}>
+              {icon}
+              <div className="flex items-center gap-1.5 text-xs font-bold tracking-wide">
+                  <span className="opacity-70 font-medium uppercase text-[10px]">{t('analysis.risk_label', 'RREZIKU')}</span>
+                  <span className="w-1 h-1 rounded-full bg-current opacity-50" />
+                  <span>{label}</span>
+              </div>
+          </div>
+      );
   };
 
   const getRiskLabel = (level: string) => {
@@ -154,19 +179,27 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-[100] p-0 sm:p-4" onClick={onClose}>
         <motion.div initial={{ scale: 0.98, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.98, opacity: 0, y: 10 }} className="glass-high w-full h-full sm:h-[90vh] sm:max-w-6xl rounded-none sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-white/10" onClick={(e) => e.stopPropagation()}>
           
+          {/* HEADER */}
           <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/5 backdrop-blur-md shrink-0">
-            <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-3 min-w-0">
-              <div className="p-2 bg-gradient-to-br from-primary-start to-primary-end rounded-lg shrink-0 shadow-lg shadow-primary-start/20">
+            <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-4 min-w-0">
+              <div className="p-2.5 bg-gradient-to-br from-primary-start to-primary-end rounded-xl shrink-0 shadow-lg shadow-primary-start/20">
                   <Gavel className="text-white h-5 w-5" />
               </div>
-              <div className="flex flex-col">
-                  <span className="truncate leading-tight tracking-tight">{t('analysis.title', 'Salla e Strategjisë Ligjore')}</span>
-                  <div className={`text-[10px] uppercase tracking-widest font-bold mt-1 px-1.5 py-0.5 rounded border w-fit ${getRiskColor(risk_level)}`}>
-                      {t('analysis.risk_label', 'RREZIKU')}: {getRiskLabel(risk_level)}
-                  </div>
+              <div className="flex flex-col gap-1">
+                  <span className="truncate leading-tight tracking-tight text-lg">{t('analysis.title', 'Salla e Strategjisë Ligjore')}</span>
+              </div>
+              
+              {/* PHOENIX: Modern Risk Badge positioned next to title */}
+              <div className="hidden sm:block ml-2">
+                  {renderRiskBadge(risk_level)}
               </div>
             </h2>
             <button onClick={onClose} className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-xl transition-colors shrink-0"><X size={20} /></button>
+          </div>
+          
+          {/* Mobile Risk Badge (if needed) */}
+          <div className="sm:hidden px-6 pb-2 -mt-2">
+               {renderRiskBadge(risk_level)}
           </div>
 
           {isLoading ? (
