@@ -1,8 +1,7 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH INTELLIGENCE V2.3 (VISUALIZATION ENABLED)
-# 1. FIX: Added missing 'get_case_graph' method to support frontend visualization.
-# 2. FEATURE: Queries Neo4j for Document->Entity mentions and Case-specific relationships.
-# 3. STATUS: Fully compatible with 'graph.py' router.
+# PHOENIX PROTOCOL - GRAPH INTELLIGENCE V2.6 (TYPE FIX)
+# 1. FIX: Changed 'doc_metadata' to 'Optional[Dict]' to satisfy Pylance strict typing.
+# 2. STATUS: Fully type-safe.
 
 import os
 import structlog
@@ -39,10 +38,6 @@ class GraphService:
     # ==============================================================================
 
     def get_case_graph(self, case_id: str) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        Retrieves the 2D Node/Link structure for the specific case.
-        Used by the 'Detective Board' visualization.
-        """
         self._connect()
         if not self._driver: 
             return {"nodes": [], "links": []}
@@ -50,14 +45,12 @@ class GraphService:
         nodes_dict = {}
         links_list = []
         
-        # 1. Fetch Documents and their Entity Mentions
         query_docs = """
         MATCH (d:Document {case_id: $case_id})
         OPTIONAL MATCH (d)-[:MENTIONS]->(e)
         RETURN d, e
         """
         
-        # 2. Fetch Semantic Relationships explicitly tagged with this case
         query_rels = """
         MATCH (a)-[r]->(b)
         WHERE r.case_id = $case_id
@@ -66,14 +59,11 @@ class GraphService:
         
         try:
             with self._driver.session() as session:
-                # Execution 1: Documents & Mentions
                 res1 = session.run(query_docs, case_id=case_id)
                 for record in res1:
                     d = record['d']
                     e = record['e']
                     
-                    # Add Document Node
-                    # Use 'id' prop if available, else Neo4j internal element_id
                     d_id = d.get('id') or str(d.element_id)
                     if d_id not in nodes_dict:
                         nodes_dict[d_id] = {
@@ -83,11 +73,9 @@ class GraphService:
                             "val": 20
                         }
                     
-                    # Add Entity Node & Link
                     if e:
                         e_id = str(e.element_id)
                         if e_id not in nodes_dict:
-                            # Use the first label as the group (e.g., Person, Organization)
                             grp = list(e.labels)[0] if e.labels else "ENTITY"
                             nodes_dict[e_id] = {
                                 "id": e_id, 
@@ -95,20 +83,16 @@ class GraphService:
                                 "group": grp, 
                                 "val": 10
                             }
-                        
                         links_list.append({"source": d_id, "target": e_id, "label": "MENTIONS"})
 
-                # Execution 2: Relationships (Person -> Person, etc.)
                 res2 = session.run(query_rels, case_id=case_id)
                 for record in res2:
                     a = record['a']
                     b = record['b']
                     lbl = record['label']
-                    
                     a_id = str(a.element_id)
                     b_id = str(b.element_id)
                     
-                    # Ensure nodes exist (safety check)
                     for node, nid in [(a, a_id), (b, b_id)]:
                         if nid not in nodes_dict:
                             grp = list(node.labels)[0] if node.labels else "ENTITY"
@@ -132,25 +116,16 @@ class GraphService:
     # ==============================================================================
 
     def get_strategic_context(self, case_id: str) -> str:
-        """
-        Aggregates all graph insights into a text summary for the LLM.
-        """
         self._connect()
         if not self._driver: return ""
         
         insights = []
-        
-        # 1. Conflict of Interest Scan
         conflicts = self._find_hidden_conflicts(case_id)
         if conflicts:
             insights.append(f"⚠️ GRAPH WARNING (CONFLICTS): {'; '.join(conflicts)}")
-            
-        # 2. Financial Web Scan
         money_flows = self._trace_money_flows(case_id)
         if money_flows:
             insights.append(f"💰 MONEY TRAIL: {'; '.join(money_flows)}")
-            
-        # 3. Central Actors
         key_players = self._identify_central_actors(case_id)
         if key_players:
             insights.append(f"👥 KEY ACTORS (Graph Centrality): {', '.join(key_players)}")
@@ -211,12 +186,19 @@ class GraphService:
     # CRUD & SYNC OPERATIONS
     # ==============================================================================
 
-    def ingest_entities_and_relations(self, case_id: str, document_id: str, doc_name: str, entities: List[Dict], relations: List[Dict]):
+    # PHOENIX FIX: Strict Type Safety for Optional Metadata
+    def ingest_entities_and_relations(self, case_id: str, document_id: str, doc_name: str, entities: List[Dict], relations: List[Dict], doc_metadata: Optional[Dict] = None):
         self._connect()
         if not self._driver: return
 
-        def _tx_ingest(tx, c_id, d_id, d_name, ents, rels):
-            tx.run("MERGE (d:Document {id: $d_id}) SET d.case_id = $c_id, d.name = $d_name", d_id=d_id, c_id=c_id, d_name=d_name)
+        def _tx_ingest(tx, c_id, d_id, d_name, ents, rels, meta):
+            tx.run("""
+                MERGE (d:Document {id: $d_id}) 
+                SET d.case_id = $c_id, d.name = $d_name, d.created_at = datetime()
+            """, d_id=d_id, c_id=c_id, d_name=d_name)
+            
+            if meta and meta.get("doc_type"):
+                tx.run("MATCH (d:Document {id: $d_id}) SET d.type = $dtype", d_id=d_id, dtype=meta["doc_type"])
             
             for ent in ents:
                 name = ent.get("name", "").strip().title()
@@ -235,14 +217,11 @@ class GraphService:
 
         try:
             with self._driver.session() as session:
-                session.execute_write(_tx_ingest, case_id, document_id, doc_name, entities, relations)
+                session.execute_write(_tx_ingest, case_id, document_id, doc_name, entities, relations, doc_metadata)
         except Exception as e:
             logger.error(f"Graph Ingestion Error: {e}")
 
     def delete_node(self, node_id: str):
-        """
-        Deletes a specific node (Document or Case) by its ID and detaches relationships.
-        """
         self._connect()
         if not self._driver: return
         query = "MATCH (n {id: $id}) DETACH DELETE n"

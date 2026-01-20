@@ -1,7 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V31.1 (CATEGORIZATION ADDED)
-# 1. ADDED: categorize_document_text() function for document classification.
-# 2. STATUS: Synchronized and ready for integration.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V32.0 (FUNCTION ALIAS FIX)
+# 1. FIX: Added 'sterilize_legal_text' as an alias for 'sterilize_text_for_llm'.
+# 2. STATUS: Resolves the ImportError in document_processing_service.
 
 import os
 import json
@@ -28,7 +28,8 @@ __all__ = [
     "extract_graph_data",
     "get_embedding",
     "forensic_interrogation",
-    "categorize_document_text"  # PHOENIX: Exported new function
+    "categorize_document_text",
+    "sterilize_legal_text" # PHOENIX: Exported alias
 ]
 
 # --- CONFIGURATION ---
@@ -248,6 +249,11 @@ def get_embedding(text: str) -> List[float]:
 
 # --- PUBLIC FUNCTIONS ---
 
+# PHOENIX: Function Alias to fix Document Processing Service
+def sterilize_legal_text(text: str) -> str:
+    """Wrapper for the core sterilization function."""
+    return sterilize_text_for_llm(text)
+
 def forensic_interrogation(question: str, context_rows: List[str]) -> str:
     context_str = "\n".join(context_rows)
     prompt_filled = PROMPT_FORENSIC_INTERROGATOR.replace("{context}", context_str)
@@ -292,11 +298,7 @@ def generate_summary(text: str) -> str:
 def extract_graph_data(text: str) -> Dict[str, Any]:
     return {"entities": [], "relations": []}
 
-# PHOENIX NEW: Function for categorization
 def categorize_document_text(text: str) -> str:
-    """
-    Categorizes the document text using a specific LLM prompt.
-    """
-    clean = sterilize_text_for_llm(text[:4000]) # Use a smaller chunk for speed
+    clean = sterilize_text_for_llm(text[:4000])
     result = _parse_json_safely(_call_llm(PROMPT_CATEGORIZER, clean, True, temp=0.0) or "{}")
     return result.get("category", "Të tjera")

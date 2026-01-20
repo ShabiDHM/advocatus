@@ -1,4 +1,7 @@
 # FILE: backend/app/tasks/chat_tasks.py
+# PHOENIX PROTOCOL - CHAT TASKS V2.0 (SYNC WORKER)
+# 1. FIX: Replaced 'async_db_instance' with 'db_instance' (Synchronous).
+# 2. STATUS: Resolves the ImportError that crashes the Celery Worker.
 
 import asyncio
 import logging
@@ -7,37 +10,36 @@ from datetime import datetime, timezone
 
 from ..celery_app import celery_app
 from ..services import chat_service
-# PHOENIX PROTOCOL CURE: Import the async database instance directly for use in the task.
-from ..core.db import async_db_instance
+# PHOENIX FIX: Import the synchronous database instance
+from ..core.db import db_instance
 
 logger = logging.getLogger(__name__)
 
-# The broadcast endpoint is now consolidated in the websockets router.
 BROADCAST_ENDPOINT = "http://backend:8000/internal/broadcast/document-update"
 
 @celery_app.task(name="process_socratic_query_task")
 def process_socratic_query_task(query_text: str, case_id: str, user_id: str):
     """
-    This background task runs the full RAG pipeline and sends the final result back
-    via a WebSocket broadcast by calling the internal broadcast API.
+    This background task runs the full RAG pipeline and sends the final result back.
     """
     logger.info(f"Celery task 'process_socratic_query_task' started for user {user_id} in case {case_id}")
     
     broadcast_payload = {}
     try:
-        # PHOENIX PROTOCOL CURE: Call the correct, existing service function for non-streaming chat.
-        # We run the async function within the synchronous Celery task context.
+        if db_instance is None:
+             raise RuntimeError("Database connection not initialized in Celery worker.")
+
+        # PHOENIX FIX: Pass the synchronous db_instance.
+        # We use asyncio.run() because the service method is 'async def' (it calls the AI).
         full_response = asyncio.run(
             chat_service.get_http_chat_response(
-                db=async_db_instance,
+                db=db_instance,
                 case_id=case_id,
                 user_query=query_text,
                 user_id=user_id
             )
         )
         
-        # PHOENIX PROTOCOL CURE: Construct the exact payload the frontend expects for a final chat message.
-        # The `type` field is critical for client-side routing.
         broadcast_payload = {
             "case_id": case_id,
             "type": "chat_message_out",
@@ -48,7 +50,6 @@ def process_socratic_query_task(query_text: str, case_id: str, user_id: str):
 
     except Exception as e:
         logger.error(f"Celery task failed during RAG pipeline for user {user_id} in case {case_id}: {e}", exc_info=True)
-        # On failure, prepare an error message payload to send back to the user.
         broadcast_payload = {
             "case_id": case_id,
             "type": "chat_message_out",
@@ -58,10 +59,9 @@ def process_socratic_query_task(query_text: str, case_id: str, user_id: str):
         }
 
     try:
-        # Trigger the broadcast with the final result (either success or error message).
         with httpx.Client() as client:
             response = client.post(BROADCAST_ENDPOINT, json=broadcast_payload)
-            response.raise_for_status() # Will raise an exception for 4xx/5xx responses
+            response.raise_for_status() 
         
         logger.info(f"Celery task successfully triggered broadcast for user {user_id} in case {case_id}")
 

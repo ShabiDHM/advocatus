@@ -1,31 +1,42 @@
 # FILE: backend/app/tasks/deadline_extraction.py
-# PHOENIX PROTOCOL - TASK WRAPPER
-# 1. BRIDGES the Celery Task to the Deadline Service logic.
-# 2. Resolves the "cannot import name" error crashing the backend.
+# PHOENIX PROTOCOL - DEADLINE TASK V2.0 (TYPE SAFETY)
+# 1. FIX: Implemented 'get_db_safe' to resolve Pylance 'None' type error.
+# 2. LOGIC: Ensures valid DB connection for Celery worker.
 
 from celery import shared_task
 import structlog
-from app.core.db import db_instance
+from pymongo.database import Database
+
+# PHOENIX FIX: Safe DB connection logic imports
+from app.core.db import db_instance as global_db, connect_to_mongo
 from app.services import deadline_service
 
 logger = structlog.get_logger(__name__)
+
+def get_db_safe() -> Database:
+    """Ensure we have a valid MongoDB connection."""
+    if global_db is not None:
+        return global_db
+    _, db = connect_to_mongo()
+    return db
 
 @shared_task(name="extract_deadlines_from_document")
 def extract_deadlines_from_document(document_id: str, text_content: str):
     """
     Celery task wrapper for deadline extraction.
-    Can be called asynchronously via .delay() or synchronously via .apply().
     """
     logger.info("task.deadline_extraction.started", document_id=document_id)
     
     try:
+        # PHOENIX FIX: Use safe getter to ensure non-None Database
+        db = get_db_safe()
+        
         deadline_service.extract_and_save_deadlines(
-            db=db_instance,
+            db=db,
             document_id=document_id,
             full_text=text_content
         )
         logger.info("task.deadline_extraction.success", document_id=document_id)
     except Exception as e:
         logger.error("task.deadline_extraction.failed", error=str(e), document_id=document_id)
-        # We generally catch exceptions here so the main document processing flow doesn't crash completely
-        # if just the deadline extraction fails.
+        # We catch exceptions so the main process continues even if deadlines fail

@@ -1,34 +1,52 @@
 # FILE: backend/app/tasks/document_processing.py
-# PHOENIX PROTOCOL - GRAPH SYNC ACTIVATION V2.0
-# 1. CRITICAL FIX: Ingests processed entities into the GraphService.
-# 2. STATUS: This activates the link between document processing and Neo4j.
+# PHOENIX PROTOCOL - INGESTION TASK V2.2 (BOOLEAN SAFETY)
+# 1. FIX: Changed 'if global_db:' to 'if global_db is not None:' to satisfy PyMongo strict boolean rules.
+# 2. STATUS: Resolves Pylance error regarding __bool__.
 
 from celery import shared_task
 import structlog
 import time
 import json
 from bson import ObjectId
-from typing import Optional
+from typing import Optional, Dict
 from redis import Redis 
+from pymongo.database import Database
 
-from app.core.db import db_instance, redis_sync_client
+# Import connection functions for Lazy Init
+from app.core.db import db_instance as global_db, redis_sync_client as global_redis, connect_to_mongo, connect_to_redis
 from app.core.config import settings 
 from app.services import document_processing_service
-# PHOENIX: Import the graph service
 from app.services.graph_service import graph_service
 from app.services.document_processing_service import DocumentNotFoundInDBError
 from app.models.document import DocumentStatus
 
 logger = structlog.get_logger(__name__)
 
+def get_redis_safe() -> Redis:
+    """Ensure we have a valid Redis connection."""
+    # PHOENIX FIX: Explicit check against None
+    if global_redis is not None:
+        return global_redis
+    return connect_to_redis()
+
+def get_db_safe() -> Database:
+    """Ensure we have a valid MongoDB connection."""
+    # PHOENIX FIX: Explicit check against None (PyMongo requires this)
+    if global_db is not None:
+        return global_db
+    _, db = connect_to_mongo()
+    return db
+
 def publish_sse_update(document_id: str, status: str, error: Optional[str] = None):
     """
-    Helper to publish status updates to Redis for SSE (for active case documents).
+    Helper to publish status updates to Redis for SSE.
     """
     redis_client = None
     try:
         redis_client = Redis.from_url(settings.REDIS_URL, decode_responses=True)
-        doc = db_instance.documents.find_one({"_id": ObjectId(document_id)})
+        db = get_db_safe()
+        
+        doc = db.documents.find_one({"_id": ObjectId(document_id)})
         if not doc:
             logger.warning("sse.doc_not_found", document_id=document_id)
             return
@@ -69,27 +87,36 @@ def process_document_task(self, document_id_str: str):
         time.sleep(2) 
 
     try:
-        # Step 1: Perform core document processing (OCR, MongoDB updates)
+        db = get_db_safe()
+        redis_client = get_redis_safe()
+    except Exception as e:
+        log.critical("task.connection_failure", error=str(e))
+        raise e
+
+    try:
+        # Step 1: Perform core document processing
         processed_data = document_processing_service.orchestrate_document_processing_mongo(
-            db=db_instance,
-            redis_client=redis_sync_client, 
+            db=db,
+            redis_client=redis_client, 
             document_id_str=document_id_str
         )
         log.info("task.mongo_processing_complete")
 
-        # --- PHOENIX CRITICAL FIX: Ingest into Graph ---
+        # Step 2: Ingest into Graph
         if processed_data:
             log.info("task.graph_ingestion_started")
+            # Explicit cast or check can be added if needed, but Optional[Dict] handles None
+            meta: Optional[Dict] = processed_data.get("metadata")
+            
             graph_service.ingest_entities_and_relations(
                 case_id=processed_data.get("case_id"),
                 document_id=document_id_str,
                 doc_name=processed_data.get("doc_name"),
                 entities=processed_data.get("entities", []),
                 relations=processed_data.get("relations", []),
-                doc_metadata=processed_data.get("metadata", {})
+                doc_metadata=meta
             )
             log.info("task.graph_ingestion_complete")
-        # -----------------------------------------------
 
         log.info("task.completed.success")
         publish_sse_update(document_id_str, DocumentStatus.READY)
@@ -101,7 +128,10 @@ def process_document_task(self, document_id_str: str):
     except Exception as e:
         log.error("task.failed.generic", error=str(e), exc_info=True)
         try:
-            db_instance.documents.update_one(
+            # We re-fetch DB here just in case the error was connection related, 
+            # though get_db_safe should have handled it.
+            db_safe = get_db_safe()
+            db_safe.documents.update_one(
                 {"_id": ObjectId(document_id_str)},
                 {"$set": {"status": DocumentStatus.FAILED, "error_message": str(e)}}
             )
