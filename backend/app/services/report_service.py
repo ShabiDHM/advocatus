@@ -1,8 +1,8 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT SERVICE V4.5 (SYMMETRY ALIGNMENT)
-# 1. FIX: Calculated exact column widths for the totals table wrapper.
-# 2. LOGIC: Items Table Width (180mm) = Spacer (105mm) + Totals Table (75mm).
-# 3. RESULT: The 'Total' value column now vertically aligns perfectly with the body table.
+# PHOENIX PROTOCOL - REPORT SERVICE V4.6 (PERFECT GRID)
+# 1. FIX: Added 'TableHeaderRight' to align numeric headers with data.
+# 2. GEOMETRY: Adjusted column widths (Desc:90, Qty:20, Price:35, Total:35) to creating a seamless vertical grid.
+# 3. FIX: Removed padding from footer wrapper to prevent layout drift.
 
 import io
 import os
@@ -17,7 +17,7 @@ from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, 
 from reportlab.platypus import Image as ReportLabImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.colors import HexColor, white
-from reportlab.lib.enums import TA_RIGHT
+from reportlab.lib.enums import TA_RIGHT, TA_LEFT
 from pymongo.database import Database
 from typing import List, Optional
 from bson import ObjectId
@@ -41,7 +41,9 @@ STYLES.add(ParagraphStyle(name='MetaLabel', parent=STYLES['Normal'], fontSize=8,
 STYLES.add(ParagraphStyle(name='MetaValue', parent=STYLES['Normal'], fontSize=10, textColor=COLOR_PRIMARY_TEXT, alignment=TA_RIGHT, spaceBefore=2))
 STYLES.add(ParagraphStyle(name='AddressLabel', parent=STYLES['Normal'], fontName='Helvetica-Bold', fontSize=10, textColor=COLOR_PRIMARY_TEXT, spaceBottom=6))
 STYLES.add(ParagraphStyle(name='AddressText', parent=STYLES['Normal'], fontSize=9, textColor=COLOR_SECONDARY_TEXT, leading=14))
-STYLES.add(ParagraphStyle(name='TableHeader', parent=STYLES['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=white))
+STYLES.add(ParagraphStyle(name='TableHeader', parent=STYLES['Normal'], fontName='Helvetica-Bold', fontSize=9, textColor=white, alignment=TA_LEFT))
+# PHOENIX FIX: Right-aligned header for numeric columns
+STYLES.add(ParagraphStyle(name='TableHeaderRight', parent=STYLES['TableHeader'], alignment=TA_RIGHT))
 STYLES.add(ParagraphStyle(name='TableCell', parent=STYLES['Normal'], fontSize=9, textColor=COLOR_PRIMARY_TEXT))
 STYLES.add(ParagraphStyle(name='TableCellRight', parent=STYLES['TableCell'], alignment=TA_RIGHT))
 STYLES.add(ParagraphStyle(name='TotalLabel', parent=STYLES['TableCellRight']))
@@ -115,17 +117,11 @@ def _fetch_logo_buffer(url: Optional[str], storage_key: Optional[str] = None) ->
 
     if url and "static" in url:
         clean_path = url.split("static/", 1)[-1] 
-        candidates = [
-            f"/app/static/{clean_path}",      
-            f"app/static/{clean_path}",       
-            f"static/{clean_path}",           
-            f"/usr/src/app/static/{clean_path}" 
-        ]
+        candidates = [f"/app/static/{clean_path}", f"app/static/{clean_path}", f"static/{clean_path}", f"/usr/src/app/static/{clean_path}"]
         for cand in candidates:
             if os.path.exists(cand):
                 try:
-                    with open(cand, "rb") as f:
-                        return _process_image_bytes(f.read())
+                    with open(cand, "rb") as f: return _process_image_bytes(f.read())
                 except Exception: pass
 
     if storage_key:
@@ -138,8 +134,7 @@ def _fetch_logo_buffer(url: Optional[str], storage_key: Optional[str] = None) ->
     if url and url.startswith("http"):
         try:
             response = requests.get(url, timeout=2) 
-            if response.status_code == 200:
-                return _process_image_bytes(response.content)
+            if response.status_code == 200: return _process_image_bytes(response.content)
         except Exception: pass
             
     return None
@@ -210,7 +205,6 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
 
     firm_content: List[Flowable] = []
     if branding.get("firm_name"): firm_content.append(Paragraph(str(branding.get("firm_name")), STYLES['FirmName']))
-    
     for key, label_key in [("address", "lbl_address"), ("nui", "lbl_nui"), ("email_public", "lbl_email"), ("phone", "lbl_tel"), ("website", "lbl_web")]:
         val = branding.get(key)
         if val: firm_content.append(Paragraph(f"<b>{_get_text(label_key, lang)}</b> {val}", STYLES['FirmMeta']))
@@ -228,44 +222,30 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     Story.append(Table([[Paragraph(_get_text('invoice_title', lang), STYLES['H1']), Table(meta_data, colWidths=[80*mm], style=[('ALIGN', (0,0), (-1,-1), 'RIGHT')])]], colWidths=[100*mm, 80*mm], style=[('VALIGN', (0,0), (-1,-1), 'TOP')]))
     Story.append(Spacer(1, 15*mm))
 
-    # --- CLIENT DETAILS BLOCK ---
     client_content: List[Flowable] = []
     client_content.append(Paragraph(f"<b>{invoice.client_name}</b>", STYLES['AddressText']))
-    
     c_address = getattr(invoice, 'client_address', '')
     c_city = getattr(invoice, 'client_city', '')
-    full_address = c_address
-    if c_city:
-        full_address = f"{c_address}, {c_city}" if c_address else c_city
-    
-    if full_address:
-        client_content.append(Paragraph(f"<b>{_get_text('lbl_address', lang)}</b> {full_address}", STYLES['AddressText']))
-
-    c_tax_id = getattr(invoice, 'client_tax_id', '')
-    if c_tax_id:
-        client_content.append(Paragraph(f"<b>{_get_text('lbl_nui', lang)}</b> {c_tax_id}", STYLES['AddressText']))
-
-    c_email = getattr(invoice, 'client_email', '')
-    if c_email:
-        client_content.append(Paragraph(f"<b>{_get_text('lbl_email', lang)}</b> {c_email}", STYLES['AddressText']))
-
-    c_phone = getattr(invoice, 'client_phone', '')
-    if c_phone:
-        client_content.append(Paragraph(f"<b>{_get_text('lbl_tel', lang)}</b> {c_phone}", STYLES['AddressText']))
-
-    c_website = getattr(invoice, 'client_website', '')
-    if c_website:
-        client_content.append(Paragraph(f"<b>{_get_text('lbl_web', lang)}</b> {c_website}", STYLES['AddressText']))
+    full_address = f"{c_address}, {c_city}" if c_address and c_city else (c_address or c_city)
+    if full_address: client_content.append(Paragraph(f"<b>{_get_text('lbl_address', lang)}</b> {full_address}", STYLES['AddressText']))
+    if getattr(invoice, 'client_tax_id', ''): client_content.append(Paragraph(f"<b>{_get_text('lbl_nui', lang)}</b> {invoice.client_tax_id}", STYLES['AddressText']))
+    if getattr(invoice, 'client_email', ''): client_content.append(Paragraph(f"<b>{_get_text('lbl_email', lang)}</b> {invoice.client_email}", STYLES['AddressText']))
+    if getattr(invoice, 'client_phone', ''): client_content.append(Paragraph(f"<b>{_get_text('lbl_tel', lang)}</b> {invoice.client_phone}", STYLES['AddressText']))
+    if getattr(invoice, 'client_website', ''): client_content.append(Paragraph(f"<b>{_get_text('lbl_web', lang)}</b> {invoice.client_website}", STYLES['AddressText']))
 
     t_addr = Table([[Paragraph(_get_text('to', lang), STYLES['AddressLabel']), client_content]], colWidths=[20*mm, 160*mm])
     t_addr.setStyle(TableStyle([('VALIGN', (0,0), (-1,-1), 'TOP')]))
     Story.append(t_addr)
     Story.append(Spacer(1, 10*mm))
 
-    # --- ITEMS TABLE ---
-    # Widths: 95 + 20 + 30 + 35 = 180mm Total Width
-    headers = [_get_text('desc', lang), _get_text('qty', lang), _get_text('price', lang), _get_text('total', lang)]
-    data = [[Paragraph(h, STYLES['TableHeader']) for h in headers]]
+    # --- ITEMS TABLE GEOMETRY (Total 180mm) ---
+    # Desc: 90mm | Qty: 20mm | Price: 35mm | Total: 35mm
+    data = [[
+        Paragraph(_get_text('desc', lang), STYLES['TableHeader']),
+        Paragraph(_get_text('qty', lang), STYLES['TableHeaderRight']),
+        Paragraph(_get_text('price', lang), STYLES['TableHeaderRight']),
+        Paragraph(_get_text('total', lang), STYLES['TableHeaderRight'])
+    ]]
     for item in invoice.items:
         data.append([
             Paragraph(item.description, STYLES['TableCell']),
@@ -273,41 +253,40 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
             Paragraph(f"{item.unit_price:,.2f} EUR", STYLES['TableCellRight']),
             Paragraph(f"{item.total:,.2f} EUR", STYLES['TableCellRight']),
         ])
-    t_items = Table(data, colWidths=[95*mm, 20*mm, 30*mm, 35*mm])
+    t_items = Table(data, colWidths=[90*mm, 20*mm, 35*mm, 35*mm])
     t_items.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), brand_color),
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
         ('LINEBELOW', (0,-1), (-1,-1), 1, COLOR_BORDER),
         ('TOPPADDING', (0,0), (-1,-1), 8),
         ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [HexColor("#FFFFFF"), HexColor("#F9FAFB")])
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [HexColor("#FFFFFF"), HexColor("#F9FAFB")]),
+        ('LEFTPADDING', (0,0), (-1,-1), 6), ('RIGHTPADDING', (0,0), (-1,-1), 6)
     ]))
     Story.append(t_items)
 
-    # --- TOTALS TABLE ---
-    # Wrapper Logic:
-    # 1. Spacer Column: 105mm (Keeps the totals pushed to the right)
-    # 2. Totals Container: 75mm (Aligns with the last two columns of the items table: 30+35 = 65, plus padding)
-    # Inner Table:
-    # 1. Label Column: 40mm
-    # 2. Value Column: 35mm (Matches the 'Total' column of items table exactly)
-    
+    # --- TOTALS TABLE GEOMETRY ---
+    # Spacer: 110mm (90+20) | Footer Table: 70mm (35+35)
+    # Inner Footer: Label: 35mm | Value: 35mm
     totals_data = [
         [Paragraph(_get_text('subtotal', lang), STYLES['TotalLabel']), Paragraph(f"{invoice.subtotal:,.2f} EUR", STYLES['TotalLabel'])],
         [Paragraph(_get_text('tax', lang), STYLES['TotalLabel']), Paragraph(f"{invoice.tax_amount:,.2f} EUR", STYLES['TotalLabel'])],
         [Paragraph(f"<b>{_get_text('total', lang)}</b>", STYLES['TotalValue']), Paragraph(f"<b>{invoice.total_amount:,.2f} EUR</b>", STYLES['TotalValue'])],
     ]
     
-    t_totals = Table(totals_data, colWidths=[40*mm, 35*mm], style=[
+    t_totals = Table(totals_data, colWidths=[35*mm, 35*mm], style=[
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('LINEABOVE', (0, 2), (1, 2), 1.5, COLOR_PRIMARY_TEXT), # Bold line above Grand Total
-        ('TOPPADDING', (0, 2), (1, 2), 6)
+        ('LINEABOVE', (0, 2), (1, 2), 1.5, COLOR_PRIMARY_TEXT),
+        ('TOPPADDING', (0, 2), (1, 2), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 6), ('RIGHTPADDING', (0,0), (-1,-1), 6)
     ])
     
-    # Outer wrapper to position the totals table on the right side
-    Story.append(Table([["", t_totals]], colWidths=[105*mm, 75*mm], style=[
+    # WRAPPER: No padding to ensure perfect math (110+70 = 180)
+    Story.append(Table([["", t_totals]], colWidths=[110*mm, 70*mm], style=[
         ('ALIGN', (1,0), (1,0), 'RIGHT'),
-        ('VALIGN', (0,0), (-1,-1), 'TOP')
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
+        ('LEFTPADDING', (0,0), (-1,-1), 0), ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 0), ('BOTTOMPADDING', (0,0), (-1,-1), 0)
     ]))
 
     if invoice.notes:

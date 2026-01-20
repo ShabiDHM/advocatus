@@ -1,7 +1,7 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING V6.2 (PATH FIX)
-// 1. FIX: Corrected import path for 'BrandLogo' (removed non-existent '/common' folder).
-// 2. STATUS: Resolves TypeScript error TS2307.
+// PHOENIX PROTOCOL - LANDING V6.3 (I18N FIX)
+// 1. FIX: Removed hardcoded "Juristi AI v2.0" string.
+// 2. LOGIC: Now uses t('landing.versionBadge') for dynamic updates.
 
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -11,7 +11,6 @@ import {
     MessageSquare, Zap, TrendingUp, Database, FileText 
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-// PHOENIX FIX: Correct import path
 import BrandLogo from '../components/BrandLogo';
 import ProductShowcase from '../components/landing/ProductShowcase';
 
@@ -50,7 +49,8 @@ const LandingPage: React.FC = () => {
             >
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-primary-300 mb-8 uppercase tracking-wider shadow-lg shadow-primary-start/5">
                     <BrainCircuit size={14} /> 
-                    Juristi AI v2.0
+                    {/* PHOENIX FIX: Soft-coded via I18N */}
+                    {t('landing.versionBadge', 'Juristi AI v2.0')}
                 </div>
                 
                 <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 leading-tight">
