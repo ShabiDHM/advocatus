@@ -1,7 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER V12.1 (MEMBER REMOVAL)
-// 1. ADDED: removeOrganizationMember() to support the Team Tab UI.
-// 2. STATUS: Fully synchronized with all frontend components and backend routes.
+// PHOENIX PROTOCOL - API MASTER V12.2 (TOKEN HYDRATION FIX)
+// 1. BUGFIX: Added a public `setToken(token: string | null)` method to the ApiService.
+// 2. REASON: Resolves the critical "401 Unauthorized" error by allowing the application's authentication context to hydrate the apiService instance with the user's token from localStorage on application startup or page refresh.
+// 3. ARCHITECTURE: This aligns the Juristi API service with the robust architectural pattern required for persistent authentication in single-page applications.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -84,6 +85,8 @@ class ApiService {
     }
     
     // --- AUTH ---
+    // PHOENIX: ADDED PUBLIC METHOD TO HYDRATE TOKEN FROM CONTEXT
+    public setToken(token: string | null): void { tokenManager.set(token); }
     public getToken(): string | null { return tokenManager.get(); }
     public async refreshToken(): Promise<boolean> { try { const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); if (response.data.access_token) { tokenManager.set(response.data.access_token); return true; } return false; } catch (error) { console.warn("[API] Session Refresh Failed:", error); return false; } }
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
