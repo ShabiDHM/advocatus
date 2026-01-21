@@ -465,7 +465,7 @@
     "addLine": "Shto Rresht",
     "statusLabel": "Statusi i Faturës",
     "status": {
-      "draft": "Draft (E pa lëshuar)",
+      "draft": "E pa Dërguar",
       "sent": "E Dërguar",
       "paid": "E Paguar",
       "cancelled": "E Anuluar"
@@ -498,8 +498,8 @@
       "warnings": "Paralajmërime",
       "mustFix": "Duhet Rregulluar",
       "recommended": "E Rekomanduar",
-      "totalSales": "Shitjet Totale (Bruto)",
-      "totalPurchases": "Blerjet Totale (Bruto)",
+      "totalSales": "Shitjet Totale",
+      "totalPurchases": "Blerjet Totale",
       "vatCollected": "TVSH e Mbledhur",
       "vatDeductible": "TVSH e Zbritshme",
       "netPayable": "Tatimi Neto për Pagesë",
@@ -520,10 +520,10 @@
       "atk": {
         "openEdi": "Hap EDI (ATK)",
         "copyInstruction": "Kopjoni vlerat e mëposhtme dhe vendosini në formularin përkatës në EDI:",
-        "box9": "Të ardhura bruto (Shërbime)",
+        "box9": "Të ardhura bruto",
         "box11": "Tatimi (9%)",
-        "box10": "Furnizimet (Shitjet)",
-        "box23": "Blerjet Totale",
+        "box10": "Shitjet",
+        "box23": "Blerjet",
         "box48": "TVSH për pagesë",
         "copy": "Kopjo",
         "copied": "U Kopjua"
