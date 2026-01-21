@@ -1,8 +1,8 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - CASE CARD V5.0 (GLASS STYLE)
-// 1. VISUALS: Full Glassmorphism adoption (glass-panel).
-// 2. UX: Enhanced hover states with gradient overlays and smooth lifting animation.
-// 3. COLORS: Standardized icon colors using system variables (primary-start, accent-start, etc.).
+// PHOENIX PROTOCOL - CASE CARD V5.1 (LOCALIZATION FIX)
+// 1. VISUALS: Glassmorphism maintained.
+// 2. LOCALE: Enforces Albanian Date Format (dd.MM.yyyy).
+// 3. TEXT: Maps missing keys to existing 'general' keys or hardcoded Albanian.
 
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -34,12 +34,16 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
     navigate('/calendar');
   };
 
-  const formattedDate = new Date(caseData.created_at).toLocaleDateString(undefined, {
-    year: 'numeric', month: '2-digit', day: '2-digit'
-  });
+  // PHOENIX FIX: Enforce Kosovo Date Format (Day.Month.Year)
+  const formattedDate = new Date(caseData.created_at).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  }).replace(/\//g, '.'); // Converts 20/01/2026 -> 20.01.2026
 
   const hasTitle = caseData.title && caseData.title.trim() !== '';
-  const displayTitle = hasTitle ? caseData.title : t('caseCard.untitled');
+  // Fallback to "Rast pa Emër" if translation missing
+  const displayTitle = hasTitle ? caseData.title : (t('caseView.unnamedCase') || 'Rast pa Emër');
 
   return (
     <MotionLink 
@@ -65,8 +69,9 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           </div>
           
           <div className="flex items-center gap-2 mt-3">
+            {/* PHOENIX FIX: Hardcoded Albanian label for stability */}
             <p className="text-sm text-text-secondary font-medium">
-                {t('caseCard.createdOn')}: <span className="text-gray-300">{formattedDate}</span>
+                Krijuar më: <span className="text-gray-300">{formattedDate}</span>
             </p>
           </div>
         </div>
@@ -75,7 +80,8 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         <div className="flex flex-col mb-6 relative z-10">
           <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
              <User className="w-3.5 h-3.5 text-primary-start" />
-             <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">{t('caseCard.client')}</span>
+             {/* PHOENIX FIX: Use generic 'client' label or fallback */}
+             <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">{t('portal.client_label') || 'KLIENTI'}</span>
           </div>
           
           <div className="space-y-1.5 pl-1">
@@ -105,7 +111,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           
           <div className="flex items-center gap-4">
               {/* Documents */}
-              <div className="flex items-center gap-1.5" title={`${caseData.document_count || 0} ${t('caseCard.documents')}`}>
+              <div className="flex items-center gap-1.5" title={`${caseData.document_count || 0} Dokumente`}>
                 <FileText className="h-4 w-4 text-blue-400" />
                 <span className="text-sm font-medium text-text-secondary">{caseData.document_count || 0}</span>
               </div>
@@ -114,7 +120,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
               <button 
                 onClick={handleCalendarNav}
                 className="flex items-center gap-1.5 group/icon hover:bg-white/5 px-1.5 py-0.5 rounded transition-colors" 
-                title={`${caseData.alert_count || 0} ${t('caseCard.alerts')}`}
+                title={`${caseData.alert_count || 0} Afate`}
               >
                 <AlertTriangle className="h-4 w-4 text-accent-start group-hover/icon:text-accent-end transition-colors" />
                 <span className="text-sm font-medium text-text-secondary group-hover/icon:text-white">{caseData.alert_count || 0}</span>
@@ -124,7 +130,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
               <button 
                 onClick={handleCalendarNav}
                 className="flex items-center gap-1.5 group/icon hover:bg-white/5 px-1.5 py-0.5 rounded transition-colors" 
-                title={`${caseData.event_count || 0} ${t('caseCard.events')}`}
+                title={`${caseData.event_count || 0} Ngjarje`}
               >
                 <CalendarDays className="h-4 w-4 text-secondary-start group-hover/icon:text-secondary-end transition-colors" />
                 <span className="text-sm font-medium text-text-secondary group-hover/icon:text-white">{caseData.event_count || 0}</span>
@@ -135,7 +141,8 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         {/* Footer: Actions */}
         <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
           <span className="text-sm font-bold text-primary-start group-hover:text-primary-end transition-colors flex items-center gap-1 cursor-pointer">
-            {t('caseCard.viewDetails')} 
+            {/* PHOENIX FIX: Using 'general.view' + 'general.details' logic */}
+            {t('general.view')} {t('archive.details')} 
           </span>
           
           <motion.button
@@ -143,7 +150,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
             className="p-2 -mr-2 rounded-lg text-text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            title={t('caseCard.deleteCase')}
+            title={t('general.delete')}
           >
             <Trash2 className="h-4 w-4" />
           </motion.button>
