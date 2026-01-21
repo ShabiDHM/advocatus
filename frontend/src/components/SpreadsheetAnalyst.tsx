@@ -1,8 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V2.6 (MOBILE RESPONSIVE)
-// 1. MOBILE: Changed global height to 'h-auto lg:h-[850px]'. Stacks naturally on phone, dashboard on PC.
-// 2. UX: narrative uses fixed height on mobile (scrollable), flex on desktop.
-// 3. CHAT: Enforced min-height on mobile to ensure keyboard doesn't hide messages.
+// PHOENIX PROTOCOL - FRONTEND V2.7 (STRICT LAYOUT FIX)
+// 1. LAYOUT: Left Column now uses STRICT % heights (40% Narrative, Remaining for Anomalies).
+// 2. FIX: Removed 'shrink-0' that caused Narrative to eat the screen.
+// 3. SCROLL: Reinforced 'overflow-y-auto' on internal containers to ensure scrolling works.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -143,10 +143,10 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         return text.split('\n').map((line, i) => {
             const trimmed = line.trim();
             if (trimmed.startsWith('####')) {
-                return <h4 key={i} className="text-white font-bold text-sm mt-4 mb-2 border-b border-white/10 pb-1">{line.replace(/#/g, '')}</h4>;
+                return <h4 key={i} className="text-white font-bold text-sm mt-3 mb-1 border-b border-white/10 pb-1">{line.replace(/#/g, '')}</h4>;
             }
             if (trimmed.startsWith('**') && trimmed.endsWith(':')) {
-                 return <h4 key={i} className="text-primary-200 font-bold text-sm mt-4 mb-1">{trimmed.replace(/\*\*/g, '')}</h4>;
+                 return <h4 key={i} className="text-primary-200 font-bold text-sm mt-3 mb-1">{trimmed.replace(/\*\*/g, '')}</h4>;
             }
             if (trimmed.startsWith('- ')) {
                 const content = trimmed.substring(2);
@@ -163,8 +163,8 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     );
                 }
             }
-            if (trimmed === '') return <div key={i} className="h-2" />;
-            return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-0.5 break-words">{parseBold(line)}</p>;
+            if (trimmed === '') return <div key={i} className="h-1" />;
+            return <p key={i} className="text-gray-300 text-sm leading-snug mb-0.5 break-words">{parseBold(line)}</p>;
         });
     };
 
@@ -261,37 +261,47 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 )}
             </div>
 
-            {/* MAIN CONTENT GRID - PHOENIX FIX: Responsive Height (Auto on Mobile, Fixed on Desktop) */}
+            {/* MAIN CONTENT GRID */}
             <AnimatePresence mode="wait">
                 {result && (
                     <motion.div 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
+                        // PHOENIX FIX: 
+                        // Mobile: h-auto (Let it stack).
+                        // Desktop: h-[850px] (Fixed dashboard height).
                         className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[850px]"
                     >
                         {/* LEFT COLUMN: EVIDENCE BOARD */}
+                        {/* PHOENIX FIX: overflow-hidden on desktop to enforce strict internal scrolling */}
                         <div className="flex flex-col gap-6 overflow-visible lg:overflow-hidden h-auto lg:h-full">
                             
-                            {/* Summary Card: Fixed height on Mobile to save space, Flex on Desktop */}
-                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col h-72 lg:h-auto lg:flex-[0.4] lg:shrink-0">
+                            {/* 1. NARRATIVE CARD */}
+                            {/* PHOENIX FIX: 
+                                - Desktop: h-[40%] (Strict limit).
+                                - Mobile: h-80 (Fixed height with scroll).
+                                - No 'shrink-0' on desktop, allow flex to handle it, but height is explicit.
+                            */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col h-80 lg:h-[40%]">
                                 <h3 className="text-md font-bold text-white mb-2 flex items-center gap-2 shrink-0">
                                     <ShieldAlert className="text-primary-start w-4 h-4" />
                                     {t('analyst.narrative', 'Forensic Narrative')}
                                 </h3>
+                                {/* PHOENIX FIX: custom-scrollbar with verified overflow-y */}
                                 <div className="overflow-y-auto custom-scrollbar pr-2 flex-1">
                                     {renderMarkdown(result.executive_summary)}
                                 </div>
                             </div>
 
-                             {/* Recommendations */}
+                             {/* 2. RECOMMENDATIONS (Optional, Compact) */}
                              {result.recommendations && result.recommendations.length > 0 && (
-                                <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 bg-emerald-900/10 flex-shrink-0">
+                                <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 bg-emerald-900/10 shrink-0">
                                     <h3 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-2">
                                         <Lightbulb className="w-4 h-4" />
                                         {t('analyst.recommendations', 'Strategic Recommendations')}
                                     </h3>
-                                    <ul className="space-y-1 max-h-[150px] overflow-y-auto custom-scrollbar">
+                                    <ul className="space-y-1 max-h-[100px] overflow-y-auto custom-scrollbar">
                                         {result.recommendations.map((rec, i) => (
                                             <li key={i} className="flex gap-2 items-start text-xs text-gray-300">
                                                 <ArrowRight className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
@@ -302,8 +312,8 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 </div>
                             )}
 
-                            {/* Trends & Metrics */}
-                            <div className="grid grid-cols-2 gap-4 flex-shrink-0">
+                            {/* 3. TRENDS (Static Height) */}
+                            <div className="grid grid-cols-2 gap-4 shrink-0">
                                 {result.trends.map((trend, idx) => (
                                     <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/10">
                                         <div className="flex justify-between items-start mb-1">
@@ -315,8 +325,13 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 ))}
                             </div>
 
-                            {/* Anomalies List: Fixed height on mobile, fills space on desktop */}
-                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 h-80 lg:h-auto lg:flex-1 overflow-hidden flex flex-col min-h-0">
+                            {/* 4. ANOMALIES (Fills Remaining Space) */}
+                            {/* PHOENIX FIX: 
+                                - Desktop: flex-1 (Takes whatever is left after Narrative 40% + Trends). 
+                                - Mobile: h-96 (Fixed height).
+                                - min-h-0 is CRITICAL for flex containers to scroll properly.
+                            */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 h-96 lg:h-auto lg:flex-1 overflow-hidden flex flex-col min-h-0">
                                 <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2 shrink-0">
                                     <AlertTriangle className="text-yellow-400 w-4 h-4" />
                                     {t('analyst.redFlags', 'Red Flags (Evidence)')}
@@ -342,7 +357,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         </div>
 
                         {/* RIGHT COLUMN: INTERROGATION CONSOLE */}
-                        {/* Mobile: Fixed Height to keep input visible. Desktop: Fills parent. */}
+                        {/* Mobile: 600px fixed. Desktop: Fills height. */}
                         <div className="glass-panel rounded-2xl border border-primary-start/30 bg-black/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-2xl relative">
                             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
                             
