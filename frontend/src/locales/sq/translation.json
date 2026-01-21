@@ -323,10 +323,10 @@
   },
   "analyst": {
     "title": "Dhoma e Hulumtimit Financiar",
-    "subtitle": "Hulumtim financiar.",
+      "subtitle": "Hulumtim financiar.",
     "selectFile": "Excel/CSV...",
     "processing": "Skanimi Forenzik në Proces...",
-    "newAnalysis": "Rivendos Dhomën",
+    "newAnalysis": "Analiz e re",
     "runAnalysis": "Analizo",
     "analyzing": "Duke Skanuar...",
     "narrative": "Narrativa Forenzike",
