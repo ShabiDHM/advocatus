@@ -1,13 +1,13 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V3.3 (EMPTY STATE FIX)
-// 1. UI FIX: Added a welcoming "Empty State" panel to guide the user when no data is loaded.
-// 2. LOGIC: The main view now correctly handles all three states: Empty, Loading, and Result.
-// 3. PERSISTENCE: Retains all previous fixes, including localStorage and UI cleanup.
+// PHOENIX PROTOCOL - FRONTEND V3.5 (COMPILER FIX)
+// 1. CODE HYGIENE: Removed the unused 'Loader2' import to satisfy the TypeScript compiler.
+// 2. WORKFLOW: Retains the automated analysis workflow from V3.4.
+// 3. UI: Retains the "Empty State" panel from V3.3.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    FileSpreadsheet, Activity, AlertTriangle, TrendingUp, Loader2, 
+    FileSpreadsheet, Activity, AlertTriangle, TrendingUp, 
     CheckCircle, RefreshCw, Lightbulb, ArrowRight, TrendingDown, 
     MessageSquare, Send, ShieldAlert, Bot 
 } from 'lucide-react';
@@ -114,40 +114,13 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     }, [chatHistory]);
 
     // --- HANDLERS ---
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const newFile = e.target.files[0];
-            setFile(newFile);
-            setFileName(newFile.name);
-            setError(null);
-            setResult(null);
-            setChatHistory([]);
-            handleReset();
-        }
-    };
-    
-    const handleReset = () => {
-        setResult(null);
-        setFile(null);
-        setFileName(null);
-        setChatHistory([]);
-        setError(null);
+    const runAnalysis = async (fileToAnalyze: File) => {
+        if (!fileToAnalyze) return;
 
-        const cache = getCache();
-        delete cache[caseId];
-        try {
-            localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-        } catch (e) {
-            console.error("Failed to clear from localStorage", e);
-        }
-    };
-
-    const runAnalysis = async () => {
-        if (!file) return;
         setIsAnalyzing(true);
         setError(null);
         try {
-            const data = await apiService.analyzeSpreadsheet(caseId, file) as unknown as SmartFinancialReport;
+            const data = await apiService.analyzeSpreadsheet(caseId, fileToAnalyze) as unknown as SmartFinancialReport;
             setResult(data);
             setChatHistory([{
                 id: 'init',
@@ -160,6 +133,40 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             setError(t('analyst.error.analysisFailed'));
         } finally {
             setIsAnalyzing(false);
+        }
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const newFile = e.target.files[0];
+            // Immediately set state for UI feedback and clear old data
+            setFile(newFile);
+            setFileName(newFile.name);
+            setError(null);
+            setResult(null);
+            setChatHistory([]);
+            handleReset(false); // Clear cache without resetting the new file name
+
+            // PHOENIX FIX: Automatically trigger the analysis
+            await runAnalysis(newFile);
+        }
+    };
+    
+    const handleReset = (fullReset = true) => {
+        if(fullReset) {
+            setFile(null);
+            setFileName(null);
+        }
+        setResult(null);
+        setChatHistory([]);
+        setError(null);
+
+        const cache = getCache();
+        delete cache[caseId];
+        try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+        } catch (e) {
+            console.error("Failed to clear from localStorage", e);
         }
     };
 
@@ -246,23 +253,17 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         </h2>
                     </div>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                        {!result && (
+                        {!result && !isAnalyzing && (
                             <div className="relative group w-full md:w-auto">
                                 <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
-                                <div className={`flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-dashed transition-all cursor-pointer ${file ? 'border-primary-start bg-primary-start/10' : 'border-gray-600 hover:border-gray-400 bg-black/20'}`}>
-                                    <FileSpreadsheet className={`w-5 h-5 ${file ? 'text-primary-start' : 'text-gray-400'}`} />
-                                    <span className="text-sm text-gray-300 truncate max-w-[200px]">{fileName || t('analyst.selectFile')}</span>
+                                <div className={`flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-dashed transition-all cursor-pointer bg-black/20 border-gray-600 hover:border-gray-400`}>
+                                    <FileSpreadsheet className={`w-5 h-5 text-gray-400`} />
+                                    <span className="text-sm text-gray-300 truncate max-w-[200px]">{t('analyst.selectFile')}</span>
                                 </div>
                             </div>
                         )}
-                        {file && !result && (
-                            <button onClick={runAnalysis} disabled={isAnalyzing} className="px-6 py-2.5 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold flex justify-center items-center gap-2 shadow-lg hover:shadow-primary-start/20 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100">
-                                {isAnalyzing ? <Loader2 className="animate-spin w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
-                                {isAnalyzing ? t('analyst.analyzing') : t('analyst.runAnalysis')}
-                            </button>
-                        )}
                         {result && (
-                             <button onClick={handleReset} className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex justify-center items-center gap-2 hover:bg-white/5">
+                             <button onClick={() => handleReset(true)} className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex justify-center items-center gap-2 hover:bg-white/5">
                                 <RefreshCw className="w-4 h-4" />
                                 {t('analyst.newAnalysis')}
                              </button>
@@ -272,7 +273,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 {error && <div className="mt-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-200 animate-in fade-in slide-in-from-top-2"><AlertTriangle className="w-5 h-5" />{error}</div>}
             </div>
             
-            {/* PHOENIX FIX: Main content area now handles all 3 states */}
             <AnimatePresence mode="wait">
                 {result && (
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[850px]">
@@ -327,8 +327,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     </motion.div>
                 }
             </AnimatePresence>
-
-            {/* PHOENIX FIX: NEW EMPTY STATE RENDER BLOCK */}
             <AnimatePresence>
                 {!result && !isAnalyzing && (
                     <motion.div 
@@ -344,7 +342,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     </motion.div>
                 )}
             </AnimatePresence>
-
         </div>
     );
 };
