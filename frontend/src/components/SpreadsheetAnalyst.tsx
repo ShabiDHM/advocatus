@@ -1,8 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V2.8 (SCROLLABLE FEED LAYOUT)
-// 1. UX OVERHAUL: Left Column is now a single Scrollable Feed.
-// 2. READABILITY: 'Evidence' section given min-height of 500px (no more squashing).
-// 3. LAYOUT: Chat remains fixed/sticky while you scroll the report on the left.
+// PHOENIX PROTOCOL - FRONTEND V2.9 (CLEAN & PROFESSIONAL)
+// 1. CLEANING: Strips markdown artifacts (```markdown, ---) from display.
+// 2. STYLING: Renders hashtags as proper Legal Headers.
+// 3. UI: Removed debug context labels from the Agent Console.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -137,34 +137,62 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         }
     };
 
-    // --- ENHANCED MARKDOWN RENDERER ---
+    // --- PHOENIX FIX: CLEAN MARKDOWN RENDERER ---
     const renderMarkdown = (text: string) => {
         if (!text) return null;
-        return text.split('\n').map((line, i) => {
+
+        // 1. Pre-cleaning: Remove ```markdown, ```, and --- artifacts
+        const cleanText = text
+            .replace(/```markdown/g, '')
+            .replace(/```/g, '')
+            .replace(/^---$/gm, '') // Remove horizontal rule dashes
+            .trim();
+
+        return cleanText.split('\n').map((line, i) => {
             const trimmed = line.trim();
-            if (trimmed.startsWith('####')) {
-                return <h4 key={i} className="text-white font-bold text-sm mt-3 mb-1 border-b border-white/10 pb-1">{line.replace(/#/g, '')}</h4>;
+            if (!trimmed) return <div key={i} className="h-2" />; // Spacer for empty lines
+
+            // Headers (### or ####)
+            if (trimmed.startsWith('#')) {
+                const level = trimmed.match(/^#+/)?.[0].length || 0;
+                const content = trimmed.replace(/^#+\s*/, '');
+                
+                // Style based on header level
+                if (level <= 2) return <h3 key={i} className="text-white font-bold text-lg mt-4 mb-2 pb-2 border-b border-white/10 uppercase tracking-wide">{content}</h3>;
+                return <h4 key={i} className="text-primary-200 font-bold text-sm mt-3 mb-1">{content}</h4>;
             }
-            if (trimmed.startsWith('**') && trimmed.endsWith(':')) {
-                 return <h4 key={i} className="text-primary-200 font-bold text-sm mt-3 mb-1">{trimmed.replace(/\*\*/g, '')}</h4>;
+
+            // Bold Keys (e.g., "**Risk:** High")
+            if (trimmed.startsWith('**') && trimmed.includes(':')) {
+                 return <div key={i} className="mt-2 text-sm text-gray-200">{parseBold(trimmed)}</div>;
             }
-            if (trimmed.startsWith('- ')) {
+
+            // List Items
+            if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
                 const content = trimmed.substring(2);
-                return <li key={i} className="ml-4 list-disc text-gray-300 text-sm mb-1 pl-1">{parseBold(content)}</li>;
+                return (
+                    <div key={i} className="flex gap-2 ml-1 mb-1 items-start">
+                        <span className="text-primary-400 mt-1.5 w-1 h-1 rounded-full bg-primary-400 shrink-0"/>
+                        <p className="text-gray-300 text-sm leading-relaxed">{parseBold(content)}</p>
+                    </div>
+                );
             }
+
+            // Numbered Lists
             if (/^\d+\./.test(trimmed)) {
                 const match = trimmed.match(/^(\d+\.)\s+(.*)/);
                 if (match) {
                     return (
-                        <div key={i} className="flex gap-2 ml-2 mb-1 text-sm text-gray-300">
-                            <span className="font-mono text-primary-300 shrink-0">{match[1]}</span>
-                            <span>{parseBold(match[2])}</span>
+                        <div key={i} className="flex gap-2 ml-1 mb-1 text-sm text-gray-300 items-start">
+                            <span className="font-mono text-primary-300 shrink-0 font-bold">{match[1]}</span>
+                            <span className="leading-relaxed">{parseBold(match[2])}</span>
                         </div>
                     );
                 }
             }
-            if (trimmed === '') return <div key={i} className="h-1" />;
-            return <p key={i} className="text-gray-300 text-sm leading-snug mb-0.5 break-words">{parseBold(line)}</p>;
+
+            // Standard Paragraph
+            return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-1 break-words">{parseBold(trimmed)}</p>;
         });
     };
 
@@ -172,7 +200,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         const parts = line.split(/(\*\*.*?\*\*)/g);
         return parts.map((part, index) => {
             if (part.startsWith('**') && part.endsWith('**')) {
-                return <strong key={index} className="text-white font-bold border-b border-white/10">{part.slice(2, -2)}</strong>;
+                return <strong key={index} className="text-white font-bold">{part.slice(2, -2)}</strong>;
             }
             return part;
         });
@@ -271,16 +299,15 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[850px]"
                     >
                         {/* LEFT COLUMN: EVIDENCE BOARD (SCROLLABLE FEED) */}
-                        {/* PHOENIX FIX: 'overflow-y-auto' enables the entire column to scroll. */}
                         <div className="flex flex-col gap-6 overflow-visible lg:overflow-y-auto custom-scrollbar h-auto lg:h-full lg:pr-2">
                             
-                            {/* 1. NARRATIVE (Shrinks naturally, no fixed height) */}
+                            {/* 1. NARRATIVE */}
                             <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col shrink-0">
                                 <h3 className="text-md font-bold text-white mb-2 flex items-center gap-2 shrink-0">
                                     <ShieldAlert className="text-primary-start w-4 h-4" />
                                     {t('analyst.narrative', 'Forensic Narrative')}
                                 </h3>
-                                <div>
+                                <div className="pl-1">
                                     {renderMarkdown(result.executive_summary)}
                                 </div>
                             </div>
@@ -316,14 +343,12 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 ))}
                             </div>
 
-                            {/* 4. ANOMALIES (BIG, SCROLLABLE IF NEEDED) */}
-                            {/* PHOENIX FIX: min-h-[500px] ensures it's never squashed. */}
+                            {/* 4. ANOMALIES */}
                             <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col shrink-0 min-h-[500px]">
                                 <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2 shrink-0">
                                     <AlertTriangle className="text-yellow-400 w-4 h-4" />
                                     {t('analyst.redFlags', 'Red Flags (Evidence)')}
                                 </h3>
-                                {/* This list expands the parent container. No internal scrolling needed unless extremely long. */}
                                 <div className="space-y-3">
                                     {result.anomalies.map((anomaly, idx) => (
                                         <div key={idx} className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors">
@@ -352,8 +377,9 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <Bot className="text-primary-start w-5 h-5" />
                                 <div>
                                     <h3 className="text-sm font-bold text-white">{t('analyst.agentTitle', 'Forensic Agent')}</h3>
+                                    {/* PHOENIX FIX: Cleaned Context Label */}
                                     <p className="text-[10px] text-gray-400">
-                                        {t('analyst.context', 'Context')}: {file?.name} ({result.anomalies.length} {t('analyst.flags', 'Flags')})
+                                        {t('analyst.flags', 'Flags Detected')}: {result.anomalies.length}
                                     </p>
                                 </div>
                             </div>
