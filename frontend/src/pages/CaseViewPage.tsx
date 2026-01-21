@@ -1,7 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V13.4 (ROLE FIX)
-// 1. FIX: Added 'OWNER' to the CaseHeader's 'userRole' prop type.
-// 2. STATUS: Resolves the final TypeScript error from the role refactor.
+// PHOENIX PROTOCOL - CASE VIEW V13.8 (FINAL UI CLEANUP)
+// 1. UI CLEANUP: Removed the "Hulumtim financiar" placeholder text that appeared in Analyst mode.
+// 2. LAYOUT: The header now has a clean, empty space when the context dropdown is not visible.
+// 3. STATUS: All functionalities are preserved, and all requested UI cleanup is complete.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -85,7 +86,6 @@ const CaseHeader: React.FC<{
     isAnalyzing: boolean; 
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
-    // PHOENIX FIX: Added 'OWNER' to userRole union type
     userRole: 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD' | 'OWNER';
 }> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode }) => {
     
@@ -120,20 +120,16 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 w-full animate-in fade-in slide-in-from-top-2">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full animate-in fade-in slide-in-from-top-2">
                     <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap">
                         <Calendar className="h-4 w-4 text-blue-400" />
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
 
-                    <div className="md:col-span-2 h-12 md:h-11 min-w-0">
+                    <div className="md:col-span-1 h-12 md:h-11 min-w-0">
+                        {/* PHOENIX FIX: Placeholder text is now removed, leaving this space blank in Analyst mode */}
                         {viewMode === 'workspace' && (
                              <GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />
-                        )}
-                        {viewMode !== 'workspace' && (
-                            <div className="w-full h-full flex items-center px-4 bg-white/5 border border-white/10 rounded-xl text-gray-400 italic text-sm">
-                                {t('analyst.subtitle', 'Smart Financial Analysis Mode')}
-                            </div>
                         )}
                     </div>
                     
@@ -151,17 +147,8 @@ const CaseHeader: React.FC<{
                         className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent bg-primary-start hover:bg-primary-end shadow-primary-start/20 disabled:bg-white/5 disabled:border disabled:border-white/10 disabled:cursor-not-allowed disabled:opacity-50`}
                         type="button"
                     >
-                        {isAnalyzing ? (
-                            <>
-                                <Loader2 className="h-4 w-4 animate-spin text-white/70" />
-                                <span className="text-white/70">{t('analysis.analyzing')}...</span>
-                            </>
-                        ) : (
-                            <>
-                                <ShieldCheck className="h-4 w-4" />
-                                <span>{analyzeButtonText}</span>
-                            </>
-                        )}
+                        {isAnalyzing ? ( <><Loader2 className="h-4 w-4 animate-spin text-white/70" /> <span className="text-white/70">{t('analysis.analyzing')}...</span></> ) 
+                                   : ( <><ShieldCheck className="h-4 w-4" /> <span>{analyzeButtonText}</span></> )}
                     </button>
               </div>
           </div>
@@ -238,9 +225,9 @@ const CaseViewPage: React.FC = () => {
         <div className="mt-4 lg:mt-0">
             <CaseHeader 
                 caseDetails={caseData.details} 
-                documents={liveDocuments} 
+                documents={liveDocuments}
                 activeContextId={activeContextId} 
-                onContextChange={setActiveContextId} 
+                onContextChange={setActiveContextId}
                 t={t} 
                 onAnalyze={handleAnalyze} 
                 isAnalyzing={isAnalyzing} 
