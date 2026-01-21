@@ -1,70 +1,60 @@
 import json
 import os
-import glob
 from pymongo import MongoClient
 from datetime import datetime
-from dotenv import load_dotenv
 
-# Load Environment Variables
-load_dotenv()
-
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongo:27017")
-DB_NAME = "juristi_knowledge"
-COLLECTION_NAME = "verdicts_metadata"
-
-# --- DOCKER AWARE PATH ---
-# The script runs from /app, and our files are in /app/data
+# --- DIRECT PATH CONFIGURATION ---
+# We know the file is in /app/data inside the container
 DATA_DIR = "/app/data"
+# Let's target the largest, most important file directly
+INPUT_FILE = os.path.join(DATA_DIR, "kjc_2025_part1.json") 
+# Get MONGO_URI from environment, passed by Docker
+MONGO_URI = os.getenv("MONGO_URI")
 
-def merge_and_upload():
-    print("🔄 STARTING DATA FUSION PROTOCOL (DOCKER)...")
-    
-    # 1. Find all partial JSON files inside the data directory
-    search_path = os.path.join(DATA_DIR, "kjc_*.json")
-    files = glob.glob(search_path)
-    
-    if not files:
-        print(f"❌ No data files found in {DATA_DIR} (kjc_*.json).")
+def direct_upload():
+    print("🚀 STARTING DIRECT UPLOAD PROTOCOL...")
+
+    if not MONGO_URI:
+        print("❌ CRITICAL: MONGO_URI environment variable not found.")
         return
 
-    print(f"   - Found {len(files)} files to merge: {files}")
+    if not os.path.exists(INPUT_FILE):
+        print(f"❌ File not found inside container at: {INPUT_FILE}")
+        # Let's see what IS in that folder
+        if os.path.exists(DATA_DIR):
+            print(f"   - Contents of {DATA_DIR}: {os.listdir(DATA_DIR)}")
+        return
 
+    print(f"   - Found data file: {INPUT_FILE}")
+
+    # 1. Load Data
+    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    print(f"   - Loaded {len(data)} verdicts.")
+
+    # 2. Process & Add Metadata
     all_verdicts = []
-    seen_urls = set()
-    
-    # 2. Merge Loop
-    for filename in files:
-        print(f"   - Processing {filename}...")
-        try:
-            with open(filename, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                
-            for item in data:
-                url = item.get("pdf_url")
-                if url and url not in seen_urls:
-                    seen_urls.add(url)
-                    item["imported_at"] = datetime.utcnow()
-                    item["status"] = "indexed" 
-                    all_verdicts.append(item)
-                    
-        except Exception as e:
-            print(f"     ⚠️ Error reading {filename}: {e}")
+    for item in data:
+        item["imported_at"] = datetime.utcnow()
+        item["status"] = "indexed"
+        all_verdicts.append(item)
 
-    print(f"   - Total Unique Verdicts: {len(all_verdicts)}")
-
-    # 3. Database Upload
-    if all_verdicts:
+    # 3. Connect & Upload
+    try:
         client = MongoClient(MONGO_URI)
-        db = client[DB_NAME]
-        collection = db[COLLECTION_NAME]
-        
-        try:
-            # Clear old data to ensure a clean slate
-            collection.delete_many({})
-            result = collection.insert_many(all_verdicts)
-            print(f"✅ SUCCESS! Uploaded {len(result.inserted_ids)} records to MongoDB.")
-        except Exception as e:
-            print(f"⚠️  Upload Failed: {e}")
-            
+        db = client["juristi_knowledge"]
+        collection = db["verdicts_metadata"]
+
+        print("   - Connected to MongoDB. Clearing old data...")
+        collection.delete_many({}) # Start fresh
+
+        print(f"   - Inserting {len(all_verdicts)} new records...")
+        result = collection.insert_many(all_verdicts)
+        print(f"\n✅ SUCCESS! Uploaded {len(result.inserted_ids)} records.")
+
+    except Exception as e:
+        print(f"\n❌ DATABASE ERROR: {e}")
+
 if __name__ == "__main__":
-    merge_and_upload()
+    direct_upload()
