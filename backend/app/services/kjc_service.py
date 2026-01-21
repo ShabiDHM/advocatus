@@ -9,8 +9,10 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Database Configuration
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+# --- CRITICAL FIX FOR DOCKER ---
+# When running inside Docker, the hostname for Mongo is 'mongo', not 'localhost'.
+# We will default to the Docker name as this script is intended for the server.
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://mongo:27017")
 DB_NAME = "juristi_knowledge"
 VERDICTS_COLLECTION = "verdicts_metadata"
 
@@ -33,11 +35,9 @@ class KJCService:
             if response.status_code == 200:
                 return response.content
             else:
-                # This is the new, important log message
                 print(f"      ❌ Blocked! Server returned Status Code: {response.status_code}")
                 return None
         except requests.exceptions.RequestException as e:
-            # This will print network errors like timeouts
             print(f"      ❌ Network Error: {e}")
             return None
 
@@ -55,7 +55,7 @@ class KJCService:
 
     def process_pending_verdicts(self, limit=50):
         """Main Worker Function to process the queue."""
-        print("⚙️  KJC SERVICE (v2): Starting Verdict Processor...")
+        print("⚙️  KJC SERVICE (v3 - Docker Aware): Starting Verdict Processor...")
         
         query = {"status": "indexed"} 
         pending_count = self.verdicts.count_documents(query)
@@ -87,10 +87,9 @@ class KJCService:
                 else:
                     self.verdicts.update_one({"_id": doc["_id"]}, {"$set": {"status": "failed_empty"}})
             else:
-                # The download function now prints the specific error
                 self.verdicts.update_one({"_id": doc["_id"]}, {"$set": {"status": "failed_download"}})
             
-            time.sleep(1) # Be polite
+            time.sleep(1)
 
         print(f"✅ Batch Complete. Successfully processed {success_count} of {limit} attempted verdicts.")
 
