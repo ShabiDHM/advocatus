@@ -1,8 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V2.7 (STRICT LAYOUT FIX)
-// 1. LAYOUT: Left Column now uses STRICT % heights (40% Narrative, Remaining for Anomalies).
-// 2. FIX: Removed 'shrink-0' that caused Narrative to eat the screen.
-// 3. SCROLL: Reinforced 'overflow-y-auto' on internal containers to ensure scrolling works.
+// PHOENIX PROTOCOL - FRONTEND V2.8 (SCROLLABLE FEED LAYOUT)
+// 1. UX OVERHAUL: Left Column is now a single Scrollable Feed.
+// 2. READABILITY: 'Evidence' section given min-height of 500px (no more squashing).
+// 3. LAYOUT: Chat remains fixed/sticky while you scroll the report on the left.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -268,40 +268,31 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        // PHOENIX FIX: 
-                        // Mobile: h-auto (Let it stack).
-                        // Desktop: h-[850px] (Fixed dashboard height).
                         className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[850px]"
                     >
-                        {/* LEFT COLUMN: EVIDENCE BOARD */}
-                        {/* PHOENIX FIX: overflow-hidden on desktop to enforce strict internal scrolling */}
-                        <div className="flex flex-col gap-6 overflow-visible lg:overflow-hidden h-auto lg:h-full">
+                        {/* LEFT COLUMN: EVIDENCE BOARD (SCROLLABLE FEED) */}
+                        {/* PHOENIX FIX: 'overflow-y-auto' enables the entire column to scroll. */}
+                        <div className="flex flex-col gap-6 overflow-visible lg:overflow-y-auto custom-scrollbar h-auto lg:h-full lg:pr-2">
                             
-                            {/* 1. NARRATIVE CARD */}
-                            {/* PHOENIX FIX: 
-                                - Desktop: h-[40%] (Strict limit).
-                                - Mobile: h-80 (Fixed height with scroll).
-                                - No 'shrink-0' on desktop, allow flex to handle it, but height is explicit.
-                            */}
-                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col h-80 lg:h-[40%]">
+                            {/* 1. NARRATIVE (Shrinks naturally, no fixed height) */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col shrink-0">
                                 <h3 className="text-md font-bold text-white mb-2 flex items-center gap-2 shrink-0">
                                     <ShieldAlert className="text-primary-start w-4 h-4" />
                                     {t('analyst.narrative', 'Forensic Narrative')}
                                 </h3>
-                                {/* PHOENIX FIX: custom-scrollbar with verified overflow-y */}
-                                <div className="overflow-y-auto custom-scrollbar pr-2 flex-1">
+                                <div>
                                     {renderMarkdown(result.executive_summary)}
                                 </div>
                             </div>
 
-                             {/* 2. RECOMMENDATIONS (Optional, Compact) */}
+                             {/* 2. RECOMMENDATIONS */}
                              {result.recommendations && result.recommendations.length > 0 && (
                                 <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 bg-emerald-900/10 shrink-0">
                                     <h3 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-2">
                                         <Lightbulb className="w-4 h-4" />
                                         {t('analyst.recommendations', 'Strategic Recommendations')}
                                     </h3>
-                                    <ul className="space-y-1 max-h-[100px] overflow-y-auto custom-scrollbar">
+                                    <ul className="space-y-1">
                                         {result.recommendations.map((rec, i) => (
                                             <li key={i} className="flex gap-2 items-start text-xs text-gray-300">
                                                 <ArrowRight className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
@@ -312,7 +303,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 </div>
                             )}
 
-                            {/* 3. TRENDS (Static Height) */}
+                            {/* 3. TRENDS */}
                             <div className="grid grid-cols-2 gap-4 shrink-0">
                                 {result.trends.map((trend, idx) => (
                                     <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/10">
@@ -325,18 +316,15 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 ))}
                             </div>
 
-                            {/* 4. ANOMALIES (Fills Remaining Space) */}
-                            {/* PHOENIX FIX: 
-                                - Desktop: flex-1 (Takes whatever is left after Narrative 40% + Trends). 
-                                - Mobile: h-96 (Fixed height).
-                                - min-h-0 is CRITICAL for flex containers to scroll properly.
-                            */}
-                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 h-96 lg:h-auto lg:flex-1 overflow-hidden flex flex-col min-h-0">
+                            {/* 4. ANOMALIES (BIG, SCROLLABLE IF NEEDED) */}
+                            {/* PHOENIX FIX: min-h-[500px] ensures it's never squashed. */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col shrink-0 min-h-[500px]">
                                 <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2 shrink-0">
                                     <AlertTriangle className="text-yellow-400 w-4 h-4" />
                                     {t('analyst.redFlags', 'Red Flags (Evidence)')}
                                 </h3>
-                                <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 space-y-3">
+                                {/* This list expands the parent container. No internal scrolling needed unless extremely long. */}
+                                <div className="space-y-3">
                                     {result.anomalies.map((anomaly, idx) => (
                                         <div key={idx} className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors">
                                             <div className="flex justify-between items-center mb-1">
@@ -356,9 +344,8 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             </div>
                         </div>
 
-                        {/* RIGHT COLUMN: INTERROGATION CONSOLE */}
-                        {/* Mobile: 600px fixed. Desktop: Fills height. */}
-                        <div className="glass-panel rounded-2xl border border-primary-start/30 bg-black/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-2xl relative">
+                        {/* RIGHT COLUMN: INTERROGATION CONSOLE (FIXED) */}
+                        <div className="glass-panel rounded-2xl border border-primary-start/30 bg-black/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-2xl relative sticky top-0">
                             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
                             
                             <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3 shrink-0">

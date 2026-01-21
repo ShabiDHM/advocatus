@@ -323,7 +323,7 @@
   },
   "analyst": {
     "title": "Dhoma e Hulumtimit Financiar",
-    "subtitle": "Hulumtimi.",
+    "subtitle": "Hulumtim financiar.",
     "selectFile": "Excel/CSV...",
     "processing": "Skanimi Forenzik në Proces...",
     "wait": "Duke gjeneruar vektorë për çdo transaksion.",
