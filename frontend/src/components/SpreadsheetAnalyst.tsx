@@ -1,8 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V3.7 (COMPILER & LOGIC FIX)
-// 1. CODE HYGIENE: Removed the unused 'MessageSquare' import.
-// 2. CRITICAL FIX: Corrected the localStorage saving logic to ensure session persistence works as intended.
-// 3. UX: Retains the typewriter effect from V3.6.
+// PHOENIX PROTOCOL - FRONTEND V3.8 (CLEAN CHAT UI)
+// 1. UI CLEANUP: Removed the automatic welcome message from the chat after analysis completes.
+// 2. LOGIC: `runAnalysis` now only sets the report result, leaving the chat empty.
+// 3. UX: Retains all previous fixes, including persistence and typewriter effect for subsequent messages.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -100,16 +100,15 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         }
     }, [caseId]);
 
-    // PHOENIX FIX: Corrected localStorage saving logic
     useEffect(() => {
-        if (result && chatHistory.length > 0 && !typingMessage) {
+        if (result && !typingMessage) { // Also check chat history if you want to save only after interaction
             const cache = getCache();
             const stateToSave: CachedState = { 
                 report: result, 
                 chat: chatHistory, 
                 fileName: file?.name || fileName || 'Unknown File' 
             };
-            cache[caseId] = stateToSave; // Assign the new state to the cache object
+            cache[caseId] = stateToSave;
             try { 
                 localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); 
             } catch (e) { 
@@ -130,8 +129,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         try {
             const data = await apiService.analyzeSpreadsheet(caseId, fileToAnalyze) as unknown as SmartFinancialReport;
             setResult(data);
-            const welcomeMsg: ChatMessage = { id: 'init', role: 'agent', content: t('analyst.systemWelcome'), timestamp: new Date() };
-            setTypingMessage(welcomeMsg);
+            // PHOENIX FIX: Welcome message logic removed to keep chat clean.
         } catch (err: any) {
             console.error(err);
             setError(t('analyst.error.analysisFailed'));
@@ -228,7 +226,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const getTrendIcon = (trend: string) => { if (trend === 'UP') return <TrendingUp className="w-4 h-4 text-emerald-400" />; if (trend === 'DOWN') return <TrendingDown className="w-4 h-4 text-red-400" />; return <Activity className="w-4 h-4 text-blue-400" />; };
 
     return (
-        <div className="w-full h-full min-h-[500px] flex flex-col gap-6 p-2 sm-p-1">
+        <div className="w-full h-full min-h-[500px] flex flex-col gap-6 p-2 sm:p-1">
             <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-white/10 bg-white/5 relative overflow-hidden flex-shrink-0">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -z-10 pointer-events-none" />
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
