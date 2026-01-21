@@ -1,8 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V3.2 (SUBTITLE REMOVAL)
-// 1. UI CLEANUP: Removed the subtitle from the main header.
-// 2. UI CLEANUP: Removed the subtitle from the "Analyzing..." loading animation.
-// 3. PERSISTENCE: Retains localStorage logic from V3.1.
+// PHOENIX PROTOCOL - FRONTEND V3.3 (EMPTY STATE FIX)
+// 1. UI FIX: Added a welcoming "Empty State" panel to guide the user when no data is loaded.
+// 2. LOGIC: The main view now correctly handles all three states: Empty, Loading, and Result.
+// 3. PERSISTENCE: Retains all previous fixes, including localStorage and UI cleanup.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -244,7 +244,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             {t('analyst.title')}
                             {result && <CheckCircle className="w-5 h-5 text-emerald-500" />} 
                         </h2>
-                        {/* PHOENIX FIX: Subtitle removed */}
                     </div>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
                         {!result && (
@@ -272,9 +271,12 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 </div>
                 {error && <div className="mt-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-200 animate-in fade-in slide-in-from-top-2"><AlertTriangle className="w-5 h-5" />{error}</div>}
             </div>
+            
+            {/* PHOENIX FIX: Main content area now handles all 3 states */}
             <AnimatePresence mode="wait">
                 {result && (
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[850px]">
+                        {/* LEFT COLUMN: EVIDENCE BOARD */}
                         <div className="flex flex-col gap-6 overflow-visible lg:overflow-y-auto custom-scrollbar h-auto lg:h-full lg:pr-2">
                             <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col shrink-0">
                                 <h3 className="text-md font-bold text-white mb-2 flex items-center gap-2 shrink-0"><ShieldAlert className="text-primary-start w-4 h-4" />{t('analyst.narrative')}</h3>
@@ -292,6 +294,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <div className="space-y-3">{result.anomalies.map((anomaly, idx) => <div key={idx} className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors"><div className="flex justify-between items-center mb-1"><span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${getRiskBadge(anomaly.risk_level)}`}>{anomaly.risk_level}</span><span className="text-xs text-gray-500 font-mono">{anomaly.date}</span></div><div className="flex justify-between items-baseline"><p className="text-xs text-white font-bold truncate max-w-[200px]">{anomaly.description}</p><p className="text-xs font-mono text-red-300">€{(anomaly.amount || 0).toLocaleString()}</p></div><p className="text-[10px] text-gray-400 mt-1 break-words">{anomaly.explanation}</p></div>)}</div>
                             </div>
                         </div>
+                        {/* RIGHT COLUMN: INTERROGATION CONSOLE */}
                         <div className="glass-panel rounded-2xl border border-primary-start/30 bg-black/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-2xl relative sticky top-0">
                             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
                             <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3 shrink-0">
@@ -311,7 +314,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     </motion.div>
                 )}
             </AnimatePresence>
-             <AnimatePresence>
+            <AnimatePresence>
                 {isAnalyzing && !result && 
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-32">
                         <div className="relative">
@@ -321,10 +324,27 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             </div>
                         </div>
                         <p className="text-xl text-white font-medium mt-6">{t('analyst.processing')}</p>
-                        {/* PHOENIX FIX: Subtitle removed */}
                     </motion.div>
                 }
             </AnimatePresence>
+
+            {/* PHOENIX FIX: NEW EMPTY STATE RENDER BLOCK */}
+            <AnimatePresence>
+                {!result && !isAnalyzing && (
+                    <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="flex flex-col items-center justify-center text-center py-20 px-6 glass-panel rounded-2xl border border-white/5"
+                    >
+                        <FileSpreadsheet className="w-12 h-12 text-gray-600 mb-6" />
+                        <h3 className="text-lg font-bold text-white mb-2">Gati për Hulumtim</h3>
+                        <p className="text-sm text-gray-400 max-w-md">
+                            Zgjidhni një skedar Excel ose CSV duke përdorur butonin sipër për të filluar skanimin forenzik dhe për të zbuluar informacione të rëndësishme financiare.
+                        </p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
         </div>
     );
 };
