@@ -1,8 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V3.8 (CLEAN CHAT UI)
-// 1. UI CLEANUP: Removed the automatic welcome message from the chat after analysis completes.
-// 2. LOGIC: `runAnalysis` now only sets the report result, leaving the chat empty.
-// 3. UX: Retains all previous fixes, including persistence and typewriter effect for subsequent messages.
+// PHOENIX PROTOCOL - FRONTEND V3.9 (FORMATTING RESTORATION)
+// 1. CRITICAL FIX: Re-integrated the `renderMarkdown` function into the typewriter effect.
+// 2. UI: AI chat responses will now be correctly formatted as they are being typed.
+// 3. REFACTOR: Moved rendering helpers to the module scope for shared access.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,26 +24,59 @@ interface ChatMessage { id: string; role: 'user' | 'agent'; content: string; tim
 interface CachedState { report: SmartFinancialReport; chat: ChatMessage[]; fileName: string; }
 interface SpreadsheetAnalystProps { caseId: string; }
 
-// --- TYPEWRITER HOOK ---
-const useTypewriter = (text: string, speed: number = 30) => {
-    const [displayText, setDisplayText] = useState('');
+// --- PHOENIX FIX: SHARED RENDERERS MOVED TO MODULE SCOPE ---
+const parseBold = (line: string) => {
+    const parts = line.split(/(\*\*.*?\*\*|\*.*?\*)/g); // Handle both **bold** and *italic*
+    return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={index} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+        }
+        if (part.startsWith('*') && part.endsWith('*')) {
+            return <em key={index} className="italic text-gray-200">{part.slice(1, -1)}</em>;
+        }
+        return part;
+    });
+};
 
+const renderMarkdown = (text: string) => {
+    if (!text) return null;
+    const cleanText = text.replace(/```markdown/g, '').replace(/```/g, '').replace(/^---$/gm, '').trim();
+    return cleanText.split('\n').map((line, i) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={i} className="h-2" />;
+        if (trimmed.startsWith('#')) {
+            const level = trimmed.match(/^#+/)?.[0].length || 0;
+            const content = trimmed.replace(/^#+\s*/, '');
+            if (level <= 2) return <h3 key={i} className="text-white font-bold text-lg mt-4 mb-2 pb-2 border-b border-white/10 uppercase tracking-wide">{content}</h3>;
+            return <h4 key={i} className="text-primary-200 font-bold text-sm mt-3 mb-1">{content}</h4>;
+        }
+        if (trimmed.startsWith('**') && trimmed.includes(':')) return <div key={i} className="mt-2 text-sm text-gray-200">{parseBold(trimmed)}</div>;
+        if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+            const content = trimmed.substring(2);
+            return <div key={i} className="flex gap-2 ml-1 mb-1 items-start"><span className="text-primary-400 mt-1.5 w-1 h-1 rounded-full bg-primary-400 shrink-0"/><p className="text-gray-300 text-sm leading-relaxed">{parseBold(content)}</p></div>;
+        }
+        if (/^\d+\./.test(trimmed)) {
+            const match = trimmed.match(/^(\d+\.)\s+(.*)/);
+            if (match) return <div key={i} className="flex gap-2 ml-1 mb-1 text-sm text-gray-300 items-start"><span className="font-mono text-primary-300 shrink-0 font-bold">{match[1]}</span><span className="leading-relaxed">{parseBold(match[2])}</span></div>;
+        }
+        return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-1 break-words">{parseBold(trimmed)}</p>;
+    });
+};
+
+// --- TYPEWRITER HOOK ---
+const useTypewriter = (text: string, speed: number = 20) => {
+    const [displayText, setDisplayText] = useState('');
     useEffect(() => {
         setDisplayText(''); 
         if (text) {
             let i = 0;
             const intervalId = setInterval(() => {
-                if (i < text.length) {
-                    setDisplayText(prev => prev + text.charAt(i));
-                    i++;
-                } else {
-                    clearInterval(intervalId);
-                }
+                if (i < text.length) { setDisplayText(prev => prev + text.charAt(i)); i++; } 
+                else { clearInterval(intervalId); }
             }, speed);
             return () => clearInterval(intervalId);
         }
     }, [text, speed]);
-
     return displayText;
 };
 
@@ -51,17 +84,13 @@ const useTypewriter = (text: string, speed: number = 30) => {
 const TypingChatMessage: React.FC<{ message: ChatMessage, onComplete: () => void }> = ({ message, onComplete }) => {
     const displayText = useTypewriter(message.content);
     const { t } = useTranslation();
-
-    useEffect(() => {
-        if (displayText.length === message.content.length) {
-            onComplete();
-        }
-    }, [displayText, message.content.length, onComplete]);
+    useEffect(() => { if (displayText.length === message.content.length) { onComplete(); } }, [displayText, message.content.length, onComplete]);
 
     return (
         <div className="flex justify-start">
             <div className="max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed break-words bg-white/10 text-gray-200 border border-white/5 rounded-bl-none">
-                <div>{displayText}</div>
+                {/* PHOENIX FIX: Apply renderMarkdown to the streaming text */}
+                <div>{renderMarkdown(displayText)}</div>
                 {message.evidenceCount !== undefined && (
                     <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2 text-[10px] text-gray-400">
                         <ShieldAlert className="w-3 h-3" />
@@ -101,19 +130,11 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     }, [caseId]);
 
     useEffect(() => {
-        if (result && !typingMessage) { // Also check chat history if you want to save only after interaction
+        if (result && !typingMessage) {
             const cache = getCache();
-            const stateToSave: CachedState = { 
-                report: result, 
-                chat: chatHistory, 
-                fileName: file?.name || fileName || 'Unknown File' 
-            };
+            const stateToSave: CachedState = { report: result, chat: chatHistory, fileName: file?.name || fileName || 'Unknown File' };
             cache[caseId] = stateToSave;
-            try { 
-                localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); 
-            } catch (e) { 
-                console.error("Failed to save to localStorage", e); 
-            }
+            try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (e) { console.error("Failed to save to localStorage", e); }
         }
     }, [result, chatHistory, file, fileName, caseId, typingMessage]);
 
@@ -129,7 +150,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         try {
             const data = await apiService.analyzeSpreadsheet(caseId, fileToAnalyze) as unknown as SmartFinancialReport;
             setResult(data);
-            // PHOENIX FIX: Welcome message logic removed to keep chat clean.
         } catch (err: any) {
             console.error(err);
             setError(t('analyst.error.analysisFailed'));
@@ -164,14 +184,11 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const handleInterrogate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!question.trim() || isInterrogating || typingMessage) return;
-
         const currentQ = question;
         setQuestion('');
-        
         const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: currentQ, timestamp: new Date() };
         setChatHistory(prev => [...prev, userMsg]);
         setIsInterrogating(true);
-
         try {
             const response = await apiService.interrogateFinancialRecords(caseId, currentQ);
             const agentMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'agent', content: response.answer || t('analyst.noRelevantData'), timestamp: new Date(), evidenceCount: response.referenced_rows_count };
@@ -189,37 +206,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             setChatHistory(prev => [...prev, typingMessage]);
             setTypingMessage(null);
         }
-    };
-
-    // Renderers
-    const renderMarkdown = (text: string) => {
-        if (!text) return null;
-        const cleanText = text.replace(/```markdown/g, '').replace(/```/g, '').replace(/^---$/gm, '').trim();
-        return cleanText.split('\n').map((line, i) => {
-            const trimmed = line.trim();
-            if (!trimmed) return <div key={i} className="h-2" />;
-            if (trimmed.startsWith('#')) {
-                const level = trimmed.match(/^#+/)?.[0].length || 0;
-                const content = trimmed.replace(/^#+\s*/, '');
-                if (level <= 2) return <h3 key={i} className="text-white font-bold text-lg mt-4 mb-2 pb-2 border-b border-white/10 uppercase tracking-wide">{content}</h3>;
-                return <h4 key={i} className="text-primary-200 font-bold text-sm mt-3 mb-1">{content}</h4>;
-            }
-            if (trimmed.startsWith('**') && trimmed.includes(':')) return <div key={i} className="mt-2 text-sm text-gray-200">{parseBold(trimmed)}</div>;
-            if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-                const content = trimmed.substring(2);
-                return <div key={i} className="flex gap-2 ml-1 mb-1 items-start"><span className="text-primary-400 mt-1.5 w-1 h-1 rounded-full bg-primary-400 shrink-0"/><p className="text-gray-300 text-sm leading-relaxed">{parseBold(content)}</p></div>;
-            }
-            if (/^\d+\./.test(trimmed)) {
-                const match = trimmed.match(/^(\d+\.)\s+(.*)/);
-                if (match) return <div key={i} className="flex gap-2 ml-1 mb-1 text-sm text-gray-300 items-start"><span className="font-mono text-primary-300 shrink-0 font-bold">{match[1]}</span><span className="leading-relaxed">{parseBold(match[2])}</span></div>;
-            }
-            return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-1 break-words">{parseBold(trimmed)}</p>;
-        });
-    };
-
-    const parseBold = (line: string) => {
-        const parts = line.split(/(\*\*.*?\*\*)/g);
-        return parts.map((part, index) => part.startsWith('**') && part.endsWith('**') ? <strong key={index} className="text-white font-bold">{part.slice(2, -2)}</strong> : part);
     };
     
     const getRiskBadge = (level: string) => { switch (level) { case 'HIGH': return 'bg-red-500/20 text-red-300 border-red-500/30'; case 'MEDIUM': return 'bg-amber-500/20 text-amber-300 border-amber-500/30'; default: return 'bg-blue-500/20 text-blue-300 border-blue-500/30'; } };
