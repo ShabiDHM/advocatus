@@ -1,13 +1,13 @@
 // FILE: src/components/business/ProfileTab.tsx
-// PHOENIX PROTOCOL - PROFILE TAB V3.0 (GLASS STYLE)
-// 1. VISUALS: Full Glassmorphism adoption (glass-panel, glass-input).
-// 2. UX: Enhanced logo upload and branding interactions.
-// 3. LOGIC: Preserved all data fetching and submission flows.
+// PHOENIX PROTOCOL - PROFILE TAB V3.1 (SIMPLIFIED)
+// 1. VISUALS: Removed the "Branding" color picker section entirely.
+// 2. UX: Simplified the left column to focus solely on Logo/Identity.
+// 3. LOGIC: Preserved all data fetching and submission flows for the remaining fields.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-    Building2, Mail, Phone, Palette, Save, Upload, Loader2, Camera, MapPin, Globe, CreditCard
+    Building2, Mail, Phone, Save, Upload, Loader2, Camera, MapPin, Globe, CreditCard
 } from 'lucide-react';
 import { apiService, API_V1_URL } from '../../services/api';
 import { BusinessProfile, BusinessProfileUpdate } from '../../data/types';
@@ -85,6 +85,7 @@ export const ProfileTab: React.FC = () => {
 
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* --- LEFT COLUMN --- */}
             <div className="space-y-8">
                 {/* Logo Section - Glass Panel */}
                 <div className="glass-panel rounded-3xl p-8 flex flex-col items-center shadow-xl relative overflow-hidden group">
@@ -99,19 +100,11 @@ export const ProfileTab: React.FC = () => {
                     <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" />
                 </div>
 
-                {/* Branding Section - Glass Panel */}
-                <div className="glass-panel rounded-3xl p-8 shadow-xl relative overflow-hidden">
-                    <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-accent-start to-accent-end" />
-                    <h3 className="text-white font-bold mb-6 flex items-center gap-2"><Palette className="w-5 h-5 text-accent-start" /> {t('business.branding')}</h3>
-                    <div className="flex items-center gap-4 mb-6">
-                        <div className="relative overflow-hidden w-16 h-16 rounded-2xl border-2 border-white/10 shadow-inner"><input type="color" value={formData.branding_color || DEFAULT_COLOR} onChange={(e) => setFormData({ ...formData, branding_color: e.target.value })} className="absolute -top-1/2 -left-1/2 w-[200%] h-[200%] cursor-pointer" /></div>
-                        <div className="flex-1"><div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-lg">#</span><input type="text" value={(formData.branding_color || DEFAULT_COLOR).replace('#', '')} onChange={(e) => setFormData({ ...formData, branding_color: `#${e.target.value}` })} className="glass-input w-full pl-8 pr-4 py-3 rounded-xl text-white font-mono uppercase" /></div></div>
-                    </div>
-                    <button className="w-full py-3 rounded-xl text-white font-bold text-sm shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2" style={{ backgroundColor: formData.branding_color || DEFAULT_COLOR }}><Save className="w-4 h-4" />{t('business.saveColor')}</button>
-                </div>
+                {/* --- PHOENIX FIX: Branding Section Removed --- */}
+
             </div>
 
-            {/* Profile Form - Glass Panel */}
+            {/* --- RIGHT COLUMN: Profile Form --- */}
             <div className="md:col-span-2">
                 <form onSubmit={handleProfileSubmit} className="glass-panel rounded-3xl p-8 space-y-8 shadow-xl h-full relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-success-start to-success-end" />
