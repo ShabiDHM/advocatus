@@ -1,8 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V2.4 (CHAT BEAUTIFIER)
-// 1. UI: Enhanced Markdown Renderer to support Numbered Lists (1., 2.) and Bold Headers.
-// 2. UX: Improved spacing in chat bubbles for "Strategic Implication" sections.
-// 3. STATUS: Production Ready.
+// PHOENIX PROTOCOL - FRONTEND V2.6 (MOBILE RESPONSIVE)
+// 1. MOBILE: Changed global height to 'h-auto lg:h-[850px]'. Stacks naturally on phone, dashboard on PC.
+// 2. UX: narrative uses fixed height on mobile (scrollable), flex on desktop.
+// 3. CHAT: Enforced min-height on mobile to ensure keyboard doesn't hide messages.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -66,7 +66,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     }, [chatHistory]);
 
     // --- HANDLERS ---
-
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             setFile(e.target.files[0]);
@@ -141,32 +140,19 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     // --- ENHANCED MARKDOWN RENDERER ---
     const renderMarkdown = (text: string) => {
         if (!text) return null;
-        
         return text.split('\n').map((line, i) => {
             const trimmed = line.trim();
-
-            // 1. Headers (####) or Key Sections (**Title**:)
             if (trimmed.startsWith('####')) {
                 return <h4 key={i} className="text-white font-bold text-sm mt-4 mb-2 border-b border-white/10 pb-1">{line.replace(/#/g, '')}</h4>;
             }
-            // Detect lines like "**Përgjigje Direkte**:" and treat them as sub-headers
             if (trimmed.startsWith('**') && trimmed.endsWith(':')) {
                  return <h4 key={i} className="text-primary-200 font-bold text-sm mt-4 mb-1">{trimmed.replace(/\*\*/g, '')}</h4>;
             }
-
-            // 2. Bullet Lists (- )
             if (trimmed.startsWith('- ')) {
                 const content = trimmed.substring(2);
-                return (
-                    <li key={i} className="ml-4 list-disc text-gray-300 text-sm mb-1 pl-1">
-                        {parseBold(content)}
-                    </li>
-                );
+                return <li key={i} className="ml-4 list-disc text-gray-300 text-sm mb-1 pl-1">{parseBold(content)}</li>;
             }
-
-            // 3. Numbered Lists (1. ) - NEW SUPPORT
             if (/^\d+\./.test(trimmed)) {
-                // Extract number and content
                 const match = trimmed.match(/^(\d+\.)\s+(.*)/);
                 if (match) {
                     return (
@@ -177,19 +163,11 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     );
                 }
             }
-
-            // 4. Regular Paragraphs (Empty lines become breaks)
             if (trimmed === '') return <div key={i} className="h-2" />;
-            
-            return (
-                <p key={i} className="text-gray-300 text-sm leading-relaxed mb-0.5">
-                    {parseBold(line)}
-                </p>
-            );
+            return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-0.5 break-words">{parseBold(line)}</p>;
         });
     };
 
-    // Helper to parse **Bold** inside a line
     const parseBold = (line: string) => {
         const parts = line.split(/(\*\*.*?\*\*)/g);
         return parts.map((part, index) => {
@@ -199,8 +177,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             return part;
         });
     };
-
-    // --- UI HELPERS ---
 
     const getRiskBadge = (level: string) => {
         switch (level) {
@@ -217,24 +193,24 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     };
 
     return (
-        <div className="w-full h-full min-h-[500px] flex flex-col gap-6 p-1">
+        <div className="w-full h-full min-h-[500px] flex flex-col gap-6 p-2 sm:p-1">
             
             {/* Header Area */}
-            <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5 relative overflow-hidden">
+            <div className="glass-panel p-4 sm:p-6 rounded-2xl border border-white/10 bg-white/5 relative overflow-hidden flex-shrink-0">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-primary-start/5 rounded-full blur-3xl -z-10 pointer-events-none" />
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
                             <Activity className="text-primary-start" />
                             {t('analyst.title', 'Financial Interrogation Room')}
                             {result && <CheckCircle className="w-5 h-5 text-emerald-500" />} 
                         </h2>
-                        <p className="text-gray-400 mt-1 max-w-xl">
+                        <p className="text-gray-400 mt-1 max-w-xl text-sm sm:text-base">
                             {t('analyst.subtitle', 'Upload ledger. Vectors are generated automatically. Interrogate data below.')}
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-3 w-full md:w-auto">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
                         {!result && (
                             <div className="relative group w-full md:w-auto">
                                 <input 
@@ -244,7 +220,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                                 />
                                 <div className={`
-                                    flex items-center gap-3 px-4 py-2.5 rounded-xl border border-dashed transition-all cursor-pointer
+                                    flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-dashed transition-all cursor-pointer
                                     ${file ? 'border-primary-start bg-primary-start/10' : 'border-gray-600 hover:border-gray-400 bg-black/20'}
                                 `}>
                                     <FileSpreadsheet className={`w-5 h-5 ${file ? 'text-primary-start' : 'text-gray-400'}`} />
@@ -259,7 +235,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <button
                                 onClick={runAnalysis}
                                 disabled={isAnalyzing}
-                                className="px-6 py-2.5 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold flex items-center gap-2 shadow-lg hover:shadow-primary-start/20 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                                className="px-6 py-2.5 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold flex justify-center items-center gap-2 shadow-lg hover:shadow-primary-start/20 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100"
                             >
                                 {isAnalyzing ? <Loader2 className="animate-spin w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
                                 {isAnalyzing ? t('analyst.analyzing', 'Scanning...') : t('analyst.runAnalysis', 'Vectorize & Analyze')}
@@ -269,7 +245,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         {result && (
                              <button
                                 onClick={() => { setResult(null); setFile(null); setChatHistory([]); }}
-                                className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex items-center gap-2 hover:bg-white/5"
+                                className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex justify-center items-center gap-2 hover:bg-white/5"
                              >
                                 <RefreshCw className="w-4 h-4" />
                                 {t('analyst.newAnalysis', 'Reset Room')}
@@ -285,25 +261,25 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 )}
             </div>
 
-            {/* MAIN CONTENT GRID */}
+            {/* MAIN CONTENT GRID - PHOENIX FIX: Responsive Height (Auto on Mobile, Fixed on Desktop) */}
             <AnimatePresence mode="wait">
                 {result && (
                     <motion.div 
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[800px]"
+                        className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[850px]"
                     >
-                        {/* LEFT COLUMN: EVIDENCE BOARD (Static) */}
-                        <div className="flex flex-col gap-6 overflow-hidden h-full">
+                        {/* LEFT COLUMN: EVIDENCE BOARD */}
+                        <div className="flex flex-col gap-6 overflow-visible lg:overflow-hidden h-auto lg:h-full">
                             
-                            {/* Summary Card */}
-                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex-shrink-0">
-                                <h3 className="text-md font-bold text-white mb-2 flex items-center gap-2">
+                            {/* Summary Card: Fixed height on Mobile to save space, Flex on Desktop */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col h-72 lg:h-auto lg:flex-[0.4] lg:shrink-0">
+                                <h3 className="text-md font-bold text-white mb-2 flex items-center gap-2 shrink-0">
                                     <ShieldAlert className="text-primary-start w-4 h-4" />
                                     {t('analyst.narrative', 'Forensic Narrative')}
                                 </h3>
-                                <div className="max-h-64 overflow-y-auto custom-scrollbar pr-2">
+                                <div className="overflow-y-auto custom-scrollbar pr-2 flex-1">
                                     {renderMarkdown(result.executive_summary)}
                                 </div>
                             </div>
@@ -315,7 +291,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                         <Lightbulb className="w-4 h-4" />
                                         {t('analyst.recommendations', 'Strategic Recommendations')}
                                     </h3>
-                                    <ul className="space-y-1">
+                                    <ul className="space-y-1 max-h-[150px] overflow-y-auto custom-scrollbar">
                                         {result.recommendations.map((rec, i) => (
                                             <li key={i} className="flex gap-2 items-start text-xs text-gray-300">
                                                 <ArrowRight className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
@@ -331,7 +307,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 {result.trends.map((trend, idx) => (
                                     <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/10">
                                         <div className="flex justify-between items-start mb-1">
-                                            <span className="text-gray-400 text-xs font-bold uppercase">{trend.category}</span>
+                                            <span className="text-gray-400 text-xs font-bold uppercase truncate">{trend.category}</span>
                                             {getTrendIcon(trend.trend)}
                                         </div>
                                         <div className="text-xl font-bold text-white">{trend.percentage}</div>
@@ -339,9 +315,9 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 ))}
                             </div>
 
-                            {/* Anomalies List (Scrollable) */}
-                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex-1 overflow-hidden flex flex-col min-h-0">
-                                <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2">
+                            {/* Anomalies List: Fixed height on mobile, fills space on desktop */}
+                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 h-80 lg:h-auto lg:flex-1 overflow-hidden flex flex-col min-h-0">
+                                <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2 shrink-0">
                                     <AlertTriangle className="text-yellow-400 w-4 h-4" />
                                     {t('analyst.redFlags', 'Red Flags (Evidence)')}
                                 </h3>
@@ -358,20 +334,19 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                                  <p className="text-xs text-white font-bold truncate max-w-[200px]">{anomaly.description}</p>
                                                  <p className="text-xs font-mono text-red-300">€{(anomaly.amount || 0).toLocaleString()}</p>
                                             </div>
-                                            <p className="text-[10px] text-gray-400 mt-1">{anomaly.explanation}</p>
+                                            <p className="text-[10px] text-gray-400 mt-1 break-words">{anomaly.explanation}</p>
                                         </div>
                                     ))}
                                 </div>
                             </div>
                         </div>
 
-                        {/* RIGHT COLUMN: INTERROGATION CONSOLE (Dynamic) */}
-                        <div className="glass-panel rounded-2xl border border-primary-start/30 bg-black/40 flex flex-col h-full overflow-hidden shadow-2xl relative">
-                            {/* Decorative Grid Background */}
+                        {/* RIGHT COLUMN: INTERROGATION CONSOLE */}
+                        {/* Mobile: Fixed Height to keep input visible. Desktop: Fills parent. */}
+                        <div className="glass-panel rounded-2xl border border-primary-start/30 bg-black/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-2xl relative">
                             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
                             
-                            {/* Header */}
-                            <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3">
+                            <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3 shrink-0">
                                 <Bot className="text-primary-start w-5 h-5" />
                                 <div>
                                     <h3 className="text-sm font-bold text-white">{t('analyst.agentTitle', 'Forensic Agent')}</h3>
@@ -381,7 +356,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 </div>
                             </div>
 
-                            {/* Chat History */}
                             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                                 {chatHistory.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
@@ -392,12 +366,11 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                     chatHistory.map((msg) => (
                                         <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                             <div className={`
-                                                max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed
+                                                max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed break-words
                                                 ${msg.role === 'user' 
                                                     ? 'bg-primary-start text-white rounded-br-none' 
                                                     : 'bg-white/10 text-gray-200 border border-white/5 rounded-bl-none'}
                                             `}>
-                                                {/* Use Enhanced Renderer */}
                                                 <div>{renderMarkdown(msg.content)}</div>
                                                 
                                                 {msg.role === 'agent' && msg.evidenceCount !== undefined && (
@@ -422,8 +395,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <div ref={chatEndRef} />
                             </div>
 
-                            {/* Input Area */}
-                            <form onSubmit={handleInterrogate} className="p-4 border-t border-white/10 bg-white/5 flex gap-2">
+                            <form onSubmit={handleInterrogate} className="p-4 border-t border-white/10 bg-white/5 flex gap-2 shrink-0">
                                 <input
                                     type="text"
                                     value={question}
@@ -440,12 +412,10 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 </button>
                             </form>
                         </div>
-
                     </motion.div>
                 )}
             </AnimatePresence>
             
-            {/* Loading State */}
              <AnimatePresence>
                 {isAnalyzing && !result && (
                     <motion.div 
