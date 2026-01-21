@@ -1,8 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V2.9 (CLEAN & PROFESSIONAL)
-// 1. CLEANING: Strips markdown artifacts (```markdown, ---) from display.
-// 2. STYLING: Renders hashtags as proper Legal Headers.
-// 3. UI: Removed debug context labels from the Agent Console.
+// PHOENIX PROTOCOL - FRONTEND V3.0 (MINIMALIST HEADER)
+// 1. UI CLEANUP: Removed 'Vëmendje/Flags' subtitle from Forensic Agent header.
+// 2. CLEANING: Retains Markdown stripping logic from V2.9.
+// 3. STYLING: Retains Legal Header formatting.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -137,37 +137,32 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         }
     };
 
-    // --- PHOENIX FIX: CLEAN MARKDOWN RENDERER ---
+    // --- CLEAN MARKDOWN RENDERER ---
     const renderMarkdown = (text: string) => {
         if (!text) return null;
 
-        // 1. Pre-cleaning: Remove ```markdown, ```, and --- artifacts
         const cleanText = text
             .replace(/```markdown/g, '')
             .replace(/```/g, '')
-            .replace(/^---$/gm, '') // Remove horizontal rule dashes
+            .replace(/^---$/gm, '')
             .trim();
 
         return cleanText.split('\n').map((line, i) => {
             const trimmed = line.trim();
-            if (!trimmed) return <div key={i} className="h-2" />; // Spacer for empty lines
+            if (!trimmed) return <div key={i} className="h-2" />;
 
-            // Headers (### or ####)
             if (trimmed.startsWith('#')) {
                 const level = trimmed.match(/^#+/)?.[0].length || 0;
                 const content = trimmed.replace(/^#+\s*/, '');
                 
-                // Style based on header level
                 if (level <= 2) return <h3 key={i} className="text-white font-bold text-lg mt-4 mb-2 pb-2 border-b border-white/10 uppercase tracking-wide">{content}</h3>;
                 return <h4 key={i} className="text-primary-200 font-bold text-sm mt-3 mb-1">{content}</h4>;
             }
 
-            // Bold Keys (e.g., "**Risk:** High")
             if (trimmed.startsWith('**') && trimmed.includes(':')) {
                  return <div key={i} className="mt-2 text-sm text-gray-200">{parseBold(trimmed)}</div>;
             }
 
-            // List Items
             if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
                 const content = trimmed.substring(2);
                 return (
@@ -178,7 +173,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 );
             }
 
-            // Numbered Lists
             if (/^\d+\./.test(trimmed)) {
                 const match = trimmed.match(/^(\d+\.)\s+(.*)/);
                 if (match) {
@@ -191,7 +185,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 }
             }
 
-            // Standard Paragraph
             return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-1 break-words">{parseBold(trimmed)}</p>;
         });
     };
@@ -377,10 +370,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <Bot className="text-primary-start w-5 h-5" />
                                 <div>
                                     <h3 className="text-sm font-bold text-white">{t('analyst.agentTitle', 'Forensic Agent')}</h3>
-                                    {/* PHOENIX FIX: Cleaned Context Label */}
-                                    <p className="text-[10px] text-gray-400">
-                                        {t('analyst.flags', 'Flags Detected')}: {result.anomalies.length}
-                                    </p>
                                 </div>
                             </div>
 
