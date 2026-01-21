@@ -1,8 +1,4 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V8.0 (FULL INTEGRATION)
-# 1. FEATURES: CRUD, Documents, Public Portal, Deep Strategy, Financial Interrogation.
-# 2. STATUS: Production Ready. No truncation.
-
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
 from fastapi.responses import Response, StreamingResponse, JSONResponse, FileResponse
@@ -298,42 +294,42 @@ async def analyze_case_strategy_deep(
     current_user: Annotated[UserInDB, Depends(get_current_user)], 
     db: Database = Depends(get_db)
 ):
-    """
-    RUNS THE SENIOR PARTNER SUITE:
-    1. Adversarial Simulation (Opposing Counsel)
-    2. Chronology (Timeline)
-    3. Contradiction Detection
-    """
     validate_object_id(case_id)
     result = await analysis_service.run_deep_strategy(db=db, case_id=case_id, user_id=str(current_user.id))
-    
-    if result.get("error"):
-        raise HTTPException(status_code=400, detail=result["error"])
-        
+    if result.get("error"): raise HTTPException(status_code=400, detail=result["error"])
     return JSONResponse(content=result)
 
 @router.post("/{case_id}/analyze/spreadsheet", tags=["Analysis"])
 async def analyze_spreadsheet_endpoint(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], file: UploadFile = File(...), db: Database = Depends(get_db)):
-    """
-    Analyzes an uploaded Excel/CSV file.
-    1. Parses & Extracts Financial Data.
-    2. Runs Forensic Heuristics (Anomalies, Trends).
-    3. VECTORIZES rows into 'financial_vectors' for AI Interrogation.
-    """
     validate_object_id(case_id)
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case: raise HTTPException(status_code=404, detail="Case not found.")
-    
     try:
         content = await file.read()
         filename = file.filename or "unknown.xlsx"
-        # PASSING DB INSTANCE TO SERVICE
         result = await spreadsheet_service.analyze_spreadsheet_file(content, filename, case_id, db)
         return JSONResponse(content=result)
-    except ValueError as ve: 
-        raise HTTPException(status_code=400, detail=str(ve))
+    except ValueError as ve: raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logger.error(f"Spreadsheet Analysis Error: {e}")
+        raise HTTPException(status_code=500, detail="Analysis failed.")
+
+@router.post("/{case_id}/analyze/spreadsheet-existing/{doc_id}", tags=["Analysis"])
+async def analyze_existing_spreadsheet_endpoint(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
+    """PHOENIX: Analyzes a spreadsheet already present in the case documents."""
+    validate_object_id(case_id)
+    doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
+    if str(doc.case_id) != case_id: raise HTTPException(status_code=403)
+    
+    # Retrieve content from storage
+    file_stream = await asyncio.to_thread(storage_service.download_original_document_stream, doc.storage_key)
+    content = file_stream.read()
+    
+    try:
+        result = await spreadsheet_service.analyze_spreadsheet_file(content, doc.file_name, case_id, db)
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Archive Spreadsheet Analysis Error: {e}")
         raise HTTPException(status_code=500, detail="Analysis failed.")
 
 @router.post("/{case_id}/interrogate-finances", tags=["Analysis"])
@@ -343,19 +339,9 @@ async def interrogate_financial_records(
     current_user: Annotated[UserInDB, Depends(get_current_user)], 
     db: Database = Depends(get_db)
 ):
-    """
-    SOCRATIC INTERROGATION:
-    1. Receives a natural language question (e.g., "Show me gambling transactions").
-    2. Performs Vector Search on the 'financial_vectors' collection.
-    3. Returns an evidence-backed answer via the Forensic Agent.
-    """
     validate_object_id(case_id)
-    
-    # 1. Security Check
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case: raise HTTPException(status_code=404, detail="Case not found.")
-
-    # 2. Perform Interrogation
     try:
         result = await spreadsheet_service.ask_financial_question(case_id, body.question, db)
         return JSONResponse(content=result)

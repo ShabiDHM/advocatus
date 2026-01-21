@@ -1,39 +1,28 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FRONTEND V3.9 (FORMATTING RESTORATION)
-// 1. CRITICAL FIX: Re-integrated the `renderMarkdown` function into the typewriter effect.
-// 2. UI: AI chat responses will now be correctly formatted as they are being typed.
-// 3. REFACTOR: Moved rendering helpers to the module scope for shared access.
-
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     FileSpreadsheet, Activity, AlertTriangle, TrendingUp, 
     CheckCircle, RefreshCw, Lightbulb, ArrowRight, TrendingDown, 
-    Send, ShieldAlert, Bot 
+    Send, ShieldAlert, Bot, Folder, X, Search, FileText
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
+import type { Document } from '../data/types';
 
-// --- CONSTANTS & HELPERS ---
 const CACHE_KEY = 'juristi_analyst_cache';
 const getCache = () => { try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
 
-// --- TYPES ---
 interface SmartFinancialReport { executive_summary: string; anomalies: Array<{ date: string; amount: number; description: string; risk_level: 'HIGH' | 'MEDIUM' | 'LOW'; explanation: string; }>; trends: Array<{ category: string; trend: 'UP' | 'DOWN' | 'STABLE'; percentage: string; comment: string; }>; recommendations: string[]; }
 interface ChatMessage { id: string; role: 'user' | 'agent'; content: string; timestamp: Date; evidenceCount?: number; }
 interface CachedState { report: SmartFinancialReport; chat: ChatMessage[]; fileName: string; }
 interface SpreadsheetAnalystProps { caseId: string; }
 
-// --- PHOENIX FIX: SHARED RENDERERS MOVED TO MODULE SCOPE ---
 const parseBold = (line: string) => {
-    const parts = line.split(/(\*\*.*?\*\*|\*.*?\*)/g); // Handle both **bold** and *italic*
+    const parts = line.split(/(\*\*.*?\*\*|\*.*?\*)/g);
     return parts.map((part, index) => {
-        if (part.startsWith('**') && part.endsWith('**')) {
-            return <strong key={index} className="text-white font-bold">{part.slice(2, -2)}</strong>;
-        }
-        if (part.startsWith('*') && part.endsWith('*')) {
-            return <em key={index} className="italic text-gray-200">{part.slice(1, -1)}</em>;
-        }
+        if (part.startsWith('**') && part.endsWith('**')) return <strong key={index} className="text-white font-bold">{part.slice(2, -2)}</strong>;
+        if (part.startsWith('*') && part.endsWith('*')) return <em key={index} className="italic text-gray-200">{part.slice(1, -1)}</em>;
         return part;
     });
 };
@@ -63,7 +52,6 @@ const renderMarkdown = (text: string) => {
     });
 };
 
-// --- TYPEWRITER HOOK ---
 const useTypewriter = (text: string, speed: number = 20) => {
     const [displayText, setDisplayText] = useState('');
     useEffect(() => {
@@ -80,16 +68,13 @@ const useTypewriter = (text: string, speed: number = 20) => {
     return displayText;
 };
 
-// --- TYPING CHAT MESSAGE COMPONENT ---
 const TypingChatMessage: React.FC<{ message: ChatMessage, onComplete: () => void }> = ({ message, onComplete }) => {
     const displayText = useTypewriter(message.content);
     const { t } = useTranslation();
     useEffect(() => { if (displayText.length === message.content.length) { onComplete(); } }, [displayText, message.content.length, onComplete]);
-
     return (
         <div className="flex justify-start">
             <div className="max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed break-words bg-white/10 text-gray-200 border border-white/5 rounded-bl-none">
-                {/* PHOENIX FIX: Apply renderMarkdown to the streaming text */}
                 <div>{renderMarkdown(displayText)}</div>
                 {message.evidenceCount !== undefined && (
                     <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2 text-[10px] text-gray-400">
@@ -102,11 +87,8 @@ const TypingChatMessage: React.FC<{ message: ChatMessage, onComplete: () => void
     );
 };
 
-
 const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const { t } = useTranslation();
-    
-    // State
     const [file, setFile] = useState<File | null>(null);
     const [fileName, setFileName] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -116,9 +98,12 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const [question, setQuestion] = useState('');
     const [isInterrogating, setIsInterrogating] = useState(false);
     const [typingMessage, setTypingMessage] = useState<ChatMessage | null>(null);
+    const [showArchiveModal, setShowArchiveModal] = useState(false);
+    const [archiveFiles, setArchiveFiles] = useState<Document[]>([]);
+    const [isFetchingArchive, setIsFetchingArchive] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const chatEndRef = useRef<HTMLDivElement>(null);
 
-    // Effects
     useEffect(() => {
         const cache = getCache();
         const caseData = cache[caseId];
@@ -138,57 +123,59 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         }
     }, [result, chatHistory, file, fileName, caseId, typingMessage]);
 
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [chatHistory, typingMessage]);
+    useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatHistory, typingMessage]);
 
-    // Handlers
     const runAnalysis = async (fileToAnalyze: File) => {
-        if (!fileToAnalyze) return;
-        setIsAnalyzing(true);
-        setError(null);
+        setIsAnalyzing(true); setError(null);
         try {
-            const data = await apiService.analyzeSpreadsheet(caseId, fileToAnalyze) as unknown as SmartFinancialReport;
+            const data = await apiService.analyzeSpreadsheet(caseId, fileToAnalyze) as any;
             setResult(data);
-        } catch (err: any) {
-            console.error(err);
-            setError(t('analyst.error.analysisFailed'));
-        } finally {
-            setIsAnalyzing(false);
-        }
+        } catch (err) { setError(t('analyst.error.analysisFailed')); } finally { setIsAnalyzing(false); }
+    };
+
+    const runArchiveAnalysis = async (docId: string, name: string) => {
+        setShowArchiveModal(false);
+        setIsAnalyzing(true); setError(null); setFileName(name);
+        try {
+            const data = await apiService.analyzeExistingSpreadsheet(caseId, docId) as any;
+            setResult(data);
+        } catch (err) { setError(t('analyst.error.analysisFailed')); } finally { setIsAnalyzing(false); }
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const newFile = e.target.files[0];
-            setFile(newFile);
-            setFileName(newFile.name);
-            setError(null);
-            setResult(null);
-            setChatHistory([]);
-            handleReset(false);
-            await runAnalysis(newFile);
+            setFile(newFile); setFileName(newFile.name); setError(null); setResult(null); setChatHistory([]);
+            handleReset(false); await runAnalysis(newFile);
         }
     };
     
     const handleReset = (fullReset = true) => {
         if(fullReset) { setFile(null); setFileName(null); }
-        setResult(null);
-        setChatHistory([]);
-        setError(null);
-        const cache = getCache();
-        delete cache[caseId];
+        setResult(null); setChatHistory([]); setError(null);
+        const cache = getCache(); delete cache[caseId];
         try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (e) { console.error("Failed to clear from localStorage", e); }
+    };
+
+    const fetchArchiveFiles = async () => {
+        setIsFetchingArchive(true);
+        try {
+            const docs = await apiService.getDocuments(caseId);
+            const spreadsheets = docs.filter(d => 
+                d.file_name.toLowerCase().endsWith('.csv') || 
+                d.file_name.toLowerCase().endsWith('.xlsx') || 
+                d.file_name.toLowerCase().endsWith('.xls')
+            );
+            setArchiveFiles(spreadsheets);
+        } catch (err) { console.error(err); } finally { setIsFetchingArchive(false); }
     };
 
     const handleInterrogate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!question.trim() || isInterrogating || typingMessage) return;
-        const currentQ = question;
-        setQuestion('');
+        const currentQ = question; setQuestion('');
         const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: currentQ, timestamp: new Date() };
-        setChatHistory(prev => [...prev, userMsg]);
-        setIsInterrogating(true);
+        setChatHistory(prev => [...prev, userMsg]); setIsInterrogating(true);
         try {
             const response = await apiService.interrogateFinancialRecords(caseId, currentQ);
             const agentMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'agent', content: response.answer || t('analyst.noRelevantData'), timestamp: new Date(), evidenceCount: response.referenced_rows_count };
@@ -196,18 +183,10 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         } catch (err) {
             const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'agent', content: t('analyst.connectionFailed'), timestamp: new Date() };
             setTypingMessage(errorMsg);
-        } finally {
-            setIsInterrogating(false);
-        }
+        } finally { setIsInterrogating(false); }
     };
 
-    const onTypingComplete = () => {
-        if (typingMessage) {
-            setChatHistory(prev => [...prev, typingMessage]);
-            setTypingMessage(null);
-        }
-    };
-    
+    const onTypingComplete = () => { if (typingMessage) { setChatHistory(prev => [...prev, typingMessage]); setTypingMessage(null); } };
     const getRiskBadge = (level: string) => { switch (level) { case 'HIGH': return 'bg-red-500/20 text-red-300 border-red-500/30'; case 'MEDIUM': return 'bg-amber-500/20 text-amber-300 border-amber-500/30'; default: return 'bg-blue-500/20 text-blue-300 border-blue-500/30'; } };
     const getTrendIcon = (trend: string) => { if (trend === 'UP') return <TrendingUp className="w-4 h-4 text-emerald-400" />; if (trend === 'DOWN') return <TrendingDown className="w-4 h-4 text-red-400" />; return <Activity className="w-4 h-4 text-blue-400" />; };
 
@@ -218,11 +197,25 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div><h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2"><Activity className="text-primary-start" />{t('analyst.title')}{result && <CheckCircle className="w-5 h-5 text-emerald-500" />}</h2></div>
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                        {!result && !isAnalyzing && (<div className="relative group w-full md:w-auto"><input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" /><div className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-dashed transition-all cursor-pointer bg-black/20 border-gray-600 hover:border-gray-400"><FileSpreadsheet className="w-5 h-5 text-gray-400" /><span className="text-sm text-gray-300 truncate max-w-[200px]">{t('analyst.selectFile')}</span></div></div>)}
+                        {!result && !isAnalyzing && (
+                            <div className="flex gap-2 w-full md:w-auto">
+                                <div className="relative group flex-1 md:flex-none">
+                                    <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20" />
+                                    <div className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-dashed transition-all cursor-pointer bg-black/20 border-gray-600 hover:border-gray-400">
+                                        <FileSpreadsheet className="w-5 h-5 text-gray-400" />
+                                        <span className="text-sm text-gray-300">{t('analyst.selectFile')}</span>
+                                    </div>
+                                </div>
+                                <button onClick={() => { setShowArchiveModal(true); fetchArchiveFiles(); }} className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-white/10 transition-all cursor-pointer bg-white/5 hover:bg-white/10 text-gray-300">
+                                    <Folder className="w-5 h-5" />
+                                    <span className="text-sm">{t('analyst.importArchive')}</span>
+                                </button>
+                            </div>
+                        )}
                         {result && (<button onClick={() => handleReset(true)} className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex justify-center items-center gap-2 hover:bg-white/5"><RefreshCw className="w-4 h-4" />{t('analyst.newAnalysis')}</button>)}
                     </div>
                 </div>
-                {error && <div className="mt-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-200 animate-in fade-in slide-in-from-top-2"><AlertTriangle className="w-5 h-5" />{error}</div>}
+                {error && <div className="mt-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-200"><AlertTriangle className="w-5 h-5" />{error}</div>}
             </div>
             
             <AnimatePresence mode="wait">
@@ -233,27 +226,57 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         <div className="grid grid-cols-2 gap-4 shrink-0">{result.trends.map((trend, idx) => <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/10"><div className="flex justify-between items-start mb-1"><span className="text-gray-400 text-xs font-bold uppercase truncate">{trend.category}</span>{getTrendIcon(trend.trend)}</div><div className="text-xl font-bold text-white">{trend.percentage}</div></div>)}</div>
                         <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col shrink-0 min-h-[500px]"><h3 className="text-md font-bold text-white mb-4 flex items-center gap-2 shrink-0"><AlertTriangle className="text-yellow-400 w-4 h-4" />{t('analyst.redFlags')}</h3><div className="space-y-3">{result.anomalies.map((anomaly, idx) => <div key={idx} className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors"><div className="flex justify-between items-center mb-1"><span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${getRiskBadge(anomaly.risk_level)}`}>{anomaly.risk_level}</span><span className="text-xs text-gray-500 font-mono">{anomaly.date}</span></div><div className="flex justify-between items-baseline"><p className="text-xs text-white font-bold truncate max-w-[200px]">{anomaly.description}</p><p className="text-xs font-mono text-red-300">€{(anomaly.amount || 0).toLocaleString()}</p></div><p className="text-[10px] text-gray-400 mt-1 break-words">{anomaly.explanation}</p></div>)}</div></div>
                     </div>
-                    <div className="glass-panel rounded-2xl border border-primary-start/30 bg-black/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-2xl relative sticky top-0">
-                        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10 pointer-events-none"></div>
+                    <div className="glass-panel rounded-2xl border border-primary-start/30 bg-black/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-2xl relative">
                         <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3 shrink-0"><Bot className="text-primary-start w-5 h-5" /><div><h3 className="text-sm font-bold text-white">{t('analyst.agentTitle')}</h3></div></div>
                         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                            {chatHistory.map((msg) => <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed break-words ${msg.role === 'user' ? 'bg-primary-start text-white rounded-br-none' : 'bg-white/10 text-gray-200 border border-white/5 rounded-bl-none'}`}><div>{renderMarkdown(msg.content)}</div>{msg.role === 'agent' && msg.evidenceCount !== undefined && <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2 text-[10px] text-gray-400"><ShieldAlert className="w-3 h-3" />{t('analyst.verifiedAgainst', { count: msg.evidenceCount })}</div>}</div></div>)}
+                            {chatHistory.map((msg) => <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed break-words ${msg.role === 'user' ? 'bg-primary-start text-white rounded-br-none' : 'bg-white/10 text-gray-200 border border-white/5 rounded-bl-none'}`}><div>{renderMarkdown(msg.content)}</div></div></div>)}
                             {typingMessage && <TypingChatMessage message={typingMessage} onComplete={onTypingComplete} />}
-                            {isInterrogating && !typingMessage && <div className="flex justify-start"><div className="bg-white/5 rounded-2xl rounded-bl-none p-4 border border-white/5 flex gap-1"><div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} /><div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} /><div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} /></div></div>}
+                            {isInterrogating && !typingMessage && <div className="flex justify-start"><div className="bg-white/5 rounded-2xl p-4 flex gap-1"><div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" /></div></div>}
                             <div ref={chatEndRef} />
                         </div>
                         <form onSubmit={handleInterrogate} className="p-4 border-t border-white/10 bg-white/5 flex gap-2 shrink-0">
-                            <input type="text" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t('analyst.askPlaceholder')} className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-primary-start/50 transition-colors" />
-                            <button type="submit" disabled={!question.trim() || isInterrogating || !!typingMessage} className="p-3 bg-primary-start text-white rounded-xl hover:bg-primary-end disabled:opacity-50 disabled:cursor-not-allowed transition-colors"><Send className="w-5 h-5" /></button>
+                            <input type="text" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t('analyst.askPlaceholder')} className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary-start/50" />
+                            <button type="submit" disabled={!question.trim() || isInterrogating || !!typingMessage} className="p-3 bg-primary-start text-white rounded-xl hover:bg-primary-end disabled:opacity-50 transition-colors"><Send className="w-5 h-5" /></button>
                         </form>
                     </div>
                 </motion.div>)}
             </AnimatePresence>
+
             <AnimatePresence>
-                {isAnalyzing && !result && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-32"><div className="relative"><div className="w-16 h-16 rounded-full border-4 border-white/10 border-t-primary-start animate-spin"></div><div className="absolute inset-0 flex items-center justify-center"><Activity className="w-6 h-6 text-primary-start" /></div></div><p className="text-xl text-white font-medium mt-6">{t('analyst.processing')}</p></motion.div>)}
+                {showArchiveModal && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-2xl bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
+                            <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                                <div className="flex items-center gap-3"><Folder className="text-primary-start" /><h3 className="text-lg font-bold text-white">{t('analyst.selectFromArchive')}</h3></div>
+                                <button onClick={() => setShowArchiveModal(false)} className="text-gray-400 hover:text-white"><X className="w-6 h-6" /></button>
+                            </div>
+                            <div className="p-4 bg-white/5 border-b border-white/10"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('analyst.searchArchive')} className="w-full bg-black/30 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-white focus:outline-none focus:border-primary-start/50" /></div></div>
+                            <div className="max-h-[400px] overflow-y-auto p-4 custom-scrollbar">
+                                {isFetchingArchive ? (
+                                    <div className="flex flex-col items-center py-20 gap-4"><Activity className="w-8 h-8 text-primary-start animate-spin" /><p className="text-gray-400">{t('analyst.loadingArchive')}</p></div>
+                                ) : archiveFiles.length === 0 ? (
+                                    <div className="flex flex-col items-center py-20 gap-4"><FileText className="w-12 h-12 text-gray-600" /><p className="text-gray-400">{t('analyst.noArchiveFiles')}</p></div>
+                                ) : (
+                                    <div className="grid gap-2">
+                                        {archiveFiles.filter(f => f.file_name.toLowerCase().includes(searchQuery.toLowerCase())).map((doc) => (
+                                            <button key={doc.id} onClick={() => runArchiveAnalysis(doc.id, doc.file_name)} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-primary-start/30 transition-all text-left group">
+                                                <div className="flex items-center gap-4"><div className="p-2 bg-primary-start/10 rounded-lg"><FileSpreadsheet className="w-6 h-6 text-primary-start" /></div><div><p className="text-white font-medium">{doc.file_name}</p><p className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString('sq-AL')}</p></div></div>
+                                                <ArrowRight className="w-5 h-5 text-gray-600 group-hover:text-primary-start group-hover:translate-x-1 transition-all" />
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {isAnalyzing && !result && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-32"><div className="relative"><div className="w-16 h-16 rounded-full border-4 border-white/10 border-t-primary-start animate-spin"></div><Activity className="absolute inset-0 m-auto w-6 h-6 text-primary-start" /></div><p className="text-xl text-white font-medium mt-6">{t('analyst.processing')}</p></motion.div>)}
             </AnimatePresence>
             <AnimatePresence>
-                {!result && !isAnalyzing && (<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center text-center py-20 px-6 glass-panel rounded-2xl border border-white/5"><FileSpreadsheet className="w-12 h-12 text-gray-600 mb-6" /><h3 className="text-lg font-bold text-white mb-2">Gati për Hulumtim</h3><p className="text-sm text-gray-400 max-w-md">Zgjidhni një skedar Excel ose CSV duke përdorur butonin sipër për të filluar skanimin forenzik dhe për të zbuluar informacione të rëndësishme financiare.</p></motion.div>)}
+                {!result && !isAnalyzing && (<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center text-center py-20 px-6 glass-panel rounded-2xl border border-white/5"><FileSpreadsheet className="w-12 h-12 text-gray-600 mb-6" /><h3 className="text-lg font-bold text-white mb-2">{t('analyst.readyTitle')}</h3><p className="text-sm text-gray-400 max-w-md">{t('analyst.readyDesc')}</p></motion.div>)}
             </AnimatePresence>
         </div>
     );

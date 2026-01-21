@@ -1,9 +1,4 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API MASTER V12.2 (TOKEN HYDRATION FIX)
-// 1. BUGFIX: Added a public `setToken(token: string | null)` method to the ApiService.
-// 2. REASON: Resolves the critical "401 Unauthorized" error by allowing the application's authentication context to hydrate the apiService instance with the user's token from localStorage on application startup or page refresh.
-// 3. ARCHITECTURE: This aligns the Juristi API service with the robust architectural pattern required for persistent authentication in single-page applications.
-
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
     LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, User, UpdateUserRequest,
@@ -14,7 +9,6 @@ import type {
     SpreadsheetAnalysisResult, Organization, AcceptInviteRequest, SubscriptionUpdate, PromoteRequest
 } from '../data/types';
 
-// --- Interfaces ---
 export interface AuditIssue { id: string; severity: 'CRITICAL' | 'WARNING'; message: string; related_item_id?: string; item_type?: 'INVOICE' | 'EXPENSE'; }
 export interface TaxCalculation { period_month: number; period_year: number; total_sales_gross: number; total_purchases_gross: number; vat_collected: number; vat_deductible: number; net_obligation: number; currency: string; status: string; regime: string; tax_rate_applied: string; description: string; }
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
@@ -24,7 +18,6 @@ interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
 interface FinanceInterrogationResponse { answer: string; referenced_rows_count: number; }
 
-// --- Configuration ---
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
 if (typeof window !== 'undefined' && window.location.protocol === 'https:' && normalizedUrl.startsWith('http:')) { normalizedUrl = normalizedUrl.replace('http:', 'https:'); }
@@ -32,7 +25,6 @@ export const API_BASE_URL = normalizedUrl;
 export const API_V1_URL = `${API_BASE_URL}/api/v1`;
 export const API_V2_URL = `${API_BASE_URL}/api/v2`;
 
-// --- Token Management ---
 class TokenManager {
     private accessToken: string | null = null;
     get(): string | null { return this.accessToken; }
@@ -40,7 +32,6 @@ class TokenManager {
 }
 const tokenManager = new TokenManager();
 
-// --- API Service Class ---
 class ApiService {
     public axiosInstance: AxiosInstance;
     public onUnauthorized: (() => void) | null = null;
@@ -84,21 +75,17 @@ class ApiService {
             });
     }
     
-    // --- AUTH ---
-    // PHOENIX: ADDED PUBLIC METHOD TO HYDRATE TOKEN FROM CONTEXT
     public setToken(token: string | null): void { tokenManager.set(token); }
     public getToken(): string | null { return tokenManager.get(); }
     public async refreshToken(): Promise<boolean> { try { const response = await this.axiosInstance.post<LoginResponse>('/auth/refresh'); if (response.data.access_token) { tokenManager.set(response.data.access_token); return true; } return false; } catch (error) { console.warn("[API] Session Refresh Failed:", error); return false; } }
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
     public logout() { tokenManager.set(null); }
 
-    // --- ORGANIZATION MANAGEMENT ---
     public async inviteMember(email: string): Promise<any> { const response = await this.axiosInstance.post('/organizations/invite', { email }); return response.data; }
     public async getOrganizationMembers(): Promise<User[]> { const response = await this.axiosInstance.get<User[]>('/organizations/members'); return response.data; }
     public async acceptInvite(data: AcceptInviteRequest): Promise<{ message: string }> { const response = await this.axiosInstance.post('/organizations/accept-invite', data); return response.data; }
     public async removeOrganizationMember(memberId: string): Promise<any> { const response = await this.axiosInstance.delete(`/organizations/members/${memberId}`); return response.data; }
 
-    // --- ADMIN ---
     public async getOrganizations(): Promise<Organization[]> { const response = await this.axiosInstance.get<Organization[]>('/admin/organizations'); return response.data; }
     public async upgradeOrganizationTier(orgId: string, tier: string): Promise<Organization> { const response = await this.axiosInstance.put<Organization>(`/admin/organizations/${orgId}/tier`, { tier }); return response.data; }
     public async updateSubscription(userId: string, data: SubscriptionUpdate): Promise<{ message: string }> { const response = await this.axiosInstance.post(`/admin/users/${userId}/subscription`, data); return response.data; }
@@ -107,7 +94,6 @@ class ApiService {
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> { const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data); return response.data; }
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
 
-    // --- (All other methods remain unchanged) ---
     public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
     public async getExpenseReceiptBlob(expenseId: string): Promise<{ blob: Blob, filename: string }> { const response = await this.axiosInstance.get(`/finance/expenses/${expenseId}/receipt`, { responseType: 'blob' }); const disposition = response.headers['content-disposition']; let filename = `receipt-${expenseId}.pdf`; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="([^"]*)"/.exec(disposition); if (matches != null && matches[1]) filename = matches[1]; } return { blob: response.data, filename }; }
     public async getWizardState(month: number, year: number): Promise<WizardState> { const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', { params: { month, year } }); return response.data; }
@@ -122,7 +108,7 @@ class ApiService {
     public async downloadInvoicePdf(invoiceId: string, lang: string = 'sq'): Promise<void> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Invoice_${invoiceId}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
     public async getInvoicePdfBlob(invoiceId: string, lang: string = 'sq'): Promise<Blob> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); return response.data; }
     public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> { const params = caseId ? { case_id: caseId } : {}; const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/invoices/${invoiceId}/archive`, null, { params }); return response.data; }
-    public async getExpenses(): Promise<Expense[]> { const response = await this.axiosInstance.get<any>('/finance/expenses'); return Array.isArray(response.data) ? response.data : (response.data.expenses || []); }
+    public async getExpenses(): Promise<Expense[]> { const response = await this.axiosInstance.get<any>('/finance/expenses'); return Array.isArray(response.data) ? response.data : (response.data.invoices || []); }
     public async createExpense(data: ExpenseCreateRequest): Promise<Expense> { const response = await this.axiosInstance.post<Expense>('/finance/expenses', data); return response.data; }
     public async updateExpense(expenseId: string, data: ExpenseUpdate): Promise<Expense> { const response = await this.axiosInstance.put<Expense>(`/finance/expenses/${expenseId}`, data); return response.data; }
     public async deleteExpense(expenseId: string): Promise<void> { await this.axiosInstance.delete(`/finance/expenses/${expenseId}`); }
@@ -161,8 +147,12 @@ class ApiService {
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
     public async analyzeDeepStrategy(caseId: string): Promise<DeepAnalysisResult> { const response = await this.axiosInstance.post<DeepAnalysisResult>(`/cases/${caseId}/deep-analysis`); return response.data; }
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); return response.data; }
+    
+    // --- FINANCIAL ANALYST UPDATES ---
     public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData); return response.data; }
+    public async analyzeExistingSpreadsheet(caseId: string, documentId: string): Promise<SpreadsheetAnalysisResult> { const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet-existing/${documentId}`); return response.data; }
     public async interrogateFinancialRecords(caseId: string, question: string): Promise<FinanceInterrogationResponse> { const response = await this.axiosInstance.post<FinanceInterrogationResponse>(`/cases/${caseId}/interrogate-finances`, { question }); return response.data; }
+    
     public async downloadForensicReport(caseId: string, data: any): Promise<void> { const response = await this.axiosInstance.post(`/cases/${caseId}/report/forensic`, data, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
     public async sendChatMessage( caseId: string, message: string, documentId?: string, jurisdiction?: string, mode: 'FAST' | 'DEEP' = 'FAST' ): Promise<string> { const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks', mode }); return response.data.response; }
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
