@@ -316,20 +316,34 @@ async def analyze_spreadsheet_endpoint(case_id: str, current_user: Annotated[Use
 
 @router.post("/{case_id}/analyze/spreadsheet-existing/{doc_id}", tags=["Analysis"])
 async def analyze_existing_spreadsheet_endpoint(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
-    """PHOENIX: Analyzes a spreadsheet already present in the case documents."""
+    """PHOENIX: Analyzes a spreadsheet from either Documents OR Archives, strictly for this case."""
     validate_object_id(case_id)
-    doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
-    if str(doc.case_id) != case_id: raise HTTPException(status_code=403)
+    doc_oid = validate_object_id(doc_id)
     
-    # Retrieve content from storage
-    file_stream = await asyncio.to_thread(storage_service.download_original_document_stream, doc.storage_key)
+    # Try finding in Documents first (Scoped by Case ID)
+    file_data = await asyncio.to_thread(db.documents.find_one, {"_id": doc_oid, "case_id": ObjectId(case_id)})
+    
+    # Fallback to Archives if not found (Scoped by Case ID and User ID)
+    if not file_data:
+        file_data = await asyncio.to_thread(db.archives.find_one, {"_id": doc_oid, "case_id": case_id, "user_id": current_user.id})
+        if file_data:
+            file_data["file_name"] = file_data.get("title", "unknown.csv")
+            
+    if not file_data:
+        raise HTTPException(status_code=404, detail="File not found in this case's documents or archive.")
+        
+    storage_key = file_data.get("storage_key")
+    if not storage_key:
+        raise HTTPException(status_code=404, detail="File content missing storage reference.")
+    
+    file_stream = await asyncio.to_thread(storage_service.download_original_document_stream, storage_key)
     content = file_stream.read()
     
     try:
-        result = await spreadsheet_service.analyze_spreadsheet_file(content, doc.file_name, case_id, db)
+        result = await spreadsheet_service.analyze_spreadsheet_file(content, file_data.get("file_name", "unknown.csv"), case_id, db)
         return JSONResponse(content=result)
     except Exception as e:
-        logger.error(f"Archive Spreadsheet Analysis Error: {e}")
+        logger.error(f"Spreadsheet Analysis Error: {e}")
         raise HTTPException(status_code=500, detail="Analysis failed.")
 
 @router.post("/{case_id}/interrogate-finances", tags=["Analysis"])

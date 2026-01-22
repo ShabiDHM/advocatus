@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
-import type { Document } from '../data/types';
 
 const CACHE_KEY = 'juristi_analyst_cache';
 const getCache = () => { try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
@@ -17,6 +16,9 @@ interface SmartFinancialReport { executive_summary: string; anomalies: Array<{ d
 interface ChatMessage { id: string; role: 'user' | 'agent'; content: string; timestamp: Date; evidenceCount?: number; }
 interface CachedState { report: SmartFinancialReport; chat: ChatMessage[]; fileName: string; }
 interface SpreadsheetAnalystProps { caseId: string; }
+
+// Normalized interface for the selection modal
+interface NormalizedFile { id: string; name: string; date: string; source: 'DOCUMENT' | 'ARCHIVE'; }
 
 const parseBold = (line: string) => {
     const parts = line.split(/(\*\*.*?\*\*|\*.*?\*)/g);
@@ -99,7 +101,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const [isInterrogating, setIsInterrogating] = useState(false);
     const [typingMessage, setTypingMessage] = useState<ChatMessage | null>(null);
     const [showArchiveModal, setShowArchiveModal] = useState(false);
-    const [archiveFiles, setArchiveFiles] = useState<Document[]>([]);
+    const [archiveFiles, setArchiveFiles] = useState<NormalizedFile[]>([]);
     const [isFetchingArchive, setIsFetchingArchive] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const chatEndRef = useRef<HTMLDivElement>(null);
@@ -160,14 +162,41 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const fetchArchiveFiles = async () => {
         setIsFetchingArchive(true);
         try {
-            const docs = await apiService.getDocuments(caseId);
-            const spreadsheets = docs.filter(d => 
-                d.file_name.toLowerCase().endsWith('.csv') || 
-                d.file_name.toLowerCase().endsWith('.xlsx') || 
-                d.file_name.toLowerCase().endsWith('.xls')
-            );
-            setArchiveFiles(spreadsheets);
-        } catch (err) { console.error(err); } finally { setIsFetchingArchive(false); }
+            // Fetch both documents AND archive items STRICTLY for this case
+            const [docs, archives] = await Promise.all([
+                apiService.getDocuments(caseId),
+                apiService.getArchiveItems(undefined, caseId)
+            ]);
+
+            const normalizedDocs: NormalizedFile[] = docs.map(d => ({
+                id: d.id,
+                name: d.file_name,
+                date: d.created_at,
+                source: 'DOCUMENT'
+            }));
+
+            const normalizedArchives: NormalizedFile[] = archives
+                .filter(a => a.item_type === 'FILE')
+                .map(a => ({
+                    id: a.id,
+                    name: a.title,
+                    date: a.created_at,
+                    source: 'ARCHIVE'
+                }));
+
+            const merged = [...normalizedDocs, ...normalizedArchives];
+            
+            // Filter for spreadsheet extensions
+            const filtered = merged.filter(f => {
+                const lowerName = f.name.toLowerCase();
+                return lowerName.endsWith('.csv') || lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
+            });
+
+            // Deduplicate by ID to be safe
+            const unique = filtered.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
+            setArchiveFiles(unique);
+
+        } catch (err) { console.error("Archive Fetch Error:", err); } finally { setIsFetchingArchive(false); }
     };
 
     const handleInterrogate = async (e: React.FormEvent) => {
@@ -258,10 +287,13 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                     <div className="flex flex-col items-center py-20 gap-4"><FileText className="w-12 h-12 text-gray-600" /><p className="text-gray-400">{t('analyst.noArchiveFiles')}</p></div>
                                 ) : (
                                     <div className="grid gap-2">
-                                        {archiveFiles.filter(f => f.file_name.toLowerCase().includes(searchQuery.toLowerCase())).map((doc) => (
-                                            <button key={doc.id} onClick={() => runArchiveAnalysis(doc.id, doc.file_name)} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-primary-start/30 transition-all text-left group">
-                                                <div className="flex items-center gap-4"><div className="p-2 bg-primary-start/10 rounded-lg"><FileSpreadsheet className="w-6 h-6 text-primary-start" /></div><div><p className="text-white font-medium">{doc.file_name}</p><p className="text-xs text-gray-500">{new Date(doc.created_at).toLocaleDateString('sq-AL')}</p></div></div>
-                                                <ArrowRight className="w-5 h-5 text-gray-600 group-hover:text-primary-start group-hover:translate-x-1 transition-all" />
+                                        {archiveFiles.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase())).map((file) => (
+                                            <button key={file.id} onClick={() => runArchiveAnalysis(file.id, file.name)} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-primary-start/30 transition-all text-left group">
+                                                <div className="flex items-center gap-4"><div className="p-2 bg-primary-start/10 rounded-lg"><FileSpreadsheet className="w-6 h-6 text-primary-start" /></div><div><p className="text-white font-medium">{file.name}</p><p className="text-xs text-gray-500">{new Date(file.date).toLocaleDateString('sq-AL')}</p></div></div>
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{file.source === 'ARCHIVE' ? 'Arkiva' : 'Dokument'}</span>
+                                                    <ArrowRight className="w-5 h-5 text-gray-600 group-hover:text-primary-start group-hover:translate-x-1 transition-all" />
+                                                </div>
                                             </button>
                                         ))}
                                     </div>
