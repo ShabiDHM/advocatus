@@ -284,8 +284,6 @@ def create_pdf_from_text(text: str, document_title: str) -> io.BytesIO:
 
     pisa_status = pisa.CreatePDF(src=full_html, dest=buffer)
 
-    # PHOENIX FIX: Use getattr for type-safe error checking.
-    # Defaults to 1 (error) if .err attribute doesn't exist.
     error_code = getattr(pisa_status, 'err', 1)
     if error_code:
         logger.error("PDF generation failed", error_code=error_code)
