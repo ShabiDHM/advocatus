@@ -1,10 +1,14 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
+// PHOENIX PROTOCOL - SPREADSHEET ANALYST V3.0 (CLEANUP)
+// 1. CLEANUP: Removed "Import from Archive" functionality and associated Modal.
+// 2. UI: Simplified file selection area to only support local upload.
+
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     FileSpreadsheet, Activity, AlertTriangle, TrendingUp, 
     CheckCircle, RefreshCw, Lightbulb, ArrowRight, TrendingDown, 
-    Send, ShieldAlert, Bot, Folder, X, Search, FileText
+    Send, ShieldAlert, Bot
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
@@ -16,9 +20,6 @@ interface SmartFinancialReport { executive_summary: string; anomalies: Array<{ d
 interface ChatMessage { id: string; role: 'user' | 'agent'; content: string; timestamp: Date; evidenceCount?: number; }
 interface CachedState { report: SmartFinancialReport; chat: ChatMessage[]; fileName: string; }
 interface SpreadsheetAnalystProps { caseId: string; }
-
-// Normalized interface for the selection modal
-interface NormalizedFile { id: string; name: string; date: string; source: 'DOCUMENT' | 'ARCHIVE'; }
 
 const parseBold = (line: string) => {
     const parts = line.split(/(\*\*.*?\*\*|\*.*?\*)/g);
@@ -100,10 +101,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const [question, setQuestion] = useState('');
     const [isInterrogating, setIsInterrogating] = useState(false);
     const [typingMessage, setTypingMessage] = useState<ChatMessage | null>(null);
-    const [showArchiveModal, setShowArchiveModal] = useState(false);
-    const [archiveFiles, setArchiveFiles] = useState<NormalizedFile[]>([]);
-    const [isFetchingArchive, setIsFetchingArchive] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
+    
     const chatEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -135,15 +133,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         } catch (err) { setError(t('analyst.error.analysisFailed')); } finally { setIsAnalyzing(false); }
     };
 
-    const runArchiveAnalysis = async (docId: string, name: string) => {
-        setShowArchiveModal(false);
-        setIsAnalyzing(true); setError(null); setFileName(name);
-        try {
-            const data = await apiService.analyzeExistingSpreadsheet(caseId, docId) as any;
-            setResult(data);
-        } catch (err) { setError(t('analyst.error.analysisFailed')); } finally { setIsAnalyzing(false); }
-    };
-
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const newFile = e.target.files[0];
@@ -157,46 +146,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         setResult(null); setChatHistory([]); setError(null);
         const cache = getCache(); delete cache[caseId];
         try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (e) { console.error("Failed to clear from localStorage", e); }
-    };
-
-    const fetchArchiveFiles = async () => {
-        setIsFetchingArchive(true);
-        try {
-            // Fetch both documents AND archive items STRICTLY for this case
-            const [docs, archives] = await Promise.all([
-                apiService.getDocuments(caseId),
-                apiService.getArchiveItems(undefined, caseId)
-            ]);
-
-            const normalizedDocs: NormalizedFile[] = docs.map(d => ({
-                id: d.id,
-                name: d.file_name,
-                date: d.created_at,
-                source: 'DOCUMENT'
-            }));
-
-            const normalizedArchives: NormalizedFile[] = archives
-                .filter(a => a.item_type === 'FILE')
-                .map(a => ({
-                    id: a.id,
-                    name: a.title,
-                    date: a.created_at,
-                    source: 'ARCHIVE'
-                }));
-
-            const merged = [...normalizedDocs, ...normalizedArchives];
-            
-            // Filter for spreadsheet extensions
-            const filtered = merged.filter(f => {
-                const lowerName = f.name.toLowerCase();
-                return lowerName.endsWith('.csv') || lowerName.endsWith('.xlsx') || lowerName.endsWith('.xls');
-            });
-
-            // Deduplicate by ID to be safe
-            const unique = filtered.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
-            setArchiveFiles(unique);
-
-        } catch (err) { console.error("Archive Fetch Error:", err); } finally { setIsFetchingArchive(false); }
     };
 
     const handleInterrogate = async (e: React.FormEvent) => {
@@ -235,10 +184,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                         <span className="text-sm text-gray-300">{t('analyst.selectFile')}</span>
                                     </div>
                                 </div>
-                                <button onClick={() => { setShowArchiveModal(true); fetchArchiveFiles(); }} className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-white/10 transition-all cursor-pointer bg-white/5 hover:bg-white/10 text-gray-300">
-                                    <Folder className="w-5 h-5" />
-                                    <span className="text-sm">{t('analyst.importArchive')}</span>
-                                </button>
                             </div>
                         )}
                         {result && (<button onClick={() => handleReset(true)} className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex justify-center items-center gap-2 hover:bg-white/5"><RefreshCw className="w-4 h-4" />{t('analyst.newAnalysis')}</button>)}
@@ -269,39 +214,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         </form>
                     </div>
                 </motion.div>)}
-            </AnimatePresence>
-
-            <AnimatePresence>
-                {showArchiveModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="w-full max-w-2xl bg-slate-900 border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-                            <div className="p-6 border-b border-white/10 flex justify-between items-center">
-                                <div className="flex items-center gap-3"><Folder className="text-primary-start" /><h3 className="text-lg font-bold text-white">{t('analyst.selectFromArchive')}</h3></div>
-                                <button onClick={() => setShowArchiveModal(false)} className="text-gray-400 hover:text-white"><X className="w-6 h-6" /></button>
-                            </div>
-                            <div className="p-4 bg-white/5 border-b border-white/10"><div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /><input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('analyst.searchArchive')} className="w-full bg-black/30 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-white focus:outline-none focus:border-primary-start/50" /></div></div>
-                            <div className="max-h-[400px] overflow-y-auto p-4 custom-scrollbar">
-                                {isFetchingArchive ? (
-                                    <div className="flex flex-col items-center py-20 gap-4"><Activity className="w-8 h-8 text-primary-start animate-spin" /><p className="text-gray-400">{t('analyst.loadingArchive')}</p></div>
-                                ) : archiveFiles.length === 0 ? (
-                                    <div className="flex flex-col items-center py-20 gap-4"><FileText className="w-12 h-12 text-gray-600" /><p className="text-gray-400">{t('analyst.noArchiveFiles')}</p></div>
-                                ) : (
-                                    <div className="grid gap-2">
-                                        {archiveFiles.filter(f => f.name.toLowerCase().includes(searchQuery.toLowerCase())).map((file) => (
-                                            <button key={file.id} onClick={() => runArchiveAnalysis(file.id, file.name)} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 hover:border-primary-start/30 transition-all text-left group">
-                                                <div className="flex items-center gap-4"><div className="p-2 bg-primary-start/10 rounded-lg"><FileSpreadsheet className="w-6 h-6 text-primary-start" /></div><div><p className="text-white font-medium">{file.name}</p><p className="text-xs text-gray-500">{new Date(file.date).toLocaleDateString('sq-AL')}</p></div></div>
-                                                <div className="flex items-center gap-3">
-                                                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">{file.source === 'ARCHIVE' ? 'Arkiva' : 'Dokument'}</span>
-                                                    <ArrowRight className="w-5 h-5 text-gray-600 group-hover:text-primary-start group-hover:translate-x-1 transition-all" />
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
             </AnimatePresence>
 
             <AnimatePresence>

@@ -1,8 +1,7 @@
 # FILE: backend/app/models/calendar.py
-# PHOENIX PROTOCOL - MODEL ALIGNMENT V5.6 (DATA COMPATIBILITY FIX)
-# 1. ENUM EXPANSION: Added 'NORMAL' to EventPriority to match legacy DB data.
-# 2. ENUM EXPANSION: Added 'RESOLVED' to EventStatus to match legacy DB data.
-# 3. STRUCTURE: Preserved owner_id/case_id alignment for Dashboard counting.
+# PHOENIX PROTOCOL - MODEL ALIGNMENT V5.7 (FINANCIAL EVENT TYPE)
+# 1. FEATURE: Added 'PAYMENT' to EventType Enum.
+# 2. RESULT: Allows proper categorization of dates from financial documents.
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List
@@ -19,19 +18,20 @@ class EventType(str, Enum):
     FILING = "FILING"
     COURT_DATE = "COURT_DATE"
     CONSULTATION = "CONSULTATION"
+    PAYMENT = "PAYMENT" # PHOENIX: Added for financial documents
     OTHER = "OTHER"
 
 class EventPriority(str, Enum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
-    NORMAL = "NORMAL" # Added to resolve validation crash
+    NORMAL = "NORMAL" 
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
 
 class EventStatus(str, Enum):
     PENDING = "PENDING"
     CONFIRMED = "CONFIRMED"
-    RESOLVED = "RESOLVED" # Added to resolve validation crash
+    RESOLVED = "RESOLVED" 
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
 
@@ -65,8 +65,8 @@ class CalendarEventCreate(CalendarEventBase):
 
 class CalendarEventInDB(CalendarEventBase):
     id: PyObjectId = Field(alias="_id")
-    owner_id: PyObjectId # Preserved Phoenix alignment
-    case_id: str # Preserved Phoenix alignment
+    owner_id: PyObjectId 
+    case_id: str 
     document_id: Optional[str] = None 
     status: EventStatus = EventStatus.PENDING
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -75,5 +75,4 @@ class CalendarEventInDB(CalendarEventBase):
     model_config = ConfigDict(populate_by_name=True)
 
 class CalendarEventOut(CalendarEventInDB):
-    # Inherits serialization logic from InDB
     pass
