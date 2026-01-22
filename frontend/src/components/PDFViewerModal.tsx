@@ -1,7 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V5.4 (CLEANUP)
-// 1. CLEANUP: Removed unused 'RefreshCw' import.
-// 2. LOGIC: Preserved Hybrid Performance/Fallback architecture.
+// PHOENIX PROTOCOL - PDF VIEWER V5.5 (CSV SUPPORT ADDED)
+// 1. FEATURE: Added 'CSV' mode for tabular data preview.
+// 2. LOGIC: Enhanced MIME detection to catch .csv extensions.
+// 3. UI: Added table rendering logic with sticky headers.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -11,7 +12,7 @@ import { Document } from '../data/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     X, Loader, AlertTriangle, ChevronLeft, ChevronRight, 
-    Download, ZoomIn, ZoomOut, Maximize, Minus, FileText
+    Download, ZoomIn, ZoomOut, Maximize, Minus, FileText, Table as TableIcon
 } from 'lucide-react';
 import { TFunction } from 'i18next';
 
@@ -32,6 +33,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   // pdfSource can be a string (Blob URL) or an object (Direct URL + Headers)
   const [pdfSource, setPdfSource] = useState<any>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
+  const [csvContent, setCsvContent] = useState<string[][] | null>(null);
   const [imageSource, setImageSource] = useState<string | null>(null);
   
   const [isLoading, setIsLoading] = useState(true);
@@ -44,7 +46,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const [containerWidth, setContainerWidth] = useState<number>(0); 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [actualViewerMode, setActualViewerMode] = useState<'PDF' | 'TEXT' | 'IMAGE' | 'DOWNLOAD'>('PDF');
+  const [actualViewerMode, setActualViewerMode] = useState<'PDF' | 'TEXT' | 'IMAGE' | 'CSV' | 'DOWNLOAD'>('PDF');
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
@@ -58,8 +60,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       return () => window.removeEventListener('resize', updateWidth);
   }, [actualViewerMode]);
 
-  const getTargetMode = (mimeType: string) => {
+  const getTargetMode = (mimeType: string, fileName: string) => {
     const m = mimeType?.toLowerCase() || '';
+    const f = fileName?.toLowerCase() || '';
+
+    if (m.includes('csv') || f.endsWith('.csv') || m === 'application/vnd.ms-excel') return 'CSV';
     if (m.startsWith('text/') || m === 'application/json' || m.includes('plain')) return 'TEXT';
     if (m.startsWith('image/')) return 'IMAGE';
     return 'PDF';
@@ -107,14 +112,15 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   // 2. The Fast Way (Direct URL + Headers)
   // Used primarily for PDFs to enable streaming
   const initFastPath = () => {
-      const targetMode = getTargetMode(documentData.mime_type || '');
-      setActualViewerMode(targetMode as any);
-
+      const targetMode = getTargetMode(documentData.mime_type || '', documentData.file_name || '');
+      // Temporary state set, usually overridden by blob content handler or PDF load
       if (targetMode !== 'PDF') {
-          // Non-PDFs always go through Blob fetch to ensure we can render text/images securely
+          // Non-PDFs always go through Blob fetch to ensure we can render text/images/csv securely
           fetchAsBlob(targetMode);
           return;
       }
+      
+      setActualViewerMode('PDF');
 
       // If we are already in fallback mode or don't have a direct URL, use Blob
       if (useBlobFallback || !directUrl) {
@@ -147,10 +153,22 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   };
 
   const handleBlobContent = async (blob: Blob, mode: string) => {
-      if (mode === 'TEXT') {
+      if (mode === 'TEXT' || mode === 'CSV') {
           const text = await blob.text();
-          setTextContent(text);
-          setActualViewerMode('TEXT');
+          if (mode === 'CSV') {
+              // Simple CSV Parser for display purposes
+              const rows = text.split(/\r?\n/).filter(r => r.trim().length > 0);
+              const data = rows.map(row => {
+                  // Basic split handling. For complex CSVs with quoted commas, a more robust parser would be needed,
+                  // but this suffices for basic previewing.
+                  return row.split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
+              });
+              setCsvContent(data);
+              setActualViewerMode('CSV');
+          } else {
+              setTextContent(text);
+              setActualViewerMode('TEXT');
+          }
       } else {
           const url = URL.createObjectURL(blob);
           setImageSource(url);
@@ -305,6 +323,44 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
             </div>
           </div>
         );
+      case 'CSV':
+        return (
+            <div className="flex justify-center p-6 sm:p-8 min-h-full bg-black/40">
+                <div className="glass-panel p-0 min-h-[600px] w-full max-w-6xl rounded-xl overflow-hidden flex flex-col shadow-2xl">
+                    <div className="p-4 bg-white/5 border-b border-white/10 flex justify-between items-center">
+                        <span className="text-xs font-mono text-primary-300 uppercase tracking-widest">CSV Preview</span>
+                        <span className="text-xs text-gray-500">{csvContent?.length || 0} rows found</span>
+                    </div>
+                    <div className="overflow-auto custom-scrollbar flex-1 max-h-[70vh]">
+                        <table className="w-full text-left border-collapse relative">
+                            <thead className="sticky top-0 bg-gray-900/90 backdrop-blur-md z-10 shadow-sm">
+                                <tr>
+                                    {csvContent && csvContent[0]?.map((header, i) => (
+                                        <th key={i} className="p-4 text-xs font-bold text-white uppercase tracking-wider border-b border-white/10 whitespace-nowrap bg-white/5">
+                                            {header}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {csvContent && csvContent.slice(1).map((row, i) => (
+                                    <tr key={i} className="hover:bg-white/5 transition-colors group">
+                                        <td className="p-3 text-xs text-gray-500 font-mono border-r border-white/5 text-center w-10 opacity-50 select-none">
+                                            {i + 1}
+                                        </td>
+                                        {row.map((cell, j) => (
+                                            <td key={j} className="p-3 text-sm text-gray-300 border-r border-white/5 last:border-r-0 whitespace-nowrap max-w-xs overflow-hidden text-ellipsis">
+                                                {cell}
+                                            </td>
+                                        ))}
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        );
       case 'IMAGE':
         return (
             <div className="flex items-center justify-center h-full p-4 overflow-auto bg-black/40">
@@ -323,7 +379,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           <header className="flex flex-wrap items-center justify-between p-4 border-b border-white/5 bg-white/5 backdrop-blur-md z-20 gap-3 shrink-0">
             <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="p-2 bg-primary-start/20 rounded-lg border border-primary-start/30">
-                    <FileText className="text-primary-start w-5 h-5" />
+                    {actualViewerMode === 'CSV' ? <TableIcon className="text-primary-start w-5 h-5" /> : <FileText className="text-primary-start w-5 h-5" />}
                 </div>
                 <div>
                     <h2 className="text-sm sm:text-base font-bold text-white truncate max-w-[200px] sm:max-w-md">
