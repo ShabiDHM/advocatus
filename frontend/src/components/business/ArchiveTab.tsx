@@ -1,8 +1,8 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V12.6 (MIME-TYPE FIX)
-// 1. CRITICAL FIX: The 'handleViewItem' function now forces mime_type to 'application/pdf' for 'FORENSIC' category items.
-// 2. RESOLVED: Fixes the bug where generated Forensic PDFs were rendered as raw text in a "CSV View".
-// 3. ROBUSTNESS: The logic now correctly identifies the file type, ensuring the PDF viewer is used.
+// PHOENIX PROTOCOL - ARCHIVE TAB V12.8 (TYPE FIX)
+// 1. FIXED: Corrected the import location for the 'TFunction' type.
+// 2. RESOLVED: Eliminates the TypeScript error "Module has no exported member 'TFunction'".
+// 3. RETAINS: All previous functionality, including category translation.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,6 +14,7 @@ import {
 import { apiService } from '../../services/api';
 import { ArchiveItemOut, Case, Document } from '../../data/types';
 import { useTranslation } from 'react-i18next';
+import { TFunction } from 'i18next'; // PHOENIX: Correct import location
 import PDFViewerModal from '../PDFViewerModal';
 import { useAuth } from '../../context/AuthContext';
 
@@ -25,7 +26,28 @@ interface ArchiveStatusUpdate {
 
 type Breadcrumb = { id: string | null; name: string; type: 'ROOT' | 'CASE' | 'FOLDER'; };
 
-// PHOENIX FIX: This function is now more robust.
+const translateCategory = (category: string, t: TFunction): string => {
+    const key = category?.toUpperCase();
+    switch (key) {
+        case 'FORENSIC':
+            return t('category.forensic', 'Forenzik');
+        case 'CASE_FILE':
+            return t('category.case_file', 'Skedar Lënde');
+        case 'INVOICE':
+            return t('category.invoice', 'Faturë');
+        case 'EVIDENCE':
+            return t('category.evidence', 'Dëshmi');
+        case 'LEGAL_DOCS':
+            return t('category.legal_docs', 'Dokument Ligjor');
+        case 'CONTRACTS':
+            return t('category.contracts', 'Kontratë');
+        case 'GENERAL':
+            return t('category.general', 'I Përgjithshëm');
+        default:
+            return category; 
+    }
+};
+
 const getMimeType = (fileType: string, fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase() || '';
     if (fileType === 'PDF' || ext === 'pdf') return 'application/pdf';
@@ -41,10 +63,10 @@ const getFileIcon = (fileType: string, category?: string) => {
     return <FileIcon className="w-5 h-5 text-blue-400" />;
 };
 
-const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, isLoading }: any) => {
-    const { t } = useTranslation();
+const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, isLoading, t }: any) => {
     const isFolder = item.item_type === 'FOLDER';
     const isShared = item.is_shared === true;
+    const displayCategory = translateCategory(item.category || item.file_type, t);
 
     return (
         <div onClick={onClick} className={`group relative flex flex-col justify-between h-full min-h-[14rem] p-6 rounded-2xl transition-all duration-300 cursor-pointer glass-panel hover:bg-white/10 hover:-translate-y-1 hover:shadow-2xl`}>
@@ -81,7 +103,7 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
                     <div className="space-y-1.5 pl-1">
                         <div className="flex items-center gap-2 text-sm font-medium text-white">
                             {isFolder ? <FolderOpen className="w-4 h-4 text-accent-start" /> : <FileText className="w-4 h-4 text-primary-end" />}
-                            <span className="truncate">{isFolder ? 'Folder' : (item.category || item.file_type)}</span>
+                            <span className="truncate">{isFolder ? t('archive.folder') : displayCategory}</span>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-text-secondary">
                             <Hash className="w-3.5 h-3.5 flex-shrink-0" />
@@ -140,29 +162,18 @@ export const ArchiveTab: React.FC = () => {
     const folderInputRef = useRef<HTMLInputElement>(null);
     const archiveInputRef = useRef<HTMLInputElement>(null);
 
-    // SSE: Real-time Status Updates
     useEffect(() => {
         if (!user) return;
         const eventSource = new EventSource(`${apiService.axiosInstance.defaults.baseURL}/stream/${user.id}`);
-        
         eventSource.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data) as ArchiveStatusUpdate;
                 if (data.type === 'ARCHIVE_STATUS') {
-                    setArchiveItems(prev => prev.map(item => 
-                        item.id === data.document_id 
-                        ? { ...item, indexing_status: data.status } as any
-                        : item
-                    ));
+                    setArchiveItems(prev => prev.map(item => item.id === data.document_id ? { ...item, indexing_status: data.status } as any : item));
                 }
-            } catch (e) {
-                console.error("SSE Parse Error", e);
-            }
+            } catch (e) { console.error("SSE Parse Error", e); }
         };
-
-        return () => {
-            eventSource.close();
-        };
+        return () => { eventSource.close(); };
     }, [user]);
 
     useEffect(() => {
@@ -184,7 +195,6 @@ export const ArchiveTab: React.FC = () => {
 
     const handleNavigate = (_: Breadcrumb, index: number) => setBreadcrumbs(prev => prev.slice(0, index + 1));
     const handleEnterFolder = (id: string, name: string, type: 'FOLDER' | 'CASE') => setBreadcrumbs(prev => [...prev, { id, name, type }]);
-
     const handleCreateFolder = async (e: React.FormEvent) => {
         e.preventDefault();
         const active = breadcrumbs[breadcrumbs.length - 1];
@@ -224,35 +234,19 @@ export const ArchiveTab: React.FC = () => {
             const blob = await apiService.getArchiveFileBlob(item.id); 
             const url = window.URL.createObjectURL(blob); 
             setViewingUrl(url); 
-
-            // PHOENIX CRITICAL FIX: Determine MIME type based on the authoritative 'category' for generated files.
             let determinedMimeType: string;
             if (item.category === 'FORENSIC') {
                 determinedMimeType = 'application/pdf';
             } else {
-                // Fallback to original logic for regular uploads
                 determinedMimeType = getMimeType(item.file_type, item.title);
             }
-
-            setViewingDoc({ 
-                id: item.id, 
-                file_name: item.title, 
-                mime_type: determinedMimeType, 
-                status: 'READY' 
-            } as any); 
+            setViewingDoc({ id: item.id, file_name: item.title, mime_type: determinedMimeType, status: 'READY' } as any); 
         } catch { alert(t('error.generic')); }
         finally { setOpeningDocId(null); }
     };
     
-    const closePreview = () => { 
-        setViewingDoc(null); 
-        if(viewingUrl) window.URL.revokeObjectURL(viewingUrl); 
-    };
-
-    const handleRenameClick = (item: ArchiveItemOut) => {
-        setItemToRename(item);
-        setRenameValue(item.title);
-    };
+    const closePreview = () => { setViewingDoc(null); if(viewingUrl) window.URL.revokeObjectURL(viewingUrl); };
+    const handleRenameClick = (item: ArchiveItemOut) => { setItemToRename(item); setRenameValue(item.title); };
 
     const submitRename = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -261,9 +255,7 @@ export const ArchiveTab: React.FC = () => {
             await apiService.renameArchiveItem(itemToRename.id, renameValue);
             setArchiveItems(prev => prev.map(i => i.id === itemToRename.id ? { ...i, title: renameValue } : i));
             setItemToRename(null);
-        } catch (error) {
-            alert(t('error.generic'));
-        }
+        } catch (error) { alert(t('error.generic')); }
     };
 
     const handleShareItem = async (item: ArchiveItemOut) => {
@@ -271,9 +263,7 @@ export const ArchiveTab: React.FC = () => {
             const newStatus = !(item as any).is_shared;
             await apiService.shareArchiveItem(item.id, newStatus);
             setArchiveItems(prev => prev.map(i => i.id === item.id ? { ...i, is_shared: newStatus } as any : i));
-        } catch (e) {
-            alert(t('error.generic', 'Gabim gjatë procesimit'));
-        }
+        } catch (e) { alert(t('error.generic', 'Gabim gjatë procesimit')); }
     };
     
     const handleCopyPortalLink = () => {
@@ -306,11 +296,7 @@ export const ArchiveTab: React.FC = () => {
                 </div>
                 <div className="flex w-full md:w-auto gap-2 flex-shrink-0 p-1.5 glass-panel rounded-xl">
                     {currentView.type === 'CASE' && (
-                        <button 
-                            onClick={handleCopyPortalLink} 
-                            className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border transition-all font-bold text-xs uppercase tracking-wide ${linkCopied ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-primary-start/10 text-primary-300 border-primary-start/30 hover:bg-primary-start/20'}`}
-                            title={linkCopied ? "Link Copied" : "Copy Client Portal Link"}
-                        >
+                        <button onClick={handleCopyPortalLink} className={`flex-1 md:flex-initial flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-lg border transition-all font-bold text-xs uppercase tracking-wide ${linkCopied ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-primary-start/10 text-primary-300 border-primary-start/30 hover:bg-primary-start/20'}`} title={linkCopied ? "Link Copied" : "Copy Client Portal Link"} >
                             {linkCopied ? <CheckCircle size={16} /> : <LinkIcon size={16} />}
                             <span className="hidden sm:inline">{linkCopied ? t('general.copied') : "Portal Link"}</span>
                         </button>
@@ -334,7 +320,7 @@ export const ArchiveTab: React.FC = () => {
             </div>
             
             <div className="space-y-10">
-                {currentView.type === 'ROOT' && filteredCases.length > 0 && (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">{filteredCases.map(c => (<div key={c.id} className="h-full"><ArchiveCard item={{ title: c.title || `Rasti #${c.case_number}`, case_number: c.case_number, created_at: c.created_at, item_type: 'FOLDER' }} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} /></div>))}</div>)}
+                {currentView.type === 'ROOT' && filteredCases.length > 0 && (<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">{filteredCases.map(c => (<div key={c.id} className="h-full"><ArchiveCard t={t} item={{ title: c.title || `Rasti #${c.case_number}`, case_number: c.case_number, created_at: c.created_at, item_type: 'FOLDER' }} onClick={() => handleEnterFolder(c.id, c.title, 'CASE')} /></div>))}</div>)}
                 {filteredItems.length > 0 && (
                     <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         <AnimatePresence>
@@ -343,6 +329,7 @@ export const ArchiveTab: React.FC = () => {
                                 return (
                                     <motion.div layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} key={item.id} className="h-full">
                                         <ArchiveCard 
+                                            t={t}
                                             item={item}
                                             onClick={() => isFolder ? handleEnterFolder(item.id, item.title, 'FOLDER') : handleViewItem(item)} 
                                             onDownload={() => downloadArchiveItem(item.id, item.title)} 
@@ -359,54 +346,8 @@ export const ArchiveTab: React.FC = () => {
                 )}
             </div>
 
-            {showFolderModal && (
-                <div className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-                    <div className="glass-high w-full max-w-sm p-8 rounded-3xl shadow-2xl scale-100">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-white">{t('archive.newFolderTitle')}</h3>
-                            <button onClick={() => setShowFolderModal(false)} className="text-text-secondary hover:text-white"><X size={24}/></button>
-                        </div>
-                        <form onSubmit={handleCreateFolder}>
-                            <div className="relative mb-5"><FolderOpen className="absolute left-4 top-3.5 w-6 h-6 text-accent-start" /><input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t('archive.folderNamePlaceholder')} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-lg placeholder:text-gray-500" /></div>
-                            <div className="relative mb-8">
-                                <Tag className="absolute left-4 top-3.5 w-5 h-5 text-gray-500" />
-                                <select value={newFolderCategory} onChange={(e) => setNewFolderCategory(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl appearance-none cursor-pointer">
-                                    <option value="GENERAL" className="bg-gray-900 text-white">{t('category.general', 'General')}</option>
-                                    <option value="EVIDENCE" className="bg-gray-900 text-white">{t('category.evidence', 'Evidence')}</option>
-                                    <option value="LEGAL_DOCS" className="bg-gray-900 text-white">{t('category.legalDocs', 'Legal Docs')}</option>
-                                    <option value="INVOICES" className="bg-gray-900 text-white">{t('category.invoices', 'Invoices')}</option>
-                                    <option value="CONTRACTS" className="bg-gray-900 text-white">{t('category.contracts', 'Contracts')}</option>
-                                </select>
-                            </div>
-                            <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-white hover:bg-white/10 transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-accent-start to-accent-end text-white rounded-xl font-bold shadow-lg shadow-accent-start/20 transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {itemToRename && (
-                 <div className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-                    <div className="glass-high w-full max-w-sm p-8 rounded-3xl shadow-2xl scale-100">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-white">{t('documentsPanel.renameTitle', 'Riemërto')}</h3>
-                            <button onClick={() => setItemToRename(null)} className="text-text-secondary hover:text-white"><X size={24}/></button>
-                        </div>
-                        <form onSubmit={submitRename}>
-                            <div className="relative mb-5">
-                                <Pencil className="absolute left-4 top-3.5 w-5 h-5 text-primary-start" />
-                                <input autoFocus type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-lg" />
-                            </div>
-                            <div className="flex justify-end gap-3">
-                                <button type="button" onClick={() => setItemToRename(null)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-white hover:bg-white/10 transition-colors font-medium">{t('general.cancel')}</button>
-                                <button type="submit" className="px-8 py-3 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold shadow-lg shadow-primary-start/20 transition-all transform hover:scale-[1.02] flex items-center gap-2">
-                                    <Save size={16} /> {t('general.save')}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
+            {showFolderModal && ( <div className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"> <div className="glass-high w-full max-w-sm p-8 rounded-3xl shadow-2xl scale-100"> <div className="flex justify-between items-center mb-6"> <h3 className="text-xl font-bold text-white">{t('archive.newFolderTitle')}</h3> <button onClick={() => setShowFolderModal(false)} className="text-text-secondary hover:text-white"><X size={24}/></button> </div> <form onSubmit={handleCreateFolder}> <div className="relative mb-5"><FolderOpen className="absolute left-4 top-3.5 w-6 h-6 text-accent-start" /><input autoFocus type="text" value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t('archive.folderNamePlaceholder')} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-lg placeholder:text-gray-500" /></div> <div className="relative mb-8"> <Tag className="absolute left-4 top-3.5 w-5 h-5 text-gray-500" /> <select value={newFolderCategory} onChange={(e) => setNewFolderCategory(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl appearance-none cursor-pointer"> <option value="GENERAL" className="bg-gray-900 text-white">{t('category.general', 'General')}</option> <option value="EVIDENCE" className="bg-gray-900 text-white">{t('category.evidence', 'Evidence')}</option> <option value="LEGAL_DOCS" className="bg-gray-900 text-white">{t('category.legalDocs', 'Legal Docs')}</option> <option value="INVOICES" className="bg-gray-900 text-white">{t('category.invoices', 'Invoices')}</option> <option value="CONTRACTS" className="bg-gray-900 text-white">{t('category.contracts', 'Contracts')}</option> </select> </div> <div className="flex justify-end gap-3"><button type="button" onClick={() => setShowFolderModal(false)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-white hover:bg-white/10 transition-colors font-medium">{t('general.cancel')}</button><button type="submit" className="px-8 py-3 bg-gradient-to-r from-accent-start to-accent-end text-white rounded-xl font-bold shadow-lg shadow-accent-start/20 transition-all transform hover:scale-[1.02]">{t('general.create')}</button></div> </form> </div> </div> )}
+            {itemToRename && ( <div className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200"> <div className="glass-high w-full max-w-sm p-8 rounded-3xl shadow-2xl scale-100"> <div className="flex justify-between items-center mb-6"> <h3 className="text-xl font-bold text-white">{t('documentsPanel.renameTitle', 'Riemërto')}</h3> <button onClick={() => setItemToRename(null)} className="text-text-secondary hover:text-white"><X size={24}/></button> </div> <form onSubmit={submitRename}> <div className="relative mb-5"> <Pencil className="absolute left-4 top-3.5 w-5 h-5 text-primary-start" /> <input autoFocus type="text" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-lg" /> </div> <div className="flex justify-end gap-3"> <button type="button" onClick={() => setItemToRename(null)} className="px-6 py-3 rounded-xl text-text-secondary hover:text-white hover:bg-white/10 transition-colors font-medium">{t('general.cancel')}</button> <button type="submit" className="px-8 py-3 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl font-bold shadow-lg shadow-primary-start/20 transition-all transform hover:scale-[1.02] flex items-center gap-2"> <Save size={16} /> {t('general.save')} </button> </div> </form> </div> </div> )}
             {viewingDoc && <PDFViewerModal documentData={viewingDoc} onClose={closePreview} onMinimize={closePreview} t={t} directUrl={viewingUrl} />}
         </motion.div>
     );
