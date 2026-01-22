@@ -1,9 +1,9 @@
 # FILE: backend/app/services/deadline_service.py
-# PHOENIX PROTOCOL - DEADLINE ENGINE V6.0 (EXTENSION ENFORCEMENT)
-# 1. CRITICAL FIX: Adds File Extension checks (.csv, .xlsx) to catch spreadsheets 
-#    that are mislabeled as 'text/plain' by the browser.
-# 2. LOGIC: If file ends in .csv/.xlsx -> IT IS A SPREADSHEET -> No Calendar Events.
-# 3. RETAINS: Metadata Segregation (Data goes to Knowledge Base, not Calendar).
+# PHOENIX PROTOCOL - DEADLINE ENGINE V6.1 (KEYWORD IRONCLAD)
+# 1. CRITICAL UPGRADE: Adds "Keyword Guard" to catch files named 'financa', 'fatura', etc.
+#    This solves cases where MIME types or Extensions are ambiguous.
+# 2. FIXED: Properly utilizes the SPREADSHEET_EXTENSIONS tuple (including .txt).
+# 3. RESULT: Any file looking like a financial record goes to Knowledge Base, NOT Calendar.
 
 import os
 import json
@@ -33,6 +33,7 @@ AL_MONTHS = {
     "dhjetor": "December"
 }
 
+# 1. MIME Types to block
 SPREADSHEET_MIME_TYPES = [
     "text/csv", 
     "application/csv",
@@ -42,29 +43,33 @@ SPREADSHEET_MIME_TYPES = [
     "text/x-comma-separated-values",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
     "application/vnd.ms-excel",
-    "application/octet-stream", # Often used for random binary/csv files
-    "text/plain" # Dangerous, but handled by extension check below
+    "application/octet-stream", 
+    "text/plain" 
 ]
 
-SPREADSHEET_EXTENSIONS = ('.csv', '.xlsx', '.xls', '.ods', '.numbers', '.txt') 
-# Note: .txt is included because many CSVs are just text files. 
-# We rely on the content analysis or just strict file segregation if needed. 
-# For safety in this specific context (Invoices), we treat .csv/.xlsx as the primary targets.
+# 2. Extensions to block
+SPREADSHEET_EXTENSIONS = ('.csv', '.xlsx', '.xls', '.ods', '.numbers', '.txt', '.dat')
+
+# 3. Filename Keywords to block (The Ironclad Layer)
+SPREADSHEET_KEYWORDS = ["financa", "finance", "fatura", "invoice", "pasqyra", "bank", "transaksion", "statement"]
 
 def _is_spreadsheet_file(doc: DocumentOut) -> bool:
     """
-    Robust check to determine if a document is a spreadsheet/invoice list.
-    Checks MIME type AND File Extension.
+    Multi-layered check to determine if a document is a spreadsheet/invoice list.
     """
-    # 1. Check Extension (Most Reliable for CSVs)
     filename = doc.file_name.lower() if doc.file_name else ""
-    if filename.endswith(('.csv', '.xlsx', '.xls', '.ods', '.numbers')):
+    
+    # Layer A: Filename Keywords (Catch "financa_2026.pdf" if needed, or ambiguous CSVs)
+    for keyword in SPREADSHEET_KEYWORDS:
+        if keyword in filename:
+            return True
+
+    # Layer B: File Extension
+    if filename.endswith(SPREADSHEET_EXTENSIONS):
         return True
         
-    # 2. Check MIME Type
+    # Layer C: Explicit MIME Type
     if doc.mime_type in SPREADSHEET_MIME_TYPES:
-        # If it's generic text/plain, only treat as spreadsheet if it looks like a CSV (handled by extension mostly)
-        # But if explicit CSV mime type, return True
         if "csv" in doc.mime_type or "spreadsheet" in doc.mime_type or "excel" in doc.mime_type:
             return True
             
@@ -137,7 +142,7 @@ def _extract_dates_with_llm(full_text: str) -> List[Dict[str, str]]:
                 temperature=0.1
             )
             
-            # Correctly accessing the first choice
+            # PHOENIX FIX: Correct list access
             raw_content = response.choices[0].message.content or "{}" 
             cleaned_content = _clean_json_string(raw_content)
             data = json.loads(cleaned_content)
@@ -181,10 +186,10 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
         log.info("No dates found via LLM or Regex.")
         return
 
-    # 2. ROBUST DETECTION & SEGREGATION
-    # Use the new helper that checks Extensions AND Mime Types
+    # 2. KEYWORD & EXTENSION GUARD
+    # Checks Filename Keywords ("financa", "fatura") AND Extensions
     if _is_spreadsheet_file(document):
-        log.info(f"File detected as Spreadsheet/Data (File: {document.file_name}). Processing for Metadata only.")
+        log.info(f"File detected as Finance/Data Record (File: {document.file_name}). Processing for Metadata only.")
         
         try:
             # A. Save to Document Metadata (Knowledge Base)
@@ -193,8 +198,7 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
                 {"$set": {"ai_metadata.extracted_invoice_dates": events}}
             )
             
-            # B. CLEANUP: Delete any Calendar Events.
-            # Using both string and ObjectId to be absolutely sure we catch everything.
+            # B. CLEANUP: Delete any Calendar Events for this file.
             delete_query = {
                 "$or": [
                     {"document_id": document_id},
@@ -204,7 +208,7 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
             delete_result = db.calendar_events.delete_many(delete_query)
             
             if delete_result.deleted_count > 0:
-                log.info(f"Cleaned up {delete_result.deleted_count} events (Extension Guard Triggered).")
+                log.info(f"Cleaned up {delete_result.deleted_count} events (Keyword Guard Triggered).")
                 
         except Exception as e:
             log.error(f"Failed to update document metadata for spreadsheet: {e}")
