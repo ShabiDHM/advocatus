@@ -2,7 +2,7 @@
 # PHOENIX PROTOCOL - ADMIN SERVICE V8.1 (ROBUST UPDATE)
 # 1. LOGIC: Forced 'plan_tier' update when promoting.
 # 2. DEBUG: Added print statements to trace the update flow in Docker logs.
-# 3. STATUS: Ensures plan changes persist.
+
 
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
