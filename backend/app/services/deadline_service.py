@@ -1,8 +1,10 @@
 # FILE: backend/app/services/deadline_service.py
-# PHOENIX PROTOCOL - DEADLINE ENGINE V5.6 (FINAL & VERIFIED LLM RESPONSE FIX)
-# 1. CRITICAL FIX: Ensures correct access to LLM response content using 'response.choices[0].message.content'.
-# 2. RESOLVES: Persistent Pylance error "Cannot access attribute 'message' for class 'List[Choice]'".
-# 3. CONFIRMED: All previous fixes (re.MULTILINE, EventType, Contextual Logic) are retained.
+# PHOENIX PROTOCOL - DEADLINE ENGINE V5.8
+# 1. ARCHITECTURAL SHIFT: Implements "Metadata Segregation Strategy".
+#    - Standard Docs -> Calendar Events (Visible).
+#    - Spreadsheets -> Document Metadata (Hidden from Calendar, retained for Knowledge Base).
+# 2. CLEANUP: Automatically deletes existing calendar events for Spreadsheets to fix Dashboard clutter.
+# 3. RETAINS: Critical Pylance fix (response.choices[0].message).
 
 import os
 import json
@@ -31,6 +33,17 @@ AL_MONTHS = {
     "shtator": "September", "tetor": "October", "nëntor": "November", "nentor": "November",
     "dhjetor": "December"
 }
+
+SPREADSHEET_MIME_TYPES = [
+    "text/csv", 
+    "application/csv",
+    "text/x-csv",
+    "application/x-csv",
+    "text/comma-separated-values",
+    "text/x-comma-separated-values",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+    "application/vnd.ms-excel"
+]
 
 def _clean_json_string(json_str: str) -> str:
     cleaned = re.sub(r'^```json\s*', '', json_str, flags=re.MULTILINE)
@@ -99,8 +112,7 @@ def _extract_dates_with_llm(full_text: str) -> List[Dict[str, str]]:
                 temperature=0.1
             )
             
-            # PHOENIX CRITICAL FIX: Access the 'message' attribute from the FIRST item in the 'choices' list.
-            # Fixed from response.choices.message to response.choices[0].message
+            # PHOENIX FIX: Correct list access for LLM response
             raw_content = response.choices[0].message.content or "{}" 
             cleaned_content = _clean_json_string(raw_content)
             data = json.loads(cleaned_content)
@@ -134,12 +146,7 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
     case_id_str = str(document.case_id)
     owner_id = document.owner_id
     
-    is_spreadsheet = document.mime_type in [
-        "text/csv", 
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-        "application/vnd.ms-excel"
-    ]
-    
+    # 1. Extract dates regardless of type (Knowledge Base requirement)
     events = _extract_dates_with_llm(full_text)
     if not events:
         log.info("LLM returned no events, falling back to Regex.")
@@ -149,6 +156,30 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
         log.info("No dates found via LLM or Regex.")
         return
 
+    # 2. SEGREGATION LOGIC
+    # If Spreadsheet: Store in Document Metadata ONLY. Do not create Calendar Events.
+    if document.mime_type in SPREADSHEET_MIME_TYPES:
+        log.info(f"Spreadsheet detected ({document.mime_type}). Storing dates in metadata only.")
+        
+        try:
+            # Store the raw events in the document record for the Knowledge Base
+            db.documents.update_one(
+                {"_id": doc_oid},
+                {"$set": {"ai_metadata.extracted_invoice_dates": events}}
+            )
+            
+            # CLEANUP: Ensure no "ghost" events exist in the Calendar for this file
+            delete_result = db.calendar_events.delete_many({"document_id": document_id})
+            if delete_result.deleted_count > 0:
+                log.info(f"Cleaned up {delete_result.deleted_count} existing events for this spreadsheet.")
+                
+        except Exception as e:
+            log.error(f"Failed to update document metadata for spreadsheet: {e}")
+            
+        return # STOP here for spreadsheets.
+
+    # 3. STANDARD LOGIC (For PDFs, Word Docs, etc.)
+    # Create Calendar Events that show up in the UI
     valid_events = []
     
     for item in events:
@@ -165,19 +196,9 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
         if not parsed: 
             continue
         
-        event_type_to_assign = EventType.DEADLINE
-        status_to_assign = EventStatus.PENDING
-        priority_to_assign = EventPriority.MEDIUM
-
-        if is_spreadsheet:
-            event_type_to_assign = EventType.PAYMENT
-            status_to_assign = EventStatus.RESOLVED 
-            priority_to_assign = EventPriority.NORMAL 
-        else:
-            now = datetime.now()
-            if parsed < now:
-                status_to_assign = EventStatus.RESOLVED 
-            priority_to_assign = EventPriority.HIGH if parsed > now else EventPriority.NORMAL
+        now = datetime.now()
+        status_to_assign = EventStatus.RESOLVED if parsed < now else EventStatus.PENDING
+        priority_to_assign = EventPriority.HIGH if parsed > now else EventPriority.NORMAL
         
         valid_events.append({
             "case_id": case_id_str,       
@@ -188,7 +209,7 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
             "start_date": parsed,         
             "end_date": parsed,           
             "is_all_day": True,
-            "event_type": event_type_to_assign, 
+            "event_type": EventType.DEADLINE, 
             "status": status_to_assign,     
             "priority": priority_to_assign, 
             "created_at": datetime.now(timezone.utc)
@@ -196,6 +217,7 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
 
     if valid_events:
         try:
+            # Overwrite existing events for this document to prevent duplicates
             db.calendar_events.delete_many({"document_id": document_id}) 
             
             result = db.calendar_events.insert_many(valid_events)
