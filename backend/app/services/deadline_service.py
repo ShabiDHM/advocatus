@@ -1,10 +1,10 @@
 # FILE: backend/app/services/deadline_service.py
 # PHOENIX PROTOCOL - DEADLINE ENGINE V5.8
-# 1. ARCHITECTURAL SHIFT: Implements "Metadata Segregation Strategy".
-#    - Standard Docs -> Calendar Events (Visible).
-#    - Spreadsheets -> Document Metadata (Hidden from Calendar, retained for Knowledge Base).
-# 2. CLEANUP: Automatically deletes existing calendar events for Spreadsheets to fix Dashboard clutter.
-# 3. RETAINS: Critical Pylance fix (response.choices[0].message).
+# 1. LOGIC CONFIRMATION: The "Cleanup" runs AUTOMATICALLY every time a spreadsheet is processed.
+# 2. BEHAVIOR: 
+#    - On Upload/Re-process: It deletes ANY existing calendar events linked to that specific file.
+#    - Then: It saves the dates into 'documents.ai_metadata' (Knowledge Base) INSTEAD of the calendar.
+# 3. RESULT: Fixes the dashboard count for any file processed by this version.
 
 import os
 import json
@@ -112,7 +112,7 @@ def _extract_dates_with_llm(full_text: str) -> List[Dict[str, str]]:
                 temperature=0.1
             )
             
-            # PHOENIX FIX: Correct list access for LLM response
+            # Correctly accessing the first choice
             raw_content = response.choices[0].message.content or "{}" 
             cleaned_content = _clean_json_string(raw_content)
             data = json.loads(cleaned_content)
@@ -146,7 +146,7 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
     case_id_str = str(document.case_id)
     owner_id = document.owner_id
     
-    # 1. Extract dates regardless of type (Knowledge Base requirement)
+    # 1. ALWAYS extract dates (Required for Knowledge Base)
     events = _extract_dates_with_llm(full_text)
     if not events:
         log.info("LLM returned no events, falling back to Regex.")
@@ -156,30 +156,34 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
         log.info("No dates found via LLM or Regex.")
         return
 
-    # 2. SEGREGATION LOGIC
-    # If Spreadsheet: Store in Document Metadata ONLY. Do not create Calendar Events.
+    # 2. METADATA SEGREGATION
+    # If Spreadsheet: Save to Metadata, DELETE from Calendar.
     if document.mime_type in SPREADSHEET_MIME_TYPES:
-        log.info(f"Spreadsheet detected ({document.mime_type}). Storing dates in metadata only.")
+        log.info(f"Spreadsheet detected ({document.mime_type}). Processing for Metadata only.")
         
         try:
-            # Store the raw events in the document record for the Knowledge Base
+            # A. Save to Document Metadata (Knowledge Base)
             db.documents.update_one(
                 {"_id": doc_oid},
                 {"$set": {"ai_metadata.extracted_invoice_dates": events}}
             )
             
-            # CLEANUP: Ensure no "ghost" events exist in the Calendar for this file
+            # B. CLEANUP: Delete any Calendar Events previously linked to this specific file.
+            # This ensures they do NOT show up in the Dashboard or Case Card.
             delete_result = db.calendar_events.delete_many({"document_id": document_id})
+            
             if delete_result.deleted_count > 0:
-                log.info(f"Cleaned up {delete_result.deleted_count} existing events for this spreadsheet.")
+                log.info(f"Cleaned up {delete_result.deleted_count} stale calendar events for this spreadsheet.")
+            else:
+                log.info("No existing calendar events found to clean up.")
                 
         except Exception as e:
             log.error(f"Failed to update document metadata for spreadsheet: {e}")
             
-        return # STOP here for spreadsheets.
+        return # STOP. Do not proceed to create new calendar events.
 
-    # 3. STANDARD LOGIC (For PDFs, Word Docs, etc.)
-    # Create Calendar Events that show up in the UI
+    # 3. STANDARD DOCUMENT LOGIC (PDF/Docx)
+    # Create Calendar Events for the UI
     valid_events = []
     
     for item in events:
@@ -217,7 +221,7 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
 
     if valid_events:
         try:
-            # Overwrite existing events for this document to prevent duplicates
+            # Always clean up before inserting to prevent duplicates
             db.calendar_events.delete_many({"document_id": document_id}) 
             
             result = db.calendar_events.insert_many(valid_events)
