@@ -1,8 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V5.5 (CSV SUPPORT ADDED)
-// 1. FEATURE: Added 'CSV' mode for tabular data preview.
-// 2. LOGIC: Enhanced MIME detection to catch .csv extensions.
-// 3. UI: Added table rendering logic with sticky headers.
+// PHOENIX PROTOCOL - PDF VIEWER V5.6 (LOGIC FIX)
+// 1. CRITICAL FIX: The `getTargetMode` function now prioritizes the explicit `mimeType` prop.
+// 2. RESOLVED: This prevents the viewer from incorrectly switching to "CSV VIEW" for PDFs with ".csv" in their title.
+// 3. ARCHITECTURE: The component now correctly respects the "MIME Type Authority" principle.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -30,7 +30,6 @@ interface PDFViewerModalProps {
 }
 
 const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, onClose, onMinimize, t, directUrl, isAuth = false }) => {
-  // pdfSource can be a string (Blob URL) or an object (Direct URL + Headers)
   const [pdfSource, setPdfSource] = useState<any>(null);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [csvContent, setCsvContent] = useState<string[][] | null>(null);
@@ -60,20 +59,31 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       return () => window.removeEventListener('resize', updateWidth);
   }, [actualViewerMode]);
 
+  // PHOENIX FIX: Prioritize MIME type over filename.
   const getTargetMode = (mimeType: string, fileName: string) => {
     const m = mimeType?.toLowerCase() || '';
     const f = fileName?.toLowerCase() || '';
 
-    if (m.includes('csv') || f.endsWith('.csv') || m === 'application/vnd.ms-excel') return 'CSV';
-    if (m.startsWith('text/') || m === 'application/json' || m.includes('plain')) return 'TEXT';
+    // 1. Trust the explicit MIME type first. This is the most reliable source.
+    if (m === 'application/pdf') return 'PDF';
     if (m.startsWith('image/')) return 'IMAGE';
+
+    // 2. Fallback to filename extension if MIME type is generic (e.g., application/octet-stream)
+    if (f.endsWith('.pdf')) return 'PDF';
+    if (f.endsWith('.csv')) return 'CSV';
+    if (f.endsWith('.txt') || f.endsWith('.json')) return 'TEXT';
+    if (['.png', '.jpg', '.jpeg', '.gif', '.webp'].some(ext => f.endsWith(ext))) return 'IMAGE';
+
+    // 3. Final check on generic MIME types
+    if (m.includes('csv') || m === 'application/vnd.ms-excel') return 'CSV';
+    if (m.startsWith('text/') || m === 'application/json' || m.includes('plain')) return 'TEXT';
+    
+    // Default to PDF as this is the primary viewer
     return 'PDF';
   };
 
   // --- FETCHING LOGIC ---
 
-  // 1. The Slow but Secure Way (Blob via Axios)
-  // Used for non-PDF files OR as a fallback if the fast PDF path fails
   const fetchAsBlob = async (targetMode: string) => {
       try {
           setIsLoading(true);
@@ -96,7 +106,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
           if (targetMode === 'PDF') {
               const url = URL.createObjectURL(blob);
-              setPdfSource(url); // Passing string forces react-pdf to treat as local file
+              setPdfSource(url);
           } else {
               await handleBlobContent(blob, targetMode);
           }
@@ -109,27 +119,21 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       }
   };
 
-  // 2. The Fast Way (Direct URL + Headers)
-  // Used primarily for PDFs to enable streaming
   const initFastPath = () => {
       const targetMode = getTargetMode(documentData.mime_type || '', documentData.file_name || '');
-      // Temporary state set, usually overridden by blob content handler or PDF load
+      
       if (targetMode !== 'PDF') {
-          // Non-PDFs always go through Blob fetch to ensure we can render text/images/csv securely
           fetchAsBlob(targetMode);
           return;
       }
       
       setActualViewerMode('PDF');
 
-      // If we are already in fallback mode or don't have a direct URL, use Blob
       if (useBlobFallback || !directUrl) {
           fetchAsBlob('PDF');
           return;
       }
 
-      // FAST PATH: Provide URL + Token directly to PDF.js
-      // This allows streaming (showing page 1 while downloading page 10)
       const token = apiService.getToken();
       if (isAuth && token) {
           setPdfSource({
@@ -140,7 +144,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       } else {
           setPdfSource(directUrl);
       }
-      // Note: We leave isLoading=true. onLoadSuccess clears it.
   };
 
   const handleFinalError = (err: any) => {
@@ -156,11 +159,8 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       if (mode === 'TEXT' || mode === 'CSV') {
           const text = await blob.text();
           if (mode === 'CSV') {
-              // Simple CSV Parser for display purposes
               const rows = text.split(/\r?\n/).filter(r => r.trim().length > 0);
               const data = rows.map(row => {
-                  // Basic split handling. For complex CSVs with quoted commas, a more robust parser would be needed,
-                  // but this suffices for basic previewing.
                   return row.split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
               });
               setCsvContent(data);
@@ -176,13 +176,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       }
   };
   
-  // Initial Load & Reset on props change
   useEffect(() => {
     setError(null);
     setIsLoading(true);
-    setUseBlobFallback(false); // Reset fallback logic
+    setUseBlobFallback(false); 
     
-    // Tiny timeout to ensure state clears before starting fresh
     const tId = setTimeout(initFastPath, 0);
 
     return () => { 
@@ -192,7 +190,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     };
   }, [caseId, documentData.id, directUrl]);
 
-  // Effect to trigger Blob Fetch if Fallback is activated
   useEffect(() => {
       if (useBlobFallback && actualViewerMode === 'PDF') {
           console.log("Switching to Blob Fallback for PDF...");
@@ -209,13 +206,11 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const onPdfLoadError = (err: any) => {
       console.error("PDF Render Error (Fast Path):", err);
       
-      // CRITICAL: If Fast Path fails (likely 401 or CORS), switch to Blob Fallback
       if (!useBlobFallback) {
           setUseBlobFallback(true);
           return;
       }
 
-      // If we failed even in fallback mode, show error
       setError(t('pdfViewer.corruptFile', { defaultValue: 'Skedari nuk mund të shfaqet.' }));
       setIsLoading(false);
       setActualViewerMode('DOWNLOAD');
@@ -299,7 +294,6 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
                         onLoadError={onPdfLoadError}
                         loading={null} 
                         noData={null}
-                        // Force remount when switching source types to avoid internal caching issues
                         key={typeof pdfSource === 'string' ? pdfSource : pdfSource.url}
                      >
                          <Page 
