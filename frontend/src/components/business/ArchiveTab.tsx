@@ -1,7 +1,6 @@
 // FILE: src/components/business/ArchiveTab.tsx
 // PHOENIX PROTOCOL - ARCHIVE TAB V12.5 (UX FIX)
 // 1. UX: Archive Item Actions (Download, Delete, etc.) are now ALWAYS visible.
-// 2. STATUS: No hover required for actions.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
