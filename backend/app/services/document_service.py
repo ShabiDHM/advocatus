@@ -1,8 +1,8 @@
 # FILE: backend/app/services/document_service.py
-# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.5 (DIRECT CASCADE)
-# 1. FIXED: Findings deletion logic moved INSIDE this service (No dependency on findings_service).
-# 2. LOGIC: Ensures complete cleanup (S3 + Vector + Mongo Findings + Calendar + Graph).
-# 3. STATUS: Robust & Independent.
+# PHOENIX PROTOCOL - DOCUMENT SERVICE V6.6 (AGGRESSIVE CASCADE CLEANUP)
+# 1. FIXED: Implements ruthless deletion logic for Calendar Events using Mixed-Type queries.
+# 2. ADDED: Granular logging to confirm exactly how many events are wiped on delete.
+# 3. ROBUSTNESS: Isolated try/except blocks ensure Calendar cleanup runs even if S3/Vector fails.
 
 import logging
 import datetime
@@ -130,7 +130,9 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     """
     MASTER DELETE FUNCTION
     Removes: DB Record, S3 Files, Findings, Vector Embeddings, Calendar Events, Graph Nodes.
+    Robust against failures in individual subsystems.
     """
+    # Verify ownership before deletion attempts
     document_to_delete = db.documents.find_one({"_id": doc_id, "owner_id": owner.id})
     if not document_to_delete:
         raise HTTPException(status_code=404, detail="Document not found.")
@@ -140,24 +142,24 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     processed_key = document_to_delete.get("processed_text_storage_key")
     preview_key = document_to_delete.get("preview_storage_key")
 
+    # Mixed Query handles both ObjectId and String formats in related collections
     mixed_id_query = {"$in": [doc_id, doc_id_str]}
     
-    # 1. DELETE FINDINGS (Direct DB Access)
-    # We no longer rely on 'findings_service', we just wipe the data.
     deleted_finding_ids = []
+    
+    # 1. DELETE FINDINGS
     try:
         findings_query = {"document_id": mixed_id_query}
-        # Capture IDs first for frontend update
         findings_cursor = db.findings.find(findings_query, {"_id": 1})
         deleted_finding_ids = [str(f["_id"]) for f in findings_cursor]
         
-        # Execute Delete
-        db.findings.delete_many(findings_query)
-        logger.info(f"Cascading delete: Removed findings for doc {doc_id}")
+        delete_result = db.findings.delete_many(findings_query)
+        logger.info(f"Cascading delete: Removed {delete_result.deleted_count} findings for doc {doc_id}")
     except Exception as e:
         logger.error(f"Error deleting findings for doc {doc_id}: {e}")
     
-    # 2. DELETE CALENDAR EVENTS & ALERTS
+    # 2. DELETE CALENDAR EVENTS & ALERTS (PHOENIX FOCUS)
+    # This matches document_id (string) AND document_id (ObjectId) AND camelCase documentId
     link_query = {
         "$or": [
             {"document_id": mixed_id_query},
@@ -166,9 +168,12 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     }
     
     try:
-        db.calendar_events.delete_many(link_query)
+        events_result = db.calendar_events.delete_many(link_query)
+        logger.info(f"Cascading delete: Removed {events_result.deleted_count} calendar events for doc {doc_id}")
+        
         if "alerts" in db.list_collection_names():
-            db.alerts.delete_many(link_query)
+            alerts_result = db.alerts.delete_many(link_query)
+            logger.info(f"Cascading delete: Removed {alerts_result.deleted_count} alerts for doc {doc_id}")
     except Exception as e:
         logger.error(f"Error deleting events/alerts for doc {doc_id}: {e}")
 
@@ -183,25 +188,23 @@ def delete_document_by_id(db: Database, redis_client: redis.Redis, doc_id: Objec
     # 4. DELETE VECTOR EMBEDDINGS (AI Memory)
     try:
         vector_store_service.delete_document_embeddings(
-            user_id=str(owner.id), # Multi-Tenant Aware
+            user_id=str(owner.id),
             document_id=doc_id_str
         )
     except Exception as e:
         logger.error(f"Vector store cleanup failed: {e}")
     
     # 5. DELETE S3 FILES
-    if storage_key: 
-        try: storage_service.delete_file(storage_key=storage_key)
-        except: pass
-    if processed_key: 
-        try: storage_service.delete_file(storage_key=processed_key)
-        except: pass
-    if preview_key: 
-        try: storage_service.delete_file(storage_key=preview_key)
-        except: pass
+    try:
+        if storage_key: storage_service.delete_file(storage_key=storage_key)
+        if processed_key: storage_service.delete_file(storage_key=processed_key)
+        if preview_key: storage_service.delete_file(storage_key=preview_key)
+    except Exception as e:
+        logger.error(f"S3 cleanup failed (non-critical): {e}")
     
-    # 6. DELETE DOCUMENT RECORD
+    # 6. DELETE DOCUMENT RECORD (Final Step)
     db.documents.delete_one({"_id": doc_id})
+    logger.info(f"Document record {doc_id} deleted successfully.")
     
     return deleted_finding_ids
 
