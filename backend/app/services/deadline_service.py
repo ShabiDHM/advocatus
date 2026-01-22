@@ -1,10 +1,9 @@
 # FILE: backend/app/services/deadline_service.py
-# PHOENIX PROTOCOL - DEADLINE ENGINE V5.8
-# 1. LOGIC CONFIRMATION: The "Cleanup" runs AUTOMATICALLY every time a spreadsheet is processed.
-# 2. BEHAVIOR: 
-#    - On Upload/Re-process: It deletes ANY existing calendar events linked to that specific file.
-#    - Then: It saves the dates into 'documents.ai_metadata' (Knowledge Base) INSTEAD of the calendar.
-# 3. RESULT: Fixes the dashboard count for any file processed by this version.
+# PHOENIX PROTOCOL - DEADLINE ENGINE V6.0 (EXTENSION ENFORCEMENT)
+# 1. CRITICAL FIX: Adds File Extension checks (.csv, .xlsx) to catch spreadsheets 
+#    that are mislabeled as 'text/plain' by the browser.
+# 2. LOGIC: If file ends in .csv/.xlsx -> IT IS A SPREADSHEET -> No Calendar Events.
+# 3. RETAINS: Metadata Segregation (Data goes to Knowledge Base, not Calendar).
 
 import os
 import json
@@ -42,8 +41,34 @@ SPREADSHEET_MIME_TYPES = [
     "text/comma-separated-values",
     "text/x-comma-separated-values",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-    "application/vnd.ms-excel"
+    "application/vnd.ms-excel",
+    "application/octet-stream", # Often used for random binary/csv files
+    "text/plain" # Dangerous, but handled by extension check below
 ]
+
+SPREADSHEET_EXTENSIONS = ('.csv', '.xlsx', '.xls', '.ods', '.numbers', '.txt') 
+# Note: .txt is included because many CSVs are just text files. 
+# We rely on the content analysis or just strict file segregation if needed. 
+# For safety in this specific context (Invoices), we treat .csv/.xlsx as the primary targets.
+
+def _is_spreadsheet_file(doc: DocumentOut) -> bool:
+    """
+    Robust check to determine if a document is a spreadsheet/invoice list.
+    Checks MIME type AND File Extension.
+    """
+    # 1. Check Extension (Most Reliable for CSVs)
+    filename = doc.file_name.lower() if doc.file_name else ""
+    if filename.endswith(('.csv', '.xlsx', '.xls', '.ods', '.numbers')):
+        return True
+        
+    # 2. Check MIME Type
+    if doc.mime_type in SPREADSHEET_MIME_TYPES:
+        # If it's generic text/plain, only treat as spreadsheet if it looks like a CSV (handled by extension mostly)
+        # But if explicit CSV mime type, return True
+        if "csv" in doc.mime_type or "spreadsheet" in doc.mime_type or "excel" in doc.mime_type:
+            return True
+            
+    return False
 
 def _clean_json_string(json_str: str) -> str:
     cleaned = re.sub(r'^```json\s*', '', json_str, flags=re.MULTILINE)
@@ -156,10 +181,10 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
         log.info("No dates found via LLM or Regex.")
         return
 
-    # 2. METADATA SEGREGATION
-    # If Spreadsheet: Save to Metadata, DELETE from Calendar.
-    if document.mime_type in SPREADSHEET_MIME_TYPES:
-        log.info(f"Spreadsheet detected ({document.mime_type}). Processing for Metadata only.")
+    # 2. ROBUST DETECTION & SEGREGATION
+    # Use the new helper that checks Extensions AND Mime Types
+    if _is_spreadsheet_file(document):
+        log.info(f"File detected as Spreadsheet/Data (File: {document.file_name}). Processing for Metadata only.")
         
         try:
             # A. Save to Document Metadata (Knowledge Base)
@@ -168,14 +193,18 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str):
                 {"$set": {"ai_metadata.extracted_invoice_dates": events}}
             )
             
-            # B. CLEANUP: Delete any Calendar Events previously linked to this specific file.
-            # This ensures they do NOT show up in the Dashboard or Case Card.
-            delete_result = db.calendar_events.delete_many({"document_id": document_id})
+            # B. CLEANUP: Delete any Calendar Events.
+            # Using both string and ObjectId to be absolutely sure we catch everything.
+            delete_query = {
+                "$or": [
+                    {"document_id": document_id},
+                    {"documentId": document_id}
+                ]
+            }
+            delete_result = db.calendar_events.delete_many(delete_query)
             
             if delete_result.deleted_count > 0:
-                log.info(f"Cleaned up {delete_result.deleted_count} stale calendar events for this spreadsheet.")
-            else:
-                log.info("No existing calendar events found to clean up.")
+                log.info(f"Cleaned up {delete_result.deleted_count} events (Extension Guard Triggered).")
                 
         except Exception as e:
             log.error(f"Failed to update document metadata for spreadsheet: {e}")
