@@ -322,8 +322,7 @@
     "unnamedCase": "Rast pa Emër"
   },
   "analyst": {
-    "title": "Dhoma e Hulumtimit Financiar",
-    "subtitle": "Hulumtim financiar.",
+    "title": "Hulumtim Financiar",
     "selectFile": "Excel/CSV...",
     "importArchive": "Importo nga Arkiva",
     "selectFromArchive": "Zgjidh nga Dokumentet e Rastit",

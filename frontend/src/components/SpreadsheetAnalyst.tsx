@@ -1,15 +1,15 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - SPREADSHEET ANALYST V3.0 (CLEANUP)
-// 1. CLEANUP: Removed "Import from Archive" functionality and associated Modal.
-// 2. UI: Simplified file selection area to only support local upload.
+// PHOENIX PROTOCOL - SPREADSHEET ANALYST V3.1 (ARCHIVE ENABLED)
+// 1. ADDED: 'Arkivo PDF' button to the header.
+// 2. LOGIC: Calls 'archiveForensicReport' API to save the generated analysis.
+// 3. UI: Success/Loading states for the archive action.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     FileSpreadsheet, Activity, AlertTriangle, TrendingUp, 
     CheckCircle, RefreshCw, Lightbulb, ArrowRight, TrendingDown, 
-    Send, ShieldAlert, Bot
-} from 'lucide-react';
+    Send, ShieldAlert, Bot, Save} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
 
@@ -102,6 +102,10 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const [isInterrogating, setIsInterrogating] = useState(false);
     const [typingMessage, setTypingMessage] = useState<ChatMessage | null>(null);
     
+    // Archive States
+    const [isArchiving, setIsArchiving] = useState(false);
+    const [archiveSuccess, setArchiveSuccess] = useState(false);
+    
     const chatEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -131,6 +135,23 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             const data = await apiService.analyzeSpreadsheet(caseId, fileToAnalyze) as any;
             setResult(data);
         } catch (err) { setError(t('analyst.error.analysisFailed')); } finally { setIsAnalyzing(false); }
+    };
+    
+    // NEW: Archive Function
+    const handleArchiveReport = async () => {
+        if (!result) return;
+        setIsArchiving(true);
+        try {
+            const title = `Raport Forenzik - ${fileName || 'Analizë'}`;
+            await apiService.archiveForensicReport(caseId, title, result.executive_summary);
+            setArchiveSuccess(true);
+            setTimeout(() => setArchiveSuccess(false), 3000);
+        } catch (err) {
+            console.error(err);
+            setError("Arkivimi dështoi. Ju lutem provoni përsëri.");
+        } finally {
+            setIsArchiving(false);
+        }
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,7 +207,26 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 </div>
                             </div>
                         )}
-                        {result && (<button onClick={() => handleReset(true)} className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex justify-center items-center gap-2 hover:bg-white/5"><RefreshCw className="w-4 h-4" />{t('analyst.newAnalysis')}</button>)}
+                        {result && (
+                            <div className="flex gap-2">
+                                {/* ARCHIVE BUTTON */}
+                                <button 
+                                    onClick={handleArchiveReport}
+                                    disabled={isArchiving || archiveSuccess}
+                                    className={`px-4 py-2 border rounded-xl text-sm transition-all flex justify-center items-center gap-2 
+                                        ${archiveSuccess 
+                                            ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' 
+                                            : 'bg-primary-start/10 border-primary-start/30 text-primary-200 hover:bg-primary-start/20'}`}
+                                >
+                                    {isArchiving ? <RefreshCw className="w-4 h-4 animate-spin" /> : 
+                                     archiveSuccess ? <CheckCircle className="w-4 h-4" /> : 
+                                     <Save className="w-4 h-4" />}
+                                    {archiveSuccess ? "Arkivuar!" : "Arkivo PDF"}
+                                </button>
+                                
+                                <button onClick={() => handleReset(true)} className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex justify-center items-center gap-2 hover:bg-white/5"><RefreshCw className="w-4 h-4" />{t('analyst.newAnalysis')}</button>
+                            </div>
+                        )}
                     </div>
                 </div>
                 {error && <div className="mt-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-200"><AlertTriangle className="w-5 h-5" />{error}</div>}
