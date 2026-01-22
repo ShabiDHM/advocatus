@@ -1,6 +1,8 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V12.5 (UX FIX)
-// 1. UX: Archive Item Actions (Download, Delete, etc.) are now ALWAYS visible.
+// PHOENIX PROTOCOL - ARCHIVE TAB V12.6 (MIME-TYPE FIX)
+// 1. CRITICAL FIX: The 'handleViewItem' function now forces mime_type to 'application/pdf' for 'FORENSIC' category items.
+// 2. RESOLVED: Fixes the bug where generated Forensic PDFs were rendered as raw text in a "CSV View".
+// 3. ROBUSTNESS: The logic now correctly identifies the file type, ensuring the PDF viewer is used.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,16 +25,17 @@ interface ArchiveStatusUpdate {
 
 type Breadcrumb = { id: string | null; name: string; type: 'ROOT' | 'CASE' | 'FOLDER'; };
 
+// PHOENIX FIX: This function is now more robust.
 const getMimeType = (fileType: string, fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase() || '';
     if (fileType === 'PDF' || ext === 'pdf') return 'application/pdf';
-    if (['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF'].includes(fileType)) return 'image/jpeg';
+    if (['PNG', 'JPG', 'JPEG', 'WEBP', 'GIF'].includes(fileType.toUpperCase()) || ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) return 'image/jpeg';
     return 'application/octet-stream';
 };
 
-const getFileIcon = (fileType: string) => {
-    const ft = fileType ? fileType.toUpperCase() : "";
-    if (ft === 'PDF') return <FileText className="w-5 h-5 text-red-400" />;
+const getFileIcon = (fileType: string, category?: string) => {
+    const ft = (category || fileType || "").toUpperCase();
+    if (ft === 'PDF' || ft === 'FORENSIC') return <FileText className="w-5 h-5 text-red-400" />;
     if (['PNG', 'JPG', 'JPEG'].includes(ft)) return <FileImage className="w-5 h-5 text-purple-400" />;
     if (['JSON', 'JS', 'TS'].includes(ft)) return <FileCode className="w-5 h-5 text-yellow-400" />;
     return <FileIcon className="w-5 h-5 text-blue-400" />;
@@ -51,7 +54,7 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
                 <div className="flex flex-col mb-4 relative z-10">
                     <div className="flex justify-between items-start gap-2">
                         <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 group-hover:scale-110 transition-transform duration-300 shadow-inner">
-                            {isFolder ? <FolderOpen className="w-5 h-5 text-accent-start" /> : getFileIcon(item.file_type)}
+                            {isFolder ? <FolderOpen className="w-5 h-5 text-accent-start" /> : getFileIcon(item.file_type, item.category)}
                         </div>
                         
                         <div className="flex gap-1">
@@ -78,7 +81,7 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
                     <div className="space-y-1.5 pl-1">
                         <div className="flex items-center gap-2 text-sm font-medium text-white">
                             {isFolder ? <FolderOpen className="w-4 h-4 text-accent-start" /> : <FileText className="w-4 h-4 text-primary-end" />}
-                            <span className="truncate">{isFolder ? 'Folder' : item.file_type}</span>
+                            <span className="truncate">{isFolder ? 'Folder' : (item.category || item.file_type)}</span>
                         </div>
                         <div className="flex items-center gap-2 text-xs text-text-secondary">
                             <Hash className="w-3.5 h-3.5 flex-shrink-0" />
@@ -93,7 +96,6 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
                     {isFolder ? t('archive.openFolder', 'Open Folder') : ''}
                 </span>
                 
-                {/* PHOENIX FIX: Removed opacity constraints. Icons are always visible. */}
                 <div className="flex gap-1 items-center">
                     {!isFolder && onShare && (
                         <button onClick={(e) => { e.stopPropagation(); onShare(); }} className={`p-2 rounded-lg transition-colors ${isShared ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30' : 'text-text-secondary hover:text-white hover:bg-white/10'}`} title={isShared ? t('documentsPanel.unshare') : t('documentsPanel.share')}>
@@ -222,7 +224,22 @@ export const ArchiveTab: React.FC = () => {
             const blob = await apiService.getArchiveFileBlob(item.id); 
             const url = window.URL.createObjectURL(blob); 
             setViewingUrl(url); 
-            setViewingDoc({ id: item.id, file_name: item.title, mime_type: getMimeType(item.file_type, item.title), status: 'READY' } as any); 
+
+            // PHOENIX CRITICAL FIX: Determine MIME type based on the authoritative 'category' for generated files.
+            let determinedMimeType: string;
+            if (item.category === 'FORENSIC') {
+                determinedMimeType = 'application/pdf';
+            } else {
+                // Fallback to original logic for regular uploads
+                determinedMimeType = getMimeType(item.file_type, item.title);
+            }
+
+            setViewingDoc({ 
+                id: item.id, 
+                file_name: item.title, 
+                mime_type: determinedMimeType, 
+                status: 'READY' 
+            } as any); 
         } catch { alert(t('error.generic')); }
         finally { setOpeningDocId(null); }
     };
