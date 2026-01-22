@@ -1,8 +1,8 @@
 # FILE: backend/app/models/calendar.py
-# PHOENIX PROTOCOL - MODEL ALIGNMENT
-# 1. RENAMED: 'user_id' -> 'owner_id' to match Service layer and DB schema.
-# 2. TYPE FIX: 'case_id' -> 'str' in DB model to match dashboard counting logic.
-# 3. ADDED: 'document_id' field for tracking source documents.
+# PHOENIX PROTOCOL - MODEL ALIGNMENT V5.6 (DATA COMPATIBILITY FIX)
+# 1. ENUM EXPANSION: Added 'NORMAL' to EventPriority to match legacy DB data.
+# 2. ENUM EXPANSION: Added 'RESOLVED' to EventStatus to match legacy DB data.
+# 3. STRUCTURE: Preserved owner_id/case_id alignment for Dashboard counting.
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List
@@ -24,12 +24,14 @@ class EventType(str, Enum):
 class EventPriority(str, Enum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
+    NORMAL = "NORMAL" # Added to resolve validation crash
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
 
 class EventStatus(str, Enum):
     PENDING = "PENDING"
     CONFIRMED = "CONFIRMED"
+    RESOLVED = "RESOLVED" # Added to resolve validation crash
     COMPLETED = "COMPLETED"
     CANCELLED = "CANCELLED"
 
@@ -63,9 +65,9 @@ class CalendarEventCreate(CalendarEventBase):
 
 class CalendarEventInDB(CalendarEventBase):
     id: PyObjectId = Field(alias="_id")
-    owner_id: PyObjectId # PHOENIX FIX: Renamed from user_id to match DB
-    case_id: str # PHOENIX FIX: Changed to str to match dashboard counters
-    document_id: Optional[str] = None # Added for reference
+    owner_id: PyObjectId # Preserved Phoenix alignment
+    case_id: str # Preserved Phoenix alignment
+    document_id: Optional[str] = None 
     status: EventStatus = EventStatus.PENDING
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
