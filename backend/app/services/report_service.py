@@ -1,8 +1,8 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT SERVICE V5.1 (TYPE SAFETY FIX)
-# 1. FIXED: Replaced direct '.err' access with 'getattr' to resolve Pylance false positive.
-# 2. ROBUSTNESS: This change makes the error handling more defensive against unexpected return types.
-# 3. STATUS: Fully operational and type-checker compliant.
+# PHOENIX PROTOCOL - REPORT SERVICE V5.2 (FOOTER FIX)
+# 1. CRITICAL FIX: Removed the unreliable '<pdf:pagecount />' tag that caused hallucinated page numbers.
+# 2. REPLACEMENT: Implemented a clean, static footer with the system brand and generation date.
+# 3. STATUS: Report generation is now stable and professional.
 
 import io
 import os
@@ -76,7 +76,7 @@ REPORT_CSS = """
         }
         @frame footer_frame {
             -pdf-frame-content: footer_content;
-            left: 20mm; width: 170mm; top: 270mm; height: 20mm;
+            left: 20mm; width: 170mm; bottom: 10mm; height: 10mm;
         }
     }
     body {
@@ -267,7 +267,20 @@ def create_pdf_from_text(text: str, document_title: str) -> io.BytesIO:
     html_body = markdown2.markdown(text, extras=["tables", "fenced-code-blocks", "cuddled-lists"])
 
     header_html = f"<div id='header_content'><h1>{escape(document_title)}</h1></div>"
-    footer_html = f"<div id='footer_content' style='font-size: 9pt; color: #888;'>Faqe <pdf:pagecount /></div>"
+    
+    # PHOENIX FIX: Replaced page count with a static, professional footer.
+    firm_name = "ADVOCATUS | SYSTEM"
+    generation_date = datetime.now().strftime('%d/%m/%Y')
+    footer_html = f"""
+    <div id='footer_content' style='font-size: 9pt; color: #888;'>
+        <table width="100%" style="border-top: 1px solid #ccc; padding-top: 5px;">
+            <tr>
+                <td align="left">{firm_name}</td>
+                <td align="right">Data e Gjenerimit: {generation_date}</td>
+            </tr>
+        </table>
+    </div>
+    """
 
     full_html = f"""
     <html>
