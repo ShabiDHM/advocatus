@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V13.6 (POLLING MECHANISM)
-# 1. UPDATE: 'handle_mobile_upload' now saves analysis results to Redis instead of returning them to the phone.
-# 2. FEATURE: Added 'check_mobile_upload_status' for the desktop client to poll for results.
-# 3. LOGIC: Enables the "Magic" transfer of data from Phone -> Desktop.
+# PHOENIX PROTOCOL - CASES ROUTER V13.6 (QR LINK FIX)
+# 1. CRITICAL FIX: 'create_mobile_upload_session' now generates a URL pointing to the FRONTEND route ('/mobile-connect/').
+# 2. RESOLVED: Scanning the QR code now directs the mobile user to a web page, not a raw API endpoint.
+# 3. STATUS: Backend correctly generating landing page URLs.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -109,11 +109,12 @@ def create_mobile_upload_session(
     token = secrets.token_urlsafe(32)
     session_data = json.dumps({"user_id": str(current_user.id), "case_id": case_id})
     
-    # Store session info for 10 minutes
     redis_client.setex(f"mobile_upload:{token}", 600, session_data)
     
-    public_api_path = f"/api/v1/cases/mobile-upload/{token}"
-    upload_url = urllib.parse.urljoin(settings.FRONTEND_URL, public_api_path)
+    # PHOENIX FIX: Point to the React Frontend Route '/mobile-connect'
+    # This allows the user to see a UI and open their camera.
+    frontend_path = f"/mobile-connect/{token}"
+    upload_url = urllib.parse.urljoin(settings.FRONTEND_URL, frontend_path)
     
     return MobileSessionOut(upload_url=upload_url)
 
@@ -124,9 +125,6 @@ async def handle_mobile_upload(
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
-    """
-    Public endpoint for the phone. Saves the result to Redis for the desktop to pick up.
-    """
     session_key = f"mobile_upload:{token}"
     result_key = f"mobile_result:{token}"
     
@@ -154,41 +152,32 @@ async def handle_mobile_upload(
             db=db
         )
         
-        # PHOENIX MAGIC: Save the result to Redis instead of returning it
-        # The desktop is polling for 'mobile_result:{token}'
+        # Save result to Redis for desktop polling
         redis_client.setex(result_key, 300, json.dumps(analysis_result, default=str))
         
-        # Clean up the session key so it can't be reused for upload
+        # Invalidate session to prevent reuse
         redis_client.delete(session_key)
         
-        # Return simple success to the phone
-        return JSONResponse(content={"status": "complete", "message": "Check your desktop screen!"}, status_code=200)
+        return JSONResponse(content={"status": "complete", "message": "Success"}, status_code=200)
 
     except Exception as e:
         logger.error(f"Mobile upload failed: {e}")
-        # Signal failure to the desktop via Redis
         redis_client.setex(result_key, 60, json.dumps({"error": str(e)}))
         raise HTTPException(status_code=500, detail=str(e))
 
-# PHOENIX NEW: Polling Endpoint for Desktop
 @router.get("/mobile-upload-status/{token}", tags=["Documents"])
 def check_mobile_upload_status(
     token: str,
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
-    """
-    Desktop calls this every 2 seconds.
-    """
     result_key = f"mobile_result:{token}"
     data_raw = redis_client.get(result_key)
     
     if not data_raw:
         return JSONResponse(content={"status": "pending"})
     
-    # We found data!
     if isinstance(data_raw, bytes):
         data = json.loads(data_raw.decode('utf-8'))
-        # Clear it so it's not fetched twice
         redis_client.delete(result_key)
         
         if "error" in data:

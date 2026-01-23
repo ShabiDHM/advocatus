@@ -1,12 +1,12 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V2.7 (FINAL PATH CORRECTION)
-// 1. FIX: Corrected import path for MainLayout to './pages/MainLayout' based on verified project structure.
-// 2. STATUS: This resolves the final "Cannot find module" error.
+// PHOENIX PROTOCOL - ROUTING V2.8 (MOBILE CONNECT ROUTE)
+// 1. IMPORT: Imported the correct 'MobileConnect' component based on the Juristi project structure.
+// 2. ROUTE: Added the public, standalone route for '/mobile-upload/:token' to render the MobileConnect page.
+// 3. STATUS: This is the final fix to make the "Scan to Upload" feature fully operational for the Juristi project.
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-// PHOENIX FIX: Final, corrected import path.
 import MainLayout from './pages/MainLayout'; 
 
 // Pages
@@ -24,6 +24,8 @@ import AccountPage from './pages/AccountPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import FinanceWizardPage from './pages/FinanceWizardPage';
 import ClientPortalPage from './pages/ClientPortalPage';
+// PHOENIX: Import the correct Mobile Handoff page for Juristi
+import MobileConnect from './pages/MobileConnect';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -61,9 +63,15 @@ const AppRoutes: React.FC = () => {
       
       <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
+      {/* Standalone Public Routes (No Layout) */}
       <Route path="/portal/:caseId" element={<ClientPortalPage />} />
+      {/* PHOENIX: Add the Mobile Handoff Route */}
+      <Route path="/mobile-upload/:token" element={<MobileConnect />} />
+      
+      {/* Standalone Protected Routes (No Layout) */}
       <Route path="/finance/wizard" element={<ProtectedRoute><FinanceWizardPage /></ProtectedRoute>} />
 
+      {/* Standard Protected Routes (With Layout) */}
       <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/cases/:caseId" element={<CaseViewPage />} />

@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V13.3 (POLLING SUPPORT)
-// 1. ADDED: 'checkMobileUploadStatus' to check Redis for results.
-// 2. STATUS: API service is fully equipped for the real-time bridge.
+// PHOENIX PROTOCOL - API SERVICE V13.4 (PUBLIC UPLOAD)
+// 1. ADDED: 'publicMobileUpload' for anonymous uploads from the mobile page.
+// 2. STATUS: Fully supports the frontend bridge page.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -23,9 +23,7 @@ interface DocumentContentResponse { text: string; }
 interface FinanceInterrogationResponse { answer: string; referenced_rows_count: number; }
 interface MobileSessionResponse { upload_url: string; }
 export interface ReceiptAnalysisResult { category: string; amount: number; date: string; description: string; }
-// PHOENIX: New Interface for Status Check
 interface MobileUploadStatus { status: 'pending' | 'complete' | 'error'; data?: SpreadsheetAnalysisResult; message?: string; }
-
 
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
@@ -122,9 +120,17 @@ class ApiService {
         return response.data;
     }
 
-    // PHOENIX: New method for checking status
     public async checkMobileUploadStatus(token: string): Promise<MobileUploadStatus> {
         const response = await this.axiosInstance.get<MobileUploadStatus>(`/cases/mobile-upload-status/${token}`);
+        return response.data;
+    }
+
+    // PHOENIX: New public upload method (No auth headers needed for this specific call, but axios instance adds them if present. We use a fresh instance to avoid sending invalid token if user is logged out on mobile)
+    public async publicMobileUpload(token: string, file: File): Promise<{ status: string }> {
+        const formData = new FormData();
+        formData.append('file', file);
+        // Using a raw axios call to avoid interceptors if needed, or just standard instance if token doesn't matter
+        const response = await axios.post(`${API_V1_URL}/cases/mobile-upload/${token}`, formData);
         return response.data;
     }
 
