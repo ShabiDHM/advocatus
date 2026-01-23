@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V13.1 (RECEIPT ANALYSIS)
-// 1. ADDED: 'analyzeExpenseReceipt' to trigger AI extraction for expenses.
-// 2. STATUS: API layer is fully synchronized with the backend.
+// PHOENIX PROTOCOL - API SERVICE V13.2 (DIRECT SCAN)
+// 1. ADDED: 'analyzeScannedImage' to support direct image uploads for forensic analysis.
+// 2. STATUS: Fully supports the new "Camera First" workflow.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -22,7 +22,6 @@ interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
 interface FinanceInterrogationResponse { answer: string; referenced_rows_count: number; }
 interface MobileSessionResponse { upload_url: string; }
-// PHOENIX: New Interface for AI Receipt Result
 export interface ReceiptAnalysisResult { category: string; amount: number; date: string; description: string; }
 
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
@@ -106,6 +105,21 @@ class ApiService {
         return response.data;
     }
 
+    // PHOENIX: New method for direct image scanning
+    public async analyzeScannedImage(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/scanned-image`, formData);
+        return response.data;
+    }
+
+    public async analyzeExpenseReceipt(file: File): Promise<ReceiptAnalysisResult> {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await this.axiosInstance.post<ReceiptAnalysisResult>('/finance/expenses/analyze-receipt', formData);
+        return response.data;
+    }
+
     public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
     public async getExpenseReceiptBlob(expenseId: string): Promise<{ blob: Blob, filename: string }> { const response = await this.axiosInstance.get(`/finance/expenses/${expenseId}/receipt`, { responseType: 'blob' }); const disposition = response.headers['content-disposition']; let filename = `receipt-${expenseId}.pdf`; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="([^"]*)"/.exec(disposition); if (matches != null && matches[1]) filename = matches[1]; } return { blob: response.data, filename }; }
     public async getWizardState(month: number, year: number): Promise<WizardState> { const response = await this.axiosInstance.get<WizardState>('/finance/wizard/state', { params: { month, year } }); return response.data; }
@@ -125,15 +139,6 @@ class ApiService {
     public async updateExpense(expenseId: string, data: ExpenseUpdate): Promise<Expense> { const response = await this.axiosInstance.put<Expense>(`/finance/expenses/${expenseId}`, data); return response.data; }
     public async deleteExpense(expenseId: string): Promise<void> { await this.axiosInstance.delete(`/finance/expenses/${expenseId}`); }
     public async uploadExpenseReceipt(expenseId: string, file: File): Promise<void> { const formData = new FormData(); formData.append('file', file); await this.axiosInstance.put(`/finance/expenses/${expenseId}/receipt`, formData); }
-    
-    // PHOENIX: The new AI Scan Function
-    public async analyzeExpenseReceipt(file: File): Promise<ReceiptAnalysisResult> {
-        const formData = new FormData();
-        formData.append('file', file);
-        const response = await this.axiosInstance.post<ReceiptAnalysisResult>('/finance/expenses/analyze-receipt', formData);
-        return response.data;
-    }
-
     public async getBusinessProfile(): Promise<BusinessProfile> { const response = await this.axiosInstance.get<BusinessProfile>('/business/profile'); return response.data; }
     public async updateBusinessProfile(data: BusinessProfileUpdate): Promise<BusinessProfile> { const response = await this.axiosInstance.put<BusinessProfile>('/business/profile', data); return response.data; }
     public async uploadBusinessLogo(file: File): Promise<BusinessProfile> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.put<BusinessProfile>('/business/logo', formData); return response.data; }
