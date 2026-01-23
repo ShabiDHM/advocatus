@@ -1,8 +1,8 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - FINANCIAL ENGINE V2.2 (PROMPT FIX)
-# 1. FIXED: Modified the LLM prompt to remove the generated signature.
-# 2. PROMPT ENGINEERING: Changed persona to "AI Legal Assistant" and added a negative constraint forbidding signatures.
-# 3. STATUS: Output is now clean and focused solely on the analysis.
+# PHOENIX PROTOCOL - FINANCIAL ENGINE V2.3 (OCR INTEGRATION)
+# 1. FEATURE: Added 'analyze_text_to_spreadsheet' to process raw text from OCR.
+# 2. AI: Implements a "Data Entry Specialist" LLM prompt to convert text to a clean CSV.
+# 3. INTEGRATION: Seamlessly connects the new OCR workflow to the existing analysis pipeline.
 
 import pandas as pd
 import io
@@ -21,20 +21,53 @@ from . import llm_service
 logger = logging.getLogger(__name__)
 
 # --- HEURISTICS CONSTANTS ---
-THRESHOLD_STRUCTURING = 1900.0  # Just below 2000 EUR reporting limit
+THRESHOLD_STRUCTURING = 1900.0
 THRESHOLD_CASH_LARGE = 500.0
 SUSPICIOUS_KEYWORDS = ["baste", "bet", "casino", "crypto", "binance", "kredi", "hua", "debt", "borxh"]
 
+# --- PHOENIX: NEW OCR-TO-CSV FUNCTION ---
+
+async def analyze_text_to_spreadsheet(ocr_text: str, case_id: str, db: Database) -> Dict[str, Any]:
+    """
+    Takes raw text (from OCR), uses an LLM to structure it into a CSV,
+    then passes it to the standard spreadsheet analysis pipeline.
+    """
+    logger.info(f"Initiating AI data structuring for case {case_id}.")
+    
+    system_prompt = """
+    Ti je "Specialist i Të Dhënave" (Data Entry Specialist). Detyra jote është të konvertosh tekstin e pa-strukturuar nga një skanim (OCR) në formatin CSV.
+
+    RREGULLAT STRICTE:
+    1.  **Krijoni Kokat (Headers)**: Rreshti i parë i përgjigjes TUAJ DUHET TË JETË: `Data,Pershkrimi,Shuma`
+    2.  **Formati i të Dhënave**:
+        -   **Data**: Përdor formatin DD.MM.YYYY. Nëse nuk e gjeni vitin, përdorni vitin aktual.
+        -   **Pershkrimi**: Përmblidh transaksionin në disa fjalë kyçe.
+        -   **Shuma**: Përdor VETËM numra. Hyrjet duhet të jenë pozitive (psh: 800.00), daljet duhet të jenë negative (psh: -50.00). MOS PËRDOR simbole monedhe.
+    3.  **Injoro Mbeturinat**: MOS PËRFSHI rreshta që nuk janë transaksione (psh: balancat, titujt e kolonave, informacione të bankës).
+    4.  **PËRGJIGJJA JOTE DUHET TË PËRMBAJË VETËM TË DHËNA CSV, PA ASNJË TEKST APO SHPJEGIM SHTESË.**
+    """
+    
+    user_prompt = f"Konverto këtë tekst të skanuar në formatin CSV:\n\n---\n{ocr_text}\n---"
+    
+    # We use a standard _call_llm, not a JSON one, as we expect raw CSV text.
+    csv_string = await asyncio.to_thread(llm_service._call_llm, system_prompt, user_prompt, False, 0.0)
+    
+    if not csv_string or not csv_string.strip():
+        raise ValueError("AI data structuring failed to produce a valid CSV.")
+    
+    logger.info(f"AI successfully structured text into CSV format. Analyzing...")
+    
+    # Convert the CSV string to bytes and pass to the original analysis function
+    csv_bytes = csv_string.encode('utf-8')
+    return await analyze_spreadsheet_file(content=csv_bytes, filename="skanim_nga_celulari.csv", case_id=case_id, db=db)
+
+
 async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, db: Database) -> Dict[str, Any]:
     """
-    Primary Entry Point:
-    1. Parses Excel/CSV.
-    2. Runs Forensic Heuristics (Evidence Board).
-    3. Vectorizes Rows (Interrogation Room).
-    4. Stores Data in DB (using passed DB session).
+    Primary Entry Point: Parses Excel/CSV, runs heuristics, and generates a report.
     """
     try:
-        if filename.endswith('.csv'):
+        if filename.lower().endswith('.csv'):
             df = pd.read_csv(io.BytesIO(content))
         else:
             df = pd.read_excel(io.BytesIO(content))
@@ -49,7 +82,7 @@ async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, 
     col_amount = next((c for c in df.columns if 'amount' in c or 'shuma' in c or 'vlere' in c or 'vlera' in c), None)
 
     if not col_amount:
-        raise ValueError("Nuk u gjet kolona 'Shuma' ose 'Amount'.")
+        raise ValueError("Nuk u gjet kolona 'Shuma' ose 'Amount' në skedarin e analizuar.")
 
     records = []
     df = df.fillna('')
@@ -58,20 +91,17 @@ async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, 
         raw_amt = row[col_amount]
         try:
             if isinstance(raw_amt, str):
-                raw_amt = raw_amt.replace('€', '').replace(',', '')
+                raw_amt = str(raw_amt).replace('€', '').replace(',', '').strip()
             amount = float(raw_amt)
         except:
             amount = 0.0
             
-        date_val = str(row[col_date]) if col_date else "N/A"
-        desc_val = str(row[col_desc]) if col_desc else "Pa Përshkrim"
+        date_val = str(row[col_date]) if col_date and col_date in row else "N/A"
+        desc_val = str(row[col_desc]) if col_desc and col_desc in row else "Pa Përshkrim"
         
         records.append({
-            "row_id": idx,
-            "date": date_val,
-            "description": desc_val,
-            "amount": amount,
-            "raw_row": row.to_dict()
+            "row_id": idx, "date": date_val, "description": desc_val,
+            "amount": amount, "raw_row": row.to_dict()
         })
 
     anomalies = _detect_anomalies(records)
@@ -79,7 +109,6 @@ async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, 
     
     await _vectorize_and_store(records, case_id, db)
 
-    # PHOENIX FIX: Updated prompt to prevent signature generation.
     summary_prompt = f"""
     Vepro si një "Asistent Ligjor AI" i specializuar në forenzikë financiare.
     
@@ -87,8 +116,7 @@ async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, 
     - Anomalitë Kryesore: {str(anomalies[:5])}
     - Trendet Financiare: {str(trends[:3])}
     
-    DETYRA:
-    Shkruaj një "RAPORT FORENZIK PARAPRAK: ANALIZA E QËNDRUESHMËRISË FINANCIARE" me estetikë të lartë dhe gjuhë juridike autoritare.
+    DETYRA: Shkruaj një "RAPORT FORENZIK PARAPRAK: ANALIZA E QËNDRUESHMËRISË FINANCIARE" me estetikë të lartë dhe gjuhë juridike autoritare.
     
     STRUKTURA E DETYRUESHME (Përdor Markdown):
     
@@ -96,7 +124,7 @@ async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, 
     (Jep një gjykim të prerë: A ka rrezik? Cili është disproporcioni hyrje/dalje? Përdor terma si "Diskrepancë Materiale", "Deficit i Pajustifikuar", "Indikatorë të Lartë Risku".)
     
     #### 2. EVIDENCA KRITIKE (FLAMUJT E KUQ)
-    (Listo anomalitë me bullet points. Për çdo anomali, shpjego *Pse* është e rrezikshme ligjërisht. Psh: Përmend "Tentativë për shmangie të raportimit" për shumat afër 2000€, ose "Mungesë Transparence".)
+    (Listo anomalitë me bullet points. Për çdo anomali, shpjego *Pse* është e rrezikshme ligjërisht.)
     
     #### 3. STRATEGJIA LIGJORE & VEPRIMET E REKOMANDUARA
     (Jep hapa taktikë: "Kërkesë për Zbulim (Discovery)", "Kryqëzim Asetesh", "Auditimi i Stilit të Jetesës", "Verifikim i Burimit të Fondeve".)
@@ -104,17 +132,13 @@ async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, 
     RREGULL I RËNDËSISHËM:
     - MOS SHTO ASNJË LLOJ NËNSHKRIMI, EMRI, APO INFORMACION TË FIRMËS NË FUND. Fokusi është vetëm tek analiza.
     
-    TONI:
-    - Përdor fjalor elitar (psh: jo "ngre dyshime", por "indikatorë të evazionit").
-    - GJUHA: SHQIP LETRAR (PA GABIME).
+    TONI: Përdor fjalor elitar. GJUHA: SHQIP LETRAR (PA GABIME).
     """
     
-    exec_summary = llm_service._call_llm("Ti je Ekspert Forenzik i Nivelit të Lartë që flet vetëm Shqip.", summary_prompt, False)
+    exec_summary = await asyncio.to_thread(llm_service._call_llm, "Ti je Ekspert Forenzik i Nivelit të Lartë që flet vetëm Shqip.", summary_prompt, False)
 
     return {
-        "executive_summary": exec_summary,
-        "anomalies": anomalies,
-        "trends": trends,
+        "executive_summary": exec_summary, "anomalies": anomalies, "trends": trends,
         "recommendations": [
             "Iniconi procedurën 'Discovery' për faturat e dyshimta.",
             "Kryeni auditim të stilit të jetesës vs. të ardhurave të deklaruara.",
@@ -123,14 +147,7 @@ async def analyze_spreadsheet_file(content: bytes, filename: str, case_id: str, 
     }
 
 async def ask_financial_question(case_id: str, question: str, db: Database) -> Dict[str, Any]:
-    """
-    Performs the Interrogation:
-    1. Embeds the user's question.
-    2. Searches MongoDB Vector Search for relevant rows.
-    3. Uses LLM to formulate an evidence-backed answer.
-    """
-    q_vector = llm_service.get_embedding(question)
-    
+    q_vector = await asyncio.to_thread(llm_service.get_embedding, question)
     rows = await asyncio.to_thread(list, db.financial_vectors.find({"case_id": ObjectId(case_id)}))
     
     scored_rows = []
@@ -143,19 +160,14 @@ async def ask_financial_question(case_id: str, question: str, db: Database) -> D
     scored_rows.sort(key=lambda x: x[0], reverse=True)
     top_rows = scored_rows[:30]
     
-    context_lines = []
-    for _, row in top_rows:
-        context_lines.append(row["content"])
+    context_lines = [row["content"] for _, row in top_rows]
         
     if not context_lines:
         return {"answer": "Nuk u gjetën të dhëna relevante në spreadsheet."}
         
-    answer = llm_service.forensic_interrogation(question, context_lines)
+    answer = await asyncio.to_thread(llm_service.forensic_interrogation, question, context_lines)
     
-    return {
-        "answer": answer,
-        "referenced_rows_count": len(top_rows)
-    }
+    return {"answer": answer, "referenced_rows_count": len(top_rows)}
 
 def _detect_anomalies(records: List[Dict]) -> List[Dict]:
     anomalies = []
@@ -200,7 +212,7 @@ async def _vectorize_and_store(records: List[Dict], case_id: str, db: Database):
     
     for r in records:
         semantic_text = f"Data: {r['date']}. Shuma: {r['amount']} EUR. Përshkrimi: {r['description']}."
-        embedding = llm_service.get_embedding(semantic_text)
+        embedding = await asyncio.to_thread(llm_service.get_embedding, semantic_text)
         
         vectors.append({
             "case_id": ObjectId(case_id), "row_id": r['row_id'], "content": semantic_text,

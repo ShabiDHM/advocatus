@@ -1,8 +1,8 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V10.1 (STRICT SCROLL)
-// 1. UI: Enforced strict height constraints to enable internal scrolling.
-// 2. UX: Fixed Search Bar at the top of the scrollable area.
-// 3. LAYOUT: Grid aligns to content-start to prevent spacing issues.
+// PHOENIX PROTOCOL - FINANCE TAB V10.2 (AI AUTO-FILL)
+// 1. FEATURE: Implemented 'AI Scan' for expense receipts.
+// 2. LOGIC: Uploading a receipt now triggers OCR + LLM analysis to auto-fill form fields.
+// 3. UI: Added loading state to the upload button during analysis.
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -10,7 +10,7 @@ import {
     TrendingUp, TrendingDown, Wallet, Calculator, MinusCircle, Plus, FileText, 
     Edit2, Eye, Download, Archive, Trash2, CheckCircle, Paperclip, X, User, Activity, 
     Loader2, BarChart2, History, Search, Briefcase, ChevronRight, ChevronDown,
-    Car, Coffee, Building, Users, Landmark, Zap, Wifi, Receipt, Utensils
+    Car, Coffee, Building, Users, Landmark, Zap, Wifi, Receipt, Utensils, Sparkles
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/api';
@@ -123,6 +123,9 @@ export const FinanceTab: React.FC = () => {
     const [viewingDoc, setViewingDoc] = useState<Document | null>(null);
     const [viewingUrl, setViewingUrl] = useState<string | null>(null);
     const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null);
+
+    // PHOENIX: State for receipt scanning
+    const [isScanningReceipt, setIsScanningReceipt] = useState(false);
 
     const [newInvoice, setNewInvoice] = useState({ 
         client_name: '', client_email: '', client_phone: '', client_address: '', 
@@ -298,9 +301,47 @@ export const FinanceTab: React.FC = () => {
     // --- Expense Handlers ---
     const handleEditExpense = (expense: Expense) => { setEditingExpenseId(expense.id); setNewExpense({ category: expense.category, amount: expense.amount, description: expense.description || '', date: expense.date, related_case_id: expense.related_case_id || '' }); setExpenseDate(new Date(expense.date)); setShowExpenseModal(true); };
     const handleCreateOrUpdateExpense = async (e: React.FormEvent) => { e.preventDefault(); try { const payload = { ...newExpense, date: expenseDate ? expenseDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0] }; let s: Expense; if (editingExpenseId) { s = await apiService.updateExpense(editingExpenseId, payload); setExpenses(expenses.map(exp => exp.id === editingExpenseId ? s : exp)); } else { s = await apiService.createExpense(payload); setExpenses([s, ...expenses]); } if (expenseReceipt && s.id) { await apiService.uploadExpenseReceipt(s.id, expenseReceipt); const f = { ...s, receipt_url: "PENDING_REFRESH" }; setExpenses(prev => prev.map(exp => exp.id === f.id ? f : exp)); } closeExpenseModal(); } catch { alert(t('error.generic')); } };
-    const closeExpenseModal = () => { setShowExpenseModal(false); setEditingExpenseId(null); setNewExpense({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0], related_case_id: '' }); setExpenseReceipt(null); };
+    const closeExpenseModal = () => { setShowExpenseModal(false); setEditingExpenseId(null); setNewExpense({ category: '', amount: 0, description: '', date: new Date().toISOString().split('T')[0], related_case_id: '' }); setExpenseReceipt(null); setIsScanningReceipt(false); };
     const deleteExpense = async (id: string) => { if(!window.confirm(t('general.confirmDelete'))) return; try { await apiService.deleteExpense(id); setExpenses(expenses.filter(e => e.id !== id)); } catch { alert(t('error.generic')); } };
     
+    // PHOENIX: Enhanced Receipt Upload with AI Auto-fill
+    const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        
+        setExpenseReceipt(file);
+        
+        // Only run AI if not editing an existing expense (optional, but safer)
+        if (!editingExpenseId) {
+            setIsScanningReceipt(true);
+            try {
+                const aiResult = await apiService.analyzeExpenseReceipt(file);
+                
+                // Auto-fill fields if data found
+                if (aiResult) {
+                    setNewExpense(prev => ({
+                        ...prev,
+                        category: aiResult.category || prev.category,
+                        amount: aiResult.amount || prev.amount,
+                        description: aiResult.description || prev.description
+                    }));
+                    
+                    if (aiResult.date) {
+                        const parsedDate = new Date(aiResult.date);
+                        if (!isNaN(parsedDate.getTime())) {
+                            setExpenseDate(parsedDate);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("AI Scan failed, falling back to manual entry", err);
+                // Fail silently or show toast - user can still enter manually
+            } finally {
+                setIsScanningReceipt(false);
+            }
+        }
+    };
+
     // --- Generate Digital Receipt ---
     const generateDigitalReceipt = (expense: Expense): File => {
         const content = `DËSHMI DIGJITALE E SHPENZIMIT (JURISTI AI)\n------------------------------------------------\n` +
@@ -438,7 +479,7 @@ export const FinanceTab: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Main Content Area - STRICT HEIGHT & SCROLL */}
+                {/* Main Content Area */}
                 <div className="lg:col-span-2 glass-panel rounded-3xl p-6 flex flex-col h-full min-w-0 overflow-hidden">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-white/5 pb-4 flex-none">
                         <h2 className="text-lg font-bold text-white shrink-0">{t('finance.activityAndReports')}</h2>
@@ -457,13 +498,10 @@ export const FinanceTab: React.FC = () => {
                                     <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="glass-input w-full pl-10 pr-3 py-2.5 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
                                 
-                                {/* GRID CONTAINER: Scrollable & Aligned */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto custom-finance-scroll pr-2 pb-4 content-start">
                                     {filteredTransactions.length === 0 ? <p className="text-gray-500 italic text-sm text-center col-span-full py-10">{t('finance.noTransactions')}</p> : filteredTransactions.map(tx => (
                                         <div key={`${tx.type}-${tx.id}`} className="group relative glass-panel rounded-2xl overflow-hidden hover:bg-white/10 transition-all duration-300 flex flex-col border border-white/5 hover:border-white/20 h-fit">
-                                            {/* Accent Bar */}
                                             <div className={`absolute left-0 top-0 bottom-0 w-1 ${tx.type === 'invoice' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                                            
                                             <div className="p-4 flex-1">
                                                 <div className="flex items-start justify-between mb-3">
                                                     <div className={`p-2.5 rounded-xl ${tx.type === 'invoice' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
@@ -476,17 +514,13 @@ export const FinanceTab: React.FC = () => {
                                                         <span className="text-[10px] text-gray-500 font-mono">{new Date(tx.date).toLocaleDateString()}</span>
                                                     </div>
                                                 </div>
-                                                
                                                 <h4 className="font-bold text-white text-sm truncate mb-1" title={tx.type === 'invoice' ? tx.client_name : tx.category}>
                                                     {tx.type === 'invoice' ? tx.client_name : tx.category}
                                                 </h4>
-                                                
                                                 <p className="text-xs text-gray-400 truncate">
                                                     {tx.type === 'invoice' ? `#${tx.invoice_number}` : (tx.description || t('finance.noDescription'))}
                                                 </p>
                                             </div>
-
-                                            {/* Actions Footer */}
                                             <div className="border-t border-white/5 p-2 flex items-center justify-end gap-1 bg-black/20">
                                                 <button onClick={() => tx.type === 'invoice' ? handleEditInvoice(tx) : handleEditExpense(tx)} className="p-2 hover:bg-white/10 rounded-lg text-amber-400 transition-colors" title={t('general.edit')}><Edit2 size={14} /></button>
                                                 <button onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} disabled={(tx.type === 'expense' && !tx.receipt_url) && openingDocId !== tx.id && !openingDocId} className="p-2 hover:bg-white/10 rounded-lg text-blue-400 transition-colors disabled:opacity-50" title={t('general.view')}>{openingDocId === tx.id ? <Loader2 size={14} className="animate-spin"/> : <Eye size={14} />}</button>
@@ -500,118 +534,80 @@ export const FinanceTab: React.FC = () => {
                             </div>
                         )}
                         
-                        {activeTab === 'reports' && (
-                            <div className="h-full overflow-y-auto custom-finance-scroll pr-2 space-y-6">
-                                {!analyticsData ? <div className="space-y-6"><SkeletonChart /><SkeletonGrid /></div> : (
-                                    <>
-                                        <div className="glass-panel rounded-2xl p-4">
-                                            <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-primary-start"/> {t('finance.analytics.salesTrend')}</h4>
-                                            <div className="h-64 w-full min-h-[250px]">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <AreaChart data={analyticsData.sales_trend}>
-                                                        <defs>
-                                                            <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                                            </linearGradient>
-                                                        </defs>
-                                                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                                                        <XAxis dataKey="date" stroke="#6b7280" fontSize={12} tickFormatter={(str) => str.slice(5)} tick={{fill: '#9ca3af'}} />
-                                                        <YAxis stroke="#6b7280" fontSize={12} tick={{fill: '#9ca3af'}} width={40} />
-                                                        <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', color: '#f3f4f6', borderRadius: '12px' }} formatter={(value: any) => [`€${Number(value).toFixed(2)}`, t('finance.income')]} labelStyle={{ color: '#9ca3af', marginBottom: '4px' }} />
-                                                        <Area type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
-                                                    </AreaChart>
-                                                </ResponsiveContainer>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
-                                            <div className="glass-panel rounded-2xl p-4">
-                                                <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2"><BarChart2 size={16} className="text-success-start" /> {t('finance.analytics.topProducts')}</h4>
-                                                <div className="h-64 w-full min-h-[250px]">
-                                                    <ResponsiveContainer width="100%" height="100%">
-                                                        <BarChart data={analyticsData.top_products} layout="vertical">
-                                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" horizontal={true} vertical={false} />
-                                                            <XAxis type="number" stroke="#6b7280" fontSize={12} hide />
-                                                            <YAxis dataKey="product_name" type="category" stroke="#9ca3af" fontSize={12} width={100} tick={{fill: '#e5e7eb', fontSize: 12}} />
-                                                            <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', color: '#f3f4f6', borderRadius: '12px' }} formatter={(value: any) => [`€${Number(value).toFixed(2)}`, t('finance.analytics.tableValue')]} />
-                                                            <Bar dataKey="total_revenue" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20}>
-                                                                {analyticsData.top_products.map((_: TopProductItem, index: number) => (<Cell key={`cell-${index}`} fill={['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa'][index % 5]} />))}
-                                                            </Bar>
-                                                        </BarChart>
-                                                    </ResponsiveContainer>
-                                                </div>
-                                            </div>
-                                            <div className="glass-panel rounded-2xl p-4 flex flex-col">
-                                                <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2"><FileText size={16} className="text-blue-400" /> {t('finance.analytics.productDetails')}</h4>
-                                                <div className="overflow-y-auto max-h-64 custom-finance-scroll pr-2 flex-1">
-                                                    <table className="w-full text-sm text-left text-gray-300">
-                                                        <thead className="text-xs text-gray-400 uppercase bg-white/5 sticky top-0 backdrop-blur-sm">
-                                                            <tr>
-                                                                <th className="px-3 py-2 rounded-tl-lg">{t('finance.analytics.tableProduct')}</th>
-                                                                <th className="px-3 py-2 text-right">{t('finance.analytics.tableQty')}</th>
-                                                                <th className="px-3 py-2 text-right rounded-tr-lg">{t('finance.analytics.tableValue')}</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-white/5">
-                                                            {analyticsData.top_products.map((p: TopProductItem, i: number) => (
-                                                                <tr key={i} className="hover:bg-white/5 transition-colors">
-                                                                    <td className="px-3 py-2 font-medium text-white truncate max-w-[120px]" title={p.product_name}>{p.product_name}</td>
-                                                                    <td className="px-3 py-2 text-right font-mono text-gray-400">{p.total_quantity}</td>
-                                                                    <td className="px-3 py-2 text-right font-bold text-emerald-400">€{p.total_revenue.toFixed(2)}</td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        )}
-
-                        {activeTab === 'history' && (
-                            <div className="flex flex-col h-full space-y-4">
-                                <div className="relative flex-none">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-500" /></div>
-                                    <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="glass-input w-full pl-10 pr-3 py-2.5 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                                </div>
-                                <div className="space-y-4 flex-1 overflow-y-auto custom-finance-scroll pr-2">
-                                    {filteredHistory.length === 0 ? (
-                                        <div className="flex justify-center items-center h-full text-gray-500 text-center flex-col">
-                                            <div className="bg-white/5 p-4 rounded-full mb-3"><Briefcase size={32} className="text-gray-600" /></div>
-                                            <p className="font-bold text-gray-400">{t('finance.noHistoryData', "Nuk ka të dhëna historike")}</p>
-                                            <p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime ose fatura të lidhura me lëndë për të parë pasqyrën këtu.")}</p>
-                                        </div>
-                                    ) : (
-                                        filteredHistory.map((item) => (
-                                            <div key={item.caseData.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-                                                <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setExpandedCaseId(expandedCaseId === item.caseData.id ? null : item.caseData.id)}>
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg"><Briefcase size={18} /></div>
-                                                        <div><h4 className="font-bold text-white text-sm">{item.caseData.title}</h4><p className="text-xs text-gray-500">{item.caseData.case_number}</p></div>
-                                                    </div>
-                                                    <div className="flex items-center gap-4"><div className="text-right"><p className="text-xs text-gray-400 uppercase">{t('finance.balance', 'Bilanci')}</p><p className={`font-bold ${item.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{item.balance >= 0 ? '+' : ''}€{item.balance.toFixed(2)}</p></div>{expandedCaseId === item.caseData.id ? <ChevronDown size={18} className="text-gray-500"/> : <ChevronRight size={18} className="text-gray-500"/>}</div>
-                                                </div>
-                                                {expandedCaseId === item.caseData.id && (
-                                                    <div className="bg-black/20 p-4 border-t border-white/5 space-y-2">
-                                                        <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>
-                                                        {item.activity.map((act, idx) => (<div key={`${act.type}-${idx}`} className="flex justify-between items-center text-sm py-1 border-b border-white/5 last:border-0"><div className="flex items-center gap-3"><span className="text-gray-400 text-xs font-mono">{new Date(act.date).toLocaleDateString('sq-AL')}</span><div className="flex flex-col"><span className="text-white font-medium">{act.label || act.type}</span><span className={`text-[10px] uppercase ${act.type === 'invoice' ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>{act.type === 'invoice' ? t('finance.invoice') : t('finance.expense')}</span></div></div><span className={`${act.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'} font-mono`}>{act.type === 'invoice' ? '+' : '-'}€{act.amount.toFixed(2)}</span></div>))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        )}
+                        {/* (Reports and History sections omitted for brevity but preserved in structure) */}
+                        {activeTab === 'reports' && (<div className="h-full overflow-y-auto custom-finance-scroll pr-2 space-y-6">{!analyticsData ? <div className="space-y-6"><SkeletonChart /><SkeletonGrid /></div> : (<><div className="glass-panel rounded-2xl p-4"><h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-primary-start"/> {t('finance.analytics.salesTrend')}</h4><div className="h-64 w-full min-h-[250px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={analyticsData.sales_trend}><defs><linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" /><XAxis dataKey="date" stroke="#6b7280" fontSize={12} tickFormatter={(str) => str.slice(5)} tick={{fill: '#9ca3af'}} /><YAxis stroke="#6b7280" fontSize={12} tick={{fill: '#9ca3af'}} width={40} /><Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', color: '#f3f4f6', borderRadius: '12px' }} formatter={(value: any) => [`€${Number(value).toFixed(2)}`, t('finance.income')]} labelStyle={{ color: '#9ca3af', marginBottom: '4px' }} /><Area type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" /></AreaChart></ResponsiveContainer></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2"><div className="glass-panel rounded-2xl p-4"><h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2"><BarChart2 size={16} className="text-success-start" /> {t('finance.analytics.topProducts')}</h4><div className="h-64 w-full min-h-[250px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={analyticsData.top_products} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" horizontal={true} vertical={false} /><XAxis type="number" stroke="#6b7280" fontSize={12} hide /><YAxis dataKey="product_name" type="category" stroke="#9ca3af" fontSize={12} width={100} tick={{fill: '#e5e7eb', fontSize: 12}} /><Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', color: '#f3f4f6', borderRadius: '12px' }} formatter={(value: any) => [`€${Number(value).toFixed(2)}`, t('finance.analytics.tableValue')]} /><Bar dataKey="total_revenue" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20}>{analyticsData.top_products.map((_: TopProductItem, index: number) => (<Cell key={`cell-${index}`} fill={['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa'][index % 5]} />))}</Bar></BarChart></ResponsiveContainer></div></div><div className="glass-panel rounded-2xl p-4 flex flex-col"><h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2"><FileText size={16} className="text-blue-400" /> {t('finance.analytics.productDetails')}</h4><div className="overflow-y-auto max-h-64 custom-finance-scroll pr-2 flex-1"><table className="w-full text-sm text-left text-gray-300"><thead className="text-xs text-gray-400 uppercase bg-white/5 sticky top-0 backdrop-blur-sm"><tr><th className="px-3 py-2 rounded-tl-lg">{t('finance.analytics.tableProduct')}</th><th className="px-3 py-2 text-right">{t('finance.analytics.tableQty')}</th><th className="px-3 py-2 text-right rounded-tr-lg">{t('finance.analytics.tableValue')}</th></tr></thead><tbody className="divide-y divide-white/5">{analyticsData.top_products.map((p: TopProductItem, i: number) => (<tr key={i} className="hover:bg-white/5 transition-colors"><td className="px-3 py-2 font-medium text-white truncate max-w-[120px]" title={p.product_name}>{p.product_name}</td><td className="px-3 py-2 text-right font-mono text-gray-400">{p.total_quantity}</td><td className="px-3 py-2 text-right font-bold text-emerald-400">€{p.total_revenue.toFixed(2)}</td></tr>))}</tbody></table></div></div></div></>)}</div>)}
+                        {activeTab === 'history' && (<div className="flex flex-col h-full space-y-4"><div className="relative flex-none"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-500" /></div><input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="glass-input w-full pl-10 pr-3 py-2.5 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><div className="space-y-4 flex-1 overflow-y-auto custom-finance-scroll pr-2">{filteredHistory.length === 0 ? (<div className="flex justify-center items-center h-full text-gray-500 text-center flex-col"><div className="bg-white/5 p-4 rounded-full mb-3"><Briefcase size={32} className="text-gray-600" /></div><p className="font-bold text-gray-400">{t('finance.noHistoryData', "Nuk ka të dhëna historike")}</p><p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime ose fatura të lidhura me lëndë për të parë pasqyrën këtu.")}</p></div>) : (filteredHistory.map((item) => (<div key={item.caseData.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden"><div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setExpandedCaseId(expandedCaseId === item.caseData.id ? null : item.caseData.id)}><div className="flex items-center gap-3"><div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg"><Briefcase size={18} /></div><div><h4 className="font-bold text-white text-sm">{item.caseData.title}</h4><p className="text-xs text-gray-500">{item.caseData.case_number}</p></div></div><div className="flex items-center gap-4"><div className="text-right"><p className="text-xs text-gray-400 uppercase">{t('finance.balance', 'Bilanci')}</p><p className={`font-bold ${item.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{item.balance >= 0 ? '+' : ''}€{item.balance.toFixed(2)}</p></div>{expandedCaseId === item.caseData.id ? <ChevronDown size={18} className="text-gray-500"/> : <ChevronRight size={18} className="text-gray-500"/>}</div></div>{expandedCaseId === item.caseData.id && (<div className="bg-black/20 p-4 border-t border-white/5 space-y-2"><h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>{item.activity.map((act, idx) => (<div key={`${act.type}-${idx}`} className="flex justify-between items-center text-sm py-1 border-b border-white/5 last:border-0"><div className="flex items-center gap-3"><span className="text-gray-400 text-xs font-mono">{new Date(act.date).toLocaleDateString('sq-AL')}</span><div className="flex flex-col"><span className="text-white font-medium">{act.label || act.type}</span><span className={`text-[10px] uppercase ${act.type === 'invoice' ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>{act.type === 'invoice' ? t('finance.invoice') : t('finance.expense')}</span></div></div><span className={`${act.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'} font-mono`}>{act.type === 'invoice' ? '+' : '-'}€{act.amount.toFixed(2)}</span></div>))}</div>)}</div>)))}</div></div>)}
                     </div>
                 </div>
             </div>
             
             {showInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="glass-high w-full max-w-2xl max-h-[90vh] overflow-y-auto p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200 custom-finance-scroll"><div className="flex justify-between items-center mb-6"><h2 className="text-2xl font-bold text-white">{editingInvoiceId ? t('finance.editInvoice') : t('finance.createInvoice')}</h2><button onClick={closeInvoiceModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><form onSubmit={handleCreateOrUpdateInvoice} className="space-y-6"><div className="space-y-4">
                 <h3 className="text-xs font-bold text-primary-start uppercase tracking-wider flex items-center gap-2 mb-4"><User size={16} /> {t('caseCard.client')}</h3><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel', "Lënda e Lidhur")}</label><select value={newInvoice.related_case_id} onChange={e => setNewInvoice({...newInvoice, related_case_id: e.target.value})} className="glass-input w-full px-4 py-2.5 rounded-xl"><option value="">-- {t('finance.noCase', 'Pa Lëndë')} --</option>{cases.map(c => <option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>)}</select></div><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('business.clientName', 'Emri')}</label><input required type="text" className="glass-input w-full px-4 py-2.5 rounded-xl" value={newInvoice.client_name} onChange={e => setNewInvoice({...newInvoice, client_name: e.target.value})} /></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('business.publicEmail')}</label><input type="email" className="glass-input w-full px-4 py-2.5 rounded-xl" value={newInvoice.client_email} onChange={e => setNewInvoice({...newInvoice, client_email: e.target.value})} /></div><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('business.phone')}</label><input type="text" className="glass-input w-full px-4 py-2.5 rounded-xl" value={newInvoice.client_phone} onChange={e => setNewInvoice({...newInvoice, client_phone: e.target.value})} /></div></div><div className="grid grid-cols-1 sm:grid-cols-2 gap-4"><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('business.city')}</label><input type="text" className="glass-input w-full px-4 py-2.5 rounded-xl" value={newInvoice.client_city} onChange={e => setNewInvoice({...newInvoice, client_city: e.target.value})} /></div><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('business.taxId')}</label><input type="text" className="glass-input w-full px-4 py-2.5 rounded-xl" value={newInvoice.client_tax_id} onChange={e => setNewInvoice({...newInvoice, client_tax_id: e.target.value})} /></div></div><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('business.address')}</label><input type="text" className="glass-input w-full px-4 py-2.5 rounded-xl" value={newInvoice.client_address} onChange={e => setNewInvoice({...newInvoice, client_address: e.target.value})} /></div><div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/10"><input type="checkbox" id="vatToggle" checked={includeVat} onChange={(e) => setIncludeVat(e.target.checked)} className="w-4 h-4 text-primary-start rounded border-gray-300 focus:ring-primary-start" /><label htmlFor="vatToggle" className="text-sm text-gray-300 cursor-pointer select-none">Apliko TVSH (18%)</label></div></div><div className="space-y-3 pt-6 border-t border-white/10"><h3 className="text-xs font-bold text-primary-start uppercase tracking-wider flex items-center gap-2"><FileText size={16} /> {t('finance.services')}</h3>{lineItems.map((item, index) => (<div key={index} className="flex flex-col sm:flex-row gap-2 items-center"><input type="text" placeholder={t('finance.description')} className="flex-1 w-full glass-input px-3 py-2 rounded-xl" value={item.description} onChange={e => updateLineItem(index, 'description', e.target.value)} required /><input type="number" placeholder={t('finance.qty')} className="w-full sm:w-20 glass-input px-3 py-2 rounded-xl" value={item.quantity} onChange={e => updateLineItem(index, 'quantity', parseFloat(e.target.value))} min="1" /><input type="number" placeholder={t('finance.price')} className="w-full sm:w-24 glass-input px-3 py-2 rounded-xl" value={item.unit_price} onChange={e => updateLineItem(index, 'unit_price', parseFloat(e.target.value))} min="0" /><button type="button" onClick={() => removeLineItem(index)} className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg self-end sm:self-center"><Trash2 size={18} /></button></div>))}<button type="button" onClick={addLineItem} className="text-sm text-primary-start hover:underline flex items-center gap-1 font-medium"><Plus size={14} /> {t('finance.addLine')}</button></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={closeInvoiceModal} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10 transition-colors">{t('general.cancel')}</button><button type="submit" className="px-8 py-2.5 bg-gradient-to-r from-success-start to-success-end text-white rounded-xl font-bold shadow-lg shadow-success-start/20 hover:scale-[1.02] transition-transform">{t('general.save')}</button></div></form></div></div>)}
-            {showExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="glass-high w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-white flex items-center gap-2"><MinusCircle size={20} className="text-rose-500" /> {editingExpenseId ? t('finance.editExpense') : t('finance.addExpense')}</h2><button onClick={closeExpenseModal} className="text-gray-400 hover:text-white"><X size={24} /></button></div><div className="mb-6"><input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => setExpenseReceipt(e.target.files?.[0] || null)} /><button onClick={() => receiptInputRef.current?.click()} className={`w-full py-4 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all ${expenseReceipt ? 'bg-primary-start/10 border-primary-start text-primary-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}`}>{expenseReceipt ? (<><CheckCircle size={18} /> {expenseReceipt.name}</>) : (<><Paperclip size={18} /> {t('finance.attachReceipt')}</>)}</button></div><form onSubmit={handleCreateOrUpdateExpense} className="space-y-5"><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel', "Lënda e Lidhur")}</label><select value={newExpense.related_case_id} onChange={e => setNewExpense({...newExpense, related_case_id: e.target.value})} className="glass-input w-full px-4 py-2.5 rounded-xl"><option value="">-- {t('finance.noCase', 'Pa Lëndë')} --</option>{cases.map(c => <option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>)}</select></div><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.expenseCategory')}</label><input required type="text" className="glass-input w-full px-4 py-2.5 rounded-xl" value={newExpense.category} onChange={e => setNewExpense({...newExpense, category: e.target.value})} /></div><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.amount')}</label><input required type="number" step="0.01" className="glass-input w-full px-4 py-2.5 rounded-xl" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: parseFloat(e.target.value)})} /></div><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.date')}</label><DatePicker selected={expenseDate} onChange={(date: Date | null) => setExpenseDate(date)} locale={currentLocale} dateFormat="dd/MM/yyyy" className="glass-input w-full px-4 py-2.5 rounded-xl" required /></div><div><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.description')}</label><textarea rows={2} className="glass-input w-full px-4 py-2.5 rounded-xl resize-none" value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})} /></div><div className="flex justify-end gap-3 pt-4"><button type="button" onClick={closeExpenseModal} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10 transition-colors">{t('general.cancel')}</button><button type="submit" className="px-8 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-lg shadow-rose-500/20">{t('general.save')}</button></div></form></div></div>)}
+            
+            {showExpenseModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="glass-high w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                <MinusCircle size={20} className="text-rose-500" /> {editingExpenseId ? t('finance.editExpense') : t('finance.addExpense')}
+                            </h2>
+                            <button onClick={closeExpenseModal} className="text-gray-400 hover:text-white"><X size={24} /></button>
+                        </div>
+                        
+                        {/* PHOENIX: Enhanced Receipt Upload UI */}
+                        <div className="mb-6">
+                            <input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={handleReceiptUpload} />
+                            <button 
+                                onClick={() => receiptInputRef.current?.click()} 
+                                disabled={isScanningReceipt}
+                                className={`w-full py-4 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all 
+                                    ${expenseReceipt ? 'bg-primary-start/10 border-primary-start text-primary-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}
+                                    ${isScanningReceipt ? 'cursor-wait opacity-80' : ''}`}
+                            >
+                                {isScanningReceipt ? (
+                                    <><Loader2 size={18} className="animate-spin" /> Analizimi i faturës me AI...</>
+                                ) : expenseReceipt ? (
+                                    <><CheckCircle size={18} /> {expenseReceipt.name}</>
+                                ) : (
+                                    <><Paperclip size={18} /> {t('finance.attachReceipt')}</>
+                                )}
+                            </button>
+                            {isScanningReceipt && <p className="text-center text-[10px] text-gray-500 mt-2 flex items-center justify-center gap-1"><Sparkles size={10} className="text-primary-start"/> Duke nxjerrë të dhënat automatikisht...</p>}
+                        </div>
+
+                        <form onSubmit={handleCreateOrUpdateExpense} className="space-y-5">
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel', "Lënda e Lidhur")}</label>
+                                <select value={newExpense.related_case_id} onChange={e => setNewExpense({...newExpense, related_case_id: e.target.value})} className="glass-input w-full px-4 py-2.5 rounded-xl">
+                                    <option value="">-- {t('finance.noCase', 'Pa Lëndë')} --</option>
+                                    {cases.map(c => <option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.expenseCategory')}</label>
+                                <input required type="text" className="glass-input w-full px-4 py-2.5 rounded-xl" value={newExpense.category} onChange={e => setNewExpense({...newExpense, category: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.amount')}</label>
+                                <input required type="number" step="0.01" className="glass-input w-full px-4 py-2.5 rounded-xl" value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: parseFloat(e.target.value)})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.date')}</label>
+                                <DatePicker selected={expenseDate} onChange={(date: Date | null) => setExpenseDate(date)} locale={currentLocale} dateFormat="dd/MM/yyyy" className="glass-input w-full px-4 py-2.5 rounded-xl" required />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.description')}</label>
+                                <textarea rows={2} className="glass-input w-full px-4 py-2.5 rounded-xl resize-none" value={newExpense.description} onChange={e => setNewExpense({...newExpense, description: e.target.value})} />
+                            </div>
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button type="button" onClick={closeExpenseModal} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10 transition-colors">{t('general.cancel')}</button>
+                                <button type="submit" className="px-8 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-lg shadow-rose-500/20">{t('general.save')}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+            
             {showArchiveInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="glass-high w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200"><h2 className="text-xl font-bold text-white mb-6">{t('finance.archiveInvoice')}</h2><div className="mb-8"><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel')}</label><select className="glass-input w-full px-4 py-2.5 rounded-xl" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-8 py-2.5 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-lg">{t('general.save')}</button></div></div></div>)}
             {showArchiveExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="glass-high w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200"><h2 className="text-xl font-bold text-white mb-6">{t('finance.archiveExpenseTitle')}</h2><div className="mb-8"><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel')}</label><select className="glass-input w-full px-4 py-2.5 rounded-xl" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveExpenseModal(false)} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10">{t('general.cancel')}</button><button onClick={submitArchiveExpense} className="px-8 py-2.5 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-lg">{t('general.save')}</button></div></div></div>)}
 

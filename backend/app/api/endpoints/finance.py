@@ -1,16 +1,17 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V14.0 (ARCHITECTURAL FIX)
-# 1. CRITICAL FIX: Removed the faulty, on-the-fly PDF generator.
-# 2. REFACTOR: The 'archive_forensic_report' endpoint now uses the robust, centralized 'report_service.create_pdf_from_text'.
-# 3. RESULT: Ensures valid, professional PDFs are generated, solving the frontend rendering bug.
+# PHOENIX PROTOCOL - FINANCE ROUTER V15.0 (EXPENSE OCR)
+# 1. FEATURE: Added '/expenses/analyze-receipt' endpoint.
+# 2. LOGIC: Integrates OCR and LLM services to extract structured data from receipt images.
+# 3. STATUS: Backend entry point for AI Expense Filing is ready.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from typing import List, Annotated, Optional, Any, Dict
 from datetime import datetime, timedelta
 from bson import ObjectId
 from pymongo.database import Database 
 import io
+import asyncio # PHOENIX: Required for async execution
 
 from app.models.user import UserInDB
 from app.models.finance import (
@@ -22,8 +23,7 @@ from app.models.finance import (
 from app.models.archive import ArchiveItemOut 
 from app.services.finance_service import FinanceService
 from app.services.archive_service import ArchiveService
-# PHOENIX: Import the correct, centralized service
-from app.services import report_service 
+from app.services import report_service, ocr_service, llm_service # PHOENIX: Added services
 from app.api.endpoints.dependencies import get_current_user, get_db, get_current_active_user
 
 router = APIRouter(tags=["Finance"])
@@ -197,17 +197,13 @@ async def archive_forensic_report(
     Generates a PDF from the AI Forensic Analysis and saves it to the Case Archive.
     """
     archive_service = ArchiveService(db)
-    
-    # 1. Generate PDF (In-Memory) using the correct, robust service
     pdf_buffer = report_service.create_pdf_from_text(text=content, document_title=title)
     pdf_bytes = pdf_buffer.getvalue()
 
-    # 2. Filename Generation
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     sanitized_title = "".join(c for c in title if c.isalnum() or c in (' ', '_')).replace(' ', '_')
     filename = f"ForensicReport_{sanitized_title}_{timestamp}.pdf"
     
-    # 3. Archive (Save to S3/Local + DB)
     archived_item = await archive_service.save_generated_file(
         user_id=str(current_user.id),
         filename=filename,
@@ -241,3 +237,33 @@ def upload_expense_receipt(expense_id: str, current_user: Annotated[UserInDB, De
     service = FinanceService(db)
     storage_key = service.upload_expense_receipt(str(current_user.id), expense_id, file)
     return {"status": "success", "storage_key": storage_key}
+
+# --- PHOENIX NEW: ANALYZE RECEIPT ENDPOINT ---
+@router.post("/expenses/analyze-receipt", tags=["Finance", "AI"])
+async def analyze_expense_receipt(
+    current_user: Annotated[UserInDB, Depends(get_current_user)],
+    file: UploadFile = File(...)
+):
+    """
+    AI Endpoint: Extracts category, amount, date, and description from a receipt image.
+    """
+    try:
+        # 1. Read Image
+        image_bytes = await file.read()
+        
+        # 2. OCR (Extract Text)
+        ocr_text = await asyncio.to_thread(ocr_service.extract_text_from_image_bytes, image_bytes)
+        
+        if not ocr_text or len(ocr_text) < 5:
+             # If OCR fails, return empty result rather than 500 error, so user can fill manually
+             return JSONResponse(content={"category": "", "amount": 0, "date": "", "description": ""})
+
+        # 3. LLM (Structure Data)
+        structured_data = await asyncio.to_thread(llm_service.extract_expense_details_from_text, ocr_text)
+        
+        return JSONResponse(content=structured_data)
+
+    except Exception as e:
+        # Log error but return empty structure to UI to prevent crash
+        print(f"Receipt analysis failed: {e}")
+        return JSONResponse(content={"category": "", "amount": 0, "date": "", "description": ""})

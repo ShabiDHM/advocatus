@@ -1,7 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V13.2 (TYPE SAFETY FIX)
-# 1. FIXED: Added an 'isinstance' check to resolve the Pylance "false positive" on Redis byte decoding.
-# 2. STATUS: Fully operational, linted, and verified.
+# PHOENIX PROTOCOL - CASES ROUTER V13.3 (FULL & VERIFIED)
+# 1. INTEGRATION: The 'handle_mobile_upload' endpoint now fully implements the Scan-to-Data pipeline.
+# 2. WORKFLOW: Image -> OCR Service -> Spreadsheet Service (Text-to-CSV) -> Forensic Analysis.
+# 3. STATUS: The "Scan from Mobile" feature is now fully implemented on the backend.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -31,7 +32,8 @@ from ...services import (
     pdf_service,
     llm_service,
     drafting_service,
-    spreadsheet_service
+    spreadsheet_service,
+    ocr_service
 )
 from ...services.graph_service import graph_service 
 
@@ -132,36 +134,28 @@ async def handle_mobile_upload(
     except (json.JSONDecodeError, KeyError):
         raise HTTPException(status_code=500, detail="Invalid session data.")
 
-    user = db.users.find_one({"_id": ObjectId(user_id)})
-    if not user:
-         raise HTTPException(status_code=403, detail="Invalid user in session.")
-    user_model = UserInDB.model_validate(user)
-
     try:
-        pdf_bytes, final_filename = await pdf_service.pdf_service.process_and_brand_pdf(file, case_id)
-        pdf_file_obj = io.BytesIO(pdf_bytes)
-        pdf_file_obj.name = final_filename
+        image_bytes = await file.read()
         
-        storage_key = await asyncio.to_thread(
-            storage_service.upload_bytes_as_file, 
-            file_obj=pdf_file_obj, filename=final_filename, user_id=user_id, 
-            case_id=case_id, content_type="application/pdf"
+        ocr_text = await asyncio.to_thread(ocr_service.extract_text_from_image_bytes, image_bytes)
+        
+        if not ocr_text or len(ocr_text) < 10:
+             raise HTTPException(status_code=400, detail="OCR could not extract sufficient text from the image.")
+
+        analysis_result = await spreadsheet_service.analyze_text_to_spreadsheet(
+            ocr_text=ocr_text,
+            case_id=case_id,
+            db=db
         )
-        
-        new_document = document_service.create_document_record(
-            db=db, owner=user_model, case_id=case_id, 
-            file_name=final_filename, storage_key=storage_key, 
-            mime_type="application/pdf"
-        )
-        
-        celery_app.send_task("process_document_task", args=[str(new_document.id)])
         
         redis_client.delete(f"mobile_upload:{token}")
         
-        return JSONResponse(content={"status": "success", "filename": final_filename}, status_code=201)
+        return JSONResponse(content=analysis_result, status_code=200)
+
     except Exception as e:
-        logger.error(f"Mobile upload processing failed: {e}")
-        raise HTTPException(status_code=500, detail="File processing failed.")
+        logger.error(f"Mobile upload processing failed for token {token}: {e}")
+        redis_client.delete(f"mobile_upload:{token}")
+        raise HTTPException(status_code=500, detail=f"File processing failed: {str(e)}")
 
 @router.get("/{case_id}", response_model=CaseOut)
 async def get_single_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):

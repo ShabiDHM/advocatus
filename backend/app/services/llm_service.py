@@ -1,7 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V32.0 (FUNCTION ALIAS FIX)
-# 1. FIX: Added 'sterilize_legal_text' as an alias for 'sterilize_text_for_llm'.
-# 2. STATUS: Resolves the ImportError in document_processing_service.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V33.0 (EXPENSE AI)
+# 1. FEATURE: Added 'extract_expense_details_from_text' for AI Receipt Analysis.
+# 2. PROMPT: Added 'PROMPT_EXPENSE_EXTRACTOR' to structure raw OCR text into JSON.
+# 3. STATUS: Completes the backend logic for the "Scan-to-Data" expense pipeline.
 
 import os
 import json
@@ -9,6 +10,7 @@ import logging
 import httpx
 import re
 from typing import List, Dict, Any, Optional
+from datetime import datetime
 from openai import OpenAI 
 
 from .text_sterilization_service import sterilize_text_for_llm
@@ -29,7 +31,8 @@ __all__ = [
     "get_embedding",
     "forensic_interrogation",
     "categorize_document_text",
-    "sterilize_legal_text" # PHOENIX: Exported alias
+    "sterilize_legal_text",
+    "extract_expense_details_from_text" # PHOENIX: New Export
 ]
 
 # --- CONFIGURATION ---
@@ -157,13 +160,34 @@ DETYRA: Përkthe tekstin ligjor në gjuhë të thjeshtë për klientin.
 GJUHA: SHQIP.
 """
 
-# PHOENIX NEW: Prompt for categorization
 PROMPT_CATEGORIZER = f"""
 Ti je "Arkivist Ligjor".
 DETYRA: Klasifiko dokumentin në njërën prej këtyre kategorive:
 [ "Padi", "Aktgjykim", "Vendim", "Përgjigje në Padi", "Ankesë", "Procesverbal", "Kontratë", "Faturë", "Dëshmi", "Të tjera" ]
 GJUHA: SHQIP.
 FORMATI JSON: {{ "category": "..." }}
+"""
+
+# PHOENIX NEW: EXPENSE EXTRACTION PROMPT
+PROMPT_EXPENSE_EXTRACTOR = f"""
+Ti je "Kontabilist Ekspert".
+DETYRA: Analizo tekstin e skanuar nga një faturë/kupon fiskal dhe nxirr të dhënat e strukturuara.
+
+RREGULLA:
+1. Gjej SHUMËN TOTALE (Total/Totali). Injoro nëntotalet ose taksat.
+2. Gjej DATËN e faturës. Formatoje si YYYY-MM-DD. Nëse mungon, përdor datën e sotme.
+3. Gjej PËRSHKRIMIN (Emrin e Biznesit + artikujt kryesorë).
+4. KATEGORIZO shpenzimin (psh: "Ushqim", "Transport", "Zyrë", "Paga", "Të tjera").
+
+GJUHA E DALJES: SHQIP.
+
+FORMATI JSON (STRIKT):
+{{
+  "category": "...",
+  "amount": 0.00,
+  "date": "YYYY-MM-DD",
+  "description": "..."
+}}
 """
 
 def get_deepseek_client() -> Optional[OpenAI]:
@@ -249,7 +273,6 @@ def get_embedding(text: str) -> List[float]:
 
 # --- PUBLIC FUNCTIONS ---
 
-# PHOENIX: Function Alias to fix Document Processing Service
 def sterilize_legal_text(text: str) -> str:
     """Wrapper for the core sterilization function."""
     return sterilize_text_for_llm(text)
@@ -302,3 +325,26 @@ def categorize_document_text(text: str) -> str:
     clean = sterilize_text_for_llm(text[:4000])
     result = _parse_json_safely(_call_llm(PROMPT_CATEGORIZER, clean, True, temp=0.0) or "{}")
     return result.get("category", "Të tjera")
+
+# PHOENIX NEW: Expense Extractor Logic
+def extract_expense_details_from_text(raw_text: str) -> Dict[str, Any]:
+    """
+    Extracts structured expense data (Category, Amount, Date) from raw receipt text.
+    """
+    if not raw_text or len(raw_text) < 10:
+        return {"category": "", "amount": 0, "date": "", "description": ""}
+        
+    clean_text = sterilize_text_for_llm(raw_text[:2000]) # Receipts are short
+    
+    # We pass the current date to context so LLM can infer 'today' if needed
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    context_prompt = f"DATA E SOTME: {current_date}\n\nTEKSTI I FATURËS:\n{clean_text}"
+    
+    result = _parse_json_safely(_call_llm(PROMPT_EXPENSE_EXTRACTOR, context_prompt, True, temp=0.1) or "{}")
+    
+    return {
+        "category": result.get("category", "Të tjera"),
+        "amount": float(result.get("amount", 0.0)),
+        "date": result.get("date", current_date),
+        "description": result.get("description", "")
+    }

@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V13.0 (MOBILE UPLOAD)
-// 1. ADDED: 'createMobileUploadSession' function to connect to the backend's secure token endpoint.
-// 2. STATUS: End-to-end ready for mobile scanning feature.
+// PHOENIX PROTOCOL - API SERVICE V13.1 (RECEIPT ANALYSIS)
+// 1. ADDED: 'analyzeExpenseReceipt' to trigger AI extraction for expenses.
+// 2. STATUS: API layer is fully synchronized with the backend.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -21,9 +21,9 @@ export interface InvoiceUpdate { client_name?: string; client_email?: string; cl
 interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
 interface FinanceInterrogationResponse { answer: string; referenced_rows_count: number; }
-// PHOENIX: Added type for the new mobile session endpoint
 interface MobileSessionResponse { upload_url: string; }
-
+// PHOENIX: New Interface for AI Receipt Result
+export interface ReceiptAnalysisResult { category: string; amount: number; date: string; description: string; }
 
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
@@ -101,7 +101,6 @@ class ApiService {
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> { const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data); return response.data; }
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
     
-    // PHOENIX: New method for mobile scanning
     public async createMobileUploadSession(caseId: string): Promise<MobileSessionResponse> {
         const response = await this.axiosInstance.post<MobileSessionResponse>(`/cases/${caseId}/mobile-upload-session`);
         return response.data;
@@ -126,6 +125,15 @@ class ApiService {
     public async updateExpense(expenseId: string, data: ExpenseUpdate): Promise<Expense> { const response = await this.axiosInstance.put<Expense>(`/finance/expenses/${expenseId}`, data); return response.data; }
     public async deleteExpense(expenseId: string): Promise<void> { await this.axiosInstance.delete(`/finance/expenses/${expenseId}`); }
     public async uploadExpenseReceipt(expenseId: string, file: File): Promise<void> { const formData = new FormData(); formData.append('file', file); await this.axiosInstance.put(`/finance/expenses/${expenseId}/receipt`, formData); }
+    
+    // PHOENIX: The new AI Scan Function
+    public async analyzeExpenseReceipt(file: File): Promise<ReceiptAnalysisResult> {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await this.axiosInstance.post<ReceiptAnalysisResult>('/finance/expenses/analyze-receipt', formData);
+        return response.data;
+    }
+
     public async getBusinessProfile(): Promise<BusinessProfile> { const response = await this.axiosInstance.get<BusinessProfile>('/business/profile'); return response.data; }
     public async updateBusinessProfile(data: BusinessProfileUpdate): Promise<BusinessProfile> { const response = await this.axiosInstance.put<BusinessProfile>('/business/profile', data); return response.data; }
     public async uploadBusinessLogo(file: File): Promise<BusinessProfile> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.put<BusinessProfile>('/business/logo', formData); return response.data; }
