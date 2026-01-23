@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V13.3 (FULL & VERIFIED)
-# 1. INTEGRATION: The 'handle_mobile_upload' endpoint now fully implements the Scan-to-Data pipeline.
-# 2. WORKFLOW: Image -> OCR Service -> Spreadsheet Service (Text-to-CSV) -> Forensic Analysis.
-# 3. STATUS: The "Scan from Mobile" feature is now fully implemented on the backend.
+# PHOENIX PROTOCOL - CASES ROUTER V13.4 (URL CORRECTION)
+# 1. FIX: The QR Code URL now points to the Frontend Route ('/mobile-connect/...') instead of the raw API.
+# 2. LOGIC: This ensures the user lands on a web page that can access the camera.
+# 3. STATUS: Backend ready to support the mobile frontend page.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -53,30 +53,14 @@ router = APIRouter(tags=["Cases"])
 logger = logging.getLogger(__name__)
 
 # --- LOCAL SCHEMAS ---
-class DocumentContentOut(BaseModel):
-    text: str
-
-class DeletedDocumentResponse(BaseModel):
-    documentId: str
-    deletedFindingIds: List[str]
-
-class RenameDocumentRequest(BaseModel):
-    new_name: str
-
-class ShareDocumentRequest(BaseModel):
-    is_shared: bool 
-
-class BulkDeleteRequest(BaseModel):
-    document_ids: List[str]
-
-class ArchiveImportRequest(BaseModel):
-    archive_item_ids: List[str]
-
-class FinanceInterrogationRequest(BaseModel):
-    question: str
-
-class MobileSessionOut(BaseModel):
-    upload_url: str
+class DocumentContentOut(BaseModel): text: str
+class DeletedDocumentResponse(BaseModel): documentId: str; deletedFindingIds: List[str]
+class RenameDocumentRequest(BaseModel): new_name: str
+class ShareDocumentRequest(BaseModel): is_shared: bool 
+class BulkDeleteRequest(BaseModel): document_ids: List[str]
+class ArchiveImportRequest(BaseModel): archive_item_ids: List[str]
+class FinanceInterrogationRequest(BaseModel): question: str
+class MobileSessionOut(BaseModel): upload_url: str
 
 def validate_object_id(id_str: str) -> ObjectId:
     try: return ObjectId(id_str)
@@ -111,8 +95,10 @@ def create_mobile_upload_session(
     
     redis_client.setex(f"mobile_upload:{token}", 300, session_data)
     
-    public_api_path = f"/api/v1/cases/mobile-upload/{token}"
-    upload_url = urllib.parse.urljoin(settings.FRONTEND_URL, public_api_path)
+    # PHOENIX FIX: Point to the Frontend Route, NOT the API endpoint.
+    # The frontend page will handle the camera and then POST to the API.
+    frontend_path = f"/mobile-connect/{token}"
+    upload_url = urllib.parse.urljoin(settings.FRONTEND_URL, frontend_path)
     
     return MobileSessionOut(upload_url=upload_url)
 
