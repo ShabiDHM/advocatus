@@ -1,4 +1,8 @@
 // FILE: src/services/api.ts
+// PHOENIX PROTOCOL - API SERVICE V13.0 (MOBILE UPLOAD)
+// 1. ADDED: 'createMobileUploadSession' function to connect to the backend's secure token endpoint.
+// 2. STATUS: End-to-end ready for mobile scanning feature.
+
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
     LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, User, UpdateUserRequest,
@@ -17,6 +21,9 @@ export interface InvoiceUpdate { client_name?: string; client_email?: string; cl
 interface LoginResponse { access_token: string; }
 interface DocumentContentResponse { text: string; }
 interface FinanceInterrogationResponse { answer: string; referenced_rows_count: number; }
+// PHOENIX: Added type for the new mobile session endpoint
+interface MobileSessionResponse { upload_url: string; }
+
 
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
@@ -93,6 +100,12 @@ class ApiService {
     public async getAllUsers(): Promise<User[]> { const response = await this.axiosInstance.get<any>('/admin/users'); return Array.isArray(response.data) ? response.data : (response.data.users || []); }
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> { const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data); return response.data; }
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
+    
+    // PHOENIX: New method for mobile scanning
+    public async createMobileUploadSession(caseId: string): Promise<MobileSessionResponse> {
+        const response = await this.axiosInstance.post<MobileSessionResponse>(`/cases/${caseId}/mobile-upload-session`);
+        return response.data;
+    }
 
     public async fetchImageBlob(url: string): Promise<Blob> { const response = await this.axiosInstance.get(url, { responseType: 'blob' }); return response.data; }
     public async getExpenseReceiptBlob(expenseId: string): Promise<{ blob: Blob, filename: string }> { const response = await this.axiosInstance.get(`/finance/expenses/${expenseId}/receipt`, { responseType: 'blob' }); const disposition = response.headers['content-disposition']; let filename = `receipt-${expenseId}.pdf`; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="([^"]*)"/.exec(disposition); if (matches != null && matches[1]) filename = matches[1]; } return { blob: response.data, filename }; }
