@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V13.2 (DIRECT SCAN)
-// 1. ADDED: 'analyzeScannedImage' to support direct image uploads for forensic analysis.
-// 2. STATUS: Fully supports the new "Camera First" workflow.
+// PHOENIX PROTOCOL - API SERVICE V13.3 (POLLING SUPPORT)
+// 1. ADDED: 'checkMobileUploadStatus' to check Redis for results.
+// 2. STATUS: API service is fully equipped for the real-time bridge.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -23,6 +23,9 @@ interface DocumentContentResponse { text: string; }
 interface FinanceInterrogationResponse { answer: string; referenced_rows_count: number; }
 interface MobileSessionResponse { upload_url: string; }
 export interface ReceiptAnalysisResult { category: string; amount: number; date: string; description: string; }
+// PHOENIX: New Interface for Status Check
+interface MobileUploadStatus { status: 'pending' | 'complete' | 'error'; data?: SpreadsheetAnalysisResult; message?: string; }
+
 
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
@@ -105,7 +108,6 @@ class ApiService {
         return response.data;
     }
 
-    // PHOENIX: New method for direct image scanning
     public async analyzeScannedImage(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> {
         const formData = new FormData();
         formData.append('file', file);
@@ -117,6 +119,12 @@ class ApiService {
         const formData = new FormData();
         formData.append('file', file);
         const response = await this.axiosInstance.post<ReceiptAnalysisResult>('/finance/expenses/analyze-receipt', formData);
+        return response.data;
+    }
+
+    // PHOENIX: New method for checking status
+    public async checkMobileUploadStatus(token: string): Promise<MobileUploadStatus> {
+        const response = await this.axiosInstance.get<MobileUploadStatus>(`/cases/mobile-upload-status/${token}`);
         return response.data;
     }
 

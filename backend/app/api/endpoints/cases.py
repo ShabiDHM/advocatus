@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V13.5 (DIRECT SCAN SUPPORT)
-# 1. FEATURE: Added 'analyze_scanned_image_endpoint' for direct, authenticated image uploads.
-# 2. LOGIC: Allows users to upload images directly from the dashboard (Mobile/Desktop) without the QR bridge.
-# 3. STATUS: Completes the omni-channel scanning architecture.
+# PHOENIX PROTOCOL - CASES ROUTER V13.6 (POLLING MECHANISM)
+# 1. UPDATE: 'handle_mobile_upload' now saves analysis results to Redis instead of returning them to the phone.
+# 2. FEATURE: Added 'check_mobile_upload_status' for the desktop client to poll for results.
+# 3. LOGIC: Enables the "Magic" transfer of data from Phone -> Desktop.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -109,7 +109,8 @@ def create_mobile_upload_session(
     token = secrets.token_urlsafe(32)
     session_data = json.dumps({"user_id": str(current_user.id), "case_id": case_id})
     
-    redis_client.setex(f"mobile_upload:{token}", 300, session_data)
+    # Store session info for 10 minutes
+    redis_client.setex(f"mobile_upload:{token}", 600, session_data)
     
     public_api_path = f"/api/v1/cases/mobile-upload/{token}"
     upload_url = urllib.parse.urljoin(settings.FRONTEND_URL, public_api_path)
@@ -123,23 +124,29 @@ async def handle_mobile_upload(
     db: Database = Depends(get_db),
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
-    session_data_raw = redis_client.get(f"mobile_upload:{token}")
+    """
+    Public endpoint for the phone. Saves the result to Redis for the desktop to pick up.
+    """
+    session_key = f"mobile_upload:{token}"
+    result_key = f"mobile_result:{token}"
+    
+    session_data_raw = redis_client.get(session_key)
     if not isinstance(session_data_raw, bytes):
-        raise HTTPException(status_code=404, detail="Session not found or expired.")
+        raise HTTPException(status_code=404, detail="Session expired.")
 
     try:
         session_data = json.loads(session_data_raw.decode('utf-8'))
         user_id = session_data["user_id"]
         case_id = session_data["case_id"]
-    except (json.JSONDecodeError, KeyError):
-        raise HTTPException(status_code=500, detail="Invalid session data.")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Invalid session.")
 
     try:
         image_bytes = await file.read()
         ocr_text = await asyncio.to_thread(ocr_service.extract_text_from_image_bytes, image_bytes)
         
         if not ocr_text or len(ocr_text) < 10:
-             raise HTTPException(status_code=400, detail="OCR could not extract sufficient text from the image.")
+             raise HTTPException(status_code=400, detail="OCR Failed. Image too blurry?")
 
         analysis_result = await spreadsheet_service.analyze_text_to_spreadsheet(
             ocr_text=ocr_text,
@@ -147,15 +154,50 @@ async def handle_mobile_upload(
             db=db
         )
         
-        redis_client.delete(f"mobile_upload:{token}")
-        return JSONResponse(content=analysis_result, status_code=200)
+        # PHOENIX MAGIC: Save the result to Redis instead of returning it
+        # The desktop is polling for 'mobile_result:{token}'
+        redis_client.setex(result_key, 300, json.dumps(analysis_result, default=str))
+        
+        # Clean up the session key so it can't be reused for upload
+        redis_client.delete(session_key)
+        
+        # Return simple success to the phone
+        return JSONResponse(content={"status": "complete", "message": "Check your desktop screen!"}, status_code=200)
 
     except Exception as e:
-        logger.error(f"Mobile upload processing failed for token {token}: {e}")
-        redis_client.delete(f"mobile_upload:{token}")
-        raise HTTPException(status_code=500, detail=f"File processing failed: {str(e)}")
+        logger.error(f"Mobile upload failed: {e}")
+        # Signal failure to the desktop via Redis
+        redis_client.setex(result_key, 60, json.dumps({"error": str(e)}))
+        raise HTTPException(status_code=500, detail=str(e))
 
-# PHOENIX NEW: Direct Authenticated Image Scan Endpoint
+# PHOENIX NEW: Polling Endpoint for Desktop
+@router.get("/mobile-upload-status/{token}", tags=["Documents"])
+def check_mobile_upload_status(
+    token: str,
+    redis_client: redis.Redis = Depends(get_sync_redis)
+):
+    """
+    Desktop calls this every 2 seconds.
+    """
+    result_key = f"mobile_result:{token}"
+    data_raw = redis_client.get(result_key)
+    
+    if not data_raw:
+        return JSONResponse(content={"status": "pending"})
+    
+    # We found data!
+    if isinstance(data_raw, bytes):
+        data = json.loads(data_raw.decode('utf-8'))
+        # Clear it so it's not fetched twice
+        redis_client.delete(result_key)
+        
+        if "error" in data:
+            return JSONResponse(content={"status": "error", "message": data["error"]})
+            
+        return JSONResponse(content={"status": "complete", "data": data})
+        
+    return JSONResponse(content={"status": "pending"})
+
 @router.post("/{case_id}/analyze/scanned-image", tags=["Analysis"])
 async def analyze_scanned_image_endpoint(
     case_id: str, 
@@ -163,10 +205,6 @@ async def analyze_scanned_image_endpoint(
     file: UploadFile = File(...), 
     db: Database = Depends(get_db)
 ):
-    """
-    Direct endpoint for authenticated users to upload an image for forensic analysis.
-    Bypasses the QR token flow.
-    """
     validate_object_id(case_id)
     case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
     if not case: raise HTTPException(status_code=404, detail="Case not found.")
