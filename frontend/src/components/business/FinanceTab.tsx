@@ -1,9 +1,8 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V10.2 (AI AUTO-FILL)
-// 1. FEATURE: Implemented 'AI Scan' for expense receipts.
-// 2. LOGIC: Uploading a receipt now triggers OCR + LLM analysis to auto-fill form fields.
-// 3. UI: Added loading state to the upload button during analysis.
-// 4. FIX: Added max-height and overflow handling to Expense Modal to prevent layout issues.
+// PHOENIX PROTOCOL - FINANCE TAB V10.3 (VIEW LOGIC RE-ENGINEERED)
+// 1. CRITICAL FIX: Re-engineered the `handleViewExpense` function to be fully robust, validating API responses and correctly handling both manual and OCR'd receipts.
+// 2. UI FIX: Corrected the `disabled` logic on the "View" button to be consistent and to correctly enable viewing for manual expenses.
+// 3. RESOLVED: Both the unresponsive "View" button for manual expenses and the "Preview not available" error for OCR'd expenses are now fixed.
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -312,38 +311,19 @@ export const FinanceTab: React.FC = () => {
         
         setExpenseReceipt(file);
         
-        // Only run AI if not editing an existing expense (optional, but safer)
         if (!editingExpenseId) {
             setIsScanningReceipt(true);
             try {
                 const aiResult = await apiService.analyzeExpenseReceipt(file);
-                
-                // Auto-fill fields if data found
                 if (aiResult) {
-                    setNewExpense(prev => ({
-                        ...prev,
-                        category: aiResult.category || prev.category,
-                        amount: aiResult.amount || prev.amount,
-                        description: aiResult.description || prev.description
-                    }));
-                    
-                    if (aiResult.date) {
-                        const parsedDate = new Date(aiResult.date);
-                        if (!isNaN(parsedDate.getTime())) {
-                            setExpenseDate(parsedDate);
-                        }
-                    }
+                    setNewExpense(prev => ({ ...prev, category: aiResult.category || prev.category, amount: aiResult.amount || prev.amount, description: aiResult.description || prev.description }));
+                    if (aiResult.date) { const parsedDate = new Date(aiResult.date); if (!isNaN(parsedDate.getTime())) { setExpenseDate(parsedDate); } }
                 }
-            } catch (err) {
-                console.warn("AI Scan failed, falling back to manual entry", err);
-                // Fail silently or show toast - user can still enter manually
-            } finally {
-                setIsScanningReceipt(false);
-            }
+            } catch (err) { console.warn("AI Scan failed, falling back to manual entry", err); } 
+            finally { setIsScanningReceipt(false); }
         }
     };
 
-    // --- Generate Digital Receipt ---
     const generateDigitalReceipt = (expense: Expense): File => {
         const content = `DËSHMI DIGJITALE E SHPENZIMIT (JURISTI AI)\n------------------------------------------------\n` +
                         `Kategoria:   ${expense.category}\n` +
@@ -357,37 +337,50 @@ export const FinanceTab: React.FC = () => {
         return new File([blob], `Shpenzim_${expense.category.replace(/\s+/g, '_')}_${expense.date}.txt`, { type: 'text/plain' });
     };
 
-    // --- VIEW EXPENSE ---
+    // --- VIEW EXPENSE (RE-ENGINEERED) ---
     const handleViewExpense = async (expense: Expense) => { 
         setOpeningDocId(expense.id); 
         try { 
-            let url: string;
-            let file_name: string;
-            let mime_type: string;
+            let blob: Blob;
+            let filename: string;
 
             if (expense.receipt_url) {
-                const { blob, filename } = await apiService.getExpenseReceiptBlob(expense.id); 
-                url = window.URL.createObjectURL(blob); 
-                file_name = filename;
-                const ext = filename.split('.').pop()?.toLowerCase(); 
-                mime_type = ext === 'pdf' ? 'application/pdf' : 'image/jpeg'; 
+                const response = await apiService.getExpenseReceiptBlob(expense.id); 
+                blob = response.blob;
+                filename = response.filename;
+                
+                // CRITICAL FIX: Validate the blob type. If API returns an error JSON, handle it.
+                if (blob.type === 'application/json') {
+                    const errorText = await blob.text();
+                    const errorData = JSON.parse(errorText);
+                    throw new Error(errorData.detail || 'Invalid receipt data received from server.');
+                }
             } else {
+                // Generate digital receipt for manual entries
                 const file = generateDigitalReceipt(expense);
-                url = window.URL.createObjectURL(file);
-                file_name = file.name;
-                mime_type = 'text/plain';
+                blob = file;
+                filename = file.name;
             }
 
+            const url = window.URL.createObjectURL(blob); 
+            const mime_type = blob.type;
+            
             setViewingUrl(url); 
-            setViewingDoc({ id: expense.id, file_name, mime_type, status: 'READY' } as any); 
-        } catch { 
-            alert(t('error.receiptNotFound', 'Gabim gjatë hapjes.')); 
+            setViewingDoc({ 
+                id: expense.id, 
+                file_name: filename, 
+                mime_type: mime_type, 
+                status: 'READY' 
+            } as any); 
+
+        } catch (err: any) { 
+            console.error("Failed to view expense:", err);
+            alert(t('error.receiptNotFound', err.message || 'Gabim gjatë hapjes.')); 
         } finally { 
             setOpeningDocId(null); 
         } 
     };
 
-    // --- DOWNLOAD EXPENSE ---
     const handleDownloadExpense = async (expense: Expense) => { 
         try { 
             let url: string;
@@ -415,7 +408,6 @@ export const FinanceTab: React.FC = () => {
         } 
     };
 
-    // --- ARCHIVE EXPENSE ---
     const handleArchiveExpenseClick = (id: string) => { 
         setSelectedExpenseId(id); 
         setShowArchiveExpenseModal(true); 
@@ -453,7 +445,6 @@ export const FinanceTab: React.FC = () => {
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 lg:h-[600px]">
                 <div className="lg:col-span-1 flex flex-col gap-6 h-full">
-                    {/* Overview Card */}
                     <div className="glass-panel rounded-3xl p-6 space-y-4 flex-none">
                         <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">{t('finance.overview')}</h3>
                         <SmartStatCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp size={20} />} color="text-emerald-400" />
@@ -471,7 +462,6 @@ export const FinanceTab: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Quick Actions */}
                     <div className="glass-panel rounded-3xl p-6 space-y-3 flex-1 flex flex-col justify-start">
                         <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">{t('finance.quickActions')}</h3>
                         <QuickActionButton icon={<Plus size={18} />} label={t('finance.createInvoice')} onClick={() => setShowInvoiceModal(true)} color="text-emerald-400" />
@@ -480,7 +470,6 @@ export const FinanceTab: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Main Content Area */}
                 <div className="lg:col-span-2 glass-panel rounded-3xl p-6 flex flex-col h-full min-w-0 overflow-hidden">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-white/5 pb-4 flex-none">
                         <h2 className="text-lg font-bold text-white shrink-0">{t('finance.activityAndReports')}</h2>
@@ -524,7 +513,8 @@ export const FinanceTab: React.FC = () => {
                                             </div>
                                             <div className="border-t border-white/5 p-2 flex items-center justify-end gap-1 bg-black/20">
                                                 <button onClick={() => tx.type === 'invoice' ? handleEditInvoice(tx) : handleEditExpense(tx)} className="p-2 hover:bg-white/10 rounded-lg text-amber-400 transition-colors" title={t('general.edit')}><Edit2 size={14} /></button>
-                                                <button onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} disabled={(tx.type === 'expense' && !tx.receipt_url) && openingDocId !== tx.id && !openingDocId} className="p-2 hover:bg-white/10 rounded-lg text-blue-400 transition-colors disabled:opacity-50" title={t('general.view')}>{openingDocId === tx.id ? <Loader2 size={14} className="animate-spin"/> : <Eye size={14} />}</button>
+                                                {/* MODIFIED: Simplified and corrected disabled logic */}
+                                                <button onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} disabled={openingDocId != null && openingDocId !== tx.id} className="p-2 hover:bg-white/10 rounded-lg text-blue-400 transition-colors disabled:opacity-50" title={t('general.view')}>{openingDocId === tx.id ? <Loader2 size={14} className="animate-spin"/> : <Eye size={14} />}</button>
                                                 <button onClick={() => tx.type === 'invoice' ? downloadInvoice(tx.id) : handleDownloadExpense(tx)} className="p-2 hover:bg-white/10 rounded-lg text-green-400 transition-colors" title={t('general.download')}><Download size={14} /></button>
                                                 <button onClick={() => tx.type === 'invoice' ? handleArchiveInvoiceClick(tx.id) : handleArchiveExpenseClick(tx.id)} className="p-2 hover:bg-white/10 rounded-lg text-indigo-400 transition-colors" title={t('general.archive')}><Archive size={14} /></button>
                                                 <button onClick={() => tx.type === 'invoice' ? deleteInvoice(tx.id) : deleteExpense(tx.id)} className="p-2 hover:bg-white/10 rounded-lg text-red-400 transition-colors" title={t('general.delete')}><Trash2 size={14} /></button>
@@ -535,7 +525,6 @@ export const FinanceTab: React.FC = () => {
                             </div>
                         )}
                         
-                        {/* (Reports and History sections omitted for brevity but preserved in structure) */}
                         {activeTab === 'reports' && (<div className="h-full overflow-y-auto custom-finance-scroll pr-2 space-y-6">{!analyticsData ? <div className="space-y-6"><SkeletonChart /><SkeletonGrid /></div> : (<><div className="glass-panel rounded-2xl p-4"><h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2"><TrendingUp size={16} className="text-primary-start"/> {t('finance.analytics.salesTrend')}</h4><div className="h-64 w-full min-h-[250px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={analyticsData.sales_trend}><defs><linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" /><XAxis dataKey="date" stroke="#6b7280" fontSize={12} tickFormatter={(str) => str.slice(5)} tick={{fill: '#9ca3af'}} /><YAxis stroke="#6b7280" fontSize={12} tick={{fill: '#9ca3af'}} width={40} /><Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', color: '#f3f4f6', borderRadius: '12px' }} formatter={(value: any) => [`€${Number(value).toFixed(2)}`, t('finance.income')]} labelStyle={{ color: '#9ca3af', marginBottom: '4px' }} /><Area type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" /></AreaChart></ResponsiveContainer></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2"><div className="glass-panel rounded-2xl p-4"><h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2"><BarChart2 size={16} className="text-success-start" /> {t('finance.analytics.topProducts')}</h4><div className="h-64 w-full min-h-[250px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={analyticsData.top_products} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" horizontal={true} vertical={false} /><XAxis type="number" stroke="#6b7280" fontSize={12} hide /><YAxis dataKey="product_name" type="category" stroke="#9ca3af" fontSize={12} width={100} tick={{fill: '#e5e7eb', fontSize: 12}} /><Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', color: '#f3f4f6', borderRadius: '12px' }} formatter={(value: any) => [`€${Number(value).toFixed(2)}`, t('finance.analytics.tableValue')]} /><Bar dataKey="total_revenue" fill="#10b981" radius={[0, 4, 4, 0]} barSize={20}>{analyticsData.top_products.map((_: TopProductItem, index: number) => (<Cell key={`cell-${index}`} fill={['#34d399', '#60a5fa', '#fbbf24', '#f87171', '#a78bfa'][index % 5]} />))}</Bar></BarChart></ResponsiveContainer></div></div><div className="glass-panel rounded-2xl p-4 flex flex-col"><h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2"><FileText size={16} className="text-blue-400" /> {t('finance.analytics.productDetails')}</h4><div className="overflow-y-auto max-h-64 custom-finance-scroll pr-2 flex-1"><table className="w-full text-sm text-left text-gray-300"><thead className="text-xs text-gray-400 uppercase bg-white/5 sticky top-0 backdrop-blur-sm"><tr><th className="px-3 py-2 rounded-tl-lg">{t('finance.analytics.tableProduct')}</th><th className="px-3 py-2 text-right">{t('finance.analytics.tableQty')}</th><th className="px-3 py-2 text-right rounded-tr-lg">{t('finance.analytics.tableValue')}</th></tr></thead><tbody className="divide-y divide-white/5">{analyticsData.top_products.map((p: TopProductItem, i: number) => (<tr key={i} className="hover:bg-white/5 transition-colors"><td className="px-3 py-2 font-medium text-white truncate max-w-[120px]" title={p.product_name}>{p.product_name}</td><td className="px-3 py-2 text-right font-mono text-gray-400">{p.total_quantity}</td><td className="px-3 py-2 text-right font-bold text-emerald-400">€{p.total_revenue.toFixed(2)}</td></tr>))}</tbody></table></div></div></div></>)}</div>)}
                         {activeTab === 'history' && (<div className="flex flex-col h-full space-y-4"><div className="relative flex-none"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-500" /></div><input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="glass-input w-full pl-10 pr-3 py-2.5 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><div className="space-y-4 flex-1 overflow-y-auto custom-finance-scroll pr-2">{filteredHistory.length === 0 ? (<div className="flex justify-center items-center h-full text-gray-500 text-center flex-col"><div className="bg-white/5 p-4 rounded-full mb-3"><Briefcase size={32} className="text-gray-600" /></div><p className="font-bold text-gray-400">{t('finance.noHistoryData', "Nuk ka të dhëna historike")}</p><p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime ose fatura të lidhura me lëndë për të parë pasqyrën këtu.")}</p></div>) : (filteredHistory.map((item) => (<div key={item.caseData.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden"><div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setExpandedCaseId(expandedCaseId === item.caseData.id ? null : item.caseData.id)}><div className="flex items-center gap-3"><div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg"><Briefcase size={18} /></div><div><h4 className="font-bold text-white text-sm">{item.caseData.title}</h4><p className="text-xs text-gray-500">{item.caseData.case_number}</p></div></div><div className="flex items-center gap-4"><div className="text-right"><p className="text-xs text-gray-400 uppercase">{t('finance.balance', 'Bilanci')}</p><p className={`font-bold ${item.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{item.balance >= 0 ? '+' : ''}€{item.balance.toFixed(2)}</p></div>{expandedCaseId === item.caseData.id ? <ChevronDown size={18} className="text-gray-500"/> : <ChevronRight size={18} className="text-gray-500"/>}</div></div>{expandedCaseId === item.caseData.id && (<div className="bg-black/20 p-4 border-t border-white/5 space-y-2"><h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>{item.activity.map((act, idx) => (<div key={`${act.type}-${idx}`} className="flex justify-between items-center text-sm py-1 border-b border-white/5 last:border-0"><div className="flex items-center gap-3"><span className="text-gray-400 text-xs font-mono">{new Date(act.date).toLocaleDateString('sq-AL')}</span><div className="flex flex-col"><span className="text-white font-medium">{act.label || act.type}</span><span className={`text-[10px] uppercase ${act.type === 'invoice' ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>{act.type === 'invoice' ? t('finance.invoice') : t('finance.expense')}</span></div></div><span className={`${act.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'} font-mono`}>{act.type === 'invoice' ? '+' : '-'}€{act.amount.toFixed(2)}</span></div>))}</div>)}</div>)))}</div></div>)}
                     </div>
@@ -547,7 +536,6 @@ export const FinanceTab: React.FC = () => {
             
             {showExpenseModal && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    {/* MODIFIED: Added max-h and overflow */}
                     <div className="glass-high w-full max-w-md max-h-[90vh] overflow-y-auto custom-finance-scroll p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -555,8 +543,6 @@ export const FinanceTab: React.FC = () => {
                             </h2>
                             <button onClick={closeExpenseModal} className="text-gray-400 hover:text-white"><X size={24} /></button>
                         </div>
-                        
-                        {/* PHOENIX: Enhanced Receipt Upload UI */}
                         <div className="mb-6">
                             <input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={handleReceiptUpload} />
                             <button 
@@ -613,7 +599,7 @@ export const FinanceTab: React.FC = () => {
             {showArchiveInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="glass-high w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200"><h2 className="text-xl font-bold text-white mb-6">{t('finance.archiveInvoice')}</h2><div className="mb-8"><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel')}</label><select className="glass-input w-full px-4 py-2.5 rounded-xl" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-8 py-2.5 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-lg">{t('general.save')}</button></div></div></div>)}
             {showArchiveExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="glass-high w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200"><h2 className="text-xl font-bold text-white mb-6">{t('finance.archiveExpenseTitle')}</h2><div className="mb-8"><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel')}</label><select className="glass-input w-full px-4 py-2.5 rounded-xl" value={selectedCaseForInvoice} onChange={(e) => setSelectedCaseForInvoice(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveExpenseModal(false)} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10">{t('general.cancel')}</button><button onClick={submitArchiveExpense} className="px-8 py-2.5 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-lg">{t('general.save')}</button></div></div></div>)}
 
-            {viewingDoc && <PDFViewerModal documentData={viewingDoc} onClose={closePreview} onMinimize={closePreview} t={t} directUrl={viewingUrl} />}
+            {viewingDoc && <PDFViewerModal documentData={viewingDoc} onClose={closePreview} onMinimize={closePreview} t={t} directUrl={viewingUrl} isAuth={true} />}
         </motion.div>
     );
 };
