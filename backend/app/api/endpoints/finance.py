@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V16.1 (TYPE FIXES)
-# 1. FIX: Replaced missing 'settings.SERVER_HOST' with 'os.getenv' fallback.
-# 2. FIX: Added explicit type casting for Redis responses to satisfy Pylance.
-# 3. INTEGRITY: Preserved all independent mobile session logic.
+# PHOENIX PROTOCOL - FINANCE ROUTER V16.2 (SAFE TEMP UPLOAD)
+# 1. FIX: 'public_general_mobile_upload' now uses the new 'upload_temporary_receipt' service method.
+# 2. LOGIC: This bypasses the ObjectId validation, fixing the "Invalid Expense ID" error.
+# 3. SAFETY: The 'get_general_mobile_session_file' now reconstructs the temp key without DB lookups.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -30,12 +30,12 @@ from app.services.archive_service import ArchiveService
 from app.services import report_service, ocr_service, llm_service 
 from app.api.endpoints.dependencies import get_current_user, get_db, get_current_active_user
 from app.core.config import settings
+# PHOENIX: Added for file streaming
+from app.services.storage_service import get_file_stream
+
 
 router = APIRouter(tags=["Finance"])
 
-# --- REDIS SETUP ---
-# Initialize Redis client for mobile sync
-# PHOENIX: Explicit type hint to help Pylance understand this is a sync client
 redis_client: redis.Redis = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
 
 # --- ANALYTICS & HISTORY ENDPOINTS (SYNC) ---
@@ -274,15 +274,10 @@ async def analyze_expense_receipt(
 def create_general_mobile_upload_session(
     current_user: Annotated[UserInDB, Depends(get_current_user)]
 ):
-    """
-    Creates a general mobile upload session (prefixed GEN-).
-    """
     token = f"GEN-{uuid.uuid4()}"
-    # PHOENIX FIX: Use os.getenv instead of settings.SERVER_HOST
     host = os.getenv("SERVER_HOST", "https://juristi.tech")
     upload_url = f"{host}/upload/{token}" 
     
-    # Store session in Redis
     session_data = {
         "user_id": str(current_user.id),
         "case_id": "GENERAL",
@@ -295,12 +290,7 @@ def create_general_mobile_upload_session(
 
 @router.get("/mobile-upload-status/{token}")
 def check_general_mobile_upload_status(token: str):
-    """
-    Checks the status of a general mobile upload session.
-    """
-    # PHOENIX FIX: Explicit cast for strict typing
     data_str = cast(Optional[str], redis_client.get(f"mobile_upload:{token}"))
-    
     if not data_str:
         raise HTTPException(status_code=404, detail="Session expired or invalid")
     
@@ -309,12 +299,7 @@ def check_general_mobile_upload_status(token: str):
 
 @router.post("/mobile-upload/{token}")
 async def public_general_mobile_upload(token: str, file: UploadFile = File(...), db: Database = Depends(get_db)):
-    """
-    Public endpoint for uploading the file from the mobile phone.
-    """
-    # PHOENIX FIX: Explicit cast
     data_str = cast(Optional[str], redis_client.get(f"mobile_upload:{token}"))
-    
     if not data_str:
         raise HTTPException(status_code=404, detail="Session expired")
     
@@ -322,14 +307,11 @@ async def public_general_mobile_upload(token: str, file: UploadFile = File(...),
     if data.get("status") == "complete":
          return {"status": "already_completed"}
 
-    # Use FinanceService to store the temp file (simulating CaseService logic)
+    # PHOENIX FIX: Use the new, safer service method
     service = FinanceService(db)
-    
-    # We store it temporarily.
     temp_id = f"temp_{token}"
-    storage_key = service.upload_expense_receipt(data["user_id"], temp_id, file)
+    storage_key = service.upload_temporary_receipt(data["user_id"], temp_id, file)
     
-    # Update Redis
     data["status"] = "complete"
     data["storage_key"] = storage_key
     data["filename"] = file.filename
@@ -338,13 +320,8 @@ async def public_general_mobile_upload(token: str, file: UploadFile = File(...),
     return {"status": "success"}
 
 @router.get("/mobile-upload-file/{token}")
-def get_general_mobile_session_file(token: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
-    """
-    Retrieves the uploaded file for the desktop client to attach.
-    """
-    # PHOENIX FIX: Explicit cast
+def get_general_mobile_session_file(token: str, current_user: Annotated[UserInDB, Depends(get_current_user)]):
     data_str = cast(Optional[str], redis_client.get(f"mobile_upload:{token}"))
-    
     if not data_str:
         raise HTTPException(status_code=404, detail="Session expired")
     
@@ -352,10 +329,12 @@ def get_general_mobile_session_file(token: str, current_user: Annotated[UserInDB
     if data.get("status") != "complete" or not data.get("storage_key"):
         raise HTTPException(status_code=400, detail="Upload not complete")
         
-    service = FinanceService(db)
-    temp_id = f"temp_{token}"
+    storage_key = data["storage_key"]
     
-    file_stream = service.get_expense_receipt_stream(str(current_user.id), temp_id)
+    # PHOENIX FIX: Call the global storage service directly, bypassing database lookups
+    file_stream = get_file_stream(storage_key)
+    if not file_stream:
+        raise HTTPException(status_code=404, detail="File not found in storage")
     
     return StreamingResponse(
         file_stream, 
