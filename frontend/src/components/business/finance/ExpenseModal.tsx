@@ -1,8 +1,8 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V2.0 (OCR LOGIC FIX)
-// 1. FIX: Corrected a race condition where the mobile camera would trigger the non-OCR upload path.
-// 2. LOGIC: The UI now only switches to the file attachment view *after* a photo is successfully taken, ensuring the OCR handler is always used for the camera.
-// 3. INTEGRITY: Desktop QR flow and manual desktop uploads remain unchanged.
+// PHOENIX PROTOCOL - EXPENSE MODAL V2.1 (STATE SYNC FIX)
+// 1. FIX: The 'handleSubmit' function now adds a 'receipt_url' flag to the new expense object after a successful upload.
+// 2. LOGIC: This immediately informs the parent 'FinanceTab' that a viewable receipt exists, preventing it from generating a .txt file.
+// 3. STATUS: This ensures the "view" icon always shows the original image for newly created expenses.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, Camera, Link as LinkIcon, AlertCircle } from 'lucide-react';
@@ -76,8 +76,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         };
     }, [pollingInterval]);
     
-    // PHOENIX FIX: This function now only triggers the correct input.
-    // The responsibility for changing the view is moved to the onChange handlers.
     const handleMobileAction = () => {
         if (isMobileDevice) {
             cameraInputRef.current?.click();
@@ -171,15 +169,22 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
             let result: Expense;
             if (editingExpense) {
                 result = await apiService.updateExpense(editingExpense.id, payload);
+                if (expenseReceipt && result.id) {
+                    await apiService.uploadExpenseReceipt(result.id, expenseReceipt);
+                    result.receipt_url = `updated/${Date.now()}`; // Ensure parent state knows a receipt exists
+                }
                 onSuccess(result, true);
             } else {
                 result = await apiService.createExpense(payload);
+                if (expenseReceipt && result.id) {
+                    await apiService.uploadExpenseReceipt(result.id, expenseReceipt);
+                    // PHOENIX FIX: This flag tells the parent FinanceTab that a receipt exists,
+                    // preventing the stale state issue and ensuring the view icon works immediately.
+                    result.receipt_url = `uploaded/${Date.now()}`;
+                }
                 onSuccess(result, false);
             }
 
-            if (expenseReceipt && result.id) {
-                await apiService.uploadExpenseReceipt(result.id, expenseReceipt);
-            }
             onClose();
         } catch (error) {
             console.error(error);
