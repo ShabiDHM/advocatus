@@ -1,11 +1,11 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V1.6 (MANUAL UPLOAD FIX)
-// 1. LOGIC: Separated 'Attachment' from 'Analysis'.
-// 2. FIX: "Ngarko Skedar" now attaches the file immediately WITHOUT triggering OCR.
-// 3. FEATURE: Mobile Sync still triggers OCR automatically (intelligent scanning).
+// PHOENIX PROTOCOL - EXPENSE MODAL V1.7 (MOBILE LOGIC FIX)
+// 1. LOGIC: Detected 'isMobile'. If true, "Scan" opens the camera directly.
+// 2. UX: Desktop users still see the QR Code (Provider changed to QuickChart to avoid ad-blockers).
+// 3. FIX: Added specific 'capture="environment"' input for direct camera access on mobile.
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles } from 'lucide-react';
+import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Expense, Case } from '../../../data/types';
 import { apiService } from '../../../services/api';
@@ -29,12 +29,17 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const [uploadMode, setUploadMode] = useState<'initial' | 'direct' | 'mobile'>('initial');
     const [isScanningReceipt, setIsScanningReceipt] = useState(false);
     const [expenseReceipt, setExpenseReceipt] = useState<File | null>(null);
-    const receiptInputRef = useRef<HTMLInputElement>(null);
+    
+    // Refs for file inputs
+    const fileInputRef = useRef<HTMLInputElement>(null);   // Standard upload
+    const cameraInputRef = useRef<HTMLInputElement>(null); // Mobile camera capture
+    
     const [loading, setLoading] = useState(false);
 
     // Mobile Sync States
     const [qrUrl, setQrUrl] = useState<string | null>(null);
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+    const [isMobileDevice, setIsMobileDevice] = useState(false);
 
     const [expenseDate, setExpenseDate] = useState<Date | null>(new Date());
     const [formData, setFormData] = useState({ category: '', amount: 0, description: '', related_case_id: '' });
@@ -43,6 +48,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const currentLocale = localeMap[i18n.language] || enUS;
 
     useEffect(() => {
+        // Simple mobile detection
+        const checkMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        setIsMobileDevice(checkMobile);
+
         if (isOpen) {
             if (editingExpense) {
                 setFormData({
@@ -68,6 +77,17 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
             if (pollingInterval) clearInterval(pollingInterval);
         };
     }, [pollingInterval]);
+
+    const handleMobileAction = () => {
+        if (isMobileDevice) {
+            // On mobile, "Scan" means open the camera immediately
+            setUploadMode('direct'); 
+            cameraInputRef.current?.click();
+        } else {
+            // On desktop, "Scan" means show QR code for a phone to scan
+            startMobileSession();
+        }
+    };
 
     const startMobileSession = async () => {
         try {
@@ -114,12 +134,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         }
     };
 
-    // Modified to accept 'shouldScan' flag
     const handleReceiptUpload = async (file: File, shouldScan: boolean = false) => {
         if (!file) return;
         setExpenseReceipt(file);
         
-        // Only run OCR if explicitly requested (e.g. from Mobile Scan) and not editing
+        // Only run OCR if explicitly requested (Mobile Scan or Desktop QR Sync) and not editing
         if (shouldScan && !editingExpense) {
             setIsScanningReceipt(true);
             try {
@@ -196,9 +215,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                         <UploadCloud size={20} />
                                         <span>{t('finance.uploadDirectly', 'Ngarko Skedar')}</span>
                                     </button>
-                                    <button type="button" onClick={startMobileSession} className="w-full py-3 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/40 transition-all text-xs font-bold">
-                                        <QrCode size={20} />
-                                        <span>{t('finance.scanWithMobile', 'Skano me Celular')}</span>
+                                    
+                                    <button type="button" onClick={handleMobileAction} className="w-full py-3 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/40 transition-all text-xs font-bold">
+                                        {isMobileDevice ? <Camera size={20} /> : <QrCode size={20} />}
+                                        <span>{isMobileDevice ? t('finance.takePhoto', 'Bëj Foto') : t('finance.scanWithMobile', 'Skano me Celular')}</span>
                                     </button>
                                 </div>
                             </motion.div>
@@ -211,14 +231,20 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                     <button type="button" onClick={() => { setUploadMode('initial'); setExpenseReceipt(null); }} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14}/> {t('general.back', 'Kthehu')} </button>
                                 </div>
                                 
-                                {/* Manual Upload: runOcr = false */}
-                                <input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => {
+                                {/* 1. Standard File Upload (No OCR) */}
+                                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => {
                                     const file = e.target.files?.[0];
                                     if (file) handleReceiptUpload(file, false); 
                                 }} />
+
+                                {/* 2. Camera Input (Mobile Only - Triggers OCR) */}
+                                <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleReceiptUpload(file, true); 
+                                }} />
                                 
                                 <button 
-                                    onClick={() => receiptInputRef.current?.click()} 
+                                    onClick={() => fileInputRef.current?.click()} 
                                     disabled={isScanningReceipt}
                                     className={`w-full py-4 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all 
                                         ${expenseReceipt ? 'bg-primary-start/10 border-primary-start text-primary-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}
@@ -246,7 +272,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                 <div className="bg-white rounded-lg p-4 flex items-center justify-center aspect-square">
                                     {qrUrl ? (
                                         <img 
-                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrUrl)}`} 
+                                            // Changed to QuickChart to avoid blockers
+                                            src={`https://quickchart.io/qr?text=${encodeURIComponent(qrUrl)}&size=250`} 
                                             alt="QR Code" 
                                             className="w-full h-full object-contain"
                                         />
