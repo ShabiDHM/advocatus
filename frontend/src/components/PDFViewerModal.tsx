@@ -1,8 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V5.6 (LOGIC FIX)
-// 1. CRITICAL FIX: The `getTargetMode` function now prioritizes the explicit `mimeType` prop.
-// 2. RESOLVED: This prevents the viewer from incorrectly switching to "CSV VIEW" for PDFs with ".csv" in their title.
-// 3. ARCHITECTURE: The component now correctly respects the "MIME Type Authority" principle.
+// PHOENIX PROTOCOL - PDF VIEWER V5.7 (BLOB URL FIX)
+// 1. CRITICAL FIX: The component now correctly identifies and handles `blob:` URLs passed via the `directUrl` prop.
+// 2. LOGIC: It now bypasses authentication and network-fetch logic for blob URLs, treating them as pre-fetched content.
+// 3. RESOLVED: This fixes the "Preview not available" error when viewing expense receipts.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -59,37 +59,32 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       return () => window.removeEventListener('resize', updateWidth);
   }, [actualViewerMode]);
 
-  // PHOENIX FIX: Prioritize MIME type over filename.
   const getTargetMode = (mimeType: string, fileName: string) => {
     const m = mimeType?.toLowerCase() || '';
     const f = fileName?.toLowerCase() || '';
 
-    // 1. Trust the explicit MIME type first. This is the most reliable source.
     if (m === 'application/pdf') return 'PDF';
     if (m.startsWith('image/')) return 'IMAGE';
-
-    // 2. Fallback to filename extension if MIME type is generic (e.g., application/octet-stream)
     if (f.endsWith('.pdf')) return 'PDF';
     if (f.endsWith('.csv')) return 'CSV';
     if (f.endsWith('.txt') || f.endsWith('.json')) return 'TEXT';
     if (['.png', '.jpg', '.jpeg', '.gif', '.webp'].some(ext => f.endsWith(ext))) return 'IMAGE';
-
-    // 3. Final check on generic MIME types
     if (m.includes('csv') || m === 'application/vnd.ms-excel') return 'CSV';
     if (m.startsWith('text/') || m === 'application/json' || m.includes('plain')) return 'TEXT';
     
-    // Default to PDF as this is the primary viewer
     return 'PDF';
   };
-
-  // --- FETCHING LOGIC ---
 
   const fetchAsBlob = async (targetMode: string) => {
       try {
           setIsLoading(true);
           let blob: Blob;
+          const isBlobUrl = directUrl && directUrl.startsWith('blob:');
 
-          if (directUrl) {
+          if (isBlobUrl) {
+              const response = await fetch(directUrl);
+              blob = await response.blob();
+          } else if (directUrl) {
               if (isAuth) {
                   const response = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
                   blob = response.data;
@@ -121,19 +116,20 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
 
   const initFastPath = () => {
       const targetMode = getTargetMode(documentData.mime_type || '', documentData.file_name || '');
+      const isBlobUrl = directUrl && directUrl.startsWith('blob:');
       
+      setActualViewerMode(targetMode);
+
       if (targetMode !== 'PDF') {
           fetchAsBlob(targetMode);
           return;
       }
       
-      setActualViewerMode('PDF');
-
-      if (useBlobFallback || !directUrl) {
+      if (useBlobFallback || isBlobUrl || !directUrl) {
           fetchAsBlob('PDF');
           return;
       }
-
+      
       const token = apiService.getToken();
       if (isAuth && token) {
           setPdfSource({
@@ -181,12 +177,18 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     setIsLoading(true);
     setUseBlobFallback(false); 
     
-    const tId = setTimeout(initFastPath, 0);
+    initFastPath();
 
     return () => { 
-        clearTimeout(tId);
         if (imageSource) URL.revokeObjectURL(imageSource);
-        if (typeof pdfSource === 'string' && pdfSource.startsWith('blob:')) URL.revokeObjectURL(pdfSource);
+        if (typeof pdfSource === 'string' && pdfSource.startsWith('blob:')) {
+           // We only created the URL if we fetched it as a blob inside this component
+           // The parent component is responsible for revoking blobs it creates and passes in.
+           const isPassedInBlob = directUrl && directUrl === pdfSource;
+           if (!isPassedInBlob) {
+             URL.revokeObjectURL(pdfSource);
+           }
+        }
     };
   }, [caseId, documentData.id, directUrl]);
 
@@ -220,7 +222,12 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     setIsDownloading(true);
     try {
       let blob;
-      if (directUrl) {
+      const isBlobUrl = directUrl && directUrl.startsWith('blob:');
+
+      if (isBlobUrl) {
+          const r = await fetch(directUrl);
+          blob = await r.blob();
+      } else if (directUrl) {
           if (isAuth) {
              const r = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
              blob = r.data;
