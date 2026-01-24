@@ -1,11 +1,11 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V1.7 (MOBILE LOGIC FIX)
-// 1. LOGIC: Detected 'isMobile'. If true, "Scan" opens the camera directly.
-// 2. UX: Desktop users still see the QR Code (Provider changed to QuickChart to avoid ad-blockers).
-// 3. FIX: Added specific 'capture="environment"' input for direct camera access on mobile.
+// PHOENIX PROTOCOL - EXPENSE MODAL V1.8 (QR FALLBACK)
+// 1. FIX: Switched QR provider to 'quickchart.io' to bypass 'ERR_BLOCKED_BY_CLIENT'.
+// 2. SAFETY: Added a fallback link if the QR image fails to load.
+// 3. LOGIC: Retains mobile-specific direct camera access.
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, Camera } from 'lucide-react';
+import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, Camera, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Expense, Case } from '../../../data/types';
 import { apiService } from '../../../services/api';
@@ -40,6 +40,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const [qrUrl, setQrUrl] = useState<string | null>(null);
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
     const [isMobileDevice, setIsMobileDevice] = useState(false);
+    const [qrLoadError, setQrLoadError] = useState(false);
 
     const [expenseDate, setExpenseDate] = useState<Date | null>(new Date());
     const [formData, setFormData] = useState({ category: '', amount: 0, description: '', related_case_id: '' });
@@ -67,6 +68,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                 setExpenseReceipt(null);
                 setUploadMode('initial');
                 setQrUrl(null);
+                setQrLoadError(false);
             }
         }
     }, [isOpen, editingExpense]);
@@ -82,7 +84,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         if (isMobileDevice) {
             // On mobile, "Scan" means open the camera immediately
             setUploadMode('direct'); 
-            cameraInputRef.current?.click();
+            setTimeout(() => cameraInputRef.current?.click(), 100);
         } else {
             // On desktop, "Scan" means show QR code for a phone to scan
             startMobileSession();
@@ -93,6 +95,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         try {
             setUploadMode('mobile');
             setQrUrl(null); // Shows loader
+            setQrLoadError(false);
             
             // Pass undefined if related_case_id is empty string
             const response = await apiService.createMobileUploadSession(formData.related_case_id || undefined);
@@ -269,16 +272,30 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                     <button type="button" onClick={() => { setUploadMode('initial'); if(pollingInterval) clearInterval(pollingInterval); }} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14}/> {t('general.back', 'Kthehu')} </button>
                                 </div>
                                 
-                                <div className="bg-white rounded-lg p-4 flex items-center justify-center aspect-square">
-                                    {qrUrl ? (
+                                <div className="bg-white rounded-lg p-4 flex items-center justify-center aspect-square relative">
+                                    {!qrUrl ? (
+                                        <Loader2 className="animate-spin text-gray-400" size={32} />
+                                    ) : qrLoadError ? (
+                                        <div className="flex flex-col items-center justify-center text-center p-2">
+                                            <AlertCircle size={32} className="text-red-400 mb-2" />
+                                            <p className="text-xs text-gray-600 mb-3">{t('finance.qrFailed', 'QR Code nuk mund të shfaqet.')}</p>
+                                            <a 
+                                                href={qrUrl} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-blue-600"
+                                            >
+                                                <LinkIcon size={12} /> Linku i Ngarkimit
+                                            </a>
+                                        </div>
+                                    ) : (
                                         <img 
-                                            // Changed to QuickChart to avoid blockers
-                                            src={`https://quickchart.io/qr?text=${encodeURIComponent(qrUrl)}&size=250`} 
+                                            // Switched to QuickChart to avoid blockers
+                                            src={`https://quickchart.io/qr?text=${encodeURIComponent(qrUrl)}&size=300&margin=1`} 
                                             alt="QR Code" 
                                             className="w-full h-full object-contain"
+                                            onError={() => setQrLoadError(true)}
                                         />
-                                    ) : (
-                                        <Loader2 className="animate-spin text-gray-400" size={32} />
                                     )}
                                 </div>
                                 <p className="text-center text-xs text-gray-400 mt-3 animate-pulse">
