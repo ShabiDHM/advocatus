@@ -1,6 +1,11 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
+// PHOENIX PROTOCOL - EXPENSE MODAL V1.3 (CLEANUP)
+// 1. FIX: Removed unused 'sessionToken' state to resolve TypeScript warning.
+// 2. LOGIC: Maintained mobile sync polling via local closure variables.
+// 3. INTEGRITY: Ensured polling interval is cleared on close/back navigation.
+
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles } from 'lucide-react';
+import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Expense, Case } from '../../../data/types';
 import { apiService } from '../../../services/api';
@@ -27,6 +32,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const receiptInputRef = useRef<HTMLInputElement>(null);
     const [loading, setLoading] = useState(false);
 
+    // Mobile Sync States
+    const [qrUrl, setQrUrl] = useState<string | null>(null);
+    const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
+
     const [expenseDate, setExpenseDate] = useState<Date | null>(new Date());
     const [formData, setFormData] = useState({ category: '', amount: 0, description: '', related_case_id: '' });
 
@@ -48,9 +57,65 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                 setExpenseDate(new Date());
                 setExpenseReceipt(null);
                 setUploadMode('initial');
+                setQrUrl(null);
             }
         }
     }, [isOpen, editingExpense]);
+
+    // Clean up polling on unmount or close
+    useEffect(() => {
+        return () => {
+            if (pollingInterval) clearInterval(pollingInterval);
+        };
+    }, [pollingInterval]);
+
+    const startMobileSession = async () => {
+        if (!formData.related_case_id) {
+            alert(t('finance.selectCaseFirst', 'Ju lutem zgjidhni lëndën para se të përdorni sinkronizimin me celular.'));
+            return;
+        }
+
+        try {
+            setUploadMode('mobile');
+            setQrUrl(null);
+            const response = await apiService.createMobileUploadSession(formData.related_case_id);
+            setQrUrl(response.upload_url);
+            
+            // Extract token from URL (assuming format .../mobile-upload/{token})
+            const token = response.upload_url.split('/').pop();
+            if (token) {
+                // Start polling
+                const interval = setInterval(async () => {
+                    try {
+                        const status = await apiService.checkMobileUploadStatus(token);
+                        if (status.status === 'complete') {
+                            clearInterval(interval);
+                            await handleMobileUploadComplete(token);
+                        }
+                    } catch (e) {
+                        console.error("Polling error", e);
+                    }
+                }, 2000);
+                setPollingInterval(interval);
+            }
+        } catch (error) {
+            console.error("Failed to start mobile session", error);
+            alert(t('error.generic'));
+            setUploadMode('initial');
+        }
+    };
+
+    const handleMobileUploadComplete = async (token: string) => {
+        try {
+            const { blob, filename } = await apiService.getMobileSessionFile(token);
+            const file = new File([blob], filename, { type: blob.type });
+            await handleReceiptUpload(file);
+            setUploadMode('direct'); // Switch to direct view to show the attached file
+        } catch (error) {
+            console.error("Failed to retrieve mobile file", error);
+            alert(t('error.generic'));
+        }
+    };
 
     const handleReceiptUpload = async (file: File) => {
         if (!file) return;
@@ -99,11 +164,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                 onSuccess(result, false);
             }
 
-            // Upload receipt if exists and it's a new file
             if (expenseReceipt && result.id) {
                 await apiService.uploadExpenseReceipt(result.id, expenseReceipt);
-                // We might need to refresh the parent list again or just assume it worked.
-                // Ideally, we return the object with the receipt URL pending.
             }
             onClose();
         } catch (error) {
@@ -136,7 +198,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                         <UploadCloud size={20} />
                                         <span>{t('finance.uploadDirectly', 'Ngarko Skedar')}</span>
                                     </button>
-                                    <button type="button" onClick={() => setUploadMode('mobile')} className="w-full py-3 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/40 transition-all text-xs font-bold">
+                                    <button type="button" onClick={startMobileSession} className="w-full py-3 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/40 transition-all text-xs font-bold">
                                         <QrCode size={20} />
                                         <span>{t('finance.scanWithMobile', 'Skano me Celular')}</span>
                                     </button>
@@ -177,12 +239,23 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                             <motion.div key="mobile" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
                                 <div className="flex justify-between items-center mb-2">
                                     <label className="block text-xs text-gray-400 font-bold uppercase">{t('finance.scanWithMobile', 'Skano me Celular')}</label>
-                                    <button type="button" onClick={() => setUploadMode('initial')} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14}/> {t('general.back', 'Kthehu')} </button>
+                                    <button type="button" onClick={() => { setUploadMode('initial'); if(pollingInterval) clearInterval(pollingInterval); }} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14}/> {t('general.back', 'Kthehu')} </button>
                                 </div>
+                                
                                 <div className="bg-white rounded-lg p-4 flex items-center justify-center aspect-square">
-                                    <p className="text-center text-gray-600 font-medium">{t('finance.qrPlaceholder', 'QR Code do të shfaqet këtu.')}</p>
+                                    {qrUrl ? (
+                                        <img 
+                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrUrl)}`} 
+                                            alt="QR Code" 
+                                            className="w-full h-full object-contain"
+                                        />
+                                    ) : (
+                                        <Loader2 className="animate-spin text-gray-400" size={32} />
+                                    )}
                                 </div>
-                                    <p className="text-center text-xs text-gray-400 mt-3">{t('finance.scanInstructions', 'Skano këtë kod me celularin për të ngarkuar faturën.')}</p>
+                                <p className="text-center text-xs text-gray-400 mt-3 animate-pulse">
+                                    {t('finance.scanInstructions', 'Skano këtë kod me celularin për të ngarkuar faturën.')}
+                                </p>
                             </motion.div>
                         )}
                     </AnimatePresence>
@@ -195,6 +268,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                             <option value="">-- {t('finance.noCase', 'Pa Lëndë')} --</option>
                             {cases.map(c => <option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>)}
                         </select>
+                        {!formData.related_case_id && (
+                            <p className="text-[10px] text-amber-500/80 mt-1 flex items-center gap-1"><AlertTriangle size={10}/> {t('finance.caseRequiredForMobile', 'Zgjidhni lëndën për të aktivizuar skanerin.')}</p>
+                        )}
                     </div>
                     <div>
                         <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.expenseCategory')}</label>

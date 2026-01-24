@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V13.4 (PUBLIC UPLOAD)
-// 1. ADDED: 'publicMobileUpload' for anonymous uploads from the mobile page.
-// 2. STATUS: Fully supports the frontend bridge page.
+// PHOENIX PROTOCOL - API SERVICE V13.5 (MOBILE SYNC EXPANSION)
+// 1. ADDED: 'getMobileSessionFile' to retrieve files uploaded via the mobile bridge.
+// 2. CONTEXT: Enables the Expense Modal to pull the receipt image after the phone uploads it.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -123,6 +123,17 @@ class ApiService {
     public async checkMobileUploadStatus(token: string): Promise<MobileUploadStatus> {
         const response = await this.axiosInstance.get<MobileUploadStatus>(`/cases/mobile-upload-status/${token}`);
         return response.data;
+    }
+
+    public async getMobileSessionFile(token: string): Promise<{ blob: Blob, filename: string }> {
+        const response = await this.axiosInstance.get(`/cases/mobile-upload-file/${token}`, { responseType: 'blob' });
+        const disposition = response.headers['content-disposition'];
+        let filename = 'mobile-upload.jpg';
+        if (disposition && disposition.indexOf('filename=') !== -1) {
+            const matches = /filename="([^"]*)"/.exec(disposition);
+            if (matches != null && matches[1]) filename = matches[1];
+        }
+        return { blob: response.data, filename };
     }
 
     // PHOENIX: New public upload method (No auth headers needed for this specific call, but axios instance adds them if present. We use a fresh instance to avoid sending invalid token if user is logged out on mobile)
