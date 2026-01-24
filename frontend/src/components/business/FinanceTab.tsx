@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import { Invoice, Case, Document, Expense, AnalyticsDashboardData } from '../../data/types';
 import { useTranslation } from 'react-i18next';
-import PDFViewerModal from '../PDFViewerModal';
+import PDFViewerModal from '../FileViewerModal';
 import { InvoiceModal } from './finance/InvoiceModal';
 import { ExpenseModal } from './finance/ExpenseModal';
 import { FinanceAnalytics } from './finance/FinanceAnalytics';

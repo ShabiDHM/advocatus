@@ -10,7 +10,7 @@ import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessag
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode } from '../components/ChatPanel';
-import PDFViewerModal from '../components/PDFViewerModal';
+import PDFViewerModal from '../components/FileViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
 import SpreadsheetAnalyst from '../components/SpreadsheetAnalyst';

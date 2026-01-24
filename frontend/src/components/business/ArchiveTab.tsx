@@ -15,7 +15,7 @@ import { apiService } from '../../services/api';
 import { ArchiveItemOut, Case, Document } from '../../data/types';
 import { useTranslation } from 'react-i18next';
 import { TFunction } from 'i18next'; // PHOENIX: Correct import location
-import PDFViewerModal from '../PDFViewerModal';
+import PDFViewerModal from '../FileViewerModal';
 import { useAuth } from '../../context/AuthContext';
 
 interface ArchiveStatusUpdate {

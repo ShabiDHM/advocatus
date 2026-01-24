@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { API_V1_URL } from '../services/api';
-import PDFViewerModal from '../components/PDFViewerModal';
+import PDFViewerModal from '../components/FileViewerModal';
 import { Document } from '../data/types';
 import { useTranslation } from 'react-i18next';
 
