@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V13.6 (OPTIONAL CASE SYNC)
-// 1. MODIFIED: 'createMobileUploadSession' now accepts an optional caseId.
-// 2. LOGIC: Routes to '/finance/mobile-upload-session' if no case is provided (General Expense).
+// PHOENIX PROTOCOL - API SERVICE V13.7 (GENERAL MOBILE SYNC)
+// 1. MODIFIED: All mobile sync methods now dynamically choose between '/cases' and '/finance' based on the token or context.
+// 2. LOGIC: 'GENERAL' sessions are routed to Finance endpoints to ensure autonomy.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -101,7 +101,7 @@ class ApiService {
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> { const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data); return response.data; }
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
     
-    // UPDATED: Now supports optional caseId for general uploads
+    // UPDATED: Now supports optional caseId. If no caseId, it creates a 'GEN' token which instructs subsequent calls to use finance endpoints.
     public async createMobileUploadSession(caseId?: string): Promise<MobileSessionResponse> {
         const url = caseId 
             ? `/cases/${caseId}/mobile-upload-session` 
@@ -125,12 +125,20 @@ class ApiService {
     }
 
     public async checkMobileUploadStatus(token: string): Promise<MobileUploadStatus> {
-        const response = await this.axiosInstance.get<MobileUploadStatus>(`/cases/mobile-upload-status/${token}`);
+        // PHOENIX LOGIC: If token starts with 'GEN-', use finance endpoint. Else, use cases endpoint.
+        const url = token.startsWith('GEN-') 
+            ? `/finance/mobile-upload-status/${token}`
+            : `/cases/mobile-upload-status/${token}`;
+        const response = await this.axiosInstance.get<MobileUploadStatus>(url);
         return response.data;
     }
 
     public async getMobileSessionFile(token: string): Promise<{ blob: Blob, filename: string }> {
-        const response = await this.axiosInstance.get(`/cases/mobile-upload-file/${token}`, { responseType: 'blob' });
+        const url = token.startsWith('GEN-')
+            ? `/finance/mobile-upload-file/${token}`
+            : `/cases/mobile-upload-file/${token}`;
+
+        const response = await this.axiosInstance.get(url, { responseType: 'blob' });
         const disposition = response.headers['content-disposition'];
         let filename = 'mobile-upload.jpg';
         if (disposition && disposition.indexOf('filename=') !== -1) {
@@ -144,7 +152,12 @@ class ApiService {
     public async publicMobileUpload(token: string, file: File): Promise<{ status: string }> {
         const formData = new FormData();
         formData.append('file', file);
-        const response = await axios.post(`${API_V1_URL}/cases/mobile-upload/${token}`, formData);
+        
+        const url = token.startsWith('GEN-')
+            ? `${API_V1_URL}/finance/mobile-upload/${token}`
+            : `${API_V1_URL}/cases/mobile-upload/${token}`;
+            
+        const response = await axios.post(url, formData);
         return response.data;
     }
 

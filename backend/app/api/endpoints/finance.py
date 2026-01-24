@@ -1,17 +1,21 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V15.1 (GET RECEIPT)
-# 1. ADDED: 'GET /expenses/{expense_id}/receipt' endpoint.
-# 2. STATUS: Completes the loop for viewing/downloading expense receipts.
+# PHOENIX PROTOCOL - FINANCE ROUTER V16.1 (TYPE FIXES)
+# 1. FIX: Replaced missing 'settings.SERVER_HOST' with 'os.getenv' fallback.
+# 2. FIX: Added explicit type casting for Redis responses to satisfy Pylance.
+# 3. INTEGRITY: Preserved all independent mobile session logic.
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
-from typing import List, Annotated, Optional, Any, Dict
+from typing import List, Annotated, Optional, Any, Dict, cast
 from datetime import datetime, timedelta
 from bson import ObjectId
 from pymongo.database import Database 
 import io
 import asyncio
-import os # PHOENIX: Added for filename extraction
+import os
+import uuid
+import json
+import redis
 
 from app.models.user import UserInDB
 from app.models.finance import (
@@ -25,9 +29,14 @@ from app.services.finance_service import FinanceService
 from app.services.archive_service import ArchiveService
 from app.services import report_service, ocr_service, llm_service 
 from app.api.endpoints.dependencies import get_current_user, get_db, get_current_active_user
+from app.core.config import settings
 
 router = APIRouter(tags=["Finance"])
 
+# --- REDIS SETUP ---
+# Initialize Redis client for mobile sync
+# PHOENIX: Explicit type hint to help Pylance understand this is a sync client
+redis_client: redis.Redis = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
 
 # --- ANALYTICS & HISTORY ENDPOINTS (SYNC) ---
 
@@ -183,8 +192,7 @@ async def archive_invoice(invoice_id: str, current_user: Annotated[UserInDB, Dep
     archived_item = await archive_service.save_generated_file(user_id=str(current_user.id), filename=filename, content=pdf_content, category="INVOICE", title=title, case_id=case_id)
     return archived_item
 
-# --- NEW: FORENSIC REPORT ARCHIVE ---
-
+# --- FORENSIC REPORT ---
 @router.post("/forensic-report/archive", response_model=ArchiveItemOut)
 async def archive_forensic_report(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
@@ -193,9 +201,6 @@ async def archive_forensic_report(
     title: str = Body(..., embed=True),
     content: str = Body(..., embed=True),
 ):
-    """
-    Generates a PDF from the AI Forensic Analysis and saves it to the Case Archive.
-    """
     archive_service = ArchiveService(db)
     pdf_buffer = report_service.create_pdf_from_text(text=content, document_title=title)
     pdf_bytes = pdf_buffer.getvalue()
@@ -212,7 +217,6 @@ async def archive_forensic_report(
         title=title,
         case_id=case_id
     )
-    
     return archived_item
 
 # --- EXPENSES ---
@@ -238,57 +242,123 @@ def upload_expense_receipt(expense_id: str, current_user: Annotated[UserInDB, De
     storage_key = service.upload_expense_receipt(str(current_user.id), expense_id, file)
     return {"status": "success", "storage_key": storage_key}
 
-# PHOENIX: ADDED MISSING ENDPOINT
 @router.get("/expenses/{expense_id}/receipt")
 def get_expense_receipt(expense_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
-    """
-    Retrieves the stored receipt file for a given expense.
-    """
     service = FinanceService(db)
-    # Get the file stream from the service (which pulls from MinIO/S3)
     file_stream = service.get_expense_receipt_stream(str(current_user.id), expense_id)
-    
-    # We need to determine a filename. We can query the expense to get the stored path
-    expense = service.get_expense(str(current_user.id), expense_id) # Need to ensure this method exists or query directly
-    # To keep it simple and sync, we just re-query in the service or extract here if we had it.
-    # The service method 'get_expense_receipt_stream' returns just the stream.
-    # Let's trust the storage to return bytes.
-    
-    # NOTE: To set the correct Content-Type, we should ideally store it or guess it.
-    # For now, application/octet-stream is safe, or we can assume image/jpeg | application/pdf based on storage key extension.
-    
     return StreamingResponse(
         file_stream, 
         media_type="application/octet-stream",
         headers={"Content-Disposition": f'inline; filename="receipt_{expense_id}"'}
     )
 
-# --- PHOENIX NEW: ANALYZE RECEIPT ENDPOINT ---
 @router.post("/expenses/analyze-receipt", tags=["Finance", "AI"])
 async def analyze_expense_receipt(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
     file: UploadFile = File(...)
 ):
-    """
-    AI Endpoint: Extracts category, amount, date, and description from a receipt image.
-    """
     try:
-        # 1. Read Image
         image_bytes = await file.read()
-        
-        # 2. OCR (Extract Text)
         ocr_text = await asyncio.to_thread(ocr_service.extract_text_from_image_bytes, image_bytes)
-        
         if not ocr_text or len(ocr_text) < 5:
-             # If OCR fails, return empty result rather than 500 error, so user can fill manually
              return JSONResponse(content={"category": "", "amount": 0, "date": "", "description": ""})
-
-        # 3. LLM (Structure Data)
         structured_data = await asyncio.to_thread(llm_service.extract_expense_details_from_text, ocr_text)
-        
         return JSONResponse(content=structured_data)
-
     except Exception as e:
-        # Log error but return empty structure to UI to prevent crash
         print(f"Receipt analysis failed: {e}")
         return JSONResponse(content={"category": "", "amount": 0, "date": "", "description": ""})
+
+# --- PHOENIX NEW: INDEPENDENT MOBILE SESSION (GENERAL) ---
+
+@router.post("/mobile-upload-session")
+def create_general_mobile_upload_session(
+    current_user: Annotated[UserInDB, Depends(get_current_user)]
+):
+    """
+    Creates a general mobile upload session (prefixed GEN-).
+    """
+    token = f"GEN-{uuid.uuid4()}"
+    # PHOENIX FIX: Use os.getenv instead of settings.SERVER_HOST
+    host = os.getenv("SERVER_HOST", "https://juristi.tech")
+    upload_url = f"{host}/upload/{token}" 
+    
+    # Store session in Redis
+    session_data = {
+        "user_id": str(current_user.id),
+        "case_id": "GENERAL",
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat()
+    }
+    redis_client.setex(f"mobile_upload:{token}", 1800, json.dumps(session_data)) # 30 mins
+    
+    return {"upload_url": upload_url, "token": token}
+
+@router.get("/mobile-upload-status/{token}")
+def check_general_mobile_upload_status(token: str):
+    """
+    Checks the status of a general mobile upload session.
+    """
+    # PHOENIX FIX: Explicit cast for strict typing
+    data_str = cast(Optional[str], redis_client.get(f"mobile_upload:{token}"))
+    
+    if not data_str:
+        raise HTTPException(status_code=404, detail="Session expired or invalid")
+    
+    data = json.loads(data_str)
+    return {"status": data.get("status", "pending")}
+
+@router.post("/mobile-upload/{token}")
+async def public_general_mobile_upload(token: str, file: UploadFile = File(...), db: Database = Depends(get_db)):
+    """
+    Public endpoint for uploading the file from the mobile phone.
+    """
+    # PHOENIX FIX: Explicit cast
+    data_str = cast(Optional[str], redis_client.get(f"mobile_upload:{token}"))
+    
+    if not data_str:
+        raise HTTPException(status_code=404, detail="Session expired")
+    
+    data = json.loads(data_str)
+    if data.get("status") == "complete":
+         return {"status": "already_completed"}
+
+    # Use FinanceService to store the temp file (simulating CaseService logic)
+    service = FinanceService(db)
+    
+    # We store it temporarily.
+    temp_id = f"temp_{token}"
+    storage_key = service.upload_expense_receipt(data["user_id"], temp_id, file)
+    
+    # Update Redis
+    data["status"] = "complete"
+    data["storage_key"] = storage_key
+    data["filename"] = file.filename
+    redis_client.setex(f"mobile_upload:{token}", 1800, json.dumps(data))
+    
+    return {"status": "success"}
+
+@router.get("/mobile-upload-file/{token}")
+def get_general_mobile_session_file(token: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
+    """
+    Retrieves the uploaded file for the desktop client to attach.
+    """
+    # PHOENIX FIX: Explicit cast
+    data_str = cast(Optional[str], redis_client.get(f"mobile_upload:{token}"))
+    
+    if not data_str:
+        raise HTTPException(status_code=404, detail="Session expired")
+    
+    data = json.loads(data_str)
+    if data.get("status") != "complete" or not data.get("storage_key"):
+        raise HTTPException(status_code=400, detail="Upload not complete")
+        
+    service = FinanceService(db)
+    temp_id = f"temp_{token}"
+    
+    file_stream = service.get_expense_receipt_stream(str(current_user.id), temp_id)
+    
+    return StreamingResponse(
+        file_stream, 
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'inline; filename="{data.get("filename", "receipt.jpg")}"'}
+    )
