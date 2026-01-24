@@ -1,8 +1,8 @@
 // FILE: src/components/PDFViewerModal.tsx
-// PHOENIX PROTOCOL - PDF VIEWER V5.7 (BLOB URL FIX)
-// 1. CRITICAL FIX: The component now correctly identifies and handles `blob:` URLs passed via the `directUrl` prop.
-// 2. LOGIC: It now bypasses authentication and network-fetch logic for blob URLs, treating them as pre-fetched content.
-// 3. RESOLVED: This fixes the "Preview not available" error when viewing expense receipts.
+// PHOENIX PROTOCOL - PDF VIEWER V5.8 (RE-ARCHITECTED DATA LOADING)
+// 1. CRITICAL FIX: Re-architected the entire data loading logic to correctly differentiate between local blob URLs and remote network URLs.
+// 2. ROOT CAUSE: The previous fix incorrectly tried to `fetch()` a local blob URL, causing a network error and showing the failure screen.
+// 3. RESOLVED: The component now correctly uses blob URLs directly without any network requests, fixing the "Preview not available" error for expense receipts.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -74,91 +74,13 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
     
     return 'PDF';
   };
-
-  const fetchAsBlob = async (targetMode: string) => {
-      try {
-          setIsLoading(true);
-          let blob: Blob;
-          const isBlobUrl = directUrl && directUrl.startsWith('blob:');
-
-          if (isBlobUrl) {
-              const response = await fetch(directUrl);
-              blob = await response.blob();
-          } else if (directUrl) {
-              if (isAuth) {
-                  const response = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
-                  blob = response.data;
-              } else {
-                  const response = await fetch(directUrl);
-                  if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
-                  blob = await response.blob();
-              }
-          } else if (caseId) {
-              blob = await apiService.getOriginalDocument(caseId, documentData.id);
-          } else {
-              throw new Error("Missing source configuration");
-          }
-
-          if (targetMode === 'PDF') {
-              const url = URL.createObjectURL(blob);
-              setPdfSource(url);
-          } else {
-              await handleBlobContent(blob, targetMode);
-          }
-          
-          if (targetMode !== 'PDF') setIsLoading(false);
-
-      } catch (err: any) {
-          console.error("Blob Fetch Error:", err);
-          handleFinalError(err);
-      }
-  };
-
-  const initFastPath = () => {
-      const targetMode = getTargetMode(documentData.mime_type || '', documentData.file_name || '');
-      const isBlobUrl = directUrl && directUrl.startsWith('blob:');
-      
-      setActualViewerMode(targetMode);
-
-      if (targetMode !== 'PDF') {
-          fetchAsBlob(targetMode);
-          return;
-      }
-      
-      if (useBlobFallback || isBlobUrl || !directUrl) {
-          fetchAsBlob('PDF');
-          return;
-      }
-      
-      const token = apiService.getToken();
-      if (isAuth && token) {
-          setPdfSource({
-              url: directUrl,
-              httpHeaders: { 'Authorization': `Bearer ${token}` },
-              withCredentials: true
-          });
-      } else {
-          setPdfSource(directUrl);
-      }
-  };
-
-  const handleFinalError = (err: any) => {
-      const errMsg = err.response?.status === 404 
-          ? t('pdfViewer.notFound', { defaultValue: 'Dokumenti nuk u gjet.' })
-          : t('pdfViewer.errorFetch', { defaultValue: 'Gabim gjatë ngarkimit.' });
-      setError(errMsg);
-      setActualViewerMode('DOWNLOAD');
-      setIsLoading(false);
-  };
-
+  
   const handleBlobContent = async (blob: Blob, mode: string) => {
       if (mode === 'TEXT' || mode === 'CSV') {
           const text = await blob.text();
           if (mode === 'CSV') {
               const rows = text.split(/\r?\n/).filter(r => r.trim().length > 0);
-              const data = rows.map(row => {
-                  return row.split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
-              });
+              const data = rows.map(row => row.split(',').map(cell => cell.trim().replace(/^"|"$/g, '')));
               setCsvContent(data);
               setActualViewerMode('CSV');
           } else {
@@ -170,34 +92,95 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
           setImageSource(url);
           setActualViewerMode('IMAGE');
       }
+      setIsLoading(false);
   };
   
+  const handleFinalError = (err: any) => {
+      const errMsg = err.response?.status === 404 
+          ? t('pdfViewer.notFound', { defaultValue: 'Dokumenti nuk u gjet.' })
+          : t('pdfViewer.errorFetch', { defaultValue: 'Gabim gjatë ngarkimit.' });
+      setError(errMsg);
+      setActualViewerMode('DOWNLOAD');
+      setIsLoading(false);
+  };
+  
+  const fetchBlobFromNetwork = async (): Promise<Blob> => {
+      if (directUrl) {
+          if (isAuth) {
+              const response = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
+              return response.data;
+          } else {
+              const response = await fetch(directUrl);
+              if (!response.ok) throw new Error(`Fetch failed: ${response.status}`);
+              return await response.blob();
+          }
+      } else if (caseId) {
+          return await apiService.getOriginalDocument(caseId, documentData.id);
+      } else {
+          throw new Error("Missing source configuration");
+      }
+  };
+
   useEffect(() => {
     setError(null);
     setIsLoading(true);
-    setUseBlobFallback(false); 
-    
-    initFastPath();
+    const targetMode = getTargetMode(documentData.mime_type || '', documentData.file_name || '');
+    setActualViewerMode(targetMode);
 
-    return () => { 
-        if (imageSource) URL.revokeObjectURL(imageSource);
-        if (typeof pdfSource === 'string' && pdfSource.startsWith('blob:')) {
-           // We only created the URL if we fetched it as a blob inside this component
-           // The parent component is responsible for revoking blobs it creates and passes in.
-           const isPassedInBlob = directUrl && directUrl === pdfSource;
-           if (!isPassedInBlob) {
-             URL.revokeObjectURL(pdfSource);
-           }
+    const isBlobUrl = directUrl && directUrl.startsWith('blob:');
+
+    const loadContent = async () => {
+        try {
+            // SCENARIO 1: We already have a blob URL. Use it directly.
+            if (isBlobUrl) {
+                if (targetMode === 'PDF') {
+                    setPdfSource(directUrl);
+                } else if (targetMode === 'IMAGE') {
+                    setImageSource(directUrl);
+                    setIsLoading(false);
+                } else { // TEXT or CSV - requires reading the blob content
+                    const response = await fetch(directUrl);
+                    const blob = await response.blob();
+                    await handleBlobContent(blob, targetMode);
+                }
+                return;
+            }
+
+            // SCENARIO 2: We have a network URL (or no URL, just IDs). We must fetch.
+            if (targetMode === 'PDF' && !useBlobFallback && directUrl) {
+                const token = apiService.getToken();
+                if (isAuth && token) {
+                    setPdfSource({ url: directUrl, httpHeaders: { 'Authorization': `Bearer ${token}` }, withCredentials: true });
+                } else {
+                    setPdfSource(directUrl);
+                }
+            } else {
+                // All other modes, or PDF fallback for remote URLs, fetch as blob.
+                const blob = await fetchBlobFromNetwork();
+                if (targetMode === 'PDF') {
+                    const url = URL.createObjectURL(blob);
+                    setPdfSource(url);
+                } else {
+                    await handleBlobContent(blob, targetMode);
+                }
+            }
+        } catch (err: any) {
+            console.error("Content Load Error:", err);
+            handleFinalError(err);
         }
     };
-  }, [caseId, documentData.id, directUrl]);
 
-  useEffect(() => {
-      if (useBlobFallback && actualViewerMode === 'PDF') {
-          console.log("Switching to Blob Fallback for PDF...");
-          fetchAsBlob('PDF');
-      }
-  }, [useBlobFallback]);
+    loadContent();
+
+    // Cleanup logic
+    return () => {
+        // Revoke URLs created internally by this component
+        if (imageSource && !directUrl) URL.revokeObjectURL(imageSource);
+        if (typeof pdfSource === 'string' && pdfSource.startsWith('blob:') && pdfSource !== directUrl) {
+            URL.revokeObjectURL(pdfSource);
+        }
+    };
+  }, [caseId, documentData.id, directUrl, useBlobFallback]);
 
   const onPdfLoadSuccess = ({ numPages }: { numPages: number }) => {
       setNumPages(numPages);
@@ -206,13 +189,13 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   };
 
   const onPdfLoadError = (err: any) => {
-      console.error("PDF Render Error (Fast Path):", err);
-      
-      if (!useBlobFallback) {
+      console.error("PDF Render Error:", err);
+      // If the direct URL render fails, trigger the fallback to fetch as a blob.
+      if (!useBlobFallback && directUrl && !directUrl.startsWith('blob:')) {
           setUseBlobFallback(true);
           return;
       }
-
+      // If the blob fallback also fails (or it was a blob to begin with), it's a real error.
       setError(t('pdfViewer.corruptFile', { defaultValue: 'Skedari nuk mund të shfaqet.' }));
       setIsLoading(false);
       setActualViewerMode('DOWNLOAD');
@@ -221,34 +204,15 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const handleDownloadOriginal = async () => {
     setIsDownloading(true);
     try {
-      let blob;
-      const isBlobUrl = directUrl && directUrl.startsWith('blob:');
-
-      if (isBlobUrl) {
-          const r = await fetch(directUrl);
-          blob = await r.blob();
-      } else if (directUrl) {
-          if (isAuth) {
-             const r = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
-             blob = r.data;
-          } else {
-             const r = await fetch(directUrl);
-             blob = await r.blob();
-          }
-      } else if (caseId) {
-          blob = await apiService.getOriginalDocument(caseId, documentData.id);
-      }
-      
-      if (blob) {
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = documentData.file_name;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-      }
+      const blob = await fetchBlobFromNetwork();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = documentData.file_name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (e) { 
         console.error(e); 
     } finally { 
@@ -261,6 +225,14 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
   const zoomReset = () => setScale(1.0);
 
   const renderContent = () => {
+    if (isLoading && actualViewerMode !== 'PDF') {
+        return (
+            <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/60 backdrop-blur-sm">
+                <Loader className="animate-spin h-10 w-10 text-primary-start" />
+            </div>
+        );
+    }
+    
     if (actualViewerMode === 'DOWNLOAD') {
         return (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -365,7 +337,7 @@ const PDFViewerModal: React.FC<PDFViewerModalProps> = ({ documentData, caseId, o
       case 'IMAGE':
         return (
             <div className="flex items-center justify-center h-full p-4 overflow-auto bg-black/40">
-                <img src={imageSource!} alt="Doc" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl border border-white/10" />
+                <img src={imageSource!} alt={documentData.file_name} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl border border-white/10" />
             </div>
         );
       default: return null;
