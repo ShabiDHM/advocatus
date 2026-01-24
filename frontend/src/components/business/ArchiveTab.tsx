@@ -2,7 +2,7 @@
 // PHOENIX PROTOCOL - ARCHIVE TAB V12.8 (TYPE FIX)
 // 1. FIXED: Corrected the import location for the 'TFunction' type.
 // 2. RESOLVED: Eliminates the TypeScript error "Module has no exported member 'TFunction'".
-// 3. RETAINS: All previous functionality, including category translation.
+
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
