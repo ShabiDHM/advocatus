@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V13.5 (MOBILE SYNC EXPANSION)
-// 1. ADDED: 'getMobileSessionFile' to retrieve files uploaded via the mobile bridge.
-// 2. CONTEXT: Enables the Expense Modal to pull the receipt image after the phone uploads it.
+// PHOENIX PROTOCOL - API SERVICE V13.6 (OPTIONAL CASE SYNC)
+// 1. MODIFIED: 'createMobileUploadSession' now accepts an optional caseId.
+// 2. LOGIC: Routes to '/finance/mobile-upload-session' if no case is provided (General Expense).
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -101,8 +101,12 @@ class ApiService {
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> { const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data); return response.data; }
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
     
-    public async createMobileUploadSession(caseId: string): Promise<MobileSessionResponse> {
-        const response = await this.axiosInstance.post<MobileSessionResponse>(`/cases/${caseId}/mobile-upload-session`);
+    // UPDATED: Now supports optional caseId for general uploads
+    public async createMobileUploadSession(caseId?: string): Promise<MobileSessionResponse> {
+        const url = caseId 
+            ? `/cases/${caseId}/mobile-upload-session` 
+            : `/finance/mobile-upload-session`;
+        const response = await this.axiosInstance.post<MobileSessionResponse>(url);
         return response.data;
     }
 
@@ -136,11 +140,10 @@ class ApiService {
         return { blob: response.data, filename };
     }
 
-    // PHOENIX: New public upload method (No auth headers needed for this specific call, but axios instance adds them if present. We use a fresh instance to avoid sending invalid token if user is logged out on mobile)
+    // PHOENIX: New public upload method
     public async publicMobileUpload(token: string, file: File): Promise<{ status: string }> {
         const formData = new FormData();
         formData.append('file', file);
-        // Using a raw axios call to avoid interceptors if needed, or just standard instance if token doesn't matter
         const response = await axios.post(`${API_V1_URL}/cases/mobile-upload/${token}`, formData);
         return response.data;
     }

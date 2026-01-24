@@ -1,11 +1,11 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V1.3 (CLEANUP)
-// 1. FIX: Removed unused 'sessionToken' state to resolve TypeScript warning.
-// 2. LOGIC: Maintained mobile sync polling via local closure variables.
-// 3. INTEGRITY: Ensured polling interval is cleared on close/back navigation.
+// PHOENIX PROTOCOL - EXPENSE MODAL V1.4 (OPTIONAL CASE)
+// 1. FIX: Removed blocking validation for 'related_case_id' in startMobileSession.
+// 2. UX: Removed warning text, allowing general expenses to be uploaded without a case.
+// 3. LOGIC: Passes 'undefined' to API when no case is selected.
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, AlertTriangle } from 'lucide-react';
+import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Expense, Case } from '../../../data/types';
 import { apiService } from '../../../services/api';
@@ -70,15 +70,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     }, [pollingInterval]);
 
     const startMobileSession = async () => {
-        if (!formData.related_case_id) {
-            alert(t('finance.selectCaseFirst', 'Ju lutem zgjidhni lëndën para se të përdorni sinkronizimin me celular.'));
-            return;
-        }
-
+        // Validation removed to allow optional case selection (General Expense)
         try {
             setUploadMode('mobile');
             setQrUrl(null);
-            const response = await apiService.createMobileUploadSession(formData.related_case_id);
+            // Pass undefined if related_case_id is empty string
+            const response = await apiService.createMobileUploadSession(formData.related_case_id || undefined);
             setQrUrl(response.upload_url);
             
             // Extract token from URL (assuming format .../mobile-upload/{token})
@@ -269,7 +266,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                             {cases.map(c => <option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>)}
                         </select>
                         {!formData.related_case_id && (
-                            <p className="text-[10px] text-amber-500/80 mt-1 flex items-center gap-1"><AlertTriangle size={10}/> {t('finance.caseRequiredForMobile', 'Zgjidhni lëndën për të aktivizuar skanerin.')}</p>
+                            <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">{t('finance.generalUpload', 'Pa lëndë: Do të regjistrohet si shpenzim i përgjithshëm.')}</p>
                         )}
                     </div>
                     <div>
