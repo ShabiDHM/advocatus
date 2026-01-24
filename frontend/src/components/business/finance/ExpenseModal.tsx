@@ -1,8 +1,8 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V1.4 (OPTIONAL CASE)
-// 1. FIX: Removed blocking validation for 'related_case_id' in startMobileSession.
-// 2. UX: Removed warning text, allowing general expenses to be uploaded without a case.
-// 3. LOGIC: Passes 'undefined' to API when no case is selected.
+// PHOENIX PROTOCOL - EXPENSE MODAL V1.6 (MANUAL UPLOAD FIX)
+// 1. LOGIC: Separated 'Attachment' from 'Analysis'.
+// 2. FIX: "Ngarko Skedar" now attaches the file immediately WITHOUT triggering OCR.
+// 3. FEATURE: Mobile Sync still triggers OCR automatically (intelligent scanning).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles } from 'lucide-react';
@@ -70,18 +70,17 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     }, [pollingInterval]);
 
     const startMobileSession = async () => {
-        // Validation removed to allow optional case selection (General Expense)
         try {
             setUploadMode('mobile');
-            setQrUrl(null);
+            setQrUrl(null); // Shows loader
+            
             // Pass undefined if related_case_id is empty string
             const response = await apiService.createMobileUploadSession(formData.related_case_id || undefined);
             setQrUrl(response.upload_url);
             
-            // Extract token from URL (assuming format .../mobile-upload/{token})
+            // Extract token from URL
             const token = response.upload_url.split('/').pop();
             if (token) {
-                // Start polling
                 const interval = setInterval(async () => {
                     try {
                         const status = await apiService.checkMobileUploadStatus(token);
@@ -106,20 +105,22 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         try {
             const { blob, filename } = await apiService.getMobileSessionFile(token);
             const file = new File([blob], filename, { type: blob.type });
-            await handleReceiptUpload(file);
-            setUploadMode('direct'); // Switch to direct view to show the attached file
+            // Mobile upload implies "Scanning", so we set runOcr = true
+            await handleReceiptUpload(file, true);
+            setUploadMode('direct'); 
         } catch (error) {
             console.error("Failed to retrieve mobile file", error);
             alert(t('error.generic'));
         }
     };
 
-    const handleReceiptUpload = async (file: File) => {
+    // Modified to accept 'shouldScan' flag
+    const handleReceiptUpload = async (file: File, shouldScan: boolean = false) => {
         if (!file) return;
         setExpenseReceipt(file);
         
-        // Only run OCR if creating new expense (not editing) to avoid overwriting existing data
-        if (!editingExpense) {
+        // Only run OCR if explicitly requested (e.g. from Mobile Scan) and not editing
+        if (shouldScan && !editingExpense) {
             setIsScanningReceipt(true);
             try {
                 const aiResult = await apiService.analyzeExpenseReceipt(file);
@@ -209,10 +210,13 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                     <label className="block text-xs text-gray-400 font-bold uppercase">{t('finance.uploadDirectly', 'Ngarko Skedar')}</label>
                                     <button type="button" onClick={() => { setUploadMode('initial'); setExpenseReceipt(null); }} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14}/> {t('general.back', 'Kthehu')} </button>
                                 </div>
+                                
+                                {/* Manual Upload: runOcr = false */}
                                 <input type="file" ref={receiptInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => {
                                     const file = e.target.files?.[0];
-                                    if (file) handleReceiptUpload(file);
+                                    if (file) handleReceiptUpload(file, false); 
                                 }} />
+                                
                                 <button 
                                     onClick={() => receiptInputRef.current?.click()} 
                                     disabled={isScanningReceipt}
