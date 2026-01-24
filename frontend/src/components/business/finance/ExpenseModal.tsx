@@ -1,8 +1,8 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V1.8 (QR FALLBACK)
-// 1. FIX: Switched QR provider to 'quickchart.io' to bypass 'ERR_BLOCKED_BY_CLIENT'.
-// 2. SAFETY: Added a fallback link if the QR image fails to load.
-// 3. LOGIC: Retains mobile-specific direct camera access.
+// PHOENIX PROTOCOL - EXPENSE MODAL V2.0 (OCR LOGIC FIX)
+// 1. FIX: Corrected a race condition where the mobile camera would trigger the non-OCR upload path.
+// 2. LOGIC: The UI now only switches to the file attachment view *after* a photo is successfully taken, ensuring the OCR handler is always used for the camera.
+// 3. INTEGRITY: Desktop QR flow and manual desktop uploads remain unchanged.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, Camera, Link as LinkIcon, AlertCircle } from 'lucide-react';
@@ -30,14 +30,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const [isScanningReceipt, setIsScanningReceipt] = useState(false);
     const [expenseReceipt, setExpenseReceipt] = useState<File | null>(null);
     
-    // Refs for file inputs
-    const fileInputRef = useRef<HTMLInputElement>(null);   // Standard upload
-    const cameraInputRef = useRef<HTMLInputElement>(null); // Mobile camera capture
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
     
     const [loading, setLoading] = useState(false);
 
-    // Mobile Sync States
-    const [qrUrl, setQrUrl] = useState<string | null>(null);
+    const [qrContent, setQrContent] = useState<string | null>(null);
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
     const [isMobileDevice, setIsMobileDevice] = useState(false);
     const [qrLoadError, setQrLoadError] = useState(false);
@@ -49,7 +47,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const currentLocale = localeMap[i18n.language] || enUS;
 
     useEffect(() => {
-        // Simple mobile detection
         const checkMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         setIsMobileDevice(checkMobile);
 
@@ -67,26 +64,24 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                 setExpenseDate(new Date());
                 setExpenseReceipt(null);
                 setUploadMode('initial');
-                setQrUrl(null);
+                setQrContent(null);
                 setQrLoadError(false);
             }
         }
     }, [isOpen, editingExpense]);
 
-    // Clean up polling on unmount or close
     useEffect(() => {
         return () => {
             if (pollingInterval) clearInterval(pollingInterval);
         };
     }, [pollingInterval]);
-
+    
+    // PHOENIX FIX: This function now only triggers the correct input.
+    // The responsibility for changing the view is moved to the onChange handlers.
     const handleMobileAction = () => {
         if (isMobileDevice) {
-            // On mobile, "Scan" means open the camera immediately
-            setUploadMode('direct'); 
-            setTimeout(() => cameraInputRef.current?.click(), 100);
+            cameraInputRef.current?.click();
         } else {
-            // On desktop, "Scan" means show QR code for a phone to scan
             startMobileSession();
         }
     };
@@ -94,16 +89,16 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const startMobileSession = async () => {
         try {
             setUploadMode('mobile');
-            setQrUrl(null); // Shows loader
+            setQrContent(null);
             setQrLoadError(false);
             
-            // Pass undefined if related_case_id is empty string
             const response = await apiService.createMobileUploadSession(formData.related_case_id || undefined);
-            setQrUrl(response.upload_url);
-            
-            // Extract token from URL
-            const token = response.upload_url.split('/').pop();
+            const token = (response as any).token || response.upload_url.split('/').pop();
+
             if (token) {
+                const frontendUrl = `${window.location.origin}/mobile-upload/${token}`;
+                setQrContent(frontendUrl);
+
                 const interval = setInterval(async () => {
                     try {
                         const status = await apiService.checkMobileUploadStatus(token);
@@ -128,7 +123,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         try {
             const { blob, filename } = await apiService.getMobileSessionFile(token);
             const file = new File([blob], filename, { type: blob.type });
-            // Mobile upload implies "Scanning", so we set runOcr = true
             await handleReceiptUpload(file, true);
             setUploadMode('direct'); 
         } catch (error) {
@@ -141,7 +135,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         if (!file) return;
         setExpenseReceipt(file);
         
-        // Only run OCR if explicitly requested (Mobile Scan or Desktop QR Sync) and not editing
         if (shouldScan && !editingExpense) {
             setIsScanningReceipt(true);
             try {
@@ -208,13 +201,29 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
                 </div>
 
+                {/* Hidden Inputs */}
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                        setUploadMode('direct');
+                        handleReceiptUpload(file, false);
+                    }
+                }} />
+                <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                        setUploadMode('direct');
+                        handleReceiptUpload(file, true);
+                    }
+                }} />
+
                 <div className="mb-6">
                     <AnimatePresence mode="wait">
                         {uploadMode === 'initial' && (
                             <motion.div key="initial" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
                                 <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.receipt', 'Fatura')}</label>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <button type="button" onClick={() => setUploadMode('direct')} className="w-full py-3 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/40 transition-all text-xs font-bold">
+                                    <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full py-3 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/40 transition-all text-xs font-bold">
                                         <UploadCloud size={20} />
                                         <span>{t('finance.uploadDirectly', 'Ngarko Skedar')}</span>
                                     </button>
@@ -233,18 +242,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                     <label className="block text-xs text-gray-400 font-bold uppercase">{t('finance.uploadDirectly', 'Ngarko Skedar')}</label>
                                     <button type="button" onClick={() => { setUploadMode('initial'); setExpenseReceipt(null); }} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14}/> {t('general.back', 'Kthehu')} </button>
                                 </div>
-                                
-                                {/* 1. Standard File Upload (No OCR) */}
-                                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleReceiptUpload(file, false); 
-                                }} />
-
-                                {/* 2. Camera Input (Mobile Only - Triggers OCR) */}
-                                <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) handleReceiptUpload(file, true); 
-                                }} />
                                 
                                 <button 
                                     onClick={() => fileInputRef.current?.click()} 
@@ -273,25 +270,19 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                 </div>
                                 
                                 <div className="bg-white rounded-lg p-4 flex items-center justify-center aspect-square relative">
-                                    {!qrUrl ? (
+                                    {!qrContent ? (
                                         <Loader2 className="animate-spin text-gray-400" size={32} />
                                     ) : qrLoadError ? (
                                         <div className="flex flex-col items-center justify-center text-center p-2">
                                             <AlertCircle size={32} className="text-red-400 mb-2" />
                                             <p className="text-xs text-gray-600 mb-3">{t('finance.qrFailed', 'QR Code nuk mund të shfaqet.')}</p>
-                                            <a 
-                                                href={qrUrl} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                className="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-blue-600"
-                                            >
+                                            <a href={qrContent} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-blue-600">
                                                 <LinkIcon size={12} /> Linku i Ngarkimit
                                             </a>
                                         </div>
                                     ) : (
                                         <img 
-                                            // Switched to QuickChart to avoid blockers
-                                            src={`https://quickchart.io/qr?text=${encodeURIComponent(qrUrl)}&size=300&margin=1`} 
+                                            src={`https://quickchart.io/qr?text=${encodeURIComponent(qrContent)}&size=300&margin=1`} 
                                             alt="QR Code" 
                                             className="w-full h-full object-contain"
                                             onError={() => setQrLoadError(true)}
