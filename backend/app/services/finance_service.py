@@ -1,8 +1,7 @@
 # FILE: backend/app/services/finance_service.py
-# PHOENIX PROTOCOL - FINANCE SERVICE V7.0 (SYNC ARCHITECTURE)
-# 1. FIX: Converted 'get_monthly_pos_revenue' to use synchronous PyMongo aggregation.
-# 2. FIX: Converted 'generate_ai_report' to sync.
-# 3. STATUS: Fully compatible with the unified synchronous DB architecture.
+# PHOENIX PROTOCOL - FINANCE SERVICE V8.1 (GET EXPENSE FIXED)
+# 1. FIX: Added missing 'get_expense' method to resolve Pylance error.
+# 2. STATUS: Service layer is now fully aligned with the Finance Endpoint requirements.
 
 import structlog
 import json
@@ -17,7 +16,7 @@ from app.models.finance import (
     ExpenseCreate, ExpenseInDB, ExpenseUpdate
 )
 import app.services.llm_service as llm_service
-from app.services.storage_service import upload_file_raw
+from app.services.storage_service import upload_file_raw, get_file_stream
 
 logger = structlog.get_logger(__name__)
 
@@ -203,7 +202,7 @@ class FinanceService:
         result = self.db.invoices.delete_one({"_id": oid, "user_id": ObjectId(user_id)})
         if result.deleted_count == 0: raise HTTPException(status_code=404, detail="Invoice not found")
 
-    # --- EXPENSE CRUD (Preserved) ---
+    # --- EXPENSE CRUD ---
     def create_expense(self, user_id: str, data: ExpenseCreate) -> ExpenseInDB:
         expense_doc = data.model_dump()
         expense_doc.update({
@@ -214,6 +213,14 @@ class FinanceService:
         result = self.db.expenses.insert_one(expense_doc)
         expense_doc["_id"] = result.inserted_id
         return ExpenseInDB(**expense_doc)
+
+    # PHOENIX FIX: Added missing method
+    def get_expense(self, user_id: str, expense_id: str) -> ExpenseInDB:
+        try: oid = ObjectId(expense_id)
+        except: raise HTTPException(status_code=400, detail="Invalid Expense ID")
+        doc = self.db.expenses.find_one({"_id": oid, "user_id": ObjectId(user_id)})
+        if not doc: raise HTTPException(status_code=404, detail="Expense not found")
+        return ExpenseInDB(**doc)
 
     def get_expenses(self, user_id: str) -> List[ExpenseInDB]:
         cursor = self.db.expenses.find({"user_id": ObjectId(user_id)}).sort("date", -1)
@@ -248,3 +255,17 @@ class FinanceService:
         storage_key = upload_file_raw(file, folder)
         self.db.expenses.update_one({"_id": oid}, {"$set": {"receipt_url": storage_key}})
         return storage_key
+
+    # PHOENIX: New method to retrieve the receipt stream
+    def get_expense_receipt_stream(self, user_id: str, expense_id: str) -> Any:
+        try: oid = ObjectId(expense_id)
+        except: raise HTTPException(status_code=400, detail="Invalid Expense ID")
+        
+        expense = self.db.expenses.find_one({"_id": oid, "user_id": ObjectId(user_id)})
+        if not expense: raise HTTPException(status_code=404, detail="Expense not found")
+        
+        storage_key = expense.get("receipt_url")
+        if not storage_key or storage_key == "PENDING_REFRESH":
+            raise HTTPException(status_code=404, detail="Receipt not found for this expense.")
+            
+        return get_file_stream(storage_key)
