@@ -1,8 +1,8 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - SIDEBAR V2.0 (GLASS & MOBILE OPTIMIZED)
-// 1. VISUALS: Applied 'backdrop-blur-xl' and 'bg-background-dark/70' for the glass effect.
-// 2. MOBILE: Improved z-index layering and backdrop opacity for better focus.
-// 3. UX: Refined active states and hover effects to use the new design tokens.
+// PHOENIX PROTOCOL - SIDEBAR V2.1 (MOBILE COMPACT FOOTER)
+// 1. FIX: Reduced padding, avatar size, and spacing in the mobile-only profile footer for a more compact appearance.
+// 2. VISUALS: Retained 'backdrop-blur-xl' and 'bg-background-dark/70' for the glass effect.
+// 3. UX: All navigation logic and active states remain unchanged.
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -125,10 +125,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             })}
           </nav>
 
-          {/* Mobile-Only Profile Footer - Glass Integration */}
-          <div className="p-3 border-t border-white/5 bg-background-dark/40 lg:hidden mt-auto flex-shrink-0 pb-safe backdrop-blur-md">
-            <div className="flex items-center gap-3 mb-3 px-1">
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg shadow-secondary-start/20 shrink-0 text-sm">
+          {/* MODIFIED: Mobile-Only Profile Footer - Made more compact */}
+          <div className="p-2 border-t border-white/5 bg-background-dark/40 lg:hidden mt-auto flex-shrink-0 pb-safe backdrop-blur-md">
+            <div className="flex items-center gap-2 mb-2 px-1">
+              <div className="h-8 w-8 rounded-md bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg shadow-secondary-start/20 shrink-0 text-sm">
                 {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="overflow-hidden min-w-0">
