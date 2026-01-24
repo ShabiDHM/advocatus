@@ -3,6 +3,7 @@
 // 1. FEATURE: Implemented 'AI Scan' for expense receipts.
 // 2. LOGIC: Uploading a receipt now triggers OCR + LLM analysis to auto-fill form fields.
 // 3. UI: Added loading state to the upload button during analysis.
+// 4. FIX: Added max-height and overflow handling to Expense Modal to prevent layout issues.
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -546,7 +547,8 @@ export const FinanceTab: React.FC = () => {
             
             {showExpenseModal && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="glass-high w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200">
+                    {/* MODIFIED: Added max-h and overflow */}
+                    <div className="glass-high w-full max-w-md max-h-[90vh] overflow-y-auto custom-finance-scroll p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-xl font-bold text-white flex items-center gap-2">
                                 <MinusCircle size={20} className="text-rose-500" /> {editingExpenseId ? t('finance.editExpense') : t('finance.addExpense')}

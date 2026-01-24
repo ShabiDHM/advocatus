@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V13.8 (FINAL UI CLEANUP)
-// 1. UI CLEANUP: Removed the "Hulumtim financiar" placeholder text that appeared in Analyst mode.
-// 2. LAYOUT: The header now has a clean, empty space when the context dropdown is not visible.
-// 3. STATUS: All functionalities are preserved, and all requested UI cleanup is complete.
+// PHOENIX PROTOCOL - CASE VIEW V13.9 (LAYOUT FIX)
+// 1. FIX: Removed conflicting z-index on CaseHeader to prevent overlap with the main app header.
+// 2. FIX: Added consistent top padding to the page container to ensure content starts below the main app header on all screen sizes.
+// 3. CLEANUP: Removed redundant margin wrapper around CaseHeader.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -95,7 +95,7 @@ const CaseHeader: React.FC<{
 
     return (
         <motion.div 
-            className="relative z-50 mb-6 group" 
+            className="relative mb-6 group" 
             initial={{ opacity: 0, y: -10 }} 
             animate={{ opacity: 1, y: 0 }} 
             transition={{ duration: 0.3 }}
@@ -220,9 +220,9 @@ const CaseViewPage: React.FC = () => {
 
   return (
     <motion.div className="w-full min-h-screen pb-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:py-6">
+      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 pt-24 pb-6">
         
-        <div className="mt-4 lg:mt-0">
+        <div>
             <CaseHeader 
                 caseDetails={caseData.details} 
                 documents={liveDocuments}
