@@ -1,7 +1,8 @@
 // FILE: src/context/AuthContext.tsx
-// PHOENIX PROTOCOL - AUTH CONTEXT V2.0 (REFRESHABLE)
-// 1. ADDED: 'refreshUser' function to allow manual re-fetch of user profile.
-// 2. LOGIC: Allows pages like JoinPage to update context after a key action.
+// PHOENIX PROTOCOL - AUTH CONTEXT V2.1 (PATH AWARENESS)
+// 1. FIX: The 'initializeApp' function now checks the window location.
+// 2. LOGIC: If the path is '/mobile-upload/...', it skips the authentication check.
+// 3. STATUS: This prevents the failed token refresh on the mobile page from redirecting the user.
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';
@@ -17,7 +18,7 @@ interface AuthContextType {
   register: (data: RegisterRequest) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
-  refreshUser: () => Promise<void>; // PHOENIX NEW
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,10 +32,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(null);
   }, []);
 
-  // PHOENIX NEW: Function to manually re-fetch user profile
   const refreshUser = useCallback(async () => {
     try {
-      // We assume if this is called, a token should exist.
       const fullUser = await apiService.fetchUserProfile();
       setUser(fullUser);
     } catch (error) {
@@ -52,6 +51,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     let isMounted = true;
 
     const initializeApp = async () => {
+      // PHOENIX FIX: If we are on the mobile upload page, do not attempt to authenticate.
+      if (window.location.pathname.startsWith('/mobile-upload/')) {
+        if (isMounted) setIsLoading(false);
+        return;
+      }
+
       try {
         const refreshed = await apiService.refreshToken();
         
