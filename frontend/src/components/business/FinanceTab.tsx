@@ -1,8 +1,8 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V12.0 (MODULAR REFACTOR)
-// 1. MODULES: Separated InvoiceModal, ExpenseModal, and Analytics into /finance/ subcomponents.
-// 2. LOGIC: Parent component now only handles orchestration, state management, and the main lists.
-// 3. INTEGRITY: All previous functionality preserved, including Archives and PDF previews.
+// PHOENIX PROTOCOL - FINANCE TAB V12.1 (COMPONENT RENAME)
+// 1. FIX: Updated the component import from 'PDFViewerModal' to 'FileViewerModal'.
+// 2. FIX: Corrected the component usage in the JSX from <PDFViewerModal> to <FileViewerModal>.
+// 3. STATUS: This completes the architectural refactor of the viewer component.
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -16,7 +16,7 @@ import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import { Invoice, Case, Document, Expense, AnalyticsDashboardData } from '../../data/types';
 import { useTranslation } from 'react-i18next';
-import PDFViewerModal from '../FileViewerModal';
+import FileViewerModal from '../FileViewerModal'; // PHOENIX FIX 1: Correct import path
 import { InvoiceModal } from './finance/InvoiceModal';
 import { ExpenseModal } from './finance/ExpenseModal';
 import { FinanceAnalytics } from './finance/FinanceAnalytics';
@@ -418,7 +418,7 @@ export const FinanceTab: React.FC = () => {
             {/* ARCHIVE EXPENSE MODAL */}
             {showArchiveExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="glass-high w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200"><h2 className="text-xl font-bold text-white mb-6">{t('finance.archiveExpenseTitle')}</h2><div className="mb-8"><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel')}</label><select className="glass-input w-full px-4 py-2.5 rounded-xl" value={selectedCaseForArchive} onChange={(e) => setSelectedCaseForArchive(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveExpenseModal(false)} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10">{t('general.cancel')}</button><button onClick={submitArchiveExpense} className="px-8 py-2.5 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-lg">{t('general.save')}</button></div></div></div>)}
 
-            {viewingDoc && <PDFViewerModal documentData={viewingDoc} onClose={closePreview} onMinimize={closePreview} t={t} directUrl={viewingUrl} isAuth={true} />}
+            {viewingDoc && <FileViewerModal documentData={viewingDoc} onClose={closePreview} onMinimize={closePreview} t={t} directUrl={viewingUrl} isAuth={true} />}
         </motion.div>
     );
 };
