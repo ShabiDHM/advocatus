@@ -1,8 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - UNIFIED REPORTING ENGINE V6.1 (FINAL CLEANUP)
-// 1. REMOVED: All unused imports (Lightbulb, ArrowRight, etc.) and functions (getTrendIcon).
-// 2. FIXED: All TypeScript errors by removing fallback logic and unifying API calls.
-// 3. SIMPLIFIED: UI now focuses on the strategic memo, removing redundant "Trends" and "Recommendations" sections.
+// PHOENIX PROTOCOL - UNIFIED REPORTING ENGINE V7.0 (FINAL UI)
+// 1. UNIFIED UI: Removed redundant 'Trends' and 'Anomalies' sections.
+// 2. FOCUSED LAYOUT: The strategic 'Internal Memo' is now the centerpiece of the report.
+// 3. SIMPLIFIED: Cleaned up code and types to match the new unified backend response.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,26 +16,16 @@ import { apiService } from '../services/api';
 const CACHE_KEY = 'juristi_analyst_cache';
 const getCache = () => { try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
 
-// --- TRANSLATION MAPS FOR TECHNICAL ENUMS ---
-
+// --- DATA STRUCTURES (SIMPLIFIED FOR UNIFIED REPORT) ---
 interface ForensicMetadata {
     evidence_hash: string;
     analysis_timestamp: string;
     record_count: number;
 }
-interface EnhancedAnomaly {
-    date: string;
-    amount: number;
-    description: string;
-    risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'CRITICAL';
-    legal_hook?: string; // Replaces 'explanation' for strategic focus
-    forensic_type?: string;
-}
 interface SmartFinancialReport {
-    executive_summary: string;
-    anomalies: EnhancedAnomaly[];
-    trends: Array<{ category: string; percentage: string; }>; // Simplified
+    executive_summary: string; // This now contains the full Markdown memo
     forensic_metadata?: ForensicMetadata;
+    // Anomalies and Trends are now inside the executive_summary, not separate fields
 }
 interface ChatMessage {
     id: string;
@@ -67,19 +57,19 @@ const renderMarkdown = (text: string) => {
     if (!text) return null;
     return text.split('\n').map((line, i) => {
         const trimmed = line.trim();
-        if (!trimmed) return <div key={i} className="h-2" />;
-        if (trimmed.startsWith('###')) return <h3 key={i} className="text-white font-bold text-lg mt-4 mb-2 pb-2 border-b border-white/10 uppercase tracking-wide">{trimmed.replace(/^#+\s*/, '')}</h3>;
+        if (!trimmed) return <div key={i} className="h-3" />;
+        if (trimmed.startsWith('###')) return <h3 key={i} className="text-white font-bold text-lg mt-6 mb-3 pb-2 border-b border-white/10 uppercase tracking-wide">{trimmed.replace(/^#+\s*/, '').replace(/\*\*/g, '')}</h3>;
         if (trimmed.startsWith('**') && trimmed.includes(':')) return <div key={i} className="mt-2 text-sm text-gray-200">{parseBold(trimmed)}</div>;
-        if (trimmed.startsWith('* ')) return <div key={i} className="flex gap-2 ml-1 mb-1 items-start"><span className="text-primary-400 mt-1.5 w-1 h-1 rounded-full bg-primary-400 shrink-0"/><p className="text-gray-300 text-sm leading-relaxed">{parseBold(trimmed.substring(2))}</p></div>;
+        if (trimmed.startsWith('* ')) return <div key={i} className="flex gap-2 ml-1 mb-2 items-start"><span className="text-primary-400 mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-400 shrink-0"/><p className="text-gray-300 text-sm leading-relaxed">{parseBold(trimmed.substring(2))}</p></div>;
         if (/^\d+\./.test(trimmed)) {
             const match = trimmed.match(/^(\d+\.)\s+(.*)/);
-            if (match) return <div key={i} className="flex gap-2 ml-1 mb-1 text-sm text-gray-300 items-start"><span className="font-mono text-primary-300 shrink-0 font-bold">{match[1]}</span><span className="leading-relaxed">{parseBold(match[2])}</span></div>;
+            if (match) return <div key={i} className="flex gap-3 ml-1 mb-2 text-sm text-gray-300 items-start"><span className="font-mono text-primary-300 shrink-0 font-bold">{match[1]}</span><p className="leading-relaxed">{parseBold(match[2])}</p></div>;
         }
-        return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-1 break-words">{parseBold(trimmed)}</p>;
+        return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-2 break-words">{parseBold(trimmed)}</p>;
     });
 };
 
-const useTypewriter = (text: string, speed: number = 20) => {
+const useTypewriter = (text: string, speed: number = 15) => {
     const [displayText, setDisplayText] = useState('');
     useEffect(() => {
         setDisplayText('');
@@ -198,11 +188,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     };
     
     const handleReset = () => {
-        setFile(null);
-        setFileName(null);
-        setResult(null);
-        setChatHistory([]);
-        setError(null);
+        setFile(null); setFileName(null); setResult(null); setChatHistory([]); setError(null);
         const cache = getCache();
         delete cache[caseId];
         try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (e) { console.error("Failed to clear from localStorage", e); }
@@ -240,7 +226,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             setTypingMessage(null);
         }
     };
-
 
     const ForensicMetadataDisplay: React.FC<{ metadata: ForensicMetadata }> = ({ metadata }) => (
         <div className="glass-panel p-4 rounded-2xl border border-emerald-500/20 bg-emerald-900/10">
@@ -304,13 +289,15 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             <AnimatePresence mode="wait">
                 {result && (
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[850px]">
-                        <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar h-full pr-2">
-                            <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5">
+                        {/* --- UNIFIED REPORT COLUMN --- */}
+                        <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar h-full lg:pr-2">
+                            <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5">
                                 {renderMarkdown(result.executive_summary)}
                             </div>
                             {result.forensic_metadata && <ForensicMetadataDisplay metadata={result.forensic_metadata} />}
                         </div>
                         
+                        {/* --- CHAT AGENT COLUMN --- */}
                         <div className="glass-panel rounded-2xl border border-primary-start/30 bg-black/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-2xl">
                             <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3 shrink-0">
                                 <Bot className="text-primary-start w-5 h-5" />
@@ -345,7 +332,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-32">
                         <div className="relative"><div className="w-16 h-16 rounded-full border-4 border-white/10 border-t-primary-start animate-spin"></div><Activity className="absolute inset-0 m-auto w-6 h-6 text-primary-start" /></div>
                         <p className="text-xl text-white font-medium mt-6">Duke kryer Analizën Forenzike...</p>
-                        <p className="text-sm text-gray-400 mt-2">Gjenerimi i dëshmive me verifikim kriptografik...</p>
+                        <p className="text-sm text-gray-400 mt-2">Gjenerimi i memorandumit strategjik...</p>
                     </motion.div>
                 )}
             </AnimatePresence>
