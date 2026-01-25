@@ -1,8 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FORENSIC SPREADSHEET ANALYST V5.4 (ALBANIAN LOCALIZATION)
-// 1. FIXED: All Forensic Metadata labels converted to Albanian
-// 2. FIXED: Risk Levels (HIGH -> LARTË) and Anomalies (STRUCTURING -> STRUKTURIM) translated
-// 3. KEPT: No QR / No OCR (Strict File Upload Only)
+// PHOENIX PROTOCOL - FORENSIC SPREADSHEET ANALYST V5.5 (UI CRASH FIX)
+// 1. FIXED: "Cannot read properties of undefined (reading 'map')" crash
+// 2. ADDED: Safety checks (optional chaining) for rendering anomalies, trends, and recommendations
+// 3. VERIFIED: All previous logic (No QR/OCR, Localization) is maintained.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -536,20 +536,19 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <div className="pl-1">{renderMarkdown(result.executive_summary)}</div>
                             </div>
                             
-                            {/* PHOENIX ADDITION: Forensic Metadata Display */}
                             {result.forensic_metadata && (
                                 <ForensicMetadataDisplay metadata={result.forensic_metadata} />
                             )}
                             
                             {/* Recommendations */}
-                            {result.recommendations && result.recommendations.length > 0 && (
+                            {(result.recommendations || []).length > 0 && (
                                 <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 bg-emerald-900/10 shrink-0">
                                     <h3 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-2">
                                         <Lightbulb className="w-4 h-4" />
                                         Rekomandime
                                     </h3>
                                     <ul className="space-y-1">
-                                        {result.recommendations.map((rec, i) => (
+                                        {(result.recommendations || []).map((rec, i) => (
                                             <li key={i} className="flex gap-2 items-start text-xs text-gray-300">
                                                 <ArrowRight className="w-3 h-3 text-emerald-500 shrink-0 mt-0.5" />
                                                 <span>{rec}</span>
@@ -561,7 +560,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             
                             {/* Trends */}
                             <div className="grid grid-cols-2 gap-4 shrink-0">
-                                {result.trends.map((trend, idx) => (
+                                {(result.trends || []).map((trend, idx) => (
                                     <div key={idx} className="bg-white/5 p-4 rounded-xl border border-white/10">
                                         <div className="flex justify-between items-start mb-1">
                                             <span className="text-gray-400 text-xs font-bold uppercase truncate">
@@ -574,17 +573,17 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 ))}
                             </div>
                             
-                            {/* Anomalies - Enhanced with Forensic Information */}
+                            {/* Anomalies */}
                             <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col shrink-0 min-h-[500px]">
                                 <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2 shrink-0">
                                     <AlertTriangle className="text-yellow-400 w-4 h-4" />
                                     Flamujt e Kuq (Anomali)
                                     <span className="ml-auto text-xs text-gray-400">
-                                        {result.anomalies.length} detektime
+                                        {(result.anomalies || []).length} detektime
                                     </span>
                                 </h3>
                                 <div className="space-y-3">
-                                    {result.anomalies.map((anomaly, idx) => (
+                                    {(result.anomalies || []).map((anomaly, idx) => (
                                         <div
                                             key={idx}
                                             className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-colors group"
@@ -647,7 +646,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             </div>
                             
                             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                                {chatHistory.map((msg) => (
+                                {(chatHistory || []).map((msg) => (
                                     <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                         <div
                                             className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed break-words ${
