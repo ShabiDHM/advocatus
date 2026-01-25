@@ -1,7 +1,11 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V13.7 (GENERAL MOBILE SYNC)
-// 1. MODIFIED: All mobile sync methods now dynamically choose between '/cases' and '/finance' based on the token or context.
-// 2. LOGIC: 'GENERAL' sessions are routed to Finance endpoints to ensure autonomy.
+// PHOENIX PROTOCOL - API SERVICE V14.0 (FORENSIC ENHANCEMENTS)
+// ENHANCEMENTS:
+// 1. ADDED: Forensic spreadsheet analysis endpoint
+// 2. ADDED: Forensic evidence interrogation endpoint
+// 3. ADDED: Forensic metadata types
+// 4. UPDATED: SpreadsheetAnalysisResult interface with forensic fields
+// 5. MAINTAINED: Backward compatibility with existing endpoints
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -24,6 +28,44 @@ interface FinanceInterrogationResponse { answer: string; referenced_rows_count: 
 interface MobileSessionResponse { upload_url: string; }
 export interface ReceiptAnalysisResult { category: string; amount: number; date: string; description: string; }
 interface MobileUploadStatus { status: 'pending' | 'complete' | 'error'; data?: SpreadsheetAnalysisResult; message?: string; }
+
+// PHOENIX ADDITION: Forensic Interfaces
+export interface ForensicMetadata {
+    evidence_hash: string;
+    analysis_timestamp: string;
+    record_count: number;
+}
+
+export interface EnhancedAnomaly {
+    date: string;
+    amount: number;
+    description: string;
+    risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'CRITICAL';
+    explanation: string;
+    forensic_type?: string;
+    legal_reference?: string;
+    confidence?: number;
+}
+
+// PHOENIX ENHANCEMENT: Extended SpreadsheetAnalysisResult
+export interface ForensicSpreadsheetAnalysisResult {
+    executive_summary: string;
+    anomalies: EnhancedAnomaly[];
+    trends: Array<{ category: string; trend: 'UP' | 'DOWN' | 'STABLE'; percentage: string; comment: string }>;
+    recommendations: string[];
+    forensic_metadata?: ForensicMetadata;
+}
+
+// PHOENIX ADDITION: Forensic Interrogation Response
+export interface ForensicInterrogationResponse {
+    answer: string;
+    referenced_rows_count?: number;
+    supporting_evidence_count?: number;
+    evidence_references?: string[];
+    chain_of_custody?: any[];
+    forensic_warning?: string;
+    legal_disclaimer?: string;
+}
 
 const rawBaseUrl = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:8000';
 let normalizedUrl = rawBaseUrl.replace(/\/$/, '');
@@ -216,27 +258,152 @@ class ApiService {
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); return response.data; }
     
     // --- FINANCIAL ANALYST UPDATES ---
-    public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> { const formData = new FormData(); formData.append('file', file); const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData); return response.data; }
-    public async analyzeExistingSpreadsheet(caseId: string, documentId: string): Promise<SpreadsheetAnalysisResult> { const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet-existing/${documentId}`); return response.data; }
-    public async interrogateFinancialRecords(caseId: string, question: string): Promise<FinanceInterrogationResponse> { const response = await this.axiosInstance.post<FinanceInterrogationResponse>(`/cases/${caseId}/interrogate-finances`, { question }); return response.data; }
-    public async archiveForensicReport(caseId: string, title: string, content: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/forensic-report/archive`, { case_id: caseId, title, content }); return response.data; }
+    public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet`, formData);
+        return response.data;
+    }
 
-    public async downloadForensicReport(caseId: string, data: any): Promise<void> { const response = await this.axiosInstance.post(`/cases/${caseId}/report/forensic`, data, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
-    public async sendChatMessage( caseId: string, message: string, documentId?: string, jurisdiction?: string, mode: 'FAST' | 'DEEP' = 'FAST' ): Promise<string> { const response = await this.axiosInstance.post<{ response: string }>(`/chat/case/${caseId}`, { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks', mode }); return response.data.response; }
-    public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
-    public async getCalendarEvents(): Promise<CalendarEvent[]> { const response = await this.axiosInstance.get<any>('/calendar/events'); return Array.isArray(response.data) ? response.data : (response.data.events || []); }
-    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); return response.data; }
-    public async deleteCalendarEvent(eventId: string): Promise<void> { await this.axiosInstance.delete(`/calendar/events/${eventId}`); }
-    public async getAlertsCount(): Promise<{ count: number }> { const response = await this.axiosInstance.get<{ count: number }>('/calendar/alerts'); return response.data; }
-    public async sendContactForm(data: { firstName: string; lastName: string; email: string; phone: string; message: string }): Promise<void> { await this.axiosInstance.post('/support/contact', { first_name: data.firstName, last_name: data.lastName, email: data.email, phone: data.phone, message: data.message }); }
-    public async getWebSocketUrl(_caseId: string): Promise<string> { return ""; }
-    public async register(data: RegisterRequest): Promise<void> { await this.axiosInstance.post('/auth/register', data); }
-    public async fetchUserProfile(): Promise<User> { const response = await this.axiosInstance.get<User>('/users/me'); return response.data; }
-    public async changePassword(data: ChangePasswordRequest): Promise<void> { await this.axiosInstance.post('/auth/change-password', data); }
-    public async deleteAccount(): Promise<void> { await this.axiosInstance.delete('/users/me'); }
-    public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> { const response = await this.axiosInstance.post<DraftingJobStatus>(`${API_V2_URL}/drafting/jobs`, data); return response.data; }
-    public async getDraftingJobStatus(jobId: string): Promise<DraftingJobStatus> { const response = await this.axiosInstance.get<DraftingJobStatus>(`${API_V2_URL}/drafting/jobs/${jobId}/status`); return response.data; }
-    public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> { const response = await this.axiosInstance.get<DraftingJobResult>(`${API_V2_URL}/drafting/jobs/${jobId}/result`); return response.data; }
+    // PHOENIX ADDITION: Forensic Spreadsheet Analysis
+    public async forensicAnalyzeSpreadsheet(caseId: string, file: File): Promise<ForensicSpreadsheetAnalysisResult> {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('analyst_id', 'frontend_user'); // Can be enhanced with actual user ID
+        formData.append('acquisition_method', 'WEB_UPLOAD');
+        
+        const response = await this.axiosInstance.post<ForensicSpreadsheetAnalysisResult>(
+            `/cases/${caseId}/analyze/spreadsheet/forensic`,
+            formData
+        );
+        return response.data;
+    }
+
+    public async analyzeExistingSpreadsheet(caseId: string, documentId: string): Promise<SpreadsheetAnalysisResult> {
+        const response = await this.axiosInstance.post<SpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet-existing/${documentId}`);
+        return response.data;
+    }
+
+    public async interrogateFinancialRecords(caseId: string, question: string): Promise<FinanceInterrogationResponse> {
+        const response = await this.axiosInstance.post<FinanceInterrogationResponse>(`/cases/${caseId}/interrogate-finances`, { question });
+        return response.data;
+    }
+
+    // PHOENIX ADDITION: Forensic Evidence Interrogation
+    public async forensicInterrogateEvidence(
+        caseId: string, 
+        question: string, 
+        includeChainOfCustody: boolean = true
+    ): Promise<ForensicInterrogationResponse> {
+        const response = await this.axiosInstance.post<ForensicInterrogationResponse>(
+            `/cases/${caseId}/interrogate-finances/forensic`,
+            { 
+                question, 
+                include_chain_of_custody: includeChainOfCustody 
+            }
+        );
+        return response.data;
+    }
+
+    public async archiveForensicReport(caseId: string, title: string, content: string): Promise<ArchiveItemOut> {
+        const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/forensic-report/archive`, { case_id: caseId, title, content });
+        return response.data;
+    }
+
+    public async downloadForensicReport(caseId: string, data: any): Promise<void> {
+        const response = await this.axiosInstance.post(`/cases/${caseId}/report/forensic`, data, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
+    }
+
+    public async sendChatMessage(
+        caseId: string,
+        message: string,
+        documentId?: string,
+        jurisdiction?: string,
+        mode: 'FAST' | 'DEEP' = 'FAST'
+    ): Promise<string> {
+        const response = await this.axiosInstance.post<{ response: string }>(
+            `/chat/case/${caseId}`,
+            { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks', mode }
+        );
+        return response.data.response;
+    }
+
+    public async clearChatHistory(caseId: string): Promise<void> {
+        await this.axiosInstance.delete(`/chat/case/${caseId}/history`);
+    }
+
+    public async getCalendarEvents(): Promise<CalendarEvent[]> {
+        const response = await this.axiosInstance.get<any>('/calendar/events');
+        return Array.isArray(response.data) ? response.data : (response.data.events || []);
+    }
+
+    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> {
+        const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data);
+        return response.data;
+    }
+
+    public async deleteCalendarEvent(eventId: string): Promise<void> {
+        await this.axiosInstance.delete(`/calendar/events/${eventId}`);
+    }
+
+    public async getAlertsCount(): Promise<{ count: number }> {
+        const response = await this.axiosInstance.get<{ count: number }>('/calendar/alerts');
+        return response.data;
+    }
+
+    public async sendContactForm(data: { firstName: string; lastName: string; email: string; phone: string; message: string }): Promise<void> {
+        await this.axiosInstance.post('/support/contact', {
+            first_name: data.firstName,
+            last_name: data.lastName,
+            email: data.email,
+            phone: data.phone,
+            message: data.message
+        });
+    }
+
+    public async getWebSocketUrl(_caseId: string): Promise<string> {
+        return "";
+    }
+
+    public async register(data: RegisterRequest): Promise<void> {
+        await this.axiosInstance.post('/auth/register', data);
+    }
+
+    public async fetchUserProfile(): Promise<User> {
+        const response = await this.axiosInstance.get<User>('/users/me');
+        return response.data;
+    }
+
+    public async changePassword(data: ChangePasswordRequest): Promise<void> {
+        await this.axiosInstance.post('/auth/change-password', data);
+    }
+
+    public async deleteAccount(): Promise<void> {
+        await this.axiosInstance.delete('/users/me');
+    }
+
+    public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> {
+        const response = await this.axiosInstance.post<DraftingJobStatus>(`${API_V2_URL}/drafting/jobs`, data);
+        return response.data;
+    }
+
+    public async getDraftingJobStatus(jobId: string): Promise<DraftingJobStatus> {
+        const response = await this.axiosInstance.get<DraftingJobStatus>(`${API_V2_URL}/drafting/jobs/${jobId}/status`);
+        return response.data;
+    }
+
+    public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> {
+        const response = await this.axiosInstance.get<DraftingJobResult>(`${API_V2_URL}/drafting/jobs/${jobId}/result`);
+        return response.data;
+    }
 }
 
 export const apiService = new ApiService();
