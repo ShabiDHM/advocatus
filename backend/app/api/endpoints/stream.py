@@ -1,10 +1,12 @@
 # FILE: backend/app/api/endpoints/stream.py
-# PHOENIX PROTOCOL - SSE IMPLEMENTATION
+# PHOENIX PROTOCOL - SSE IMPLEMENTATION V2 (TYPE SAFE)
+# FIX: Added '/{stream_id}' endpoint to support per‑entity streaming.
+# FIX: Resolved Pylance type error by adding explicit 'send_connected_event' parameter.
 import asyncio
 import json
 import logging
 from typing import AsyncGenerator, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Path
 from fastapi.responses import StreamingResponse
 from jose import jwt, JWTError
 from pydantic import BaseModel, ValidationError
@@ -26,17 +28,24 @@ async def get_current_user_sse(token: str = Query(..., description="JWT Access T
     except (JWTError, ValidationError):
         return None
 
-async def event_generator(user_id: Optional[str]) -> AsyncGenerator[str, None]:
-    if not user_id:
-        yield "event: error\ndata: Invalid Credentials\n\n"
-        return
+async def event_generator(
+    channel: str,
+    user_id: Optional[str] = None,
+    send_connected_event: bool = True
+) -> AsyncGenerator[str, None]:
+    """
+    Generic SSE generator for any Redis channel.
+    :param channel: Redis channel to subscribe to.
+    :param user_id: Optional user ID for logging.
+    :param send_connected_event: If True, sends a 'connected' event at start.
+    """
     redis = Redis.from_url(settings.REDIS_URL, decode_responses=True)
     pubsub = redis.pubsub()
-    user_channel = f"user:{user_id}:updates"
-    await pubsub.subscribe(user_channel)
-    logger.info(f"SSE: User {user_id} connected to {user_channel}")
+    await pubsub.subscribe(channel)
+    logger.info(f"SSE: Subscribed to {channel} (user={user_id})")
     try:
-        yield "event: connected\ndata: {\"status\": \"connected\"}\n\n"
+        if send_connected_event:
+            yield "event: connected\ndata: {\"status\": \"connected\"}\n\n"
         while True:
             message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
             if message:
@@ -44,14 +53,53 @@ async def event_generator(user_id: Optional[str]) -> AsyncGenerator[str, None]:
             yield ": keep-alive\n\n"
             await asyncio.sleep(0.1)
     except asyncio.CancelledError:
-        logger.info(f"SSE: User {user_id} disconnected.")
+        logger.info(f"SSE: Disconnected from {channel}")
     finally:
         await pubsub.unsubscribe()
         await redis.close()
 
 @router.get("/updates", response_class=StreamingResponse)
 async def stream_updates(user_id: Optional[str] = Depends(get_current_user_sse)):
+    """
+    User‑level SSE: all updates for the authenticated user.
+    """
     if user_id is None:
         async def unauthorized(): yield "event: error\ndata: Unauthorized\n\n"
         return StreamingResponse(unauthorized(), media_type="text/event-stream")
-    return StreamingResponse(event_generator(user_id), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"})
+    
+    # User‑specific channel
+    user_channel = f"user:{user_id}:updates"
+    return StreamingResponse(
+        event_generator(user_channel, user_id=user_id, send_connected_event=True),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+@router.get("/{stream_id}", response_class=StreamingResponse)
+async def stream_entity(
+    stream_id: str = Path(..., description="Entity ID (case, document, etc.)"),
+    user_id: Optional[str] = Depends(get_current_user_sse)
+):
+    """
+    Entity‑level SSE: updates for a specific entity.
+    The stream_id can be a case ID, document ID, etc.
+    """
+    if user_id is None:
+        async def unauthorized(): yield "event: error\ndata: Unauthorized\n\n"
+        return StreamingResponse(unauthorized(), media_type="text/event-stream")
+    
+    # Entity‑specific channel (e.g., 'case:696620f2e2d3a1819a2cce19:updates')
+    entity_channel = f"entity:{stream_id}:updates"
+    return StreamingResponse(
+        event_generator(entity_channel, user_id=user_id, send_connected_event=False),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
