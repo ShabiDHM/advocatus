@@ -1,8 +1,8 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V2.3 (DATETIME FIX + UI FIX)
-// 1. FIX: Mobile scanning datetime serialization error
-// 2. FIX: Long case titles and "ZGJIDHNI RASTIN" properly constrained
-// 3. PROTOCOL: Robust datetime handling with JSON-safe serialization
+// PHOENIX PROTOCOL - EXPENSE MODAL V2.6 (FINAL FIX)
+// 1. FIX: Keep both ShieldCheck and Calendar imports
+// 2. FIX: Datetime serialization error from backend
+// 3. FIX: Long ID overflow in UI
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, Camera, Link as LinkIcon, AlertCircle, ShieldCheck, Calendar } from 'lucide-react';
@@ -24,37 +24,76 @@ interface ExpenseModalProps {
     editingExpense: Expense | null;
 }
 
-// PROTOCOL: JSON-Safe Datetime Handling
+// PROTOCOL: Safe datetime handling for backend responses
 const DateTimeProtocol = {
-    serializeDate: (date: Date | null): string | null => {
-        if (!date) return null;
-        return date.toISOString().split('T')[0]; // YYYY-MM-DD format
-    },
-    
-    parseDate: (dateString: string | Date | null): Date | null => {
-        if (!dateString) return null;
-        if (dateString instanceof Date) return dateString;
+    // Convert any date-like object to string
+    safeDateToString: (date: any): string => {
+        if (!date) return new Date().toISOString().split('T')[0];
         
-        try {
-            const date = new Date(dateString);
-            return isNaN(date.getTime()) ? null : date;
-        } catch (e) {
-            console.warn('[DATETIME-PROTOCOL] Failed to parse date:', dateString);
-            return null;
-        }
-    },
-    
-    isValidJSONDate: (date: any): boolean => {
-        if (!date) return false;
+        // Handle Date objects
         if (date instanceof Date) {
+            return date.toISOString().split('T')[0];
+        }
+        
+        // Handle Python datetime objects (they might come as objects)
+        if (typeof date === 'object' && date !== null) {
             try {
-                JSON.stringify({ test: date.toISOString() });
-                return true;
-            } catch {
-                return false;
+                // Try to extract ISO string from object
+                if (date.toISOString && typeof date.toISOString === 'function') {
+                    return date.toISOString().split('T')[0];
+                }
+                // Try to stringify and parse
+                const dateStr = JSON.stringify(date);
+                const parsed = new Date(dateStr);
+                if (!isNaN(parsed.getTime())) {
+                    return parsed.toISOString().split('T')[0];
+                }
+            } catch (e) {
+                console.warn('[DATETIME-PROTOCOL] Failed to convert object to date:', e);
             }
         }
-        return typeof date === 'string';
+        
+        // Handle strings
+        if (typeof date === 'string') {
+            const parsed = new Date(date);
+            if (!isNaN(parsed.getTime())) {
+                return parsed.toISOString().split('T')[0];
+            }
+        }
+        
+        // Fallback to today
+        return new Date().toISOString().split('T')[0];
+    },
+    
+    // Extract Date object from any value
+    extractDate: (value: any): Date | null => {
+        if (!value) return null;
+        
+        // Already a Date
+        if (value instanceof Date) {
+            return isNaN(value.getTime()) ? null : value;
+        }
+        
+        // Try to parse string
+        if (typeof value === 'string') {
+            const date = new Date(value);
+            return isNaN(date.getTime()) ? null : date;
+        }
+        
+        // Try to handle object (Python datetime)
+        if (typeof value === 'object') {
+            try {
+                // Try common datetime object properties
+                const dateStr = value.iso || value.isoformat?.() || JSON.stringify(value);
+                const date = new Date(dateStr);
+                return isNaN(date.getTime()) ? null : date;
+            } catch (e) {
+                console.warn('[DATETIME-PROTOCOL] Could not extract date from object:', value);
+                return null;
+            }
+        }
+        
+        return null;
     }
 };
 
@@ -76,8 +115,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const cameraInputRef = useRef<HTMLInputElement>(null);
     
     const [loading, setLoading] = useState(false);
-    const [uiProtocolActive, setUiProtocolActive] = useState(true);
-    const [datetimeProtocolActive, setDatetimeProtocolActive] = useState(true);
+    const [uiProtocolActive, setUiProtocolActive] = useState(false); // Default to false
+    const [datetimeProtocolActive, setDatetimeProtocolActive] = useState(true); // Default to true
 
     const [qrContent, setQrContent] = useState<string | null>(null);
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
@@ -90,117 +129,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const localeMap: { [key: string]: any } = { sq, al: sq, en: enUS };
     const currentLocale = localeMap[i18n.language] || enUS;
 
-    // PROTOCOL: Smart text truncation
-    const truncateCaseTitle = (title: string, maxLength: number = UILayoutProtocol.MAX_DISPLAY_LENGTH): string => {
-        if (!title) return title;
-        if (title.length <= maxLength) return title;
-        
-        const truncated = title.substring(0, maxLength - 3) + UILayoutProtocol.TRUNCATION_MARKER;
-        
-        if (uiProtocolActive && title.length > maxLength) {
-            console.warn(`[UI-PROTOCOL] Truncated case title: "${title}" → "${truncated}"`);
-        }
-        
-        return truncated;
-    };
-
-    // PROTOCOL: Format "No Case" option
-    const formatNoCaseOption = (): string => {
-        const noCaseText = `-- ${t('finance.noCase', 'Pa Lëndë')} --`;
-        return noCaseText;
-    };
-
-    // PROTOCOL: Verify UI layout
-    const verifyUILayout = (): boolean => {
-        if (!uiProtocolActive) return true;
-        
-        const issues: string[] = [];
-        
-        cases.forEach(caseItem => {
-            if (caseItem.title.length > UILayoutProtocol.MAX_DISPLAY_LENGTH) {
-                issues.push(`Case "${caseItem.title}" exceeds ${UILayoutProtocol.MAX_DISPLAY_LENGTH} chars`);
-            }
-        });
-        
-        if (formData.category.length > 50) issues.push(`Category field exceeds 50 chars`);
-        if (formData.description.length > 200) issues.push(`Description field exceeds 200 chars`);
-        
-        if (issues.length > 0) {
-            console.warn('[UI-PROTOCOL] Layout issues detected:', issues);
-            return false;
-        }
-        
-        console.log('[UI-PROTOCOL] All UI elements within boundaries ✓');
-        return true;
-    };
-
-    // PROTOCOL: Safe AI result processing
-    const processAIResult = (aiResult: any): Partial<typeof formData> & { date?: Date | null } => {
-        const processed: Partial<typeof formData> & { date?: Date | null } = {};
-        
-        if (!aiResult) return processed;
-        
-        // Handle category
-        if (aiResult.category && typeof aiResult.category === 'string') {
-            processed.category = aiResult.category.substring(0, 50); // Enforce max length
-        }
-        
-        // Handle amount
-        if (aiResult.amount !== undefined && aiResult.amount !== null) {
-            const amount = parseFloat(aiResult.amount);
-            if (!isNaN(amount)) {
-                processed.amount = amount;
-            }
-        }
-        
-        // Handle description
-        if (aiResult.description && typeof aiResult.description === 'string') {
-            processed.description = aiResult.description.substring(0, 200);
-        }
-        
-        // PROTOCOL: Safe datetime handling
-        if (aiResult.date) {
-            if (datetimeProtocolActive) {
-                console.log('[DATETIME-PROTOCOL] Processing AI date:', aiResult.date);
-                
-                // Handle various date formats
-                if (aiResult.date instanceof Date) {
-                    if (DateTimeProtocol.isValidJSONDate(aiResult.date)) {
-                        processed.date = aiResult.date;
-                    } else {
-                        // Convert to ISO string first
-                        processed.date = DateTimeProtocol.parseDate(aiResult.date.toISOString());
-                    }
-                } else if (typeof aiResult.date === 'string') {
-                    processed.date = DateTimeProtocol.parseDate(aiResult.date);
-                }
-                
-                if (processed.date && isNaN(processed.date.getTime())) {
-                    console.warn('[DATETIME-PROTOCOL] Invalid date parsed, using current date');
-                    processed.date = null;
-                }
-            } else {
-                // Fallback parsing
-                try {
-                    const date = new Date(aiResult.date);
-                    processed.date = isNaN(date.getTime()) ? null : date;
-                } catch (e) {
-                    console.warn('[DATETIME-PROTOCOL] Fallback parsing failed:', e);
-                    processed.date = null;
-                }
-            }
-        }
-        
-        // Log protocol results
-        if (datetimeProtocolActive) {
-            console.log('[DATETIME-PROTOCOL] Processed AI result:', {
-                originalDate: aiResult.date,
-                processedDate: processed.date,
-                type: typeof aiResult.date
-            });
-        }
-        
-        return processed;
+    // Helper to truncate long case titles
+    const truncateText = (text: string, maxLength: number = UILayoutProtocol.MAX_DISPLAY_LENGTH): string => {
+        if (!text) return text;
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength - 3) + UILayoutProtocol.TRUNCATION_MARKER;
     };
 
     useEffect(() => {
@@ -215,7 +148,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                     description: editingExpense.description || '',
                     related_case_id: editingExpense.related_case_id || ''
                 });
-                setExpenseDate(DateTimeProtocol.parseDate(editingExpense.date));
+                setExpenseDate(DateTimeProtocol.extractDate(editingExpense.date));
             } else {
                 setFormData({ category: '', amount: 0, description: '', related_case_id: '' });
                 setExpenseDate(new Date());
@@ -223,10 +156,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                 setUploadMode('initial');
                 setQrContent(null);
                 setQrLoadError(false);
-            }
-            
-            if (uiProtocolActive) {
-                setTimeout(() => verifyUILayout(), 100);
             }
         }
     }, [isOpen, editingExpense]);
@@ -297,53 +226,75 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         if (shouldScan && !editingExpense) {
             setIsScanningReceipt(true);
             try {
-                const aiResult = await apiService.analyzeExpenseReceipt(file);
-                console.log('[DATETIME-PROTOCOL] AI Analysis Result:', aiResult);
+                // Use a safe wrapper for the API call
+                const aiResult = await safeAnalyzeReceipt(file);
                 
-                // Use protocol-safe processing
-                const processedResult = processAIResult(aiResult);
-                
-                setFormData(prev => ({
-                    ...prev,
-                    category: processedResult.category || prev.category,
-                    amount: processedResult.amount !== undefined ? processedResult.amount : prev.amount,
-                    description: processedResult.description || prev.description
-                }));
-                
-                if (processedResult.date !== undefined) {
-                    setExpenseDate(processedResult.date);
+                if (aiResult) {
+                    setFormData(prev => ({
+                        ...prev,
+                        category: aiResult.category || prev.category,
+                        amount: aiResult.amount || prev.amount,
+                        description: aiResult.description || prev.description
+                    }));
+                    
+                    if (aiResult.date) {
+                        const parsedDate = DateTimeProtocol.extractDate(aiResult.date);
+                        if (parsedDate) setExpenseDate(parsedDate);
+                    }
                 }
-                
             } catch (err) {
-                console.error('[DATETIME-PROTOCOL] AI Scan failed:', err);
-                console.warn("Falling back to manual entry");
+                console.warn("AI Scan failed, falling back to manual entry", err);
             } finally {
                 setIsScanningReceipt(false);
             }
         }
     };
 
+    // Safe wrapper for analyzeReceipt API call
+    const safeAnalyzeReceipt = async (file: File): Promise<any> => {
+        try {
+            const result = await apiService.analyzeExpenseReceipt(file);
+            
+            if (datetimeProtocolActive) {
+                console.log('[DATETIME-PROTOCOL] Processing AI result:', {
+                    rawResult: result,
+                    dateType: typeof result?.date,
+                    dateConstructor: result?.date?.constructor?.name
+                });
+            }
+            
+            // Safely process the result to handle datetime objects
+            const safeResult = {
+                category: result?.category || '',
+                amount: result?.amount || 0,
+                description: result?.description || '',
+                date: result?.date ? DateTimeProtocol.safeDateToString(result.date) : null
+            };
+            
+            return safeResult;
+        } catch (error) {
+            console.error('Receipt analysis failed:', error);
+            
+            // If it's a JSON serialization error, try to handle it
+            if (error instanceof TypeError && error.message.includes('JSON')) {
+                console.warn('[DATETIME-PROTOCOL] JSON serialization error detected');
+                return { category: '', amount: 0, description: '', date: null };
+            }
+            
+            throw error;
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        if (uiProtocolActive && !verifyUILayout()) {
-            console.warn('[UI-PROTOCOL] Submission blocked due to layout issues');
-            alert(t('error.uiLayoutIssue', 'Please check form field lengths before saving.'));
-            return;
-        }
-        
         setLoading(true);
         try {
-            // PROTOCOL: Safe date serialization
-            const dateString = DateTimeProtocol.serializeDate(expenseDate) || 
-                              new Date().toISOString().split('T')[0];
-            
             const payload = {
                 ...formData,
-                date: dateString
+                date: DateTimeProtocol.safeDateToString(expenseDate)
             };
 
-            console.log('[DATETIME-PROTOCOL] Submitting payload:', payload);
+            console.log('Submitting expense:', payload);
 
             let result: Expense;
             if (editingExpense) {
@@ -364,7 +315,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
 
             onClose();
         } catch (error) {
-            console.error('Submit error:', error);
+            console.error(error);
             alert(t('error.generic'));
         } finally {
             setLoading(false);
@@ -376,38 +327,40 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="glass-high w-full max-w-md max-h-[90vh] overflow-y-auto custom-finance-scroll p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200">
-                {/* Protocol Headers */}
-                <div className="mb-4 -mt-2 space-y-2">
-                    {uiProtocolActive && (
-                        <div className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 border border-primary-start/20">
-                            <div className="flex items-center gap-2">
-                                <ShieldCheck size={14} className="text-primary-start" />
-                                <span className="text-xs font-bold text-primary-300">UI PROTOCOL ACTIVE</span>
+                {/* Protocol Headers - Only show when active */}
+                {(uiProtocolActive || datetimeProtocolActive) && (
+                    <div className="mb-4 -mt-2 space-y-2">
+                        {uiProtocolActive && (
+                            <div className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 border border-primary-start/20">
+                                <div className="flex items-center gap-2">
+                                    <ShieldCheck size={14} className="text-primary-start" />
+                                    <span className="text-xs font-bold text-primary-300">UI PROTOCOL ACTIVE</span>
+                                </div>
+                                <button 
+                                    onClick={() => setUiProtocolActive(!uiProtocolActive)}
+                                    className="text-[10px] text-gray-400 hover:text-white transition-colors"
+                                >
+                                    {uiProtocolActive ? 'Disable' : 'Enable'}
+                                </button>
                             </div>
-                            <button 
-                                onClick={() => setUiProtocolActive(!uiProtocolActive)}
-                                className="text-[10px] text-gray-400 hover:text-white transition-colors"
-                            >
-                                {uiProtocolActive ? 'Disable' : 'Enable'}
-                            </button>
-                        </div>
-                    )}
-                    
-                    {datetimeProtocolActive && (
-                        <div className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 border border-blue-500/20">
-                            <div className="flex items-center gap-2">
-                                <Calendar size={14} className="text-blue-500" />
-                                <span className="text-xs font-bold text-blue-400">DATETIME PROTOCOL ACTIVE</span>
+                        )}
+                        
+                        {datetimeProtocolActive && (
+                            <div className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 border border-blue-500/20">
+                                <div className="flex items-center gap-2">
+                                    <Calendar size={14} className="text-blue-500" />
+                                    <span className="text-xs font-bold text-blue-400">DATETIME PROTOCOL ACTIVE</span>
+                                </div>
+                                <button 
+                                    onClick={() => setDatetimeProtocolActive(!datetimeProtocolActive)}
+                                    className="text-[10px] text-gray-400 hover:text-white transition-colors"
+                                >
+                                    {datetimeProtocolActive ? 'Disable' : 'Enable'}
+                                </button>
                             </div>
-                            <button 
-                                onClick={() => setDatetimeProtocolActive(!datetimeProtocolActive)}
-                                className="text-[10px] text-gray-400 hover:text-white transition-colors"
-                            >
-                                {datetimeProtocolActive ? 'Disable' : 'Enable'}
-                            </button>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -466,7 +419,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                         ${isScanningReceipt ? 'cursor-wait opacity-80' : ''}`}
                                 >
                                     {isScanningReceipt ? (
-                                        <><Loader2 size={18} className="animate-spin" /> {t('finance.scanning', 'Analizimi me AI...')}</>
+                                        <><Loader2 size={18} className="animate-spin" /> 
+                                            {t('finance.scanning', 'Analizimi me AI...')}
+                                            {datetimeProtocolActive && <span className="text-[10px] text-blue-400 ml-1">(PROTOCOL)</span>}
+                                        </>
                                     ) : expenseReceipt ? (
                                         <><CheckCircle size={18} /> 
                                             <span className="max-w-[200px] truncate" title={expenseReceipt.name}>
@@ -481,7 +437,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                     <p className="text-center text-[10px] text-gray-500 mt-2 flex items-center justify-center gap-1">
                                         <Sparkles size={10} className="text-primary-start"/> 
                                         {t('finance.extractingData', 'Duke nxjerrë të dhënat...')}
-                                        {datetimeProtocolActive && ' (Protocol Active)'}
                                     </p>
                                 )}
                             </motion.div>
@@ -527,7 +482,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                         <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel', "Lënda e Lidhur")}</label>
                         <select 
                             value={formData.related_case_id} 
-                            onChange={e => setFormData({...formData, related_case_id: e.target.value})} 
+                            onChange={(e) => setFormData({...formData, related_case_id: e.target.value})} 
                             className="glass-input w-full px-4 py-2.5 rounded-xl truncate"
                             style={{ 
                                 maxWidth: '100%',
@@ -536,8 +491,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                 whiteSpace: 'nowrap'
                             }}
                         >
-                            <option value="" className="bg-gray-900 truncate" title={formatNoCaseOption()}>
-                                {formatNoCaseOption()}
+                            <option value="" className="bg-gray-900 truncate" title="Pa Lëndë">
+                                -- {t('finance.noCase', 'Pa Lëndë')} --
                             </option>
                             {cases.map(c => (
                                 <option 
@@ -546,7 +501,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                     className="bg-gray-900 truncate"
                                     title={c.title}
                                 >
-                                    {truncateCaseTitle(c.title)}
+                                    {truncateText(c.title)}
                                 </option>
                             ))}
                         </select>
@@ -564,12 +519,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                             className="glass-input w-full px-4 py-2.5 rounded-xl truncate"
                             maxLength={50}
                             value={formData.category} 
-                            onChange={e => setFormData({...formData, category: e.target.value})} 
+                            onChange={(e) => setFormData({...formData, category: e.target.value})} 
                         />
                     </div>
                     <div>
                         <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.amount')}</label>
-                        <input required type="number" step="0.01" className="glass-input w-full px-4 py-2.5 rounded-xl" value={formData.amount} onChange={e => setFormData({...formData, amount: parseFloat(e.target.value)})} />
+                        <input required type="number" step="0.01" className="glass-input w-full px-4 py-2.5 rounded-xl" value={formData.amount} onChange={(e) => setFormData({...formData, amount: parseFloat(e.target.value)})} />
                     </div>
                     <div>
                         <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.date')}</label>
@@ -589,7 +544,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                             className="glass-input w-full px-4 py-2.5 rounded-xl resize-none"
                             maxLength={200}
                             value={formData.description} 
-                            onChange={e => setFormData({...formData, description: e.target.value})} 
+                            onChange={(e) => setFormData({...formData, description: e.target.value})} 
                         />
                     </div>
                     <div className="flex justify-end gap-3 pt-4">
