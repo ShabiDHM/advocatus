@@ -1,8 +1,6 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V17.5 (BYTESIO FIX)
-# 1. FIXED: Uses BytesIO instead of SpooledTemporaryFile
-# 2. VERIFIED: BytesIO implements BinaryIO interface
-# 3. TYPE SAFE: No type violations
+# PHOENIX PROTOCOL - FINANCE ROUTER V17.6 (FIXED IMPORTS)
+# FIXED: Correct import statements for OCR and LLM services
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -28,7 +26,9 @@ from app.models.finance import (
 from app.models.archive import ArchiveItemOut 
 from app.services.finance_service import FinanceService
 from app.services.archive_service import ArchiveService
-from app.services import report_service, ocr_service, llm_service 
+from app.services.report_service import generate_invoice_pdf, create_pdf_from_text
+from app.services.ocr_service import extract_text_from_image_bytes
+from app.services.llm_service import extract_expense_details_from_text
 from app.api.endpoints.dependencies import get_current_user, get_db, get_current_active_user
 from app.core.config import settings
 from app.services.storage_service import get_file_stream, copy_s3_object, delete_file
@@ -173,7 +173,7 @@ def delete_invoice(invoice_id: str, current_user: Annotated[UserInDB, Depends(ge
 def download_invoice_pdf(invoice_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db), lang: Optional[str] = Query("sq")):
     service = FinanceService(db)
     invoice = service.get_invoice(str(current_user.id), invoice_id)
-    pdf_buffer = report_service.generate_invoice_pdf(invoice, db, str(current_user.id), lang=lang or "sq")
+    pdf_buffer = generate_invoice_pdf(invoice, db, str(current_user.id), lang=lang or "sq")
     filename = f"Invoice_{invoice.invoice_number}.pdf"
     headers = {'Content-Disposition': f'inline; filename="{filename}"'}
     return StreamingResponse(pdf_buffer, media_type="application/pdf", headers=headers)
@@ -184,7 +184,7 @@ async def archive_invoice(invoice_id: str, current_user: Annotated[UserInDB, Dep
     archive_service = ArchiveService(db)
     
     invoice = finance_service.get_invoice(str(current_user.id), invoice_id)
-    pdf_buffer = report_service.generate_invoice_pdf(invoice, db, str(current_user.id), lang=lang or "sq")
+    pdf_buffer = generate_invoice_pdf(invoice, db, str(current_user.id), lang=lang or "sq")
     pdf_content = pdf_buffer.getvalue()
     
     filename = f"Invoice_{invoice.invoice_number}.pdf"
@@ -203,7 +203,7 @@ async def archive_forensic_report(
     content: str = Body(..., embed=True),
 ):
     archive_service = ArchiveService(db)
-    pdf_buffer = report_service.create_pdf_from_text(text=content, document_title=title)
+    pdf_buffer = create_pdf_from_text(text=content, document_title=title)
     pdf_bytes = pdf_buffer.getvalue()
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -260,10 +260,10 @@ async def analyze_expense_receipt(
 ):
     try:
         image_bytes = await file.read()
-        ocr_text = await asyncio.to_thread(ocr_service.extract_text_from_image_bytes, image_bytes)
+        ocr_text = await asyncio.to_thread(extract_text_from_image_bytes, image_bytes)
         if not ocr_text or len(ocr_text) < 5:
              return JSONResponse(content={"category": "", "amount": 0, "date": "", "description": ""})
-        structured_data = await asyncio.to_thread(llm_service.extract_expense_details_from_text, ocr_text)
+        structured_data = await asyncio.to_thread(extract_expense_details_from_text, ocr_text)
         return JSONResponse(content=structured_data)
     except Exception as e:
         print(f"Receipt analysis failed: {e}")
@@ -354,7 +354,7 @@ async def public_general_mobile_upload(
         data["temp_storage_key"] = temp_storage_key
         
         # 3. Analyze with OCR/LLM using the same file content
-        ocr_text = await asyncio.to_thread(ocr_service.extract_text_from_image_bytes, file_content)
+        ocr_text = await asyncio.to_thread(extract_text_from_image_bytes, file_content)
         if not ocr_text or len(ocr_text) < 5:
             logger.warning(f"OCR extracted insufficient text: {len(ocr_text or '')} chars")
             # Create expense with default data
@@ -364,7 +364,7 @@ async def public_general_mobile_upload(
                 "category": "OTHER"
             }
         else:
-            structured_data = await asyncio.to_thread(llm_service.extract_expense_details_from_text, ocr_text)
+            structured_data = await asyncio.to_thread(extract_expense_details_from_text, ocr_text)
         
         # 4. Create expense
         expense_date = datetime.utcnow()

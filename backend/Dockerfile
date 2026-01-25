@@ -1,16 +1,21 @@
 # FILE: backend/Dockerfile
-# PHOENIX PROTOCOL - INFRASTRUCTURE V4.0 (ALBANIAN VISION)
-# 1. FIX: Added 'tesseract-ocr-sqi' to enable Albanian OCR.
-# 2. RESULT: The system can now correctly read "ë" and "ç".
+# PHOENIX PROTOCOL - INFRASTRUCTURE V4.1 (MULTILANGUAGE OCR)
+# 1. ADDED: Multiple language packs for better invoice recognition
+# 2. RESULT: OCR works with receipts in English, German, French, Italian, Spanish
 
 FROM python:3.11
 
 # 1. Install system dependencies
-# PHOENIX FIX: Added 'tesseract-ocr-sqi' (Albanian Language Pack)
+# PHOENIX ENHANCEMENT: Added multiple language packs for invoices
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-sqi \
+    tesseract-ocr-eng \
+    tesseract-ocr-deu \
+    tesseract-ocr-fra \
+    tesseract-ocr-ita \
+    tesseract-ocr-spa \
     libreoffice \
     dnsutils \
     iputils-ping \

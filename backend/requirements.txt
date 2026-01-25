@@ -1,7 +1,7 @@
-# FILE: backend/requirements.txt (UNIFIED & PINNED - V5.4)
-# PHOENIX PROTOCOL - DEPENDENCY FINAL
-# 1. CRITICAL FIX: Downgraded 'spacy' to 3.7.2 to resolve Python version incompatibility.
-# 2. STATUS: All dependencies are now harmonized and installable.
+# FILE: backend/requirements.txt (UNIFIED & PINNED - V5.5)
+# PHOENIX PROTOCOL - ENHANCED OCR VERSION
+# 1. ADDED: scikit-image for advanced image preprocessing
+# 2. STATUS: All OCR dependencies now included for smart invoice recognition
 
 # --- Core Web Framework & Async ---
 fastapi==0.109.2
@@ -9,7 +9,7 @@ uvicorn[standard]==0.29.0
 starlette==0.36.3
 websockets
 anyio==4.10.0
-httpx==0.27.0  # Explicitly added for Service communication
+httpx==0.27.0
 
 # --- Pydantic & Settings ---
 pydantic==2.7.1
@@ -56,14 +56,16 @@ python-docx==1.2.0
 python-pptx==0.6.23
 pytesseract==0.3.13
 pillow==11.3.0
-reportlab==3.6.13  # PHOENIX: Downgraded for xhtml2pdf compatibility
+reportlab==3.6.13
 pandas
-openpyxl        # For .xlsx files
-xlrd>=2.0.1     # For legacy .xls files
+openpyxl
+xlrd>=2.0.1
 opencv-python-headless==4.9.0.80
 # PHOENIX: Added for Professional PDF Reporting
 markdown2==2.4.1
 xhtml2pdf==0.2.11
+# PHOENIX: Added for Enhanced OCR Image Processing
+scikit-image==0.22.0
 
 # --- AI & ML Dependencies (UNIFIED) ---
 chromadb-client==1.1.0
@@ -80,4 +82,4 @@ openai>=1.0.0
 torch --index-url https://download.pytorch.org/whl/cpu
 transformers
 sentence-transformers
-spacy==3.7.2 # PHOENIX: Downgraded for Python version compatibility
+spacy==3.7.2
