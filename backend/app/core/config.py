@@ -1,11 +1,12 @@
 # FILE: backend/app/core/config.py
-# PHOENIX PROTOCOL - CONFIGURATION V6.2 (INVITE URL)
-# 1. ADDED: 'FRONTEND_URL' to generate correct email invitation links.
-# 2. STATUS: End-to-end ready.
+# PHOENIX PROTOCOL - CONFIGURATION V6.3 (MOBILE CORS FIX)
+# 1. ADDED: Pre-configured CORS origins for mobile support
+# 2. ADDED: Upload configuration for mobile files
+# 3. STATUS: Mobile-ready configuration
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List, Union
-from pydantic import field_validator
+from pydantic import field_validator, Field
 import json
 
 class Settings(BaseSettings):
@@ -14,7 +15,6 @@ class Settings(BaseSettings):
     # --- API Setup ---
     API_V1_STR: str = "/api/v1"
     ENVIRONMENT: str = "production"
-    # PHOENIX ADDITION: URL for email links
     FRONTEND_URL: str = "https://juristi.tech"
     
     # --- Auth ---
@@ -23,8 +23,19 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080
 
-    # --- CORS Configuration ---
-    BACKEND_CORS_ORIGINS: List[str] = []
+    # --- CORS Configuration (Enhanced for Mobile) ---
+    BACKEND_CORS_ORIGINS: List[str] = Field(
+        default=[
+            "https://juristi.tech",
+            "https://www.juristi.tech",
+            "https://*.vercel.app",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+        ],
+        description="Allowed CORS origins for browser access"
+    )
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
@@ -34,6 +45,17 @@ class Settings(BaseSettings):
         elif isinstance(v, str):
             return json.loads(v)
         return v
+
+    # --- Upload Configuration (Mobile Optimization) ---
+    MAX_UPLOAD_SIZE: int = Field(
+        default=15 * 1024 * 1024,  # 15MB for mobile camera images
+        description="Maximum file upload size"
+    )
+    
+    UPLOAD_TIMEOUT: int = Field(
+        default=45,
+        description="Upload timeout in seconds (longer for mobile)"
+    )
 
     # --- Database & Broker ---
     DATABASE_URI: str = ""

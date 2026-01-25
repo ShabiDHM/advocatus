@@ -1,16 +1,17 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V7.1 (TYPE SAFE DIAGNOSTIC)
-# 1. FIX: Added 'isinstance(route, APIRoute)' to satisfy Pylance.
-# 2. FIX: Added type suppression for Middleware (Standard FastAPI pattern).
-# 3. GOAL: Print route list to debug 404 Login error.
+# PHOENIX PROTOCOL - MAIN APPLICATION V7.4 (MOBILE CORS COMPLETE FIX)
+# 1. FIX: Uses correct config attribute BACKEND_CORS_ORIGINS
+# 2. FIX: Enhanced CORS for mobile devices
+# 3. FIX: Removed restrictive regex, added proper IP support
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 import logging
-import sys
+import re
 from app.core.lifespan import lifespan
+from app.core.config import settings
 
 # --- Router Imports ---
 from app.api.endpoints.auth import router as auth_router
@@ -36,19 +37,99 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ---
-# Pylance ignore: Uvicorn middleware typing often conflicts with Starlette strict types
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")  # type: ignore
+
+# --- MOBILE CORS VALIDATION FUNCTION ---
+def is_valid_origin(origin: str) -> bool:
+    """Validate origin with multiple patterns for mobile and desktop support"""
+    
+    # Allow empty origin (for mobile apps, curl, etc.)
+    if not origin:
+        return True
+    
+    # Common patterns to allow
+    patterns = [
+        # Localhost with any port
+        r"https?://localhost(:\d+)?",
+        r"https?://127\.0\.0\.1(:\d+)?",
+        
+        # Local network IPs (for mobile devices on same network)
+        r"https?://192\.168\.\d+\.\d+(:\d+)?",
+        r"https?://10\.\d+\.\d+\.\d+(:\d+)?",
+        r"https?://172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+(:\d+)?",
+        
+        # Your domains
+        r"https?://([\w-]+\.)?juristi\.tech",
+        r"https?://([\w-]+\.)?vercel\.app",
+        
+        # Development patterns
+        r"https?://[\w-]+\.local(:\d+)?",
+        
+        # Server IPs (if accessing directly)
+        r"https?://\d+\.\d+\.\d+\.\d+(:\d+)?",
+    ]
+    
+    for pattern in patterns:
+        if re.match(pattern, origin, re.IGNORECASE):
+            return True
+    
+    return False
 
 # --- CORS CONFIGURATION ---
-allow_origin_regex = r"https?://(localhost(:\d+)?|([\w-]+\.)?juristi\.tech|([\w-]+\.)?vercel\.app)"
+# Use config from settings
+allowed_origins = settings.BACKEND_CORS_ORIGINS
 
+# Add common mobile/development origins if not already present
+common_origins = [
+    "http://localhost:3000",
+    "http://localhost:5173", 
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
+
+for origin in common_origins:
+    if origin not in allowed_origins:
+        allowed_origins.append(origin)
+
+logger.info(f"CORS Configuration - Allowed Origins: {allowed_origins}")
+logger.info(f"CORS Configuration - Environment: {settings.ENVIRONMENT}")
+
+# Primary CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=allow_origin_regex,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
+
+# Custom middleware for dynamic mobile origin validation
+@app.middleware("http")
+async def mobile_cors_middleware(request, call_next):
+    """Additional CORS handling for mobile devices"""
+    origin = request.headers.get("origin")
+    
+    if origin:
+        # Check if origin is already allowed
+        is_allowed = origin in allowed_origins
+        
+        # If not in list, validate with mobile patterns
+        if not is_allowed and is_valid_origin(origin):
+            response = await call_next(request)
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
+        
+        # For development, be more permissive
+        if not is_allowed and settings.ENVIRONMENT == "development":
+            logger.info(f"Allowing origin in development: {origin}")
+            response = await call_next(request)
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
+    
+    return await call_next(request)
 
 # --- ROUTER ASSEMBLY ---
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -91,8 +172,10 @@ def health_check():
 async def log_all_routes():
     logger.info("PHOENIX PROTOCOL - ROUTE AUDIT")
     logger.info("------------------------------")
+    logger.info(f"Environment: {settings.ENVIRONMENT}")
+    logger.info(f"CORS Origins: {len(allowed_origins)} configured")
+    logger.info(f"Mobile CORS: Enabled")
     for route in app.routes:
-        # Check if it is an API route (has path and methods)
         if isinstance(route, APIRoute):
             logger.info(f"Route: {route.path} [{','.join(route.methods)}]")
     logger.info("------------------------------")
