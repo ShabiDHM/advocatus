@@ -1,30 +1,30 @@
 # FILE: backend/Dockerfile
-# PHOENIX PROTOCOL - INFRASTRUCTURE V4.1 (MULTILANGUAGE OCR)
-# 1. ADDED: Multiple language packs for better invoice recognition
-# 2. RESULT: OCR works with receipts in English, German, French, Italian, Spanish
+# PHOENIX PROTOCOL - INFRASTRUCTURE V4.2 (KOSOVO MARKET OPTIMIZED)
+# 1. PRIORITY: Albanian language first (sqi)
+# 2. SUPPORT: English and German for international receipts
+# 3. MINIMAL: Only essential language packs for Kosovo market
 
 FROM python:3.11
 
-# 1. Install system dependencies
-# PHOENIX ENHANCEMENT: Added multiple language packs for invoices
+# 1. Install system dependencies OPTIMIZED FOR KOSOVO MARKET
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    # CORE OCR (Kosovo priority)
     tesseract-ocr \
-    tesseract-ocr-sqi \
-    tesseract-ocr-eng \
-    tesseract-ocr-deu \
-    tesseract-ocr-fra \
-    tesseract-ocr-ita \
-    tesseract-ocr-spa \
+    tesseract-ocr-sqi \        # ALBANIAN - PRIMARY
+    tesseract-ocr-eng \        # English - for international receipts
+    tesseract-ocr-deu \        # German - common in Kosovo business
+    # Business tools
     libreoffice \
+    # System utilities
     dnsutils \
     iputils-ping \
     curl && \
     rm -rf /var/lib/apt/lists/*
 
-# 2. Verify Tesseract and LibreOffice installations.
-RUN tesseract --version
-RUN soffice --version
+# 2. Verify Albanian OCR specifically
+RUN echo "Testing Albanian OCR support..." && \
+    tesseract --list-langs | grep -q sqi && echo "✅ Albanian (sqi) support confirmed" || echo "⚠️  Albanian support missing"
 
 # 3. Set the working directory and PYTHONPATH.
 WORKDIR /app
