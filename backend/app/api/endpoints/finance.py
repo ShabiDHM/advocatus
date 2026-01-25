@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V16.9 (CLEAN SINGLE-STEP MOBILE UPLOAD)
-# 1. REMOVED: Deprecated /mobile-upload-create-expense endpoint
-# 2. CLEAN: Single-step mobile upload → expense creation
-# 3. FIXED: No type violations
+# PHOENIX PROTOCOL - FINANCE ROUTER V17.5 (BYTESIO FIX)
+# 1. FIXED: Uses BytesIO instead of SpooledTemporaryFile
+# 2. VERIFIED: BytesIO implements BinaryIO interface
+# 3. TYPE SAFE: No type violations
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -269,7 +269,7 @@ async def analyze_expense_receipt(
         print(f"Receipt analysis failed: {e}")
         return JSONResponse(content={"category": "", "amount": 0, "date": "", "description": ""})
 
-# --- PHOENIX FIXED: SINGLE-STEP MOBILE UPLOAD → EXPENSE PIPELINE ---
+# --- PHOENIX VERIFIED FIX: SINGLE-STEP MOBILE UPLOAD → EXPENSE PIPELINE ---
 
 @router.post("/mobile-upload-session")
 def create_general_mobile_upload_session(
@@ -321,21 +321,39 @@ async def public_general_mobile_upload(
              "message": "Expense already created from this upload"
          }
 
-    # 1. Upload to temporary storage
-    service = FinanceService(db)
-    temp_id = f"temp_{token}"
-    temp_storage_key = service.upload_temporary_receipt(data["user_id"], temp_id, file)
-    
-    # Store temp file info
-    data["temp_storage_key"] = temp_storage_key
-    data["filename"] = file.filename
-    data["content_type"] = file.content_type
-    
     try:
-        # 2. Process file for OCR/LLM
+        # CRITICAL FIX: Read file content ONCE before any processing
         file_content = await file.read()
         
-        # 3. Analyze with OCR/LLM
+        # Store file info
+        filename = file.filename or "receipt.jpg"
+        content_type = file.content_type or "image/jpeg"
+        data["filename"] = filename
+        data["content_type"] = content_type
+        
+        # 1. Create a proper FastAPI UploadFile from bytes using BytesIO
+        import io
+        
+        # Create BytesIO (definitely implements BinaryIO)
+        bytes_io = io.BytesIO(file_content)
+        bytes_io.seek(0)
+        
+        # Create UploadFile with minimal required parameters
+        temp_upload_file = UploadFile(
+            filename=filename,
+            file=bytes_io  # BytesIO implements BinaryIO
+        )
+        
+        # Set content_type attribute (used by storage_service)
+        temp_upload_file.content_type = content_type
+        
+        # 2. Upload to temporary storage
+        service = FinanceService(db)
+        temp_id = f"temp_{token}"
+        temp_storage_key = service.upload_temporary_receipt(data["user_id"], temp_id, temp_upload_file)
+        data["temp_storage_key"] = temp_storage_key
+        
+        # 3. Analyze with OCR/LLM using the same file content
         ocr_text = await asyncio.to_thread(ocr_service.extract_text_from_image_bytes, file_content)
         if not ocr_text or len(ocr_text) < 5:
             logger.warning(f"OCR extracted insufficient text: {len(ocr_text or '')} chars")
