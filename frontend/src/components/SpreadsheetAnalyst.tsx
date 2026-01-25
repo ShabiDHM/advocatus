@@ -1,9 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FORENSIC SPREADSHEET ANALYST V5.3 (NO OCR/QR)
-// 1. REMOVED: QR Code / Mobile Session logic
-// 2. REMOVED: Direct Image Scanning (OCR)
-// 3. KEPT: Only Excel/CSV File Upload
-// 4. MAINTAINED: All forensic analysis logic
+// PHOENIX PROTOCOL - FORENSIC SPREADSHEET ANALYST V5.4 (ALBANIAN LOCALIZATION)
+// 1. FIXED: All Forensic Metadata labels converted to Albanian
+// 2. FIXED: Risk Levels (HIGH -> LARTË) and Anomalies (STRUCTURING -> STRUKTURIM) translated
+// 3. KEPT: No QR / No OCR (Strict File Upload Only)
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,6 +16,24 @@ import { apiService } from '../services/api';
 
 const CACHE_KEY = 'juristi_analyst_cache';
 const getCache = () => { try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
+
+// --- TRANSLATION MAPS FOR TECHNICAL ENUMS ---
+const RISK_MAP: Record<string, string> = {
+    'HIGH': 'LARTË',
+    'MEDIUM': 'MESME',
+    'LOW': 'ULËT',
+    'CRITICAL': 'KRITIKE'
+};
+
+const TYPE_MAP: Record<string, string> = {
+    'CURRENCY_STRUCTURING': 'STRUKTURIM MONETAR',
+    'STRUCTURING': 'STRUKTURIM',
+    'SUSPICIOUS_KEYWORD': 'FJALË KYÇE E DYSHIMTË',
+    'ROUND_AMOUNT': 'SHUMË E RRUMBULLAKËT',
+    'STATISTICAL_OUTLIER': 'DEVIJIM STATISTIKOR',
+    'BENFORD_LAW_DEVIATION': 'MANIPULIM MATEMATIKOR',
+    'TEMPORAL_PATTERN_ANOMALY': 'MODEL KOHOR I PAZAKONTË'
+};
 
 interface ForensicMetadata {
     evidence_hash: string;
@@ -138,26 +155,6 @@ const TypingChatMessage: React.FC<{ message: ChatMessage, onComplete: () => void
                     <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2 text-[10px] text-gray-400">
                         <ShieldAlert className="w-3 h-3" />
                         {t('analyst.verifiedAgainst', { count: message.evidenceCount })}
-                    </div>
-                )}
-                {message.forensicContext?.evidence_references && message.forensicContext.evidence_references.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-white/10">
-                        <div className="flex items-center gap-2 text-[10px] text-gray-400 mb-1">
-                            <Fingerprint className="w-3 h-3" />
-                            {t('analyst.forensic.evidenceRefs', 'Evidence References:')}
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                            {message.forensicContext.evidence_references.slice(0, 3).map((ref, idx) => (
-                                <span key={idx} className="text-[8px] bg-black/30 px-1.5 py-0.5 rounded border border-white/10">
-                                    {ref.substring(0, 12)}...
-                                </span>
-                            ))}
-                            {message.forensicContext.evidence_references.length > 3 && (
-                                <span className="text-[8px] text-gray-500">
-                                    +{message.forensicContext.evidence_references.length - 3}
-                                </span>
-                            )}
-                        </div>
                     </div>
                 )}
             </div>
@@ -364,15 +361,16 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         return <Activity className="w-4 h-4 text-blue-400" />;
     };
 
+    // ALBANIAN LOCALIZED FORENSIC DISPLAY
     const ForensicMetadataDisplay: React.FC<{ metadata: ForensicMetadata }> = ({ metadata }) => (
         <div className="glass-panel p-4 rounded-2xl border border-emerald-500/20 bg-emerald-900/10">
             <h3 className="text-sm font-bold text-emerald-400 mb-3 flex items-center gap-2">
                 <Shield className="w-4 h-4" />
-                {t('analyst.forensic.title', 'Forensic Evidence Integrity')}
+                Integriteti Forenzik i Dëshmisë
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                    <p className="text-xs text-gray-400">{t('analyst.forensic.evidenceHash', 'Evidence Hash')}</p>
+                    <p className="text-xs text-gray-400">Hash i Dëshmisë (SHA-256)</p>
                     <div className="flex items-center gap-2">
                         <code className="text-xs bg-black/30 px-2 py-1 rounded border border-white/10 font-mono truncate">
                             {metadata.evidence_hash.substring(0, 24)}...
@@ -380,14 +378,14 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         <button 
                             onClick={() => navigator.clipboard.writeText(metadata.evidence_hash)}
                             className="text-xs text-gray-400 hover:text-white transition-colors"
-                            title={t('analyst.forensic.copyHash', 'Copy full hash')}
+                            title="Kopjo Hashin e plotë"
                         >
                             📋
                         </button>
                     </div>
                 </div>
                 <div className="space-y-1">
-                    <p className="text-xs text-gray-400">{t('analyst.forensic.analyzedAt', 'Analyzed')}</p>
+                    <p className="text-xs text-gray-400">Analizuar më</p>
                     <p className="text-xs text-white">
                         {new Date(metadata.analysis_timestamp).toLocaleString('sq-AL', {
                             day: '2-digit',
@@ -399,20 +397,20 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     </p>
                 </div>
                 <div className="space-y-1">
-                    <p className="text-xs text-gray-400">{t('analyst.forensic.records', 'Records Analyzed')}</p>
+                    <p className="text-xs text-gray-400">Rekorde të Analizuara</p>
                     <p className="text-xs text-white font-bold">{metadata.record_count}</p>
                 </div>
                 <div className="space-y-1">
-                    <p className="text-xs text-gray-400">{t('analyst.forensic.integrity', 'Integrity Status')}</p>
+                    <p className="text-xs text-gray-400">Statusi i Integritetit</p>
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                        <span className="text-xs text-emerald-400">{t('analyst.forensic.verified', 'Verified & Immutable')}</span>
+                        <span className="text-xs text-emerald-400">Verifikuar & E Pandryshueshme</span>
                     </div>
                 </div>
             </div>
             <div className="mt-3 pt-3 border-t border-white/10">
                 <p className="text-[10px] text-gray-500">
-                    {t('analyst.forensic.disclaimer', 'This evidence is cryptographically sealed. Any alteration will break the hash chain.')}
+                    Kjo dëshmi është e vulosur kriptografikisht. Çdo ndryshim do të thyejë zinxhirin e hash-it.
                 </p>
             </div>
         </div>
@@ -430,7 +428,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             {result && <CheckCircle className="w-5 h-5 text-emerald-500" />}
                         </h2>
                         <p className="text-sm text-gray-400 mt-1">
-                            {t('analyst.subtitle', 'Forensic Financial Analysis')}
+                            {useForensicMode ? "Analizë Financiare Forenzike (Për Gjykatë)" : "Hulumtim Financiar Standard"}
                         </p>
                     </div>
                     
@@ -451,12 +449,12 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                     </div>
                                     <span className="text-xs text-gray-300 flex items-center gap-1">
                                         <Shield className="w-3 h-3" />
-                                        {t('analyst.forensicMode', 'Forensic Mode')}
+                                        Modaliteti Forenzik
                                     </span>
                                 </label>
                                 {useForensicMode && (
                                     <span className="text-[10px] px-2 py-0.5 bg-emerald-900/30 text-emerald-300 rounded-full border border-emerald-500/30">
-                                        {t('analyst.forensicActive', 'Court-Ready')}
+                                        Gati për Gjykatë
                                     </span>
                                 )}
                             </div>
@@ -504,7 +502,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                     className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex justify-center items-center gap-2 hover:bg-white/5"
                                 >
                                     <RefreshCw className="w-4 h-4" />
-                                    {t('analyst.newAnalysis')}
+                                    Analizë e Re
                                 </button>
                             </div>
                         )}
@@ -533,7 +531,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col shrink-0">
                                 <h3 className="text-md font-bold text-white mb-2 flex items-center gap-2 shrink-0">
                                     <ShieldAlert className="text-primary-start w-4 h-4" />
-                                    {t('analyst.narrative')}
+                                    Përmbledhje Ekzekutive
                                 </h3>
                                 <div className="pl-1">{renderMarkdown(result.executive_summary)}</div>
                             </div>
@@ -548,7 +546,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <div className="glass-panel p-4 rounded-xl border border-emerald-500/20 bg-emerald-900/10 shrink-0">
                                     <h3 className="text-sm font-bold text-emerald-400 mb-2 flex items-center gap-2">
                                         <Lightbulb className="w-4 h-4" />
-                                        {t('analyst.recommendations')}
+                                        Rekomandime
                                     </h3>
                                     <ul className="space-y-1">
                                         {result.recommendations.map((rec, i) => (
@@ -580,9 +578,9 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 flex flex-col shrink-0 min-h-[500px]">
                                 <h3 className="text-md font-bold text-white mb-4 flex items-center gap-2 shrink-0">
                                     <AlertTriangle className="text-yellow-400 w-4 h-4" />
-                                    {t('analyst.redFlags')}
+                                    Flamujt e Kuq (Anomali)
                                     <span className="ml-auto text-xs text-gray-400">
-                                        {result.anomalies.length} {t('analyst.detections', 'detections')}
+                                        {result.anomalies.length} detektime
                                     </span>
                                 </h3>
                                 <div className="space-y-3">
@@ -594,16 +592,16 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                             <div className="flex justify-between items-center mb-1">
                                                 <div className="flex gap-2">
                                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${getRiskBadge(anomaly.risk_level)}`}>
-                                                        {anomaly.risk_level}
+                                                        {RISK_MAP[anomaly.risk_level] || anomaly.risk_level}
                                                     </span>
                                                     {anomaly.forensic_type && (
-                                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-300">
-                                                            {anomaly.forensic_type}
+                                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-300 uppercase">
+                                                            {TYPE_MAP[anomaly.forensic_type] || anomaly.forensic_type}
                                                         </span>
                                                     )}
                                                     {anomaly.confidence && (
                                                         <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300">
-                                                            {Math.round(anomaly.confidence * 100)}% conf
+                                                            {Math.round(anomaly.confidence * 100)}% saktësi
                                                         </span>
                                                     )}
                                                 </div>
@@ -639,11 +637,11 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3 shrink-0">
                                 <Bot className="text-primary-start w-5 h-5" />
                                 <div>
-                                    <h3 className="text-sm font-bold text-white">{t('analyst.agentTitle')}</h3>
+                                    <h3 className="text-sm font-bold text-white">Asistenti Ligjor AI</h3>
                                     <p className="text-[10px] text-gray-400">
                                         {useForensicMode
-                                            ? t('analyst.forensicAgent', 'Forensic Investigation Mode')
-                                            : t('analyst.standardAgent', 'Standard Analysis Mode')}
+                                            ? "Regjimi i Hetimit Forenzik"
+                                            : "Regjimi i Analizës Standarde"}
                                     </p>
                                 </div>
                             </div>
@@ -663,7 +661,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                                 <div className="mt-2 pt-2 border-t border-white/10">
                                                     <div className="flex items-center gap-2 text-[10px] text-gray-400 mb-1">
                                                         <Fingerprint className="w-3 h-3" />
-                                                        {t('analyst.forensic.evidenceRefs', 'Evidence References:')}
+                                                        Referencat e Dëshmive:
                                                     </div>
                                                     <div className="flex flex-wrap gap-1">
                                                         {msg.forensicContext.evidence_references.slice(0, 3).map((ref, idx) => (
@@ -703,7 +701,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                     type="text"
                                     value={question}
                                     onChange={(e) => setQuestion(e.target.value)}
-                                    placeholder={t('analyst.askPlaceholder')}
+                                    placeholder="Bëni një pyetje rreth dosjes..."
                                     className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary-start/50"
                                 />
                                 <button
@@ -733,12 +731,12 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         </div>
                         <p className="text-xl text-white font-medium mt-6">
                             {useForensicMode
-                                ? t('analyst.forensicProcessing', 'Running Forensic Analysis...')
-                                : t('analyst.processing')}
+                                ? "Duke kryer Analizën Forenzike..."
+                                : "Duke procesuar të dhënat..."}
                         </p>
                         {useForensicMode && (
                             <p className="text-sm text-gray-400 mt-2">
-                                {t('analyst.forensicNote', 'Generating court-admissible evidence with cryptographic verification')}
+                                Duke gjeneruar dëshmi të pranueshme në gjykatë me verifikim kriptografik
                             </p>
                         )}
                     </motion.div>
@@ -754,14 +752,14 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         className="flex flex-col items-center justify-center text-center py-20 px-6 glass-panel rounded-2xl border border-white/5"
                     >
                         <FileSpreadsheet className="w-12 h-12 text-gray-600 mb-6" />
-                        <h3 className="text-lg font-bold text-white mb-2">{t('analyst.readyTitle')}</h3>
+                        <h3 className="text-lg font-bold text-white mb-2">Gati për Hulumtim</h3>
                         <p className="text-sm text-gray-400 max-w-md mb-4">
-                            {t('analyst.readyDesc')}
+                            Zgjidhni një skedar Excel ose CSV duke përdorur butonat sipër për të filluar skanimin.
                         </p>
                         {useForensicMode && (
                             <div className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-900/20 px-4 py-2 rounded-full border border-emerald-500/30">
                                 <Shield className="w-4 h-4" />
-                                {t('analyst.forensicModeActive', 'Forensic Mode Active - All evidence will be cryptographically sealed')}
+                                Modaliteti Forenzik Aktiv - Të gjitha dëshmitë do të vulosen kriptografikisht
                             </div>
                         )}
                     </motion.div>

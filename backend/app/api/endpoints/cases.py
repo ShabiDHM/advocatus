@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V13.6 (QR LINK FIX)
-# 1. CRITICAL FIX: 'create_mobile_upload_session' now generates a URL pointing to the FRONTEND route ('/mobile-connect/').
-# 2. RESOLVED: Scanning the QR code now directs the mobile user to a web page, not a raw API endpoint.
-# 3. STATUS: Backend correctly generating landing page URLs.
+# PHOENIX PROTOCOL - CASES ROUTER V13.7 (FORENSIC ENABLED / QR REMOVED)
+# 1. ADDED: Endpoints for Forensic Spreadsheet Analysis & Interrogation
+# 2. REMOVED: All QR Code, Mobile Session, and OCR Image Scanning endpoints
+# 3. FIXED: "Analysis Failed" error by connecting frontend to forensic service
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -18,7 +18,6 @@ import io
 import urllib.parse
 import mimetypes
 from datetime import datetime, timezone
-import secrets
 import json
 
 # --- SERVICE IMPORTS ---
@@ -32,8 +31,7 @@ from ...services import (
     pdf_service,
     llm_service,
     drafting_service,
-    spreadsheet_service,
-    ocr_service
+    spreadsheet_service
 )
 from ...services.graph_service import graph_service 
 
@@ -75,9 +73,6 @@ class ArchiveImportRequest(BaseModel):
 class FinanceInterrogationRequest(BaseModel):
     question: str
 
-class MobileSessionOut(BaseModel):
-    upload_url: str
-
 def validate_object_id(id_str: str) -> ObjectId:
     try: return ObjectId(id_str)
     except InvalidId: raise HTTPException(status_code=400, detail="Invalid ID format.")
@@ -93,127 +88,6 @@ async def get_user_cases(current_user: Annotated[UserInDB, Depends(get_current_u
 @router.post("/", response_model=CaseOut, status_code=status.HTTP_201_CREATED)
 async def create_new_case(case_in: CaseCreate, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     return await asyncio.to_thread(case_service.create_case, db=db, case_in=case_in, owner=current_user)
-
-@router.post("/{case_id}/mobile-upload-session", response_model=MobileSessionOut, tags=["Documents"])
-def create_mobile_upload_session(
-    case_id: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db),
-    redis_client: redis.Redis = Depends(get_sync_redis)
-):
-    case_oid = validate_object_id(case_id)
-    case = case_service.get_case_by_id(db=db, case_id=case_oid, owner=current_user)
-    if not case:
-        raise HTTPException(status_code=404, detail="Case not found.")
-
-    token = secrets.token_urlsafe(32)
-    session_data = json.dumps({"user_id": str(current_user.id), "case_id": case_id})
-    
-    redis_client.setex(f"mobile_upload:{token}", 600, session_data)
-    
-    # PHOENIX FIX: Point to the React Frontend Route '/mobile-connect'
-    # This allows the user to see a UI and open their camera.
-    frontend_path = f"/mobile-connect/{token}"
-    upload_url = urllib.parse.urljoin(settings.FRONTEND_URL, frontend_path)
-    
-    return MobileSessionOut(upload_url=upload_url)
-
-@router.post("/mobile-upload/{token}", tags=["Documents", "Public"])
-async def handle_mobile_upload(
-    token: str, 
-    file: UploadFile = File(...), 
-    db: Database = Depends(get_db),
-    redis_client: redis.Redis = Depends(get_sync_redis)
-):
-    session_key = f"mobile_upload:{token}"
-    result_key = f"mobile_result:{token}"
-    
-    session_data_raw = redis_client.get(session_key)
-    if not isinstance(session_data_raw, bytes):
-        raise HTTPException(status_code=404, detail="Session expired.")
-
-    try:
-        session_data = json.loads(session_data_raw.decode('utf-8'))
-        user_id = session_data["user_id"]
-        case_id = session_data["case_id"]
-    except Exception:
-        raise HTTPException(status_code=500, detail="Invalid session.")
-
-    try:
-        image_bytes = await file.read()
-        ocr_text = await asyncio.to_thread(ocr_service.extract_text_from_image_bytes, image_bytes)
-        
-        if not ocr_text or len(ocr_text) < 10:
-             raise HTTPException(status_code=400, detail="OCR Failed. Image too blurry?")
-
-        analysis_result = await spreadsheet_service.analyze_text_to_spreadsheet(
-            ocr_text=ocr_text,
-            case_id=case_id,
-            db=db
-        )
-        
-        # Save result to Redis for desktop polling
-        redis_client.setex(result_key, 300, json.dumps(analysis_result, default=str))
-        
-        # Invalidate session to prevent reuse
-        redis_client.delete(session_key)
-        
-        return JSONResponse(content={"status": "complete", "message": "Success"}, status_code=200)
-
-    except Exception as e:
-        logger.error(f"Mobile upload failed: {e}")
-        redis_client.setex(result_key, 60, json.dumps({"error": str(e)}))
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/mobile-upload-status/{token}", tags=["Documents"])
-def check_mobile_upload_status(
-    token: str,
-    redis_client: redis.Redis = Depends(get_sync_redis)
-):
-    result_key = f"mobile_result:{token}"
-    data_raw = redis_client.get(result_key)
-    
-    if not data_raw:
-        return JSONResponse(content={"status": "pending"})
-    
-    if isinstance(data_raw, bytes):
-        data = json.loads(data_raw.decode('utf-8'))
-        redis_client.delete(result_key)
-        
-        if "error" in data:
-            return JSONResponse(content={"status": "error", "message": data["error"]})
-            
-        return JSONResponse(content={"status": "complete", "data": data})
-        
-    return JSONResponse(content={"status": "pending"})
-
-@router.post("/{case_id}/analyze/scanned-image", tags=["Analysis"])
-async def analyze_scanned_image_endpoint(
-    case_id: str, 
-    current_user: Annotated[UserInDB, Depends(get_current_user)], 
-    file: UploadFile = File(...), 
-    db: Database = Depends(get_db)
-):
-    validate_object_id(case_id)
-    case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
-    if not case: raise HTTPException(status_code=404, detail="Case not found.")
-    
-    try:
-        image_bytes = await file.read()
-        ocr_text = await asyncio.to_thread(ocr_service.extract_text_from_image_bytes, image_bytes)
-        
-        if not ocr_text or len(ocr_text) < 10:
-             raise HTTPException(status_code=400, detail="OCR could not extract sufficient text from the image.")
-
-        analysis_result = await spreadsheet_service.analyze_text_to_spreadsheet(
-            ocr_text=ocr_text,
-            case_id=case_id,
-            db=db
-        )
-        return JSONResponse(content=analysis_result, status_code=200)
-    except Exception as e:
-        logger.error(f"Direct scan failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 @router.get("/{case_id}", response_model=CaseOut)
 async def get_single_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
@@ -447,6 +321,34 @@ async def analyze_spreadsheet_endpoint(case_id: str, current_user: Annotated[Use
         logger.error(f"Spreadsheet Analysis Error: {e}")
         raise HTTPException(status_code=500, detail="Analysis failed.")
 
+# PHOENIX ADDITION: Forensic Analysis Endpoint
+@router.post("/{case_id}/analyze/forensic-spreadsheet", tags=["Analysis"])
+async def analyze_forensic_spreadsheet_endpoint(
+    case_id: str, 
+    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    file: UploadFile = File(...), 
+    db: Database = Depends(get_db)
+):
+    validate_object_id(case_id)
+    case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
+    if not case: raise HTTPException(status_code=404, detail="Case not found.")
+    
+    try:
+        content = await file.read()
+        filename = file.filename or "unknown_forensic.xlsx"
+        # Call the forensic service function
+        result = await spreadsheet_service.forensic_analyze_spreadsheet(
+            content=content, 
+            filename=filename, 
+            case_id=case_id, 
+            db=db,
+            analyst_id=str(current_user.id)
+        )
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Forensic Analysis Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Forensic analysis failed: {str(e)}")
+
 @router.post("/{case_id}/analyze/spreadsheet-existing/{doc_id}", tags=["Analysis"])
 async def analyze_existing_spreadsheet_endpoint(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validated_case_oid = validate_object_id(case_id)
@@ -499,6 +401,29 @@ async def interrogate_financial_records(
     except Exception as e:
         logger.error(f"Interrogation Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to interrogate financial records.")
+
+# PHOENIX ADDITION: Forensic Interrogation Endpoint
+@router.post("/{case_id}/interrogate-forensic", tags=["Analysis"])
+async def interrogate_forensic_evidence(
+    case_id: str, 
+    body: FinanceInterrogationRequest,
+    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    db: Database = Depends(get_db)
+):
+    validate_object_id(case_id)
+    case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
+    if not case: raise HTTPException(status_code=404, detail="Case not found.")
+    
+    try:
+        result = await spreadsheet_service.forensic_interrogate_evidence(
+            case_id=case_id, 
+            question=body.question, 
+            db=db
+        )
+        return JSONResponse(content=result)
+    except Exception as e:
+        logger.error(f"Forensic Interrogation Error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to interrogate forensic evidence.")
 
 @router.get("/public/{case_id}/timeline", tags=["Public Portal"])
 async def get_public_case_timeline(case_id: str, db: Database = Depends(get_db)):
