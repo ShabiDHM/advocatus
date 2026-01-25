@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V16.7 (MOBILE TO EXPENSE - VERIFIED STORAGE)
-# 1. VERIFIED: Using actual storage service functions
-# 2. FIXED: Type-safe file handling with correct signatures
-# 3. OPTIMIZED: Uses copy_s3_object for efficient file movement
+# PHOENIX PROTOCOL - FINANCE ROUTER V16.9 (CLEAN SINGLE-STEP MOBILE UPLOAD)
+# 1. REMOVED: Deprecated /mobile-upload-create-expense endpoint
+# 2. CLEAN: Single-step mobile upload → expense creation
+# 3. FIXED: No type violations
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -269,7 +269,7 @@ async def analyze_expense_receipt(
         print(f"Receipt analysis failed: {e}")
         return JSONResponse(content={"category": "", "amount": 0, "date": "", "description": ""})
 
-# --- PHOENIX NEW: COMPLETE MOBILE UPLOAD → EXPENSE PIPELINE ---
+# --- PHOENIX FIXED: SINGLE-STEP MOBILE UPLOAD → EXPENSE PIPELINE ---
 
 @router.post("/mobile-upload-session")
 def create_general_mobile_upload_session(
@@ -299,86 +299,56 @@ def check_general_mobile_upload_status(token: str):
     return {"status": data.get("status", "pending")}
 
 @router.post("/mobile-upload/{token}")
-async def public_general_mobile_upload(token: str, file: UploadFile = File(...), db: Database = Depends(get_db)):
+async def public_general_mobile_upload(
+    token: str, 
+    file: UploadFile = File(...), 
+    db: Database = Depends(get_db),
+    case_id: Optional[str] = Body(None, embed=True)
+):
+    """
+    SINGLE-STEP MOBILE UPLOAD: Uploads file AND creates expense automatically.
+    Optional case_id parameter to associate expense with a case.
+    """
     data_str = cast(Optional[str], redis_client.get(f"mobile_upload:{token}"))
     if not data_str:
         raise HTTPException(status_code=404, detail="Session expired")
     
     data = json.loads(data_str)
     if data.get("status") == "complete":
-         return {"status": "already_completed"}
+         return {
+             "status": "already_completed", 
+             "expense_id": data.get("expense_id"),
+             "message": "Expense already created from this upload"
+         }
 
-    # Upload to temporary storage
+    # 1. Upload to temporary storage
     service = FinanceService(db)
     temp_id = f"temp_{token}"
-    storage_key = service.upload_temporary_receipt(data["user_id"], temp_id, file)
+    temp_storage_key = service.upload_temporary_receipt(data["user_id"], temp_id, file)
     
-    # Update session with temp file info
-    data["status"] = "uploaded"
-    data["temp_storage_key"] = storage_key
+    # Store temp file info
+    data["temp_storage_key"] = temp_storage_key
     data["filename"] = file.filename
     data["content_type"] = file.content_type
-    redis_client.setex(f"mobile_upload:{token}", 1800, json.dumps(data))
-    
-    return {"status": "success", "message": "File uploaded. Call /mobile-upload-create-expense to create expense."}
-
-@router.post("/mobile-upload-create-expense/{token}")
-async def create_expense_from_mobile_upload(
-    token: str,
-    current_user: Annotated[UserInDB, Depends(get_current_user)],
-    db: Database = Depends(get_db),
-    case_id: Optional[str] = Body(None, embed=True)
-):
-    """
-    Complete the mobile upload pipeline:
-    1. Get uploaded file from temp storage
-    2. Analyze with OCR/LLM
-    3. Create expense with extracted data
-    4. Copy file to permanent storage using copy_s3_object
-    5. Clean up temp file
-    """
-    # Get session data
-    data_str = cast(Optional[str], redis_client.get(f"mobile_upload:{token}"))
-    if not data_str:
-        raise HTTPException(status_code=404, detail="Session expired or invalid")
-    
-    data = json.loads(data_str)
-    if data.get("status") != "uploaded":
-        raise HTTPException(status_code=400, detail="No file uploaded or already processed")
-    
-    # Verify user owns this session
-    if data["user_id"] != str(current_user.id):
-        raise HTTPException(status_code=403, detail="Not authorized for this session")
-    
-    temp_storage_key = data.get("temp_storage_key")
-    if not temp_storage_key:
-        raise HTTPException(status_code=400, detail="No file found in session")
     
     try:
-        # 1. Get file from temp storage to verify it exists
-        file_stream = get_file_stream(temp_storage_key)
-        if not file_stream:
-            raise HTTPException(status_code=404, detail="Temp file not found")
-        file_stream.close()  # Just verifying, close immediately
+        # 2. Process file for OCR/LLM
+        file_content = await file.read()
         
-        # 2. Analyze with OCR/LLM
-        # Read file content for OCR processing
-        file_stream = get_file_stream(temp_storage_key)
-        file_content = b""
-        for chunk in file_stream:
-            file_content += chunk
-        file_stream.close()
-        
+        # 3. Analyze with OCR/LLM
         ocr_text = await asyncio.to_thread(ocr_service.extract_text_from_image_bytes, file_content)
         if not ocr_text or len(ocr_text) < 5:
-            raise HTTPException(status_code=400, detail="Could not extract text from image")
+            logger.warning(f"OCR extracted insufficient text: {len(ocr_text or '')} chars")
+            # Create expense with default data
+            structured_data = {
+                "description": f"Receipt from {datetime.utcnow().strftime('%Y-%m-%d')}", 
+                "amount": 0.0, 
+                "category": "OTHER"
+            }
+        else:
+            structured_data = await asyncio.to_thread(llm_service.extract_expense_details_from_text, ocr_text)
         
-        structured_data = await asyncio.to_thread(llm_service.extract_expense_details_from_text, ocr_text)
-        
-        # 3. Create expense
-        expense_service = FinanceService(db)
-        
-        # Parse date if available
+        # 4. Create expense
         expense_date = datetime.utcnow()
         if structured_data.get("date"):
             try:
@@ -394,39 +364,43 @@ async def create_expense_from_mobile_upload(
             related_case_id=case_id
         )
         
-        expense = expense_service.create_expense(str(current_user.id), expense_data)
+        expense = service.create_expense(data["user_id"], expense_data)
         
-        # 4. Copy file to permanent storage using copy_s3_object
-        # Destination folder: expenses/{user_id}
-        dest_folder = f"expenses/{current_user.id}"
+        # 5. Copy file to permanent storage
+        dest_folder = f"expenses/{data['user_id']}"
         permanent_storage_key = copy_s3_object(temp_storage_key, dest_folder)
         
         # Update expense with receipt URL
-        expense_service.db.expenses.update_one(
+        service.db.expenses.update_one(
             {"_id": ObjectId(expense.id)},
             {"$set": {"receipt_url": permanent_storage_key}}
         )
         
-        # 5. Clean up temp file (optional - temp files auto-expire)
+        # 6. Clean up temp file
         try:
             delete_file(temp_storage_key)
-            logger.info(f"Deleted temp file: {temp_storage_key}")
         except Exception as cleanup_error:
             logger.warning(f"Failed to delete temp file {temp_storage_key}: {cleanup_error}")
-            # Non-critical error
         
-        # Update session as complete
+        # 7. Update session as complete
         data["status"] = "complete"
         data["expense_id"] = str(expense.id)
         data["permanent_storage_key"] = permanent_storage_key
         redis_client.setex(f"mobile_upload:{token}", 300, json.dumps(data))  # Keep for 5 more mins
         
-        # Return the updated expense
-        expense.receipt_url = permanent_storage_key
-        return ExpenseOut(**expense.dict())
+        return {
+            "status": "success", 
+            "expense_id": str(expense.id),
+            "message": "Expense created successfully",
+            "expense": ExpenseOut(**expense.dict()).dict()
+        }
         
     except Exception as e:
-        logger.error(f"Failed to create expense from mobile upload: {e}")
+        logger.error(f"Failed to process mobile upload: {e}")
+        # Update session with error
+        data["status"] = "error"
+        data["error"] = str(e)
+        redis_client.setex(f"mobile_upload:{token}", 300, json.dumps(data))
         raise HTTPException(status_code=500, detail=f"Failed to process upload: {str(e)}")
 
 @router.get("/mobile-upload-file/{token}")
@@ -436,10 +410,10 @@ def get_general_mobile_session_file(token: str, current_user: Annotated[UserInDB
         raise HTTPException(status_code=404, detail="Session expired")
     
     data = json.loads(data_str)
-    if data.get("status") != "complete" or not data.get("storage_key"):
-        raise HTTPException(status_code=400, detail="Upload not complete")
+    if data.get("status") != "complete" or not data.get("permanent_storage_key"):
+        raise HTTPException(status_code=400, detail="Upload not complete or no file available")
         
-    storage_key = data["storage_key"]
+    storage_key = data["permanent_storage_key"]
     
     file_stream = get_file_stream(storage_key)
     if not file_stream:
