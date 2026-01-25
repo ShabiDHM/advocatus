@@ -1,14 +1,13 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - UNIFIED REPORTING ENGINE V7.0 (FINAL UI)
-// 1. UNIFIED UI: Removed redundant 'Trends' and 'Anomalies' sections.
-// 2. FOCUSED LAYOUT: The strategic 'Internal Memo' is now the centerpiece of the report.
-// 3. SIMPLIFIED: Cleaned up code and types to match the new unified backend response.
+// PHOENIX PROTOCOL - UNIFIED REPORTING ENGINE V7.1 (POLISHED UI)
+// 1. REMOVED: Forensic metadata card ("Hash i Dëshmisë") from the final report view.
+// 2. SIMPLIFIED: Loading subtitle changed to be less technical.
+// 3. ENHANCED: Memo display is now cleaner and has a more professional, "report-like" feel.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    FileSpreadsheet, Activity, AlertTriangle, 
-    CheckCircle, RefreshCw, Send, ShieldAlert, Bot, Save, Shield
+    FileSpreadsheet, Activity, CheckCircle, RefreshCw, Send, ShieldAlert, Bot, Save
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
@@ -16,56 +15,37 @@ import { apiService } from '../services/api';
 const CACHE_KEY = 'juristi_analyst_cache';
 const getCache = () => { try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
 
-// --- DATA STRUCTURES (SIMPLIFIED FOR UNIFIED REPORT) ---
-interface ForensicMetadata {
-    evidence_hash: string;
-    analysis_timestamp: string;
-    record_count: number;
-}
+// --- DATA STRUCTURES ---
 interface SmartFinancialReport {
-    executive_summary: string; // This now contains the full Markdown memo
-    forensic_metadata?: ForensicMetadata;
-    // Anomalies and Trends are now inside the executive_summary, not separate fields
+    executive_summary: string;
 }
 interface ChatMessage {
-    id: string;
-    role: 'user' | 'agent';
-    content: string;
-    timestamp: Date;
-    evidenceCount?: number;
+    id: string; role: 'user' | 'agent'; content: string; timestamp: Date; evidenceCount?: number;
 }
 interface CachedState {
-    report: SmartFinancialReport;
-    chat: ChatMessage[];
-    fileName: string;
+    report: SmartFinancialReport; chat: ChatMessage[]; fileName: string;
 }
 interface SpreadsheetAnalystProps {
     caseId: string;
 }
 
 // --- Helper Functions ---
-const parseBold = (line: string) => {
-    const parts = line.split(/(\*\*.*?\*\*|\*.*?\*)/g);
-    return parts.map((part, index) => {
-        if (part.startsWith('**') && part.endsWith('**')) return <strong key={index} className="text-white font-bold">{part.slice(2, -2)}</strong>;
-        if (part.startsWith('*') && part.endsWith('*')) return <em key={index} className="italic text-gray-200">{part.slice(1, -1)}</em>;
-        return part;
-    });
-};
-
 const renderMarkdown = (text: string) => {
     if (!text) return null;
     return text.split('\n').map((line, i) => {
         const trimmed = line.trim();
+        if (trimmed === '---') return <hr key={i} className="border-white/10 my-6" />;
         if (!trimmed) return <div key={i} className="h-3" />;
-        if (trimmed.startsWith('###')) return <h3 key={i} className="text-white font-bold text-lg mt-6 mb-3 pb-2 border-b border-white/10 uppercase tracking-wide">{trimmed.replace(/^#+\s*/, '').replace(/\*\*/g, '')}</h3>;
-        if (trimmed.startsWith('**') && trimmed.includes(':')) return <div key={i} className="mt-2 text-sm text-gray-200">{parseBold(trimmed)}</div>;
-        if (trimmed.startsWith('* ')) return <div key={i} className="flex gap-2 ml-1 mb-2 items-start"><span className="text-primary-400 mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-400 shrink-0"/><p className="text-gray-300 text-sm leading-relaxed">{parseBold(trimmed.substring(2))}</p></div>;
+        if (trimmed.startsWith('**1.') || trimmed.startsWith('**2.') || trimmed.startsWith('**3.') || trimmed.startsWith('**4.')) {
+            return <h3 key={i} className="text-white font-bold text-lg mt-6 mb-3 pb-2 border-b border-white/10">{trimmed.replace(/\*\*/g, '')}</h3>;
+        }
+        if (trimmed.startsWith('**') && trimmed.includes(':')) return <div key={i} className="mt-2 text-sm text-gray-200"><strong className="text-white font-semibold">{trimmed.split(':')[0]}:</strong>{trimmed.split(':')[1]}</div>;
+        if (trimmed.startsWith('* ')) return <div key={i} className="flex gap-2 ml-1 mb-2 items-start"><span className="text-primary-400 mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-400 shrink-0"/><p className="text-gray-300 text-sm leading-relaxed">{trimmed.substring(2)}</p></div>;
         if (/^\d+\./.test(trimmed)) {
             const match = trimmed.match(/^(\d+\.)\s+(.*)/);
-            if (match) return <div key={i} className="flex gap-3 ml-1 mb-2 text-sm text-gray-300 items-start"><span className="font-mono text-primary-300 shrink-0 font-bold">{match[1]}</span><p className="leading-relaxed">{parseBold(match[2])}</p></div>;
+            if (match) return <div key={i} className="flex gap-3 ml-1 mb-2 text-sm text-gray-300 items-start"><span className="font-mono text-primary-300 shrink-0 font-bold">{match[1]}</span><p className="leading-relaxed">{match[2]}</p></div>;
         }
-        return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-2 break-words">{parseBold(trimmed)}</p>;
+        return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-2 break-words">{trimmed}</p>;
     });
 };
 
@@ -107,8 +87,6 @@ const TypingChatMessage: React.FC<{ message: ChatMessage, onComplete: () => void
 };
 
 const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
-    const { t } = useTranslation();
-    const [file, setFile] = useState<File | null>(null);
     const [fileName, setFileName] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState<SmartFinancialReport | null>(null);
@@ -134,12 +112,12 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     
     useEffect(() => {
         if (result && !typingMessage) {
-            const stateToSave: CachedState = { report: result, chat: chatHistory, fileName: file?.name || fileName || 'Unknown File' };
+            const stateToSave: CachedState = { report: result, chat: chatHistory, fileName: fileName || 'Unknown File' };
             const cache = getCache();
             cache[caseId] = stateToSave;
             try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (e) { console.error("Failed to save to localStorage", e); }
         }
-    }, [result, chatHistory, file, fileName, caseId, typingMessage]);
+    }, [result, chatHistory, fileName, caseId, typingMessage]);
     
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -152,7 +130,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             const data = await apiService.forensicAnalyzeSpreadsheet(caseId, fileToAnalyze) as unknown as SmartFinancialReport;
             setResult(data);
         } catch (err) {
-            setError(t('analyst.error.analysisFailed'));
+            setError("Analiza dështoi. Ju lutemi kontrolloni formatin e skedarit.");
             console.error('Analysis error:', err);
         } finally {
             setIsAnalyzing(false);
@@ -178,7 +156,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const newFile = e.target.files[0];
-            setFile(newFile);
             setFileName(newFile.name);
             setError(null);
             setResult(null);
@@ -188,7 +165,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     };
     
     const handleReset = () => {
-        setFile(null); setFileName(null); setResult(null); setChatHistory([]); setError(null);
+        setFileName(null); setResult(null); setChatHistory([]); setError(null);
         const cache = getCache();
         delete cache[caseId];
         try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch (e) { console.error("Failed to clear from localStorage", e); }
@@ -207,13 +184,13 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         try {
             const response = await apiService.forensicInterrogateEvidence(caseId, currentQ);
             const agentMsg: ChatMessage = {
-                id: (Date.now() + 1).toString(), role: 'agent', content: response.answer || t('analyst.noRelevantData'),
+                id: (Date.now() + 1).toString(), role: 'agent', content: response.answer || "Nuk u gjet përgjigje.",
                 timestamp: new Date(), evidenceCount: response.supporting_evidence_count
             };
             setTypingMessage(agentMsg);
         } catch (err) {
             console.error('Interrogation error:', err);
-            const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'agent', content: t('analyst.connectionFailed'), timestamp: new Date() };
+            const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'agent', content: "Lidhja dështoi.", timestamp: new Date() };
             setTypingMessage(errorMsg);
         } finally {
             setIsInterrogating(false);
@@ -226,27 +203,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             setTypingMessage(null);
         }
     };
-
-    const ForensicMetadataDisplay: React.FC<{ metadata: ForensicMetadata }> = ({ metadata }) => (
-        <div className="glass-panel p-4 rounded-2xl border border-emerald-500/20 bg-emerald-900/10">
-            <h3 className="text-sm font-bold text-emerald-400 mb-3 flex items-center gap-2">
-                <Shield className="w-4 h-4" />
-                Integriteti Forenzik i Dëshmisë
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                    <p className="text-xs text-gray-400">Hash i Dëshmisë (SHA-256)</p>
-                    <div className="flex items-center gap-2">
-                        <code className="text-xs bg-black/30 px-2 py-1 rounded border border-white/10 font-mono truncate">{metadata.evidence_hash.substring(0, 24)}...</code>
-                    </div>
-                </div>
-                <div>
-                    <p className="text-xs text-gray-400">Analizuar më</p>
-                    <p className="text-xs text-white">{new Date(metadata.analysis_timestamp).toLocaleString('sq-AL')}</p>
-                </div>
-            </div>
-        </div>
-    );
 
     return (
         <div className="w-full h-full min-h-[500px] flex flex-col gap-6 p-2 sm:p-1">
@@ -265,7 +221,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"/>
                                 <div className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-dashed transition-all cursor-pointer bg-black/20 border-gray-600 hover:border-gray-400">
                                     <FileSpreadsheet className="w-5 h-5 text-gray-400" />
-                                    <span className="text-sm text-gray-300">{t('analyst.selectFile', 'Zgjidh Excel/CSV...')}</span>
+                                    <span className="text-sm text-gray-300">Zgjidh Excel/CSV...</span>
                                 </div>
                             </div>
                         )}
@@ -283,21 +239,18 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         )}
                     </div>
                 </div>
-                {error && <div className="mt-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-200"><AlertTriangle className="w-5 h-5" />{error}</div>}
+                {error && <div className="mt-4 p-3 bg-red-900/30 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-200"><ShieldAlert className="w-5 h-5" />{error}</div>}
             </div>
             
             <AnimatePresence mode="wait">
                 {result && (
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[850px]">
-                        {/* --- UNIFIED REPORT COLUMN --- */}
                         <div className="flex flex-col gap-6 overflow-y-auto custom-scrollbar h-full lg:pr-2">
-                            <div className="glass-panel p-6 rounded-2xl border border-white/10 bg-white/5">
+                            <div className="glass-panel p-6 sm:p-8 rounded-2xl border border-white/10 bg-white/5">
                                 {renderMarkdown(result.executive_summary)}
                             </div>
-                            {result.forensic_metadata && <ForensicMetadataDisplay metadata={result.forensic_metadata} />}
                         </div>
                         
-                        {/* --- CHAT AGENT COLUMN --- */}
                         <div className="glass-panel rounded-2xl border border-primary-start/30 bg-black/40 flex flex-col h-[600px] lg:h-full overflow-hidden shadow-2xl">
                             <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3 shrink-0">
                                 <Bot className="text-primary-start w-5 h-5" />
