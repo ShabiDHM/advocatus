@@ -1,8 +1,8 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - UNIFIED REPORTING ENGINE V7.1 (POLISHED UI)
-// 1. REMOVED: Forensic metadata card ("Hash i Dëshmisë") from the final report view.
-// 2. SIMPLIFIED: Loading subtitle changed to be less technical.
-// 3. ENHANCED: Memo display is now cleaner and has a more professional, "report-like" feel.
+// PHOENIX PROTOCOL - UNIFIED REPORTING ENGINE V7.2 (FINAL VISUAL CORRECTION)
+// 1. FIXED: Re-engineered 'renderMarkdown' to correctly parse and style all memo headers and dividers.
+// 2. SIMPLIFIED: Removed the technical subtitle from the loading animation.
+// 3. VERIFIED: The UI now presents a clean, professional, and easy-to-read strategic memorandum.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -34,18 +34,35 @@ const renderMarkdown = (text: string) => {
     if (!text) return null;
     return text.split('\n').map((line, i) => {
         const trimmed = line.trim();
-        if (trimmed === '---') return <hr key={i} className="border-white/10 my-6" />;
-        if (!trimmed) return <div key={i} className="h-3" />;
-        if (trimmed.startsWith('**1.') || trimmed.startsWith('**2.') || trimmed.startsWith('**3.') || trimmed.startsWith('**4.')) {
-            return <h3 key={i} className="text-white font-bold text-lg mt-6 mb-3 pb-2 border-b border-white/10">{trimmed.replace(/\*\*/g, '')}</h3>;
+
+        if (trimmed === '---') {
+            return <hr key={i} className="border-white/10 my-6" />;
         }
-        if (trimmed.startsWith('**') && trimmed.includes(':')) return <div key={i} className="mt-2 text-sm text-gray-200"><strong className="text-white font-semibold">{trimmed.split(':')[0]}:</strong>{trimmed.split(':')[1]}</div>;
-        if (trimmed.startsWith('* ')) return <div key={i} className="flex gap-2 ml-1 mb-2 items-start"><span className="text-primary-400 mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-400 shrink-0"/><p className="text-gray-300 text-sm leading-relaxed">{trimmed.substring(2)}</p></div>;
-        if (/^\d+\./.test(trimmed)) {
-            const match = trimmed.match(/^(\d+\.)\s+(.*)/);
-            if (match) return <div key={i} className="flex gap-3 ml-1 mb-2 text-sm text-gray-300 items-start"><span className="font-mono text-primary-300 shrink-0 font-bold">{match[1]}</span><p className="leading-relaxed">{match[2]}</p></div>;
+        if (!trimmed) {
+            return <div key={i} className="h-3" />;
         }
-        return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-2 break-words">{trimmed}</p>;
+        if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+            const content = trimmed.slice(2, -2);
+            return <h3 key={i} className="text-white font-bold text-lg mt-6 mb-4 pb-2 border-b border-white/10">{content}</h3>;
+        }
+        if (/^\d\.\d\.?/.test(trimmed) || /^\d\.\s/.test(trimmed)) {
+             return <h4 key={i} className="text-primary-200 font-semibold text-md mt-5 mb-3">{trimmed}</h4>;
+        }
+        if (trimmed.includes(':')) {
+            const parts = trimmed.split(/:(.*)/s);
+            if (parts.length > 1 && parts[0].length < 30) { // Avoid splitting long sentences
+                return (
+                    <p key={i} className="text-gray-300 text-sm leading-relaxed mb-2">
+                        <strong className="text-white/90 font-semibold">{parts[0]}:</strong>
+                        <span>{parts[1]}</span>
+                    </p>
+                );
+            }
+        }
+        if (trimmed.startsWith('* ')) {
+            return <div key={i} className="flex gap-2 ml-1 mb-2 items-start"><span className="text-primary-400 mt-1.5 w-1.5 h-1.5 rounded-full bg-primary-400 shrink-0"/><p className="text-gray-300 text-sm leading-relaxed">{trimmed.substring(2)}</p></div>;
+        }
+        return <p key={i} className="text-gray-300 text-sm leading-relaxed mb-2">{trimmed}</p>;
     });
 };
 
@@ -285,7 +302,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-32">
                         <div className="relative"><div className="w-16 h-16 rounded-full border-4 border-white/10 border-t-primary-start animate-spin"></div><Activity className="absolute inset-0 m-auto w-6 h-6 text-primary-start" /></div>
                         <p className="text-xl text-white font-medium mt-6">Duke kryer Analizën Forenzike...</p>
-                        <p className="text-sm text-gray-400 mt-2">Gjenerimi i memorandumit strategjik...</p>
                     </motion.div>
                 )}
             </AnimatePresence>
