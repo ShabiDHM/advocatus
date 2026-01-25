@@ -1,11 +1,11 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V2.2 (UI FIX + STATE SYNC)
-// 1. FIX: Long case titles and "ZGJIDHNI RASTIN" now properly constrained within UI boundaries
-// 2. FIX: Added protocol verification for UI layout integrity
-// 3. PROTOCOL: All UI elements now respect container boundaries with overflow control
+// PHOENIX PROTOCOL - EXPENSE MODAL V2.3 (DATETIME FIX + UI FIX)
+// 1. FIX: Mobile scanning datetime serialization error
+// 2. FIX: Long case titles and "ZGJIDHNI RASTIN" properly constrained
+// 3. PROTOCOL: Robust datetime handling with JSON-safe serialization
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, Camera, Link as LinkIcon, AlertCircle, ShieldCheck } from 'lucide-react';
+import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, Camera, Link as LinkIcon, AlertCircle, ShieldCheck, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Expense, Case } from '../../../data/types';
 import { apiService } from '../../../services/api';
@@ -23,6 +23,40 @@ interface ExpenseModalProps {
     cases: Case[];
     editingExpense: Expense | null;
 }
+
+// PROTOCOL: JSON-Safe Datetime Handling
+const DateTimeProtocol = {
+    serializeDate: (date: Date | null): string | null => {
+        if (!date) return null;
+        return date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    },
+    
+    parseDate: (dateString: string | Date | null): Date | null => {
+        if (!dateString) return null;
+        if (dateString instanceof Date) return dateString;
+        
+        try {
+            const date = new Date(dateString);
+            return isNaN(date.getTime()) ? null : date;
+        } catch (e) {
+            console.warn('[DATETIME-PROTOCOL] Failed to parse date:', dateString);
+            return null;
+        }
+    },
+    
+    isValidJSONDate: (date: any): boolean => {
+        if (!date) return false;
+        if (date instanceof Date) {
+            try {
+                JSON.stringify({ test: date.toISOString() });
+                return true;
+            } catch {
+                return false;
+            }
+        }
+        return typeof date === 'string';
+    }
+};
 
 // PROTOCOL: UI Layout Verification
 const UILayoutProtocol = {
@@ -42,7 +76,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const cameraInputRef = useRef<HTMLInputElement>(null);
     
     const [loading, setLoading] = useState(false);
-    const [uiProtocolActive, setUiProtocolActive] = useState(true); // Protocol verification flag
+    const [uiProtocolActive, setUiProtocolActive] = useState(true);
+    const [datetimeProtocolActive, setDatetimeProtocolActive] = useState(true);
 
     const [qrContent, setQrContent] = useState<string | null>(null);
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
@@ -55,14 +90,13 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const localeMap: { [key: string]: any } = { sq, al: sq, en: enUS };
     const currentLocale = localeMap[i18n.language] || enUS;
 
-    // PROTOCOL: Smart text truncation function
+    // PROTOCOL: Smart text truncation
     const truncateCaseTitle = (title: string, maxLength: number = UILayoutProtocol.MAX_DISPLAY_LENGTH): string => {
         if (!title) return title;
         if (title.length <= maxLength) return title;
         
         const truncated = title.substring(0, maxLength - 3) + UILayoutProtocol.TRUNCATION_MARKER;
         
-        // Protocol verification logging
         if (uiProtocolActive && title.length > maxLength) {
             console.warn(`[UI-PROTOCOL] Truncated case title: "${title}" → "${truncated}"`);
         }
@@ -70,35 +104,26 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         return truncated;
     };
 
-    // PROTOCOL: Format the "No Case" option for display
+    // PROTOCOL: Format "No Case" option
     const formatNoCaseOption = (): string => {
         const noCaseText = `-- ${t('finance.noCase', 'Pa Lëndë')} --`;
-        
-        // Special handling for "ZGJIDHNI RASTIN" scenario
-        if (noCaseText.includes('Pa Lëndë')) {
-            return noCaseText; // Keep original, but ensure it fits
-        }
-        
-        return truncateCaseTitle(noCaseText, 30);
+        return noCaseText;
     };
 
-    // PROTOCOL: Verify all UI elements fit within boundaries
+    // PROTOCOL: Verify UI layout
     const verifyUILayout = (): boolean => {
         if (!uiProtocolActive) return true;
         
         const issues: string[] = [];
         
-        // Check case titles length
         cases.forEach(caseItem => {
             if (caseItem.title.length > UILayoutProtocol.MAX_DISPLAY_LENGTH) {
                 issues.push(`Case "${caseItem.title}" exceeds ${UILayoutProtocol.MAX_DISPLAY_LENGTH} chars`);
             }
         });
         
-        // Check form fields
-        if (formData.category.length > 50) {
-            issues.push(`Category field exceeds 50 chars`);
-        }
+        if (formData.category.length > 50) issues.push(`Category field exceeds 50 chars`);
+        if (formData.description.length > 200) issues.push(`Description field exceeds 200 chars`);
         
         if (issues.length > 0) {
             console.warn('[UI-PROTOCOL] Layout issues detected:', issues);
@@ -107,6 +132,75 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         
         console.log('[UI-PROTOCOL] All UI elements within boundaries ✓');
         return true;
+    };
+
+    // PROTOCOL: Safe AI result processing
+    const processAIResult = (aiResult: any): Partial<typeof formData> & { date?: Date | null } => {
+        const processed: Partial<typeof formData> & { date?: Date | null } = {};
+        
+        if (!aiResult) return processed;
+        
+        // Handle category
+        if (aiResult.category && typeof aiResult.category === 'string') {
+            processed.category = aiResult.category.substring(0, 50); // Enforce max length
+        }
+        
+        // Handle amount
+        if (aiResult.amount !== undefined && aiResult.amount !== null) {
+            const amount = parseFloat(aiResult.amount);
+            if (!isNaN(amount)) {
+                processed.amount = amount;
+            }
+        }
+        
+        // Handle description
+        if (aiResult.description && typeof aiResult.description === 'string') {
+            processed.description = aiResult.description.substring(0, 200);
+        }
+        
+        // PROTOCOL: Safe datetime handling
+        if (aiResult.date) {
+            if (datetimeProtocolActive) {
+                console.log('[DATETIME-PROTOCOL] Processing AI date:', aiResult.date);
+                
+                // Handle various date formats
+                if (aiResult.date instanceof Date) {
+                    if (DateTimeProtocol.isValidJSONDate(aiResult.date)) {
+                        processed.date = aiResult.date;
+                    } else {
+                        // Convert to ISO string first
+                        processed.date = DateTimeProtocol.parseDate(aiResult.date.toISOString());
+                    }
+                } else if (typeof aiResult.date === 'string') {
+                    processed.date = DateTimeProtocol.parseDate(aiResult.date);
+                }
+                
+                if (processed.date && isNaN(processed.date.getTime())) {
+                    console.warn('[DATETIME-PROTOCOL] Invalid date parsed, using current date');
+                    processed.date = null;
+                }
+            } else {
+                // Fallback parsing
+                try {
+                    const date = new Date(aiResult.date);
+                    processed.date = isNaN(date.getTime()) ? null : date;
+                } catch (e) {
+                    console.warn('[DATETIME-PROTOCOL] Fallback parsing failed:', e);
+                    processed.date = null;
+                }
+            }
+        }
+        
+        // Log protocol results
+        if (datetimeProtocolActive) {
+            console.log('[DATETIME-PROTOCOL] Processed AI result:', {
+                originalDate: aiResult.date,
+                processedDate: processed.date,
+                type: typeof aiResult.date
+            });
+        }
+        
+        return processed;
     };
 
     useEffect(() => {
@@ -121,7 +215,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                     description: editingExpense.description || '',
                     related_case_id: editingExpense.related_case_id || ''
                 });
-                setExpenseDate(new Date(editingExpense.date));
+                setExpenseDate(DateTimeProtocol.parseDate(editingExpense.date));
             } else {
                 setFormData({ category: '', amount: 0, description: '', related_case_id: '' });
                 setExpenseDate(new Date());
@@ -131,7 +225,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                 setQrLoadError(false);
             }
             
-            // Run UI protocol verification
             if (uiProtocolActive) {
                 setTimeout(() => verifyUILayout(), 100);
             }
@@ -205,20 +298,25 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
             setIsScanningReceipt(true);
             try {
                 const aiResult = await apiService.analyzeExpenseReceipt(file);
-                if (aiResult) {
-                    setFormData(prev => ({
-                        ...prev,
-                        category: aiResult.category || prev.category,
-                        amount: aiResult.amount || prev.amount,
-                        description: aiResult.description || prev.description
-                    }));
-                    if (aiResult.date) {
-                        const parsedDate = new Date(aiResult.date);
-                        if (!isNaN(parsedDate.getTime())) setExpenseDate(parsedDate);
-                    }
+                console.log('[DATETIME-PROTOCOL] AI Analysis Result:', aiResult);
+                
+                // Use protocol-safe processing
+                const processedResult = processAIResult(aiResult);
+                
+                setFormData(prev => ({
+                    ...prev,
+                    category: processedResult.category || prev.category,
+                    amount: processedResult.amount !== undefined ? processedResult.amount : prev.amount,
+                    description: processedResult.description || prev.description
+                }));
+                
+                if (processedResult.date !== undefined) {
+                    setExpenseDate(processedResult.date);
                 }
+                
             } catch (err) {
-                console.warn("AI Scan failed, falling back to manual entry", err);
+                console.error('[DATETIME-PROTOCOL] AI Scan failed:', err);
+                console.warn("Falling back to manual entry");
             } finally {
                 setIsScanningReceipt(false);
             }
@@ -228,7 +326,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Protocol verification before submission
         if (uiProtocolActive && !verifyUILayout()) {
             console.warn('[UI-PROTOCOL] Submission blocked due to layout issues');
             alert(t('error.uiLayoutIssue', 'Please check form field lengths before saving.'));
@@ -237,10 +334,16 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         
         setLoading(true);
         try {
+            // PROTOCOL: Safe date serialization
+            const dateString = DateTimeProtocol.serializeDate(expenseDate) || 
+                              new Date().toISOString().split('T')[0];
+            
             const payload = {
                 ...formData,
-                date: expenseDate ? expenseDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+                date: dateString
             };
+
+            console.log('[DATETIME-PROTOCOL] Submitting payload:', payload);
 
             let result: Expense;
             if (editingExpense) {
@@ -261,7 +364,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
 
             onClose();
         } catch (error) {
-            console.error(error);
+            console.error('Submit error:', error);
             alert(t('error.generic'));
         } finally {
             setLoading(false);
@@ -273,21 +376,38 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="glass-high w-full max-w-md max-h-[90vh] overflow-y-auto custom-finance-scroll p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200">
-                {/* Protocol Header */}
-                {uiProtocolActive && (
-                    <div className="mb-4 -mt-2 flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 border border-primary-start/20">
-                        <div className="flex items-center gap-2">
-                            <ShieldCheck size={14} className="text-primary-start" />
-                            <span className="text-xs font-bold text-primary-300">UI PROTOCOL ACTIVE</span>
+                {/* Protocol Headers */}
+                <div className="mb-4 -mt-2 space-y-2">
+                    {uiProtocolActive && (
+                        <div className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 border border-primary-start/20">
+                            <div className="flex items-center gap-2">
+                                <ShieldCheck size={14} className="text-primary-start" />
+                                <span className="text-xs font-bold text-primary-300">UI PROTOCOL ACTIVE</span>
+                            </div>
+                            <button 
+                                onClick={() => setUiProtocolActive(!uiProtocolActive)}
+                                className="text-[10px] text-gray-400 hover:text-white transition-colors"
+                            >
+                                {uiProtocolActive ? 'Disable' : 'Enable'}
+                            </button>
                         </div>
-                        <button 
-                            onClick={() => setUiProtocolActive(!uiProtocolActive)}
-                            className="text-[10px] text-gray-400 hover:text-white transition-colors"
-                        >
-                            {uiProtocolActive ? 'Disable' : 'Enable'}
-                        </button>
-                    </div>
-                )}
+                    )}
+                    
+                    {datetimeProtocolActive && (
+                        <div className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 border border-blue-500/20">
+                            <div className="flex items-center gap-2">
+                                <Calendar size={14} className="text-blue-500" />
+                                <span className="text-xs font-bold text-blue-400">DATETIME PROTOCOL ACTIVE</span>
+                            </div>
+                            <button 
+                                onClick={() => setDatetimeProtocolActive(!datetimeProtocolActive)}
+                                className="text-[10px] text-gray-400 hover:text-white transition-colors"
+                            >
+                                {datetimeProtocolActive ? 'Disable' : 'Enable'}
+                            </button>
+                        </div>
+                    )}
+                </div>
 
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -357,7 +477,13 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                         <><Paperclip size={18} /> {t('finance.attachReceiptOptional', 'Bashkangjit Faturën (Opcionale)')}</>
                                     )}
                                 </button>
-                                {isScanningReceipt && <p className="text-center text-[10px] text-gray-500 mt-2 flex items-center justify-center gap-1"><Sparkles size={10} className="text-primary-start"/> {t('finance.extractingData', 'Duke nxjerrë të dhënat...')}</p>}
+                                {isScanningReceipt && (
+                                    <p className="text-center text-[10px] text-gray-500 mt-2 flex items-center justify-center gap-1">
+                                        <Sparkles size={10} className="text-primary-start"/> 
+                                        {t('finance.extractingData', 'Duke nxjerrë të dhënat...')}
+                                        {datetimeProtocolActive && ' (Protocol Active)'}
+                                    </p>
+                                )}
                             </motion.div>
                         )}
                         
@@ -418,7 +544,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                     key={c.id} 
                                     value={c.id} 
                                     className="bg-gray-900 truncate"
-                                    title={c.title} // Full title on hover
+                                    title={c.title}
                                 >
                                     {truncateCaseTitle(c.title)}
                                 </option>
@@ -447,7 +573,14 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                     </div>
                     <div>
                         <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.date')}</label>
-                        <DatePicker selected={expenseDate} onChange={(date: Date | null) => setExpenseDate(date)} locale={currentLocale} dateFormat="dd/MM/yyyy" className="glass-input w-full px-4 py-2.5 rounded-xl" required />
+                        <DatePicker 
+                            selected={expenseDate} 
+                            onChange={(date: Date | null) => setExpenseDate(date)} 
+                            locale={currentLocale} 
+                            dateFormat="dd/MM/yyyy" 
+                            className="glass-input w-full px-4 py-2.5 rounded-xl" 
+                            required 
+                        />
                     </div>
                     <div>
                         <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.description')}</label>
