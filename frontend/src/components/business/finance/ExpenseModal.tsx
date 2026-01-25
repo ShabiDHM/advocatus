@@ -1,13 +1,12 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V2.6 (COMPLETE FIX)
-// 1. FIX: Datetime serialization error from backend AI analysis
-// 2. FIX: Long case titles overflow in dropdown
-// 3. FIX: Receipt URL handling - no more fake URLs
-// 4. FIX: All TypeScript warnings resolved
-// 5. FIX: Proper receipt upload flow
+// PHOENIX PROTOCOL - EXPENSE MODAL V2.7 (QR REMOVED)
+// 1. REMOVED: QR Code and Mobile Session logic
+// 2. KEPT: OCR/AI Receipt Scanning
+// 3. KEPT: Direct File Upload
+// 4. FIX: Cleaned up state and dependencies
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, Camera, Link as LinkIcon, AlertCircle } from 'lucide-react';
+import { X, MinusCircle, UploadCloud, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Expense, Case } from '../../../data/types';
 import { apiService } from '../../../services/api';
@@ -31,19 +30,15 @@ const DateTimeProtocol = {
     safeDateToString: (date: any): string => {
         if (!date) return new Date().toISOString().split('T')[0];
         
-        // Handle Date objects
         if (date instanceof Date) {
             return date.toISOString().split('T')[0];
         }
         
-        // Handle Python datetime objects
         if (typeof date === 'object' && date !== null) {
             try {
-                // Try to extract ISO string
                 if (date.toISOString && typeof date.toISOString === 'function') {
                     return date.toISOString().split('T')[0];
                 }
-                // Try stringify
                 const dateStr = JSON.stringify(date);
                 const parsed = new Date(dateStr);
                 if (!isNaN(parsed.getTime())) {
@@ -54,7 +49,6 @@ const DateTimeProtocol = {
             }
         }
         
-        // Handle strings
         if (typeof date === 'string') {
             const parsed = new Date(date);
             if (!isNaN(parsed.getTime())) {
@@ -62,7 +56,6 @@ const DateTimeProtocol = {
             }
         }
         
-        // Fallback
         return new Date().toISOString().split('T')[0];
     },
     
@@ -95,27 +88,19 @@ const DateTimeProtocol = {
 
 export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSuccess, cases, editingExpense }) => {
     const { t, i18n } = useTranslation();
-    const [uploadMode, setUploadMode] = useState<'initial' | 'direct' | 'mobile'>('initial');
+    const [isDirectUpload, setIsDirectUpload] = useState(false);
     const [isScanningReceipt, setIsScanningReceipt] = useState(false);
     const [expenseReceipt, setExpenseReceipt] = useState<File | null>(null);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const cameraInputRef = useRef<HTMLInputElement>(null);
     
     const [loading, setLoading] = useState(false);
-
-    const [qrContent, setQrContent] = useState<string | null>(null);
-    const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
-    const [isMobileDevice, setIsMobileDevice] = useState(false);
-    const [qrLoadError, setQrLoadError] = useState(false);
-
     const [expenseDate, setExpenseDate] = useState<Date | null>(new Date());
     const [formData, setFormData] = useState({ category: '', amount: 0, description: '', related_case_id: '' });
 
     const localeMap: { [key: string]: any } = { sq, al: sq, en: enUS };
     const currentLocale = localeMap[i18n.language] || enUS;
 
-    // Truncate long case titles for dropdown
     const truncateText = (text: string, maxLength: number = 30): string => {
         if (!text) return text;
         if (text.length <= maxLength) return text;
@@ -123,9 +108,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     };
 
     useEffect(() => {
-        const checkMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        setIsMobileDevice(checkMobile);
-
         if (isOpen) {
             if (editingExpense) {
                 setFormData({
@@ -135,81 +117,22 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                     related_case_id: editingExpense.related_case_id || ''
                 });
                 setExpenseDate(DateTimeProtocol.extractDate(editingExpense.date));
+                // If editing, we stay in "form" mode, but we can allow re-upload if needed
+                setIsDirectUpload(false); 
             } else {
                 setFormData({ category: '', amount: 0, description: '', related_case_id: '' });
                 setExpenseDate(new Date());
                 setExpenseReceipt(null);
-                setUploadMode('initial');
-                setQrContent(null);
-                setQrLoadError(false);
+                setIsDirectUpload(false);
             }
         }
     }, [isOpen, editingExpense]);
 
-    useEffect(() => {
-        return () => {
-            if (pollingInterval) clearInterval(pollingInterval);
-        };
-    }, [pollingInterval]);
-    
-    const handleMobileAction = () => {
-        if (isMobileDevice) {
-            cameraInputRef.current?.click();
-        } else {
-            startMobileSession();
-        }
-    };
-
-    const startMobileSession = async () => {
-        try {
-            setUploadMode('mobile');
-            setQrContent(null);
-            setQrLoadError(false);
-            
-            const response = await apiService.createMobileUploadSession(formData.related_case_id || undefined);
-            const token = (response as any).token || response.upload_url.split('/').pop();
-
-            if (token) {
-                const frontendUrl = `${window.location.origin}/mobile-upload/${token}`;
-                setQrContent(frontendUrl);
-
-                const interval = setInterval(async () => {
-                    try {
-                        const status = await apiService.checkMobileUploadStatus(token);
-                        if (status.status === 'complete') {
-                            clearInterval(interval);
-                            await handleMobileUploadComplete(token);
-                        }
-                    } catch (e) {
-                        console.error("Polling error", e);
-                    }
-                }, 2000);
-                setPollingInterval(interval);
-            }
-        } catch (error) {
-            console.error("Failed to start mobile session", error);
-            alert(t('error.generic'));
-            setUploadMode('initial');
-        }
-    };
-
-    const handleMobileUploadComplete = async (token: string) => {
-        try {
-            const { blob, filename } = await apiService.getMobileSessionFile(token);
-            const file = new File([blob], filename, { type: blob.type });
-            await handleReceiptUpload(file, true);
-            setUploadMode('direct'); 
-        } catch (error) {
-            console.error("Failed to retrieve mobile file", error);
-            alert(t('error.generic'));
-        }
-    };
-
-    const handleReceiptUpload = async (file: File, shouldScan: boolean = false) => {
+    const handleReceiptUpload = async (file: File) => {
         if (!file) return;
         setExpenseReceipt(file);
         
-        if (shouldScan && !editingExpense) {
+        if (!editingExpense) {
             setIsScanningReceipt(true);
             try {
                 const aiResult = await safeAnalyzeReceipt(file);
@@ -235,12 +158,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         }
     };
 
-    // Safe wrapper to handle datetime objects from backend
     const safeAnalyzeReceipt = async (file: File): Promise<any> => {
         try {
             const result = await apiService.analyzeExpenseReceipt(file);
-            
-            // Safely convert datetime objects
             return {
                 category: result?.category || '',
                 amount: result?.amount || 0,
@@ -298,46 +218,35 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
                 </div>
 
-                {/* Hidden Inputs */}
+                {/* Hidden Input */}
                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf" onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                        setUploadMode('direct');
-                        handleReceiptUpload(file, false);
-                    }
-                }} />
-                <input type="file" ref={cameraInputRef} className="hidden" accept="image/*" capture="environment" onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                        setUploadMode('direct');
-                        handleReceiptUpload(file, true);
+                        setIsDirectUpload(true);
+                        handleReceiptUpload(file);
                     }
                 }} />
 
                 <div className="mb-6">
                     <AnimatePresence mode="wait">
-                        {uploadMode === 'initial' && (
+                        {!isDirectUpload && !expenseReceipt ? (
                             <motion.div key="initial" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
                                 <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.receipt', 'Fatura')}</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full py-3 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/40 transition-all text-xs font-bold">
-                                        <UploadCloud size={20} />
-                                        <span>{t('finance.uploadDirectly', 'Ngarko Skedar')}</span>
-                                    </button>
-                                    
-                                    <button type="button" onClick={handleMobileAction} className="w-full py-3 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/40 transition-all text-xs font-bold">
-                                        {isMobileDevice ? <Camera size={20} /> : <QrCode size={20} />}
-                                        <span>{isMobileDevice ? t('finance.takePhoto', 'Bëj Foto') : t('finance.scanWithMobile', 'Skano me Celular')}</span>
-                                    </button>
-                                </div>
+                                <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full py-6 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-3 text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/40 transition-all">
+                                    <div className="p-3 bg-white/5 rounded-full">
+                                        <UploadCloud size={24} />
+                                    </div>
+                                    <div className="text-center">
+                                        <span className="block text-sm font-bold">{t('finance.uploadDirectly', 'Ngarko Skedar')}</span>
+                                        <span className="text-[10px] opacity-60">PDF, JPG, PNG (Max 5MB)</span>
+                                    </div>
+                                </button>
                             </motion.div>
-                        )}
-
-                        {uploadMode === 'direct' && (
+                        ) : (
                             <motion.div key="direct" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
                                 <div className="flex justify-between items-center mb-2">
                                     <label className="block text-xs text-gray-400 font-bold uppercase">{t('finance.uploadDirectly', 'Ngarko Skedar')}</label>
-                                    <button type="button" onClick={() => { setUploadMode('initial'); setExpenseReceipt(null); }} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14}/> {t('general.back', 'Kthehu')} </button>
+                                    <button type="button" onClick={() => { setIsDirectUpload(false); setExpenseReceipt(null); }} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14}/> {t('general.back', 'Kthehu')} </button>
                                 </div>
                                 
                                 <button 
@@ -360,39 +269,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                     )}
                                 </button>
                                 {isScanningReceipt && <p className="text-center text-[10px] text-gray-500 mt-2 flex items-center justify-center gap-1"><Sparkles size={10} className="text-primary-start"/> {t('finance.extractingData', 'Duke nxjerrë të dhënat...')}</p>}
-                            </motion.div>
-                        )}
-                        
-                        {uploadMode === 'mobile' && (
-                            <motion.div key="mobile" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
-                                <div className="flex justify-between items-center mb-2">
-                                    <label className="block text-xs text-gray-400 font-bold uppercase">{t('finance.scanWithMobile', 'Skano me Celular')}</label>
-                                    <button type="button" onClick={() => { setUploadMode('initial'); if(pollingInterval) clearInterval(pollingInterval); }} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14}/> {t('general.back', 'Kthehu')} </button>
-                                </div>
-                                
-                                <div className="bg-white rounded-lg p-4 flex items-center justify-center aspect-square relative">
-                                    {!qrContent ? (
-                                        <Loader2 className="animate-spin text-gray-400" size={32} />
-                                    ) : qrLoadError ? (
-                                        <div className="flex flex-col items-center justify-center text-center p-2">
-                                            <AlertCircle size={32} className="text-red-400 mb-2" />
-                                            <p className="text-xs text-gray-600 mb-3">{t('finance.qrFailed', 'QR Code nuk mund të shfaqet.')}</p>
-                                            <a href={qrContent} target="_blank" rel="noopener noreferrer" className="px-4 py-2 bg-blue-500 text-white rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-blue-600">
-                                                <LinkIcon size={12} /> Linku i Ngarkimit
-                                            </a>
-                                        </div>
-                                    ) : (
-                                        <img 
-                                            src={`https://quickchart.io/qr?text=${encodeURIComponent(qrContent)}&size=300&margin=1`} 
-                                            alt="QR Code" 
-                                            className="w-full h-full object-contain"
-                                            onError={() => setQrLoadError(true)}
-                                        />
-                                    )}
-                                </div>
-                                <p className="text-center text-xs text-gray-400 mt-3 animate-pulse">
-                                    {t('finance.scanInstructions', 'Skano këtë kod me celularin për të ngarkuar faturën.')}
-                                </p>
                             </motion.div>
                         )}
                     </AnimatePresence>
