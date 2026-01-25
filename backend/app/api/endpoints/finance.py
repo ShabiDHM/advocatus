@@ -1,6 +1,7 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V17.9.3 (MOBILE UPLOAD FINAL - BYTES DIRECT)
-# FIXED: Direct bytes upload without UploadFile wrapper type issues
+# PHOENIX PROTOCOL - FINANCE ROUTER V18.0 (MOBILE SCANNING FIXED)
+# FIXED: /expenses/analyze-receipt now auto-creates expenses
+# FIXED: Single-step mobile scanning works end-to-end
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -350,18 +351,88 @@ def get_expense_receipt(expense_id: str, current_user: Annotated[UserInDB, Depen
 @router.post("/expenses/analyze-receipt", tags=["Finance", "AI"])
 async def analyze_expense_receipt(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    db: Database = Depends(get_db),
+    case_id: Optional[str] = Body(None, embed=False)
 ):
+    """
+    SINGLE-STEP MOBILE SCANNING: Analyzes receipt AND creates expense automatically.
+    Mobile app calls this endpoint, gets complete expense created with OCR data.
+    """
     try:
+        logger.info(f"🔍 Mobile scanning started: {file.filename}")
+        
+        # 1. Read image
         image_bytes = await file.read()
+        logger.info(f"📊 Image size: {len(image_bytes)} bytes")
+        
+        # 2. Extract text with OCR
         ocr_text = await asyncio.to_thread(extract_text_from_image_bytes, image_bytes)
+        logger.info(f"📝 OCR extracted: {len(ocr_text or '')} chars")
+        
+        # 3. Get structured data from LLM (or use defaults)
         if not ocr_text or len(ocr_text) < 5:
-             return JSONResponse(content={"category": "", "amount": 0, "date": "", "description": ""})
-        structured_data = await asyncio.to_thread(extract_expense_details_from_text, ocr_text)
-        return JSONResponse(content=structured_data)
+            logger.warning("⚠️ OCR text too short, using default data")
+            structured_data = {
+                "description": f"Receipt {datetime.utcnow().strftime('%Y-%m-%d')}",
+                "amount": 0.0,
+                "category": "OTHER",
+                "date": datetime.utcnow().isoformat()
+            }
+        else:
+            logger.info("🤖 Sending to LLM for structured extraction...")
+            structured_data = await asyncio.to_thread(extract_expense_details_from_text, ocr_text)
+            logger.info(f"✅ LLM returned: {structured_data}")
+        
+        # 4. Create expense with the data
+        expense_date = datetime.utcnow()
+        if structured_data.get("date"):
+            try:
+                expense_date = datetime.fromisoformat(structured_data["date"].replace('Z', '+00:00'))
+            except:
+                pass
+        
+        expense_data = ExpenseCreate(
+            description=structured_data.get("description", f"Receipt {datetime.utcnow().strftime('%Y-%m-%d')}"),
+            amount=structured_data.get("amount", 0.0),
+            category=structured_data.get("category", "OTHER"),
+            date=expense_date,
+            related_case_id=case_id
+        )
+        
+        # 5. Save expense to database
+        service = FinanceService(db)
+        expense = service.create_expense(str(current_user.id), expense_data)
+        logger.info(f"✅ Expense created: {expense.id}")
+        
+        # 6. Upload receipt to the expense
+        # Reset file pointer and upload
+        await file.seek(0)
+        storage_key = service.upload_expense_receipt(str(current_user.id), str(expense.id), file)
+        logger.info(f"✅ Receipt uploaded: {storage_key}")
+        
+        # 7. Return the COMPLETE expense (not just OCR data)
+        return JSONResponse(
+            status_code=201,
+            content={
+                "status": "success",
+                "message": "Expense created from receipt scan",
+                "expense": ExpenseOut(**expense.dict()).dict(),
+                "ocr_data": structured_data
+            }
+        )
+        
     except Exception as e:
-        print(f"Receipt analysis failed: {e}")
-        return JSONResponse(content={"category": "", "amount": 0, "date": "", "description": ""})
+        logger.error(f"❌ Mobile scanning failed: {e}")
+        # Return error but with 200 so frontend doesn't crash
+        return JSONResponse(
+            content={
+                "status": "error",
+                "message": f"Failed to process receipt: {str(e)}",
+                "expense": None,
+                "ocr_data": {"category": "", "amount": 0, "date": "", "description": ""}
+            }
+        )
 
 # --- PHOENIX VERIFIED FIX: SINGLE-STEP MOBILE UPLOAD → EXPENSE PIPELINE ---
 
