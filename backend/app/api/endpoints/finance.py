@@ -1,11 +1,12 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V18.1 (QR REMOVED)
-# 1. REMOVED: Mobile Session Endpoints & Redis dependency
-# 2. KEPT: OCR/AI Receipt Scanning
-# 3. KEPT: All Standard Finance Operations
+# PHOENIX PROTOCOL - FINANCE ROUTER V18.2 (SERIALIZATION FIX)
+# 1. FIXED: JSON serialization error (datetime objects converted to ISO strings)
+# 2. KEPT: Mobile Session Removed
+# 3. KEPT: OCR logic intact
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.encoders import jsonable_encoder
 from typing import List, Annotated, Optional, Any, Dict
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -290,7 +291,6 @@ async def analyze_expense_receipt(
 ):
     """
     Analyzes receipt AND creates expense automatically.
-    Mobile app calls this endpoint, gets complete expense created with OCR data.
     """
     try:
         logger.info(f"🔍 Receipt scanning started: {file.filename}")
@@ -321,7 +321,9 @@ async def analyze_expense_receipt(
         expense_date = datetime.utcnow()
         if structured_data.get("date"):
             try:
-                expense_date = datetime.fromisoformat(structured_data["date"].replace('Z', '+00:00'))
+                # Handle possible date string format variations
+                date_str = structured_data["date"].replace('Z', '+00:00')
+                expense_date = datetime.fromisoformat(date_str)
             except:
                 pass
         
@@ -339,26 +341,25 @@ async def analyze_expense_receipt(
         logger.info(f"✅ Expense created: {expense.id}")
         
         # 6. Upload receipt to the expense
-        # Reset file pointer and upload
         await file.seek(0)
         storage_key = service.upload_expense_receipt(str(current_user.id), str(expense.id), file)
         logger.info(f"✅ Receipt uploaded: {storage_key}")
         
-        # 7. Return the COMPLETE expense (not just OCR data)
+        # 7. Return the COMPLETE expense (Use jsonable_encoder to handle datetime serialization)
         return JSONResponse(
             status_code=201,
-            content={
+            content=jsonable_encoder({
                 "status": "success",
                 "message": "Expense created from receipt scan",
-                "expense": ExpenseOut(**expense.dict()).dict(),
+                "expense": ExpenseOut(**expense.dict()),
                 "ocr_data": structured_data
-            }
+            })
         )
         
     except Exception as e:
         logger.error(f"❌ Receipt scanning failed: {e}")
-        # Return error but with 200 so frontend doesn't crash
         return JSONResponse(
+            status_code=500,
             content={
                 "status": "error",
                 "message": f"Failed to process receipt: {str(e)}",

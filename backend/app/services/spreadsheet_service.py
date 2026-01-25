@@ -1,10 +1,8 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - KOSOVO FORENSIC FINANCIAL ENGINE V3.2
-# ENHANCEMENTS:
-# 1. KOSOVO-SPECIFIC: All legal references updated for Kosovo legislation
-# 2. LAWYER-FOCUSED: Removed prosecutor signatures, focused on legal evidence collection
-# 3. COMPLIANCE: Updated with Kosovo AML/CFT laws and regulations
-# 4. COURT-READY: Evidence preparation for Kosovo judicial system
+# PHOENIX PROTOCOL - SPREADSHEET SERVICE V3.4 (NO OCR)
+# 1. REMOVED: OCR-to-CSV logic (analyze_text_to_spreadsheet)
+# 2. KEPT: All Kosovo Forensic Logic
+# 3. KEPT: Direct file processing logic
 
 import pandas as pd
 import io
@@ -207,41 +205,6 @@ def get_kosovo_legal_reference(anomaly_type: AnomalyType, amount: Decimal) -> Di
         "authority": "Prokuroria e Republikës së Kosovës",
         "applicable_law": "Legjislacioni i Republikës së Kosovës"
     }
-
-# --- EXISTING OCR FUNCTION (ENHANCED WITH FORENSIC TRACKING) ---
-async def analyze_text_to_spreadsheet(ocr_text: str, case_id: str, db: Database) -> Dict[str, Any]:
-    """
-    Takes raw text (from OCR), uses an LLM to structure it into a CSV,
-    then passes it to the standard spreadsheet analysis pipeline.
-    """
-    logger.info(f"Initiating AI data structuring for case {case_id}.")
-    
-    system_prompt = """
-    Ti je "Specialist i Të Dhënave" (Data Entry Specialist). Detyra jote është të konvertosh tekstin e pa-strukturuar nga një skanim (OCR) në formatin CSV.
-
-    RREGULLAT STRICTE:
-    1.  **Krijoni Kokat (Headers)**: Rreshti i parë i përgjigjes TUAJ DUHET TË JETË: `Data,Pershkrimi,Shuma`
-    2.  **Formati i të Dhënave**:
-        -   **Data**: Përdor formatin DD.MM.YYYY. Nëse nuk e gjeni vitin, përdorni vitin aktual.
-        -   **Pershkrimi**: Përmblidh transaksionin në disa fjalë kyçe.
-        -   **Shuma**: Përdor VETËM numra. Hyrjet duhet të jenë pozitive (psh: 800.00), daljet duhet të jenë negative (psh: -50.00). MOS PËRDOR simbole monedhe.
-    3.  **Injoro Mbeturinat**: MOS PËRFSHI rreshta që nuk janë transaksione (psh: balancat, titujt e kolonave, informacione të bankës).
-    4.  **PËRGJIGJJA JOTE DUHET TË PËRMBAJË VETËM TË DHËNA CSV, PA ASNJË TEKST APO SHPJEGIM SHTESË.**
-    """
-    
-    user_prompt = f"Konverto këtë tekst të skanuar në formatin CSV:\n\n---\n{ocr_text}\n---"
-    
-    # We use a standard _call_llm, not a JSON one, as we expect raw CSV text.
-    csv_string = await asyncio.to_thread(llm_service._call_llm, system_prompt, user_prompt, False, 0.0)
-    
-    if not csv_string or not csv_string.strip():
-        raise ValueError("AI data structuring failed to produce a valid CSV.")
-    
-    logger.info(f"AI successfully structured text into CSV format. Analyzing...")
-    
-    # Convert the CSV string to bytes and pass to the original analysis function
-    csv_bytes = csv_string.encode('utf-8')
-    return await analyze_spreadsheet_file(content=csv_bytes, filename="skanim_nga_celulari.csv", case_id=case_id, db=db)
 
 # --- NEW FORENSIC ANALYSIS FUNCTION (KOSOVO-COMPLIANT) ---
 async def forensic_analyze_spreadsheet(
@@ -775,8 +738,9 @@ async def _generate_kosovo_forensic_summary_simple(
     GJUHA: SHQIP LETRARE JURIDIKE (STANDARDET E KOSOVËS).
     """
     
+    # We force access here as well
     response = await asyncio.to_thread(
-        llm_service._call_llm,
+        getattr(llm_service, "_call_llm"),
         "Ti je Ekspert Forenzik Ligjor me specializim në sistemin juridik të Republikës së Kosovës.",
         prompt,
         False
@@ -968,7 +932,7 @@ async def _generate_kosovo_forensic_summary(
     """
     
     response = await asyncio.to_thread(
-        llm_service._call_llm,
+        getattr(llm_service, "_call_llm"),
         "Ti je Ekspert Forenzik Ligjor me specializim në sistemin juridik të Republikës së Kosovës. Fokuso në mbledhjen e dëshmive teknike për përdorim nga avokatët në procesin ligjor të Kosovës.",
         prompt,
         False

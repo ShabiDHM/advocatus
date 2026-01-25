@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V33.0 (EXPENSE AI) - FIXED
-# 1. FIXED: Syntax errors from previous edit
-# 2. ENHANCED: Kosovo-optimized expense extraction
-# 3. STATUS: Clean and working version
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V33.1 (KOSOVO RECEIPTS FIXED)
+# 1. ENHANCED: Kosovo-optimized expense extraction (Handles commas 0,05 and TOTALI)
+# 2. FIXED: OCR Error correction for missing decimal points
+# 3. STATUS: Clean and verified
 
 import os
 import json
@@ -174,14 +174,18 @@ Ti je "Kontabilist Ekspert për Kosovë".
 DETYRA: Analizo tekstin e skanuar nga një faturë/kupon fiskal KOSOVAR.
 
 RREGULLA TË RËNDËSISHME:
-1. NËSE SHIH NUMRA TË MËDHENJ (psh 8560), KONVERTOJI:
-   - 8560 → 85.60 € (ose 8.56 € nëse konteksti është i vogël)
-   - 2508 → 25.08 € (ose 2.50 € për artikuj të vegjël)
-   - Shiko kontekstin për të kuptuar shkallën e saktë.
+1. GJEJ TOTALIN: Kërko fjalët "TOTAL", "TOTALI NE EURO", "SHUMA", "PAGESA".
+   - Kujdes: Në Kosovë përdoret presja (,) për dhjetore (psh: 0,05).
+   - Nëse shuma është 0,05 - kjo është reale. MOS E INJORO.
 
-2. DATAT NË KOSOVË: Formatoje si YYYY-MM-DD.
-3. KATEGORITË PËR KOSOVË: "Ushqim", "Transport", "Zyrë", "Shëndetësi", "Ndërtim", "Të tjera".
-4. PËRSHKRIMI: Përfshij emrin e biznesit dhe artikujt kryesorë.
+2. KORRIGJO OCR-në:
+   - "8560" shpesh është "85.60" ose "8.56".
+   - "2508" shpesh është "25.08".
+   - Përdor logjikën: Një kafe nuk kushton 1500 euro, kushton 1.50 euro.
+
+3. DATA: Gjej datën në formatin DD-MM-YYYY ose YYYY-MM-DD.
+4. KATEGORITË: "Ushqim", "Transport", "Zyrë", "Shëndetësi", "Ndërtim", "Të tjera".
+5. PËRSHKRIMI: Përfshij emrin e biznesit (psh: "Beka Trade").
 
 GJUHA E DALJES: SHQIP.
 
@@ -347,7 +351,7 @@ def extract_expense_details_from_text(raw_text: str) -> Dict[str, Any]:
     Extracts structured expense data (Category, Amount, Date) from raw receipt text.
     Optimized for Kosovo market with OCR error handling.
     """
-    if not raw_text or len(raw_text) < 10:
+    if not raw_text or len(raw_text) < 5:
         return {"category": "", "amount": 0, "date": "", "description": ""}
         
     clean_text = sterilize_text_for_llm(raw_text[:2000])  # Receipts are short
@@ -361,28 +365,28 @@ def extract_expense_details_from_text(raw_text: str) -> Dict[str, Any]:
     
     # Extract and validate amount
     amount = result.get("amount", 0.0)
-    if isinstance(amount, (int, float)):
-        amount = float(amount)
-    else:
+    
+    # Advanced logic to handle "0,05" string or float
+    if isinstance(amount, str):
         try:
-            amount = float(str(amount).replace(',', '.'))
+            # Replace comma with dot
+            amount = float(amount.replace(',', '.'))
         except:
             amount = 0.0
+    elif not isinstance(amount, (int, float)):
+        amount = 0.0
     
-    # Kosovo market validation: try to correct obvious OCR errors
-    if amount > 1000:  # Unrealistic for Kosovo receipt
-        # Try dividing by 100 or 10
+    # Kosovo market validation: try to correct obvious OCR errors (missing dots)
+    if amount > 1000:  
+        # If huge number, check if dividing by 100 makes sense
         candidate = amount / 100
-        if 1 <= candidate <= 500:  # Reasonable Kosovo range
+        if candidate < 500: # Coffee/Lunch isn't 500 eur
             amount = candidate
             logger.info(f"Corrected OCR amount: {amount*100} -> {amount}")
-    
-    # Round to 2 decimal places
-    amount = round(float(amount), 2)
-    
+            
     return {
         "category": result.get("category", "Të tjera"),
-        "amount": amount,
+        "amount": round(float(amount), 2),
         "date": result.get("date", current_date),
         "description": result.get("description", "")
     }

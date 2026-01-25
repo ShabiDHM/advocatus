@@ -1,19 +1,16 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - FORENSIC SPREADSHEET ANALYST V5.1 (TYPE FIX)
-// FIXES:
-// 1. ADDED: Type guards for forensic vs regular interrogation responses
-// 2. REMOVED: Unused FileCheck import
-// 3. FIXED: Type discrimination in response handling
-// 4. MAINTAINED: All forensic functionality
+// PHOENIX PROTOCOL - FORENSIC SPREADSHEET ANALYST V5.3 (NO OCR/QR)
+// 1. REMOVED: QR Code / Mobile Session logic
+// 2. REMOVED: Direct Image Scanning (OCR)
+// 3. KEPT: Only Excel/CSV File Upload
+// 4. MAINTAINED: All forensic analysis logic
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import QRCode from 'react-qr-code';
 import { 
     FileSpreadsheet, Activity, AlertTriangle, TrendingUp, 
     CheckCircle, RefreshCw, Lightbulb, ArrowRight, TrendingDown, 
-    Send, ShieldAlert, Bot, Save, Smartphone, X, QrCode,
-    Scale, Fingerprint, Shield
+    Send, ShieldAlert, Bot, Save, Shield, Scale, Fingerprint
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
@@ -21,33 +18,28 @@ import { apiService } from '../services/api';
 const CACHE_KEY = 'juristi_analyst_cache';
 const getCache = () => { try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
 
-// PHOENIX ENHANCEMENT: Forensic Metadata Interface
 interface ForensicMetadata {
     evidence_hash: string;
     analysis_timestamp: string;
     record_count: number;
 }
 
-// PHOENIX ENHANCEMENT: Enhanced Anomaly with Forensic Fields
 interface EnhancedAnomaly {
     date: string;
     amount: number;
     description: string;
     risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'CRITICAL';
     explanation: string;
-    // FORENSIC FIELDS
     forensic_type?: string;
     legal_reference?: string;
     confidence?: number;
 }
 
-// PHOENIX ENHANCEMENT: Updated SmartFinancialReport with Forensic Metadata
 interface SmartFinancialReport {
     executive_summary: string;
     anomalies: EnhancedAnomaly[];
     trends: Array<{ category: string; trend: 'UP' | 'DOWN' | 'STABLE'; percentage: string; comment: string }>;
     recommendations: string[];
-    // FORENSIC FIELD
     forensic_metadata?: ForensicMetadata;
 }
 
@@ -173,7 +165,6 @@ const TypingChatMessage: React.FC<{ message: ChatMessage, onComplete: () => void
     );
 };
 
-// PHOENIX ADDITION: Type guard for forensic interrogation response
 const isForensicResponse = (response: any): response is import('../services/api').ForensicInterrogationResponse => {
     return response && (
         'supporting_evidence_count' in response ||
@@ -197,19 +188,11 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
     const [isArchiving, setIsArchiving] = useState(false);
     const [archiveSuccess, setArchiveSuccess] = useState(false);
     
-    // Mobile Scan States
-    const [showQrModal, setShowQrModal] = useState(false);
-    const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
-    const [activeSessionToken, setActiveSessionToken] = useState<string | null>(null);
-    const [isGeneratingQr, setIsGeneratingQr] = useState(false);
-    
-    // PHOENIX ADDITION: Forensic Mode Toggle
+    // Forensic Mode Toggle
     const [useForensicMode, setUseForensicMode] = useState(false);
     
     const chatEndRef = useRef<HTMLDivElement>(null);
-    const directScanInputRef = useRef<HTMLInputElement>(null);
 
-    // --- (Existing useEffect hooks) ---
     useEffect(() => {
         const cache = getCache();
         const caseData = cache[caseId];
@@ -241,41 +224,10 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatHistory, typingMessage]);
 
-    // Polling Effect
-    useEffect(() => {
-        let intervalId: any;
-        
-        if (showQrModal && activeSessionToken) {
-            intervalId = setInterval(async () => {
-                try {
-                    const status = await apiService.checkMobileUploadStatus(activeSessionToken);
-                    if (status.status === 'complete' && status.data) {
-                        clearInterval(intervalId);
-                        setShowQrModal(false);
-                        setActiveSessionToken(null);
-                        setResult(status.data as unknown as SmartFinancialReport);
-                        setFileName(`Mobile_Scan_${new Date().toLocaleTimeString()}.csv`);
-                    } else if (status.status === 'error') {
-                        clearInterval(intervalId);
-                        setError(status.message || "Mobile scan failed.");
-                        setShowQrModal(false);
-                    }
-                } catch (err) {
-                    // Ignore transient network errors during polling
-                }
-            }, 2000);
-        }
-
-        return () => {
-            if (intervalId) clearInterval(intervalId);
-        };
-    }, [showQrModal, activeSessionToken]);
-
     const runAnalysis = async (fileToAnalyze: File) => {
         setIsAnalyzing(true);
         setError(null);
         try {
-            // PHOENIX ENHANCEMENT: Use forensic endpoint if enabled
             let data;
             if (useForensicMode) {
                 data = await apiService.forensicAnalyzeSpreadsheet(caseId, fileToAnalyze) as unknown as SmartFinancialReport;
@@ -320,28 +272,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         }
     };
     
-    const handleDirectScanUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const scannedFile = e.target.files[0];
-            setFile(scannedFile);
-            setFileName(`Scan_${new Date().toLocaleTimeString()}.jpg`);
-            setError(null);
-            setResult(null);
-            setChatHistory([]);
-            
-            setIsAnalyzing(true);
-            try {
-                const data = await apiService.analyzeScannedImage(caseId, scannedFile) as unknown as SmartFinancialReport;
-                setResult(data);
-            } catch (err) {
-                console.error(err);
-                setError(t('analyst.error.analysisFailed', "Analiza e skanimit dështoi. Provoni një foto më të qartë."));
-            } finally {
-                setIsAnalyzing(false);
-            }
-        }
-    };
-    
     const handleReset = (fullReset = true) => {
         if (fullReset) {
             setFile(null);
@@ -356,23 +286,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
             localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
         } catch (e) {
             console.error("Failed to clear from localStorage", e);
-        }
-    };
-    
-    const handleOpenQrModal = async () => {
-        setIsGeneratingQr(true);
-        setShowQrModal(true);
-        try {
-            const { upload_url } = await apiService.createMobileUploadSession(caseId);
-            setQrCodeUrl(upload_url);
-            
-            const token = upload_url.split('/').pop();
-            if (token) setActiveSessionToken(token);
-        } catch (err) {
-            console.error(err);
-            setQrCodeUrl(null);
-        } finally {
-            setIsGeneratingQr(false);
         }
     };
 
@@ -392,16 +305,13 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         setIsInterrogating(true);
         
         try {
-            // PHOENIX ENHANCEMENT: Use forensic interrogation if available
             let response;
             try {
                 response = await apiService.forensicInterrogateEvidence(caseId, currentQ);
             } catch (forensicErr) {
-                // Fall back to regular interrogation
                 response = await apiService.interrogateFinancialRecords(caseId, currentQ);
             }
             
-            // PHOENIX FIX: Type-safe property access using type guard
             const evidenceCount = isForensicResponse(response) 
                 ? response.supporting_evidence_count 
                 : response.referenced_rows_count;
@@ -454,7 +364,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         return <Activity className="w-4 h-4 text-blue-400" />;
     };
 
-    // PHOENIX ADDITION: Forensic Metadata Display Component
     const ForensicMetadataDisplay: React.FC<{ metadata: ForensicMetadata }> = ({ metadata }) => (
         <div className="glass-panel p-4 rounded-2xl border border-emerald-500/20 bg-emerald-900/10">
             <h3 className="text-sm font-bold text-emerald-400 mb-3 flex items-center gap-2">
@@ -526,7 +435,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     </div>
                     
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                        {/* PHOENIX ADDITION: Forensic Mode Toggle */}
                         {!result && !isAnalyzing && (
                             <div className="flex items-center gap-2 mb-2 sm:mb-0">
                                 <label className="flex items-center gap-2 cursor-pointer">
@@ -556,31 +464,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                         
                         {!result && !isAnalyzing && (
                             <div className="flex gap-2 w-full md:w-auto">
-                                <input
-                                    type="file"
-                                    ref={directScanInputRef}
-                                    className="hidden"
-                                    accept="image/*"
-                                    capture="environment"
-                                    onChange={handleDirectScanUpload}
-                                />
-                                
-                                <button
-                                    onClick={() => directScanInputRef.current?.click()}
-                                    className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border transition-colors cursor-pointer bg-black/20 border-gray-600 hover:border-primary-start/50"
-                                >
-                                    <Smartphone className="w-5 h-5 text-gray-400" />
-                                    <span className="text-sm text-gray-300">{t('analyst.scanFromMobile', 'Skano...')}</span>
-                                </button>
-
-                                <button
-                                    onClick={handleOpenQrModal}
-                                    className="hidden md:flex items-center justify-center p-2.5 rounded-xl border transition-colors cursor-pointer bg-black/20 border-gray-600 hover:border-white/50"
-                                    title="Përdor pajisje tjetër (QR)"
-                                >
-                                    <QrCode className="w-5 h-5 text-gray-400" />
-                                </button>
-
                                 <div className="relative group flex-1 md:flex-none">
                                     <input
                                         type="file"
@@ -635,57 +518,6 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     </div>
                 )}
             </div>
-            
-            <AnimatePresence>
-                {showQrModal && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-                    >
-                        <motion.div
-                            initial={{ scale: 0.9 }}
-                            animate={{ scale: 1 }}
-                            exit={{ scale: 0.9 }}
-                            className="glass-high w-full max-w-md p-8 rounded-3xl shadow-2xl relative"
-                        >
-                            <button
-                                onClick={() => setShowQrModal(false)}
-                                className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
-                            >
-                                <X size={24} />
-                            </button>
-                            <div className="text-center">
-                                <h3 className="text-xl font-bold text-white mb-2">
-                                    {t('analyst.qr.title', 'Skano për të Ngarkuar')}
-                                </h3>
-                                <p className="text-gray-400 text-sm mb-6">
-                                    {t('analyst.qr.desc', 'Përdorni kamerën e celularit tuaj për të hapur linkun e sigurt të ngarkimit.')}
-                                </p>
-                                <div className="bg-white p-4 rounded-xl inline-block">
-                                    {isGeneratingQr && (
-                                        <div className="w-56 h-56 flex items-center justify-center">
-                                            <RefreshCw className="animate-spin text-primary-start w-12 h-12" />
-                                        </div>
-                                    )}
-                                    {qrCodeUrl && !isGeneratingQr && <QRCode value={qrCodeUrl} size={224} />}
-                                    {!qrCodeUrl && !isGeneratingQr && (
-                                        <div className="w-56 h-56 flex flex-col items-center justify-center text-red-500">
-                                            <AlertTriangle className="w-12 h-12 mb-2" />
-                                            <p className="text-xs font-bold">Gabim në gjenerim!</p>
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-400">
-                                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                                    Duke pritur lidhjen...
-                                </div>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
             
             <AnimatePresence mode="wait">
                 {result && (
