@@ -1,8 +1,10 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V13.7 (FORENSIC ENABLED / QR REMOVED)
-# 1. ADDED: Endpoints for Forensic Spreadsheet Analysis & Interrogation
-# 2. REMOVED: All QR Code, Mobile Session, and OCR Image Scanning endpoints
-# 3. FIXED: "Analysis Failed" error by connecting frontend to forensic service
+# PHOENIX PROTOCOL - CASES ROUTER V13.8 (ROUTE MISMATCH FIX)
+# 1. FIXED: Forensic Analysis route renamed to match Frontend request
+#    Old: /{case_id}/analyze/forensic-spreadsheet
+#    New: /{case_id}/analyze/spreadsheet/forensic
+# 2. KEPT: All QR/OCR removals
+# 3. KEPT: All Forensic logic
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -321,8 +323,8 @@ async def analyze_spreadsheet_endpoint(case_id: str, current_user: Annotated[Use
         logger.error(f"Spreadsheet Analysis Error: {e}")
         raise HTTPException(status_code=500, detail="Analysis failed.")
 
-# PHOENIX ADDITION: Forensic Analysis Endpoint
-@router.post("/{case_id}/analyze/forensic-spreadsheet", tags=["Analysis"])
+# PHOENIX ADDITION: Forensic Analysis Endpoint (CORRECTED ROUTE)
+@router.post("/{case_id}/analyze/spreadsheet/forensic", tags=["Analysis"])
 async def analyze_forensic_spreadsheet_endpoint(
     case_id: str, 
     current_user: Annotated[UserInDB, Depends(get_current_user)], 
