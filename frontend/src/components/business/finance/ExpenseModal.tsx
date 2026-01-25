@@ -1,11 +1,13 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V2.6 (FINAL FIX)
-// 1. FIX: Keep both ShieldCheck and Calendar imports
-// 2. FIX: Datetime serialization error from backend
-// 3. FIX: Long ID overflow in UI
+// PHOENIX PROTOCOL - EXPENSE MODAL V2.6 (COMPLETE FIX)
+// 1. FIX: Datetime serialization error from backend AI analysis
+// 2. FIX: Long case titles overflow in dropdown
+// 3. FIX: Receipt URL handling - no more fake URLs
+// 4. FIX: All TypeScript warnings resolved
+// 5. FIX: Proper receipt upload flow
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, Camera, Link as LinkIcon, AlertCircle, ShieldCheck, Calendar } from 'lucide-react';
+import { X, MinusCircle, UploadCloud, QrCode, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, Camera, Link as LinkIcon, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Expense, Case } from '../../../data/types';
 import { apiService } from '../../../services/api';
@@ -24,9 +26,8 @@ interface ExpenseModalProps {
     editingExpense: Expense | null;
 }
 
-// PROTOCOL: Safe datetime handling for backend responses
+// Protocol to handle Python datetime objects from backend
 const DateTimeProtocol = {
-    // Convert any date-like object to string
     safeDateToString: (date: any): string => {
         if (!date) return new Date().toISOString().split('T')[0];
         
@@ -35,21 +36,21 @@ const DateTimeProtocol = {
             return date.toISOString().split('T')[0];
         }
         
-        // Handle Python datetime objects (they might come as objects)
+        // Handle Python datetime objects
         if (typeof date === 'object' && date !== null) {
             try {
-                // Try to extract ISO string from object
+                // Try to extract ISO string
                 if (date.toISOString && typeof date.toISOString === 'function') {
                     return date.toISOString().split('T')[0];
                 }
-                // Try to stringify and parse
+                // Try stringify
                 const dateStr = JSON.stringify(date);
                 const parsed = new Date(dateStr);
                 if (!isNaN(parsed.getTime())) {
                     return parsed.toISOString().split('T')[0];
                 }
             } catch (e) {
-                console.warn('[DATETIME-PROTOCOL] Failed to convert object to date:', e);
+                console.warn('Failed to convert object to date:', e);
             }
         }
         
@@ -61,48 +62,35 @@ const DateTimeProtocol = {
             }
         }
         
-        // Fallback to today
+        // Fallback
         return new Date().toISOString().split('T')[0];
     },
     
-    // Extract Date object from any value
     extractDate: (value: any): Date | null => {
         if (!value) return null;
         
-        // Already a Date
         if (value instanceof Date) {
             return isNaN(value.getTime()) ? null : value;
         }
         
-        // Try to parse string
         if (typeof value === 'string') {
             const date = new Date(value);
             return isNaN(date.getTime()) ? null : date;
         }
         
-        // Try to handle object (Python datetime)
         if (typeof value === 'object') {
             try {
-                // Try common datetime object properties
                 const dateStr = value.iso || value.isoformat?.() || JSON.stringify(value);
                 const date = new Date(dateStr);
                 return isNaN(date.getTime()) ? null : date;
             } catch (e) {
-                console.warn('[DATETIME-PROTOCOL] Could not extract date from object:', value);
+                console.warn('Could not extract date from object:', value);
                 return null;
             }
         }
         
         return null;
     }
-};
-
-// PROTOCOL: UI Layout Verification
-const UILayoutProtocol = {
-    VERIFY_CONTAINMENT: true,
-    MAX_DISPLAY_LENGTH: 35,
-    TRUNCATION_MARKER: '...',
-    ENFORCE_BOUNDARIES: true
 };
 
 export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSuccess, cases, editingExpense }) => {
@@ -115,8 +103,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const cameraInputRef = useRef<HTMLInputElement>(null);
     
     const [loading, setLoading] = useState(false);
-    const [uiProtocolActive, setUiProtocolActive] = useState(false); // Default to false
-    const [datetimeProtocolActive, setDatetimeProtocolActive] = useState(true); // Default to true
 
     const [qrContent, setQrContent] = useState<string | null>(null);
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
@@ -129,11 +115,11 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const localeMap: { [key: string]: any } = { sq, al: sq, en: enUS };
     const currentLocale = localeMap[i18n.language] || enUS;
 
-    // Helper to truncate long case titles
-    const truncateText = (text: string, maxLength: number = UILayoutProtocol.MAX_DISPLAY_LENGTH): string => {
+    // Truncate long case titles for dropdown
+    const truncateText = (text: string, maxLength: number = 30): string => {
         if (!text) return text;
         if (text.length <= maxLength) return text;
-        return text.substring(0, maxLength - 3) + UILayoutProtocol.TRUNCATION_MARKER;
+        return text.substring(0, maxLength - 3) + '...';
     };
 
     useEffect(() => {
@@ -226,7 +212,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         if (shouldScan && !editingExpense) {
             setIsScanningReceipt(true);
             try {
-                // Use a safe wrapper for the API call
                 const aiResult = await safeAnalyzeReceipt(file);
                 
                 if (aiResult) {
@@ -250,37 +235,20 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         }
     };
 
-    // Safe wrapper for analyzeReceipt API call
+    // Safe wrapper to handle datetime objects from backend
     const safeAnalyzeReceipt = async (file: File): Promise<any> => {
         try {
             const result = await apiService.analyzeExpenseReceipt(file);
             
-            if (datetimeProtocolActive) {
-                console.log('[DATETIME-PROTOCOL] Processing AI result:', {
-                    rawResult: result,
-                    dateType: typeof result?.date,
-                    dateConstructor: result?.date?.constructor?.name
-                });
-            }
-            
-            // Safely process the result to handle datetime objects
-            const safeResult = {
+            // Safely convert datetime objects
+            return {
                 category: result?.category || '',
                 amount: result?.amount || 0,
                 description: result?.description || '',
                 date: result?.date ? DateTimeProtocol.safeDateToString(result.date) : null
             };
-            
-            return safeResult;
         } catch (error) {
             console.error('Receipt analysis failed:', error);
-            
-            // If it's a JSON serialization error, try to handle it
-            if (error instanceof TypeError && error.message.includes('JSON')) {
-                console.warn('[DATETIME-PROTOCOL] JSON serialization error detected');
-                return { category: '', amount: 0, description: '', date: null };
-            }
-            
             throw error;
         }
     };
@@ -294,21 +262,17 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                 date: DateTimeProtocol.safeDateToString(expenseDate)
             };
 
-            console.log('Submitting expense:', payload);
-
             let result: Expense;
             if (editingExpense) {
                 result = await apiService.updateExpense(editingExpense.id, payload);
                 if (expenseReceipt && result.id) {
                     await apiService.uploadExpenseReceipt(result.id, expenseReceipt);
-                    result.receipt_url = `updated/${Date.now()}`;
                 }
                 onSuccess(result, true);
             } else {
                 result = await apiService.createExpense(payload);
                 if (expenseReceipt && result.id) {
                     await apiService.uploadExpenseReceipt(result.id, expenseReceipt);
-                    result.receipt_url = `uploaded/${Date.now()}`;
                 }
                 onSuccess(result, false);
             }
@@ -327,41 +291,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="glass-high w-full max-w-md max-h-[90vh] overflow-y-auto custom-finance-scroll p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200">
-                {/* Protocol Headers - Only show when active */}
-                {(uiProtocolActive || datetimeProtocolActive) && (
-                    <div className="mb-4 -mt-2 space-y-2">
-                        {uiProtocolActive && (
-                            <div className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 border border-primary-start/20">
-                                <div className="flex items-center gap-2">
-                                    <ShieldCheck size={14} className="text-primary-start" />
-                                    <span className="text-xs font-bold text-primary-300">UI PROTOCOL ACTIVE</span>
-                                </div>
-                                <button 
-                                    onClick={() => setUiProtocolActive(!uiProtocolActive)}
-                                    className="text-[10px] text-gray-400 hover:text-white transition-colors"
-                                >
-                                    {uiProtocolActive ? 'Disable' : 'Enable'}
-                                </button>
-                            </div>
-                        )}
-                        
-                        {datetimeProtocolActive && (
-                            <div className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-1.5 border border-blue-500/20">
-                                <div className="flex items-center gap-2">
-                                    <Calendar size={14} className="text-blue-500" />
-                                    <span className="text-xs font-bold text-blue-400">DATETIME PROTOCOL ACTIVE</span>
-                                </div>
-                                <button 
-                                    onClick={() => setDatetimeProtocolActive(!datetimeProtocolActive)}
-                                    className="text-[10px] text-gray-400 hover:text-white transition-colors"
-                                >
-                                    {datetimeProtocolActive ? 'Disable' : 'Enable'}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
-
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
                         <MinusCircle size={20} className="text-rose-500" /> {editingExpense ? t('finance.editExpense') : t('finance.addExpense')}
@@ -419,10 +348,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                         ${isScanningReceipt ? 'cursor-wait opacity-80' : ''}`}
                                 >
                                     {isScanningReceipt ? (
-                                        <><Loader2 size={18} className="animate-spin" /> 
-                                            {t('finance.scanning', 'Analizimi me AI...')}
-                                            {datetimeProtocolActive && <span className="text-[10px] text-blue-400 ml-1">(PROTOCOL)</span>}
-                                        </>
+                                        <><Loader2 size={18} className="animate-spin" /> {t('finance.scanning', 'Analizimi me AI...')}</>
                                     ) : expenseReceipt ? (
                                         <><CheckCircle size={18} /> 
                                             <span className="max-w-[200px] truncate" title={expenseReceipt.name}>
@@ -433,12 +359,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                         <><Paperclip size={18} /> {t('finance.attachReceiptOptional', 'Bashkangjit Faturën (Opcionale)')}</>
                                     )}
                                 </button>
-                                {isScanningReceipt && (
-                                    <p className="text-center text-[10px] text-gray-500 mt-2 flex items-center justify-center gap-1">
-                                        <Sparkles size={10} className="text-primary-start"/> 
-                                        {t('finance.extractingData', 'Duke nxjerrë të dhënat...')}
-                                    </p>
-                                )}
+                                {isScanningReceipt && <p className="text-center text-[10px] text-gray-500 mt-2 flex items-center justify-center gap-1"><Sparkles size={10} className="text-primary-start"/> {t('finance.extractingData', 'Duke nxjerrë të dhënat...')}</p>}
                             </motion.div>
                         )}
                         
@@ -491,7 +412,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                 whiteSpace: 'nowrap'
                             }}
                         >
-                            <option value="" className="bg-gray-900 truncate" title="Pa Lëndë">
+                            <option value="" className="bg-gray-900 truncate">
                                 -- {t('finance.noCase', 'Pa Lëndë')} --
                             </option>
                             {cases.map(c => (
