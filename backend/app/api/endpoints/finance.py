@@ -1,6 +1,7 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V17.6 (FIXED IMPORTS)
+# PHOENIX PROTOCOL - FINANCE ROUTER V17.7 (ADDED PUBLIC TEST OCR ENDPOINT)
 # FIXED: Correct import statements for OCR and LLM services
+# ADDED: /public-test-ocr endpoint for debugging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -38,6 +39,41 @@ router = APIRouter(tags=["Finance"])
 logger = structlog.get_logger(__name__)
 
 redis_client: redis.Redis = redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"), decode_responses=True)
+
+# --- PUBLIC TEST OCR ENDPOINT (NO AUTH) ---
+@router.post("/public-test-ocr")
+async def public_test_ocr(
+    file: UploadFile = File(...)
+):
+    """
+    Public endpoint to test OCR functionality.
+    Accepts an image file and returns extracted text.
+    No authentication required for debugging purposes.
+    """
+    try:
+        # Read image bytes
+        image_bytes = await file.read()
+        
+        # Extract text using OCR service
+        ocr_text = await asyncio.to_thread(extract_text_from_image_bytes, image_bytes)
+        
+        # Return result
+        return {
+            "status": "success",
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "file_size_bytes": len(image_bytes),
+            "ocr_text": ocr_text,
+            "ocr_text_length": len(ocr_text) if ocr_text else 0,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Public OCR test failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"OCR processing failed: {str(e)}"
+        )
+
 
 # --- ANALYTICS & HISTORY ENDPOINTS (SYNC) ---
 
