@@ -1,7 +1,7 @@
 # FILE: backend/app/services/ocr_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V5.0 (KOSOVO OPTIMIZED)
-# OPTIMIZED: Kosovo market with enhanced thermal receipt handling
-# ADDED: Kosovo-specific merchant database and decimal correction
+# PHOENIX PROTOCOL - OCR ENGINE V5.1 (KOSOVO THERMAL RECEIPT OPTIMIZED)
+# OPTIMIZED: Kosovo market with thermal receipt-specific corrections
+# ADDED: Thermal printer character confusion fixes
 
 import pytesseract
 from pytesseract import TesseractError, Output
@@ -59,8 +59,8 @@ DATE_PATTERNS = [
 
 # Kosovo amount patterns (€ prioritized, lek support)
 AMOUNT_PATTERNS = [
-    r'(?:total|shuma|toti)[:\s]*([\d\.,]+\s*(?:€|eur|lek))',  # Kosovo thermal: "toti" for "totali"
-    r'([\d\.,]+\s*(?:€|eur|lek))\s*(?:total|shuma)?',
+    r'(?:total|shuma|toti|tota)[:\s]*([\d\.,]+\s*(?:€|eur|lek|n))',  # Thermal: € as n
+    r'([\d\.,]+\s*(?:€|eur|lek|n))\s*(?:total|shuma)?',
     r'\b(\d+[\.,]\d{2})\b',
     r'toti\s*(\d+)',  # "toti 12550" → 125.50
 ]
@@ -71,7 +71,8 @@ KOSOVO_MERCHANTS = [
     'TELEKOM', 'MERIDIAN', 'BENZ', 'TEB', 'BKT', 'NLB', 'RAIFFEISEN',
     'MAXI', 'SUPER VIVA', 'GLOBAL', 'EUROPI', 'PRISHTINA', 'QAFË',
     'TRANSIT', 'BREGU I DIJES', 'UJE RUGOVE', 'FRESK', 'TELENOR',
-    'MERE MIRA', 'BIRRA PEJA', 'BIRRA GILAN', 'PHARMACY', 'FARMACI'
+    'MERE MIRA', 'BIRRA PEJA', 'BIRRA GILAN', 'PHARMACY', 'FARMACI',
+    'SPARKOSOVA', 'SPAR KOSOVA'  # Common OCR variants
 ]
 
 # Kosovo fiscal number patterns (Fiskal Nr)
@@ -81,6 +82,26 @@ FISCAL_PATTERNS = [
     r'Nr\.?\s*Fiskal[:\s]*(\d{12,13})',
     r'\b\d{12,13}\b'  # Standalone 12-13 digit numbers
 ]
+
+# Thermal receipt common errors
+THERMAL_CHAR_MAPPING = {
+    'n': '€',
+    'N': '€',
+    'o': '0',
+    'O': '0',
+    'l': '1',
+    'I': '1',
+    'S': '5',
+    'B': '8',
+    'ç': 'c',
+    'ë': 'e',
+    'Kate': 'Kafe',
+    'kate': 'kafe',
+    'Sandun': 'Sanduiç',
+    'sandun': 'sanduiç',
+    'Sanduiq': 'Sanduiç',
+    'sanduiq': 'sanduiç',
+}
 
 class SmartOCRResult:
     """Container for enhanced OCR results with confidence scoring"""
@@ -210,7 +231,7 @@ def find_best_psm_for_invoice(image: Image.Image) -> int:
             score += len(amount_matches) * 2
             
             # Bonus for Kosovo-specific terms
-            kosovo_terms = ['tvsh', 'fiskal', 'shuma', 'totali']
+            kosovo_terms = ['tvsh', 'fiskal', 'shuma', 'totali', 'lek', 'qafe', 'kafe', 'ujë']
             for term in kosovo_terms:
                 if term in text_lower:
                     score += 2
@@ -240,17 +261,19 @@ def ai_correct_ocr_text(ocr_text: str, image_type: str = "receipt") -> str:
         from .llm_service import _call_llm
         
         correction_prompt = f"""
-        You are an OCR correction expert specializing in Kosovo receipts.
+        You are an OCR correction expert specializing in Kosovo thermal receipts.
         Fix OCR errors in this receipt text while preserving all numbers, dates, and amounts.
         
-        KOSOVO-SPECIFIC CORRECTIONS:
-        1. Decimal points in thermal receipts: 12550 → 125.50
-        2. "toti" → "totali" (common OCR error)
-        3. "Tvsh" → "TVSH" (VAT in Albanian)
-        4. Common merchant names: SPAR, VIVA, ALBI, etc.
-        5. Date format: 25.01.2026 (Kosovo standard)
+        KOSOVO THERMAL RECEIPT CORRECTIONS:
+        1. Character confusion in dot matrix: n→€, o→0, l→1, S→5, B→8
+        2. Albanian characters: ç often misread as c, ë as e
+        3. Common product names: "Kate" → "Kafe", "Sandun" → "Sanduiç"
+        4. Decimal points in thermal receipts: 12550 → 125.50
+        5. "toti" → "totali" (common OCR error)
+        6. "Tvsh" → "TVSH" (VAT in Albanian)
+        7. Date format: 25.01.2026 (Kosovo standard)
         
-        PRESERVE: All numbers, prices, dates, fiscal numbers exactly.
+        PRESERVE EXACTLY: All numbers, prices, dates, fiscal numbers.
         
         RECEIPT TEXT:
         {corrected}
@@ -259,7 +282,7 @@ def ai_correct_ocr_text(ocr_text: str, image_type: str = "receipt") -> str:
         """
         
         llm_corrected = _call_llm(
-            "You are an expert at correcting OCR errors in Kosovo receipts.",
+            "You are an expert at correcting OCR errors in Kosovo thermal receipts.",
             correction_prompt,
             json_mode=False,
             temp=0.1
@@ -283,7 +306,7 @@ def ai_correct_ocr_text(ocr_text: str, image_type: str = "receipt") -> str:
 def rule_based_correction(text: str) -> str:
     """
     Rule-based correction for common OCR errors in receipts.
-    KOSOVO-OPTIMIZED VERSION.
+    KOSOVO THERMAL RECEIPT OPTIMIZED VERSION.
     """
     if not text:
         return text
@@ -300,13 +323,54 @@ def rule_based_correction(text: str) -> str:
             (r'(\d)l', r'\11'),
             (r'S(\d)', r'5\1'),
             (r'B(\d)', r'8\1'),
-            (r'(\d+[\.,]\d{2})\s*([€$£])', r'\1\2'),
+            (r'(\d+[\.,]\d{2})\s*([€$£n])', r'\1\2'),
             (r'(\d{1,2})[\.](\d{1,2})[\.](\d{2,4})', r'\1.\2.\3'),  # Keep Kosovo format
         ]
         
         corrected_line = line
         for pattern, replacement in corrections:
             corrected_line = re.sub(pattern, replacement, corrected_line)
+        
+        # Thermal printer specific fixes (dot matrix font)
+        thermal_fixes = [
+            # Character confusion in thermal receipts
+            (r'\bn\b', '€'),
+            (r'\bN\b', '€'),
+            (r'\bo\b', '0'),
+            (r'\bO\b', '0'),
+            (r'\bl\b', '1'),
+            (r'\bI\b', '1'),
+            (r'\bS\b', '5'),
+            (r'\bB\b', '8'),
+            
+            # Kosovo product name corrections
+            (r'\bKate\b', 'Kafe'),
+            (r'\bkate\b', 'kafe'),
+            (r'\bSandun\b', 'Sanduiç'),
+            (r'\bsandun\b', 'sanduiç'),
+            (r'\bSanduiq\b', 'Sanduiç'),
+            (r'\bsanduiq\b', 'sanduiç'),
+            (r'\bUj\b', 'Ujë'),
+            (r'\buj\b', 'ujë'),
+            (r'\bç\b', 'c'),
+            (r'\bë\b', 'e'),
+            
+            # Space as decimal in dot matrix
+            (r'(\d) (\d{2})\b', r'\1.\2'),
+            (r'(\d)o(\d{2})\b', r'\1.0\2'),
+            (r'(\d)l(\d{2})\b', r'\1.1\2'),
+            
+            # Fix merged numbers in thermal receipts
+            (r'(\d{4})(\d{4})', r'\1 \2'),
+            (r'(\d{3})(\d{3})', r'\1 \2'),
+            
+            # Common thermal receipt patterns
+            (r'(\d)x(\d)', r'\1 x \2'),  # Add space around x
+            (r'(\d)=(\d)', r'\1 = \2'),  # Add space around =
+        ]
+        
+        for pattern, replacement in thermal_fixes:
+            corrected_line = re.sub(pattern, replacement, corrected_line, flags=re.IGNORECASE)
         
         # Kosovo-specific fixes for thermal printer receipts
         kosovo_fixes = [
@@ -330,6 +394,8 @@ def rule_based_correction(text: str) -> str:
             (r'\btvsh\b', 'TVSH'),
             (r'\bfiskal\b', 'Fiskal'),
             (r'\bshume\b', 'shuma'),
+            (r'\bSPARKOSOVA\b', 'SPAR KOSOVA'),
+            (r'\bSparkosova\b', 'SPAR KOSOVA'),
         ]
         
         for pattern, replacement in kosovo_fixes:
@@ -355,7 +421,7 @@ def rule_based_correction(text: str) -> str:
 def extract_structured_data_from_text(text: str) -> Dict[str, Any]:
     """
     Extract structured information from OCR text.
-    KOSOVO-OPTIMIZED VERSION.
+    KOSOVO THERMAL RECEIPT OPTIMIZED VERSION.
     """
     structured: Dict[str, Any] = {
         'total_amount': None,
@@ -365,12 +431,13 @@ def extract_structured_data_from_text(text: str) -> Dict[str, Any]:
         'merchant': '',
         'items': [],
         'currency': '€',
-        'location': 'Kosovo'
+        'location': 'Kosovo',
+        'receipt_type': 'thermal'
     }
     
     text_lower = text.lower()
     
-    # Find total amount (Kosovo optimized)
+    # Find total amount (Kosovo thermal optimized)
     for pattern in AMOUNT_PATTERNS:
         try:
             matches = re.findall(pattern, text_lower)
@@ -380,19 +447,27 @@ def extract_structured_data_from_text(text: str) -> Dict[str, Any]:
                     if isinstance(match, tuple):
                         match = match[0]
                     
-                    # Special handling for "toti 12550" pattern
+                    # Special handling for thermal receipt patterns
                     if 'toti' in text_lower and not ('.' in match or ',' in match):
                         match = match[:3] + '.' + match[3:] if len(match) > 3 else match
                     
-                    clean_amount = re.sub(r'[^\d\.,]', '', match)
+                    # Handle € as n in thermal receipts
+                    if 'n' in match.lower():
+                        match = re.sub(r'n', '€', match, flags=re.IGNORECASE)
+                    
+                    clean_amount = re.sub(r'[^\d\.,€]', '', match)
                     clean_amount = clean_amount.replace(',', '.')
                     
                     # Handle missing decimal in Kosovo thermal receipts
-                    if len(clean_amount) > 2 and '.' not in clean_amount and ',' not in clean_amount:
-                        clean_amount = clean_amount[:-2] + '.' + clean_amount[-2:]
+                    if len(clean_amount.replace('.', '').replace(',', '')) > 2 and '.' not in clean_amount and ',' not in clean_amount:
+                        digits = re.sub(r'[^\d]', '', clean_amount)
+                        if len(digits) > 2:
+                            clean_amount = digits[:-2] + '.' + digits[-2:]
                     
                     try:
-                        amount = float(clean_amount)
+                        # Remove € symbol for conversion
+                        amount_str = re.sub(r'[^\d\.]', '', clean_amount)
+                        amount = float(amount_str)
                         amounts.append(amount)
                     except:
                         continue
@@ -415,6 +490,11 @@ def extract_structured_data_from_text(text: str) -> Dict[str, Any]:
                             try:
                                 parsed = datetime.strptime(date_str, fmt)
                                 structured['date'] = parsed.strftime('%Y-%m-%d')
+                                
+                                # Also extract time if present
+                                time_match = re.search(r'(\d{2})(\d{2})', date_str)
+                                if time_match:
+                                    structured['time'] = f"{time_match.group(1)}:{time_match.group(2)}"
                                 break
                             except:
                                 continue
@@ -457,7 +537,7 @@ def extract_structured_data_from_text(text: str) -> Dict[str, Any]:
     # Extract merchant name (Kosovo optimized)
     lines = [line.strip() for line in text.split('\n') if line.strip()]
     if lines:
-        skip_words = ['total', 'date', 'vat', 'invoice', 'receipt', 'faturë', 'fiskal', 'tvsh']
+        skip_words = ['total', 'date', 'vat', 'invoice', 'receipt', 'faturë', 'fiskal', 'tvsh', 'data']
         
         # Check for known Kosovo merchants first
         for merchant in KOSOVO_MERCHANTS:
@@ -476,14 +556,19 @@ def extract_structured_data_from_text(text: str) -> Dict[str, Any]:
                     structured['merchant'] = line[:100]
                     break
     
-    # Extract line items
+    # Extract line items (thermal receipt optimized)
     for line in lines:
         try:
-            # Kosovo item pattern: "Kafe 2 x 1.50 = 3.00€"
+            # Kosovo thermal receipt item patterns
             item_patterns = [
-                r'([\w\s]+)\s+(\d+)\s*x\s*([\d\.,]+)\s*=\s*([\d\.,]+)\s*[€€]?',
-                r'([\w\s]+)\s+([\d\.,]+)\s*[€€]',
-                r'([\w\s]+)\s+(\d+[\.,]\d{2})'
+                # "Kafe 2 x 1.50 = 3.00€" or thermal variant "Kafe 2 x1.50 =3.00n"
+                r'([a-zëç]+)\s+(\d+)\s*x\s*([\d\.,]+)\s*=?\s*([\d\.,]+)\s*[€n]?',
+                # "Kafe 2 1.50 3.00" (no x or =)
+                r'([a-zëç]+)\s+(\d+)\s+([\d\.,]+)\s+([\d\.,]+)',
+                # Single price "Kafe 1.50"
+                r'([a-zëç]+)\s+([\d\.,]+)\s*[€n]',
+                # Just amount "1.50€"
+                r'([a-zëç]+)\s+(\d+[\.,]\d{2})'
             ]
             
             for pattern in item_patterns:
@@ -492,33 +577,57 @@ def extract_structured_data_from_text(text: str) -> Dict[str, Any]:
                     groups = matches.groups()
                     if len(groups) >= 2:
                         try:
-                            amount = float(groups[-1].replace(',', '.'))
-                            item = {
-                                'description': groups[0].strip(),
-                                'amount': amount
-                            }
+                            # Determine which groups contain what
                             if len(groups) >= 4:
-                                item['quantity'] = int(groups[1])
-                                item['unit_price'] = float(groups[2].replace(',', '.'))
+                                # Full pattern: item, qty, unit, total
+                                description = groups[0].strip()
+                                quantity = int(groups[1])
+                                unit_price = float(groups[2].replace(',', '.'))
+                                amount = float(groups[3].replace(',', '.'))
+                                
+                                item = {
+                                    'description': description,
+                                    'quantity': quantity,
+                                    'unit_price': unit_price,
+                                    'amount': amount
+                                }
+                            elif len(groups) >= 2:
+                                # Simple pattern: item, amount
+                                description = groups[0].strip()
+                                amount = float(groups[1].replace(',', '.'))
+                                
+                                item = {
+                                    'description': description,
+                                    'amount': amount
+                                }
+                            
                             structured['items'].append(item)
                             break
-                        except:
+                        except (ValueError, IndexError):
                             continue
-        except:
+        except Exception as e:
+            logger.debug(f"Item extraction failed for line '{line}': {e}")
             continue
     
     # Detect currency
     if 'lek' in text_lower:
         structured['currency'] = 'ALL'
-    elif '€' in text or 'eur' in text_lower:
+    elif '€' in text or 'eur' in text_lower or 'n' in text_lower:
         structured['currency'] = '€'
+    
+    # Detect if thermal receipt
+    thermal_indicators = ['n\b', 'o\b', 'l\b', 'S\b', 'B\b', 'Kate', 'Sandun']
+    thermal_score = sum(1 for indicator in thermal_indicators if re.search(indicator, text, re.IGNORECASE))
+    if thermal_score >= 2:
+        structured['receipt_type'] = 'thermal'
+        structured['confidence_thermal'] = thermal_score / len(thermal_indicators)
     
     return structured
 
 def multi_strategy_ocr(image: Image.Image) -> SmartOCRResult:
     """
     Execute multiple OCR strategies and select the best result.
-    KOSOVO-OPTIMIZED VERSION.
+    KOSOVO THERMAL RECEIPT OPTIMIZED VERSION.
     """
     strategies: List[Dict[str, Any]] = []
     
@@ -583,6 +692,24 @@ def multi_strategy_ocr(image: Image.Image) -> SmartOCRResult:
     except Exception as e:
         logger.debug(f"Strategy 4 failed: {e}")
     
+    # Strategy 5: English-only fallback (for international receipts)
+    try:
+        text5 = pytesseract.image_to_string(
+            image, 
+            lang='eng',
+            config='--oem 3 --psm 6 -c preserve_interword_spaces=1'
+        )
+        if text5 and len(text5) > 20:
+            conf5 = 0.5
+            strategies.append({
+                'text': text5,
+                'confidence': conf5,
+                'strategy': 'english_only',
+                'structured': extract_structured_data_from_text(text5)
+            })
+    except Exception as e:
+        logger.debug(f"Strategy 5 failed: {e}")
+    
     # Select the best strategy
     if not strategies:
         return SmartOCRResult("", 0.0, {'error': 'All OCR strategies failed'})
@@ -595,7 +722,7 @@ def multi_strategy_ocr(image: Image.Image) -> SmartOCRResult:
         # Kosovo keyword bonus
         keyword_bonus = 0
         text_lower = text.lower()
-        kosovo_keywords = ['tvsh', 'fiskal', 'shuma', 'totali', 'lek', 'qafe']
+        kosovo_keywords = ['tvsh', 'fiskal', 'shuma', 'totali', 'lek', 'qafe', 'kafe', 'ujë']
         for kw in kosovo_keywords:
             if kw in text_lower:
                 keyword_bonus += 0.1
@@ -618,6 +745,13 @@ def multi_strategy_ocr(image: Image.Image) -> SmartOCRResult:
             data_bonus += 0.15
         if structured.get('merchant'):
             data_bonus += 0.1
+        if structured.get('items'):
+            data_bonus += 0.1 * min(len(structured['items']), 5)
+        
+        # Thermal receipt bonus (if detected)
+        thermal_bonus = 0
+        if structured.get('receipt_type') == 'thermal':
+            thermal_bonus += 0.1
         
         # Length penalty
         length_penalty = 0
@@ -626,7 +760,7 @@ def multi_strategy_ocr(image: Image.Image) -> SmartOCRResult:
         elif len(text) < 50:
             length_penalty = 0.1
         
-        strategy['final_score'] = base_conf + keyword_bonus + merchant_bonus + data_bonus - length_penalty
+        strategy['final_score'] = base_conf + keyword_bonus + merchant_bonus + data_bonus + thermal_bonus - length_penalty
         strategy['final_score'] = min(strategy['final_score'], 0.95)  # Cap at 0.95
     
     # Select best
@@ -646,7 +780,8 @@ def multi_strategy_ocr(image: Image.Image) -> SmartOCRResult:
             'strategy_used': best_strategy['strategy'],
             'original_confidence': best_strategy['confidence'],
             'image_type': detect_image_type(image),
-            'market': 'Kosovo'
+            'market': 'Kosovo',
+            'receipt_type': best_strategy['structured'].get('receipt_type', 'standard')
         }
     )
     
@@ -657,7 +792,7 @@ def multi_strategy_ocr(image: Image.Image) -> SmartOCRResult:
 
 def extract_text_from_image_bytes(image_bytes: bytes) -> str:
     """
-    Main Pipeline for in-memory image bytes - KOSOVO OPTIMIZED.
+    Main Pipeline for in-memory image bytes - KOSOVO THERMAL OPTIMIZED.
     """
     try:
         original_image = Image.open(io.BytesIO(image_bytes))
@@ -671,6 +806,8 @@ def extract_text_from_image_bytes(image_bytes: bytes) -> str:
             logger.info(f"   Merchant: {result.structured_data['merchant']}")
         if result.structured_data.get('fiscal_number'):
             logger.info(f"   Fiscal Nr: {result.structured_data['fiscal_number']}")
+        if result.structured_data.get('receipt_type'):
+            logger.info(f"   Receipt Type: {result.structured_data['receipt_type']}")
         
         return result.text
     except Exception as e:
@@ -688,7 +825,7 @@ def extract_text_from_image_bytes(image_bytes: bytes) -> str:
 
 def extract_text_from_image(file_path: str) -> str:
     """
-    Main Pipeline for image files on disk - KOSOVO OPTIMIZED.
+    Main Pipeline for image files on disk - KOSOVO THERMAL OPTIMIZED.
     """
     if not os.path.exists(file_path):
         logger.error(f"❌ OCR Error: File not found at {file_path}")
@@ -705,6 +842,8 @@ def extract_text_from_image(file_path: str) -> str:
             logger.info(f"   Total: {result.structured_data['total_amount']}€")
         if result.structured_data.get('merchant'):
             logger.info(f"   Merchant: {result.structured_data['merchant']}")
+        if result.structured_data.get('receipt_type'):
+            logger.info(f"   Receipt Type: {result.structured_data['receipt_type']}")
         
         return result.text
     except Exception as e:
@@ -714,7 +853,7 @@ def extract_text_from_image(file_path: str) -> str:
 def extract_expense_data_from_image(image_bytes: bytes) -> Dict[str, Any]:
     """
     Extract both text and structured expense data from image.
-    KOSOVO-OPTIMIZED VERSION.
+    KOSOVO THERMAL OPTIMIZED VERSION.
     """
     try:
         original_image = Image.open(io.BytesIO(image_bytes))
@@ -746,7 +885,7 @@ def is_kosovo_receipt(text: str) -> bool:
         return False
     
     text_lower = text.lower()
-    kosovo_indicators = ['tvsh', 'fiskal', 'shuma', 'totali', 'lek', 'qafe']
+    kosovo_indicators = ['tvsh', 'fiskal', 'shuma', 'totali', 'lek', 'qafe', 'kafe', 'ujë']
     
     score = 0
     for indicator in kosovo_indicators:
@@ -758,6 +897,23 @@ def is_kosovo_receipt(text: str) -> bool:
         if merchant.lower() in text_lower:
             score += 2
             break
+    
+    return score >= 2
+
+def is_thermal_receipt(text: str) -> bool:
+    """Detect if text is from a thermal/dot matrix receipt."""
+    if not text:
+        return False
+    
+    thermal_indicators = [
+        r'n\b', r'o\b', r'l\b', r'S\b', r'B\b', 
+        'Kate', 'Sandun', 'Uj\b'
+    ]
+    
+    score = 0
+    for indicator in thermal_indicators:
+        if re.search(indicator, text, re.IGNORECASE):
+            score += 1
     
     return score >= 2
 
