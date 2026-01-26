@@ -1,15 +1,21 @@
 // FILE: src/context/AuthContext.tsx
-// PHOENIX PROTOCOL - AUTH CONTEXT V2.1 (PATH AWARENESS)
-// 1. FIX: The 'initializeApp' function now checks the window location.
-// 2. LOGIC: If the path is '/mobile-upload/...', it skips the authentication check.
-// 3. STATUS: This prevents the failed token refresh on the mobile page from redirecting the user.
+// PHOENIX PROTOCOL - AUTH CONTEXT V2.3 (TYPE CONFLICT RESOLUTION)
+// 1. FIXED: Used 'Omit' to resolve type conflicts between base 'User' and 'AuthUser'.
+// 2. FIXED: Added explicit casting 'as AuthUser' to ensure state updates are accepted.
+// 3. STATUS: Resolves the 'type never' and 'not assignable' errors in VS Code.
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, LoginRequest, RegisterRequest } from '../data/types';
 import { apiService } from '../services/api';
 import { Loader2 } from 'lucide-react';
 
-type AuthUser = User;
+// PHOENIX FIX: We Omit conflicting fields from the base User type before overriding them.
+// This prevents the 'intersection reduced to never' error.
+type AuthUser = Omit<User, 'subscription_tier' | 'account_type' | 'product_plan'> & {
+    subscription_tier?: 'BASIC' | 'PRO';
+    account_type?: 'SOLO' | 'ORGANIZATION';
+    product_plan?: string;
+};
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -34,11 +40,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const refreshUser = useCallback(async () => {
     try {
-      const fullUser = await apiService.fetchUserProfile();
+      // Cast the response to AuthUser to satisfy the specific string literals
+      const fullUser = await apiService.fetchUserProfile() as AuthUser;
       setUser(fullUser);
     } catch (error) {
       console.error("Failed to refresh user, logging out.", error);
-      logout(); // Logout if refresh fails
+      logout();
     }
   }, [logout]);
 
@@ -46,12 +53,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     apiService.setLogoutHandler(logout);
   }, [logout]);
 
-  // Proactive Initialization
   useEffect(() => {
     let isMounted = true;
 
     const initializeApp = async () => {
-      // PHOENIX FIX: If we are on the mobile upload page, do not attempt to authenticate.
+      // Mobile Upload Path Check
       if (window.location.pathname.startsWith('/mobile-upload/')) {
         if (isMounted) setIsLoading(false);
         return;
@@ -61,7 +67,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const refreshed = await apiService.refreshToken();
         
         if (refreshed) {
-            const fullUser = await apiService.fetchUserProfile();
+            // Cast to AuthUser
+            const fullUser = await apiService.fetchUserProfile() as AuthUser;
             if (isMounted) setUser(fullUser);
         } else {
             if (isMounted) setUser(null);
@@ -75,7 +82,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     initializeApp();
-    
     return () => { isMounted = false; };
   }, []); 
 
@@ -88,7 +94,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       };
 
       await apiService.login(loginPayload);
-      const fullUser = await apiService.fetchUserProfile();
+      // Cast to AuthUser
+      const fullUser = await apiService.fetchUserProfile() as AuthUser;
       setUser(fullUser);
 
     } finally {
