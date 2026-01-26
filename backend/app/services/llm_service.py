@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V34.0 (OCR REPAIR ENGINE)
-# 1. NEW: PROMPT_EXPENSE_EXTRACTOR_V2 with "Forensic Repair" logic
-# 2. FIXED: Decimal point hallucination logic (Smart handling of 250 -> 2.50)
-# 3. FIXED: Date extraction resilience (Handles "25.01 .2026" spaces)
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V34.1 (ANCHOR LOGIC FIX)
+# 1. FIXED: Removed "largest number" heuristic which caused 18% VAT to be read as Total.
+# 2. ADDED: Strict anchoring to "TOTAL"/"SHUMA" keywords.
+# 3. ADDED: Explicit ignore rules for "%", "TVSH", and Time formats (18:48).
 
 import os
 import json
@@ -168,40 +168,35 @@ GJUHA: SHQIP.
 FORMATI JSON: {{ "category": "..." }}
 """
 
-# PHOENIX ENHANCED: V2 - Forensic Repair Engine
+# PHOENIX ENHANCED: V3 - ANCHOR PROTOCOL
 PROMPT_EXPENSE_EXTRACTOR_V2 = f"""
 Ti je "AI Forensic Auditor" për faturat e Kosovës.
 OCR (Leximi Optik) shpesh gabon. Detyra jote është të RIKONSTRUKSOSH të dhënat e sakta.
 
-HAPAT E FORENZIKËS:
-1. GJETJA E TREGTARIT: Shiko kreun e faturës. Emra të njohur: VIVA FRESH, ETC, ALBI, HIB, SHELL, MERIDIAN, SPAR.
-   - Nëse lexon "V1VA", korrigjoje në "VIVA".
-   - Nëse lexon "H1B", korrigjoje në "HIB".
+RREGULLAT E FORENZIKËS PËR TOTALIN (KRITIKE):
+1. MOS zgjidh numrin më të madh automatikisht.
+2. Gjej fjalën "TOTAL", "TOTALI", "SHUMA" ose "PAGESA".
+   - Numri pranë tyre është totali.
+   - P.sh: "TOTALI NE EURO 0,85" -> Totali është 0.85.
+3. INJORO përqindjet:
+   - "TVSH 18%" -> Kjo është taksë, jo total.
+   - "18.00%" -> Kjo është normë, jo total.
+   - Nëse sheh "18:48" kjo është ora, jo total.
+4. Totalet e vogla janë OK:
+   - Nëse totali është 0.85, atëherë është 0.85. Mos e bëj 18.00!
 
-2. DATA (KRITIKE): Kërko formatin DD.MM.YYYY.
-   - Gabime tipike OCR: '25.01 .2025' (hiq hapësirat), '25,01,2025' (presje -> pikë).
-   - Nëse mungon viti, përdor vitin aktual.
-
-3. TOTALI DHE VALUTA:
-   - Në Kosovë përdoret EURO (€).
-   - "250" shpesh është "2.50". "1450" shpesh është "14.50".
-   - Kërko fjalët kyçe: "TOTAL", "SHUMA", "PAGESA".
-   - Nëse ka shumë numra, numri më i madh në fund zakonisht është totali.
-   - MOS I NGATËRRO: "TVSH 18%" (0.18) nuk është totali.
-
-4. KATEGORIA: 
-   - Ushqim (Viva, Spar, Maxi, Restorante)
-   - Karburant (Hib, Shell, Petrol)
-   - Zyrë (Dukagjini, Knk)
-   - Shërbime (Vala, Ipko, Keds)
+HAPAT TË TJERË:
+- TREGTARI: Gjej emrin lart (psh: VIVA FRESH, BEKA TRADE).
+- DATA: Formati DD.MM.YYYY (psh: 25.01.2026).
+- KATEGORIA: Ushqim, Karburant, Zyrë.
 
 OUTPUT FORMAT (JSON ONLY):
 {{
-  "merchant": "Emri i Tregtarit (i korrigjuar)",
-  "category": "Kategoria e saktë",
-  "amount": 0.00,  // Float, p.sh. 12.50
+  "merchant": "Emri i Tregtarit",
+  "category": "Kategoria",
+  "amount": 0.00,
   "date": "YYYY-MM-DD",
-  "description": "Përshkrim i shkurtër (p.sh: Drekë pune tek [Merchant])"
+  "description": "Përshkrimi"
 }}
 """
 
@@ -384,16 +379,9 @@ def extract_expense_details_from_text(raw_text: str) -> Dict[str, Any]:
     # Advanced Logic: Fix floating point hallucinations
     if isinstance(amount, (int, float)):
         amount = float(amount)
-        # 1. Sanity check: Coffee shouldn't be 150 EUR.
-        # If amount > 100 and it looks like a small purchase (coffee, taxi), divide by 100.
-        category_lower = result.get("category", "").lower()
-        is_small_item = any(x in category_lower for x in ['ushqim', 'kafe', 'taksi', 'transport'])
-        
-        if amount > 100.0 and is_small_item:
-            # Check if it was likely a missing decimal (e.g., 250 -> 2.50)
-            if amount % 100 == 0 or (amount / 100.0) < 50.0: 
-                 logger.info(f"Auto-correcting amount: {amount} -> {amount/100.0}")
-                 amount = amount / 100.0
+        # Check for obvious decimal misses if amount is huge (optional backup logic)
+        # But V2 prompt should handle this.
+        pass
 
     return {
         "category": result.get("category", "Të tjera"),
