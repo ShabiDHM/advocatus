@@ -1,11 +1,11 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V2.8 (SPLIT UPLOAD ACTIONS)
-// 1. ADDED: Split buttons for "AI Scan" vs "Simple Attach"
-// 2. LOGIC: uploadIntent ref determines if OCR runs
-// 3. UI: 2-column grid for upload actions
+// PHOENIX PROTOCOL - EXPENSE MODAL V2.9 (MOBILE OCR FIX)
+// 1. ADDED: Client-side image compression to prevent 413/Timeouts
+// 2. ADDED: Dual input strategy (Camera vs File Picker)
+// 3. FIXED: Error handling visibility for mobile users
 
 import React, { useState, useRef, useEffect } from 'react';
-import { X, MinusCircle, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, ScanLine } from 'lucide-react';
+import { X, MinusCircle, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, ScanLine, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Expense, Case } from '../../../data/types';
 import { apiService } from '../../../services/api';
@@ -63,12 +63,69 @@ const DateTimeProtocol = {
     }
 };
 
+// COMPRESSION UTILITY
+const compressImage = async (file: File): Promise<File> => {
+    // Only compress images
+    if (!file.type.startsWith('image/')) return file;
+
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 1920;
+                const MAX_HEIGHT = 1920;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
+
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        const newFile = new File([blob], file.name, {
+                            type: 'image/jpeg',
+                            lastModified: Date.now(),
+                        });
+                        resolve(newFile);
+                    } else {
+                        reject(new Error('Compression failed'));
+                    }
+                }, 'image/jpeg', 0.8); // 80% Quality
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+};
+
 export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSuccess, cases, editingExpense }) => {
     const { t, i18n } = useTranslation();
     const [isDirectUpload, setIsDirectUpload] = useState(false);
     const [isScanningReceipt, setIsScanningReceipt] = useState(false);
+    const [scanError, setScanError] = useState<string | null>(null);
     const [expenseReceipt, setExpenseReceipt] = useState<File | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Split Refs for Better Mobile UX
+    const scanInputRef = useRef<HTMLInputElement>(null);
+    const attachInputRef = useRef<HTMLInputElement>(null);
     
     // Track intent: 'scan' (AI) or 'attach' (Manual)
     const uploadIntent = useRef<'scan' | 'attach'>('scan');
@@ -88,6 +145,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
 
     useEffect(() => {
         if (isOpen) {
+            setScanError(null);
             if (editingExpense) {
                 setFormData({
                     category: editingExpense.category,
@@ -106,21 +164,39 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         }
     }, [isOpen, editingExpense]);
 
-    const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        setScanError(null);
+        
         if (file) {
             setIsDirectUpload(true);
-            setExpenseReceipt(file);
             
-            // Only trigger AI if the intent was specifically 'scan'
-            if (uploadIntent.current === 'scan' && !editingExpense) {
-                handleAiScan(file);
+            // If intent is scan, we MUST compress
+            if (uploadIntent.current === 'scan') {
+                try {
+                    setIsScanningReceipt(true); // Show loading immediately
+                    const compressedFile = await compressImage(file);
+                    setExpenseReceipt(compressedFile);
+                    
+                    if (!editingExpense) {
+                        await handleAiScan(compressedFile);
+                    }
+                } catch (err) {
+                    console.error("Compression/Scan error:", err);
+                    setScanError("Failed to process image. Try attaching manually.");
+                    setExpenseReceipt(file); // Fallback to original
+                } finally {
+                    setIsScanningReceipt(false);
+                }
+            } else {
+                // Attach Mode
+                setExpenseReceipt(file);
             }
         }
     };
 
     const handleAiScan = async (file: File) => {
-        setIsScanningReceipt(true);
+        // Assume isScanningReceipt is set by caller
         try {
             const aiResult = await safeAnalyzeReceipt(file);
             if (aiResult) {
@@ -137,14 +213,18 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
             }
         } catch (err) {
             console.warn("AI Scan failed, falling back to manual entry", err);
-        } finally {
-            setIsScanningReceipt(false);
+            setScanError(t('finance.scanFailed', 'Skanimi dështoi. Ju lutem plotësoni fushat manualisht.'));
         }
     };
 
     const triggerUpload = (mode: 'scan' | 'attach') => {
         uploadIntent.current = mode;
-        fileInputRef.current?.click();
+        setScanError(null);
+        if (mode === 'scan') {
+            scanInputRef.current?.click();
+        } else {
+            attachInputRef.current?.click();
+        }
     };
 
     const safeAnalyzeReceipt = async (file: File): Promise<any> => {
@@ -206,8 +286,26 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
                 </div>
 
-                {/* Hidden Input */}
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.pdf" onChange={handleFileSelection} />
+                {/* 
+                   PHOENIX FIX: Two separate inputs. 
+                   1. Scan: Accepts images only, prefers environment (rear) camera.
+                   2. Attach: Accepts images and PDF, standard file picker.
+                */}
+                <input 
+                    type="file" 
+                    ref={scanInputRef} 
+                    className="hidden" 
+                    accept="image/*" 
+                    capture="environment" 
+                    onChange={handleFileSelection} 
+                />
+                <input 
+                    type="file" 
+                    ref={attachInputRef} 
+                    className="hidden" 
+                    accept="image/*,.pdf" 
+                    onChange={handleFileSelection} 
+                />
 
                 <div className="mb-6">
                     <AnimatePresence mode="wait">
@@ -251,7 +349,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                             <motion.div key="direct" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
                                 <div className="flex justify-between items-center mb-2">
                                     <label className="block text-xs text-gray-400 font-bold uppercase">{t('finance.uploadDirectly', 'Ngarko Skedar')}</label>
-                                    <button type="button" onClick={() => { setIsDirectUpload(false); setExpenseReceipt(null); }} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14} /> {t('general.back', 'Kthehu')} </button>
+                                    <button type="button" onClick={() => { setIsDirectUpload(false); setExpenseReceipt(null); setScanError(null); }} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14} /> {t('general.back', 'Kthehu')} </button>
                                 </div>
 
                                 <button
@@ -273,7 +371,15 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                         <><Paperclip size={18} /> {t('finance.changeFile', 'Ndrysho Skedarin')}</>
                                     )}
                                 </button>
+                                
                                 {isScanningReceipt && <p className="text-center text-[10px] text-gray-500 mt-2 flex items-center justify-center gap-1"><Sparkles size={10} className="text-primary-start" /> {t('finance.extractingData', 'Duke nxjerrë të dhënat...')}</p>}
+                                
+                                {scanError && (
+                                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mt-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-200 text-xs">
+                                        <AlertCircle size={14} className="shrink-0" />
+                                        <span>{scanError}</span>
+                                    </motion.div>
+                                )}
                             </motion.div>
                         )}
                     </AnimatePresence>
