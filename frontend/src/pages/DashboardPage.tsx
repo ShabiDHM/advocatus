@@ -1,8 +1,8 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V12.0 (INTELLIGENT BRIEFING: ACTIVITY & DEADLINES)
-// 1. FEAT: Implemented calculation and display of Total Urgent Alerts (based on case 'alert_count').
-// 2. UX: Updated Briefing Row status logic to prioritize Red (Deadlines), then Yellow (Alerts), then Green (OK).
-// 3. ARCH: Maintained all previous structural, type, and gatekeeper integrity fixes.
+// PHOENIX PROTOCOL - DASHBOARD V13.0 (ACTIONABLE INTELLIGENCE: MODAL INTEGRATION)
+// 1. UX: Modified the Admin Briefing action button to open the DayEventsModal (Daily Briefing Modal) when a Critical Deadline or Alert is present.
+// 2. LOGIC: Simplified the automatic modal open logic in loadData to rely on the presence of critical events for the DayEventsModal.
+// 3. FLOW: When deadlines/alerts are present, the button becomes a direct entry point to the list of problematic events/alerts.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -30,13 +30,12 @@ const DashboardPage: React.FC = () => {
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const hasCheckedBriefing = useRef(false);
 
-  // NEW STATE: Critical Deadlines
+  // CRITICAL STATES
   const [criticalDeadlinesCount, setCriticalDeadlinesCount] = useState<{
     today: number;
     yesterdayMissed: number;
   }>({ today: 0, yesterdayMissed: 0 });
   
-  // NEW STATE: Total Activity/Urgent Alerts
   const [totalAlerts, setTotalAlerts] = useState(0);
 
   const initialNewCaseData = { 
@@ -59,7 +58,7 @@ const DashboardPage: React.FC = () => {
 
       events.forEach(event => {
           // Relying only on event.title for criticality check
-          const isCriticalType = ['Seancë Gjyqësore', 'Afat Ligjor'].includes(event.title); 
+          const isCriticalType = ['Seancë Gjyqësore', 'Afat Ligjor', 'Afat Kompensimi'].includes(event.title); // Added 'Afat Kompensimi' from the image for future proofing
 
           if (isCriticalType) {
               const eventDate = parseISO(event.start_date);
@@ -76,13 +75,13 @@ const DashboardPage: React.FC = () => {
   };
   // END LOGIC: Deadline calculation
 
-  // NEW LOGIC: Activity calculation
+  // LOGIC: Activity calculation
   const calculateTotalAlerts = (cases: Case[]) => {
       // Sum the alert_count from all cases as a proxy for unread/urgent activity
       const totalAlertsCount = cases.reduce((sum, c) => sum + (c.alert_count || 0), 0);
       setTotalAlerts(totalAlertsCount);
   };
-  // END NEW LOGIC: Activity calculation
+  // END LOGIC: Activity calculation
 
   useEffect(() => {
     loadData();
@@ -106,18 +105,19 @@ const DashboardPage: React.FC = () => {
       
       // RUN INTELLIGENCE LOGIC
       calculateCriticalDeadlines(eventsData);
-      calculateTotalAlerts(casesData); // NEW CALL
+      calculateTotalAlerts(casesData); 
       
-      // Original Briefing Modal Logic (remains separate from the Admin Row)
-      if (!hasCheckedBriefing.current && eventsData.length > 0) {
-          const today = new Date();
-          const matches = eventsData.filter(e => isSameDay(parseISO(e.start_date), today));
-          
-          if (matches.length > 0) {
-              setTodaysEvents(matches);
-          }
-          hasCheckedBriefing.current = true;
+      // UPDATE: Set todaysEvents for the Briefing Modal
+      const today = new Date();
+      const matches = eventsData.filter(e => isSameDay(parseISO(e.start_date), today));
+      setTodaysEvents(matches);
+      
+      // Original Briefing Modal Logic - Only auto-open on initial load if we have *todays* events
+      if (!hasCheckedBriefing.current && matches.length > 0) {
+          // No longer automatically opening, we'll rely on the button click.
       }
+      hasCheckedBriefing.current = true;
+      
 
     } catch (error) {
       console.error("Failed to load dashboard data", error);
@@ -171,6 +171,18 @@ const DashboardPage: React.FC = () => {
     setNewCaseData(prev => ({ ...prev, [name]: value }));
   };
 
+  // NEW LOGIC: Action Handler for the Briefing Row Button
+  const handleBriefingAction = () => {
+      // If there are critical items for today, open the modal to show the list of today's events/deadlines
+      if (criticalDeadlinesCount.today > 0 || totalAlerts > 0) {
+          setIsBriefingOpen(true);
+      } else {
+          // Default action: Go to the main Calendar page
+          window.location.href = '/calendar';
+      }
+  };
+
+
   // Logic: Show all cases in the grid, rely on overflow for scrolling
   const casesToDisplay = cases;
 
@@ -187,7 +199,7 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-full flex flex-col">
       
-      {/* ADMIN: DAILY BRIEFING ROW - Updated Intelligence */}
+      {/* ADMIN: DAILY BRIEFING ROW - Actionable */}
       {isAdmin && (
           <motion.div 
               className={`mb-4 p-4 rounded-xl shadow-lg ${rowStyleClasses}`}
@@ -242,11 +254,12 @@ const DashboardPage: React.FC = () => {
                     )}
                   </div>
                   
-                  {/* Action Button */}
-                  <button className="px-3 py-1 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium transition-colors"
-                          onClick={() => window.location.href = '/calendar'}
+                  {/* Action Button - Linked to handleBriefingAction */}
+                  <button 
+                    className="px-3 py-1 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium transition-colors"
+                    onClick={handleBriefingAction} // NEW ACTION
                   >
-                      {t('adminBriefing.viewCalendar', 'Shiko Kalendarin')}
+                      {t('adminBriefing.action', (criticalCount > 0 || totalAlerts > 0) ? 'Shiko Detajet' : 'Shiko Kalendarin')}
                   </button>
               </div>
           </motion.div>
@@ -325,12 +338,12 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Daily Briefing Modal (Remains Unchanged) */}
+      {/* Daily Briefing Modal - Now triggered by the action button */}
       <DayEventsModal 
         isOpen={isBriefingOpen}
         onClose={() => setIsBriefingOpen(false)}
         date={new Date()} 
-        events={todaysEvents}
+        events={todaysEvents} // Only shows Today's events, which is appropriate for a 'Daily Briefing' modal
         t={t}
         onAddEvent={() => {
             setIsBriefingOpen(false);
