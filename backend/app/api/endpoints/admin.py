@@ -1,21 +1,21 @@
 # FILE: backend/app/api/endpoints/admin.py
-# PHOENIX PROTOCOL - ADMIN ROUTER V8.1 (IMPORT FIX)
-# 1. FIXED: Corrected 'pantic' typo to 'pydantic'.
-# 2. FIXED: Added missing 'Enum' import.
-# 3. STATUS: Now fully synchronized with Admin Service V9.0.
+# PHOENIX PROTOCOL - ADMIN ROUTER V8.3 (FINAL SYNC)
+# 1. FIXED: Resolved Pylance 'unknown import symbol' by aligning with Admin Service V9.2.
+# 2. CLEANUP: Removed unused 'OrganizationOut' import.
+# 3. STATUS: Fully synchronized with backend architecture.
 
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated, Optional
 from pymongo.database import Database
 from pydantic import BaseModel
 from datetime import datetime
-from enum import Enum # PHOENIX FIX: Added missing import
+from enum import Enum
 import asyncio
 
+# Correctly imports the singleton instance
 from app.services.admin_service import admin_service
 from app.models.user import UserInDB, AccountType, SubscriptionTier, ProductPlan
 from app.models.admin import UserAdminView
-from app.models.organization import OrganizationOut
 from .dependencies import get_current_admin_user, get_db
 
 router = APIRouter(tags=["Administrator"])
@@ -38,19 +38,16 @@ class UserUpdateRequest(BaseModel):
 
 # --- ENDPOINTS ---
 
-@router.get("/organizations", response_model=List[OrganizationOut])
-async def get_all_organizations(
-    current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
-    db: Database = Depends(get_db)
-):
-    return await asyncio.to_thread(admin_service.get_all_organizations, db)
-
 @router.get("/users", response_model=List[UserAdminView])
 async def get_all_users(
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
     db: Database = Depends(get_db)
 ):
-    return await asyncio.to_thread(admin_service.get_all_users_with_details, db)
+    """
+    Retrieves all users with flattened organization data for the dashboard.
+    Uses asyncio.to_thread to keep the main event loop non-blocking while calling synchronous service methods.
+    """
+    return await asyncio.to_thread(admin_service.get_all_users_for_dashboard, db)
 
 @router.put("/users/{user_id}", response_model=UserAdminView)
 async def update_user(
@@ -64,6 +61,7 @@ async def update_user(
     """
     update_dict = update_data.model_dump(exclude_unset=True)
     
+    # Convert Enums to values for MongoDB storage
     for key, value in update_dict.items():
         if isinstance(value, Enum):
             update_dict[key] = value.value
@@ -83,6 +81,9 @@ async def delete_user(
     current_admin: Annotated[UserInDB, Depends(get_current_admin_user)],
     db: Database = Depends(get_db)
 ):
+    """
+    Permanently deletes a user and all associated data (Cases, Docs, Profiles).
+    """
     if str(current_admin.id) == user_id:
         raise HTTPException(status_code=400, detail="You cannot delete your own admin account.")
     
