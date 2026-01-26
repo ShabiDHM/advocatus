@@ -1,8 +1,8 @@
 # FILE: backend/app/services/spreadsheet_service.py
-# PHOENIX PROTOCOL - FORENSIC ENGINE V7.1 (FIXED HELPERS)
-# 1. FIXED: Restored missing 'json_friendly_encoder' and 'generate_evidence_hash'.
-# 2. RETAINED: All Forensic Algorithms (Benford, Duplicates, etc.).
-# 3. RETAINED: Kosovo-specific I18N and logic.
+# PHOENIX PROTOCOL - FORENSIC ENGINE V7.5 (CLEAN OUTPUT)
+# 1. FIXED: Removed all "To/From/Signature" hallucinations via Strict Prompt Engineering.
+# 2. ENHANCED: Persona now focuses purely on "Evidence Analysis" rather than "Memo Writing".
+# 3. RETAINED: All algorithmic forensic checks (Benford, Structuring, etc.).
 
 import pandas as pd
 import io
@@ -50,13 +50,18 @@ I18N_STRINGS = {
     'sq': {
         'prompt_persona': """
 Ti je "Këshilltar i Brendshëm Forenzik" për tregun e Kosovës.
-DETYRA: Krijo një MEMORANDUM AUDITIMI të bazuar në teste matematikore.
+DETYRA: Analizo të dhënat dhe gjenero RAPORTIN E GJETJEVE (Jo Memorandum administrativ).
 TONI: Profesional, skeptik, i bazuar në prova.
 GJUHA: SHQIP.
 
-STRUKTURA:
+RREGULLA KRITIKE (TË PANEGOCIUESHME):
+1. MOS përfshi: "Për:", "Nga:", "Data:", "Lënda:", ose Nënshkrime në fund.
+2. MOS përdor kllapa katrore [] ose placeholders.
+3. Fillo direkt me seksionin 1.
+
+STRUKTURA E DETYRUESHME:
 **1. Përmbledhja Ekzekutive (BLUF)**
-(Përmblidh rreziqet kryesore të zbuluara nga algoritmet: Benford, Dublifikime, etj.)
+(Përmblidh rreziqet kryesore të zbuluara nga algoritmet: Benford, Dublifikime, etj. Jepi përparësi fakteve numerike.)
 
 ---
 
@@ -73,7 +78,7 @@ STRUKTURA:
 **4. Plani i Veprimit**
 (Auditimi i brendshëm, intervistimi i personave përgjegjës.)
 """,
-        'prompt_user_input': "TË DHËNAT NGA ALGORITMET:\n- Statistikat: {stats}\n- Anomalitë e Detektuara: {anomalies}\n\nShkruaj memorandumin forenzik.",
+        'prompt_user_input': "TË DHËNAT NGA ALGORITMET:\n- Statistikat: {stats}\n- Anomalitë e Detektuara: {anomalies}\n\nShkruaj analizën forenzike direkt.",
         'hook_structuring': "Transaksioni (€{amount}) afër pragut ligjor (€2,000) sugjeron 'Structuring' për të shmangur raportimin AML.",
         'hook_deficit': "Deficit prej €{amount}. Indikator i mundshëm i fondeve të padeklaruara (Kodi Penal, Neni 307).",
         'hook_benford': "Shkelje e Ligjit të Benfordit (Devijim {score}%). Të dhënat mund të jenë të fabrikuara artificialisht.",
@@ -94,7 +99,27 @@ STRUKTURA:
         'msg_no_data': "Nuk u gjetën të dhëna."
     },
     'en': {
-        'prompt_persona': "You are a Forensic Auditor...", 
+        'prompt_persona': """
+You are a Forensic Auditor.
+TASK: Generate a FINDINGS REPORT (Not a Memo).
+TONE: Professional, skeptical, evidence-based.
+LANGUAGE: ENGLISH.
+
+CRITICAL RULES:
+1. NO headers like "To:", "From:", "Date:", "Subject:".
+2. NO signatures or placeholders [].
+3. Start directly with Section 1.
+
+STRUCTURE:
+**1. Executive Summary (BLUF)**
+...
+**2. Detailed Anomaly Analysis**
+...
+**3. Legal & Tax Implications**
+...
+**4. Action Plan**
+...
+""", 
         'err_fail': "Analysis failed."
     }
 }
@@ -115,7 +140,7 @@ class AnomalyEvidence:
     description: str
     legal_hook: str
 
-# --- HELPERS (RESTORED) ---
+# --- HELPERS ---
 def json_friendly_encoder(obj: Any) -> Any:
     if isinstance(obj, dict): return {k: json_friendly_encoder(v) for k, v in obj.items()}
     if isinstance(obj, list): return [json_friendly_encoder(i) for i in obj]
