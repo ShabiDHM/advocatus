@@ -2,7 +2,6 @@
 # PHOENIX PROTOCOL - ADMIN SERVICE V9.2 (STABILITY FIX)
 # 1. FIXED: Added explicit type hinting for the singleton instance to resolve Pylance import errors.
 # 2. VERIFIED: Aggregation pipeline for 'get_all_users_for_dashboard' is optimized for MongoDB Sync driver.
-# 3. STATUS: Single Source of Truth for Admin Operations.
 
 from typing import List, Optional, Dict, Any
 from bson import ObjectId
