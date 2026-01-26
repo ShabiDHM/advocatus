@@ -660,5 +660,23 @@
   "pdfViewer": {
     "downloadOriginal": "Shkarko Dokumentin Origjinal",
     "close": "Mbyll"
+  },
+  "account": {
+    "title": "Llogaria Ime",
+    "subtitle": "Menaxhoni të dhënat dhe sigurinë e llogarisë tuaj",
+    "profileInfo": "Informacion i Profilit",
+    "username": "PËRDORUESI",
+    "email": "EMAIL-I",
+    "role": "ROLI",
+    "security": "Siguria",
+    "currentPassword": "FJALËKALIMI AKTUAL",
+    "newPassword": "FJALËKALIMI I RI",
+    "confirmPassword": "KONFIRMO FJALËKALIMIN",
+    "passwordMismatch": "Fjalëkalimet e reja nuk përputhen.",
+    "passwordUpdated": "Fjalëkalimi u përditësua me sukses.",
+    "dangerZone": "Zona e Rrezikut",
+    "deleteWarning": "Fshirja e llogarisë është e përhershme. Të gjitha të dhënat e rastit do të fshihen në mënyrë të pakthyeshme.",
+    "deleteAccount": "Fshij Llogarinë",
+    "confirmDelete": "A jeni i sigurt që dëshironi ta fshini llogarinë tuaj? Ky veprim është i pakthyeshëm."
   }
 }
