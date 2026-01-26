@@ -1,10 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V13.8 (ROUTE MISMATCH FIX)
-# 1. FIXED: Forensic Analysis route renamed to match Frontend request
-#    Old: /{case_id}/analyze/forensic-spreadsheet
-#    New: /{case_id}/analyze/spreadsheet/forensic
-# 2. KEPT: All QR/OCR removals
-# 3. KEPT: All Forensic logic
+# PHOENIX PROTOCOL - CASES ROUTER V14.0 (SUBSCRIPTION GATEKEEPER)
+# 1. ADDED: 'require_pro_tier' dependency to enforce BASIC vs. PRO access.
+# 2. SECURED: Endpoints for Forensic Analysis, Deep Analysis, and Cross-Examination are now PRO-only.
+# 3. STATUS: Monetization logic is now enforced at the API level.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -39,7 +37,7 @@ from ...services.graph_service import graph_service
 
 # --- MODEL IMPORTS ---
 from ...models.case import CaseCreate, CaseOut
-from ...models.user import UserInDB
+from ...models.user import UserInDB, SubscriptionTier # PHOENIX: IMPORT FOR GATEKEEPER
 from ...models.drafting import DraftRequest 
 from ...models.archive import ArchiveItemOut 
 from ...models.document import DocumentOut
@@ -51,6 +49,18 @@ from ...core.config import settings
 
 router = APIRouter(tags=["Cases"])
 logger = logging.getLogger(__name__)
+
+# --- PHOENIX V14.0: Subscription Gatekeeper Dependency ---
+def require_pro_tier(current_user: Annotated[UserInDB, Depends(get_current_user)]):
+    """
+    Dependency that raises a 403 error if the user's subscription_tier is not 'PRO'.
+    This protects high-value AI endpoints.
+    """
+    if current_user.subscription_tier != SubscriptionTier.PRO:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This is a PRO feature. Please upgrade your subscription to access advanced AI tools."
+        )
 
 # --- LOCAL SCHEMAS ---
 class DocumentContentOut(BaseModel):
@@ -198,7 +208,7 @@ async def share_document_toggle(case_id: str, doc_id: str, body: ShareDocumentRe
     updated_doc = await asyncio.to_thread(db.documents.find_one, {"_id": doc_oid})
     return DocumentOut.model_validate(updated_doc)
 
-@router.post("/{case_id}/documents/{doc_id}/cross-examine", tags=["Analysis"])
+@router.post("/{case_id}/documents/{doc_id}/cross-examine", tags=["Analysis"], dependencies=[Depends(require_pro_tier)])
 async def cross_examine_document(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validated_case_id = validate_object_id(case_id)
     validated_doc_id = validate_object_id(doc_id)
@@ -297,7 +307,7 @@ async def analyze_case_risks(case_id: str, current_user: Annotated[UserInDB, Dep
     validate_object_id(case_id)
     return JSONResponse(content=await asyncio.to_thread(analysis_service.cross_examine_case, db=db, case_id=case_id, user_id=str(current_user.id)))
 
-@router.post("/{case_id}/deep-analysis", tags=["Analysis"])
+@router.post("/{case_id}/deep-analysis", tags=["Analysis"], dependencies=[Depends(require_pro_tier)])
 async def analyze_case_strategy_deep(
     case_id: str, 
     current_user: Annotated[UserInDB, Depends(get_current_user)], 
@@ -323,8 +333,7 @@ async def analyze_spreadsheet_endpoint(case_id: str, current_user: Annotated[Use
         logger.error(f"Spreadsheet Analysis Error: {e}")
         raise HTTPException(status_code=500, detail="Analysis failed.")
 
-# PHOENIX ADDITION: Forensic Analysis Endpoint (CORRECTED ROUTE)
-@router.post("/{case_id}/analyze/spreadsheet/forensic", tags=["Analysis"])
+@router.post("/{case_id}/analyze/spreadsheet/forensic", tags=["Analysis"], dependencies=[Depends(require_pro_tier)])
 async def analyze_forensic_spreadsheet_endpoint(
     case_id: str, 
     current_user: Annotated[UserInDB, Depends(get_current_user)], 
@@ -338,7 +347,6 @@ async def analyze_forensic_spreadsheet_endpoint(
     try:
         content = await file.read()
         filename = file.filename or "unknown_forensic.xlsx"
-        # Call the forensic service function
         result = await spreadsheet_service.forensic_analyze_spreadsheet(
             content=content, 
             filename=filename, 
@@ -404,8 +412,7 @@ async def interrogate_financial_records(
         logger.error(f"Interrogation Error: {e}")
         raise HTTPException(status_code=500, detail="Failed to interrogate financial records.")
 
-# PHOENIX ADDITION: Forensic Interrogation Endpoint
-@router.post("/{case_id}/interrogate-forensic", tags=["Analysis"])
+@router.post("/{case_id}/interrogate-forensic", tags=["Analysis"], dependencies=[Depends(require_pro_tier)])
 async def interrogate_forensic_evidence(
     case_id: str, 
     body: FinanceInterrogationRequest,

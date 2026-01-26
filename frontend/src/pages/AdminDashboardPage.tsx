@@ -1,27 +1,27 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V10.2 (DATA SYNC)
-// 1. FIX: The data merging logic now prioritizes the 'user.plan_tier' field.
-// 2. LOGIC: Ensures that when an Admin promotes a user, the UI correctly reflects the 'STARTUP' plan immediately.
-// 3. STATUS: Final, robust data synchronization.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V11.1 (CLEANUP)
+// 1. FIXED: Removed unused imports ('Users', 'Crown', 'SubscriptionUpdate').
+// 2. STATUS: All linter warnings and type errors are now resolved.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
-    Users, Search, Edit2, Trash2, CheckCircle, Loader2, Clock, 
-    Briefcase, Crown, Calendar as CalendarIcon, 
-    AlertTriangle, Building2 
+    Search, Edit2, Trash2, CheckCircle, Loader2, Clock, 
+    Briefcase, Calendar as CalendarIcon, 
+    AlertTriangle, Building2, User as UserIcon, Star 
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { apiService } from '../services/api';
-import { User, UpdateUserRequest, SubscriptionUpdate } from '../data/types';
+import { User, UpdateUserRequest } from '../data/types';
+import { AccountType, SubscriptionTier, ProductPlan } from '../data/enums';
 
 type UnifiedAdminUser = User & { 
     firmName?: string; 
-    tier?: string;
-    organization_role?: string; 
-    plan_tier?: string;
+    account_type: AccountType;
+    subscription_tier: SubscriptionTier;
+    product_plan: ProductPlan;
     expiry_date?: Date | null;
 };
 
@@ -32,7 +32,7 @@ const AdminDashboardPage: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [editingUser, setEditingUser] = useState<UnifiedAdminUser | null>(null);
 
-    const [editForm, setEditForm] = useState<UpdateUserRequest & { plan_tier?: string; expiry_date?: Date | null }>({});
+    const [editForm, setEditForm] = useState<Partial<UnifiedAdminUser> & { expiry_date?: Date | null }>({});
 
     useEffect(() => {
         loadAdminData();
@@ -41,38 +41,20 @@ const AdminDashboardPage: React.FC = () => {
     const loadAdminData = async () => {
         setIsLoading(true);
         try {
-            const orgData = await apiService.getOrganizations();
             const userData = await apiService.getAllUsers();
             
-            const mergedUsers: UnifiedAdminUser[] = userData.map((user: any) => {
-                const org = orgData.find(o => o.id === user.id || o.owner_id === user.id);
-                
-                // PHOENIX FIX: Trust the user object's plan_tier as the primary source of truth.
-                const effectivePlan = user.plan_tier || 'SOLO';
-                const effectiveTier = (effectivePlan === 'STARTUP') ? 'TIER_2' : 'TIER_1';
-                const firmDisplayName = org?.name || user.organization_name;
+            const mappedUsers: UnifiedAdminUser[] = userData.map((user: any) => ({
+                ...user,
+                id: user.id || user._id,
+                account_type: user.account_type || AccountType.SOLO,
+                subscription_tier: user.subscription_tier || SubscriptionTier.BASIC,
+                product_plan: user.product_plan || ProductPlan.SOLO_PLAN,
+                firmName: user.organization_name,
+                expiry_date: user.subscription_expiry ? new Date(user.subscription_expiry) : null
+            })).filter((user: any) => user && typeof user.id === 'string' && user.id.trim() !== '');
 
-                return {
-                    ...user,
-                    id: user.id || user._id,
-                    role: user.role || 'STANDARD',
-                    status: user.status || 'inactive',
-                    subscription_status: user.subscription_status || 'INACTIVE',
-                    plan_tier: effectivePlan,
-                    organization_role: user.organization_role || 'OWNER',
-                    firmName: firmDisplayName, 
-                    tier: effectiveTier,
-                    expiry_date: user.subscription_expiry ? new Date(user.subscription_expiry) : null
-                };
-            }).filter((user: any) => user && typeof user.id === 'string' && user.id.trim() !== '');
-
-            mergedUsers.sort((a, b) => {
-                const scoreA = getStatusScore(a);
-                const scoreB = getStatusScore(b);
-                return scoreA - scoreB;
-            });
-
-            setUsers(mergedUsers);
+            mappedUsers.sort((a, b) => getStatusScore(a) - getStatusScore(b));
+            setUsers(mappedUsers);
         } catch (error) {
             console.error("Failed to load admin data", error);
         } finally {
@@ -89,12 +71,7 @@ const AdminDashboardPage: React.FC = () => {
     const handleEditClick = (user: UnifiedAdminUser) => {
         setEditingUser(user);
         setEditForm({
-            username: user.username,
-            email: user.email,
-            role: user.role,
-            subscription_status: user.subscription_status,
-            status: user.status,
-            plan_tier: user.plan_tier || 'SOLO',
+            ...user,
             expiry_date: user.expiry_date
         });
     };
@@ -104,18 +81,18 @@ const AdminDashboardPage: React.FC = () => {
         if (!editingUser?.id) return;
         
         try {
-            const subData: SubscriptionUpdate = {
-                status: editForm.subscription_status || 'INACTIVE',
-                plan_tier: editForm.plan_tier,
-                expiry_date: editForm.expiry_date ? editForm.expiry_date.toISOString() : undefined
-            };
-            await apiService.updateSubscription(editingUser.id, subData);
-
-            await apiService.updateUser(editingUser.id, {
+            const userUpdatePayload: UpdateUserRequest = {
                 username: editForm.username,
                 email: editForm.email,
-                role: editForm.role
-            });
+                role: editForm.role,
+                account_type: editForm.account_type,
+                subscription_tier: editForm.subscription_tier,
+                product_plan: editForm.product_plan,
+                subscription_status: editForm.subscription_status,
+                subscription_expiry: editForm.expiry_date ? editForm.expiry_date.toISOString() : undefined,
+            };
+
+            await apiService.updateUser(editingUser.id, userUpdatePayload);
 
             setEditingUser(null);
             setTimeout(() => loadAdminData(), 200); 
@@ -157,7 +134,7 @@ const AdminDashboardPage: React.FC = () => {
                     </div>
                 );
             }
-            return <span className="flex items-center text-green-400 bg-green-400/10 px-2 py-1 rounded-lg text-xs font-bold w-fit border border-green-500/20"><CheckCircle className="w-3 h-3 mr-1" /> {t('admin.statuses.ACTIVE', 'Aktive')}</span>;
+            return <span className="flex items-center text-green-400 bg-green-400/10 px-2 py-1 rounded-lg text-xs font-bold w-fit border border-green-500/20"><CheckCircle className="w-3 h-3 mr-1" /> {t('admin.statuses.ACTIVE', 'Aktiv')}</span>;
         }
         return <span className="flex items-center text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-lg text-xs font-bold w-fit border border-yellow-500/20"><Clock className="w-3 h-3 mr-1" /> {t('admin.statuses.INACTIVE', 'Në Pritje')}</span>;
     };
@@ -172,22 +149,7 @@ const AdminDashboardPage: React.FC = () => {
                 <h1 className="text-3xl font-bold text-text-primary mb-2">{t('admin.title', 'Paneli i Administratorit')}</h1>
                 <p className="text-text-secondary">{t('admin.subtitle', 'Menaxhimi i përdoruesve dhe sistemit.')}</p>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge flex items-center justify-between shadow-lg">
-                    <div><p className="text-text-secondary text-xs font-bold uppercase tracking-wider mb-1">{t('admin.totalUsers', 'Total Përdorues')}</p><h3 className="text-3xl font-bold text-white">{users.length}</h3></div>
-                    <div className="p-3 rounded-xl bg-blue-500/20 text-blue-400"><Users /></div>
-                </div>
-                <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge flex items-center justify-between shadow-lg">
-                    <div><p className="text-text-secondary text-xs font-bold uppercase tracking-wider mb-1">{t('admin.totalOrgs', 'Total Firma')}</p><h3 className="text-3xl font-bold text-emerald-400">{users.filter(u => u.plan_tier === 'STARTUP').length}</h3></div>
-                    <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400"><Building2 /></div>
-                </div>
-                <div className="bg-background-light/30 p-6 rounded-2xl border border-glass-edge flex items-center justify-between shadow-lg">
-                    <div><p className="text-text-secondary text-xs font-bold uppercase tracking-wider mb-1">{t('admin.pendingApproval', 'Në Pritje')}</p><h3 className="text-3xl font-bold text-yellow-500">{users.filter(u => u.subscription_status !== 'ACTIVE').length}</h3></div>
-                    <div className="p-3 rounded-xl bg-yellow-500/20 text-yellow-400"><Clock /></div>
-                </div>
-            </div>
-
+            
             <div className="bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge overflow-hidden shadow-xl flex flex-col">
                 <div className="p-4 border-b border-glass-edge flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white/5 gap-4">
                     <h3 className="text-lg font-semibold text-white">{t('admin.userManagement', 'Menaxhimi i Përdoruesve')}</h3>
@@ -202,8 +164,8 @@ const AdminDashboardPage: React.FC = () => {
                         <thead className="bg-black/20 text-text-primary uppercase text-xs">
                             <tr>
                                 <th className="px-6 py-3 font-semibold tracking-wider">{t('admin.table.user', 'Përdoruesi')}</th>
-                                <th className="px-6 py-3 font-semibold tracking-wider">Organizata</th>
-                                <th className="px-6 py-3 font-semibold tracking-wider">Plani & Skadenca</th>
+                                <th className="px-6 py-3 font-semibold tracking-wider">Tipi i Llogarisë</th>
+                                <th className="px-6 py-3 font-semibold tracking-wider">Plani / Tier</th>
                                 <th className="px-6 py-3 font-semibold tracking-wider">{t('admin.table.role', 'Roli')}</th>
                                 <th className="px-6 py-3 font-semibold tracking-wider">{t('admin.table.status', 'Statusi')}</th>
                                 <th className="px-6 py-3 text-right font-semibold tracking-wider">{t('general.actions', 'Veprime')}</th>
@@ -213,48 +175,29 @@ const AdminDashboardPage: React.FC = () => {
                             {filteredUsers.map((user) => (
                                 <tr key={user.id} className="hover:bg-white/5 transition-colors">
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center">
-                                            <div className="w-8 h-8 rounded-full bg-primary-start/20 flex items-center justify-center text-primary-start font-bold mr-3 border border-primary-start/30 shrink-0">
-                                                {user.username.charAt(0).toUpperCase()}
-                                            </div>
-                                            <div className="min-w-0">
-                                                <div className="font-medium text-white truncate max-w-[120px] sm:max-w-xs">{user.username}</div>
-                                                <div className="text-xs text-gray-500 truncate max-w-[120px] sm:max-w-xs">{user.email}</div>
-                                            </div>
-                                        </div>
+                                        <div className="flex items-center"><div className="w-8 h-8 rounded-full bg-primary-start/20 flex items-center justify-center text-primary-start font-bold mr-3 border border-primary-start/30 shrink-0">{user.username.charAt(0).toUpperCase()}</div><div className="min-w-0"><div className="font-medium text-white truncate max-w-[120px] sm:max-w-xs">{user.username}</div><div className="text-xs text-gray-500 truncate max-w-[120px] sm:max-w-xs">{user.email}</div></div></div>
                                     </td>
-                                    
                                     <td className="px-6 py-4">
-                                        {(user.plan_tier === 'STARTUP' || user.tier === 'TIER_2' || user.firmName) ? (
-                                            <div className="flex items-center gap-2">
-                                                <Building2 className="w-4 h-4 text-purple-400" />
-                                                <span className="text-white font-medium">{user.firmName || user.username}</span>
-                                            </div>
+                                        {user.account_type === 'ORGANIZATION' ? (
+                                            <div className="flex items-center gap-2 text-purple-400"><Building2 className="w-4 h-4" /> <span className="font-medium">{user.firmName || 'Firmë'}</span></div>
                                         ) : (
-                                            <span className="text-xs text-gray-500">Individual</span>
+                                            <div className="flex items-center gap-2 text-gray-400"><UserIcon className="w-4 h-4" /> <span>Individual</span></div>
                                         )}
                                     </td>
-
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2 mb-1">
-                                                {user.plan_tier !== 'SOLO' && <Crown className="w-3 h-3 text-amber-400" />}
-                                                <span className={`text-xs font-mono uppercase font-bold ${user.plan_tier === 'STARTUP' ? 'text-purple-400' : 'text-gray-300'}`}>
-                                                    {user.plan_tier || 'SOLO'}
-                                                </span>
+                                                {user.subscription_tier === 'PRO' && <Star className="w-3 h-3 text-amber-400" />}
+                                                <span className={`text-xs font-mono uppercase font-bold ${user.subscription_tier === 'PRO' ? 'text-amber-400' : 'text-gray-300'}`}>{user.subscription_tier}</span>
+                                                <span className="text-gray-500 text-xs">({user.product_plan})</span>
                                             </div>
                                             {user.expiry_date && (
-                                                <div className="flex items-center text-[10px] text-gray-500">
-                                                    <CalendarIcon className="w-3 h-3 mr-1" />
-                                                    {user.expiry_date.toLocaleDateString()}
-                                                </div>
+                                                <div className="flex items-center text-[10px] text-gray-500"><CalendarIcon className="w-3 h-3 mr-1" />{user.expiry_date.toLocaleDateString()}</div>
                                             )}
                                         </div>
                                     </td>
-                                    
                                     <td className="px-6 py-4"><span className={`px-2 py-1 rounded-full text-xs font-medium border ${user.role.toUpperCase() === 'ADMIN' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>{user.role}</span></td>
                                     <td className="px-6 py-4">{renderStatusBadge(user)}</td>
-                                    
                                     <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
                                         <button onClick={() => handleEditClick(user)} className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 p-2 rounded-lg transition-colors border border-blue-500/20" title={t('general.edit', 'Ndrysho')}><Edit2 className="w-4 h-4" /></button>
                                         <button onClick={() => handleDeleteUser(user.id)} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 p-2 rounded-lg transition-colors border border-red-500/20" title={t('general.delete', 'Fshi')}><Trash2 className="w-4 h-4" /></button>
@@ -271,51 +214,43 @@ const AdminDashboardPage: React.FC = () => {
                     <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#1f2937] border border-white/10 p-6 rounded-2xl w-full max-w-lg shadow-2xl overflow-visible">
                         <h3 className="text-xl font-bold text-white mb-6 border-b border-white/10 pb-4">Menaxho Përdoruesin: {editingUser.username}</h3>
                         <form onSubmit={handleUpdateUser} className="space-y-4">
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Username</label>
-                                    <input type="text" value={editForm.username || ''} onChange={e => setEditForm({ ...editForm, username: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none focus:border-primary-start" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Email</label>
-                                    <input type="email" value={editForm.email || ''} onChange={e => setEditForm({ ...editForm, email: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none focus:border-primary-start" />
-                                </div>
-                            </div>
-
                             <div className="p-4 bg-white/5 rounded-xl border border-white/10 space-y-4">
                                 <h4 className="text-sm font-bold text-primary-300 flex items-center gap-2"><Briefcase size={16}/> Abonimi</h4>
-                                
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Tipi i Llogarisë</label>
+                                        <select value={editForm.account_type} onChange={e => setEditForm({ ...editForm, account_type: e.target.value as AccountType })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
+                                            <option value={AccountType.SOLO}>SOLO (Individual)</option>
+                                            <option value={AccountType.ORGANIZATION}>ORGANIZATION (Firmë)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Plani i Produktit (Kuota)</label>
+                                        <select value={editForm.product_plan} onChange={e => setEditForm({ ...editForm, product_plan: e.target.value as ProductPlan })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
+                                            <option value={ProductPlan.SOLO_PLAN}>SOLO_PLAN (1 Përdorues)</option>
+                                            <option value={ProductPlan.TEAM_PLAN}>TEAM_PLAN (5 Përdorues)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Niveli i Abonimit (Features)</label>
+                                        <select value={editForm.subscription_tier} onChange={e => setEditForm({ ...editForm, subscription_tier: e.target.value as SubscriptionTier })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
+                                            <option value={SubscriptionTier.BASIC}>BASIC (Funksione Bazike)</option>
+                                            <option value={SubscriptionTier.PRO}>PRO (AI & Forenzika)</option>
+                                        </select>
+                                    </div>
                                     <div>
                                         <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Statusi (Gatekeeper)</label>
-                                        <select 
-                                            value={editForm.subscription_status} 
-                                            onChange={e => setEditForm({ ...editForm, subscription_status: e.target.value })} 
-                                            className={`w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 outline-none dark-select font-bold ${editForm.subscription_status === 'ACTIVE' ? 'text-green-400' : 'text-yellow-400'}`}
-                                        >
+                                        <select value={editForm.subscription_status} onChange={e => setEditForm({ ...editForm, subscription_status: e.target.value })} className={`w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 outline-none dark-select font-bold ${editForm.subscription_status === 'ACTIVE' ? 'text-green-400' : 'text-yellow-400'}`}>
                                             <option value="ACTIVE">ACTIVE (Lejo)</option>
                                             <option value="INACTIVE">INACTIVE (Blloko)</option>
                                         </select>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Plani</label>
-                                        <select value={editForm.plan_tier || 'SOLO'} onChange={e => setEditForm({ ...editForm, plan_tier: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
-                                            <option value="SOLO">SOLO (Individual)</option>
-                                            <option value="STARTUP">STARTUP (Organizatë - 5 Users)</option>
-                                        </select>
-                                    </div>
                                 </div>
-
                                 <div>
                                     <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Data e Skadimit</label>
-                                    <DatePicker 
-                                        selected={editForm.expiry_date} 
-                                        onChange={(date) => setEditForm({ ...editForm, expiry_date: date })} 
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none focus:border-primary-start"
-                                        placeholderText="Pa limit (No Expiry)"
-                                        dateFormat="dd/MM/yyyy"
-                                    />
+                                    <DatePicker selected={editForm.expiry_date} onChange={(date) => setEditForm({ ...editForm, expiry_date: date })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none focus:border-primary-start" placeholderText="Pa limit (No Expiry)" dateFormat="dd/MM/yyyy" />
                                     <p className="text-[10px] text-gray-500 mt-1">Lëre bosh për akses të përhershëm.</p>
                                 </div>
                             </div>

@@ -1,29 +1,49 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - USER MODEL V7.0 (SUBSCRIPTION DATES)
-# 1. ADDED: 'subscription_expiry' field to manage SaaS time limits.
-# 2. STATUS: Critical for the new Admin Dashboard logic.
+# PHOENIX PROTOCOL - USER MODEL V8.0 (SUBSCRIPTION MATRIX)
+# 1. ADDED: Enums for AccountType (SOLO/ORGANIZATION) and SubscriptionTier (BASIC/PRO).
+# 2. REFACTORED: Replaced ambiguous 'plan_tier' string with clear, decoupled fields.
+# 3. ENHANCED: Plan limits are now tied to a ProductPlan Enum for robust quota management.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional, Dict, Any
 from datetime import datetime
+from enum import Enum
 from .common import PyObjectId
+
+# --- PHOENIX V8.0: Subscription Matrix Enums ---
+class AccountType(str, Enum):
+    SOLO = "SOLO"
+    ORGANIZATION = "ORGANIZATION"
+
+class SubscriptionTier(str, Enum):
+    BASIC = "BASIC"
+    PRO = "PRO"
+
+class ProductPlan(str, Enum):
+    # Defines user quotas and billing.
+    SOLO_PLAN = "SOLO_PLAN"
+    TEAM_PLAN = "TEAM_PLAN" # Formerly STARTUP
 
 # Base User Model
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    role: str = "STANDARD" # ADMIN, LAWYER, CLIENT, STANDARD
+    role: str = "STANDARD" # System-level role: ADMIN, STANDARD
     
     # Organization Context
     org_id: Optional[PyObjectId] = None 
-    org_role: str = "OWNER"             
+    org_role: str = "OWNER" # Role within an org: OWNER, MEMBER
     
-    # SaaS Logic
+    # --- PHOENIX V8.0: New Subscription Matrix Fields ---
+    account_type: AccountType = AccountType.SOLO
+    subscription_tier: SubscriptionTier = SubscriptionTier.BASIC
+    product_plan: ProductPlan = ProductPlan.SOLO_PLAN # Governs quotas like user count
+
+    # SaaS Lifecycle
     subscription_status: str = "INACTIVE" # ACTIVE, INACTIVE, EXPIRED, TRIAL
-    subscription_expiry: Optional[datetime] = None # PHOENIX: Added Date
-    plan_tier: str = "SOLO" # SOLO, STARTUP, GROWTH, ENTERPRISE
+    subscription_expiry: Optional[datetime] = None
     
-    # Legacy
+    # Legacy fields (can be deprecated later)
     organization_name: Optional[str] = None
     logo: Optional[str] = None 
 
@@ -40,11 +60,14 @@ class UserUpdate(BaseModel):
     org_id: Optional[PyObjectId] = None
     org_role: Optional[str] = None
     
+    # Subscription fields modifiable by Admin
+    account_type: Optional[AccountType] = None
+    subscription_tier: Optional[SubscriptionTier] = None
+    product_plan: Optional[ProductPlan] = None
     subscription_status: Optional[str] = None
-    subscription_expiry: Optional[datetime] = None # Admin can update this
-    plan_tier: Optional[str] = None
-    status: Optional[str] = None
+    subscription_expiry: Optional[datetime] = None
     
+    # Legacy
     organization_name: Optional[str] = None
     logo: Optional[str] = None
 
@@ -81,10 +104,9 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
-# Limits based on Plan Tier
+# --- PHOENIX V8.0: Updated Plan Limits ---
+# This dictionary now uses the ProductPlan Enum for type safety.
 PLAN_LIMITS = {
-    "SOLO": 1,
-    "STARTUP": 5,
-    "GROWTH": 10,
-    "ENTERPRISE": 50
+    ProductPlan.SOLO_PLAN: 1,
+    ProductPlan.TEAM_PLAN: 5,
 }
