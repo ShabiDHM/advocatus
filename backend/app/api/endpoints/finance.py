@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/finance.py
-# PHOENIX PROTOCOL - FINANCE ROUTER V18.2 (SERIALIZATION FIX)
-# 1. FIXED: JSON serialization error (datetime objects converted to ISO strings)
-# 2. KEPT: Mobile Session Removed
-# 3. KEPT: OCR logic intact
+# PHOENIX PROTOCOL - FINANCE ROUTER V18.3 (OCR ANALYSIS FIX)
+# 1. FIXED: analyze_expense_receipt no longer creates DB records prematurely
+# 2. FIXED: Response format flattened to match Frontend interface
+# 3. KEPT: All other finance endpoints intact
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -285,12 +285,10 @@ def get_expense_receipt(expense_id: str, current_user: Annotated[UserInDB, Depen
 @router.post("/expenses/analyze-receipt", tags=["Finance", "AI"])
 async def analyze_expense_receipt(
     current_user: Annotated[UserInDB, Depends(get_current_user)],
-    file: UploadFile = File(...),
-    db: Database = Depends(get_db),
-    case_id: Optional[str] = Body(None, embed=False)
+    file: UploadFile = File(...)
 ):
     """
-    Analyzes receipt AND creates expense automatically.
+    Analyzes receipt and returns structured data (DOES NOT CREATE EXPENSE).
     """
     try:
         logger.info(f"🔍 Receipt scanning started: {file.filename}")
@@ -316,54 +314,35 @@ async def analyze_expense_receipt(
             logger.info("🤖 Sending to LLM for structured extraction...")
             structured_data = await asyncio.to_thread(extract_expense_details_from_text, ocr_text)
             logger.info(f"✅ LLM returned: {structured_data}")
-        
-        # 4. Create expense with the data
-        expense_date = datetime.utcnow()
+
+        # 4. Standardize Date
         if structured_data.get("date"):
             try:
-                # Handle possible date string format variations
-                date_str = structured_data["date"].replace('Z', '+00:00')
-                expense_date = datetime.fromisoformat(date_str)
-            except:
-                pass
+                # Ensure we return a clean ISO date string
+                date_val = structured_data["date"]
+                if isinstance(date_val, str):
+                     # If it has Z or offsets, try to parse and clean
+                     parsed = datetime.fromisoformat(date_val.replace('Z', '+00:00'))
+                     structured_data["date"] = parsed.strftime("%Y-%m-%d")
+            except Exception as e:
+                logger.warning(f"Date standardization failed: {e}")
+                structured_data["date"] = datetime.utcnow().strftime("%Y-%m-%d")
         
-        expense_data = ExpenseCreate(
-            description=structured_data.get("description", f"Receipt {datetime.utcnow().strftime('%Y-%m-%d')}"),
-            amount=structured_data.get("amount", 0.0),
-            category=structured_data.get("category", "OTHER"),
-            date=expense_date,
-            related_case_id=case_id
-        )
-        
-        # 5. Save expense to database
-        service = FinanceService(db)
-        expense = service.create_expense(str(current_user.id), expense_data)
-        logger.info(f"✅ Expense created: {expense.id}")
-        
-        # 6. Upload receipt to the expense
-        await file.seek(0)
-        storage_key = service.upload_expense_receipt(str(current_user.id), str(expense.id), file)
-        logger.info(f"✅ Receipt uploaded: {storage_key}")
-        
-        # 7. Return the COMPLETE expense (Use jsonable_encoder to handle datetime serialization)
+        # 5. Return FLAT structure for Frontend
         return JSONResponse(
-            status_code=201,
-            content=jsonable_encoder({
-                "status": "success",
-                "message": "Expense created from receipt scan",
-                "expense": ExpenseOut(**expense.dict()),
-                "ocr_data": structured_data
-            })
+            status_code=200,
+            content=jsonable_encoder(structured_data)
         )
         
     except Exception as e:
         logger.error(f"❌ Receipt scanning failed: {e}")
+        # Return default structure on error to prevent frontend crash
         return JSONResponse(
-            status_code=500,
+            status_code=200, # Return 200 with empty data so user can manually edit
             content={
-                "status": "error",
-                "message": f"Failed to process receipt: {str(e)}",
-                "expense": None,
-                "ocr_data": {"category": "", "amount": 0, "date": "", "description": ""}
+                "category": "",
+                "amount": 0,
+                "description": "Analysis failed - please enter manually",
+                "date": datetime.utcnow().strftime("%Y-%m-%d")
             }
         )
