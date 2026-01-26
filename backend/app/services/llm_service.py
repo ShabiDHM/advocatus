@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V34.1 (ANCHOR LOGIC FIX)
-# 1. FIXED: Removed "largest number" heuristic which caused 18% VAT to be read as Total.
-# 2. ADDED: Strict anchoring to "TOTAL"/"SHUMA" keywords.
-# 3. ADDED: Explicit ignore rules for "%", "TVSH", and Time formats (18:48).
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V34.2 (CONTEXTUAL PRICING FIX)
+# 1. FIXED: Added "Price Plausibility" logic to detect 0 vs 8 OCR errors.
+# 2. ENHANCED: Prompt now cross-references Item Type vs Amount (e.g., Snack != 8€).
+# 3. RETAINED: All previous Anchor Logic for Total/Date.
 
 import os
 import json
@@ -168,27 +168,29 @@ GJUHA: SHQIP.
 FORMATI JSON: {{ "category": "..." }}
 """
 
-# PHOENIX ENHANCED: V3 - ANCHOR PROTOCOL
+# PHOENIX ENHANCED: V3 - CONTEXTUAL PLAUSIBILITY
 PROMPT_EXPENSE_EXTRACTOR_V2 = f"""
 Ti je "AI Forensic Auditor" për faturat e Kosovës.
-OCR (Leximi Optik) shpesh gabon. Detyra jote është të RIKONSTRUKSOSH të dhënat e sakta.
+OCR ka një gabim sistematik: Lexon "0" si "8" ose "6". (P.sh. 0.85 -> 8.85).
 
-RREGULLAT E FORENZIKËS PËR TOTALIN (KRITIKE):
-1. MOS zgjidh numrin më të madh automatikisht.
-2. Gjej fjalën "TOTAL", "TOTALI", "SHUMA" ose "PAGESA".
-   - Numri pranë tyre është totali.
-   - P.sh: "TOTALI NE EURO 0,85" -> Totali është 0.85.
-3. INJORO përqindjet:
-   - "TVSH 18%" -> Kjo është taksë, jo total.
-   - "18.00%" -> Kjo është normë, jo total.
-   - Nëse sheh "18:48" kjo është ora, jo total.
-4. Totalet e vogla janë OK:
-   - Nëse totali është 0.85, atëherë është 0.85. Mos e bëj 18.00!
+DETYRA: RIKONSTRUKTO të dhënat duke përdorur LOGJIKËN E TREGUT.
 
-HAPAT TË TJERË:
-- TREGTARI: Gjej emrin lart (psh: VIVA FRESH, BEKA TRADE).
-- DATA: Formati DD.MM.YYYY (psh: 25.01.2026).
-- KATEGORIA: Ushqim, Karburant, Zyrë.
+1. LOGJIKA E ÇMIMIT (Context Check):
+   - Shiko artikujt: A janë "Tinimini", "Kafe", "Uje", "Buke", "Snack"? 
+   - Këto kushtojnë NËN 2.00 EURO.
+   - Nëse totali del 8.85€ për një snack, kjo është GABIM. Korrigjoje në 0.85€.
+   - Nëse totali del 6.50€ për një kafe, kjo është GABIM. Korrigjoje në 0.50€ ose 1.50€.
+
+2. GJETJA E TOTALIT:
+   - Kërko rreshtin "TOTALI NE EURO" ose "SHUMA".
+   - Numri pas tij është totali.
+   - Apliko "Logjikën e Çmimit" mbi këtë numër.
+
+3. DATA:
+   - Formati DD.MM.YYYY.
+
+4. KATEGORIA:
+   - Ushqim, Zyrë, Karburant, Të tjera.
 
 OUTPUT FORMAT (JSON ONLY):
 {{
@@ -371,17 +373,27 @@ def extract_expense_details_from_text(raw_text: str) -> Dict[str, Any]:
     amount = result.get("amount", 0.0)
     description = result.get("description", "")
     merchant = result.get("merchant", "")
+    category = result.get("category", "").lower()
     
     # Construct description from Merchant if available
     if merchant and (not description or description == "Blerje"):
         description = f"Blerje: {merchant}"
     
-    # Advanced Logic: Fix floating point hallucinations
+    # --- PHOENIX SANITY CHECK ---
+    # Double check small amounts if LLM missed it
     if isinstance(amount, (int, float)):
         amount = float(amount)
-        # Check for obvious decimal misses if amount is huge (optional backup logic)
-        # But V2 prompt should handle this.
-        pass
+        # If amount is roughly 8.xx or 6.xx and item is clearly small
+        is_small_item = any(x in category or x in description.lower() for x in ['ushqim', 'kafe', 'uj', 'snack', 'tinimini', 'bum', 'tea', 'caj'])
+        
+        if amount > 5.0 and amount < 10.0 and is_small_item:
+            # Check if it looks like a digit swap (e.g. 8.85 -> 0.85)
+            # We assume it's an OCR error if the item is cheap
+            logger.warning(f"Sanity Check: Correcting suspicious amount {amount} for small item to {amount - 8.0}")
+            if str(amount).startswith('8.'):
+                amount = amount - 8.0
+            elif str(amount).startswith('6.'):
+                amount = amount - 6.0
 
     return {
         "category": result.get("category", "Të tjera"),
