@@ -1,7 +1,7 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V10.0 (ADMIN BRIEFING: TOP PRIORITY)
-// 1. ARCH: Swapped the position of the Admin Daily Briefing Row and the Main Page Header.
-// 2. UX: The critical administrative summary is now the first item rendered below the main application header, aligning with the "Deliberating on top" mandate.
+// PHOENIX PROTOCOL - DASHBOARD V11.0 (UX/VISUAL CONSISTENCY REFINEMENT)
+// 1. UX: Refined the dashboard structure to place the Main Header and "New Case" button together immediately below the Admin Briefing.
+// 2. STYLING: Adjusted margins to ensure a clean visual flow and consistency.
 // 3. INTEGRITY: Retained all previous logic (Admin Gatekeeper, Deadline Calculation, Type Fixes).
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -171,10 +171,10 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-full flex flex-col">
       
-      {/* ADMIN: DAILY BRIEFING ROW - MOVED TO TOP */}
+      {/* ADMIN: DAILY BRIEFING ROW - MOVED TO TOP (Removed mb-8) */}
       {isAdmin && (
           <motion.div 
-              className={`mb-8 p-4 rounded-xl shadow-lg ${rowStyleClasses}`}
+              className={`mb-4 p-4 rounded-xl shadow-lg ${rowStyleClasses}`}
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.3 }}
@@ -226,7 +226,7 @@ const DashboardPage: React.FC = () => {
       )}
       {/* END ADMIN: DAILY BRIEFING ROW */}
 
-      {/* Header - MOVED BELOW BRIEFING */}
+      {/* Header - NOW INCLUDES BUTTON AND HAS mb-8 */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 flex-shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-text-primary tracking-tight">
