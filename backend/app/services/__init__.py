@@ -1,5 +1,4 @@
 # FILE: backend/app/services/__init__.py
-# PHOENIX PROTOCOL - SERVICE REGISTRY V4.3 (CORRECTED)
 
 from . import (
     admin_service,
