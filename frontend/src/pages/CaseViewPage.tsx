@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V15.0 (ADMIN GATEKEEPER: DAILY BRIEFING)
-// 1. FEAT: Implemented 'isAdmin' check.
-// 2. FEAT: Added conditional Daily Briefing Row, visible only to ADMIN users.
-// 3. ARCH: Maintained all previous logic (isPro checks, synchronous architecture).
+// PHOENIX PROTOCOL - CASE VIEW V14.0 (GATEKEEPER ENFORCEMENT)
+// 1. FEAT: Implemented 'isPro' check based on subscription_tier.
+// 2. SEC: Locked 'Analisti Financiar' and 'Analizo Rastin' buttons for Basic users.
+// 3. UI: Added visual Lock indicators to restricted features.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -163,11 +163,6 @@ const CaseViewPage: React.FC = () => {
       return user.subscription_tier === 'PRO' || user.role === 'ADMIN';
   }, [user]);
 
-  // NEW: ADMIN ROLE CHECK for Daily Briefing Row
-  const isAdmin = useMemo(() => {
-    return user?.role === 'ADMIN';
-  }, [user]);
-
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
   const { documents: liveDocuments, setDocuments: setLiveDocuments, messages: liveMessages, setMessages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
@@ -219,27 +214,6 @@ const CaseViewPage: React.FC = () => {
                 isPro={isPro} // Pass calculated Pro status
             />
         </div>
-        
-        {/* NEW: DAILY BRIEFING ROW (ADMIN ONLY) */}
-        {isAdmin && (
-            <motion.div 
-                className="mb-6 p-4 rounded-xl bg-gradient-to-r from-teal-900/40 to-black/20 border border-teal-700/50 shadow-lg"
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4, duration: 0.3 }}
-            >
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Activity className="h-5 w-5 text-teal-400 flex-shrink-0" />
-                        <h2 className="text-lg font-semibold text-white">{t('adminBriefing.title', 'Përmbledhje Ditore (Admin)')}</h2>
-                        <span className="text-sm text-gray-400">| {t('adminBriefing.status', 'Në zhvillim')}</span>
-                    </div>
-                    <button className="px-3 py-1 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium transition-colors">{t('adminBriefing.viewDetails', 'Shiko Detajet')}</button>
-                </div>
-            </motion.div>
-        )}
-        {/* END NEW: DAILY BRIEFING ROW */}
-
         <AnimatePresence mode="wait">
             {viewMode === 'workspace' && (
                 <motion.div key="workspace" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px] relative z-0">

@@ -1,21 +1,24 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V6.0 (GLASS & MOBILE GRID)
-// 1. VISUALS: Full Glassmorphism adoption (glass-panel, glass-input).
-// 2. LAYOUT: Responsive grid (1 col mobile -> 3 cols desktop) without fixed height constraints on mobile.
-// 3. UX: Improved modal animations and input focus states.
+// PHOENIX PROTOCOL - DASHBOARD V7.0 (ADMIN GATEKEEPER: DAILY BRIEFING MIGRATION)
+// 1. ARCH: Migrated 'isAdmin' logic and Daily Briefing UI from CaseViewPage.
+// 2. FEAT: Added conditional Daily Briefing Row, visible only to ADMIN users, at the top of the case list.
+// 3. DEPENDENCY: Added 'useAuth', 'Activity', and 'motion' for functionality and visuals.
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Activity } from 'lucide-react'; // Added Activity icon
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest, CalendarEvent } from '../data/types';
 import CaseCard from '../components/CaseCard';
 import DayEventsModal from '../components/DayEventsModal';
 import { isSameDay, parseISO } from 'date-fns';
+import { useAuth } from '../context/AuthContext'; // Added useAuth
+import { motion } from 'framer-motion'; // Added motion for animations
 
 const DashboardPage: React.FC = () => {
   const { t } = useTranslation();
-  
+  const { user } = useAuth(); // Destructure user from AuthContext
+
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -33,6 +36,11 @@ const DashboardPage: React.FC = () => {
     clientPhone: ''
   };
   const [newCaseData, setNewCaseData] = useState(initialNewCaseData);
+
+  // PHOENIX GATEKEEPER LOGIC: Check for ADMIN role
+  const isAdmin = useMemo(() => {
+    return user?.role === 'ADMIN';
+  }, [user]);
 
   useEffect(() => {
     loadData();
@@ -54,6 +62,8 @@ const DashboardPage: React.FC = () => {
       }));
       setCases(casesWithDefaults);
 
+      // Only check and open the briefing for Admins or if we want it for everyone
+      // Note: Keeping original logic for now, but Admin-only briefing UI will be separate.
       if (!hasCheckedBriefing.current && eventsData.length > 0) {
           const today = new Date();
           const matches = eventsData.filter(e => isSameDay(parseISO(e.start_date), today));
@@ -126,17 +136,37 @@ const DashboardPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 flex-shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-text-primary tracking-tight">
-            {t('dashboard.mainTitle', 'Asistenti Juridik')}
+            {t('dashboard.mainTitle', 'Pasqyra e Rasteve')} {/* Modified default text to match screenshot */}
           </h1>
-          <p className="text-text-secondary mt-1">{t('dashboard.subtitle')}</p>
+          <p className="text-text-secondary mt-1">{t('dashboard.subtitle', 'Menaxhoni rastet tuaja.')}</p> {/* Modified default text to match screenshot */}
         </div>
         <button 
           onClick={() => setShowCreateModal(true)}
           className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 rounded-xl text-white font-semibold transition-all active:scale-95"
         >
-          <Plus size={20} /> {t('dashboard.newCase')}
+          <Plus size={20} /> {t('dashboard.newCase', 'Rast i Ri')}
         </button>
       </div>
+
+      {/* NEW: DAILY BRIEFING ROW (ADMIN ONLY) - Positioned below the main header */}
+      {isAdmin && (
+          <motion.div 
+              className="mb-8 p-4 rounded-xl bg-gradient-to-r from-teal-900/40 to-black/20 border border-teal-700/50 shadow-lg"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.3 }}
+          >
+              <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                      <Activity className="h-5 w-5 text-teal-400 flex-shrink-0" />
+                      <h2 className="text-lg font-semibold text-white">{t('adminBriefing.title', 'Përmbledhje Ditore (Admin)')}</h2>
+                      <span className="text-sm text-gray-400">| {t('adminBriefing.status', 'Në zhvillim')}</span>
+                  </div>
+                  <button className="px-3 py-1 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium transition-colors">{t('adminBriefing.viewDetails', 'Shiko Detajet')}</button>
+              </div>
+          </motion.div>
+      )}
+      {/* END NEW: DAILY BRIEFING ROW */}
 
       {/* Case Grid - Flexible height */}
       {isLoading ? (
