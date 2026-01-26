@@ -1,40 +1,25 @@
 # FILE: backend/app/api/endpoints/admin.py
-# PHOENIX PROTOCOL - ADMIN ROUTER V8.3 (FINAL SYNC)
-# 1. FIXED: Resolved Pylance 'unknown import symbol' by aligning with Admin Service V9.2.
-# 2. CLEANUP: Removed unused 'OrganizationOut' import.
-# 3. STATUS: Fully synchronized with backend architecture.
+# PHOENIX PROTOCOL - ADMIN ROUTER V8.4 (CLEAN ARCHITECTURE)
+# 1. FIXED: Removed duplicate 'UserUpdateRequest' definition. Now imports from models.
+# 2. VERIFIED: Imports 'UserAdminView' from the corrected model file.
+# 3. STATUS: Fully synchronized and lint-free.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Annotated, Optional
 from pymongo.database import Database
-from pydantic import BaseModel
-from datetime import datetime
 from enum import Enum
 import asyncio
 
-# Correctly imports the singleton instance
+# Service Layer
 from app.services.admin_service import admin_service
-from app.models.user import UserInDB, AccountType, SubscriptionTier, ProductPlan
-from app.models.admin import UserAdminView
+
+# Domain Models
+from app.models.user import UserInDB
+# Imported Shared Models to prevent "Unknown Symbol" and duplication
+from app.models.admin import UserAdminView, UserUpdateRequest 
 from .dependencies import get_current_admin_user, get_db
 
 router = APIRouter(tags=["Administrator"])
-
-# --- UNIFIED USER UPDATE REQUEST MODEL ---
-class UserUpdateRequest(BaseModel):
-    # User Details
-    username: Optional[str] = None
-    email: Optional[str] = None
-    role: Optional[str] = None
-    
-    # Subscription Matrix
-    account_type: Optional[AccountType] = None
-    subscription_tier: Optional[SubscriptionTier] = None
-    product_plan: Optional[ProductPlan] = None
-    
-    # Lifecycle
-    subscription_status: Optional[str] = None
-    subscription_expiry: Optional[datetime] = None
 
 # --- ENDPOINTS ---
 
@@ -45,7 +30,7 @@ async def get_all_users(
 ):
     """
     Retrieves all users with flattened organization data for the dashboard.
-    Uses asyncio.to_thread to keep the main event loop non-blocking while calling synchronous service methods.
+    Uses asyncio.to_thread to keep the main event loop non-blocking.
     """
     return await asyncio.to_thread(admin_service.get_all_users_for_dashboard, db)
 
