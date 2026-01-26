@@ -269,7 +269,7 @@
   },
   "sidebar": {
     "dashboard": "Juristi AI",
-    "juristi_ai": "Juristi AI",
+    "juristi_ai": "Rastet",
     "calendar": "Kalendari",
     "drafting": "Hartimi",
     "business": "Zyra",
@@ -285,7 +285,7 @@
     "logout": "Dilni"
   },
   "dashboard": {
-    "mainTitle": "Pasqyra e Rasteve",
+    "mainTitle": "Rastet",
     "welcome": "Mirësevini, {{name}}",
     "subtitle": "Menaxhoni rastet tuaja.",
     "newCase": "Rast i Ri",
