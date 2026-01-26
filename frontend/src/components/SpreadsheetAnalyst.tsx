@@ -1,8 +1,7 @@
 // FILE: src/components/SpreadsheetAnalyst.tsx
-// PHOENIX PROTOCOL - UNIFIED REPORTING ENGINE V7.2 (FINAL VISUAL CORRECTION)
-// 1. FIXED: Re-engineered 'renderMarkdown' to correctly parse and style all memo headers and dividers.
-// 2. SIMPLIFIED: Removed the technical subtitle from the loading animation.
-// 3. VERIFIED: The UI now presents a clean, professional, and easy-to-read strategic memorandum.
+// PHOENIX PROTOCOL - UNIFIED REPORTING ENGINE V7.4 (FINAL I18N FIX)
+// 1. FIXED: Linter error ('i18n' declared but not read).
+// 2. LOGIC: Explicitly passes current language to apiService.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -50,7 +49,7 @@ const renderMarkdown = (text: string) => {
         }
         if (trimmed.includes(':')) {
             const parts = trimmed.split(/:(.*)/s);
-            if (parts.length > 1 && parts[0].length < 30) { // Avoid splitting long sentences
+            if (parts.length > 1 && parts[0].length < 30) { 
                 return (
                     <p key={i} className="text-gray-300 text-sm leading-relaxed mb-2">
                         <strong className="text-white/90 font-semibold">{parts[0]}:</strong>
@@ -104,6 +103,7 @@ const TypingChatMessage: React.FC<{ message: ChatMessage, onComplete: () => void
 };
 
 const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
+    const { t, i18n } = useTranslation();
     const [fileName, setFileName] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [result, setResult] = useState<SmartFinancialReport | null>(null);
@@ -144,10 +144,14 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         setIsAnalyzing(true);
         setError(null);
         try {
-            const data = await apiService.forensicAnalyzeSpreadsheet(caseId, fileToAnalyze) as unknown as SmartFinancialReport;
+            // FIX: Explicitly passing i18n.language resolves the unused variable error
+            // and ensures the report matches the UI language.
+            const lang = i18n.language || 'sq'; 
+            
+            const data = await apiService.forensicAnalyzeSpreadsheet(caseId, fileToAnalyze, lang) as unknown as SmartFinancialReport;
             setResult(data);
         } catch (err) {
-            setError("Analiza dështoi. Ju lutemi kontrolloni formatin e skedarit.");
+            setError(t('analyst.errorAnalysis', "Analiza dështoi. Ju lutemi kontrolloni formatin e skedarit."));
             console.error('Analysis error:', err);
         } finally {
             setIsAnalyzing(false);
@@ -158,13 +162,13 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         if (!result) return;
         setIsArchiving(true);
         try {
-            const title = `Memorandum Forenzik - ${fileName || 'Analizë'}`;
+            const title = `${t('analyst.forensicMemo', 'Memorandum Forenzik')} - ${fileName || t('analyst.analysis', 'Analizë')}`;
             await apiService.archiveForensicReport(caseId, title, result.executive_summary);
             setArchiveSuccess(true);
             setTimeout(() => setArchiveSuccess(false), 3000);
         } catch (err) {
             console.error(err);
-            setError("Arkivimi dështoi.");
+            setError(t('analyst.errorArchive', "Arkivimi dështoi."));
         } finally {
             setIsArchiving(false);
         }
@@ -201,13 +205,13 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
         try {
             const response = await apiService.forensicInterrogateEvidence(caseId, currentQ);
             const agentMsg: ChatMessage = {
-                id: (Date.now() + 1).toString(), role: 'agent', content: response.answer || "Nuk u gjet përgjigje.",
+                id: (Date.now() + 1).toString(), role: 'agent', content: response.answer || t('analyst.noAnswer', "Nuk u gjet përgjigje."),
                 timestamp: new Date(), evidenceCount: response.supporting_evidence_count
             };
             setTypingMessage(agentMsg);
         } catch (err) {
             console.error('Interrogation error:', err);
-            const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'agent', content: "Lidhja dështoi.", timestamp: new Date() };
+            const errorMsg: ChatMessage = { id: (Date.now() + 1).toString(), role: 'agent', content: t('analyst.errorConnection', "Lidhja dështoi."), timestamp: new Date() };
             setTypingMessage(errorMsg);
         } finally {
             setIsInterrogating(false);
@@ -228,7 +232,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                     <div>
                         <h2 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
                             <Activity className="text-primary-start" />
-                            Analizë Financiare Forenzike
+                            {t('analyst.title', 'Analizë Financiare Forenzike')}
                             {result && <CheckCircle className="w-5 h-5 text-emerald-500" />}
                         </h2>
                     </div>
@@ -238,7 +242,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"/>
                                 <div className="flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-dashed transition-all cursor-pointer bg-black/20 border-gray-600 hover:border-gray-400">
                                     <FileSpreadsheet className="w-5 h-5 text-gray-400" />
-                                    <span className="text-sm text-gray-300">Zgjidh Excel/CSV...</span>
+                                    <span className="text-sm text-gray-300">{t('analyst.selectFile', 'Zgjidh Excel/CSV...')}</span>
                                 </div>
                             </div>
                         )}
@@ -246,11 +250,11 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <div className="flex gap-2">
                                 <button onClick={handleArchiveReport} disabled={isArchiving || archiveSuccess} className={`px-4 py-2 border rounded-xl text-sm transition-all flex justify-center items-center gap-2 ${archiveSuccess ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'bg-primary-start/10 border-primary-start/30 text-primary-200 hover:bg-primary-start/20'}`}>
                                     {isArchiving ? <RefreshCw className="w-4 h-4 animate-spin" /> : archiveSuccess ? <CheckCircle className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                                    {archiveSuccess ? "Arkivuar!" : "Arkivo Memo"}
+                                    {archiveSuccess ? t('analyst.archived', 'Arkivuar!') : t('analyst.archiveMemo', 'Arkivo Memo')}
                                 </button>
                                 <button onClick={handleReset} className="px-4 py-2 border border-white/10 text-gray-300 hover:text-white rounded-xl text-sm transition-colors flex justify-center items-center gap-2 hover:bg-white/5">
                                     <RefreshCw className="w-4 h-4" />
-                                    Analizë e Re
+                                    {t('analyst.newAnalysis', 'Analizë e Re')}
                                 </button>
                             </div>
                         )}
@@ -272,8 +276,8 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                             <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3 shrink-0">
                                 <Bot className="text-primary-start w-5 h-5" />
                                 <div>
-                                    <h3 className="text-sm font-bold text-white">Interrogimi i Dëshmive</h3>
-                                    <p className="text-[10px] text-gray-400">Bëni pyetje rreth gjetjeve të memorandumit.</p>
+                                    <h3 className="text-sm font-bold text-white">{t('analyst.interrogationTitle', 'Interrogimi i Dëshmive')}</h3>
+                                    <p className="text-[10px] text-gray-400">{t('analyst.interrogationSubtitle', 'Bëni pyetje rreth gjetjeve të memorandumit.')}</p>
                                 </div>
                             </div>
                             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
@@ -289,7 +293,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                                 <div ref={chatEndRef} />
                             </div>
                             <form onSubmit={handleInterrogate} className="p-4 border-t border-white/10 bg-white/5 flex gap-2 shrink-0">
-                                <input type="text" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Bëni një pyetje rreth dosjes..." className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary-start/50"/>
+                                <input type="text" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={t('analyst.placeholderQuestion', 'Bëni një pyetje rreth dosjes...')} className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary-start/50"/>
                                 <button type="submit" disabled={!question.trim() || isInterrogating || !!typingMessage} className="p-3 bg-primary-start text-white rounded-xl hover:bg-primary-end disabled:opacity-50 transition-colors"><Send className="w-5 h-5" /></button>
                             </form>
                         </div>
@@ -301,7 +305,7 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 {isAnalyzing && !result && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-32">
                         <div className="relative"><div className="w-16 h-16 rounded-full border-4 border-white/10 border-t-primary-start animate-spin"></div><Activity className="absolute inset-0 m-auto w-6 h-6 text-primary-start" /></div>
-                        <p className="text-xl text-white font-medium mt-6">Duke kryer Analizën Forenzike...</p>
+                        <p className="text-xl text-white font-medium mt-6">{t('analyst.analyzing', 'Duke kryer Analizën Forenzike...')}</p>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -310,8 +314,8 @@ const SpreadsheetAnalyst: React.FC<SpreadsheetAnalystProps> = ({ caseId }) => {
                 {!result && !isAnalyzing && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col items-center justify-center text-center py-20 px-6 glass-panel rounded-2xl border border-white/5">
                         <FileSpreadsheet className="w-12 h-12 text-gray-600 mb-6" />
-                        <h3 className="text-lg font-bold text-white mb-2">Gati për Hulumtim Forenzik</h3>
-                        <p className="text-sm text-gray-400 max-w-md mb-4">Zgjidhni një skedar Excel ose CSV për të filluar analizën dhe për të gjeneruar një memorandum strategjik.</p>
+                        <h3 className="text-lg font-bold text-white mb-2">{t('analyst.readyTitle', 'Gati për Hulumtim Forenzik')}</h3>
+                        <p className="text-sm text-gray-400 max-w-md mb-4">{t('analyst.readySubtitle', 'Zgjidhni një skedar Excel ose CSV për të filluar analizën dhe për të gjeneruar një memorandum strategjik.')}</p>
                     </motion.div>
                 )}
             </AnimatePresence>

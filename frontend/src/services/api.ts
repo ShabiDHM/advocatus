@@ -1,11 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V14.0 (FORENSIC ENHANCEMENTS)
-// ENHANCEMENTS:
-// 1. ADDED: Forensic spreadsheet analysis endpoint
-// 2. ADDED: Forensic evidence interrogation endpoint
-// 3. ADDED: Forensic metadata types
-// 4. UPDATED: SpreadsheetAnalysisResult interface with forensic fields
-// 5. MAINTAINED: Backward compatibility with existing endpoints
+// PHOENIX PROTOCOL - API SERVICE V14.1 (I18N SUPPORT)
+// 1. UPDATED: forensicAnalyzeSpreadsheet now accepts 'lang' parameter.
+// 2. FIXED: Language context is passed to backend via FormData.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -143,7 +139,6 @@ class ApiService {
     public async updateUser(userId: string, data: UpdateUserRequest): Promise<User> { const response = await this.axiosInstance.put<User>(`/admin/users/${userId}`, data); return response.data; }
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
     
-    // UPDATED: Now supports optional caseId. If no caseId, it creates a 'GEN' token which instructs subsequent calls to use finance endpoints.
     public async createMobileUploadSession(caseId?: string): Promise<MobileSessionResponse> {
         const url = caseId 
             ? `/cases/${caseId}/mobile-upload-session` 
@@ -167,7 +162,6 @@ class ApiService {
     }
 
     public async checkMobileUploadStatus(token: string): Promise<MobileUploadStatus> {
-        // PHOENIX LOGIC: If token starts with 'GEN-', use finance endpoint. Else, use cases endpoint.
         const url = token.startsWith('GEN-') 
             ? `/finance/mobile-upload-status/${token}`
             : `/cases/mobile-upload-status/${token}`;
@@ -190,7 +184,6 @@ class ApiService {
         return { blob: response.data, filename };
     }
 
-    // PHOENIX: New public upload method
     public async publicMobileUpload(token: string, file: File): Promise<{ status: string }> {
         const formData = new FormData();
         formData.append('file', file);
@@ -265,16 +258,18 @@ class ApiService {
         return response.data;
     }
 
-    // PHOENIX ADDITION: Forensic Spreadsheet Analysis
-    public async forensicAnalyzeSpreadsheet(caseId: string, file: File): Promise<ForensicSpreadsheetAnalysisResult> {
+    // PHOENIX ADDITION: Forensic Spreadsheet Analysis - I18N SUPPORT
+    public async forensicAnalyzeSpreadsheet(caseId: string, file: File, lang: string = 'sq'): Promise<ForensicSpreadsheetAnalysisResult> {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('analyst_id', 'frontend_user'); // Can be enhanced with actual user ID
+        formData.append('analyst_id', 'frontend_user'); 
         formData.append('acquisition_method', 'WEB_UPLOAD');
+        formData.append('lang', lang);
         
         const response = await this.axiosInstance.post<ForensicSpreadsheetAnalysisResult>(
             `/cases/${caseId}/analyze/spreadsheet/forensic`,
-            formData
+            formData,
+            { params: { lang } } // Send as query param too for robust backend handling
         );
         return response.data;
     }
