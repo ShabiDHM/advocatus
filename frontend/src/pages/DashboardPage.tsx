@@ -1,8 +1,8 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V11.0 (UX/VISUAL CONSISTENCY REFINEMENT)
-// 1. UX: Refined the dashboard structure to place the Main Header and "New Case" button together immediately below the Admin Briefing.
-// 2. STYLING: Adjusted margins to ensure a clean visual flow and consistency.
-// 3. INTEGRITY: Retained all previous logic (Admin Gatekeeper, Deadline Calculation, Type Fixes).
+// PHOENIX PROTOCOL - DASHBOARD V12.0 (INTELLIGENT BRIEFING: ACTIVITY & DEADLINES)
+// 1. FEAT: Implemented calculation and display of Total Urgent Alerts (based on case 'alert_count').
+// 2. UX: Updated Briefing Row status logic to prioritize Red (Deadlines), then Yellow (Alerts), then Green (OK).
+// 3. ARCH: Maintained all previous structural, type, and gatekeeper integrity fixes.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -35,6 +35,9 @@ const DashboardPage: React.FC = () => {
     today: number;
     yesterdayMissed: number;
   }>({ today: 0, yesterdayMissed: 0 });
+  
+  // NEW STATE: Total Activity/Urgent Alerts
+  const [totalAlerts, setTotalAlerts] = useState(0);
 
   const initialNewCaseData = { 
     title: '', 
@@ -55,7 +58,7 @@ const DashboardPage: React.FC = () => {
       let yesterdayMissedCount = 0;
 
       events.forEach(event => {
-          // FIXED: Relying only on event.title for criticality check
+          // Relying only on event.title for criticality check
           const isCriticalType = ['Seancë Gjyqësore', 'Afat Ligjor'].includes(event.title); 
 
           if (isCriticalType) {
@@ -72,6 +75,14 @@ const DashboardPage: React.FC = () => {
       setCriticalDeadlinesCount({ today: todayCount, yesterdayMissed: yesterdayMissedCount });
   };
   // END LOGIC: Deadline calculation
+
+  // NEW LOGIC: Activity calculation
+  const calculateTotalAlerts = (cases: Case[]) => {
+      // Sum the alert_count from all cases as a proxy for unread/urgent activity
+      const totalAlertsCount = cases.reduce((sum, c) => sum + (c.alert_count || 0), 0);
+      setTotalAlerts(totalAlertsCount);
+  };
+  // END NEW LOGIC: Activity calculation
 
   useEffect(() => {
     loadData();
@@ -93,8 +104,9 @@ const DashboardPage: React.FC = () => {
       }));
       setCases(casesWithDefaults);
       
-      // RUN NEW LOGIC
+      // RUN INTELLIGENCE LOGIC
       calculateCriticalDeadlines(eventsData);
+      calculateTotalAlerts(casesData); // NEW CALL
       
       // Original Briefing Modal Logic (remains separate from the Admin Row)
       if (!hasCheckedBriefing.current && eventsData.length > 0) {
@@ -164,14 +176,18 @@ const DashboardPage: React.FC = () => {
 
   // Helper for Row Styling
   const criticalCount = criticalDeadlinesCount.today + criticalDeadlinesCount.yesterdayMissed;
+  
+  // Update Row Style to also consider Alerts
   const rowStyleClasses = criticalCount > 0 
-      ? 'from-red-900/40 to-black/20 border border-red-700/50' // Highlight Red for active or missed deadlines
-      : 'from-teal-900/40 to-black/20 border border-teal-700/50';
+      ? 'from-red-900/40 to-black/20 border border-red-700/50' // RED: Critical Deadlines (Highest Priority)
+      : totalAlerts > 0
+          ? 'from-yellow-900/40 to-black/20 border border-yellow-700/50' // YELLOW: Alerts (Second Priority)
+          : 'from-teal-900/40 to-black/20 border border-teal-700/50'; // TEAL: OK
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-full flex flex-col">
       
-      {/* ADMIN: DAILY BRIEFING ROW - MOVED TO TOP (Removed mb-8) */}
+      {/* ADMIN: DAILY BRIEFING ROW - Updated Intelligence */}
       {isAdmin && (
           <motion.div 
               className={`mb-4 p-4 rounded-xl shadow-lg ${rowStyleClasses}`}
@@ -181,17 +197,20 @@ const DashboardPage: React.FC = () => {
           >
               <div className="flex flex-wrap items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
+                      {/* Icon driven by most critical status */}
                       {criticalCount > 0 ? (
                           <AlertTriangle className="h-6 w-6 text-red-500 flex-shrink-0 animate-pulse" />
+                      ) : totalAlerts > 0 ? (
+                          <AlertTriangle className="h-6 w-6 text-yellow-400 flex-shrink-0" />
                       ) : (
                           <Activity className="h-6 w-6 text-teal-400 flex-shrink-0" />
                       )}
                       <h2 className="text-lg font-semibold text-white">{t('adminBriefing.title', 'Përmbledhje Ditore (Admin)')}</h2>
                   </div>
 
-                  {/* CRITICAL DEADLINES DISPLAY */}
+                  {/* CRITICAL DEADLINES & ACTIVITY DISPLAY */}
                   <div className="flex items-center gap-4 text-sm font-medium">
-                    {/* Yesterday Missed */}
+                    {/* Yesterday Missed (RED) */}
                     {criticalDeadlinesCount.yesterdayMissed > 0 && (
                         <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-900/70 text-red-300">
                             <Clock size={16} />
@@ -199,7 +218,7 @@ const DashboardPage: React.FC = () => {
                         </span>
                     )}
 
-                    {/* Today Critical */}
+                    {/* Today Critical (YELLOW/RED) */}
                     {criticalDeadlinesCount.today > 0 && (
                         <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-800/70 text-yellow-300">
                             <AlertTriangle size={16} />
@@ -207,8 +226,16 @@ const DashboardPage: React.FC = () => {
                         </span>
                     )}
                     
-                    {/* General Status (if no critical items) */}
-                    {criticalCount === 0 && (
+                    {/* Total Alerts (YELLOW) - Only show if no critical deadlines */}
+                    {criticalCount === 0 && totalAlerts > 0 && (
+                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-800/70 text-yellow-300">
+                            <AlertTriangle size={16} />
+                            {totalAlerts} {t('briefing.alerts', 'Sinjalizime Reja')}
+                        </span>
+                    )}
+
+                    {/* General Status (TEAL) - Only show if no issues */}
+                    {criticalCount === 0 && totalAlerts === 0 && (
                         <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-900/70 text-teal-300">
                             {t('briefing.statusOk', 'Afate OK')}
                         </span>
