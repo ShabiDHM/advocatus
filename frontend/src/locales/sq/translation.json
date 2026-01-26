@@ -324,8 +324,6 @@
   "analyst": {
     "title": "Analizë Financiare ",
     "selectFile": "Ngarko Librin (Excel/CSV)...",
-    "importArchive": "Importo nga Arkiva",
-    "selectFromArchive": "Zgjidh nga Dokumentet e Rastit",
     "searchArchive": "Kërko skedarët...",
     "loadingArchive": "Duke ngarkuar arkivën...",
     "noArchiveFiles": "Nuk u gjet asnjë skedar (.csv, .xlsx) në arkivë.",
@@ -352,8 +350,8 @@
     "archiveMemo": "Arkivo Raportin",
     "forensicMemo": "Raporti i Analizes",
     "analysis": "Analizë",
-    "interrogationTitle": "Kryqëzimi i Të Dhënave",
-    "interrogationSubtitle": "Bisedoni direkt me datasetin financiar.",
+    "interrogationTitle": "Bisedo me të dhënat",
+    "interrogationSubtitle": "Shro pytje.",
     "noAnswer": "Nuk u gjet informacion specifik në të dhënat e ngarkuara."
   },
   "documentsPanel": {
