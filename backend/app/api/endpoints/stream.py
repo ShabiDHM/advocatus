@@ -1,7 +1,6 @@
 # FILE: backend/app/api/endpoints/stream.py
 # PHOENIX PROTOCOL - SSE IMPLEMENTATION V2 (TYPE SAFE)
 # FIX: Added '/{stream_id}' endpoint to support per‑entity streaming.
-# FIX: Resolved Pylance type error by adding explicit 'send_connected_event' parameter.
 import asyncio
 import json
 import logging
