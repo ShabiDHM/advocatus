@@ -1,8 +1,8 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V9.0 (TYPE INTEGRITY & CLEANUP)
-// 1. FIX: Resolved TypeScript error "Property 'type' does not exist on type 'CalendarEvent'" by removing 'event.type'.
-// 2. CLEANUP: Removed unused 'now' variable to resolve the "value is never read" warning.
-// 3. ARCH: Maintained all V8.0 critical deadline calculation and admin gatekeeper logic.
+// PHOENIX PROTOCOL - DASHBOARD V10.0 (ADMIN BRIEFING: TOP PRIORITY)
+// 1. ARCH: Swapped the position of the Admin Daily Briefing Row and the Main Page Header.
+// 2. UX: The critical administrative summary is now the first item rendered below the main application header, aligning with the "Deliberating on top" mandate.
+// 3. INTEGRITY: Retained all previous logic (Admin Gatekeeper, Deadline Calculation, Type Fixes).
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -49,15 +49,13 @@ const DashboardPage: React.FC = () => {
     return user?.role === 'ADMIN';
   }, [user]);
 
-  // NEW LOGIC: Deadline calculation (FIXED FOR TYPE INTEGRITY)
+  // LOGIC: Deadline calculation
   const calculateCriticalDeadlines = (events: CalendarEvent[]) => {
       let todayCount = 0;
       let yesterdayMissedCount = 0;
 
-      // REMOVED: const now = new Date(); (Resolved Error 6133)
-
       events.forEach(event => {
-          // FIXED: Relying only on event.title for criticality check (Resolved Error 2339)
+          // FIXED: Relying only on event.title for criticality check
           const isCriticalType = ['Seancë Gjyqësore', 'Afat Ligjor'].includes(event.title); 
 
           if (isCriticalType) {
@@ -66,7 +64,6 @@ const DashboardPage: React.FC = () => {
               if (isToday(eventDate)) {
                   todayCount++;
               } else if (isYesterday(eventDate) && isPast(eventDate)) {
-                  // Count as missed if it was yesterday and has definitely passed
                   yesterdayMissedCount++;
               }
           }
@@ -74,7 +71,7 @@ const DashboardPage: React.FC = () => {
 
       setCriticalDeadlinesCount({ today: todayCount, yesterdayMissed: yesterdayMissedCount });
   };
-  // END NEW LOGIC: Deadline calculation
+  // END LOGIC: Deadline calculation
 
   useEffect(() => {
     loadData();
@@ -173,23 +170,8 @@ const DashboardPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-full flex flex-col">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 flex-shrink-0">
-        <div>
-          <h1 className="text-3xl font-bold text-text-primary tracking-tight">
-            {t('dashboard.mainTitle', 'Pasqyra e Rasteve')}
-          </h1>
-          <p className="text-text-secondary mt-1">{t('dashboard.subtitle', 'Menaxhoni rastet tuaja.')}</p>
-        </div>
-        <button 
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 rounded-xl text-white font-semibold transition-all active:scale-95"
-        >
-          <Plus size={20} /> {t('dashboard.newCase', 'Rast i Ri')}
-        </button>
-      </div>
-
-      {/* ADMIN: DAILY BRIEFING ROW - Updated to show Critical Deadlines */}
+      
+      {/* ADMIN: DAILY BRIEFING ROW - MOVED TO TOP */}
       {isAdmin && (
           <motion.div 
               className={`mb-8 p-4 rounded-xl shadow-lg ${rowStyleClasses}`}
@@ -244,7 +226,23 @@ const DashboardPage: React.FC = () => {
       )}
       {/* END ADMIN: DAILY BRIEFING ROW */}
 
-      {/* Case Grid - Flexible height */}
+      {/* Header - MOVED BELOW BRIEFING */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 flex-shrink-0">
+        <div>
+          <h1 className="text-3xl font-bold text-text-primary tracking-tight">
+            {t('dashboard.mainTitle', 'Pasqyra e Rasteve')}
+          </h1>
+          <p className="text-text-secondary mt-1">{t('dashboard.subtitle', 'Menaxhoni rastet tuaja.')}</p>
+        </div>
+        <button 
+          onClick={() => setShowCreateModal(true)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 rounded-xl text-white font-semibold transition-all active:scale-95"
+        >
+          <Plus size={20} /> {t('dashboard.newCase', 'Rast i Ri')}
+        </button>
+      </div>
+
+      {/* Case Grid - Flexible height (Remains Unchanged) */}
       {isLoading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>
       ) : (
