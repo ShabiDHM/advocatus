@@ -1,15 +1,16 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V2.9 (MOBILE OCR FIX)
-// 1. ADDED: Client-side image compression to prevent 413/Timeouts
-// 2. ADDED: Dual input strategy (Camera vs File Picker)
-// 3. FIXED: Error handling visibility for mobile users
+// PHOENIX PROTOCOL - EXPENSE MODAL V3.0 (OCR GATEKEEPER)
+// 1. FEAT: Implemented 'isPro' check to lock AI OCR scanning for Basic users.
+// 2. UI: Added visual Lock indicator and disabled state for the Scan button.
+// 3. UX: Manual attachment remains fully accessible for all tiers.
 
-import React, { useState, useRef, useEffect } from 'react';
-import { X, MinusCircle, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, ScanLine, AlertCircle } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { X, MinusCircle, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, ScanLine, AlertCircle, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Expense, Case } from '../../../data/types';
 import { apiService } from '../../../services/api';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../../../context/AuthContext'; // PHOENIX: Imported Auth Hook
 import * as ReactDatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { sq, enUS } from 'date-fns/locale';
@@ -65,9 +66,7 @@ const DateTimeProtocol = {
 
 // COMPRESSION UTILITY
 const compressImage = async (file: File): Promise<File> => {
-    // Only compress images
     if (!file.type.startsWith('image/')) return file;
-
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -80,35 +79,16 @@ const compressImage = async (file: File): Promise<File> => {
                 const MAX_HEIGHT = 1920;
                 let width = img.width;
                 let height = img.height;
-
-                if (width > height) {
-                    if (width > MAX_WIDTH) {
-                        height *= MAX_WIDTH / width;
-                        width = MAX_WIDTH;
-                    }
-                } else {
-                    if (height > MAX_HEIGHT) {
-                        width *= MAX_HEIGHT / height;
-                        height = MAX_HEIGHT;
-                    }
-                }
-
+                if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } } 
+                else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx?.drawImage(img, 0, 0, width, height);
-
                 canvas.toBlob((blob) => {
-                    if (blob) {
-                        const newFile = new File([blob], file.name, {
-                            type: 'image/jpeg',
-                            lastModified: Date.now(),
-                        });
-                        resolve(newFile);
-                    } else {
-                        reject(new Error('Compression failed'));
-                    }
-                }, 'image/jpeg', 0.8); // 80% Quality
+                    if (blob) { const newFile = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() }); resolve(newFile); } 
+                    else { reject(new Error('Compression failed')); }
+                }, 'image/jpeg', 0.8);
             };
             img.onerror = (err) => reject(err);
         };
@@ -118,16 +98,14 @@ const compressImage = async (file: File): Promise<File> => {
 
 export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSuccess, cases, editingExpense }) => {
     const { t, i18n } = useTranslation();
+    const { user } = useAuth(); // PHOENIX: Access user context
     const [isDirectUpload, setIsDirectUpload] = useState(false);
     const [isScanningReceipt, setIsScanningReceipt] = useState(false);
     const [scanError, setScanError] = useState<string | null>(null);
     const [expenseReceipt, setExpenseReceipt] = useState<File | null>(null);
     
-    // Split Refs for Better Mobile UX
     const scanInputRef = useRef<HTMLInputElement>(null);
     const attachInputRef = useRef<HTMLInputElement>(null);
-    
-    // Track intent: 'scan' (AI) or 'attach' (Manual)
     const uploadIntent = useRef<'scan' | 'attach'>('scan');
 
     const [loading, setLoading] = useState(false);
@@ -136,6 +114,12 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
 
     const localeMap: { [key: string]: any } = { sq, al: sq, en: enUS };
     const currentLocale = localeMap[i18n.language] || enUS;
+
+    // PHOENIX GATEKEEPER LOGIC
+    const isPro = useMemo(() => {
+        if (!user) return false;
+        return user.subscription_tier === 'PRO' || user.role === 'ADMIN';
+    }, [user]);
 
     const truncateText = (text: string, maxLength: number = 30): string => {
         if (!text) return text;
@@ -167,36 +151,26 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     const handleFileSelection = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         setScanError(null);
-        
         if (file) {
             setIsDirectUpload(true);
-            
-            // If intent is scan, we MUST compress
             if (uploadIntent.current === 'scan') {
                 try {
-                    setIsScanningReceipt(true); // Show loading immediately
+                    setIsScanningReceipt(true);
                     const compressedFile = await compressImage(file);
                     setExpenseReceipt(compressedFile);
-                    
-                    if (!editingExpense) {
-                        await handleAiScan(compressedFile);
-                    }
+                    if (!editingExpense) await handleAiScan(compressedFile);
                 } catch (err) {
                     console.error("Compression/Scan error:", err);
                     setScanError("Failed to process image. Try attaching manually.");
-                    setExpenseReceipt(file); // Fallback to original
-                } finally {
-                    setIsScanningReceipt(false);
-                }
+                    setExpenseReceipt(file);
+                } finally { setIsScanningReceipt(false); }
             } else {
-                // Attach Mode
                 setExpenseReceipt(file);
             }
         }
     };
 
     const handleAiScan = async (file: File) => {
-        // Assume isScanningReceipt is set by caller
         try {
             const aiResult = await safeAnalyzeReceipt(file);
             if (aiResult) {
@@ -221,6 +195,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         uploadIntent.current = mode;
         setScanError(null);
         if (mode === 'scan') {
+            // PHOENIX: Prevent trigger if not Pro
+            if (!isPro) return;
             scanInputRef.current?.click();
         } else {
             attachInputRef.current?.click();
@@ -236,42 +212,26 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                 description: result?.description || '',
                 date: result?.date ? DateTimeProtocol.safeDateToString(result.date) : null
             };
-        } catch (error) {
-            console.error('Receipt analysis failed:', error);
-            throw error;
-        }
+        } catch (error) { console.error('Receipt analysis failed:', error); throw error; }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            const payload = {
-                ...formData,
-                date: DateTimeProtocol.safeDateToString(expenseDate)
-            };
-
+            const payload = { ...formData, date: DateTimeProtocol.safeDateToString(expenseDate) };
             let result: Expense;
             if (editingExpense) {
                 result = await apiService.updateExpense(editingExpense.id, payload);
-                if (expenseReceipt && result.id) {
-                    await apiService.uploadExpenseReceipt(result.id, expenseReceipt);
-                }
+                if (expenseReceipt && result.id) await apiService.uploadExpenseReceipt(result.id, expenseReceipt);
                 onSuccess(result, true);
             } else {
                 result = await apiService.createExpense(payload);
-                if (expenseReceipt && result.id) {
-                    await apiService.uploadExpenseReceipt(result.id, expenseReceipt);
-                }
+                if (expenseReceipt && result.id) await apiService.uploadExpenseReceipt(result.id, expenseReceipt);
                 onSuccess(result, false);
             }
             onClose();
-        } catch (error) {
-            console.error(error);
-            alert(t('error.generic'));
-        } finally {
-            setLoading(false);
-        }
+        } catch (error) { console.error(error); alert(t('error.generic')); } finally { setLoading(false); }
     };
 
     if (!isOpen) return null;
@@ -286,26 +246,8 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                     <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
                 </div>
 
-                {/* 
-                   PHOENIX FIX: Two separate inputs. 
-                   1. Scan: Accepts images only, prefers environment (rear) camera.
-                   2. Attach: Accepts images and PDF, standard file picker.
-                */}
-                <input 
-                    type="file" 
-                    ref={scanInputRef} 
-                    className="hidden" 
-                    accept="image/*" 
-                    capture="environment" 
-                    onChange={handleFileSelection} 
-                />
-                <input 
-                    type="file" 
-                    ref={attachInputRef} 
-                    className="hidden" 
-                    accept="image/*,.pdf" 
-                    onChange={handleFileSelection} 
-                />
+                <input type="file" ref={scanInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileSelection} />
+                <input type="file" ref={attachInputRef} className="hidden" accept="image/*,.pdf" onChange={handleFileSelection} />
 
                 <div className="mb-6">
                     <AnimatePresence mode="wait">
@@ -314,22 +256,32 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                 <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.receipt', 'Fatura')}</label>
                                 
                                 <div className="grid grid-cols-2 gap-3">
-                                    {/* Option 1: AI Scan */}
+                                    {/* Option 1: AI Scan (LOCKED IF NOT PRO) */}
                                     <button 
                                         type="button" 
                                         onClick={() => triggerUpload('scan')} 
-                                        className="py-6 border border-dashed border-rose-500/30 bg-rose-500/5 rounded-xl flex flex-col items-center justify-center gap-3 text-rose-300 hover:bg-rose-500/10 hover:border-rose-500/50 transition-all group"
+                                        disabled={!isPro}
+                                        className={`py-6 border border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all group relative overflow-hidden
+                                        ${!isPro 
+                                            ? 'border-gray-700 bg-gray-800/50 cursor-not-allowed opacity-70' 
+                                            : 'border-rose-500/30 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 hover:border-rose-500/50'
+                                        }`}
                                     >
-                                        <div className="p-3 bg-rose-500/10 rounded-full group-hover:scale-110 transition-transform">
-                                            <ScanLine size={24} />
+                                        {!isPro && (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10">
+                                                <Lock size={24} className="text-white/80" />
+                                            </div>
+                                        )}
+                                        <div className={`p-3 rounded-full transition-transform ${isPro ? 'bg-rose-500/10 group-hover:scale-110' : 'bg-gray-700'}`}>
+                                            <ScanLine size={24} className={isPro ? "" : "text-gray-500"} />
                                         </div>
                                         <div className="text-center px-2">
-                                            <span className="block text-sm font-bold">{t('finance.scanAI', 'Skano me AI')}</span>
+                                            <span className={`block text-sm font-bold ${isPro ? "" : "text-gray-400"}`}>{t('finance.scanAI', 'Skano me AI')}</span>
                                             <span className="text-[9px] opacity-60 block mt-1">OCR & Auto-Fill</span>
                                         </div>
                                     </button>
 
-                                    {/* Option 2: Simple Attach */}
+                                    {/* Option 2: Simple Attach (ALWAYS AVAILABLE) */}
                                     <button 
                                         type="button" 
                                         onClick={() => triggerUpload('attach')} 
@@ -392,43 +344,16 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                             value={formData.related_case_id}
                             onChange={(e) => setFormData({ ...formData, related_case_id: e.target.value })}
                             className="glass-input w-full px-4 py-2.5 rounded-xl truncate"
-                            style={{
-                                maxWidth: '100%',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap'
-                            }}
+                            style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                         >
-                            <option value="" className="bg-gray-900 truncate">
-                                -- {t('finance.noCase', 'Pa Lëndë')} --
-                            </option>
-                            {cases.map(c => (
-                                <option
-                                    key={c.id}
-                                    value={c.id}
-                                    className="bg-gray-900 truncate"
-                                    title={c.title}
-                                >
-                                    {truncateText(c.title)}
-                                </option>
-                            ))}
+                            <option value="" className="bg-gray-900 truncate">-- {t('finance.noCase', 'Pa Lëndë')} --</option>
+                            {cases.map(c => (<option key={c.id} value={c.id} className="bg-gray-900 truncate" title={c.title}>{truncateText(c.title)}</option>))}
                         </select>
-                        {!formData.related_case_id && (
-                            <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">
-                                {t('finance.generalUpload', 'Pa lëndë: Do të regjistrohet si shpenzim i përgjithshëm.')}
-                            </p>
-                        )}
+                        {!formData.related_case_id && (<p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">{t('finance.generalUpload', 'Pa lëndë: Do të regjistrohet si shpenzim i përgjithshëm.')}</p>)}
                     </div>
                     <div>
                         <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.expenseCategory')}</label>
-                        <input
-                            required
-                            type="text"
-                            className="glass-input w-full px-4 py-2.5 rounded-xl truncate"
-                            maxLength={50}
-                            value={formData.category}
-                            onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                        />
+                        <input required type="text" className="glass-input w-full px-4 py-2.5 rounded-xl truncate" maxLength={50} value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} />
                     </div>
                     <div>
                         <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.amount')}</label>
@@ -436,31 +361,15 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                     </div>
                     <div>
                         <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.date')}</label>
-                        <DatePicker
-                            selected={expenseDate}
-                            onChange={(date: Date | null) => setExpenseDate(date)}
-                            locale={currentLocale}
-                            dateFormat="dd/MM/yyyy"
-                            className="glass-input w-full px-4 py-2.5 rounded-xl"
-                            required
-                        />
+                        <DatePicker selected={expenseDate} onChange={(date: Date | null) => setExpenseDate(date)} locale={currentLocale} dateFormat="dd/MM/yyyy" className="glass-input w-full px-4 py-2.5 rounded-xl" required />
                     </div>
                     <div>
                         <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.description')}</label>
-                        <textarea
-                            rows={2}
-                            className="glass-input w-full px-4 py-2.5 rounded-xl resize-none"
-                            maxLength={200}
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        />
+                        <textarea rows={2} className="glass-input w-full px-4 py-2.5 rounded-xl resize-none" maxLength={200} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
                     </div>
                     <div className="flex justify-end gap-3 pt-4">
                         <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10 transition-colors">{t('general.cancel')}</button>
-                        <button type="submit" disabled={loading} className="px-8 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-lg shadow-rose-500/20 flex items-center gap-2">
-                            {loading && <Loader2 size={18} className="animate-spin" />}
-                            {t('general.save')}
-                        </button>
+                        <button type="submit" disabled={loading} className="px-8 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-lg shadow-rose-500/20 flex items-center gap-2">{loading && <Loader2 size={18} className="animate-spin" />}{t('general.save')}</button>
                     </div>
                 </form>
             </div>

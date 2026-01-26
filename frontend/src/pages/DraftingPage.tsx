@@ -1,16 +1,18 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V7.5 (FINAL CLEANUP)
-// 1. REFACTOR: Removed unused 'node' parameter from link renderer.
-// 2. STATUS: Clean, warning-free, and fully functional.
+// PHOENIX PROTOCOL - DRAFTING PAGE V7.6 (GATEKEEPER ENFORCEMENT)
+// 1. FEAT: Implemented 'isPro' check to lock advanced Drafting features for Basic users.
+// 2. UI: Added Lock icons and enforced 'Generic'/'No Case' selections for non-Pro users.
+// 3. SEC: Prevented submission of restricted parameters via UI state enforcement.
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { Case } from '../data/types'; 
+import { useAuth } from '../context/AuthContext'; // PHOENIX: Imported Auth Hook
 import { 
   PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, 
   FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate,
-  FileCheck
+  FileCheck, Lock // PHOENIX: Added Lock Icon
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -54,7 +56,7 @@ const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({
     );
 };
 
-// --- STREAMING MARKDOWN (RESTORED BEAUTY) ---
+// --- STREAMING MARKDOWN ---
 const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () => void }> = ({ text, isNew, onComplete }) => {
     const [displayedText, setDisplayedText] = useState(isNew ? "" : text);
     
@@ -74,58 +76,27 @@ const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () 
     return (
         <div className="markdown-content text-gray-300 text-sm leading-8 font-serif">
              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-                    // Paragraphs: Justified with spacing for readability
                     p: ({node, ...props}) => <p className="mb-6 last:mb-0 text-justify text-gray-200" {...props} />,
-                    
-                    // Bold: Highlighted in White for emphasis
                     strong: ({node, ...props}) => <span className="font-bold text-white" {...props} />,
-                    
-                    // Italics: Subtle gray
                     em: ({node, ...props}) => <span className="italic text-gray-400" {...props} />,
-                    
-                    // Lists: Indented with custom markers
                     ul: ({node, ...props}) => <ul className="list-disc pl-6 space-y-2 my-4 marker:text-primary-start" {...props} />,
                     ol: ({node, ...props}) => <ol className="list-decimal pl-6 space-y-2 my-4 marker:text-primary-start" {...props} />,
                     li: ({node, ...props}) => <li className="pl-1" {...props} />,
-                    
-                    // Headers: Legal Document Style
                     h1: ({node, ...props}) => <h1 className="text-2xl font-bold text-white mt-8 mb-6 pb-2 border-b-2 border-white/10 uppercase tracking-widest text-center" {...props} />,
                     h2: ({node, ...props}) => <h2 className="text-xl font-bold text-white mt-6 mb-4 border-b border-white/5 pb-1" {...props} />,
                     h3: ({node, ...props}) => <h3 className="text-lg font-bold text-primary-start mt-4 mb-2 uppercase tracking-wide" {...props} />,
-                    
-                    // Blockquotes: Citation Style
                     blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-accent-start pl-4 py-2 my-6 bg-white/5 italic text-gray-300 rounded-r-lg" {...props} />,
-                    
-                    // PHOENIX: Smart Link Handling
-                    // 1. Evidence (PROVA) -> Yellow Badge (Clickable)
-                    // 2. Laws/General -> Blue Text (Non-clickable)
                     a: ({href, children}) => {
-                        // We check the TEXT CONTENT of the link to decide styling
                         const contentStr = String(Array.isArray(children) ? children[0] : children);
                         const isEvidence = contentStr.includes("PROVA") || contentStr.includes("Dokument");
                         const isDocLink = href?.startsWith('doc://');
 
                         if (isDocLink && isEvidence) {
-                            return (
-                                <span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-pointer transition-colors mx-0.5 no-underline font-sans not-italic" title="View Document">
-                                    <FileCheck size={10} className="flex-shrink-0" />
-                                    {children}
-                                </span>
-                            );
+                            return (<span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-pointer transition-colors mx-0.5 no-underline font-sans not-italic" title="View Document"><FileCheck size={10} className="flex-shrink-0" />{children}</span>);
                         }
-                        
-                        // DEFAULT: Non-clickable Blue Text (For Laws, Codes, etc.)
-                        return (
-                            <span className="text-blue-400 font-bold mx-0.5 cursor-text">
-                                {children}
-                            </span>
-                        );
+                        return (<span className="text-blue-400 font-bold mx-0.5 cursor-text">{children}</span>);
                     },
-
-                    // Code: Legal Clauses or References
                     code: ({node, ...props}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent-end border border-white/10" {...props} />,
-                    
-                    // Tables: Clean borders
                     table: ({node, ...props}) => <div className="overflow-x-auto my-6"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>,
                     th: ({node, ...props}) => <th className="border border-white/10 px-4 py-2 bg-white/10 font-bold text-left text-white uppercase tracking-wider" {...props} />,
                     td: ({node, ...props}) => <td className="border border-white/10 px-4 py-2 text-gray-300" {...props} />,
@@ -136,6 +107,7 @@ const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () 
 
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
+  const { user } = useAuth(); // PHOENIX: Access user context
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
   const [currentJob, setCurrentJob] = useState<DraftingJobState>(() => {
       const savedJob = localStorage.getItem('drafting_job');
@@ -147,6 +119,20 @@ const DraftingPage: React.FC = () => {
   const [isResultNew, setIsResultNew] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const pollingIntervalRef = useRef<number | null>(null);
+
+  // PHOENIX GATEKEEPER LOGIC
+  const isPro = useMemo(() => {
+      if (!user) return false;
+      return user.subscription_tier === 'PRO' || user.role === 'ADMIN';
+  }, [user]);
+
+  // PHOENIX: Reset restricted fields if user is not Pro
+  useEffect(() => {
+      if (!isPro) {
+          setSelectedCaseId(undefined); // Force "No Context"
+          setSelectedTemplate('generic'); // Force "Generic"
+      }
+  }, [isPro]);
 
   useEffect(() => { localStorage.setItem('drafting_context', context); }, [context]);
   useEffect(() => { localStorage.setItem('drafting_job', JSON.stringify(currentJob)); }, [currentJob]);
@@ -198,9 +184,9 @@ const DraftingPage: React.FC = () => {
       const jobResponse = await apiService.initiateDraftingJob({ 
           user_prompt: context.trim(), 
           context: context.trim(), 
-          case_id: selectedCaseId, 
-          use_library: !!selectedCaseId,
-          document_type: selectedTemplate
+          case_id: isPro ? selectedCaseId : undefined, // PHOENIX: Enforce restricted parameters
+          use_library: isPro && !!selectedCaseId,      // PHOENIX: Enforce restricted parameters
+          document_type: isPro ? selectedTemplate : 'generic' // PHOENIX: Enforce restricted parameters
       });
       setCurrentJob({ jobId: jobResponse.job_id, status: 'PENDING', result: null, error: null });
       startPolling(jobResponse.job_id);
@@ -243,26 +229,50 @@ const DraftingPage: React.FC = () => {
             <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4 min-h-0">
                 <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
                     <div className='flex-1 min-w-0'>
-                        <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.caseLabel')}</label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">{t('drafting.caseLabel')}</label>
+                            {!isPro && <span className="flex items-center gap-1 text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"><Lock size={10} /> PRO</span>}
+                        </div>
                         <div className="relative">
                             <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                            <select value={selectedCaseId || ''} onChange={(e) => setSelectedCaseId(e.target.value || undefined)} disabled={isSubmitting} className="glass-input w-full pl-10 pr-10 py-3 appearance-none cursor-pointer truncate rounded-xl">
+                            <select 
+                                value={isPro ? (selectedCaseId || '') : ''} // PHOENIX: Force empty if not Pro
+                                onChange={(e) => setSelectedCaseId(e.target.value || undefined)} 
+                                disabled={isSubmitting || !isPro} // PHOENIX: Disable if not Pro
+                                className={`glass-input w-full pl-10 pr-10 py-3 appearance-none cursor-pointer truncate rounded-xl 
+                                ${!isPro ? 'opacity-50 cursor-not-allowed bg-black/20' : ''}`}
+                            >
                                 <option value="" className="bg-gray-900 text-gray-400">{t('drafting.noCaseSelected')}</option>
-                                {cases.length > 0 ? ( cases.map(c => (<option key={c.id} value={String(c.id)} className="bg-gray-900 text-white">{getCaseDisplayName(c)}</option>)) ) : ( <option value="" disabled className="bg-gray-900 text-gray-500 italic">{t('drafting.noCasesFound')}</option> )}
+                                {isPro && cases.length > 0 && cases.map(c => (<option key={c.id} value={String(c.id)} className="bg-gray-900 text-white">{getCaseDisplayName(c)}</option>))}
+                                {isPro && cases.length === 0 && <option value="" disabled className="bg-gray-900 text-gray-500 italic">{t('drafting.noCasesFound')}</option>}
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
                     </div>
                     <div className='flex-1 min-w-0'>
-                        <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.templateLabel')}</label>
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">{t('drafting.templateLabel')}</label>
+                            {!isPro && <span className="flex items-center gap-1 text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"><Lock size={10} /> PRO</span>}
+                        </div>
                         <div className="relative">
                             <LayoutTemplate className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                            <select value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value as TemplateType)} disabled={isSubmitting} className="glass-input w-full pl-10 pr-10 py-3 appearance-none cursor-pointer rounded-xl">
+                            <select 
+                                value={isPro ? selectedTemplate : 'generic'} // PHOENIX: Force generic if not Pro
+                                onChange={(e) => setSelectedTemplate(e.target.value as TemplateType)} 
+                                disabled={isSubmitting || !isPro} // PHOENIX: Disable if not Pro
+                                className={`glass-input w-full pl-10 pr-10 py-3 appearance-none cursor-pointer rounded-xl
+                                ${!isPro ? 'opacity-50 cursor-not-allowed bg-black/20' : ''}`}
+                            >
                                 <option value="generic" className="bg-gray-900 text-gray-400">{t('drafting.templateGeneric')}</option>
-                                <option value="padi" className="bg-gray-900 text-white">{t('drafting.templatePadi')}</option>
-                                <option value="pergjigje" className="bg-gray-900 text-white">{t('drafting.templatePergjigje')}</option>
-                                <option value="kunderpadi" className="bg-gray-900 text-white">{t('drafting.templateKunderpadi')}</option>
-                                <option value="kontrate" className="bg-gray-900 text-white">{t('drafting.templateKontrate')}</option>
+                                {/* Only show other options if Pro (or show them but disable logic handles it) */}
+                                {isPro && (
+                                    <>
+                                        <option value="padi" className="bg-gray-900 text-white">{t('drafting.templatePadi')}</option>
+                                        <option value="pergjigje" className="bg-gray-900 text-white">{t('drafting.templatePergjigje')}</option>
+                                        <option value="kunderpadi" className="bg-gray-900 text-white">{t('drafting.templateKunderpadi')}</option>
+                                        <option value="kontrate" className="bg-gray-900 text-white">{t('drafting.templateKontrate')}</option>
+                                    </>
+                                )}
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
