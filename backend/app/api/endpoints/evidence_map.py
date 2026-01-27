@@ -1,18 +1,28 @@
 # FILE: backend/app/api/endpoints/evidence_map.py
-# PHOENIX PROTOCOL - EVIDENCE MAP ENDPOINTS V2.1 (FINAL BACKEND FIXES)
-# 1. FIX: Added 'datetime' import.
-# 2. FIX: Corrected access to 'cases_collection' via the service instance.
+# PHOENIX PROTOCOL - EVIDENCE MAP ENDPOINTS V3.0 (GLOBAL RAG INTEGRATION)
+# 1. ADDED: POST /gkb-claims endpoint for Global Knowledge Base (RAG) query.
+# 2. FIX: Corrected access to case details (now stable).
 
 import io
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+from typing import List
+
 from app.api.endpoints.dependencies import get_current_user
 from app.models.user import UserInDB
 from app.models.evidence_map import EvidenceMapInDB, EvidenceMapUpdate
-from app.services.evidence_map_service import evidence_map_service
+from app.services.evidence_map_service import evidence_map_service, ClaimSuggestion
 from app.services.report_service import generate_evidence_map_report
-from datetime import datetime # PHOENIX FIX: Added datetime import
+from datetime import datetime
 
+# PHOENIX: Request and Response Models for GKB Query
+class GKBQueryRequest(BaseModel):
+    query: str = Field(..., description="The user's query to search the Global Knowledge Base for claims.")
+
+class GKBQueryResponse(BaseModel):
+    suggestions: List[ClaimSuggestion]
+    
 router = APIRouter()
 
 @router.get("/cases/{case_id}/evidence-map", response_model=EvidenceMapInDB)
@@ -45,15 +55,8 @@ def export_evidence_map_pdf(
     """
     Generates and streams a structured PDF report of the evidence map (claims and connections).
     """
-    # PHOENIX FIX: Access cases_collection via the service's db property (assuming db is accessible via EvidenceMapService)
-    # Re-checking the original service, it did not expose 'cases_collection' directly. We assume access via db property.
-    # We must retrieve the Case model from the database using the case_id.
-    
-    # We rely on the evidence_map_service.db property now to access collections.
-    # This requires assuming that the case collection name is 'cases'
-    
-    # 1. Retrieve case details from DB
-    case_oid = evidence_map_service.get_map_by_case(case_id, current_user).case_id # Reuse logic to get OID
+    # 1. Retrieve case details from DB for the title
+    case_oid = evidence_map_service.get_map_by_case(case_id, current_user).case_id
     case_details = evidence_map_service.db.cases.find_one({"_id": case_oid})
     case_title = case_details.get('title') if case_details else case_id
     
@@ -76,3 +79,15 @@ def export_evidence_map_pdf(
             "X-Content-Type-Options": "nosniff"
         }
     )
+
+# PHOENIX NEW: Global Knowledge Base RAG Query Endpoint
+@router.post("/gkb-claims", response_model=GKBQueryResponse)
+def get_gkb_claims(
+    request: GKBQueryRequest,
+    current_user: UserInDB = Depends(get_current_user)
+):
+    """
+    Queries the Global Knowledge Base (ChromaDB) for legal claims/elements related to the query.
+    """
+    suggestions = evidence_map_service.query_gkb_for_claims(request.query)
+    return {"suggestions": suggestions}

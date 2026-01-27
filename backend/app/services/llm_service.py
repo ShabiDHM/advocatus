@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V34.2 (CONTEXTUAL PRICING FIX)
-# 1. FIXED: Added "Price Plausibility" logic to detect 0 vs 8 OCR errors.
-# 2. ENHANCED: Prompt now cross-references Item Type vs Amount (e.g., Snack != 8€).
-# 3. RETAINED: All previous Anchor Logic for Total/Date.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V35.0 (GLOBAL RAG INTEGRATION)
+# 1. ADDED: PROMPT_GLOBAL_RAG_CLAIM_SUGGESTOR prompt for Claim suggestion.
+# 2. ADDED: query_global_rag_for_claims function to process RAG context into structured Claims.
+# 3. STATUS: Full AI integration (Case-Specific Neo4j + Global ChromaDB RAG) is now supported.
 
 import os
 import json
@@ -32,7 +32,8 @@ __all__ = [
     "forensic_interrogation",
     "categorize_document_text",
     "sterilize_legal_text",
-    "extract_expense_details_from_text"
+    "extract_expense_details_from_text",
+    "query_global_rag_for_claims" # PHOENIX: New export
 ]
 
 # --- CONFIGURATION ---
@@ -121,7 +122,7 @@ FORMATI JSON: {{ "executive_summary": "...", "anomalies": [], "trends": [], "rec
 
 PROMPT_ADVERSARIAL = f"""
 Ti je "Avokati i Palës Kundërshtare".
-DETYRA: Gjej dobësitë në argumentet e paraqitura dhe krijo një kundër-strategji.
+DETYRA: Gjej dobësitë në argumentet e paraqitura dhe krijoi një kundër-strategji.
 GJUHA: SHQIP.
 FORMATI JSON: {{ "opponent_strategy": "...", "weakness_attacks": [], "counter_claims": [], "predicted_outcome": "..." }}
 """
@@ -199,6 +200,34 @@ OUTPUT FORMAT (JSON ONLY):
   "amount": 0.00,
   "date": "YYYY-MM-DD",
   "description": "Përshkrimi"
+}}
+"""
+
+# PHOENIX NEW: Global RAG Claim Suggestor Prompt
+PROMPT_GLOBAL_RAG_CLAIM_SUGGESTOR = f"""
+Ti je "Ekspert Ligjor Global" i Juristi.tech.
+DETYRA: Bazohe VETËM në kontekstin e ofruar nga Baza e Njohurive Globale (statutet, jurisprudenca).
+GJUHA: SHQIP.
+
+Kërkesa: Gjenero një listë të strukturave ligjore dhe elementeve thelbësore (Claim Cards) që përputhen me kërkesën e përdoruesit.
+
+RREGULLAT E OUTPUT-IT:
+1. Përgjigju me një listë me pika. Çdo pikë duhet të jetë një pretendim i fortë ligjor.
+2. Për çdo pikë, jep: **Titullin e Pretendimit** dhe një **Përmbajtje/Arsyetim** (deri në 2 fjali).
+3. Mos bëj asnjë supozim për faktet e rastit. Përgjigju vetëm me parime ligjore të përgjithshme.
+
+FORMATI I PËRGJIGJES (JSON STRICT):
+{{
+  "suggested_claims": [
+    {{
+      "label": "Emri i Pretendimit (P.sh., Shkelje Kontrate)",
+      "content": "Elementi Thelbësor i parë i kërkuar nga ligji është... [Cito Nenin]"
+    }},
+    {{
+      "label": "Emri i Pretendimit 2 (P.sh., Mosplotësimi i Kujdesit Prindëror)",
+      "content": "Interesi më i mirë i fëmijës kërkon... [Cito Nenin]"
+    }}
+  ]
 }}
 """
 
@@ -401,3 +430,20 @@ def extract_expense_details_from_text(raw_text: str) -> Dict[str, Any]:
         "date": result.get("date", current_date),
         "description": description
     }
+
+def query_global_rag_for_claims(rag_results: str, user_query: str) -> Dict[str, Any]:
+    """
+    Analyzes RAG context (from ChromaDB/GKB) and generates structured Claim suggestions.
+    
+    :param rag_results: The context returned by the RAG search service (e.g., related statutes).
+    :param user_query: The user's original query (e.g., "start a divorce case").
+    :return: Structured JSON of suggested Claim Cards.
+    """
+    
+    system_prompt = PROMPT_GLOBAL_RAG_CLAIM_SUGGESTOR
+    user_prompt = f"KËRKESA E PËRDORUESIT: {user_query}\n\nKONTEKSTI NGA BAZA GLOBALE:\n{rag_results}"
+    
+    # Increase temperature slightly for creativity in naming/structuring claims
+    result = _call_llm(system_prompt, user_prompt, True, temp=0.5) 
+    
+    return _parse_json_safely(result or "{}")
