@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V15.0 (GRAPH INGESTION FIX)
-// 1. ADDED: reprocessDocument function to allow re-triggering of Celery task for Neo4j ingestion.
-// 2. STATUS: Frontend now has the API call necessary to fix the empty graph issue.
+// PHOENIX PROTOCOL - API SERVICE V15.2 (SERVER-SIDE ORCHESTRATION)
+// 1. FIXED: reprocessCaseDocuments now uses the bulk server endpoint instead of a client-side loop.
+// 2. STATUS: Fully optimized for network efficiency.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -24,9 +24,8 @@ interface FinanceInterrogationResponse { answer: string; referenced_rows_count: 
 interface MobileSessionResponse { upload_url: string; }
 export interface ReceiptAnalysisResult { category: string; amount: number; date: string; description: string; }
 interface MobileUploadStatus { status: 'pending' | 'complete' | 'error'; data?: SpreadsheetAnalysisResult; message?: string; }
-// PHOENIX NEW: Added specific Reprocess type
 interface ReprocessConfirmation { documentId: string; message: string; }
-
+interface BulkReprocessResponse { count: number; message: string; }
 
 // PHOENIX ADDITION: Forensic Interfaces
 export interface ForensicMetadata {
@@ -46,7 +45,6 @@ export interface EnhancedAnomaly {
     confidence?: number;
 }
 
-// PHOENIX ENHANCEMENT: Extended SpreadsheetAnalysisResult
 export interface ForensicSpreadsheetAnalysisResult {
     executive_summary: string;
     anomalies: EnhancedAnomaly[];
@@ -55,7 +53,6 @@ export interface ForensicSpreadsheetAnalysisResult {
     forensic_metadata?: ForensicMetadata;
 }
 
-// PHOENIX ADDITION: Forensic Interrogation Response
 export interface ForensicInterrogationResponse {
     answer: string;
     referenced_rows_count?: number;
@@ -253,7 +250,6 @@ class ApiService {
     public async analyzeDeepStrategy(caseId: string): Promise<DeepAnalysisResult> { const response = await this.axiosInstance.post<DeepAnalysisResult>(`/cases/${caseId}/deep-analysis`); return response.data; }
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); return response.data; }
     
-    // --- FINANCIAL ANALYST UPDATES ---
     public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> {
         const formData = new FormData();
         formData.append('file', file);
@@ -261,7 +257,6 @@ class ApiService {
         return response.data;
     }
 
-    // PHOENIX ADDITION: Forensic Spreadsheet Analysis - I18N SUPPORT
     public async forensicAnalyzeSpreadsheet(caseId: string, file: File, lang: string = 'sq'): Promise<ForensicSpreadsheetAnalysisResult> {
         const formData = new FormData();
         formData.append('file', file);
@@ -272,7 +267,7 @@ class ApiService {
         const response = await this.axiosInstance.post<ForensicSpreadsheetAnalysisResult>(
             `/cases/${caseId}/analyze/spreadsheet/forensic`,
             formData,
-            { params: { lang } } // Send as query param too for robust backend handling
+            { params: { lang } }
         );
         return response.data;
     }
@@ -287,7 +282,6 @@ class ApiService {
         return response.data;
     }
 
-    // PHOENIX ADDITION: Forensic Evidence Interrogation
     public async forensicInterrogateEvidence(
         caseId: string, 
         question: string, 
@@ -403,10 +397,17 @@ class ApiService {
         return response.data;
     }
     
-    // PHOENIX NEW: Reprocess Document for Neo4j/AI Ingestion
     public async reprocessDocument(caseId: string, documentId: string): Promise<ReprocessConfirmation> {
         const response = await this.axiosInstance.post<ReprocessConfirmation>(
             `/cases/${caseId}/documents/${documentId}/reprocess`
+        );
+        return response.data;
+    }
+
+    // PHOENIX FIX: Bulk Reprocess via Server Endpoint
+    public async reprocessCaseDocuments(caseId: string): Promise<BulkReprocessResponse> {
+        const response = await this.axiosInstance.post<BulkReprocessResponse>(
+            `/cases/${caseId}/documents/reprocess-all`
         );
         return response.data;
     }

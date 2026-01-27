@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V15.0 (GRAPH INGESTION FIX)
-# 1. ADDED: POST /documents/{doc_id}/reprocess endpoint to fix the empty Neo4j graph issue.
-# 2. LOGIC: Triggers the existing 'process_document_task' (Celery) to re-run AI extraction/ingestion.
+# PHOENIX PROTOCOL - CASES ROUTER V15.1 (BULK ORCHESTRATION)
+# 1. ADDED: POST /documents/reprocess-all endpoint.
+# 2. LOGIC: Server-side iteration triggers Celery tasks instantly, removing frontend load.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -43,22 +43,18 @@ from ...models.document import DocumentOut
 from ...models.finance import InvoiceInDB
 
 from .dependencies import get_current_user, get_db, get_sync_redis
-from ...celery_app import celery_app # PHOENIX: Celery app import is vital
+from ...celery_app import celery_app
 from ...core.config import settings
 
 router = APIRouter(tags=["Cases"])
 logger = logging.getLogger(__name__)
 
-# --- PHOENIX V14.0: Subscription Gatekeeper Dependency ---
+# --- DEPENDENCIES ---
 def require_pro_tier(current_user: Annotated[UserInDB, Depends(get_current_user)]):
-    """
-    Dependency that raises a 403 error if the user's subscription_tier is not 'PRO'.
-    This protects high-value AI endpoints.
-    """
     if current_user.subscription_tier != SubscriptionTier.PRO:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This is a PRO feature. Please upgrade your subscription to access advanced AI tools."
+            detail="This is a PRO feature. Please upgrade your subscription."
         )
 
 # --- LOCAL SCHEMAS ---
@@ -84,9 +80,12 @@ class ArchiveImportRequest(BaseModel):
 class FinanceInterrogationRequest(BaseModel):
     question: str
     
-# PHOENIX NEW: Schema for Reprocess Confirmation
 class ReprocessConfirmation(BaseModel):
     documentId: str
+    message: str
+
+class BulkReprocessResponse(BaseModel):
+    count: int
     message: str
 
 def validate_object_id(id_str: str) -> ObjectId:
@@ -145,19 +144,47 @@ async def upload_document_for_case(case_id: str, current_user: Annotated[UserInD
         logger.error(f"Upload failed: {e}")
         raise HTTPException(status_code=500, detail="Document upload failed.")
 
-# PHOENIX NEW: Document Re-Processing Endpoint (Fixes empty Neo4j Graph)
+# PHOENIX FIX: Bulk Reprocess Orchestrator (Server-Side)
+@router.post("/{case_id}/documents/reprocess-all", response_model=BulkReprocessResponse, status_code=status.HTTP_202_ACCEPTED, tags=["Documents"])
+async def reprocess_all_documents(
+    case_id: str, 
+    current_user: Annotated[UserInDB, Depends(get_current_user)], 
+    db: Database = Depends(get_db)
+):
+    """
+    Triggers AI reprocessing for ALL documents in a case.
+    Essential for populating the Evidence Map/Graph if initial processing failed.
+    """
+    validate_object_id(case_id)
+    # Verify case ownership
+    case = await asyncio.to_thread(case_service.get_case_by_id, db=db, case_id=ObjectId(case_id), owner=current_user)
+    if not case: raise HTTPException(status_code=404, detail="Case not found.")
+
+    # Get all documents
+    docs = await asyncio.to_thread(document_service.get_documents_by_case_id, db, case_id, current_user)
+    
+    count = 0
+    for doc in docs:
+        # Trigger Celery Task
+        celery_app.send_task("process_document_task", args=[str(doc.id)])
+        count += 1
+        
+    return BulkReprocessResponse(
+        count=count,
+        message=f"AI reprocessing initiated for {count} documents."
+    )
+
 @router.post("/{case_id}/documents/{doc_id}/reprocess", response_model=ReprocessConfirmation, status_code=status.HTTP_202_ACCEPTED, tags=["Documents"])
 async def reprocess_document_for_ai(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
     doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(doc.case_id) != case_id: raise HTTPException(status_code=403)
     
-    # Re-trigger the Celery task for document processing (which includes AI extraction/ingestion)
     celery_app.send_task("process_document_task", args=[doc_id])
 
     return ReprocessConfirmation(
         documentId=doc_id,
-        message=f"Re-processing of document {doc.file_name} successfully initiated. Check back in 30 seconds."
+        message=f"Re-processing of document {doc.file_name} successfully initiated."
     )
 
 @router.post("/{case_id}/documents/import-archive", status_code=status.HTTP_201_CREATED, tags=["Documents"])
@@ -206,7 +233,6 @@ async def delete_document(
     redis_client: redis.Redis = Depends(get_sync_redis)
 ):
     validate_object_id(case_id)
-    doc_oid = validate_object_id(doc_id)
     doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
     if str(doc.case_id) != case_id: raise HTTPException(status_code=403)
 
