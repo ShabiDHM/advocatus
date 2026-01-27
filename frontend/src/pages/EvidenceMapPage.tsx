@@ -1,7 +1,8 @@
 // FILE: frontend/src/pages/EvidenceMapPage.tsx (FINAL COMPLETE REPLACEMENT)
-// PHOENIX PROTOCOL - FIX V6.1 (SIDEBAR VISIBILITY)
-// 1. FIX: Changed default state of isSidebarVisible to 'true' for good desktop UX.
-// 2. FIX: Simplified the sidebar wrapper structure to correctly use the flex/fixed layout.
+// PHOENIX PROTOCOL - FIX V9.0 (INSTANT CONNECTIONS UX)
+// 1. FIXED: onConnect now instantly creates the edge so the line "sticks" upon release.
+// 2. ADDED: onEdgeDoubleClick handler so users can edit the relationship type (Supports/Contradicts) later.
+// 3. FIXED: RelationshipModal save logic now updates the existing edge instead of creating a duplicate.
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -26,7 +27,6 @@ const nodeTypes = {
   evidenceNode: EvidenceNode,
 };
 
-// Define the required shape for the Export function's bounds calculation
 interface ExportBounds { x: number; y: number; xMax: number; yMax: number; } 
 
 const ExportMap = () => {
@@ -113,13 +113,13 @@ const EvidenceMapPage = () => {
   const [edges, setEdges] = useState<Edge[]>([]);
   
   const [isSaving, setIsSaving] = useState(false);
-  // PHOENIX FIX: Default sidebar visible for desktop UX
   const [isSidebarVisible, setIsSidebarVisible] = useState(true); 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
   
   const [isRelModalOpen, setIsRelModalOpen] = useState(false);
-  const [tempConnection, setTempConnection] = useState<Connection | null>(null);
+  // PHOENIX FIX: Allow TempConnection to hold full Edge objects for editing
+  const [tempConnection, setTempConnection] = useState<Connection | Edge | null>(null);
 
   const [filters, setFilters] = useState<IFilters>({
     hideUnconnected: false,
@@ -129,7 +129,6 @@ const EvidenceMapPage = () => {
 
   const nodeToEdit = useMemo(() => nodes.find(n => n.data.editing), [nodes]);
 
-  // --- Data Fetching (Unchanged) ---
   useEffect(() => {
     const fetchMap = async () => {
       try {
@@ -141,7 +140,6 @@ const EvidenceMapPage = () => {
     fetchMap();
   }, [caseId]);
 
-  // --- Memoized Logic (Unchanged) ---
   const nodeStats = useMemo(() => {
     const stats: Record<string, { supports: number; contradicts: number }> = {};
     for (const edge of edges) {
@@ -202,8 +200,6 @@ const EvidenceMapPage = () => {
     });
   }, [edges, filters.highlightContradictions]);
 
-
-  // --- Node Editing Handler (PHOENIX: Phase 5) ---
   const handleNodeDataSave = useCallback((nodeId: string, newContent: Partial<MapNodeData>) => {
     setNodes(nds => nds.map(n => {
         if (n.id === nodeId) {
@@ -213,14 +209,9 @@ const EvidenceMapPage = () => {
     }));
   }, [setNodes]);
 
-  // --- Event Handlers ---
   const onNodesChange: OnNodesChange = useCallback(
-    (changes) => {
-        const selectChange = changes.find((c) => c.type === 'select' && c.selected);
-        if (selectChange) { }
-        setNodes((nds) => applyNodeChanges(changes, nds) as Node<MapNodeData>[]);
-    }, 
-    [setNodes, nodes]
+    (changes) => setNodes((nds) => applyNodeChanges(changes, nds) as Node<MapNodeData>[]), 
+    [setNodes]
   );
   
   const onEdgesChange: OnEdgesChange = useCallback(
@@ -228,6 +219,7 @@ const EvidenceMapPage = () => {
     [setEdges]
   );
     
+  // PHOENIX FIX: Instant Connection Logic
   const onConnect: OnConnect = useCallback((connection: Connection) => {
       const targetNode = nodes.find(n => n.id === connection.target);
       const sourceNode = nodes.find(n => n.id === connection.source);
@@ -237,24 +229,44 @@ const EvidenceMapPage = () => {
           return;
       }
       
-      setTempConnection(connection);
-      setIsRelModalOpen(true);
-    }, [nodes, t]
-  );
-  
-  const handleSaveRelationship = useCallback((type: RelationshipType, strength: number, label: string) => {
-      if (!tempConnection) return;
-      
+      // 1. Instantly create the Edge so the line sticks immediately.
       const newEdge: Edge = {
-          ...tempConnection,
-          id: `e-${tempConnection.source}-${tempConnection.target}-${Date.now()}`,
-          type: type, 
-          animated: type === 'contradicts',
+          ...connection,
+          id: `e-${connection.source}-${connection.target}-${Date.now()}`,
+          type: 'supports', // Default to supporting evidence
           markerEnd: { type: MarkerType.ArrowClosed },
-          data: { label, strength } 
+          data: { label: '', strength: 5 } 
       };
 
       setEdges((eds) => addEdge(newEdge, eds));
+    }, [nodes, t, setEdges]
+  );
+
+  // PHOENIX FIX: Open Modal on Double-Clicking the Line
+  const onEdgeDoubleClick = useCallback((event: React.MouseEvent, edge: Edge) => {
+      event.preventDefault();
+      setTempConnection(edge);
+      setIsRelModalOpen(true);
+  }, []);
+  
+  // PHOENIX FIX: Modal Save now UPDATES the existing line instead of adding a new one
+  const handleSaveRelationship = useCallback((type: RelationshipType, strength: number, label: string) => {
+      if (!tempConnection) return;
+      
+      const existingEdgeId = (tempConnection as Edge).id;
+
+      setEdges((eds) => eds.map(e => {
+          if (e.id === existingEdgeId) {
+              return {
+                  ...e,
+                  type: type, 
+                  animated: type === 'contradicts',
+                  data: { ...e.data, label, strength }
+              };
+          }
+          return e;
+      }));
+
       setTempConnection(null);
   }, [tempConnection, setEdges]);
   
@@ -338,6 +350,7 @@ const EvidenceMapPage = () => {
             onNodesChange={onNodesChange} 
             onEdgesChange={onEdgesChange} 
             onConnect={onConnect} 
+            onEdgeDoubleClick={onEdgeDoubleClick} // PHOENIX FIX: Added double click handler
             nodeTypes={nodeTypes} 
             fitView 
             colorMode="dark"
@@ -345,14 +358,12 @@ const EvidenceMapPage = () => {
             <Background color="#1e293b" gap={20} />
             <Controls />
             
-            {/* LEFT PANEL: Sidebar Toggle */}
             <Panel position="top-left" className="flex gap-2">
                 <button onClick={() => setIsSidebarVisible(v => !v)} className="flex items-center p-2 bg-background-light hover:bg-white/10 text-white rounded-md text-sm transition-colors shadow-lg">
                     <SidebarIcon className="w-5 h-5" />
                 </button>
             </Panel>
             
-            {/* CENTER PANEL: Core Actions - PHOENIX FIX: Added flex-wrap for mobile */}
             <Panel position="top-center" className="flex flex-wrap gap-2">
                 <button onClick={() => addNewNode('claimNode')} className="flex items-center px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm transition-colors shadow-lg">
                 <PlusCircle className="w-4 h-4 mr-2" /> {t('evidenceMap.action.addClaim')}
@@ -365,7 +376,6 @@ const EvidenceMapPage = () => {
                 {isSaving ? t('evidenceMap.action.saving') : t('evidenceMap.action.save')}
                 </button>
                 <ExportMap />
-                {/* PHOENIX: PDF Export Button */}
                 <button onClick={handleExportPdf} disabled={isPdfExporting} className={`flex items-center px-4 py-2 rounded-md text-sm transition-all shadow-lg ${isPdfExporting ? 'bg-gray-600' : 'bg-red-600 hover:bg-red-700'} text-white`}>
                     <FileText className={`w-4 h-4 mr-2 ${isPdfExporting ? 'animate-spin' : ''}`} />
                     {isPdfExporting ? t('export.exporting', 'Eksportimi...') : t('export.toPDF', 'Eksporto PDF')}
@@ -374,8 +384,6 @@ const EvidenceMapPage = () => {
             </ReactFlow>
         </div>
       
-      {/* RIGHT SIDEBAR: Filters & AI Import */}
-      {/* PHOENIX FIX: Use ternary operator for transform to slide sidebar off-screen on mobile */}
       <div className={`transition-transform duration-300 md:w-auto ${isSidebarVisible ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
         {isSidebarVisible && (
         <Sidebar 
@@ -384,16 +392,13 @@ const EvidenceMapPage = () => {
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           onOpenImportModal={() => setIsImportModalOpen(true)}
-          onClose={() => setIsSidebarVisible(false)} // Pass the close handler
+          onClose={() => setIsSidebarVisible(false)} 
         />
         )}
       </div>
 
-      {/* PHOENIX FIX: Mobile Backdrop for Sidebar */}
       {isSidebarVisible && <div className="fixed inset-0 bg-black/50 md:hidden z-30" onClick={() => setIsSidebarVisible(false)} />}
 
-
-      {/* PHASE 6: AI Import Modal */}
       <ImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
@@ -401,7 +406,6 @@ const EvidenceMapPage = () => {
         caseId={caseId}
       />
       
-      {/* PHASE 2: Relationship Modal */}
       <RelationshipModal
         isOpen={isRelModalOpen}
         onClose={() => { setIsRelModalOpen(false); setTempConnection(null); }}
@@ -414,7 +418,6 @@ const EvidenceMapPage = () => {
         } as Edge : null}
       />
       
-      {/* PHASE 5: Node Edit Modal */}
       <NodeEditModal
         isOpen={!!nodeToEdit}
         onClose={handleCloseEditModal}

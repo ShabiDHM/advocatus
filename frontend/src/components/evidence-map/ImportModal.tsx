@@ -1,12 +1,13 @@
 // FILE: src/components/evidence-map/ImportModal.tsx
-// PHOENIX PROTOCOL - FIX V7.3 (FINAL)
-// 1. VERIFIED: Connects to apiService.reprocessCaseDocuments (bulk).
-// 2. FIXED: "No entities found" state now offers a working Admin recovery button.
+// PHOENIX PROTOCOL - FIX V8.0 (SMART POLLING)
+// 1. ADDED: Auto-polling mechanism (checks every 3s after reprocessing starts).
+// 2. FIXED: Automatically populates the list when data arrives—no refresh needed.
+// 3. UX: Improved status messages to reflect real-time activity.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../../services/api'; 
-import { X, BrainCircuit, Check, Loader2, RefreshCw } from 'lucide-react';
+import { X, BrainCircuit, Check, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface KnowledgeGraphNode {
@@ -26,48 +27,107 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
   const { t } = useTranslation();
   const { user } = useAuth();
   
+  // Data States
   const [nodes, setNodes] = useState<KnowledgeGraphNode[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  
+  // UI States
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Polling/Reprocess States
+  const [isPolling, setIsPolling] = useState(false);
   const [reprocessStatus, setReprocessStatus] = useState<string | null>(null);
+  const pollCount = useRef(0);
+  const MAX_POLLS = 30; // 30 * 2s = 60 seconds max wait time
 
-  const fetchGraphData = useCallback(async () => {
-    setIsLoading(true);
+  // Function to fetch data (used by initial load and polling)
+  const fetchGraphData = useCallback(async (isBackgroundCheck = false) => {
+    if (!isBackgroundCheck) setIsLoading(true);
     setError(null);
+    
     try {
       const graphResponse = await apiService.getCaseGraph(caseId);
       
       if (graphResponse && Array.isArray(graphResponse.nodes)) {
           const entityNodes = graphResponse.nodes.filter((n: KnowledgeGraphNode) => n.group !== 'DOCUMENT');
-          setNodes(entityNodes);
-      } else {
-          setNodes([]);
+          
+          if (entityNodes.length > 0) {
+            setNodes(entityNodes);
+            // If we found nodes, we can stop polling/loading
+            setIsPolling(false);
+            setReprocessStatus(null); 
+            setIsLoading(false);
+            return true; // Success signal
+          }
       }
+      // If we are here, we found no nodes yet.
+      if (!isBackgroundCheck) setNodes([]);
       
     } catch (err) {
       console.error(err);
-      setError(t('evidenceMap.importModal.error', 'Dështoi ngarkimi i të dhënave nga AI.'));
+      if (!isBackgroundCheck) setError(t('evidenceMap.importModal.error', 'Dështoi ngarkimi i të dhënave nga AI.'));
     } finally {
-      setIsLoading(false);
+      if (!isBackgroundCheck) setIsLoading(false);
     }
+    return false; // No data found yet signal
   }, [caseId, t]);
 
+  // Initial Load
   useEffect(() => {
     if (isOpen) {
+        setNodes([]);
+        setReprocessStatus(null);
+        setIsPolling(false);
         fetchGraphData();
     }
   }, [isOpen, fetchGraphData]);
 
+  // POLLING LOGIC: The Heart of the Fix
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (isPolling) {
+        pollCount.current = 0; // Reset counter
+        
+        intervalId = setInterval(async () => {
+            pollCount.current += 1;
+            
+            // Check for data
+            const foundData = await fetchGraphData(true);
+            
+            if (foundData) {
+                // Data found! Stop loop.
+                clearInterval(intervalId);
+                setIsPolling(false);
+            } else if (pollCount.current >= MAX_POLLS) {
+                // Timeout reached
+                clearInterval(intervalId);
+                setIsPolling(false);
+                setReprocessStatus(null);
+                setError(t('reprocess.timeout', 'Procesimi po zgjat më shumë se zakonisht. Ju lutem provoni të rifreskoni pas pak.'));
+            }
+        }, 2000); // Check every 2 seconds
+    }
+
+    return () => {
+        if (intervalId) clearInterval(intervalId);
+    };
+  }, [isPolling, fetchGraphData, t]);
+
   const handleForceReprocess = async () => {
     if (!user || user.role !== 'ADMIN') return;
-    setReprocessStatus(t('reprocess.starting', 'Duke filluar ri-procesimin...'));
+    
+    setReprocessStatus(t('reprocess.starting', 'Duke iniciuar motorin AI...'));
+    setIsPolling(true); // START THE POLLING LOOP
     
     try {
         const response = await apiService.reprocessCaseDocuments(caseId);
-        setReprocessStatus(t('reprocess.success', `U nis procesimi për ${response.count} dokumente. Prisni 30s.`));
+        setReprocessStatus(t('reprocess.processing', `AI po analizon ${response.count} dokumente...`));
     } catch (e) {
-        setReprocessStatus(t('reprocess.error', 'Dështoi nisja e ri-procesimit. Shiko logs.'));
+        setIsPolling(false);
+        setReprocessStatus(null);
+        setError(t('reprocess.error', 'Dështoi nisja e ri-procesimit.'));
         console.error(e);
     }
   };
@@ -117,22 +177,38 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
           {isLoading ? (
             <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin h-8 w-8 text-primary-start" /></div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-4">
+            <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-4 px-4 text-center">
+                 <AlertCircle size={32} />
                  <span>{error}</span>
                  {isAdmin && (
-                    <button onClick={handleForceReprocess} className="flex items-center gap-2 px-3 py-1.5 bg-red-600/20 rounded-lg text-sm text-red-400 border border-red-500 hover:bg-red-600/40">
-                        <RefreshCw size={16} /> {t('reprocess.forceCheck', 'Kontrollo Forcueshëm (Admin)')}
+                    <button onClick={handleForceReprocess} className="mt-2 px-4 py-2 bg-red-600/20 rounded-lg text-sm text-red-400 border border-red-500/50 hover:bg-red-600/40 transition-colors">
+                        {t('reprocess.tryAgain', 'Provo Përsëri')}
                     </button>
                  )}
             </div>
           ) : nodes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-text-muted space-y-4">
-                <p className="text-center">{t('evidenceMap.importModal.noEntities', 'AI nuk ka gjetur entitete në dokumente.')}</p>
-                {isAdmin && (
-                    <button onClick={handleForceReprocess} disabled={reprocessStatus !== null} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${reprocessStatus ? 'bg-gray-600/20 text-gray-400 cursor-not-allowed' : 'bg-primary-start/20 text-primary-start border border-primary-start/50 hover:bg-primary-start/30'}`}>
-                        <RefreshCw size={16} className={reprocessStatus ? 'animate-spin' : ''} /> 
-                        {reprocessStatus || t('reprocess.forceAll', 'Ri-proceso Të Gjitha Dokumentet')}
-                    </button>
+            <div className="flex flex-col items-center justify-center h-full text-text-muted space-y-6 px-4">
+                {!isPolling ? (
+                    <>
+                        <p className="text-center text-lg">{t('evidenceMap.importModal.noEntities', 'AI nuk ka gjetur entitete në dokumente.')}</p>
+                        {isAdmin && (
+                            <button 
+                                onClick={handleForceReprocess} 
+                                className="flex items-center gap-2 px-6 py-3 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/50 rounded-xl transition-all hover:scale-105 active:scale-95"
+                            >
+                                <RefreshCw size={18} /> 
+                                {t('reprocess.forceAll', 'Ri-proceso Të Gjitha Dokumentet')}
+                            </button>
+                        )}
+                    </>
+                ) : (
+                    <div className="flex flex-col items-center animate-pulse space-y-4">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-primary-start blur-xl opacity-20 animate-pulse"></div>
+                            <RefreshCw size={48} className="text-primary-start animate-spin duration-1000" />
+                        </div>
+                        <p className="text-primary-start font-medium text-center max-w-xs">{reprocessStatus}</p>
+                    </div>
                 )}
             </div>
           ) : (
@@ -155,8 +231,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
         </div>
 
         <div className="flex-shrink-0 flex justify-between items-center">
-            <button onClick={handleSelectAll} className="px-4 py-2 text-sm text-gray-400 hover:text-white font-medium transition-colors">
-                {selected.size === nodes.length ? t('general.deselectAll', 'Çseleto të Gjitha') : t('general.selectAll', 'Selekto të Gjitha')}
+            <button onClick={handleSelectAll} disabled={nodes.length === 0} className="px-4 py-2 text-sm text-gray-400 hover:text-white font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
+                {selected.size === nodes.length && nodes.length > 0 ? t('general.deselectAll', 'Çseleto të Gjitha') : t('general.selectAll', 'Selekto të Gjitha')}
             </button>
             <button
                 onClick={handleConfirmImport}
