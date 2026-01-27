@@ -1,8 +1,7 @@
-// FILE: src/pages/EvidenceMapPage.tsx (FINAL COMPLETE REPLACEMENT)
-// PHOENIX PROTOCOL - FIX V5.6 (FINAL FRONTEND FIXES)
-// 1. FIX: Corrected typo 'onEdgesChanges' to 'onEdgesChange' (TS2552).
-// 2. FIX: Passed 'nodeTypes' directly to ReactFlow.
-// 3. FIX: Removed redundant/unused imports (TS6133).
+// FILE: frontend/src/pages/EvidenceMapPage.tsx (FINAL COMPLETE REPLACEMENT)
+// PHOENIX PROTOCOL - FIX V6.0.2 (MOBILE LAYOUT FIX)
+// 1. FIX: Sidebar is now an off-canvas menu, correctly managed by state.
+// 2. FIX: Added mobile backdrop for better UX.
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -15,22 +14,19 @@ import domtoimage from 'dom-to-image-more';
 import '@xyflow/react/dist/style.css';
 import axios from 'axios'; 
 import { useTranslation } from 'react-i18next';
-// PHOENIX FIX: Cleaned up lucide-react imports (TS6133)
 import { Save, PlusCircle, Database, Sidebar as SidebarIcon, Download, FileText } from 'lucide-react';
-import { ClaimNode, EvidenceNode, MapNodeData } from '../components/evidence-map/Nodes'; // PHOENIX FIX: Cleaned up imports (TS6133)
+import { ClaimNode, EvidenceNode, MapNodeData } from '../components/evidence-map/Nodes';
 import Sidebar, { IFilters } from '../components/evidence-map/Sidebar';
 import ImportModal from '../components/evidence-map/ImportModal'; 
 import RelationshipModal, { RelationshipType } from '../components/evidence-map/RelationshipModal';
 import NodeEditModal from '../components/evidence-map/NodeEditModal';
-// PHOENIX FIX: Removed unused apiService import (TS6133)
-// Removed unused ClaimNode/EvidenceNode (they are only used in nodeTypes object)
 
 const nodeTypes = {
   claimNode: ClaimNode,
   evidenceNode: EvidenceNode,
 };
 
-// ... (ExportMap component remains unchanged) ...
+// Define the required shape for the Export function's bounds calculation
 interface ExportBounds { x: number; y: number; xMax: number; yMax: number; } 
 
 const ExportMap = () => {
@@ -117,7 +113,8 @@ const EvidenceMapPage = () => {
   const [edges, setEdges] = useState<Edge[]>([]);
   
   const [isSaving, setIsSaving] = useState(false);
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  // PHOENIX FIX: Default to false, controlled by the toggle button
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false); 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
   
@@ -302,7 +299,6 @@ const EvidenceMapPage = () => {
   const handleExportPdf = async () => {
       setIsPdfExporting(true);
       try {
-          // PHOENIX FIX: Removed unnecessary apiService usage, using direct axios is fine here
           const response = await axios.post(
               `/api/v1/cases/${caseId}/evidence-map/report`, 
               { nodes, edges }, 
@@ -312,7 +308,6 @@ const EvidenceMapPage = () => {
           const blob = new Blob([response.data], { type: 'application/pdf' });
           const url = window.URL.createObjectURL(blob);
           
-          // Safely extract filename
           const disposition = response.headers['content-disposition'];
           const filenameMatch = disposition && disposition.match(/filename="?([^"]+)"?/);
           const filename = filenameMatch ? filenameMatch[1] : `EvidenceMap_Report_${caseId}.pdf`;
@@ -335,13 +330,13 @@ const EvidenceMapPage = () => {
 
 
   return (
-      <div className="w-full h-[calc(100vh-64px)] bg-background-dark flex">
+      <div className="w-full h-[calc(100vh-64px)] bg-background-dark flex relative">
         <div className="flex-grow h-full">
             <ReactFlow 
             nodes={displayedNodes} 
             edges={displayedEdges} 
             onNodesChange={onNodesChange} 
-            onEdgesChange={onEdgesChange} // PHOENIX FIX: Corrected typo 'onEdgesChanges'
+            onEdgesChange={onEdgesChange} 
             onConnect={onConnect} 
             nodeTypes={nodeTypes} 
             fitView 
@@ -357,8 +352,8 @@ const EvidenceMapPage = () => {
                 </button>
             </Panel>
             
-            {/* CENTER PANEL: Core Actions */}
-            <Panel position="top-center" className="flex gap-2">
+            {/* CENTER PANEL: Core Actions - PHOENIX FIX: Added flex-wrap for mobile */}
+            <Panel position="top-center" className="flex flex-wrap gap-2">
                 <button onClick={() => addNewNode('claimNode')} className="flex items-center px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm transition-colors shadow-lg">
                 <PlusCircle className="w-4 h-4 mr-2" /> {t('evidenceMap.action.addClaim')}
                 </button>
@@ -380,15 +375,23 @@ const EvidenceMapPage = () => {
         </div>
       
       {/* RIGHT SIDEBAR: Filters & AI Import */}
-      {isSidebarVisible && (
+      {/* PHOENIX FIX: Use ternary operator for transform to slide sidebar off-screen on mobile */}
+      <div className={`transition-transform duration-300 md:w-auto ${isSidebarVisible ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+        {isSidebarVisible && (
         <Sidebar 
           filters={filters} 
           onFilterChange={handleFilterChange}
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           onOpenImportModal={() => setIsImportModalOpen(true)}
+          onClose={() => setIsSidebarVisible(false)} // Pass the close handler
         />
-      )}
+        )}
+      </div>
+
+      {/* PHOENIX FIX: Mobile Backdrop for Sidebar */}
+      {isSidebarVisible && <div className="fixed inset-0 bg-black/50 md:hidden z-30" onClick={() => setIsSidebarVisible(false)} />}
+
 
       {/* PHASE 6: AI Import Modal */}
       <ImportModal

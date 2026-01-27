@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V14.0 (SUBSCRIPTION GATEKEEPER)
-# 1. ADDED: 'require_pro_tier' dependency to enforce BASIC vs. PRO access.
-# 2. SECURED: Endpoints for Forensic Analysis, Deep Analysis, and Cross-Examination are now PRO-only.
-# 3. STATUS: Monetization logic is now enforced at the API level.
+# PHOENIX PROTOCOL - CASES ROUTER V15.0 (GRAPH INGESTION FIX)
+# 1. ADDED: POST /documents/{doc_id}/reprocess endpoint to fix the empty Neo4j graph issue.
+# 2. LOGIC: Triggers the existing 'process_document_task' (Celery) to re-run AI extraction/ingestion.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional
@@ -37,14 +36,14 @@ from ...services.graph_service import graph_service
 
 # --- MODEL IMPORTS ---
 from ...models.case import CaseCreate, CaseOut
-from ...models.user import UserInDB, SubscriptionTier # PHOENIX: IMPORT FOR GATEKEEPER
+from ...models.user import UserInDB, SubscriptionTier
 from ...models.drafting import DraftRequest 
 from ...models.archive import ArchiveItemOut 
 from ...models.document import DocumentOut
 from ...models.finance import InvoiceInDB
 
 from .dependencies import get_current_user, get_db, get_sync_redis
-from ...celery_app import celery_app
+from ...celery_app import celery_app # PHOENIX: Celery app import is vital
 from ...core.config import settings
 
 router = APIRouter(tags=["Cases"])
@@ -84,6 +83,11 @@ class ArchiveImportRequest(BaseModel):
 
 class FinanceInterrogationRequest(BaseModel):
     question: str
+    
+# PHOENIX NEW: Schema for Reprocess Confirmation
+class ReprocessConfirmation(BaseModel):
+    documentId: str
+    message: str
 
 def validate_object_id(id_str: str) -> ObjectId:
     try: return ObjectId(id_str)
@@ -140,6 +144,21 @@ async def upload_document_for_case(case_id: str, current_user: Annotated[UserInD
     except Exception as e:
         logger.error(f"Upload failed: {e}")
         raise HTTPException(status_code=500, detail="Document upload failed.")
+
+# PHOENIX NEW: Document Re-Processing Endpoint (Fixes empty Neo4j Graph)
+@router.post("/{case_id}/documents/{doc_id}/reprocess", response_model=ReprocessConfirmation, status_code=status.HTTP_202_ACCEPTED, tags=["Documents"])
+async def reprocess_document_for_ai(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
+    validate_object_id(case_id)
+    doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
+    if str(doc.case_id) != case_id: raise HTTPException(status_code=403)
+    
+    # Re-trigger the Celery task for document processing (which includes AI extraction/ingestion)
+    celery_app.send_task("process_document_task", args=[doc_id])
+
+    return ReprocessConfirmation(
+        documentId=doc_id,
+        message=f"Re-processing of document {doc.file_name} successfully initiated. Check back in 30 seconds."
+    )
 
 @router.post("/{case_id}/documents/import-archive", status_code=status.HTTP_201_CREATED, tags=["Documents"])
 async def import_archive_documents(
