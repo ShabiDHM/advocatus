@@ -1,11 +1,11 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V14.0 (GATEKEEPER ENFORCEMENT)
-// 1. FEAT: Implemented 'isPro' check based on subscription_tier.
-// 2. SEC: Locked 'Analisti Financiar' and 'Analizo Rastin' buttons for Basic users.
-// 3. UI: Added visual Lock indicators to restricted features.
+// PHOENIX PROTOCOL - CASE VIEW V14.1 (EVIDENCE MAP INTEGRATION)
+// 1. FEAT: Added 'Evidence Map' button to the Case Header toolbar.
+// 2. SEC: Button is strictly visible only to ADMINs (Stealth Mode).
+// 3. UI: Dynamic grid adjustment (4 cols -> 5 cols) when Admin is present.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom'; // PHOENIX: Added Link import
 import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
@@ -18,7 +18,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock } from 'lucide-react';
+import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, Map } from 'lucide-react'; // PHOENIX: Added Map Icon
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -75,8 +75,9 @@ const CaseHeader: React.FC<{
     isAnalyzing: boolean; 
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
-    isPro: boolean; // PHOENIX: Added isPro prop
-}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro }) => {
+    isPro: boolean; 
+    isAdmin: boolean; // PHOENIX: Added isAdmin prop
+}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, isAdmin }) => {
     
     const analyzeButtonText = activeContextId === 'general' 
         ? t('analysis.analyzeButton', 'Analizo Rastin')
@@ -97,11 +98,12 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full animate-in fade-in slide-in-from-top-2">
+              {/* PHOENIX: Dynamic Grid - 5 Columns if Admin, 4 if User */}
+              <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
                     <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap"><Calendar className="h-4 w-4 text-blue-400" />{new Date(caseDetails.created_at).toLocaleDateString()}</div>
                     <div className="md:col-span-1 h-12 md:h-11 min-w-0">{viewMode === 'workspace' && (<GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />)}</div>
                     
-                    {/* ANALYST BUTTON - LOCKED IF NOT PRO */}
+                    {/* ANALYST BUTTON */}
                     <button 
                         onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                         disabled={!isPro}
@@ -117,7 +119,7 @@ const CaseHeader: React.FC<{
                         <span>{t('caseView.analyst', 'Analisti Financiar')}</span>
                     </button>
 
-                    {/* ANALYZE BUTTON - LOCKED IF NOT PRO */}
+                    {/* ANALYZE BUTTON */}
                     <button 
                         onClick={onAnalyze} 
                         disabled={!isPro || isAnalyzing || viewMode !== 'workspace'} 
@@ -133,6 +135,17 @@ const CaseHeader: React.FC<{
                                    : !isPro ? ( <><Lock className="h-4 w-4" /> <span>{analyzeButtonText}</span></> )
                                    : ( <><ShieldCheck className="h-4 w-4" /> <span>{analyzeButtonText}</span></> )}
                     </button>
+
+                    {/* PHOENIX: EVIDENCE MAP BUTTON (ADMIN ONLY) */}
+                    {isAdmin && (
+                        <Link 
+                            to={`/cases/${caseDetails.id}/evidence-map`}
+                            className="md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold bg-purple-600/10 border border-purple-500/30 text-purple-300 hover:bg-purple-600 hover:text-white transition-all duration-300 whitespace-nowrap shadow-lg shadow-purple-900/10"
+                        >
+                            <Map className="h-4 w-4" />
+                            <span>Evidence Map</span>
+                        </Link>
+                    )}
               </div>
           </div>
         </motion.div>
@@ -161,6 +174,11 @@ const CaseViewPage: React.FC = () => {
   const isPro = useMemo(() => {
       if (!user) return false;
       return user.subscription_tier === 'PRO' || user.role === 'ADMIN';
+  }, [user]);
+
+  // PHOENIX: ADMIN CHECK
+  const isAdmin = useMemo(() => {
+      return user?.role === 'ADMIN';
   }, [user]);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
@@ -211,7 +229,8 @@ const CaseViewPage: React.FC = () => {
                 isAnalyzing={isAnalyzing} 
                 viewMode={viewMode}
                 setViewMode={setViewMode}
-                isPro={isPro} // Pass calculated Pro status
+                isPro={isPro}
+                isAdmin={isAdmin} // Pass Admin status
             />
         </div>
         <AnimatePresence mode="wait">

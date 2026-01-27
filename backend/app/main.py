@@ -1,8 +1,7 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V7.4 (MOBILE CORS COMPLETE FIX)
-# 1. FIX: Uses correct config attribute BACKEND_CORS_ORIGINS
-# 2. FIX: Enhanced CORS for mobile devices
-# 3. FIX: Removed restrictive regex, added proper IP support
+# PHOENIX PROTOCOL - MAIN APPLICATION V7.5 (EVIDENCE MAP INTEGRATION)
+# 1. ADDED: Registered 'evidence_map_router'.
+# 2. STATUS: Endpoints /api/v1/cases/{id}/evidence-map are now live.
 
 from fastapi import FastAPI, status, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,6 +29,8 @@ from app.api.endpoints.archive import router as archive_router
 from app.api.endpoints.drafting_v2 import router as drafting_v2_router
 from app.api.endpoints.share import router as share_router
 from app.api.endpoints.organizations import router as organizations_router
+# PHOENIX NEW: Evidence Map Router
+from app.api.endpoints.evidence_map import router as evidence_map_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -154,6 +155,10 @@ api_v1_router.include_router(finance_wizard.router, prefix="/finance/wizard", ta
 api_v1_router.include_router(graph_router, prefix="/graph", tags=["Graph"])
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
+
+# PHOENIX NEW: Evidence Map Integration
+# We mount this without a prefix because the router itself defines '/cases/{id}/evidence-map'
+api_v1_router.include_router(evidence_map_router, tags=["Evidence Map"])
 
 # V2 Modules
 api_v2_router = APIRouter(prefix="/api/v2")
