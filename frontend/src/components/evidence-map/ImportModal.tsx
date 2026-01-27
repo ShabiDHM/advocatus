@@ -1,13 +1,13 @@
 // FILE: src/components/evidence-map/ImportModal.tsx
-// PHOENIX PROTOCOL - FIX V8.0 (SMART POLLING)
-// 1. ADDED: Auto-polling mechanism (checks every 3s after reprocessing starts).
-// 2. FIXED: Automatically populates the list when data arrives—no refresh needed.
-// 3. UX: Improved status messages to reflect real-time activity.
+// PHOENIX PROTOCOL - FIX V10.0 (AUTO-POLL ON OPEN)
+// 1. UPDATED: Automatically polls for data if the list is empty on open (handles "Just Uploaded" scenario).
+// 2. UX: Shows "Duke kërkuar..." instead of "0 entitete" while the backend finishes the 90s task.
+// 3. LOGIC: Seamless bridge between Upload and Graph population.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../../services/api'; 
-import { X, BrainCircuit, Check, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
+import { X, BrainCircuit, Check, Loader2, RefreshCw, AlertCircle, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface KnowledgeGraphNode {
@@ -39,7 +39,10 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
   const [isPolling, setIsPolling] = useState(false);
   const [reprocessStatus, setReprocessStatus] = useState<string | null>(null);
   const pollCount = useRef(0);
-  const MAX_POLLS = 30; // 30 * 2s = 60 seconds max wait time
+  
+  // CONFIG: 60 checks * 3 seconds = 180 seconds (3 Minutes) Max Wait
+  const POLL_INTERVAL_MS = 3000;
+  const MAX_POLLS = 60; 
 
   // Function to fetch data (used by initial load and polling)
   const fetchGraphData = useCallback(async (isBackgroundCheck = false) => {
@@ -73,17 +76,26 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
     return false; // No data found yet signal
   }, [caseId, t]);
 
-  // Initial Load
+  // Initial Load & AUTO-POLL TRIGGER
   useEffect(() => {
     if (isOpen) {
         setNodes([]);
         setReprocessStatus(null);
-        setIsPolling(false);
-        fetchGraphData();
+        setIsLoading(true);
+        
+        // Check once immediately
+        fetchGraphData().then((found) => {
+            if (!found) {
+                // PHOENIX V10: If empty, assume user just uploaded and START POLLING AUTOMATICALLY
+                console.log("No data found initially. Starting Auto-Poll in case backend is still processing...");
+                setIsPolling(true);
+                setReprocessStatus(t('reprocess.takingTime', 'Duke kërkuar për të dhëna të reja...'));
+            }
+        });
     }
-  }, [isOpen, fetchGraphData]);
+  }, [isOpen, fetchGraphData, t]);
 
-  // POLLING LOGIC: The Heart of the Fix
+  // POLLING LOGIC
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
@@ -93,6 +105,15 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
         intervalId = setInterval(async () => {
             pollCount.current += 1;
             
+            // Dynamic Messages based on wait time
+            if (pollCount.current === 5) { 
+                setReprocessStatus(t('reprocess.takingTime', 'Duke analizuar dokumentet e mëdha...'));
+            } else if (pollCount.current === 20) { 
+                setReprocessStatus(t('reprocess.deepScan', 'OCR dhe Analiza Forenzike në proces...'));
+            } else if (pollCount.current === 40) { 
+                setReprocessStatus(t('reprocess.almostThere', 'Duke finalizuar strukturën e grafikut...'));
+            }
+
             // Check for data
             const foundData = await fetchGraphData(true);
             
@@ -105,9 +126,9 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
                 clearInterval(intervalId);
                 setIsPolling(false);
                 setReprocessStatus(null);
-                setError(t('reprocess.timeout', 'Procesimi po zgjat më shumë se zakonisht. Ju lutem provoni të rifreskoni pas pak.'));
+                // Stop polling but don't error out—just show empty state now.
             }
-        }, 2000); // Check every 2 seconds
+        }, POLL_INTERVAL_MS);
     }
 
     return () => {
@@ -119,7 +140,9 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
     if (!user || user.role !== 'ADMIN') return;
     
     setReprocessStatus(t('reprocess.starting', 'Duke iniciuar motorin AI...'));
+    setError(null);
     setIsPolling(true); // START THE POLLING LOOP
+    pollCount.current = 0; // Reset counter for new attempt
     
     try {
         const response = await apiService.reprocessCaseDocuments(caseId);
@@ -177,11 +200,11 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
           {isLoading ? (
             <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin h-8 w-8 text-primary-start" /></div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-4 px-4 text-center">
-                 <AlertCircle size={32} />
-                 <span>{error}</span>
+            <div className="flex flex-col items-center justify-center h-full text-text-muted space-y-4 px-4 text-center">
+                 <AlertCircle size={32} className="text-yellow-500" />
+                 <span className="text-sm">{error}</span>
                  {isAdmin && (
-                    <button onClick={handleForceReprocess} className="mt-2 px-4 py-2 bg-red-600/20 rounded-lg text-sm text-red-400 border border-red-500/50 hover:bg-red-600/40 transition-colors">
+                    <button onClick={handleForceReprocess} className="mt-2 px-4 py-2 bg-primary-start/10 rounded-lg text-sm text-primary-start border border-primary-start/50 hover:bg-primary-start/20 transition-colors">
                         {t('reprocess.tryAgain', 'Provo Përsëri')}
                     </button>
                  )}
@@ -205,9 +228,13 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
                     <div className="flex flex-col items-center animate-pulse space-y-4">
                         <div className="relative">
                             <div className="absolute inset-0 bg-primary-start blur-xl opacity-20 animate-pulse"></div>
-                            <RefreshCw size={48} className="text-primary-start animate-spin duration-1000" />
+                            <RefreshCw size={48} className="text-primary-start animate-spin duration-[3000ms]" />
                         </div>
-                        <p className="text-primary-start font-medium text-center max-w-xs">{reprocessStatus}</p>
+                        <p className="text-primary-start font-medium text-center max-w-xs transition-all duration-500">{reprocessStatus}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
+                            <Clock size={12} />
+                            <span>{t('general.pleaseWait', 'Ju lutem prisni...')}</span>
+                        </div>
                     </div>
                 )}
             </div>
