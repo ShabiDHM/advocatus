@@ -319,7 +319,8 @@
     "workspace": "Kthehu",
     "analyst": "Analisti Financiar",
     "graph": "Lidhjet",
-    "unnamedCase": "Rast pa Emër"
+    "unnamedCase": "Rast pa Emër",
+    "evidenceMapButton": "Harta e Provave"
   },
   "analyst": {
     "title": "Analizë Financiare ",
