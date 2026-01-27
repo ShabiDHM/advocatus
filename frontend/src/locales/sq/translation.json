@@ -330,7 +330,7 @@
     "noArchiveFiles": "Nuk u gjet asnjë skedar (.csv, .xlsx) në arkivë.",
     "readyTitle": "Bërthama e Analizes",
     "readySubtitle": "Sistemi është gati për të skanuar librat financiarë. Algoritmet do të kërkojnë për shkelje të Ligjit të Benfordit, strukturim të parasë dhe anomali operative.",
-    "processing": "Duke ekzekutuar algoritmet forenzike...",
+    "processing": "Duke ekzekutuare algoritmet forenzike...",
     "newAnalysis": "Analize e Re",
     "runAnalysis": "Analizo",
     "analyzing": "Duke llogaritur devijimet statistikore...",
@@ -372,7 +372,7 @@
     "reconnect": "Rilidhu",
     "viewOriginal": "Shiko Originalin",
     "delete": "Fshi",
-    "confirmDelete": "A jeni të sigurt?",
+    "confirmDelete": "A jeni i sigurt?",
     "uploadFailed": "Ngarkimi dështoi",
     "deleteFailed": "Fshirja dështoi.",
     "uploaded": "Ngarkuar",
@@ -679,5 +679,20 @@
     "deleteWarning": "Fshirja e llogarisë është e përhershme. Të gjitha të dhënat e rastit do të fshihen në mënyrë të pakthyeshme.",
     "deleteAccount": "Fshij Llogarinë",
     "confirmDelete": "A jeni i sigurt që dëshironi ta fshini llogarinë tuaj? Ky veprim është i pakthyeshëm."
+  },
+  "evidenceMap": {
+    "action": {
+      "addClaim": "Shto Pretendim",
+      "addEvidence": "Shto Provë",
+      "save": "Ruaj Hartën",
+      "saving": "Duke u ruajtur..."
+    },
+    "node": {
+      "newClaim": "Pretendim i Ri",
+      "newEvidence": "Provë e Re",
+      "editPlaceholder": "Kliko dy herë për të ndryshuar",
+      "claimType": "Pretendim Ligjor",
+      "evidenceType": "Provë Materiale"
+    }
   }
 }
