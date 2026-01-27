@@ -1,14 +1,13 @@
-// FILE: src/components/evidence-map/ImportModal.tsx
-// PHOENIX PROTOCOL - FIX V6.1 (API CALL & TYPE SAFETY)
-// 1. FIX: Changed 'apiService.getKnowledgeGraph' to the correct 'apiService.getCaseGraph' (TS2339).
-// 2. FIX: Explicitly typed the filter function parameter 'n' to 'KnowledgeGraphNode' (TS7006).
+// FILE: src/components/evidence-map/ImportModal.tsx (FINAL CLEANUP)
+// PHOENIX PROTOCOL - FIX V6.0 (TRANSLATION COUNT FIX)
+// 1. FIX: Corrected the import button's translation usage to pass 'count' variable correctly.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { apiService } from '../../services/api'; // Assuming apiService is exported here
+import { apiService } from '../../services/api';
 import { X, BrainCircuit, Check, Loader2 } from 'lucide-react';
 
-// Define the shape of a node from the Neo4j graph service (GraphData type is assumed)
+// Define the shape of a node from the Neo4j graph service
 interface KnowledgeGraphNode {
   id: string;
   name: string;
@@ -35,14 +34,12 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
         setIsLoading(true);
         setError(null);
         try {
-          // PHOENIX FIX: Corrected the API call to match 'getCaseGraph' in api.ts
+          // Reuses your existing AI graph endpoint (getCaseGraph)
           const response = await apiService.getCaseGraph(caseId);
-          
-          // PHOENIX FIX: Added type 'KnowledgeGraphNode' to the filter parameter 'n'
           const entityNodes = response.nodes.filter((n: KnowledgeGraphNode) => n.group !== 'DOCUMENT');
-          
-          // Cast the nodes to ensure type safety in state
           setNodes(entityNodes as KnowledgeGraphNode[]);
+          // Reset selection on new open
+          setSelected(new Set());
         } catch (err) {
           setError(t('evidenceMap.importModal.error', 'Dështoi ngarkimi i të dhënave nga AI.'));
         } finally {
@@ -127,7 +124,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
                 disabled={selected.size === 0}
                 className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary-start/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-                {t('evidenceMap.importModal.importBtn', `Importo (${selected.size})`)}
+                {/* PHOENIX FIX: Correctly pass the count variable to the i18n function */}
+                {t('evidenceMap.importModal.importBtn', { count: selected.size })}
             </button>
         </div>
       </div>
