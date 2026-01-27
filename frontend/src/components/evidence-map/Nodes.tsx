@@ -1,5 +1,8 @@
 // FILE: src/components/evidence-map/Nodes.tsx
-import React, { memo } from 'react';
+// PHOENIX PROTOCOL - FIX V1.1
+// 1. REMOVED: Unused 'React' import to satisfy strict TypeScript build rules.
+
+import { memo } from 'react';
 import { Handle, Position, NodeProps, Node } from '@xyflow/react';
 import { Gavel, FileText } from 'lucide-react';
 
