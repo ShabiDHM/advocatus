@@ -1,10 +1,12 @@
 // FILE: src/components/evidence-map/Nodes.tsx
-// PHOENIX PROTOCOL - FIX V1.1
-// 1. REMOVED: Unused 'React' import to satisfy strict TypeScript build rules.
+// PHOENIX PROTOCOL - I18N V1.0
+// 1. ADDED: useTranslation hook for component internationalization.
+// 2. MODIFIED: Hardcoded strings replaced with t() function calls.
 
 import { memo } from 'react';
 import { Handle, Position, NodeProps, Node } from '@xyflow/react';
 import { Gavel, FileText } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export type MapNodeData = {
   label: string;
@@ -13,11 +15,12 @@ export type MapNodeData = {
 };
 
 export const ClaimNode = memo(({ data, selected }: NodeProps<Node<MapNodeData>>) => {
+  const { t } = useTranslation();
   return (
     <div className={`px-4 py-2 shadow-xl rounded-md bg-background-light border-2 transition-all ${selected ? 'border-green-500 scale-105' : 'border-green-900/50'}`}>
       <div className="flex items-center pb-2 border-b border-green-900/30 mb-2">
         <Gavel className="w-4 h-4 text-green-500 mr-2" />
-        <div className="text-xs font-bold text-green-500 uppercase tracking-wider">Legal Claim</div>
+        <div className="text-xs font-bold text-green-500 uppercase tracking-wider">{t('evidenceMap.node.claimType')}</div>
       </div>
       <div className="text-sm font-semibold text-text-main">{data.label}</div>
       {data.content && <div className="text-xs text-text-muted mt-1 italic line-clamp-2">{data.content}</div>}
@@ -29,11 +32,12 @@ export const ClaimNode = memo(({ data, selected }: NodeProps<Node<MapNodeData>>)
 });
 
 export const EvidenceNode = memo(({ data, selected }: NodeProps<Node<MapNodeData>>) => {
+  const { t } = useTranslation();
   return (
     <div className={`px-4 py-2 shadow-xl rounded-md bg-background-light border-2 transition-all ${selected ? 'border-blue-500 scale-105' : 'border-blue-900/50'}`}>
       <div className="flex items-center pb-2 border-b border-blue-900/30 mb-2">
         <FileText className="w-4 h-4 text-blue-500 mr-2" />
-        <div className="text-xs font-bold text-blue-500 uppercase tracking-wider">Evidence Piece</div>
+        <div className="text-xs font-bold text-blue-500 uppercase tracking-wider">{t('evidenceMap.node.evidenceType')}</div>
       </div>
       <div className="text-sm font-semibold text-text-main">{data.label}</div>
       

@@ -1,11 +1,9 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V14.1 (EVIDENCE MAP INTEGRATION)
-// 1. FEAT: Added 'Evidence Map' button to the Case Header toolbar.
-// 2. SEC: Button is strictly visible only to ADMINs (Stealth Mode).
-// 3. UI: Dynamic grid adjustment (4 cols -> 5 cols) when Admin is present.
+// PHOENIX PROTOCOL - I18N V1.1 (SCHEMA ALIGNMENT)
+// 1. FIX: Changed translation key from 'caseView.header.evidenceMap' to 'caseView.evidenceMapButton' to match existing flat JSON structure.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom'; // PHOENIX: Added Link import
+import { useParams, Link } from 'react-router-dom';
 import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
@@ -18,7 +16,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, Map } from 'lucide-react'; // PHOENIX: Added Map Icon
+import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, Map } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -76,7 +74,7 @@ const CaseHeader: React.FC<{
     viewMode: ViewMode;
     setViewMode: (mode: ViewMode) => void;
     isPro: boolean; 
-    isAdmin: boolean; // PHOENIX: Added isAdmin prop
+    isAdmin: boolean;
 }> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, isAdmin }) => {
     
     const analyzeButtonText = activeContextId === 'general' 
@@ -98,52 +96,24 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              {/* PHOENIX: Dynamic Grid - 5 Columns if Admin, 4 if User */}
               <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
                     <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap"><Calendar className="h-4 w-4 text-blue-400" />{new Date(caseDetails.created_at).toLocaleDateString()}</div>
                     <div className="md:col-span-1 h-12 md:h-11 min-w-0">{viewMode === 'workspace' && (<GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />)}</div>
                     
-                    {/* ANALYST BUTTON */}
-                    <button 
-                        onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
-                        disabled={!isPro}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border 
-                            ${!isPro 
-                                ? 'bg-white/5 border-white/10 text-gray-500 cursor-not-allowed opacity-70' 
-                                : viewMode === 'analyst' 
-                                    ? 'bg-primary-start/20 border-primary-start text-white' 
-                                    : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'}`}
-                        title={!isPro ? "Available on Pro Plan" : ""}
-                    >
+                    <button onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')} disabled={!isPro} className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-white/5 border-white/10 text-gray-500 cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-white' : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'}`} title={!isPro ? "Available on Pro Plan" : ""}>
                         {!isPro ? <Lock className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
                         <span>{t('caseView.analyst', 'Analisti Financiar')}</span>
                     </button>
 
-                    {/* ANALYZE BUTTON */}
-                    <button 
-                        onClick={onAnalyze} 
-                        disabled={!isPro || isAnalyzing || viewMode !== 'workspace'} 
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent 
-                        ${!isPro
-                            ? 'bg-gray-700/50 cursor-not-allowed text-gray-400 shadow-none'
-                            : 'bg-primary-start hover:bg-primary-end shadow-primary-start/20'
-                        } disabled:opacity-70`}
-                        type="button"
-                        title={!isPro ? "Available on Pro Plan" : ""}
-                    >
-                        {isAnalyzing ? ( <><Loader2 className="h-4 w-4 animate-spin text-white/70" /> <span className="text-white/70">{t('analysis.analyzing')}...</span></> ) 
-                                   : !isPro ? ( <><Lock className="h-4 w-4" /> <span>{analyzeButtonText}</span></> )
-                                   : ( <><ShieldCheck className="h-4 w-4" /> <span>{analyzeButtonText}</span></> )}
+                    <button onClick={onAnalyze} disabled={!isPro || isAnalyzing || viewMode !== 'workspace'} className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent ${!isPro ? 'bg-gray-700/50 cursor-not-allowed text-gray-400 shadow-none' : 'bg-primary-start hover:bg-primary-end shadow-primary-start/20'} disabled:opacity-70`} type="button" title={!isPro ? "Available on Pro Plan" : ""}>
+                        {isAnalyzing ? ( <><Loader2 className="h-4 w-4 animate-spin text-white/70" /> <span className="text-white/70">{t('analysis.analyzing')}...</span></> ) : !isPro ? ( <><Lock className="h-4 w-4" /> <span>{analyzeButtonText}</span></> ) : ( <><ShieldCheck className="h-4 w-4" /> <span>{analyzeButtonText}</span></> )}
                     </button>
 
-                    {/* PHOENIX: EVIDENCE MAP BUTTON (ADMIN ONLY) */}
                     {isAdmin && (
-                        <Link 
-                            to={`/cases/${caseDetails.id}/evidence-map`}
-                            className="md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold bg-purple-600/10 border border-purple-500/30 text-purple-300 hover:bg-purple-600 hover:text-white transition-all duration-300 whitespace-nowrap shadow-lg shadow-purple-900/10"
-                        >
+                        <Link to={`/cases/${caseDetails.id}/evidence-map`} className="md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold bg-purple-600/10 border border-purple-500/30 text-purple-300 hover:bg-purple-600 hover:text-white transition-all duration-300 whitespace-nowrap shadow-lg shadow-purple-900/10">
                             <Map className="h-4 w-4" />
-                            <span>Evidence Map</span>
+                            {/* PHOENIX: CORRECTED KEY */}
+                            <span>{t('caseView.evidenceMapButton')}</span>
                         </Link>
                     )}
               </div>
@@ -170,13 +140,11 @@ const CaseViewPage: React.FC = () => {
   const [activeContextId, setActiveContextId] = useState<string>('general');
   const [viewMode, setViewMode] = useState<ViewMode>('workspace');
 
-  // PHOENIX GATEKEEPER LOGIC
   const isPro = useMemo(() => {
       if (!user) return false;
       return user.subscription_tier === 'PRO' || user.role === 'ADMIN';
   }, [user]);
 
-  // PHOENIX: ADMIN CHECK
   const isAdmin = useMemo(() => {
       return user?.role === 'ADMIN';
   }, [user]);
@@ -230,14 +198,14 @@ const CaseViewPage: React.FC = () => {
                 viewMode={viewMode}
                 setViewMode={setViewMode}
                 isPro={isPro}
-                isAdmin={isAdmin} // Pass Admin status
+                isAdmin={isAdmin}
             />
         </div>
         <AnimatePresence mode="wait">
             {viewMode === 'workspace' && (
                 <motion.div key="workspace" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px] relative z-0">
                     <DocumentsPanel caseId={caseData.details.id} documents={liveDocuments} t={t} connectionStatus={connectionStatus} reconnect={reconnect} onDocumentUploaded={handleDocumentUploaded} onDocumentDeleted={handleDocumentDeleted} onViewOriginal={handleViewOriginal} onRename={(doc) => setDocumentToRename(doc)} className="h-[500px] lg:h-full shadow-xl" />
-                    <ChatPanel messages={liveMessages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} onClearChat={handleClearChat} t={t} className="!h-[600px] lg:!h-full w-full shadow-xl" activeContextId={activeContextId} isPro={isPro} />
+                    <ChatPanel messages={liveMessages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} onClearChat={handleClearChat} t={t} className="!h-[600px] lg!h-full w-full shadow-xl" activeContextId={activeContextId} isPro={isPro} />
                 </motion.div>
             )}
             {viewMode === 'analyst' && isPro && (
