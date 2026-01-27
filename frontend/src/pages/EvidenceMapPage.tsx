@@ -1,7 +1,7 @@
 // FILE: frontend/src/pages/EvidenceMapPage.tsx (FINAL COMPLETE REPLACEMENT)
-// PHOENIX PROTOCOL - FIX V6.0.2 (MOBILE LAYOUT FIX)
-// 1. FIX: Sidebar is now an off-canvas menu, correctly managed by state.
-// 2. FIX: Added mobile backdrop for better UX.
+// PHOENIX PROTOCOL - FIX V6.1 (SIDEBAR VISIBILITY)
+// 1. FIX: Changed default state of isSidebarVisible to 'true' for good desktop UX.
+// 2. FIX: Simplified the sidebar wrapper structure to correctly use the flex/fixed layout.
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -113,8 +113,8 @@ const EvidenceMapPage = () => {
   const [edges, setEdges] = useState<Edge[]>([]);
   
   const [isSaving, setIsSaving] = useState(false);
-  // PHOENIX FIX: Default to false, controlled by the toggle button
-  const [isSidebarVisible, setIsSidebarVisible] = useState(false); 
+  // PHOENIX FIX: Default sidebar visible for desktop UX
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true); 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
   

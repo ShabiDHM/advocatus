@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V14.1 (I18N SUPPORT)
-// 1. UPDATED: forensicAnalyzeSpreadsheet now accepts 'lang' parameter.
-// 2. FIXED: Language context is passed to backend via FormData.
+// PHOENIX PROTOCOL - API SERVICE V15.0 (GRAPH INGESTION FIX)
+// 1. ADDED: reprocessDocument function to allow re-triggering of Celery task for Neo4j ingestion.
+// 2. STATUS: Frontend now has the API call necessary to fix the empty graph issue.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -24,6 +24,9 @@ interface FinanceInterrogationResponse { answer: string; referenced_rows_count: 
 interface MobileSessionResponse { upload_url: string; }
 export interface ReceiptAnalysisResult { category: string; amount: number; date: string; description: string; }
 interface MobileUploadStatus { status: 'pending' | 'complete' | 'error'; data?: SpreadsheetAnalysisResult; message?: string; }
+// PHOENIX NEW: Added specific Reprocess type
+interface ReprocessConfirmation { documentId: string; message: string; }
+
 
 // PHOENIX ADDITION: Forensic Interfaces
 export interface ForensicMetadata {
@@ -207,7 +210,7 @@ class ApiService {
     public async updateInvoice(invoiceId: string, data: InvoiceUpdate): Promise<Invoice> { const response = await this.axiosInstance.put<Invoice>(`/finance/invoices/${invoiceId}`, data); return response.data; }
     public async updateInvoiceStatus(invoiceId: string, status: string): Promise<Invoice> { const response = await this.axiosInstance.put<Invoice>(`/finance/invoices/${invoiceId}/status`, { status }); return response.data; }
     public async deleteInvoice(invoiceId: string): Promise<void> { await this.axiosInstance.delete(`/finance/invoices/${invoiceId}`); }
-    public async downloadInvoicePdf(invoiceId: string, lang: string = 'sq'): Promise<void> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Invoice_${invoiceId}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
+    public async downloadInvoicePdf(invoiceId: string, lang: string = 'sq'): Promise<void> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', `Invoice_${invoiceId}.pdf`); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
     public async getInvoicePdfBlob(invoiceId: string, lang: string = 'sq'): Promise<Blob> { const response = await this.axiosInstance.get(`/finance/invoices/${invoiceId}/pdf`, { params: { lang }, responseType: 'blob' }); return response.data; }
     public async archiveInvoice(invoiceId: string, caseId?: string): Promise<ArchiveItemOut> { const params = caseId ? { case_id: caseId } : {}; const response = await this.axiosInstance.post<ArchiveItemOut>(`/finance/invoices/${invoiceId}/archive`, null, { params }); return response.data; }
     public async getExpenses(): Promise<Expense[]> { const response = await this.axiosInstance.get<any>('/finance/expenses'); return Array.isArray(response.data) ? response.data : (response.data.invoices || []); }
@@ -397,6 +400,14 @@ class ApiService {
 
     public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> {
         const response = await this.axiosInstance.get<DraftingJobResult>(`${API_V2_URL}/drafting/jobs/${jobId}/result`);
+        return response.data;
+    }
+    
+    // PHOENIX NEW: Reprocess Document for Neo4j/AI Ingestion
+    public async reprocessDocument(caseId: string, documentId: string): Promise<ReprocessConfirmation> {
+        const response = await this.axiosInstance.post<ReprocessConfirmation>(
+            `/cases/${caseId}/documents/${documentId}/reprocess`
+        );
         return response.data;
     }
 }

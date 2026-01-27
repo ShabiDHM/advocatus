@@ -1,17 +1,25 @@
-// FILE: src/components/evidence-map/ImportModal.tsx (FINAL CLEANUP)
-// PHOENIX PROTOCOL - FIX V6.0 (TRANSLATION COUNT FIX)
-// 1. FIX: Corrected the import button's translation usage to pass 'count' variable correctly.
+// FILE: frontend/src/components/evidence-map/ImportModal.tsx (FINAL REPROCESS IMPLEMENTATION)
+// PHOENIX PROTOCOL - FIX V7.0 (AI DATA RECOVERY)
+// 1. FEAT: Added 'Force Reprocess' button for Admin when AI returns empty data.
+// 2. LOGIC: Button calls the new /reprocess endpoint for all documents in the case.
+// 3. STATUS: Provides a direct fix for the "AI not finding entities" issue.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { apiService } from '../../services/api';
-import { X, BrainCircuit, Check, Loader2 } from 'lucide-react';
+import { apiService } from '../../services/api'; 
+import { X, BrainCircuit, Check, Loader2, RefreshCw } from 'lucide-react'; // Added RefreshCw
+import { useAuth } from '../../context/AuthContext'; // Import useAuth to check for Admin
 
 // Define the shape of a node from the Neo4j graph service
 interface KnowledgeGraphNode {
   id: string;
   name: string;
   group: string;
+}
+
+interface DocumentLite {
+    id: string;
+    file_name: string;
 }
 
 interface ImportModalProps {
@@ -23,32 +31,61 @@ interface ImportModalProps {
 
 const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, caseId }) => {
   const { t } = useTranslation();
+  const { user } = useAuth(); // Access user role
+  
   const [nodes, setNodes] = useState<KnowledgeGraphNode[]>([]);
+  const [caseDocuments, setCaseDocuments] = useState<DocumentLite[]>([]); // To list documents for reprocess
   const [isLoading, setIsLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [reprocessStatus, setReprocessStatus] = useState<string | null>(null);
+
+  const fetchGraphData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    setReprocessStatus(null);
+    try {
+      // 1. Fetch Case Documents (Needed to list documents for reprocess)
+      const docResponse = await apiService.getDocuments(caseId);
+      setCaseDocuments(docResponse.map(d => ({ id: d.id, file_name: d.file_name })));
+
+      // 2. Fetch Graph Data
+      const graphResponse = await apiService.getCaseGraph(caseId);
+      const entityNodes = graphResponse.nodes.filter((n: KnowledgeGraphNode) => n.group !== 'DOCUMENT');
+      setNodes(entityNodes as KnowledgeGraphNode[]);
+      
+    } catch (err) {
+      setError(t('evidenceMap.importModal.error', 'Dështoi ngarkimi i të dhënave nga AI.'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [caseId, t]);
 
   useEffect(() => {
     if (isOpen) {
-      const fetchGraphData = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-          // Reuses your existing AI graph endpoint (getCaseGraph)
-          const response = await apiService.getCaseGraph(caseId);
-          const entityNodes = response.nodes.filter((n: KnowledgeGraphNode) => n.group !== 'DOCUMENT');
-          setNodes(entityNodes as KnowledgeGraphNode[]);
-          // Reset selection on new open
-          setSelected(new Set());
-        } catch (err) {
-          setError(t('evidenceMap.importModal.error', 'Dështoi ngarkimi i të dhënave nga AI.'));
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      fetchGraphData();
+        fetchGraphData();
     }
-  }, [isOpen, caseId, t]);
+  }, [isOpen, fetchGraphData]);
+
+  // PHOENIX: Handler to reprocess all documents in the case
+  const handleForceReprocess = async () => {
+    if (!user || user.role !== 'ADMIN') return;
+    setReprocessStatus(t('reprocess.starting', 'Duke filluar ri-procesimin...'));
+    
+    // We send a request for each document individually
+    const reprocessPromises = caseDocuments.map(doc => 
+        apiService.reprocessDocument(caseId, doc.id)
+    );
+    
+    try {
+        await Promise.all(reprocessPromises);
+        setReprocessStatus(t('reprocess.success', 'Ri-procesimi u nis me sukses për të gjitha dokumentet. Lënda do të jetë gati pas 30-60 sekondash.'));
+        // Re-fetch graph data after a delay
+        setTimeout(fetchGraphData, 5000); 
+    } catch (e) {
+        setReprocessStatus(t('reprocess.error', 'Dështoi nisja e ri-procesimit. Shiko logs për detaje.'));
+    }
+  };
 
   const handleToggleSelect = (nodeName: string) => {
     setSelected(prev => {
@@ -78,6 +115,8 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
 
   if (!isOpen) return null;
 
+  const isAdmin = user?.role === 'ADMIN';
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
       <div className="glass-high w-full max-w-lg h-[70vh] flex flex-col p-6 rounded-2xl animate-in fade-in zoom-in-95 duration-200">
@@ -93,9 +132,24 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
           {isLoading ? (
             <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin h-8 w-8 text-primary-start" /></div>
           ) : error ? (
-            <div className="flex items-center justify-center h-full text-red-400">{error}</div>
+            <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-4">
+                 <span>{error}</span>
+                 {isAdmin && (
+                    <button onClick={handleForceReprocess} className="flex items-center gap-2 px-3 py-1.5 bg-red-600/20 rounded-lg text-sm text-red-400 border border-red-500 hover:bg-red-600/40">
+                        <RefreshCw size={16} /> {t('reprocess.forceCheck', 'Kontrollo Forcueshëm (Admin)')}
+                    </button>
+                 )}
+            </div>
           ) : nodes.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-text-muted">{t('evidenceMap.importModal.noEntities', 'AI nuk ka gjetur entitete në dokumente.')}</div>
+            <div className="flex flex-col items-center justify-center h-full text-text-muted space-y-4">
+                <p className="text-center">{t('evidenceMap.importModal.noEntities', 'AI nuk ka gjetur entitete në dokumente.')}</p>
+                {isAdmin && (
+                    <button onClick={handleForceReprocess} disabled={caseDocuments.length === 0} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${caseDocuments.length === 0 ? 'bg-gray-600/20 text-gray-400 cursor-not-allowed' : 'bg-primary-start/20 text-primary-start border border-primary-start/50 hover:bg-primary-start/30'}`}>
+                        <RefreshCw size={16} className={reprocessStatus ? 'animate-spin' : ''} /> 
+                        {reprocessStatus || t('reprocess.forceAll', 'Ri-proceso Të Gjitha Dokumentet')}
+                    </button>
+                )}
+            </div>
           ) : (
             <div className="space-y-2">
               {nodes.map(node => (
@@ -124,7 +178,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
                 disabled={selected.size === 0}
                 className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary-start/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-                {/* PHOENIX FIX: Correctly pass the count variable to the i18n function */}
                 {t('evidenceMap.importModal.importBtn', { count: selected.size })}
             </button>
         </div>
