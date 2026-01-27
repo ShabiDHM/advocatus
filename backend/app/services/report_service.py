@@ -1,8 +1,5 @@
-# FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT SERVICE V5.2 (FOOTER FIX)
-# 1. CRITICAL FIX: Removed the unreliable '<pdf:pagecount />' tag that caused hallucinated page numbers.
-# 2. REPLACEMENT: Implemented a clean, static footer with the system brand and generation date.
-# 3. STATUS: Report generation is now stable and professional.
+# FILE: backend/app/services/report_service.py (FINAL PYLANCE FIX V6.3)
+# 1. FIX: Used triple-quote f-string to safely include the newline escape sequence, resolving TS-356.
 
 import io
 import os
@@ -20,7 +17,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.colors import HexColor, white
 from reportlab.lib.enums import TA_RIGHT, TA_LEFT
 from pymongo.database import Database
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from bson import ObjectId
 from xml.sax.saxutils import escape
 from PIL import Image as PILImage
@@ -52,18 +49,31 @@ STYLES.add(ParagraphStyle(name='NotesLabel', parent=STYLES['AddressLabel'], spac
 STYLES.add(ParagraphStyle(name='FirmName', parent=STYLES['h3'], alignment=TA_RIGHT, fontSize=14, spaceAfter=4, textColor=COLOR_PRIMARY_TEXT))
 STYLES.add(ParagraphStyle(name='FirmMeta', parent=STYLES['Normal'], alignment=TA_RIGHT, fontSize=9, textColor=COLOR_SECONDARY_TEXT, leading=12))
 
-# --- TRANSLATIONS ---
+# --- TRANSLATIONS (Updated) ---
 TRANSLATIONS = {
     "sq": {
         "invoice_title": "FATURA", "invoice_num": "Nr.", "date_issue": "Data e Lëshimit", "date_due": "Afati i Pagesës",
         "status": "Statusi", "from": "Nga", "to": "Për", "desc": "Përshkrimi", "qty": "Sasia", "price": "Çmimi",
         "total": "Totali", "subtotal": "Nëntotali", "tax": "TVSH (18%)", "notes": "Shënime",
         "footer_gen": "Dokument i gjeneruar elektronikisht nga", "page": "Faqe", 
-        "lbl_address": "Adresa:", "lbl_tel": "Tel:", "lbl_email": "Email:", "lbl_web": "Web:", "lbl_nui": "NUI:"
+        "lbl_address": "Adresa:", "lbl_tel": "Tel:", "lbl_email": "Email:", "lbl_web": "Web:", "lbl_nui": "NUI:",
+        # PHOENIX ADDITION: Evidence Map Report Keys
+        "map_report_title": "Raporti i Hartës së Korrelacionit të Provave",
+        "map_case_id": "Nr. i Rastit:",
+        "map_section_claims": "Pretendimet Ligjore Kryesore",
+        "map_section_evidence": "Provat e Lidhura",
+        "map_exhibit": "Nr. Ekspozitës:",
+        "map_proven": "Vërtetuar:",
+        "map_admitted": "Pranim:",
+        "map_auth": "Autentikuar:",
+        "map_rel_supports": "Mbështet",
+        "map_rel_contradicts": "Kundërthotë",
+        "map_rel_related": "Lidhet me",
+        "map_notes": "Shënime: "
     }
 }
 
-# --- PHOENIX: PROFESSIONAL REPORT STYLES ---
+# --- PHOENIX: PROFESSIONAL REPORT STYLES (Unchanged) ---
 REPORT_CSS = """
     @page {
         size: a4 portrait;
@@ -188,6 +198,7 @@ def _build_doc(buffer: io.BytesIO, branding: dict, lang: str) -> BaseDocTemplate
     return doc
 
 def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang: str = "sq") -> io.BytesIO:
+    # ... (Invoice PDF generation remains unchanged) ...
     branding = _get_branding(db, user_id)
     buffer = io.BytesIO()
     doc = _build_doc(buffer, branding, lang)
@@ -304,3 +315,106 @@ def create_pdf_from_text(text: str, document_title: str) -> io.BytesIO:
 
     buffer.seek(0)
     return buffer
+
+# PHOENIX PHASE 4: EVIDENCE MAP REPORT FUNCTION
+def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_title: str = "N/A", lang: str = "sq") -> io.BytesIO:
+    """
+    Converts Evidence Map nodes/edges data into a structured Markdown report for PDF generation.
+    """
+    nodes = map_data.get('nodes', [])
+    edges = map_data.get('edges', [])
+    
+    claims = [n for n in nodes if n.type == 'claimNode']
+    evidence_nodes = {n['id']: n for n in nodes if n.type == 'evidenceNode'}
+    
+    report_parts: List[str] = []
+    
+    # --- Preamble ---
+    report_parts.append(f"# {_get_text('map_report_title', lang)}")
+    report_parts.append(f"**{_get_text('map_case_id', lang)}** {case_title} ({case_id})")
+    report_parts.append(f"**{_get_text('footer_gen', lang)}** Juristi.tech | **{_get_text('date_issue', lang)}** {datetime.now().strftime('%d/%m/%Y')}")
+    report_parts.append("\n---\n")
+
+    # --- Claim Sections ---
+    report_parts.append(f"## {_get_text('map_section_claims', lang)}\n")
+    
+    if not claims:
+        report_parts.append("*Asnjë pretendim nuk u gjet në hartë.*\n")
+    
+    for claim in claims:
+        c_data = claim.get('data', {})
+        claim_id = claim.get('id')
+        
+        # Claim Header (Title + Proven Status)
+        proven_status = '✅ ' + _get_text('map_proven', lang) if c_data.get('isProven') else '❌ ' + _get_text('map_proven', lang)
+        
+        report_parts.append(f"### {c_data.get('label', 'Pretendim pa Titull')} ({proven_status})")
+        
+        # PHOENIX FINAL FIX: Using triple quotes to safely include the newline escape sequence
+        if c_data.get('content'):
+            content_cleaned = c_data.get('content').replace('\n', ' ')
+            report_parts.append(f"""> {content_cleaned}\n""")
+        
+        # Filter edges for this claim (where the claim is the target)
+        claim_edges = [e for e in edges if e.target == claim_id]
+        
+        # Group evidence by relationship type
+        relationships: Dict[str, List[Dict[str, Any]]] = {
+            'supports': [], 'contradicts': [], 'related': []
+        }
+
+        for edge in claim_edges:
+            source_id = edge.source
+            if source_id in evidence_nodes:
+                rel_type = edge.type or 'related'
+                rel_label = edge.data.get('label', '') if edge.data else ''
+                
+                evidence = evidence_nodes[source_id]
+                relationships[rel_type].append({
+                    'evidence': evidence,
+                    'label': rel_label,
+                    'strength': edge.data.get('strength', 3) if edge.data else 3
+                })
+
+        # --- Evidence Listing ---
+        report_parts.append(f"#### {_get_text('map_section_evidence', lang)}\n")
+        
+        if all(not rels for rels in relationships.values()):
+            report_parts.append("*Nuk ka prova të lidhura me këtë pretendim.*\n")
+            
+        for rel_type, rel_list in relationships.items():
+            if not rel_list: continue
+
+            # Translate relationship header
+            header_key = f"map_rel_{rel_type}"
+            header_text = _get_text(header_key, lang)
+            
+            report_parts.append(f"**{header_text} ({len(rel_list)})**\n")
+            
+            for item in rel_list:
+                evd = item['evidence'].get('data', {})
+                
+                # Metadata Badges
+                metadata = []
+                if evd.get('exhibitNumber'): metadata.append(f"**{_get_text('map_exhibit', lang)}** {evd['exhibitNumber']}")
+                if evd.get('isAuthenticated') is not None: 
+                    status = 'Po' if evd['isAuthenticated'] else 'Jo'
+                    metadata.append(f"**{_get_text('map_auth', lang)}** {status}")
+                if evd.get('isAdmitted'): metadata.append(f"**{_get_text('map_admitted', lang)}** {evd['isAdmitted']}")
+                
+                # Evidence Content Line
+                content_line = f"* **{item['evidence'].get('data', {}).get('label', 'Provë pa Titull')}**"
+                if metadata:
+                    content_line += f" ({' | '.join(metadata)})"
+                
+                report_parts.append(content_line)
+                
+                # Edge Note
+                if item['label']:
+                    report_parts.append(f"  > *{_get_text('map_notes', lang)} {item['label']}*")
+        
+        report_parts.append("\n---\n") # Separator between claims
+
+    # Final PDF Generation
+    final_markdown = "\n".join(report_parts)
+    return create_pdf_from_text(final_markdown, _get_text('map_report_title', lang))

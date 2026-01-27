@@ -1,7 +1,7 @@
 # FILE: backend/app/models/evidence_map.py
-# PHOENIX PROTOCOL - EVIDENCE MAP MODEL
-# 1. PURPOSE: Stores the visual layout of the Evidence Map (React Flow State).
-# 2. STORAGE: MongoDB (One document per Case).
+# PHOENIX PROTOCOL - EVIDENCE MAP MODEL V2.0 (PHASE 5: LEGAL METADATA)
+# 1. ADDED: Legal metadata fields to MapNodeData for tracking Exhibits, Authentication, and Claim Status.
+# 2. STATUS: Backend schema ready for court-ready outputs.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict, Any, Union
@@ -16,6 +16,12 @@ class MapNodeData(BaseModel):
     type: Optional[str] = "claim" # 'claim' | 'evidence'
     status: Optional[str] = "draft" # 'draft' | 'admitted' | 'disputed'
     
+    # PHOENIX PHASE 5: LEGAL METADATA FIELDS
+    exhibitNumber: Optional[str] = None      # e.g., "Ex. A-1", "Depo of J. Smith"
+    isAuthenticated: Optional[bool] = None   # Evidence: Has it been authenticated?
+    isAdmitted: Optional[str] = None         # Evidence: "Admitted" | "Stricken" | None
+    isProven: Optional[bool] = None          # Claim: Is the claim proven by the current evidence?
+
     # Flexible dict for extra UI props to avoid schema breaks on frontend updates
     extras: Dict[str, Any] = {} 
 
