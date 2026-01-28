@@ -18,7 +18,7 @@
     "save": "Ruaj",
     "saveSuccess": "U ruajt me sukses!",
     "download": "Shkarko",
-    "loading": "Duke ngarkuar...",
+    "loading": "Duke kërkuar për të dhëna të reja...",
     "copied": "U kopjua në kujtesë!",
     "error": "Gabim",
     "confirmDelete": "A jeni i sigurt që doni ta fshini këtë element?",
@@ -27,7 +27,13 @@
     "archive": "Arkivo",
     "delete": "Fshi",
     "email": "Email",
-    "actions": "Veprime"
+    "actions": "Veprime",
+    "selectAll": "Selekto të Gjitha",
+    "deselectAll": "Çseleto të Gjitha",
+    "pending": "Në Pritje",
+    "admitted": "Pranuar",
+    "stricken": "Hequr",
+    "saving": "Duke u ruajtur..."
   },
   "team": {
     "manageTeam": "Menaxhimi i Ekipit",
@@ -242,7 +248,7 @@
   "landing": {
     "heroTitle": "Inteligjenca Artificiale",
     "heroHighlight": "për Zyrën Ligjore Moderne",
-    "heroSubtitle": "Më shumë se thjesht dokumente. Zbuloni kontradikta, gjurmoni paratë dhe menaxhoni ekipin tuaj me fuqinë e AI.",
+    "heroSubtitle": "Më shumë se thjesht dokumente. Zbuloni kontradikta, gjurmoni paratë dhe menaxhoni ekipi tuaj me fuqinë e AI.",
     "getStarted": "Fillo Falas",
     "login": "Hyr në Portal",
     "feature1Title": "Dhoma e Luftës",
@@ -265,7 +271,7 @@
     "slide4_title": "Arkiva e Gjallë",
     "slide4_desc": "Çdo dokument, i indeksuar dhe i sigurt në Cloud.",
     "slide5_title": "Kontabilisti i Zyrës",
-    "slide5_desc": "Menaxhoni financat dhe tatimet (ATK) automatikisht."
+    "slide5_desc": "Menaxhoni financat dhe tatimet (ATK) automatikusht."
   },
   "sidebar": {
     "dashboard": "Juristi AI",
@@ -681,7 +687,7 @@
     "confirmDelete": "A jeni i sigurt që dëshironi ta fshini llogarinë tuaj? Ky veprim është i pakthyeshëm."
   },
   "evidenceMap": {
-      "action": {
+    "action": {
       "addClaim": "Shto Pretendim",
       "addEvidence": "Shto Provë",
       "save": "Ruaj Hartën",
@@ -710,19 +716,48 @@
       "importBtn": "Importo ({{count}})"
     },
     "relationship": {
-    "defineTitle": "Përcakto Lidhjen",
-    "typeLabel": "Tipi i Lidhjes",
-    "strengthLabel": "Forca (1-5)",
-    "labelNote": "Etiketë / Shënim (Opsionale)",
-    "placeholder": "P.sh: Lidhje e Konfirmuar në Dokument...",
-    "supports": "Mbështet",
-    "contradicts": "Kundërthotë",
-    "related": "I Lidhura",
-    "invalidConnection": "Lidhjet duhet të shkojnë nga Prova tek Pretendimi."
-},
-"general": {
-    "cancel": "Anulo",
-    "save": "Ruaj"
-}
-}
+      "defineTitle": "Përcakto Lidhjen",
+      "typeLabel": "Tipi i Lidhjes",
+      "strengthLabel": "Forca (1-5)",
+      "labelNote": "Etiketë / Shënim (Opsionale)",
+      "placeholder": "P.sh: Lidhje e Konfirmuar në Dokument...",
+      "supports": "Mbështet",
+      "contradicts": "Kundërthotë",
+      "related": "I Lidhura",
+      "invalidConnection": "Lidhjet duhet të shkojnë nga Prova tek Pretendimi."
+    }
+  },
+  "reprocess": {
+    "starting": "Duke filluar...",
+    "success": "U nis me sukses.",
+    "error": "Gabim gjatë procesimit.",
+    "forceCheck": "Kontrollo Forcueshëm (Admin)",
+    "forceAll": "Ri-proceso Të Gjitha Dokumentet"
+  },
+  "nodeEdit": {
+    "claimTitle": "Redakto Pretendimin",
+    "evidenceTitle": "Redakto Provën",
+    "label": "Titulli",
+    "content": "Përmbajtja / Përshkrimi",
+    "contentPlaceholder": "Shkruaj detajet e pretendimit ose citimin e provës...",
+    "metadataTitle": "Metadata Ligjore",
+    "exhibitNumber": "Nr. i Ekspozitës / Burimi",
+    "isAuthenticated": "Autentikuar",
+    "unauthenticated": "Pa Autentikim",
+    "isAdmitted": "Pranim Mbi Provën",
+    "isProven": "Pretendimi i Vërtetuar",
+    "proven": "Vërtetuar",
+    "disputed": "I Diskutueshëm",
+    "admitted": "Pranuar",
+    "stricken": "Hequr"
+  },
+  "export": {
+    "toPNG": "Eksporto PNG",
+    "toPDF": "Eksporto PDF",
+    "exporting": "Duke u eksportuar...",
+    "error": "Dështoi eksportimi!",
+    "pdfError": "Dështoi gjenerimi i raportit PDF.",
+    "errorView": "Nuk u gjet elementi kryesor i hartës.",
+    "errorEmpty": "Nuk ka asnjë kartelë për të eksportuar."
+  }
 }

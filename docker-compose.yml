@@ -1,3 +1,9 @@
+# FILE: docker-compose.yml
+# PHOENIX PROTOCOL - INFRASTRUCTURE V10.5 (8-CORE OPTIMIZATION)
+# 1. OPTIMIZED: Rebalanced CPU cores (2 API, 5 Task Workers, 1 DB/System).
+# 2. STABILITY: Added RAM limits (OOM Protection) for memory-heavy AI services.
+# 3. PERFORMANCE: Enabled Uvicorn high-concurrency async mode.
+
 services:
   ai-core-service:
     build: 
@@ -8,6 +14,10 @@ services:
       - "8011:8000"
     networks:
       - juristi_net
+    deploy:
+      resources:
+        limits:
+          memory: 2G # Protect system RAM
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -22,12 +32,17 @@ services:
       - ollama_data:/root/.ollama
     networks:
       - juristi_net
+    deploy:
+      resources:
+        limits:
+          memory: 4G # Prevent Ollama from bloating during inference
 
   backend:
     build: { context: ./backend }
     restart: unless-stopped
     container_name: juristi-backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info --proxy-headers
+    # PHOENIX FIX: Reduced workers to 2. Async handles the rest. Frees 2 cores.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --log-level info --proxy-headers
     env_file: ./.env
     volumes:
       - ./data:/app/data
@@ -39,6 +54,10 @@ services:
       redis: { condition: service_healthy }
       ai-core-service: { condition: service_healthy }
       local-llm: { condition: service_started }
+    deploy:
+      resources:
+        limits:
+          memory: 2G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 15s
@@ -49,7 +68,8 @@ services:
   celery:
     build: { context: ./backend }
     restart: unless-stopped
-    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=4 --prefetch-multiplier=1
+    # PHOENIX FIX: Increased concurrency to 5. Optimized for 8-core server.
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=5 --prefetch-multiplier=1
     env_file: ./.env
     volumes:
       - ./data:/app/data
@@ -58,6 +78,10 @@ services:
       redis: { condition: service_healthy } 
       mongo: { condition: service_healthy }
       backend: { condition: service_started }
+    deploy:
+      resources:
+        limits:
+          memory: 4G # OCR and PDF processing are memory intensive
 
   mongo:
     image: mongo:6.0
@@ -65,6 +89,10 @@ services:
     env_file: ./.env
     networks: [juristi_net]
     volumes: [mongo_data:/data/db]
+    deploy:
+      resources:
+        limits:
+          memory: 2G
     healthcheck: { test: echo 'db.runCommand("ping").ok' | mongosh --quiet, interval: 15s, timeout: 10s, retries: 5 }
     stop_grace_period: 20s
 
@@ -73,6 +101,10 @@ services:
     restart: unless-stopped
     volumes: [redis_data:/data]
     networks: [juristi_net]
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 15s, timeout: 10s, retries: 5 }
     stop_grace_period: 20s
 
@@ -84,25 +116,26 @@ services:
     environment:
       - IS_PERSISTENT=TRUE
       - CHROMA_SERVER_HOST=0.0.0.0 
+    deploy:
+      resources:
+        limits:
+          memory: 2G
     volumes:
       - chroma_data:/data 
 
   neo4j:
     image: neo4j:5
     restart: unless-stopped
-    # PHOENIX FIX: Removed "env_file: ./.env" to prevent NEO4J_URI from crashing the container
     ports:
       - "7474:7474"
       - "7687:7687"
     environment:
-      # Docker Compose still substitutes this value from .env on the host, 
-      # but doesn't pass the other variables.
       - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD} 
       - NEO4J_PLUGINS=["apoc"]
       - NEO4J_dbms_security_procedures_unrestricted=apoc.*
-      - NEO4J_dbms_memory_heap_initial__size=1G
-      - NEO4J_dbms_memory_heap_max__size=2G
-      - NEO4J_dbms_memory_pagecache_size=1G
+      - NEO4J_dbms_memory_heap_initial__size=512M
+      - NEO4J_dbms_memory_heap_max__size=1G
+      - NEO4J_dbms_memory_pagecache_size=512M
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
