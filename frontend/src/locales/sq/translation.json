@@ -36,18 +36,22 @@
     "saving": "Duke u ruajtur..."
   },
   "adminBriefing": {
-    "title": "Inteligjenca Ditore",
-    "viewCalendar": "Hap Kalendarin",
+   "title": "Kujdestari Ditor",
+    "viewCalendar": "Shiko Kalendarin",
     "insight": {
-      "missed": "VËMENDJE: Keni {{count}} afate të humbura nga dje. Rishikoni menjëherë.",
-      "today": "FOKUSI I DITËS: {{count}} seanca/afate kërkojnë vëmendje sot.",
-      "upcoming": "Përgatitje: {{count}} afate të rëndësishme në 48 orët e ardhshme.",
-      "alerts": "Pastrim Administrativ: {{count}} njoftime të pa lexuara nëpër raste.",
-      "optimal": "Statusi Optimal: Nuk ka urgjenca. Kohë e mirë për të shqyrtuar dosjet e vjetra."
+      "optimal": "Statusi Optimal: Nuk ka urgjenca aktive."
+    },
+    "kujdestari": {
+      "prekluziv_missed": "AFAT I HUMBUR: '{{title}}' ishte një afat prekluziv!",
+      "prekluziv_today": "VËMENDJE E LARTË: Afati PREKLUZIV për '{{title}}' skadon sot!",
+      "prekluziv_upcoming": "PRIORITET MAKSIMAL: Afati PREKLUZIV për '{{title}}' është za {{count}} ditë pune.",
+      "gjyqesor_missed": "KUJDES: Afati gjyqësor për '{{title}}' ka skaduar.",
+      "gjyqesor_today": "FOKUS: Afati gjyqësor për '{{title}}' duhet të përmbushet sot.",
+      "gjyqesor_upcoming": "PËRGATITJE: Afati gjyqësor për '{{title}}' është za {{count}} ditë pune."
     },
     "metric": {
       "today": "Sot",
-      "alerts": "Sinjalizime"
+      "alerts": "VËMENDJE"
     }
   },
   "dashboard": {

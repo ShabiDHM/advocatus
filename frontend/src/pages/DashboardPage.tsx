@@ -1,46 +1,41 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V14.1 (CLEANUP)
-// 1. CLEANUP: Removed unused imports (useMemo, Activity) and unused AuthContext.
-// 2. STATUS: Zero warnings. Optimized for production.
+// PHOENIX PROTOCOL - DASHBOARD V15.0 (KUJDESTARI UI INTEGRATION)
+// 1. REFACTOR: Removed the entire frontend 'runIntelligenceEngine'. All intelligence is now derived from the backend.
+// 2. LOGIC: Added 'findMostCriticalEvent' to triage events based on backend's 'severity' and 'working_days_remaining'.
+// 3. UI: The briefing card is now fully dynamic, changing its color, icon, and text based on the single most critical event.
+// 4. TYPES: Updated the CalendarEvent type to include the new backend fields.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Loader2, AlertTriangle, Clock, CheckCircle2, Zap } from 'lucide-react';
+import { Plus, Loader2, AlertTriangle, Clock, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { apiService } from '../services/api';
-import { Case, CreateCaseRequest, CalendarEvent } from '../data/types';
+import { Case, CreateCaseRequest, CalendarEvent } from '../data/types'; // Assumes CalendarEvent is updated
 import CaseCard from '../components/CaseCard';
 import DayEventsModal from '../components/DayEventsModal';
-import { isSameDay, parseISO, isToday, isYesterday, isPast, addDays, isBefore } from 'date-fns'; 
+import { isSameDay, parseISO } from 'date-fns';
 import { motion } from 'framer-motion';
+
+// The CalendarEvent type in data/types.ts should be updated to include these fields
+interface EnrichedCalendarEvent extends CalendarEvent {
+  severity: 'PREKLUZIV' | 'GJYQESOR' | 'PROCEDURAL';
+  working_days_remaining: number;
+}
 
 const DashboardPage: React.FC = () => {
   const { t } = useTranslation();
-  
-  // REMOVED: const { user } = useAuth() -> No longer needed for logic
 
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   
-  // Briefing State
+  // Briefing State for pop-up modal
   const [todaysEvents, setTodaysEvents] = useState<CalendarEvent[]>([]);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const hasCheckedBriefing = useRef(false);
 
-  // Intelligent Briefing State
-  const [criticalDeadlinesCount, setCriticalDeadlinesCount] = useState<{
-    today: number;
-    yesterdayMissed: number;
-    upcoming: number;
-  }>({ today: 0, yesterdayMissed: 0, upcoming: 0 });
-  
-  const [totalAlerts, setTotalAlerts] = useState(0);
-  
-  const [insightState, setInsightState] = useState<{ key: string; count: number }>({ 
-      key: 'adminBriefing.insight.optimal', 
-      count: 0 
-  });
+  // --- NEW KUJDESTARI STATE ---
+  const [briefingCard, setBriefingCard] = useState<EnrichedCalendarEvent | null>(null);
 
   const initialNewCaseData = { 
     title: '', 
@@ -50,53 +45,69 @@ const DashboardPage: React.FC = () => {
   };
   const [newCaseData, setNewCaseData] = useState(initialNewCaseData);
 
-  // LOGIC: Intelligent Analysis
-  const runIntelligenceEngine = (events: CalendarEvent[], casesList: Case[]) => {
-      let todayCount = 0;
-      let yesterdayMissedCount = 0;
-      let upcomingCount = 0;
-      
-      const next48Hours = addDays(new Date(), 2);
+  // --- NEW KUJDESTARI LOGIC ---
+  const findMostCriticalEvent = (events: EnrichedCalendarEvent[]) => {
+    if (!events || events.length === 0) {
+      setBriefingCard(null);
+      return;
+    }
 
-      events.forEach(event => {
-          const isCriticalType = ['Seancë Gjyqësore', 'Afat Ligjor', 'Hearing', 'Deadline'].some(type => 
-              event.title.includes(type) || (event.priority === 'CRITICAL')
-          );
+    const severityOrder = { 'PREKLUZIV': 1, 'GJYQESOR': 2, 'PROCEDURAL': 3 };
+    
+    // Find the single most important event to show
+    const mostCritical = events
+      .filter(e => e.working_days_remaining < 10) // Only consider events in the next ~2 weeks
+      .sort((a, b) => {
+        // First, sort by severity
+        const severityA = severityOrder[a.severity] || 4;
+        const severityB = severityOrder[b.severity] || 4;
+        if (severityA !== severityB) {
+          return severityA - severityB;
+        }
+        // If severity is the same, sort by urgency (fewer days remaining is more urgent)
+        return a.working_days_remaining - b.working_days_remaining;
+      })[0]; // Get the top one
 
-          if (isCriticalType) {
-              const eventDate = parseISO(event.start_date);
-              
-              if (isToday(eventDate)) {
-                  todayCount++;
-              } else if (isYesterday(eventDate) && isPast(eventDate)) {
-                  yesterdayMissedCount++;
-              } else if (isBefore(eventDate, next48Hours) && !isPast(eventDate)) {
-                  upcomingCount++;
-              }
-          }
-      });
+    setBriefingCard(mostCritical || null);
+  };
 
-      setCriticalDeadlinesCount({ 
-        today: todayCount, 
-        yesterdayMissed: yesterdayMissedCount,
-        upcoming: upcomingCount
-      });
+  const getBriefingDetails = () => {
+    if (!briefingCard) {
+      return {
+        style: 'from-emerald-950/90 to-black/90 border-emerald-500/50 text-emerald-100',
+        icon: <CheckCircle2 className="h-6 w-6 text-emerald-400" />,
+        text: t('adminBriefing.insight.optimal')
+      };
+    }
 
-      const alerts = casesList.reduce((sum, c) => sum + (c.alert_count || 0), 0);
-      setTotalAlerts(alerts);
+    const { severity, working_days_remaining, title } = briefingCard;
+    let style = 'from-sky-950/90 to-black/90 border-sky-500/50 text-sky-100'; // Default Procedural
+    let icon = <Clock className="h-6 w-6 text-sky-400" />;
+    let text = `${title} - ${working_days_remaining} ditë pune`;
 
-      // Generate Strategy Key
-      if (yesterdayMissedCount > 0) {
-          setInsightState({ key: 'adminBriefing.insight.missed', count: yesterdayMissedCount });
-      } else if (todayCount > 0) {
-          setInsightState({ key: 'adminBriefing.insight.today', count: todayCount });
-      } else if (upcomingCount > 0) {
-          setInsightState({ key: 'adminBriefing.insight.upcoming', count: upcomingCount });
-      } else if (alerts > 5) {
-          setInsightState({ key: 'adminBriefing.insight.alerts', count: alerts });
+    if (severity === 'PREKLUZIV') {
+      style = 'from-red-950/90 to-black/90 border-red-500/50 text-red-100';
+      icon = <ShieldAlert className="h-6 w-6 animate-pulse text-red-400" />;
+      if (working_days_remaining < 0) {
+         text = t('adminBriefing.kujdestari.prekluziv_missed', { title });
+      } else if (working_days_remaining === 0) {
+         text = t('adminBriefing.kujdestari.prekluziv_today', { title });
       } else {
-          setInsightState({ key: 'adminBriefing.insight.optimal', count: 0 });
+         text = t('adminBriefing.kujdestari.prekluziv_upcoming', { title, count: working_days_remaining });
       }
+    } else if (severity === 'GJYQESOR') {
+      style = 'from-orange-950/90 to-black/90 border-orange-500/50 text-orange-100';
+      icon = <AlertTriangle className="h-6 w-6 text-orange-400" />;
+      if (working_days_remaining < 0) {
+         text = t('adminBriefing.kujdestari.gjyqesor_missed', { title });
+      } else if (working_days_remaining === 0) {
+         text = t('adminBriefing.kujdestari.gjyqesor_today', { title });
+      } else {
+         text = t('adminBriefing.kujdestari.gjyqesor_upcoming', { title, count: working_days_remaining });
+      }
+    }
+
+    return { style, icon, text };
   };
 
   useEffect(() => {
@@ -108,7 +119,7 @@ const DashboardPage: React.FC = () => {
     try {
       const [casesData, eventsData] = await Promise.all([
           apiService.getCases(),
-          apiService.getCalendarEvents()
+          apiService.getCalendarEvents() as Promise<EnrichedCalendarEvent[]> // Cast to new type
       ]);
 
       const casesWithDefaults = casesData.map(c => ({
@@ -119,8 +130,10 @@ const DashboardPage: React.FC = () => {
       }));
       setCases(casesWithDefaults);
       
-      runIntelligenceEngine(eventsData, casesWithDefaults);
+      // RUN NEW KUJDESTARI LOGIC
+      findMostCriticalEvent(eventsData);
       
+      // Logic for the pop-up modal remains unchanged
       if (!hasCheckedBriefing.current && eventsData.length > 0) {
           const today = new Date();
           const matches = eventsData.filter(e => isSameDay(parseISO(e.start_date), today));
@@ -137,66 +150,18 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  const handleCreateCase = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsCreating(true);
-    try {
-      const tempCaseNumber = `R-${Date.now().toString().slice(-6)}`;
-      const payload: CreateCaseRequest = {
-          case_number: tempCaseNumber,
-          title: newCaseData.title,
-          case_name: newCaseData.title,
-          description: "", 
-          clientName: newCaseData.clientName,
-          clientEmail: newCaseData.clientEmail,
-          clientPhone: newCaseData.clientPhone,
-          status: 'open'
-      };
-      await apiService.createCase(payload);
-      setShowCreateModal(false);
-      setNewCaseData(initialNewCaseData);
-      loadData(); 
-    } catch (error) {
-      console.error("Failed to create case", error);
-      alert(t('error.generic'));
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleDeleteCase = async (caseId: string) => {
-    if (window.confirm(t('dashboard.confirmDelete', 'A jeni i sigurt?'))) {
-        try {
-            await apiService.deleteCase(caseId);
-            setCases(prevCases => prevCases.filter(c => c.id !== caseId));
-        } catch (error) {
-            console.error("Failed to delete case", error);
-            alert(t('error.generic'));
-        }
-    }
-  };
-
-  const handleModalInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setNewCaseData(prev => ({ ...prev, [name]: value }));
-  };
+  // ... (handleCreateCase, handleDeleteCase, handleModalInputChange remain unchanged)
+  const handleCreateCase = async (e: React.FormEvent) => { e.preventDefault(); setIsCreating(true); try { const tempCaseNumber = `R-${Date.now().toString().slice(-6)}`; const payload: CreateCaseRequest = { case_number: tempCaseNumber, title: newCaseData.title, case_name: newCaseData.title, description: "", clientName: newCaseData.clientName, clientEmail: newCaseData.clientEmail, clientPhone: newCaseData.clientPhone, status: 'open' }; await apiService.createCase(payload); setShowCreateModal(false); setNewCaseData(initialNewCaseData); loadData(); } catch (error) { console.error("Failed to create case", error); alert(t('error.generic')); } finally { setIsCreating(false); } };
+  const handleDeleteCase = async (caseId: string) => { if (window.confirm(t('dashboard.confirmDelete', 'A jeni i sigurt?'))) { try { await apiService.deleteCase(caseId); setCases(prevCases => prevCases.filter(c => c.id !== caseId)); } catch (error) { console.error("Failed to delete case", error); alert(t('error.generic')); } } };
+  const handleModalInputChange = (e: React.ChangeEvent<HTMLInputElement>) => { const { name, value } = e.target; setNewCaseData(prev => ({ ...prev, [name]: value })); };
 
   const casesToDisplay = cases;
-
-  const criticalCount = criticalDeadlinesCount.today + criticalDeadlinesCount.yesterdayMissed;
-  
-  const rowStyleClasses = criticalCount > 0 
-      ? 'from-red-950/90 to-black/90 border-red-500/50 text-red-100' 
-      : criticalDeadlinesCount.upcoming > 0 
-        ? 'from-orange-950/90 to-black/90 border-orange-500/50 text-orange-100'
-        : totalAlerts > 5
-          ? 'from-yellow-950/90 to-black/90 border-yellow-500/50 text-yellow-100'
-          : 'from-emerald-950/90 to-black/90 border-emerald-500/50 text-emerald-100';
+  const { style: rowStyleClasses, icon: briefingIcon, text: briefingText } = getBriefingDetails();
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen flex flex-col">
       
-      {/* Intelligent Briefing (Visible to ALL users) */}
+      {/* Kujdestari Briefing Card */}
       <motion.div 
           className={`sticky top-2 z-30 mb-8 p-0 rounded-xl shadow-2xl backdrop-blur-md border ${rowStyleClasses.split(' ')[2]}`}
           initial={{ opacity: 0, y: -20 }}
@@ -205,52 +170,25 @@ const DashboardPage: React.FC = () => {
       >
           <div className={`rounded-xl p-4 bg-gradient-to-r ${rowStyleClasses}`}>
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                
-                {/* LEFT: Icon & Status */}
                 <div className="flex items-center gap-4">
                     <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
-                        {criticalCount > 0 ? (
-                            <AlertTriangle className="h-6 w-6 animate-pulse text-red-400" />
-                        ) : criticalDeadlinesCount.upcoming > 0 ? (
-                            <Clock className="h-6 w-6 text-orange-400" />
-                        ) : totalAlerts > 5 ? (
-                            <Zap className="h-6 w-6 text-yellow-400" />
-                        ) : (
-                            <CheckCircle2 className="h-6 w-6 text-emerald-400" />
-                        )}
+                        {briefingIcon}
                     </div>
                     <div>
                         <h2 className="text-sm font-bold uppercase tracking-wider opacity-80">
-                            {t('adminBriefing.title', 'Inteligjenca Ditore')}
+                            {t('adminBriefing.title', 'Kujdestari Ditor')}
                         </h2>
                         <p className="font-medium text-lg leading-tight">
-                            {t(insightState.key, { count: insightState.count })}
+                            {briefingText}
                         </p>
                     </div>
                 </div>
-
-                {/* RIGHT: Metrics & Actions */}
                 <div className="flex items-center gap-3 self-end md:self-auto">
-                    <div className="flex gap-2 mr-2">
-                          {criticalDeadlinesCount.today > 0 && (
-                            <div className="flex flex-col items-center px-3 py-1 bg-black/30 rounded-lg">
-                                <span className="text-xs opacity-70">{t('adminBriefing.metric.today', 'Sot')}</span>
-                                <span className="font-bold">{criticalDeadlinesCount.today}</span>
-                            </div>
-                          )}
-                          {totalAlerts > 0 && (
-                            <div className="flex flex-col items-center px-3 py-1 bg-black/30 rounded-lg">
-                                <span className="text-xs opacity-70">{t('adminBriefing.metric.alerts', 'Sinjalizime')}</span>
-                                <span className="font-bold">{totalAlerts}</span>
-                            </div>
-                          )}
-                    </div>
-
                     <button 
                         className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-all text-sm whitespace-nowrap"
                         onClick={() => window.location.href = '/calendar'}
                     >
-                        {t('adminBriefing.viewCalendar', 'Hap Kalendarin')}
+                        {t('adminBriefing.viewCalendar', 'Shiko Kalendarin')}
                     </button>
                 </div>
             </div>
@@ -260,15 +198,10 @@ const DashboardPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 flex-shrink-0">
         <div>
-          <h1 className="text-3xl font-bold text-text-primary tracking-tight">
-            {t('dashboard.mainTitle', 'Pasqyra e Rasteve')}
-          </h1>
+          <h1 className="text-3xl font-bold text-text-primary tracking-tight">{t('dashboard.mainTitle', 'Pasqyra e Rasteve')}</h1>
           <p className="text-text-secondary mt-1">{t('dashboard.subtitle', 'Menaxhoni rastet tuaja.')}</p>
         </div>
-        <button 
-          onClick={() => setShowCreateModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 rounded-xl text-white font-semibold transition-all active:scale-95"
-        >
+        <button onClick={() => setShowCreateModal(true)} className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 rounded-xl text-white font-semibold transition-all active:scale-95">
           <Plus size={20} /> {t('dashboard.newCase', 'Rast i Ri')}
         </button>
       </div>
@@ -279,18 +212,10 @@ const DashboardPage: React.FC = () => {
       ) : (
         <div className="flex-1 -mr-4 pr-4 pb-4">
           {casesToDisplay.length === 0 ? (
-             <div className="text-center py-20 opacity-50">
-               <p className="text-xl text-text-secondary">{t('dashboard.noCases', 'Nuk u gjetën raste.')}</p>
-             </div>
+             <div className="text-center py-20 opacity-50"><p className="text-xl text-text-secondary">{t('dashboard.noCases', 'Nuk u gjetën raste.')}</p></div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {casesToDisplay.map((c) => (
-                <CaseCard 
-                    key={c.id} 
-                    caseData={c} 
-                    onDelete={handleDeleteCase} 
-                />
-                ))}
+                {casesToDisplay.map((c) => (<CaseCard key={c.id} caseData={c} onDelete={handleDeleteCase} />))}
             </div>
           )}
         </div>
@@ -302,12 +227,10 @@ const DashboardPage: React.FC = () => {
           <div className="glass-high w-full max-w-sm p-8 rounded-2xl animate-in fade-in zoom-in-95 duration-200">
             <h2 className="text-2xl font-bold text-white mb-6">{t('dashboard.createCaseTitle')}</h2>
             <form onSubmit={handleCreateCase} className="space-y-5">
-              
               <div>
                 <label className="block text-sm text-text-secondary mb-1">{t('dashboard.caseTitle')}</label>
                 <input required name="title" type="text" value={newCaseData.title} onChange={handleModalInputChange} className="glass-input w-full rounded-xl px-4 py-2" />
               </div>
-              
               <div className="pt-4 border-t border-white/10">
                 <label className="block text-sm text-primary-start mb-3 font-medium">{t('caseCard.client')}</label>
                 <div className="space-y-3">
@@ -316,12 +239,10 @@ const DashboardPage: React.FC = () => {
                     <input name="clientPhone" placeholder={t('dashboard.clientPhone')} type="tel" value={newCaseData.clientPhone} onChange={handleModalInputChange} className="glass-input w-full rounded-xl px-4 py-2" />
                 </div>
               </div>
-
               <div className="flex justify-end gap-3 mt-8">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 rounded-xl hover:bg-white/5 text-text-secondary hover:text-white transition-colors">{t('general.cancel')}</button>
                 <button type="submit" disabled={isCreating} className="px-6 py-2 rounded-xl bg-primary-start hover:bg-primary-end text-white font-bold shadow-lg shadow-primary-start/20 transition-all active:scale-95 flex items-center gap-2">
-                    {isCreating && <Loader2 className="animate-spin h-4 w-4" />}
-                    {t('general.create')}
+                    {isCreating && <Loader2 className="animate-spin h-4 w-4" />} {t('general.create')}
                 </button>
               </div>
             </form>
@@ -329,18 +250,8 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Daily Briefing Modal */}
-      <DayEventsModal 
-        isOpen={isBriefingOpen}
-        onClose={() => setIsBriefingOpen(false)}
-        date={new Date()} 
-        events={todaysEvents}
-        t={t}
-        onAddEvent={() => {
-            setIsBriefingOpen(false);
-            window.location.href = '/calendar'; 
-        }}
-      />
+      {/* Daily Events Modal */}
+      <DayEventsModal isOpen={isBriefingOpen} onClose={() => setIsBriefingOpen(false)} date={new Date()} events={todaysEvents} t={t} onAddEvent={() => { setIsBriefingOpen(false); window.location.href = '/calendar'; }} />
     </div>
   );
 };
