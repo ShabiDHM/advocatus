@@ -1,8 +1,7 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - SIDEBAR V2.1 (MOBILE COMPACT FOOTER)
-// 1. FIX: Reduced padding, avatar size, and spacing in the mobile-only profile footer for a more compact appearance.
-// 2. VISUALS: Retained 'backdrop-blur-xl' and 'bg-background-dark/70' for the glass effect.
-// 3. UX: All navigation logic and active states remain unchanged.
+// PHOENIX PROTOCOL - SIDEBAR V2.2 (KEY SYNCHRONIZATION)
+// 1. FIX: Updated 't()' keys to match 'sq.json' exactly (myOffice, adminPanel, juristiAi).
+// 2. VERIFY: Labels now reflect "Zyra", "Admin", "Rastet" as requested.
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
@@ -28,12 +27,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     const baseItems = [
       { 
         icon: Building2, 
-        label: t('sidebar.business', 'Zyra Ime'), 
+        // KEY FIX: Changed 'sidebar.business' to 'sidebar.myOffice'
+        label: t('sidebar.myOffice', 'Zyra'), 
         path: '/business' 
       },
       { 
         icon: Scale, 
-        label: t('sidebar.juristi_ai', 'Juristi AI'), 
+        // KEY FIX: Changed 'sidebar.juristi_ai' to 'sidebar.juristiAi'
+        label: t('sidebar.juristiAi', 'Rastet'), 
         path: '/dashboard' 
       },
       { 
@@ -48,15 +49,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
       },
       { 
         icon: MessageSquare, 
-        label: t('sidebar.support', 'Ndihma'), 
+        label: t('sidebar.support', 'Mbështetja'), 
         path: '/support' 
       },
     ];
 
     if (user?.role === 'ADMIN') {
+      // Insert Admin Panel after "My Office"
       baseItems.splice(1, 0, {
         icon: Shield,
-        label: t('sidebar.admin', 'Admin Panel'),
+        // KEY FIX: Changed 'sidebar.admin' to 'sidebar.adminPanel'
+        label: t('sidebar.adminPanel', 'Admin'),
         path: '/admin',
       });
     }
@@ -73,7 +76,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 
   return (
     <>
-      {/* Mobile Backdrop - Darker and blurrier for better focus */}
+      {/* Mobile Backdrop */}
       <div 
         className={`fixed inset-0 bg-background-dark/80 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300 ${
           isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -88,7 +91,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
           
-          {/* Header - Transparent to blend with Glass */}
+          {/* Header */}
           <div className="h-16 flex items-center px-6 border-b border-white/5 flex-shrink-0">
             <BrandLogo />
           </div>
@@ -116,7 +119,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                       <span className="font-medium text-sm">{item.label}</span>
                   </div>
                   
-                  {/* Subtle active indicator glow */}
+                  {/* Active Indicator */}
                   {isActive && (
                     <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary-start rounded-l-full shadow-[0_0_10px_#2563eb]" />
                   )}
@@ -125,7 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
             })}
           </nav>
 
-          {/* MODIFIED: Mobile-Only Profile Footer - Made more compact */}
+          {/* Mobile Profile Footer */}
           <div className="p-2 border-t border-white/5 bg-background-dark/40 lg:hidden mt-auto flex-shrink-0 pb-safe backdrop-blur-md">
             <div className="flex items-center gap-2 mb-2 px-1">
               <div className="h-8 w-8 rounded-md bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg shadow-secondary-start/20 shrink-0 text-sm">
@@ -150,7 +153,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                     className="flex items-center justify-center px-2 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors text-xs font-bold border border-red-500/20"
                 >
                     <LogOut className="h-3.5 w-3.5 mr-1.5" />
-                    {t('header.logout', 'Dilni')}
+                    {t('general.logout', 'Dalja')}
                 </button>
             </div>
           </div>
