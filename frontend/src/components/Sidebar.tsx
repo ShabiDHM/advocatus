@@ -1,14 +1,14 @@
 // FILE: src/components/Sidebar.tsx
-// PHOENIX PROTOCOL - SIDEBAR V3.0 (NAVIGATION STREAMLINING)
-// 1. UX: Removed the static 'Calendar' link from the main navigation array.
-// 2. WORKFLOW: This change reinforces the 'Kujdestari' briefing as the primary entry point for calendar-related tasks.
+// PHOENIX PROTOCOL - SIDEBAR V2.2 (KEY SYNCHRONIZATION)
+// 1. FIX: Updated 't()' keys to match 'sq.json' exactly (myOffice, adminPanel, juristiAi).
+// 2. VERIFY: Labels now reflect "Zyra", "Admin", "Rastet" as requested.
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { 
-    FileText, MessageSquare, 
+    Calendar, FileText, MessageSquare, 
     Building2, Shield, LogOut, User as UserIcon, Scale 
-} from 'lucide-react'; // REMOVED: Calendar icon
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import BrandLogo from './BrandLogo';
@@ -27,21 +27,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     const baseItems = [
       { 
         icon: Building2, 
+        // KEY FIX: Changed 'sidebar.business' to 'sidebar.myOffice'
         label: t('sidebar.myOffice', 'Zyra'), 
         path: '/business' 
       },
       { 
         icon: Scale, 
+        // KEY FIX: Changed 'sidebar.juristi_ai' to 'sidebar.juristiAi'
         label: t('sidebar.juristiAi', 'Rastet'), 
         path: '/dashboard' 
       },
-      // --- ITEM REMOVED ---
-      // { 
-      //   icon: Calendar, 
-      //   label: t('sidebar.calendar', 'Kalendari'), 
-      //   path: '/calendar' 
-      // }, 
-      // --- END REMOVAL ---
+      { 
+        icon: Calendar, 
+        label: t('sidebar.calendar', 'Kalendari'), 
+        path: '/calendar' 
+      }, 
       { 
         icon: FileText, 
         label: t('sidebar.drafting', 'Hartimi'), 
@@ -55,9 +55,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     ];
 
     if (user?.role === 'ADMIN') {
-      // Insert Admin Panel after "Zyra"
+      // Insert Admin Panel after "My Office"
       baseItems.splice(1, 0, {
         icon: Shield,
+        // KEY FIX: Changed 'sidebar.admin' to 'sidebar.adminPanel'
         label: t('sidebar.adminPanel', 'Admin'),
         path: '/admin',
       });
