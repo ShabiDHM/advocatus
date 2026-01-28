@@ -1,21 +1,20 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V15.0 (KUJDESTARI UI INTEGRATION)
-// 1. REFACTOR: Removed the entire frontend 'runIntelligenceEngine'. All intelligence is now derived from the backend.
-// 2. LOGIC: Added 'findMostCriticalEvent' to triage events based on backend's 'severity' and 'working_days_remaining'.
-// 3. UI: The briefing card is now fully dynamic, changing its color, icon, and text based on the single most critical event.
-// 4. TYPES: Updated the CalendarEvent type to include the new backend fields.
+// PHOENIX PROTOCOL - DASHBOARD V16.0 (CONTENT SCROLLING FIX)
+// 1. UX: Implemented a fixed-height container using 'h-full' and 'flex-col'.
+// 2. SCROLL: Ensured only the Case Grid itself is scrollable (overflow-y-auto), keeping the Briefing and Title static.
+// 3. STATUS: Finalizes the Dashboard layout to match the requested image behavior.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Loader2, AlertTriangle, Clock, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { apiService } from '../services/api';
-import { Case, CreateCaseRequest, CalendarEvent } from '../data/types'; // Assumes CalendarEvent is updated
+import { Case, CreateCaseRequest, CalendarEvent } from '../data/types'; 
 import CaseCard from '../components/CaseCard';
 import DayEventsModal from '../components/DayEventsModal';
 import { isSameDay, parseISO } from 'date-fns';
 import { motion } from 'framer-motion';
 
-// The CalendarEvent type in data/types.ts should be updated to include these fields
+// NOTE: This interface should be in data/types.ts for best practice.
 interface EnrichedCalendarEvent extends CalendarEvent {
   severity: 'PREKLUZIV' | 'GJYQESOR' | 'PROCEDURAL';
   working_days_remaining: number;
@@ -29,12 +28,10 @@ const DashboardPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   
-  // Briefing State for pop-up modal
   const [todaysEvents, setTodaysEvents] = useState<CalendarEvent[]>([]);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const hasCheckedBriefing = useRef(false);
 
-  // --- NEW KUJDESTARI STATE ---
   const [briefingCard, setBriefingCard] = useState<EnrichedCalendarEvent | null>(null);
 
   const initialNewCaseData = { 
@@ -45,29 +42,23 @@ const DashboardPage: React.FC = () => {
   };
   const [newCaseData, setNewCaseData] = useState(initialNewCaseData);
 
-  // --- NEW KUJDESTARI LOGIC ---
+  // --- KUJDESTARI LOGIC (Unchanged) ---
   const findMostCriticalEvent = (events: EnrichedCalendarEvent[]) => {
     if (!events || events.length === 0) {
       setBriefingCard(null);
       return;
     }
-
     const severityOrder = { 'PREKLUZIV': 1, 'GJYQESOR': 2, 'PROCEDURAL': 3 };
-    
-    // Find the single most important event to show
     const mostCritical = events
-      .filter(e => e.working_days_remaining < 10) // Only consider events in the next ~2 weeks
+      .filter(e => e.working_days_remaining < 10)
       .sort((a, b) => {
-        // First, sort by severity
         const severityA = severityOrder[a.severity] || 4;
         const severityB = severityOrder[b.severity] || 4;
         if (severityA !== severityB) {
           return severityA - severityB;
         }
-        // If severity is the same, sort by urgency (fewer days remaining is more urgent)
         return a.working_days_remaining - b.working_days_remaining;
-      })[0]; // Get the top one
-
+      })[0];
     setBriefingCard(mostCritical || null);
   };
 
@@ -81,7 +72,7 @@ const DashboardPage: React.FC = () => {
     }
 
     const { severity, working_days_remaining, title } = briefingCard;
-    let style = 'from-sky-950/90 to-black/90 border-sky-500/50 text-sky-100'; // Default Procedural
+    let style = 'from-sky-950/90 to-black/90 border-sky-500/50 text-sky-100'; 
     let icon = <Clock className="h-6 w-6 text-sky-400" />;
     let text = `${title} - ${working_days_remaining} ditë pune`;
 
@@ -119,7 +110,7 @@ const DashboardPage: React.FC = () => {
     try {
       const [casesData, eventsData] = await Promise.all([
           apiService.getCases(),
-          apiService.getCalendarEvents() as Promise<EnrichedCalendarEvent[]> // Cast to new type
+          apiService.getCalendarEvents() as Promise<EnrichedCalendarEvent[]>
       ]);
 
       const casesWithDefaults = casesData.map(c => ({
@@ -130,10 +121,8 @@ const DashboardPage: React.FC = () => {
       }));
       setCases(casesWithDefaults);
       
-      // RUN NEW KUJDESTARI LOGIC
       findMostCriticalEvent(eventsData);
       
-      // Logic for the pop-up modal remains unchanged
       if (!hasCheckedBriefing.current && eventsData.length > 0) {
           const today = new Date();
           const matches = eventsData.filter(e => isSameDay(parseISO(e.start_date), today));
@@ -150,7 +139,6 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  // ... (handleCreateCase, handleDeleteCase, handleModalInputChange remain unchanged)
   const handleCreateCase = async (e: React.FormEvent) => { e.preventDefault(); setIsCreating(true); try { const tempCaseNumber = `R-${Date.now().toString().slice(-6)}`; const payload: CreateCaseRequest = { case_number: tempCaseNumber, title: newCaseData.title, case_name: newCaseData.title, description: "", clientName: newCaseData.clientName, clientEmail: newCaseData.clientEmail, clientPhone: newCaseData.clientPhone, status: 'open' }; await apiService.createCase(payload); setShowCreateModal(false); setNewCaseData(initialNewCaseData); loadData(); } catch (error) { console.error("Failed to create case", error); alert(t('error.generic')); } finally { setIsCreating(false); } };
   const handleDeleteCase = async (caseId: string) => { if (window.confirm(t('dashboard.confirmDelete', 'A jeni i sigurt?'))) { try { await apiService.deleteCase(caseId); setCases(prevCases => prevCases.filter(c => c.id !== caseId)); } catch (error) { console.error("Failed to delete case", error); alert(t('error.generic')); } } };
   const handleModalInputChange = (e: React.ChangeEvent<HTMLInputElement>) => { const { name, value } = e.target; setNewCaseData(prev => ({ ...prev, [name]: value })); };
@@ -159,11 +147,12 @@ const DashboardPage: React.FC = () => {
   const { style: rowStyleClasses, icon: briefingIcon, text: briefingText } = getBriefingDetails();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen flex flex-col">
+    // PHOENIX FIX: Removed 'min-h-screen' to allow the main layout to handle height, and added 'h-full' to this inner div.
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 h-full flex flex-col">
       
-      {/* Kujdestari Briefing Card */}
+      {/* Kujdestari Briefing Card - REMAINS STATIC */}
       <motion.div 
-          className={`sticky top-2 z-30 mb-8 p-0 rounded-xl shadow-2xl backdrop-blur-md border ${rowStyleClasses.split(' ')[2]}`}
+          className={`shrink-0 mb-8 p-0 rounded-xl shadow-2xl backdrop-blur-md border ${rowStyleClasses.split(' ')[2]}`}
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.4 }}
@@ -195,7 +184,7 @@ const DashboardPage: React.FC = () => {
           </div>
       </motion.div>
 
-      {/* Header */}
+      {/* Header (Pasqyra e Rasteve) - REMAINS STATIC */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 flex-shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-text-primary tracking-tight">{t('dashboard.mainTitle', 'Pasqyra e Rasteve')}</h1>
@@ -206,11 +195,12 @@ const DashboardPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Case Grid */}
+      {/* Case Grid - IS NOW THE SCROLLABLE AREA */}
       {isLoading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>
       ) : (
-        <div className="flex-1 -mr-4 pr-4 pb-4">
+        // PHOENIX FIX: Added 'flex-1 overflow-y-auto' to make THIS block scrollable, keeping the elements above static.
+        <div className="flex-1 overflow-y-auto custom-scrollbar -mr-4 pr-4 pb-4">
           {casesToDisplay.length === 0 ? (
              <div className="text-center py-20 opacity-50"><p className="text-xl text-text-secondary">{t('dashboard.noCases', 'Nuk u gjetën raste.')}</p></div>
           ) : (
