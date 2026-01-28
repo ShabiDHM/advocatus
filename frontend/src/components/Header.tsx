@@ -1,10 +1,10 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V4.0 (GLASS STYLE)
-// 1. VISUALS: Applied 'backdrop-blur-xl' and reduced opacity for true glassmorphism.
-// 2. INTEGRITY: Retained all event listeners and auth logic from V3.1.
+// PHOENIX PROTOCOL - HEADER V4.1 (SUPPORT LINK RELOCATED - COMPLETED)
+// 1. FEAT: Added the 'Support' link to the user profile dropdown menu.
+// 2. INTEGRITY: Added missing closing tags to restore file integrity.
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Search, Menu, LogOut, User as UserIcon } from 'lucide-react';
+import { Bell, Search, Menu, LogOut, User as UserIcon, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -63,11 +63,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   }, [isProfileOpen]);
 
   return (
-    // GLASS HEADER CONFIGURATION:
-    // sticky: Stays at top
-    // backdrop-blur-xl: Heavy blur for content passing underneath
-    // bg-background-dark/60: High transparency for glass effect
-    // border-white/5: Subtle edge definition
     <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 sticky top-0 backdrop-blur-xl bg-background-dark/60 border-b border-white/5 transition-all duration-300">
       
       {/* Left: Mobile Menu & Search */}
@@ -84,7 +79,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           <input 
             type="text" 
             placeholder={t('header.searchPlaceholder')} 
-            // Glass Input Style
             className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-text-secondary/50 focus:ring-1 focus:ring-primary-start/50 focus:bg-background-dark/80 focus:border-primary-start/50 outline-none w-64 transition-all focus:w-80"
           />
         </div>
@@ -126,7 +120,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
           {isProfileOpen && (
             <div 
               ref={dropdownRef}
-              // Glass Dropdown
               className="absolute right-0 mt-2 w-60 bg-background-dark/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2"
             >
               <div className="px-4 py-3 border-b border-white/5 mb-1 bg-white/5">
@@ -140,8 +133,19 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                 onClick={() => setIsProfileOpen(false)}
               >
                 <UserIcon size={16} className="mr-3 text-primary-start" />
-                {t('sidebar.account')}
+                {t('sidebar.account', 'Llogaria Ime')}
               </Link>
+              
+              {/* --- ADDED SUPPORT LINK --- */}
+              <Link 
+                to="/support" 
+                className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                onClick={() => setIsProfileOpen(false)}
+              >
+                <MessageSquare size={16} className="mr-3 text-primary-start" />
+                {t('sidebar.support', 'Mbështetja')}
+              </Link>
+              {/* --- END ADDED SUPPORT LINK --- */}
 
               <div className="h-px bg-white/5 my-1"></div>
 
@@ -153,7 +157,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                 className="w-full flex items-center px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
               >
                 <LogOut size={16} className="mr-3" />
-                {t('header.logout')}
+                {t('header.logout', 'Dilni')}
               </button>
             </div>
           )}
