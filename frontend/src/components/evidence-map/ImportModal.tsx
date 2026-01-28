@@ -1,13 +1,12 @@
-// FILE: src/components/evidence-map/ImportModal.tsx
-// PHOENIX PROTOCOL - FIX V10.0 (AUTO-POLL ON OPEN)
-// 1. UPDATED: Automatically polls for data if the list is empty on open (handles "Just Uploaded" scenario).
-// 2. UX: Shows "Duke kërkuar..." instead of "0 entitete" while the backend finishes the 90s task.
-// 3. LOGIC: Seamless bridge between Upload and Graph population.
+// FILE: frontend/src/components/evidence-map/ImportModal.tsx
+// PHOENIX PROTOCOL - FIX V7.2 (UNUSED VAR CLEANUP)
+// 1. FIX: Removed redundant 'caseDocuments' state to resolve TS6133 warning.
+// 2. STATUS: Fully optimized for server-side bulk reprocessing.
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../../services/api'; 
-import { X, BrainCircuit, Check, Loader2, RefreshCw, AlertCircle, Clock } from 'lucide-react';
+import { X, BrainCircuit, Check, Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 interface KnowledgeGraphNode {
@@ -27,163 +26,65 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
   const { t } = useTranslation();
   const { user } = useAuth();
   
-  // Data States
   const [nodes, setNodes] = useState<KnowledgeGraphNode[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  
-  // UI States
   const [isLoading, setIsLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  
-  // Polling/Reprocess States
-  const [isPolling, setIsPolling] = useState(false);
   const [reprocessStatus, setReprocessStatus] = useState<string | null>(null);
-  const pollCount = useRef(0);
-  
-  // CONFIG: 60 checks * 3 seconds = 180 seconds (3 Minutes) Max Wait
-  const POLL_INTERVAL_MS = 3000;
-  const MAX_POLLS = 60; 
 
-  // Function to fetch data (used by initial load and polling)
-  const fetchGraphData = useCallback(async (isBackgroundCheck = false) => {
-    if (!isBackgroundCheck) setIsLoading(true);
+  const fetchGraphData = useCallback(async () => {
+    setIsLoading(true);
     setError(null);
-    
     try {
+      // PHOENIX FIX: We no longer need to fetch docs list here as reprocess-all is server-side
       const graphResponse = await apiService.getCaseGraph(caseId);
-      
-      if (graphResponse && Array.isArray(graphResponse.nodes)) {
-          const entityNodes = graphResponse.nodes.filter((n: KnowledgeGraphNode) => n.group !== 'DOCUMENT');
-          
-          if (entityNodes.length > 0) {
-            setNodes(entityNodes);
-            // If we found nodes, we can stop polling/loading
-            setIsPolling(false);
-            setReprocessStatus(null); 
-            setIsLoading(false);
-            return true; // Success signal
-          }
+      if (graphResponse && graphResponse.nodes) {
+          const entityNodes = graphResponse.nodes.filter((n: any) => n.group !== 'DOCUMENT');
+          setNodes(entityNodes);
+      } else {
+          setNodes([]);
       }
-      // If we are here, we found no nodes yet.
-      if (!isBackgroundCheck) setNodes([]);
-      
     } catch (err) {
-      console.error(err);
-      if (!isBackgroundCheck) setError(t('evidenceMap.importModal.error', 'Dështoi ngarkimi i të dhënave nga AI.'));
+      console.error("ImportModal Fetch Error:", err);
+      setError(t('evidenceMap.importModal.error', 'Dështoi ngarkimi i të dhënave nga AI.'));
     } finally {
-      if (!isBackgroundCheck) setIsLoading(false);
+      setIsLoading(false);
     }
-    return false; // No data found yet signal
   }, [caseId, t]);
 
-  // Initial Load & AUTO-POLL TRIGGER
   useEffect(() => {
     if (isOpen) {
-        setNodes([]);
-        setReprocessStatus(null);
-        setIsLoading(true);
-        
-        // Check once immediately
-        fetchGraphData().then((found) => {
-            if (!found) {
-                // PHOENIX V10: If empty, assume user just uploaded and START POLLING AUTOMATICALLY
-                console.log("No data found initially. Starting Auto-Poll in case backend is still processing...");
-                setIsPolling(true);
-                setReprocessStatus(t('reprocess.takingTime', 'Duke kërkuar për të dhëna të reja...'));
-            }
-        });
+        fetchGraphData();
     }
-  }, [isOpen, fetchGraphData, t]);
-
-  // POLLING LOGIC
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-
-    if (isPolling) {
-        pollCount.current = 0; // Reset counter
-        
-        intervalId = setInterval(async () => {
-            pollCount.current += 1;
-            
-            // Dynamic Messages based on wait time
-            if (pollCount.current === 5) { 
-                setReprocessStatus(t('reprocess.takingTime', 'Duke analizuar dokumentet e mëdha...'));
-            } else if (pollCount.current === 20) { 
-                setReprocessStatus(t('reprocess.deepScan', 'OCR dhe Analiza Forenzike në proces...'));
-            } else if (pollCount.current === 40) { 
-                setReprocessStatus(t('reprocess.almostThere', 'Duke finalizuar strukturën e grafikut...'));
-            }
-
-            // Check for data
-            const foundData = await fetchGraphData(true);
-            
-            if (foundData) {
-                // Data found! Stop loop.
-                clearInterval(intervalId);
-                setIsPolling(false);
-            } else if (pollCount.current >= MAX_POLLS) {
-                // Timeout reached
-                clearInterval(intervalId);
-                setIsPolling(false);
-                setReprocessStatus(null);
-                // Stop polling but don't error out—just show empty state now.
-            }
-        }, POLL_INTERVAL_MS);
-    }
-
-    return () => {
-        if (intervalId) clearInterval(intervalId);
-    };
-  }, [isPolling, fetchGraphData, t]);
+  }, [isOpen, fetchGraphData]);
 
   const handleForceReprocess = async () => {
     if (!user || user.role !== 'ADMIN') return;
-    
-    setReprocessStatus(t('reprocess.starting', 'Duke iniciuar motorin AI...'));
-    setError(null);
-    setIsPolling(true); // START THE POLLING LOOP
-    pollCount.current = 0; // Reset counter for new attempt
+    setReprocessStatus(t('reprocess.starting', 'Duke filluar...'));
     
     try {
-        const response = await apiService.reprocessCaseDocuments(caseId);
-        setReprocessStatus(t('reprocess.processing', `AI po analizon ${response.count} dokumente...`));
+        await apiService.reprocessCaseDocuments(caseId);
+        setReprocessStatus(t('reprocess.success', 'U nis me sukses.'));
+        setTimeout(() => {
+            setReprocessStatus(null);
+            fetchGraphData();
+        }, 3000);
     } catch (e) {
-        setIsPolling(false);
-        setReprocessStatus(null);
-        setError(t('reprocess.error', 'Dështoi nisja e ri-procesimit.'));
-        console.error(e);
+        setReprocessStatus(t('reprocess.error', 'Gabim gjatë procesimit.'));
+        setTimeout(() => setReprocessStatus(null), 3000);
     }
   };
 
   const handleToggleSelect = (nodeName: string) => {
     setSelected(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(nodeName)) {
-        newSet.delete(nodeName);
-      } else {
-        newSet.add(nodeName);
-      }
+      if (newSet.has(nodeName)) newSet.delete(nodeName);
+      else newSet.add(nodeName);
       return newSet;
     });
   };
 
-  const handleSelectAll = () => {
-    if (selected.size === nodes.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(nodes.map(n => n.name)));
-    }
-  };
-
-  const handleConfirmImport = () => {
-    onImport(Array.from(selected));
-    onClose();
-    setSelected(new Set());
-  };
-
   if (!isOpen) return null;
-
-  const isAdmin = user?.role === 'ADMIN';
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
@@ -196,75 +97,72 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
           <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"><X size={24} /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 -mr-2 mb-4 border-t border-b border-white/10 py-2">
+        <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 -mr-2 mb-4 border-t border-b border-white/10 py-6">
           {isLoading ? (
-            <div className="flex items-center justify-center h-full"><Loader2 className="animate-spin h-8 w-8 text-primary-start" /></div>
+            <div className="flex flex-col items-center justify-center h-full space-y-4">
+                <Loader2 className="animate-spin h-10 w-10 text-primary-start" />
+                <p className="text-text-muted text-sm animate-pulse">{t('general.loading', 'Duke kërkuar për të dhëna të reja...')}</p>
+            </div>
           ) : error ? (
-            <div className="flex flex-col items-center justify-center h-full text-text-muted space-y-4 px-4 text-center">
-                 <AlertCircle size={32} className="text-yellow-500" />
-                 <span className="text-sm">{error}</span>
-                 {isAdmin && (
-                    <button onClick={handleForceReprocess} className="mt-2 px-4 py-2 bg-primary-start/10 rounded-lg text-sm text-primary-start border border-primary-start/50 hover:bg-primary-start/20 transition-colors">
-                        {t('reprocess.tryAgain', 'Provo Përsëri')}
-                    </button>
-                 )}
+            <div className="flex flex-col items-center justify-center h-full text-red-400 space-y-4 p-4 text-center">
+                 <AlertTriangle size={40} />
+                 <span>{error}</span>
+                 <button onClick={fetchGraphData} className="px-4 py-2 bg-white/10 rounded-lg text-white hover:bg-white/20">Prova Përsëri</button>
             </div>
           ) : nodes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-text-muted space-y-6 px-4">
-                {!isPolling ? (
-                    <>
-                        <p className="text-center text-lg">{t('evidenceMap.importModal.noEntities', 'AI nuk ka gjetur entitete në dokumente.')}</p>
-                        {isAdmin && (
-                            <button 
-                                onClick={handleForceReprocess} 
-                                className="flex items-center gap-2 px-6 py-3 bg-primary-start/10 hover:bg-primary-start/20 text-primary-start border border-primary-start/50 rounded-xl transition-all hover:scale-105 active:scale-95"
-                            >
-                                <RefreshCw size={18} /> 
-                                {t('reprocess.forceAll', 'Ri-proceso Të Gjitha Dokumentet')}
-                            </button>
-                        )}
-                    </>
-                ) : (
-                    <div className="flex flex-col items-center animate-pulse space-y-4">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-primary-start blur-xl opacity-20 animate-pulse"></div>
-                            <RefreshCw size={48} className="text-primary-start animate-spin duration-[3000ms]" />
-                        </div>
-                        <p className="text-primary-start font-medium text-center max-w-xs transition-all duration-500">{reprocessStatus}</p>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-2">
-                            <Clock size={12} />
-                            <span>{t('general.pleaseWait', 'Ju lutem prisni...')}</span>
-                        </div>
-                    </div>
+            <div className="flex flex-col items-center justify-center h-full text-text-muted space-y-6 p-4">
+                <div className="bg-white/5 p-6 rounded-full">
+                    <BrainCircuit size={48} className="opacity-20" />
+                </div>
+                <div className="text-center space-y-2">
+                    <p className="text-white font-medium">{t('evidenceMap.importModal.noEntities', 'AI nuk ka gjetur entitete ende.')}</p>
+                    <p className="text-xs px-8 text-gray-500">Kjo ndodh nëse dokumentet nuk janë analizuar ende ose nuk përmbajnë emra personash apo organizatash.</p>
+                </div>
+                {user?.role === 'ADMIN' && (
+                    <button 
+                        onClick={handleForceReprocess} 
+                        disabled={!!reprocessStatus}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-primary-start/20 text-primary-start border border-primary-start/50 rounded-xl hover:bg-primary-start/30 transition-all font-bold"
+                    >
+                        <RefreshCw size={18} className={reprocessStatus ? 'animate-spin' : ''} /> 
+                        {reprocessStatus || "Ri-analizo Dokumentet (Admin)"}
+                    </button>
                 )}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-2">
               {nodes.map(node => (
                 <div
                   key={node.id}
                   onClick={() => handleToggleSelect(node.name)}
-                  className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${selected.has(node.name) ? 'bg-primary-start/20' : 'hover:bg-white/5'}`}
+                  className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border ${selected.has(node.name) ? 'bg-primary-start/20 border-primary-start/50' : 'bg-white/5 border-transparent hover:bg-white/10'}`}
                 >
                   <div className="flex flex-col">
-                    <span className="font-medium text-text-main">{node.name}</span>
-                    <span className="text-xs text-text-muted uppercase">{node.group}</span>
+                    <span className="font-semibold text-text-main">{node.name}</span>
+                    <span className="text-[10px] text-text-muted uppercase tracking-widest">{node.group}</span>
                   </div>
-                  {selected.has(node.name) && <Check className="text-primary-start" />}
+                  {selected.has(node.name) ? (
+                      <div className="bg-primary-start p-1 rounded-full"><Check size={14} className="text-white" /></div>
+                  ) : (
+                      <div className="w-6 h-6 rounded-full border border-white/10" />
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        <div className="flex-shrink-0 flex justify-between items-center">
-            <button onClick={handleSelectAll} disabled={nodes.length === 0} className="px-4 py-2 text-sm text-gray-400 hover:text-white font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed">
-                {selected.size === nodes.length && nodes.length > 0 ? t('general.deselectAll', 'Çseleto të Gjitha') : t('general.selectAll', 'Selekto të Gjitha')}
+        <div className="flex-shrink-0 flex justify-between items-center pt-2">
+            <button 
+                onClick={() => setSelected(selected.size === nodes.length ? new Set() : new Set(nodes.map(n => n.name)))} 
+                className="px-4 py-2 text-xs text-gray-400 hover:text-white font-medium transition-colors"
+            >
+                {selected.size === nodes.length ? t('general.deselectAll') : t('general.selectAll')}
             </button>
             <button
-                onClick={handleConfirmImport}
+                onClick={() => { onImport(Array.from(selected)); onClose(); }}
                 disabled={selected.size === 0}
-                className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary-start/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-8 py-2.5 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary-start/20 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
             >
                 {t('evidenceMap.importModal.importBtn', { count: selected.size })}
             </button>

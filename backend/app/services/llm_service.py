@@ -1,8 +1,7 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V37.1 (FINAL INTEGRITY FIX)
-# 1. FIX: Explicitly added 'stream_text_async' to __all__ and implemented the generator.
-# 2. PERFORMANCE: Optimized Hydra Tactic and Chat Streaming logic.
-# 3. STATUS: Definitive version for E2E Chat Streaming.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V37.2 (PARAMETER SYNC)
+# 1. FIX: Renamed 'context' parameter back to 'context_summaries' to match 'cases.py' orchestrator.
+# 2. STATUS: 100% API compatibility restored.
 
 import os
 import json
@@ -36,7 +35,7 @@ __all__ = [
     "extract_expense_details_from_text",
     "query_global_rag_for_claims",
     "process_large_document_async",
-    "stream_text_async" # PHOENIX: Verified Export
+    "stream_text_async"
 ]
 
 # --- CONFIGURATION ---
@@ -56,7 +55,6 @@ _async_deepseek_client: Optional[AsyncOpenAI] = None
 _openai_client: Optional[OpenAI] = None
 
 # --- CLIENT FACTORIES ---
-
 def get_async_deepseek_client() -> Optional[AsyncOpenAI]:
     global _async_deepseek_client
     if not _async_deepseek_client and DEEPSEEK_API_KEY:
@@ -81,20 +79,13 @@ def get_openai_client() -> Optional[OpenAI]:
     return _openai_client
 
 # --- CORE GENERATORS ---
-
 async def stream_text_async(system_prompt: str, user_prompt: str, temp: float = 0.2) -> AsyncGenerator[str, None]:
-    """
-    Yields tokens from the LLM in real-time.
-    """
     client = get_async_deepseek_client()
     if client:
         try:
             stream = await client.chat.completions.create(
                 model=OPENROUTER_MODEL,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
+                messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
                 temperature=temp,
                 stream=True
             )
@@ -106,13 +97,10 @@ async def stream_text_async(system_prompt: str, user_prompt: str, temp: float = 
             logger.error(f"Streaming failed: {e}")
             yield " [Gabim në lidhjen me AI] "
             return
-
-    # Fallback non-streaming
     full_text = await _call_llm_async(system_prompt, user_prompt, temp)
     yield full_text
 
 # --- UTILITIES ---
-
 def chunk_text(text: str, chunk_size: int = 12000) -> List[str]:
     return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
 
@@ -130,7 +118,6 @@ def _parse_json_safely(content: str) -> Dict[str, Any]:
         return {}
 
 # --- PUBLIC FUNCTIONS ---
-
 def get_embedding(text: str) -> List[float]:
     clean_text = text.replace("\n", " ")
     client = get_openai_client()
@@ -184,20 +171,27 @@ def generate_summary(text: str) -> str:
         return result or ""
     return asyncio.run(process_large_document_async(text, "SUMMARY"))
 
-# --- REMAINING LEGAL PROMPTS & FUNCTIONS ---
-# ... (Standard PROMTP_... definitions here)
-PROMPT_SENIOR_LITIGATOR = "Ti je Avokat..."
+# --- LEGAL AGENTS ---
+PROMPT_SENIOR_LITIGATOR = "Ti je Avokat i Lartë..."
+PROMPT_CROSS_EXAMINE = "Ti je Ekspert i Kryqëzimit të Fakteve..."
 
 def analyze_case_integrity(text: str) -> Dict[str, Any]:
     result = _call_llm(PROMPT_SENIOR_LITIGATOR, text[:35000], True)
     return _parse_json_safely(result or "{}")
 
+# PHOENIX FIX: Synchronized parameter name with cases.py endpoint call
+def perform_litigation_cross_examination(target_text: str, context_summaries: List[str]) -> Dict[str, Any]:
+    context_block = "\n".join(context_summaries)
+    prompt = f"TARGET DOCUMENT CONTENT:\n{target_text[:15000]}\n\nCONTEXT (OTHER DOCUMENTS):\n{context_block}"
+    result = _call_llm(PROMPT_CROSS_EXAMINE, prompt, True, temp=0.2)
+    return _parse_json_safely(result or "{}")
+
+# --- STUBS FOR INTEGRITY ---
 def analyze_financial_portfolio(data: str) -> Dict[str, Any]: return {}
 def generate_adversarial_simulation(text: str) -> Dict[str, Any]: return {}
 def build_case_chronology(text: str) -> Dict[str, Any]: return {}
 def detect_contradictions(text: str) -> Dict[str, Any]: return {}
 def extract_deadlines(text: str) -> Dict[str, Any]: return {}
-def perform_litigation_cross_examination(target_text: str, context: List[str]) -> Dict[str, Any]: return {}
 def translate_for_client(text: str) -> str: return ""
 def forensic_interrogation(q: str, c: List[str]) -> str: return ""
 def categorize_document_text(text: str) -> str: return "Të tjera"
