@@ -1,31 +1,46 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V4.1 (SUPPORT LINK RELOCATED - COMPLETED)
-// 1. FEAT: Added the 'Support' link to the user profile dropdown menu.
-// 2. INTEGRITY: Added missing closing tags to restore file integrity.
+// PHOENIX PROTOCOL - HEADER V5.0 (FULL TOP-BAR NAVIGATION)
+// 1. STRUCTURAL: Integrated the main navigation links ('Zyra', 'Rastet', 'Hartimi') directly into the Header.
+// 2. UX: Removed the mobile 'Menu' button and its handler (toggleSidebar is now obsolete).
+// 3. ALIGNMENT: Added a flex container to align the logo, navigation, and user actions horizontally.
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Search, Menu, LogOut, User as UserIcon, MessageSquare } from 'lucide-react';
+import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom'; // Added NavLink
 import { apiService } from '../services/api';
 import LanguageSwitcher from './LanguageSwitcher';
+import BrandLogo from './BrandLogo'; // Imported BrandLogo
 
-interface HeaderProps {
-  toggleSidebar: () => void;
-}
-
-const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
+// Removed HeaderProps interface as toggleSidebar is obsolete
+const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
+  const location = useLocation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
 
-  // Refs for click-outside detection
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Poll for alerts
+  // Define Navigation Items (from old Sidebar)
+  const navItems = [
+    { icon: Building2, label: t('sidebar.myOffice', 'Zyra'), path: '/business' },
+    // Admin link is inserted dynamically
+    { icon: Scale, label: t('sidebar.juristiAi', 'Rastet'), path: '/dashboard' },
+    { icon: FileText, label: t('sidebar.drafting', 'Hartimi'), path: '/drafting' },
+  ];
+  
+  if (user?.role === 'ADMIN') {
+      navItems.splice(1, 0, {
+          icon: Shield,
+          label: t('sidebar.adminPanel', 'Admin'),
+          path: '/admin',
+      });
+  }
+
+  // Poll for alerts (Unchanged)
   useEffect(() => {
     const checkAlerts = async () => {
       if (!user) return;
@@ -36,13 +51,12 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
         console.warn("Alert check skipped");
       }
     };
-    
     checkAlerts();
     const interval = setInterval(checkAlerts, 60000); 
     return () => clearInterval(interval);
   }, [user]);
 
-  // Click Outside Event Listener
+  // Click Outside Event Listener (Unchanged)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -63,34 +77,55 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
   }, [isProfileOpen]);
 
   return (
-    <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 sticky top-0 backdrop-blur-xl bg-background-dark/60 border-b border-white/5 transition-all duration-300">
+    <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 top-0 backdrop-blur-xl bg-background-dark/60 border-b border-white/5 transition-all duration-300">
       
-      {/* Left: Mobile Menu & Search */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={toggleSidebar}
-          className="lg:hidden p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-        >
-          <Menu size={24} />
-        </button>
-
+      {/* LEFT: Logo and Search (Combined) */}
+      <div className="flex items-center h-full gap-8">
+        <BrandLogo /> {/* Logo */}
+        
+        {/* Search Bar */}
         <div className="relative hidden sm:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary h-4 w-4" />
           <input 
             type="text" 
-            placeholder={t('header.searchPlaceholder')} 
+            placeholder={t('general.search', 'Kërko...')} 
             className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-text-secondary/50 focus:ring-1 focus:ring-primary-start/50 focus:bg-background-dark/80 focus:border-primary-start/50 outline-none w-64 transition-all focus:w-80"
           />
         </div>
       </div>
 
-      {/* Right: Actions & Profile */}
+      {/* MIDDLE: Main Navigation Links (from Sidebar) - Hidden on mobile */}
+      <nav className="hidden lg:flex items-center h-full space-x-2">
+        {navItems.map((item) => {
+          const isActive = location.pathname.startsWith(item.path) && item.path !== '/business';
+          const isBusinessActive = item.path === '/business' && location.pathname.startsWith('/business');
+          const isCurrentActive = isActive || isBusinessActive;
+
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={`
+                flex items-center px-4 h-full text-sm font-medium transition-all duration-200 relative
+                ${isCurrentActive 
+                  ? 'text-white border-b-2 border-primary-start' 
+                  : 'text-text-secondary hover:text-white hover:bg-white/5'}
+              `}
+            >
+              <item.icon className="h-4 w-4 mr-2" />
+              {item.label}
+            </NavLink>
+          );
+        })}
+      </nav>
+
+      {/* RIGHT: Actions & Profile */}
       <div className="flex items-center gap-2 sm:gap-3">
         <div className="hidden">
           <LanguageSwitcher />
         </div>
 
-        <Link to="/calendar" className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors relative" title="Njoftimet">
+        <Link to="/calendar" className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors relative" title="Kalendari">
           <Bell size={20} />
           {alertCount > 0 && (
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
@@ -136,7 +171,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                 {t('sidebar.account', 'Llogaria Ime')}
               </Link>
               
-              {/* --- ADDED SUPPORT LINK --- */}
               <Link 
                 to="/support" 
                 className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
@@ -145,7 +179,6 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                 <MessageSquare size={16} className="mr-3 text-primary-start" />
                 {t('sidebar.support', 'Mbështetja')}
               </Link>
-              {/* --- END ADDED SUPPORT LINK --- */}
 
               <div className="h-px bg-white/5 my-1"></div>
 
@@ -157,7 +190,7 @@ const Header: React.FC<HeaderProps> = ({ toggleSidebar }) => {
                 className="w-full flex items-center px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
               >
                 <LogOut size={16} className="mr-3" />
-                {t('header.logout', 'Dilni')}
+                {t('general.logout', 'Dilni')}
               </button>
             </div>
           )}

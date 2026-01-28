@@ -1,25 +1,19 @@
 // FILE: src/layouts/MainLayout.tsx
-// PHOENIX PROTOCOL - LAYOUT V5.2 (IMPORT PATH FIX)
-// 1. FIX: Corrected import paths to remove non-existent '/common' subdirectory.
-// 2. STATUS: Resolves TypeScript 'Cannot find module' errors while retaining the z-index fix.
+// PHOENIX PROTOCOL - LAYOUT V6.0 (FULL HEADER NAVIGATION CONVERSION)
+// 1. STRUCTURAL: Removed the entire <Sidebar /> component.
+// 2. STRUCTURAL: Removed the 'isSidebarOpen' state and 'toggleSidebar' function.
+// 3. CSS: Removed the 'lg:ml-64' rule to allow content to span the full width.
+// 4. HEADER: Consolidated all header logic into the single <Header /> component.
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Outlet } from 'react-router-dom';
-import { Menu } from 'lucide-react';
-// PHOENIX FIX: Corrected paths
-import Sidebar from '../components/Sidebar';
 import Header from '../components/Header';
-import BrandLogo from '../components/BrandLogo';
 
 const MainLayout: React.FC = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen lg:h-screen w-full bg-background-dark text-text-primary relative selection:bg-primary-start/30">
+    // Removed lg:flex-row and lg:h-screen as we are now scrollable vertically (header fixed, content scrolls)
+    <div className="flex flex-col min-h-screen w-full bg-background-dark text-text-primary relative selection:bg-primary-start/30">
       
       {/* --- AMBIENT BACKGROUND GLOWS --- */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
@@ -28,30 +22,19 @@ const MainLayout: React.FC = () => {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[1000px] bg-background-light/40 rounded-full blur-[150px] opacity-20"></div>
       </div>
 
-      {/* --- SIDEBAR --- */}
-      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      {/* --- HEADER (Now the single point of navigation) --- */}
+      {/* It must be fixed or sticky to remain visible */}
+      <header className="sticky top-0 shrink-0 relative z-40">
+        <Header />
+      </header>
 
-      {/* --- MAIN AREA WRAPPER --- */}
-      <div className="flex-1 flex flex-col lg:ml-64 relative transition-all duration-300 lg:h-full">
+      {/* --- MAIN CONTENT AREA --- */}
+      {/* Removed lg:ml-64 to take full width */}
+      <div className="flex-1 flex flex-col relative w-full">
         
-        {/* Header for Desktop */}
-        <div className="hidden lg:block shrink-0 relative z-40">
-          <Header toggleSidebar={toggleSidebar} />
-        </div>
-        
-        {/* Header for Mobile (Sticky) */}
-        <header className="lg:hidden sticky top-0 flex items-center justify-between p-4 border-b border-white/10 bg-background-dark/80 backdrop-blur-xl z-30">
-          <BrandLogo />
-          <button 
-            onClick={() => setIsSidebarOpen(true)}
-            className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors"
-          >
-            <Menu className="w-6 h-6" />
-          </button>
-        </header>
-
         {/* Content Area */}
-        <main className="flex-1 lg:overflow-y-auto lg:custom-scrollbar scroll-smooth">
+        {/* Removed lg:overflow-y-auto as the whole body will now scroll */}
+        <main className="flex-1 scroll-smooth">
           <div className="relative min-h-full pb-20 lg:pb-0">
              <Outlet />
           </div>
