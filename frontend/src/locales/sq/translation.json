@@ -496,7 +496,13 @@
       "cancel": "Anulo",
       "creating": "Duke krijuar...",
       "create": "Krijo Ngjarje"
-    }
+    },
+    "caseView": {
+    "evidenceMapButton": "Evidence Map",
+    "financialAnalyst": "Financial Analyst",
+    "analyzeCase": "Analyze Case",
+    "allFiles": "Entire File"
+  
   },
   "support": {
     "title": "Qendra e Ndihmës",
@@ -615,5 +621,6 @@
     "pdfError": "Dështoi gjenerimi i raportit PDF.",
     "errorView": "Nuk u gjet elementi kryesor i hartës.",
     "errorEmpty": "Nuk ka asnjë kartelë për të eksportuar."
+  }
   }
 }
