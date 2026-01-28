@@ -35,6 +35,41 @@
     "stricken": "Hequr",
     "saving": "Duke u ruajtur..."
   },
+  "adminBriefing": {
+    "title": "Inteligjenca Ditore",
+    "viewCalendar": "Hap Kalendarin",
+    "insight": {
+      "missed": "VËMENDJE: Keni {{count}} afate të humbura nga dje. Rishikoni menjëherë.",
+      "today": "FOKUSI I DITËS: {{count}} seanca/afate kërkojnë vëmendje sot.",
+      "upcoming": "Përgatitje: {{count}} afate të rëndësishme në 48 orët e ardhshme.",
+      "alerts": "Pastrim Administrativ: {{count}} njoftime të pa lexuara nëpër raste.",
+      "optimal": "Statusi Optimal: Nuk ka urgjenca. Kohë e mirë për të shqyrtuar dosjet e vjetra."
+    },
+    "metric": {
+      "today": "Sot",
+      "alerts": "Sinjalizime"
+    }
+  },
+  "dashboard": {
+    "mainTitle": "Pasqyra e Rasteve",
+    "subtitle": "Menaxhoni rastet tuaja.",
+    "newCase": "Rast i Ri",
+    "createCaseTitle": "Krijo Rast të Ri",
+    "caseTitle": "Titulli i Rastit",
+    "clientName": "Emri i Klientit",
+    "clientEmail": "Email i Klientit",
+    "clientPhone": "Telefoni i Klientit",
+    "noCases": "Nuk u gjetën raste.",
+    "confirmDelete": "A jeni i sigurt?"
+  },
+  "sidebar": {
+    "myOffice": "Zyra",
+    "adminPanel": "Admin",
+    "juristiAi": "Rastet",
+    "calendar": "Kalendari",
+    "drafting": "Hartimi",
+    "support": "Mbështetja"
+  },
   "team": {
     "manageTeam": "Menaxhimi i Ekipit",
     "description": "Ftoni kolegët për të bashkëpunuar në raste dhe dokumente.",
