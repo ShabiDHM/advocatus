@@ -1,7 +1,8 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - INGESTION PIPELINE V10.0 (SYNCED)
-# 1. CRITICAL FIX: Passes 'user_id' correctly to the V13.0 Vector Store.
-# 2. STATUS: Fixes "Context Detachment" by ensuring embeddings land in the Private Case KB.
+# PHOENIX PROTOCOL - INGESTION PIPELINE V11.0 (GRAPH INTEGRITY)
+# 1. FIX: Removed conditional check in 'task_graph' to ensure Document nodes always exist in Neo4j.
+# 2. FIX: Maintained user_id passthrough for Vector Store isolation.
+# 3. STATUS: Resolves "Empty AI Modal" by guaranteeing graph entry for every processed document.
 
 import os
 import tempfile
@@ -78,16 +79,17 @@ def orchestrate_document_processing_mongo(
     try:
         _emit_progress(redis_client, user_id, document_id_str, "Shkarkimi...", 10)
         
-        # Safe temp file creation
+        # 1. Download from storage
         suffix = os.path.splitext(doc_name)[1]
         temp_file_descriptor, temp_original_file_path = tempfile.mkstemp(suffix=suffix)
-        os.close(temp_file_descriptor) # Close immediately, we just needed the path
+        os.close(temp_file_descriptor) 
         
         file_stream = storage_service.download_original_document_stream(document["storage_key"])
         with open(temp_original_file_path, 'wb') as temp_file:
             shutil.copyfileobj(file_stream, temp_file)
         if hasattr(file_stream, 'close'): file_stream.close()
 
+        # 2. Preview Generation
         try:
             _emit_progress(redis_client, user_id, document_id_str, "Gjenerimi i pamjes...", 15)
             temp_pdf_preview_path = conversion_service.convert_to_pdf(temp_original_file_path)
@@ -95,12 +97,14 @@ def orchestrate_document_processing_mongo(
         except Exception as e: 
             logger.warning(f"Preview generation failed: {e}")
 
+        # 3. OCR Extraction
         _emit_progress(redis_client, user_id, document_id_str, "Ekstraktimi i tekstit (OCR)...", 25)
         raw_text = text_extraction_service.extract_text(temp_original_file_path, document.get("mime_type", ""))
         
         if not raw_text or not raw_text.strip():
             raise ValueError("OCR dështoi: Dokumenti duket bosh (Empty Text).")
 
+        # 4. Text Sterilization & Metadata
         _emit_progress(redis_client, user_id, document_id_str, "Sterilizimi Ligjor...", 28)
         extracted_text = llm_service.sterilize_legal_text(raw_text)
         
@@ -128,7 +132,6 @@ def orchestrate_document_processing_mongo(
                 
                 enriched_chunks = EnhancedDocumentProcessor.process_document(text_content=extracted_text, document_metadata=base_doc_metadata, is_albanian=is_albanian)
                 
-                # PHOENIX FIX: Passing 'user_id' explicitly to V13.0 Store
                 success = vector_store_service.create_and_store_embeddings_from_chunks(
                     user_id=user_id, 
                     document_id=document_id_str, 
@@ -137,10 +140,9 @@ def orchestrate_document_processing_mongo(
                     chunks=[c.content for c in enriched_chunks],
                     metadatas=[c.metadata for c in enriched_chunks]
                 )
-                if not success: logger.error("Vector Store returned False")
                 return success
             except Exception as e:
-                logger.error(f"Embedding Task Failed: {e}", exc_info=True)
+                logger.error(f"Embedding Task Failed: {e}")
                 return False
 
         def task_storage() -> Optional[str]:
@@ -162,17 +164,23 @@ def orchestrate_document_processing_mongo(
             except Exception as e: logger.error(f"Deadline Extraction Error: {e}")
 
         def task_graph() -> None:
+            """
+            PHOENIX FIX: Unconditional ingestion to ensure Document node existence in Neo4j.
+            """
             try:
                 _emit_progress(redis_client, user_id, document_id_str, "Ndërtimi i Grafit...", 90)
                 graph_data = llm_service.extract_graph_data(extracted_text)
-                entities = graph_data.get("entities", [])
-                relations = graph_data.get("relations", [])
-                if entities or relations or extracted_metadata:
-                    graph_service.ingest_entities_and_relations(
-                        case_id=case_id_str, document_id=document_id_str, doc_name=doc_name,
-                        entities=entities, relations=relations,
-                        doc_metadata=extracted_metadata 
-                    )
+                
+                # PHOENIX FIX: We call this regardless of whether entities are found.
+                # This ensures the Document exists in the graph for the frontend query to find.
+                graph_service.ingest_entities_and_relations(
+                    case_id=case_id_str, 
+                    document_id=document_id_str, 
+                    doc_name=doc_name,
+                    entities=graph_data.get("entities", []), 
+                    relations=graph_data.get("relations", []),
+                    doc_metadata=extracted_metadata 
+                )
             except Exception as e: logger.error(f"Graph Ingestion Error: {e}")
 
         summary_result, text_storage_key = None, None
@@ -180,12 +188,12 @@ def orchestrate_document_processing_mongo(
         # Parallel Execution
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             futures_list = [executor.submit(task) for task in [task_embeddings, task_storage, task_summary, task_deadlines, task_graph]]
-            # Wait for critical results
-            summary_result = futures_list[2].result()
-            text_storage_key = futures_list[1].result()
             
-            # Check embedding status
+            # Retrieve critical results
             emb_status = futures_list[0].result()
+            text_storage_key = futures_list[1].result()
+            summary_result = futures_list[2].result()
+            
             if not emb_status:
                 logger.warning(f"⚠️ Document {doc_name} was processed but Embeddings failed.")
 
