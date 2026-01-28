@@ -36,10 +36,10 @@
     "saving": "Duke u ruajtur..."
   },
   "adminBriefing": {
-   "title": "Kujdestari Ditor",
+   "title": "Kujdestari",
     "viewCalendar": "Shiko Kalendarin",
     "insight": {
-      "optimal": "Statusi Optimal: Nuk ka urgjenca aktive."
+      "optimal": "Statusi Optimal: Nuk ka urgjenca."
     },
     "kujdestari": {
       "prekluziv_missed": "AFAT I HUMBUR: '{{title}}' ishte një afat prekluziv!",
