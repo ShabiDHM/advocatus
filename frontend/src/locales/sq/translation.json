@@ -123,6 +123,21 @@
     "organizations": "Organizatat",
     "registeredUsers": "Përdoruesit e Regjistruar"
   },
+  "adminBriefing": {
+    "title": "Inteligjenca Ditore",
+    "viewCalendar": "Hap Kalendarin",
+    "insight": {
+      "missed": "VËMENDJE: Keni {{count}} afate të humbura nga dje. Rishikoni menjëherë.",
+      "today": "FOKUSI I DITËS: {{count}} seanca/afate kërkojnë vëmendje sot.",
+      "upcoming": "Përgatitje: {{count}} afate të rëndësishme në 48 orët e ardhshme.",
+      "alerts": "Pastrim Administrativ: {{count}} njoftime të pa lexuara nëpër raste.",
+      "optimal": "Statusi Optimal: Nuk ka urgjenca. Kohë e mirë për të shqyrtuar dosjet e vjetra."
+    },
+    "metric": {
+      "today": "Sot",
+      "alerts": "Sinjalizime"
+    }
+  },
   "business": {
     "title": "Qendra e Biznesit",
     "subtitle": "Menaxhoni zyrën tuaj.",
@@ -206,9 +221,6 @@
     "uploadFailed": "Ngarkimi dështoi",
     "deleteFailed": "Fshirja dështoi.",
     "uploaded": "Ngarkuar",
-    "deepScan": "Skanim i Thellë",
-    "scanStarted": "Skanimi i Thellë filloi! Kontrolloni gjetjet pas pak.",
-    "rename": "Riemërto",
     "renameTitle": "Riemërto Dokumentin",
     "newName": "Emri i ri",
     "archiveSuccess": "Dokumenti u arkivua me sukses!",

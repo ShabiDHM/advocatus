@@ -1,8 +1,8 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V13.0 (STICKY BRIEFING & INTELLIGENT INSIGHTS)
-// 1. UX: Applied 'sticky' positioning to the Admin Briefing Row. It now floats over content during scroll.
-// 2. LOGIC: Added 'generateDailyInsight' for actionable text summaries based on deadline/alert weights.
-// 3. ARCH: Maintained all existing type safety and state logic.
+// PHOENIX PROTOCOL - DASHBOARD V13.1 (i18n FIX)
+// 1. REFACTOR: Removed hardcoded strings from 'runIntelligenceEngine'.
+// 2. LOGIC: Now stores an 'insightState' object { key, count } to use with t().
+// 3. I18N: Added translation keys for metrics and buttons.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -37,7 +37,12 @@ const DashboardPage: React.FC = () => {
   }>({ today: 0, yesterdayMissed: 0, upcoming: 0 });
   
   const [totalAlerts, setTotalAlerts] = useState(0);
-  const [dailyInsight, setDailyInsight] = useState<string>("");
+  
+  // REPLACED hardcoded string with state object for i18n
+  const [insightState, setInsightState] = useState<{ key: string; count: number }>({ 
+      key: 'adminBriefing.insight.optimal', 
+      count: 0 
+  });
 
   const initialNewCaseData = { 
     title: '', 
@@ -60,7 +65,6 @@ const DashboardPage: React.FC = () => {
       const next48Hours = addDays(new Date(), 2);
 
       events.forEach(event => {
-          // Broadened criticality check
           const isCriticalType = ['Seancë Gjyqësore', 'Afat Ligjor', 'Hearing', 'Deadline'].some(type => 
               event.title.includes(type) || (event.priority === 'CRITICAL')
           );
@@ -84,21 +88,20 @@ const DashboardPage: React.FC = () => {
         upcoming: upcomingCount
       });
 
-      // Calculate Alerts
       const alerts = casesList.reduce((sum, c) => sum + (c.alert_count || 0), 0);
       setTotalAlerts(alerts);
 
-      // Generate Strategy String
+      // Generate Strategy Key instead of String
       if (yesterdayMissedCount > 0) {
-          setDailyInsight("VËMENDJE: Keni afate të humbura nga dje. Rishikoni menjëherë.");
+          setInsightState({ key: 'adminBriefing.insight.missed', count: yesterdayMissedCount });
       } else if (todayCount > 0) {
-          setDailyInsight(`FOKUSI I DITËS: ${todayCount} seanca/afate kërkojnë vëmendje sot.`);
+          setInsightState({ key: 'adminBriefing.insight.today', count: todayCount });
       } else if (upcomingCount > 0) {
-          setDailyInsight(`Përgatitje: ${upcomingCount} afate të rëndësishme në 48 orët e ardhshme.`);
+          setInsightState({ key: 'adminBriefing.insight.upcoming', count: upcomingCount });
       } else if (alerts > 5) {
-          setDailyInsight("Pastrim Administrativ: Shumë njoftime të pa lexuara nëpër raste.");
+          setInsightState({ key: 'adminBriefing.insight.alerts', count: alerts });
       } else {
-          setDailyInsight("Statusi Optimal: Nuk ka urgjenca. Kohë e mirë për të shqyrtuar dosjet e vjetra.");
+          setInsightState({ key: 'adminBriefing.insight.optimal', count: 0 });
       }
   };
 
@@ -122,7 +125,6 @@ const DashboardPage: React.FC = () => {
       }));
       setCases(casesWithDefaults);
       
-      // RUN INTELLIGENCE
       runIntelligenceEngine(eventsData, casesWithDefaults);
       
       if (!hasCheckedBriefing.current && eventsData.length > 0) {
@@ -187,7 +189,6 @@ const DashboardPage: React.FC = () => {
 
   const casesToDisplay = cases;
 
-  // Visual Priority Logic
   const criticalCount = criticalDeadlinesCount.today + criticalDeadlinesCount.yesterdayMissed;
   
   const rowStyleClasses = criticalCount > 0 
@@ -201,14 +202,10 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen flex flex-col">
       
-      {/* 
-          PHOENIX STICKY FIX: 
-          Added 'sticky top-4 z-30' to ensure this stays visible while scrolling.
-          Added 'backdrop-blur-md' to prevent content bleeding.
-      */}
+      {/* Sticky Admin Briefing */}
       {isAdmin && (
           <motion.div 
-              className={`sticky top-2 z-30 mb-8 p-0 rounded-xl shadow-2xl backdrop-blur-md border ${rowStyleClasses.split(' ')[2]}`} // Extract border color
+              className={`sticky top-2 z-30 mb-8 p-0 rounded-xl shadow-2xl backdrop-blur-md border ${rowStyleClasses.split(' ')[2]}`}
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.4 }}
@@ -234,24 +231,24 @@ const DashboardPage: React.FC = () => {
                                 {t('adminBriefing.title', 'Inteligjenca Ditore')}
                             </h2>
                             <p className="font-medium text-lg leading-tight">
-                                {dailyInsight}
+                                {/* DYNAMIC TRANSLATION */}
+                                {t(insightState.key, { count: insightState.count })}
                             </p>
                         </div>
                     </div>
 
                     {/* RIGHT: Metrics & Actions */}
                     <div className="flex items-center gap-3 self-end md:self-auto">
-                        {/* Compact Metrics */}
                         <div className="flex gap-2 mr-2">
                              {criticalDeadlinesCount.today > 0 && (
                                 <div className="flex flex-col items-center px-3 py-1 bg-black/30 rounded-lg">
-                                    <span className="text-xs opacity-70">Sot</span>
+                                    <span className="text-xs opacity-70">{t('adminBriefing.metric.today', 'Sot')}</span>
                                     <span className="font-bold">{criticalDeadlinesCount.today}</span>
                                 </div>
                              )}
                              {totalAlerts > 0 && (
                                 <div className="flex flex-col items-center px-3 py-1 bg-black/30 rounded-lg">
-                                    <span className="text-xs opacity-70">Sinjalizime</span>
+                                    <span className="text-xs opacity-70">{t('adminBriefing.metric.alerts', 'Sinjalizime')}</span>
                                     <span className="font-bold">{totalAlerts}</span>
                                 </div>
                              )}
