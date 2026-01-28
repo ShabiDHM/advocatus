@@ -1,8 +1,8 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - INFRASTRUCTURE V10.5 (8-CORE OPTIMIZATION)
-# 1. OPTIMIZED: Rebalanced CPU cores (2 API, 5 Task Workers, 1 DB/System).
-# 2. STABILITY: Added RAM limits (OOM Protection) for memory-heavy AI services.
-# 3. PERFORMANCE: Enabled Uvicorn high-concurrency async mode.
+# PHOENIX PROTOCOL - INFRASTRUCTURE V10.7 (DEADLOCK RESOLUTION)
+# 1. FIX: Increased ai-core-service RAM to 10G to prevent OOM during Torch init.
+# 2. FIX: Relaxed backend/celery dependencies to 'service_started' to break boot deadlock.
+# 3. FIX: Extended healthcheck start_period to 300s (5 min) for slow CPU model loading.
 
 services:
   ai-core-service:
@@ -17,13 +17,13 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G # Protect system RAM
+          memory: 10G # PHOENIX FIX: Allocated more room for simultaneous model loading
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
+      interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 120s
+      retries: 3
+      start_period: 300s # PHOENIX FIX: 5 minutes for CPU-based loading
 
   local-llm:
     image: ollama/ollama:latest
@@ -35,13 +35,12 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G # Prevent Ollama from bloating during inference
+          memory: 3G
 
   backend:
     build: { context: ./backend }
     restart: unless-stopped
     container_name: juristi-backend
-    # PHOENIX FIX: Reduced workers to 2. Async handles the rest. Frees 2 cores.
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --log-level info --proxy-headers
     env_file: ./.env
     volumes:
@@ -52,7 +51,8 @@ services:
     depends_on: 
       mongo: { condition: service_healthy }
       redis: { condition: service_healthy }
-      ai-core-service: { condition: service_healthy }
+      # PHOENIX FIX: Changed to service_started to prevent blocking the whole app
+      ai-core-service: { condition: service_started }
       local-llm: { condition: service_started }
     deploy:
       resources:
@@ -68,8 +68,7 @@ services:
   celery:
     build: { context: ./backend }
     restart: unless-stopped
-    # PHOENIX FIX: Increased concurrency to 5. Optimized for 8-core server.
-    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=5 --prefetch-multiplier=1
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=4 --prefetch-multiplier=1
     env_file: ./.env
     volumes:
       - ./data:/app/data
@@ -81,7 +80,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G # OCR and PDF processing are memory intensive
+          memory: 2G
 
   mongo:
     image: mongo:6.0
@@ -104,7 +103,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: 512M
     healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 15s, timeout: 10s, retries: 5 }
     stop_grace_period: 20s
 
