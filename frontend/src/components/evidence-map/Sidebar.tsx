@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/evidence-map/Sidebar.tsx (COMPLETE REPLACEMENT)
 // PHOENIX PROTOCOL - FIX V6.0.1 (MOBILE RESPONSIBLE SIDEBAR)
 // 1. FIX: Implemented 'fixed' position and 'w-full sm:w-80 md:w-64' for responsive off-canvas behavior.
-// 2. FEAT: Added mobile close button and required 'onClose' prop.
+
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
