@@ -1,8 +1,8 @@
 // FILE: src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - SOCKET HOOK V5.0 (REASONING INTEGRATION)
-// 1. UPDATE: sendChatMessage accepts 'ReasoningMode' to support Fast/Deep switching.
-// 2. FIX: Properly propagates the mode to the API layer.
-// 3. STATUS: Architecture restored. No bypass needed.
+// PHOENIX PROTOCOL - SOCKET HOOK V8.0 (HYDRA STREAMING INTEGRATION)
+// 1. FIX: Implemented 'sendChatMessageStream' consumption to enable real-time token rendering.
+// 2. FIX: Added placeholder state management for the incoming AI stream to prevent UI flickering.
+// 3. STATUS: Document progress SSE and Chat Streaming now operate in parallel.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
@@ -16,7 +16,6 @@ interface UseDocumentSocketReturn {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
-  // UPDATED SIGNATURE
   sendChatMessage: (content: string, mode: ReasoningMode, documentId?: string, jurisdiction?: Jurisdiction) => void;
   isSendingMessage: boolean;
 }
@@ -54,6 +53,7 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                 return;
             }
 
+            // Using your specific route structure
             const sseUrl = `${API_V1_URL}/stream/updates?token=${token}`;
             const es = new EventSource(sseUrl);
             eventSourceRef.current = es;
@@ -89,12 +89,18 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
                         }));
                     }
 
+                    // PHOENIX: Background history sync
+                    // We only add if the message isn't currently being streamed or already exists
                     if (payload.type === 'CHAT_MESSAGE' && payload.case_id === caseId) {
-                         setMessages(prev => [...prev, {
-                             role: 'ai',
-                             content: payload.content,
-                             timestamp: new Date().toISOString()
-                         }]);
+                         setMessages(prev => {
+                             const exists = prev.some(m => m.content === payload.content);
+                             if (exists) return prev;
+                             return [...prev, {
+                                 role: 'ai',
+                                 content: payload.content,
+                                 timestamp: new Date().toISOString()
+                             }];
+                         });
                     }
 
                 } catch (e) {
@@ -121,20 +127,49 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
     setReconnectCounter(prev => prev + 1); 
   }, []);
   
-  // PHOENIX: Updated to accept 'ReasoningMode'
+  // PHOENIX: Refactored for real-time Token Streaming
   const sendChatMessage = useCallback(async (content: string, mode: ReasoningMode, documentId?: string, jurisdiction?: Jurisdiction) => {
     if (!content.trim() || !caseId) return;
     
     setIsSendingMessage(true);
-    // Optimistic Update
-    setMessages(prev => [...prev, { role: 'user', content, timestamp: new Date().toISOString() }]);
     
+    // 1. Add User Message
+    const userMsg: ChatMessage = { role: 'user', content, timestamp: new Date().toISOString() };
+    
+    // 2. Add empty AI placeholder for the stream
+    const aiPlaceholder: ChatMessage = { role: 'ai', content: '', timestamp: new Date().toISOString() };
+    
+    setMessages(prev => [...prev, userMsg, aiPlaceholder]);
+    
+    let streamContent = "";
+
     try {
-        // Pass the mode to the API service
-        await apiService.sendChatMessage(caseId, content, documentId, jurisdiction, mode);
+        // 3. Consume the stream from the API
+        const stream = apiService.sendChatMessageStream(caseId, content, documentId, jurisdiction, mode);
+        
+        for await (const chunk of stream) {
+            streamContent += chunk;
+            
+            // 4. Update the placeholder message in real-time
+            setMessages(prev => {
+                const updated = [...prev];
+                const lastIdx = updated.length - 1;
+                if (updated[lastIdx] && updated[lastIdx].role === 'ai') {
+                    updated[lastIdx] = { ...updated[lastIdx], content: streamContent };
+                }
+                return updated;
+            });
+        }
     } catch (error) {
-        console.error("Message send failed:", error);
-        setMessages(prev => [...prev, { role: 'ai', content: "Dështoi dërgimi i mesazhit.", timestamp: new Date().toISOString() }]);
+        console.error("Hydra Stream failed:", error);
+        setMessages(prev => {
+            const updated = [...prev];
+            const lastIdx = updated.length - 1;
+            if (updated[lastIdx] && updated[lastIdx].role === 'ai') {
+                updated[lastIdx].content = "Dështoi dërgimi i mesazhit. Ju lutem provoni përsëri.";
+            }
+            return updated;
+        });
     } finally {
         setIsSendingMessage(false);
     }

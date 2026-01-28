@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V15.2 (SERVER-SIDE ORCHESTRATION)
-// 1. FIXED: reprocessCaseDocuments now uses the bulk server endpoint instead of a client-side loop.
-// 2. STATUS: Fully optimized for network efficiency.
+// PHOENIX PROTOCOL - API SERVICE V16.0 (STREAMING SUPPORT)
+// 1. ADDED: 'sendChatMessageStream' generator using Fetch API for real-time tokens.
+// 2. STATUS: Enables "Typewriter" effect in Chat Panel.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -27,7 +27,6 @@ interface MobileUploadStatus { status: 'pending' | 'complete' | 'error'; data?: 
 interface ReprocessConfirmation { documentId: string; message: string; }
 interface BulkReprocessResponse { count: number; message: string; }
 
-// PHOENIX ADDITION: Forensic Interfaces
 export interface ForensicMetadata {
     evidence_hash: string;
     analysis_timestamp: string;
@@ -314,6 +313,7 @@ class ApiService {
         window.URL.revokeObjectURL(url);
     }
 
+    // PHOENIX: Legacy Sync Method (Retained but unused by new hook)
     public async sendChatMessage(
         caseId: string,
         message: string,
@@ -326,6 +326,64 @@ class ApiService {
             { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks', mode }
         );
         return response.data.response;
+    }
+
+    // PHOENIX NEW: Stream-enabled chat method
+    public async *sendChatMessageStream(
+        caseId: string,
+        message: string,
+        documentId?: string,
+        jurisdiction?: string,
+        mode: 'FAST' | 'DEEP' = 'FAST'
+    ): AsyncGenerator<string, void, unknown> {
+        let token = tokenManager.get();
+        if (!token) {
+            await this.refreshToken();
+            token = tokenManager.get();
+        }
+
+        const url = `${API_V1_URL}/chat/case/${caseId}`;
+        
+        // Use native fetch for streaming
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ 
+                message, 
+                document_id: documentId || null, 
+                jurisdiction: jurisdiction || 'ks', 
+                mode 
+            })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMessage = `Chat request failed: ${response.status}`;
+            try {
+                const errorJson = JSON.parse(errorText);
+                if (errorJson.detail) errorMessage = errorJson.detail;
+            } catch (e) {}
+            throw new Error(errorMessage);
+        }
+
+        if (!response.body) return;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                yield chunk;
+            }
+        } finally {
+            reader.releaseLock();
+        }
     }
 
     public async clearChatHistory(caseId: string): Promise<void> {
@@ -404,7 +462,6 @@ class ApiService {
         return response.data;
     }
 
-    // PHOENIX FIX: Bulk Reprocess via Server Endpoint
     public async reprocessCaseDocuments(caseId: string): Promise<BulkReprocessResponse> {
         const response = await this.axiosInstance.post<BulkReprocessResponse>(
             `/cases/${caseId}/documents/reprocess-all`
