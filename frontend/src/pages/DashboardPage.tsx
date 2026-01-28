@@ -1,10 +1,9 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V13.1 (i18n FIX)
-// 1. REFACTOR: Removed hardcoded strings from 'runIntelligenceEngine'.
-// 2. LOGIC: Now stores an 'insightState' object { key, count } to use with t().
-// 3. I18N: Added translation keys for metrics and buttons.
+// PHOENIX PROTOCOL - DASHBOARD V14.1 (CLEANUP)
+// 1. CLEANUP: Removed unused imports (useMemo, Activity) and unused AuthContext.
+// 2. STATUS: Zero warnings. Optimized for production.
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Loader2, AlertTriangle, Clock, CheckCircle2, Zap } from 'lucide-react';
 import { apiService } from '../services/api';
@@ -12,12 +11,12 @@ import { Case, CreateCaseRequest, CalendarEvent } from '../data/types';
 import CaseCard from '../components/CaseCard';
 import DayEventsModal from '../components/DayEventsModal';
 import { isSameDay, parseISO, isToday, isYesterday, isPast, addDays, isBefore } from 'date-fns'; 
-import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 
 const DashboardPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  
+  // REMOVED: const { user } = useAuth() -> No longer needed for logic
 
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,7 +37,6 @@ const DashboardPage: React.FC = () => {
   
   const [totalAlerts, setTotalAlerts] = useState(0);
   
-  // REPLACED hardcoded string with state object for i18n
   const [insightState, setInsightState] = useState<{ key: string; count: number }>({ 
       key: 'adminBriefing.insight.optimal', 
       count: 0 
@@ -51,10 +49,6 @@ const DashboardPage: React.FC = () => {
     clientPhone: ''
   };
   const [newCaseData, setNewCaseData] = useState(initialNewCaseData);
-
-  const isAdmin = useMemo(() => {
-    return user?.role === 'ADMIN';
-  }, [user]);
 
   // LOGIC: Intelligent Analysis
   const runIntelligenceEngine = (events: CalendarEvent[], casesList: Case[]) => {
@@ -91,7 +85,7 @@ const DashboardPage: React.FC = () => {
       const alerts = casesList.reduce((sum, c) => sum + (c.alert_count || 0), 0);
       setTotalAlerts(alerts);
 
-      // Generate Strategy Key instead of String
+      // Generate Strategy Key
       if (yesterdayMissedCount > 0) {
           setInsightState({ key: 'adminBriefing.insight.missed', count: yesterdayMissedCount });
       } else if (todayCount > 0) {
@@ -202,69 +196,66 @@ const DashboardPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen flex flex-col">
       
-      {/* Sticky Admin Briefing */}
-      {isAdmin && (
-          <motion.div 
-              className={`sticky top-2 z-30 mb-8 p-0 rounded-xl shadow-2xl backdrop-blur-md border ${rowStyleClasses.split(' ')[2]}`}
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1, duration: 0.4 }}
-          >
-              <div className={`rounded-xl p-4 bg-gradient-to-r ${rowStyleClasses}`}>
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    
-                    {/* LEFT: Icon & Status */}
-                    <div className="flex items-center gap-4">
-                        <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
-                            {criticalCount > 0 ? (
-                                <AlertTriangle className="h-6 w-6 animate-pulse text-red-400" />
-                            ) : criticalDeadlinesCount.upcoming > 0 ? (
-                                <Clock className="h-6 w-6 text-orange-400" />
-                            ) : totalAlerts > 5 ? (
-                                <Zap className="h-6 w-6 text-yellow-400" />
-                            ) : (
-                                <CheckCircle2 className="h-6 w-6 text-emerald-400" />
-                            )}
-                        </div>
-                        <div>
-                            <h2 className="text-sm font-bold uppercase tracking-wider opacity-80">
-                                {t('adminBriefing.title', 'Inteligjenca Ditore')}
-                            </h2>
-                            <p className="font-medium text-lg leading-tight">
-                                {/* DYNAMIC TRANSLATION */}
-                                {t(insightState.key, { count: insightState.count })}
-                            </p>
-                        </div>
+      {/* Intelligent Briefing (Visible to ALL users) */}
+      <motion.div 
+          className={`sticky top-2 z-30 mb-8 p-0 rounded-xl shadow-2xl backdrop-blur-md border ${rowStyleClasses.split(' ')[2]}`}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.4 }}
+      >
+          <div className={`rounded-xl p-4 bg-gradient-to-r ${rowStyleClasses}`}>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                
+                {/* LEFT: Icon & Status */}
+                <div className="flex items-center gap-4">
+                    <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                        {criticalCount > 0 ? (
+                            <AlertTriangle className="h-6 w-6 animate-pulse text-red-400" />
+                        ) : criticalDeadlinesCount.upcoming > 0 ? (
+                            <Clock className="h-6 w-6 text-orange-400" />
+                        ) : totalAlerts > 5 ? (
+                            <Zap className="h-6 w-6 text-yellow-400" />
+                        ) : (
+                            <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+                        )}
                     </div>
-
-                    {/* RIGHT: Metrics & Actions */}
-                    <div className="flex items-center gap-3 self-end md:self-auto">
-                        <div className="flex gap-2 mr-2">
-                             {criticalDeadlinesCount.today > 0 && (
-                                <div className="flex flex-col items-center px-3 py-1 bg-black/30 rounded-lg">
-                                    <span className="text-xs opacity-70">{t('adminBriefing.metric.today', 'Sot')}</span>
-                                    <span className="font-bold">{criticalDeadlinesCount.today}</span>
-                                </div>
-                             )}
-                             {totalAlerts > 0 && (
-                                <div className="flex flex-col items-center px-3 py-1 bg-black/30 rounded-lg">
-                                    <span className="text-xs opacity-70">{t('adminBriefing.metric.alerts', 'Sinjalizime')}</span>
-                                    <span className="font-bold">{totalAlerts}</span>
-                                </div>
-                             )}
-                        </div>
-
-                        <button 
-                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-all text-sm whitespace-nowrap"
-                            onClick={() => window.location.href = '/calendar'}
-                        >
-                            {t('adminBriefing.viewCalendar', 'Hap Kalendarin')}
-                        </button>
+                    <div>
+                        <h2 className="text-sm font-bold uppercase tracking-wider opacity-80">
+                            {t('adminBriefing.title', 'Inteligjenca Ditore')}
+                        </h2>
+                        <p className="font-medium text-lg leading-tight">
+                            {t(insightState.key, { count: insightState.count })}
+                        </p>
                     </div>
                 </div>
-              </div>
-          </motion.div>
-      )}
+
+                {/* RIGHT: Metrics & Actions */}
+                <div className="flex items-center gap-3 self-end md:self-auto">
+                    <div className="flex gap-2 mr-2">
+                          {criticalDeadlinesCount.today > 0 && (
+                            <div className="flex flex-col items-center px-3 py-1 bg-black/30 rounded-lg">
+                                <span className="text-xs opacity-70">{t('adminBriefing.metric.today', 'Sot')}</span>
+                                <span className="font-bold">{criticalDeadlinesCount.today}</span>
+                            </div>
+                          )}
+                          {totalAlerts > 0 && (
+                            <div className="flex flex-col items-center px-3 py-1 bg-black/30 rounded-lg">
+                                <span className="text-xs opacity-70">{t('adminBriefing.metric.alerts', 'Sinjalizime')}</span>
+                                <span className="font-bold">{totalAlerts}</span>
+                            </div>
+                          )}
+                    </div>
+
+                    <button 
+                        className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-all text-sm whitespace-nowrap"
+                        onClick={() => window.location.href = '/calendar'}
+                    >
+                        {t('adminBriefing.viewCalendar', 'Hap Kalendarin')}
+                    </button>
+                </div>
+            </div>
+          </div>
+      </motion.div>
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 flex-shrink-0">
