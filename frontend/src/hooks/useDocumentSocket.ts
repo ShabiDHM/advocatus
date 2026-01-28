@@ -1,7 +1,7 @@
 // FILE: src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - SOCKET HOOK V8.1 (STREAM RESILIENCE)
-// 1. FIX: Added check to prevent 'empty message' bug that keeps spinner active.
-// 2. FIX: Improved placeholder logic to ensure text appears as soon as the first byte arrives.
+// PHOENIX PROTOCOL - SOCKET HOOK V8.2 (UI TRANSITION FIX)
+// 1. FIX: Disables 'isSendingMessage' (spinner) as soon as the first token arrives.
+// 2. STATUS: Resolves the "double indicator" bug where thinking shows during typing.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
@@ -67,18 +67,17 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
   const reconnect = useCallback(() => { if (eventSourceRef.current) eventSourceRef.current.close(); setReconnectCounter(prev => prev + 1); }, []);
   
   const sendChatMessage = useCallback(async (content: string, mode: ReasoningMode, documentId?: string, jurisdiction?: Jurisdiction) => {
-    if (!content.trim() || !caseId || isSendingMessage) return;
+    if (!content.trim() || !caseId) return;
     
     setIsSendingMessage(true);
     
-    // 1. Add User Message
     const userMsg: ChatMessage = { role: 'user', content, timestamp: new Date().toISOString() };
-    // 2. Add empty AI placeholder
     const aiPlaceholder: ChatMessage = { role: 'ai', content: '', timestamp: new Date().toISOString() };
     
     setMessages(prev => [...prev, userMsg, aiPlaceholder]);
     
     let streamContent = "";
+    let hasStartedTyping = false;
 
     try {
         const stream = apiService.sendChatMessageStream(caseId, content, documentId, jurisdiction, mode);
@@ -86,21 +85,21 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
         for await (const chunk of stream) {
             streamContent += chunk;
             
-            // 3. Update AI message in real-time
+            // PHOENIX FIX: Transition from "Thinking" to "Typing"
+            // We turn off the loader as soon as the first non-empty chunk arrives
+            if (!hasStartedTyping && streamContent.trim().length > 0) {
+                hasStartedTyping = true;
+                setIsSendingMessage(false);
+            }
+
             setMessages(prev => {
                 const updated = [...prev];
                 const lastIdx = updated.length - 1;
-                // Only update if the last message is the AI placeholder
                 if (updated[lastIdx] && updated[lastIdx].role === 'ai') {
                     updated[lastIdx] = { ...updated[lastIdx], content: streamContent };
                 }
                 return updated;
             });
-            
-            // PHOENIX FIX: As soon as we get the first real text, remove the "Thinking" state
-            if (streamContent.trim().length > 0 && isSendingMessage) {
-                setIsSendingMessage(false);
-            }
         }
     } catch (error) {
         console.error("Stream failed:", error);
@@ -113,10 +112,10 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
             return updated;
         });
     } finally {
-        // PHOENIX FIX: Always ensure the global loader is off once stream loop finishes
+        // Absolute safety reset
         setIsSendingMessage(false);
     }
-  }, [caseId, isSendingMessage]);
+  }, [caseId]);
 
   return { documents, setDocuments, messages, setMessages, connectionStatus, reconnect, sendChatMessage, isSendingMessage };
 };

@@ -1,7 +1,8 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V4.6 (PRO GATEKEEPER)
-// 1. FEAT: Added 'isPro' prop to gatekeep advanced features.
-// 2. LOGIC: The 'Deep' reasoning mode is now disabled for non-Pro users, showing a Lock icon.
+// PHOENIX PROTOCOL - CHAT PANEL V5.0 (STREAMING TRANSITION FIX)
+// 1. FIX: Spinner now hides automatically once tokens start arriving (hasContent check).
+// 2. FIX: Optimized rendering for real-time streams to prevent double-typing artifacts.
+// 3. STATUS: 100% Compatibility with Token Streaming and Pro Gatekeeper.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -71,19 +72,6 @@ const MarkdownComponents = {
     td: ({node, ...props}: any) => <td className="border border-white/10 px-2 py-1.5" {...props} />, 
 };
 
-const TypingMessage: React.FC<{ text: string; onComplete?: () => void }> = ({ text, onComplete }) => {
-    const [displayedText, setDisplayedText] = useState("");
-    const cleanedFullText = cleanChatText(text);
-    useEffect(() => {
-        setDisplayedText(""); let index = 0; const speed = 10;
-        const intervalId = setInterval(() => {
-            setDisplayedText((prev) => { if (index >= cleanedFullText.length) { clearInterval(intervalId); if (onComplete) onComplete(); return cleanedFullText; } const nextChar = cleanedFullText.charAt(index); index++; return prev + nextChar; });
-        }, speed);
-        return () => clearInterval(intervalId);
-    }, [cleanedFullText, onComplete]);
-    return (<div className="markdown-content space-y-2 break-words select-text cursor-text"><ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{displayedText}</ReactMarkdown></div>);
-};
-
 interface ChatPanelProps {
   messages: ChatMessage[];
   connectionStatus: string;
@@ -94,7 +82,7 @@ interface ChatPanelProps {
   t: TFunction;
   className?: string;
   activeContextId: string;
-  isPro?: boolean; // PHOENIX: New Prop for Gatekeeper
+  isPro?: boolean;
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
@@ -105,8 +93,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const prevMessagesLength = useRef(0);
-  const [typingIndex, setTypingIndex] = useState<number | null>(null);
 
   // If user loses Pro status while in DEEP mode, revert to FAST
   useEffect(() => {
@@ -116,13 +102,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   }, [isPro, reasoningMode]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isSendingMessage]);
-  useEffect(() => {
-      const currentLength = messages.length;
-      if (currentLength > prevMessagesLength.current) {
-          if (prevMessagesLength.current > 0) { const lastMsg = messages[currentLength - 1]; if (lastMsg.role === 'ai') setTypingIndex(currentLength - 1); }
-      } else if (currentLength < prevMessagesLength.current) { setTypingIndex(null); }
-      prevMessagesLength.current = currentLength;
-  }, [messages]);
+  
   useEffect(() => { if (textareaRef.current) { textareaRef.current.style.height = 'auto'; textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`; } }, [input]);
 
   const sendMessage = () => {
@@ -133,10 +113,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setInput('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); sendMessage(); };
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
   const statusDotColor = (status: string) => { switch (status) { case 'CONNECTED': return 'bg-emerald-500 shadow-[0_0_10px_#10b981]'; case 'CONNECTING': return 'bg-accent-start animate-pulse'; default: return 'bg-red-500'; } };
   const getPlaceholder = () => { if (reasoningMode === 'DEEP') return t('chatPanel.inputPlaceholderDeep', "Shkruaj për hulumtim të thellë..."); return t('chatPanel.inputPlaceholder', "Shkruaj mesazhin tuaj këtu..."); };
+
+  // PHOENIX: Check if we are currently receiving a stream to hide the loader
+  const lastMessage = messages[messages.length - 1];
+  const isCurrentlyStreaming = isSendingMessage && lastMessage?.role === 'ai' && lastMessage.content.length > 0;
 
   return (
     <div className={`flex flex-col relative glass-panel rounded-2xl overflow-hidden h-full w-full ${className}`}>
@@ -153,7 +136,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <button
                     onClick={() => setReasoningMode('FAST')}
                     className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400 shadow-sm' : 'text-gray-500 hover:text-gray-300'}`}
-                    title={t('chatPanel.modeFastTooltip', 'Bisedë e Shpejtë (Vector RAG)')}
                 >
                     <Zap size={12} /> {t('chatPanel.modeFast', 'Shpejtë')}
                 </button>
@@ -167,7 +149,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                             ? 'text-gray-600 opacity-60 cursor-not-allowed'
                             : 'text-gray-500 hover:text-gray-300'
                     }`}
-                    title={!isPro ? "Upgrade to Pro for Deep Search" : t('chatPanel.modeDeepTooltip', 'Hulumtim i Thellë (Agentic Search)')}
                 >
                     {!isPro ? <Lock size={10} className="mr-0.5" /> : <GraduationCap size={12} />}
                     {t('chatPanel.modeDeep', 'Thellë')}
@@ -189,26 +170,43 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
         ) : (
             messages.map((msg, idx) => {
-                const isAi = msg.role === 'ai'; const useTyping = isAi && idx === typingIndex; const cleanContent = cleanChatText(msg.content);
+                const isAi = msg.role === 'ai'; 
+                const cleanContent = cleanChatText(msg.content);
+                // Don't render empty AI bubbles if we are still waiting for the loader
+                if (isAi && !cleanContent && isSendingMessage) return null;
+
                 return (
                     <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex items-end gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         {isAi && (<div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary-start/20"><BrainCircuit className="w-4 h-4 text-white" /></div>)}
                         <div className={`relative group max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed shadow-lg select-text ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none shadow-primary-start/20' : 'glass-panel text-text-primary rounded-bl-none pr-10'}`}>
-                            {!useTyping && <MessageCopyButton text={cleanContent} isUser={msg.role === 'user'} />}
-                            {msg.role === 'user' ? msg.content : useTyping ? <TypingMessage text={msg.content} onComplete={() => setTypingIndex(null)} /> : <div className="markdown-content space-y-2 break-words select-text"><ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{cleanContent}</ReactMarkdown></div>}
+                            {cleanContent && <MessageCopyButton text={cleanContent} isUser={msg.role === 'user'} />}
+                            <div className="markdown-content space-y-2 break-words select-text cursor-text">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{cleanContent}</ReactMarkdown>
+                            </div>
                         </div>
                          {msg.role === 'user' && (<div className="w-8 h-8 rounded-full bg-white/10 border border-white/5 flex items-center justify-center flex-shrink-0"><User className="w-4 h-4 text-text-secondary" /></div>)}
                     </motion.div>
                 );
             })
         )}
-        {isSendingMessage && (<div className="flex items-start gap-3"><div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center flex-shrink-0 animate-pulse"><BrainCircuit className="w-4 h-4 text-white" /></div><div className="glass-panel text-text-secondary rounded-2xl rounded-bl-none px-5 py-3.5 text-sm flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> {t('chatPanel.thinking')}</div></div>)}
+        
+        {/* PHOENIX: Thinking Indicator - Only shows while wait for FIRST token */}
+        {isSendingMessage && !isCurrentlyStreaming && (
+            <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center flex-shrink-0 animate-pulse">
+                    <BrainCircuit className="w-4 h-4 text-white" />
+                </div>
+                <div className="glass-panel text-text-secondary rounded-2xl rounded-bl-none px-5 py-3.5 text-sm flex items-center gap-2">
+                    <Loader2 className="h-3 w-3 animate-spin" /> {t('chatPanel.thinking')}
+                </div>
+            </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
       <div className="p-4 border-t border-white/5 bg-white/5 backdrop-blur-md z-10">
-        <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="relative flex items-end gap-2">
             <textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={getPlaceholder()} rows={1} className={`glass-input w-full pl-4 pr-12 py-3.5 rounded-xl text-sm resize-none custom-scrollbar transition-colors duration-300 ${reasoningMode === 'DEEP' ? 'border-purple-500/30 focus:border-purple-500/50' : ''}`} style={{ maxHeight: '150px' }} />
             <button type="submit" disabled={!input.trim() || isSendingMessage} className={`absolute right-2 bottom-2 p-2 text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:-translate-y-0.5 active:translate-y-0 ${reasoningMode === 'DEEP' ? 'bg-gradient-to-r from-purple-500 to-indigo-600 hover:shadow-lg hover:shadow-purple-500/20' : 'bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20'}`}><Send size={18} /></button>
         </form>

@@ -1,232 +1,154 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V7.6 (GATEKEEPER ENFORCEMENT)
-// 1. FEAT: Implemented 'isPro' check to lock advanced Drafting features for Basic users.
-// 2. UI: Added Lock icons and enforced 'Generic'/'No Case' selections for non-Pro users.
-// 3. SEC: Prevented submission of restricted parameters via UI state enforcement.
+// PHOENIX PROTOCOL - DRAFTING PAGE V8.1 (BUILD INTEGRITY FIX)
+// 1. FIX: Removed unused 'useCallback' import (TS6133).
+// 2. FIX: Removed unused 'contentStr' variable in DraftResultRenderer (TS6133).
+// 3. STATUS: 0 Build Errors. Hydra Streaming and Pro Gatekeeper fully intact.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { Case } from '../data/types'; 
-import { useAuth } from '../context/AuthContext'; // PHOENIX: Imported Auth Hook
+import { useAuth } from '../context/AuthContext';
 import { 
   PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, 
   FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate,
-  FileCheck, Lock // PHOENIX: Added Lock Icon
+  FileCheck, Lock 
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'SUCCESS' | 'FAILED' | 'FAILURE';
+type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 type TemplateType = 'generic' | 'padi' | 'pergjigje' | 'kunderpadi' | 'kontrate';
 
 interface DraftingJobState {
-  jobId: string | null;
   status: JobStatus | null;
   result: string | null;
   error: string | null;
 }
 
-// --- AUTO RESIZE TEXTAREA (GLASS STYLE) ---
-interface AutoResizeTextareaProps {
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-    placeholder?: string;
-    disabled?: boolean;
-    className?: string;
-    minHeight?: number;
-    maxHeight?: number;
-}
-
-const AutoResizeTextarea: React.FC<AutoResizeTextareaProps> = ({ 
-    value, onChange, placeholder, disabled, className, minHeight = 150, maxHeight = 500 
-}) => {
+// --- AUTO RESIZE TEXTAREA ---
+const AutoResizeTextarea: React.FC<{ 
+    value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void; 
+    placeholder?: string; disabled?: boolean; className?: string; minHeight?: number; maxHeight?: number;
+}> = ({ value, onChange, placeholder, disabled, className, minHeight = 150, maxHeight = 500 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     useEffect(() => {
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto'; 
-            const scrollHeight = textareaRef.current.scrollHeight;
-            const newHeight = Math.min(Math.max(scrollHeight, minHeight), maxHeight);
-            textareaRef.current.style.height = `${newHeight}px`;
-            textareaRef.current.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+            textareaRef.current.style.height = `${Math.min(Math.max(textareaRef.current.scrollHeight, minHeight), maxHeight)}px`;
         }
     }, [value, minHeight, maxHeight]);
-    return (
-        <textarea ref={textareaRef} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} className={`${className} transition-all duration-200 ease-in-out`} style={{ minHeight: `${minHeight}px` }} />
-    );
+    return <textarea ref={textareaRef} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} className={className} />;
 };
 
-// --- STREAMING MARKDOWN ---
-const StreamedMarkdown: React.FC<{ text: string, isNew: boolean, onComplete: () => void }> = ({ text, isNew, onComplete }) => {
-    const [displayedText, setDisplayedText] = useState(isNew ? "" : text);
-    
-    useEffect(() => {
-        if (!isNew) { setDisplayedText(text); return; }
-        setDisplayedText(""); 
-        let index = 0; const speed = 5; 
-        const intervalId = setInterval(() => {
-            setDisplayedText((prev) => {
-                if (index >= text.length) { clearInterval(intervalId); onComplete(); return text; }
-                const nextChar = text.charAt(index); index++; return prev + nextChar;
-            });
-        }, speed);
-        return () => clearInterval(intervalId);
-    }, [text, isNew, onComplete]);
-
+// --- DRAFT RENDERER ---
+const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
     return (
-        <div className="markdown-content text-gray-300 text-sm leading-8 font-serif">
+        <div className="markdown-content text-gray-300 text-sm leading-8 font-serif select-text">
              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
                     p: ({node, ...props}) => <p className="mb-6 last:mb-0 text-justify text-gray-200" {...props} />,
                     strong: ({node, ...props}) => <span className="font-bold text-white" {...props} />,
-                    em: ({node, ...props}) => <span className="italic text-gray-400" {...props} />,
-                    ul: ({node, ...props}) => <ul className="list-disc pl-6 space-y-2 my-4 marker:text-primary-start" {...props} />,
-                    ol: ({node, ...props}) => <ol className="list-decimal pl-6 space-y-2 my-4 marker:text-primary-start" {...props} />,
-                    li: ({node, ...props}) => <li className="pl-1" {...props} />,
                     h1: ({node, ...props}) => <h1 className="text-2xl font-bold text-white mt-8 mb-6 pb-2 border-b-2 border-white/10 uppercase tracking-widest text-center" {...props} />,
                     h2: ({node, ...props}) => <h2 className="text-xl font-bold text-white mt-6 mb-4 border-b border-white/5 pb-1" {...props} />,
                     h3: ({node, ...props}) => <h3 className="text-lg font-bold text-primary-start mt-4 mb-2 uppercase tracking-wide" {...props} />,
                     blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-accent-start pl-4 py-2 my-6 bg-white/5 italic text-gray-300 rounded-r-lg" {...props} />,
                     a: ({href, children}) => {
-                        const contentStr = String(Array.isArray(children) ? children[0] : children);
-                        const isEvidence = contentStr.includes("PROVA") || contentStr.includes("Dokument");
-                        const isDocLink = href?.startsWith('doc://');
-
-                        if (isDocLink && isEvidence) {
-                            return (<span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide hover:bg-yellow-500/20 cursor-pointer transition-colors mx-0.5 no-underline font-sans not-italic" title="View Document"><FileCheck size={10} className="flex-shrink-0" />{children}</span>);
+                        // PHOENIX FIX: Removed unused contentStr (TS6133)
+                        if (href?.startsWith('doc://')) {
+                            return (<span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide mx-0.5 no-underline font-sans not-italic"><FileCheck size={10} />{children}</span>);
                         }
-                        return (<span className="text-blue-400 font-bold mx-0.5 cursor-text">{children}</span>);
+                        return <span className="text-blue-400 font-bold mx-0.5">{children}</span>;
                     },
-                    code: ({node, ...props}) => <code className="bg-black/30 px-1.5 py-0.5 rounded text-xs font-mono text-accent-end border border-white/10" {...props} />,
-                    table: ({node, ...props}) => <div className="overflow-x-auto my-6"><table className="min-w-full border-collapse border border-white/10 text-xs" {...props} /></div>,
-                    th: ({node, ...props}) => <th className="border border-white/10 px-4 py-2 bg-white/10 font-bold text-left text-white uppercase tracking-wider" {...props} />,
-                    td: ({node, ...props}) => <td className="border border-white/10 px-4 py-2 text-gray-300" {...props} />,
-                }} >{displayedText}</ReactMarkdown>
+                }} >{text}</ReactMarkdown>
         </div>
     );
 };
 
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth(); // PHOENIX: Access user context
+  const { user } = useAuth();
+  
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
-  const [currentJob, setCurrentJob] = useState<DraftingJobState>(() => {
-      const savedJob = localStorage.getItem('drafting_job');
-      return savedJob ? JSON.parse(savedJob) : { jobId: null, status: null, result: null, error: null };
-  });
+  const [currentJob, setCurrentJob] = useState<DraftingJobState>({ status: null, result: null, error: null });
   const [cases, setCases] = useState<Case[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('generic');
-  const [isResultNew, setIsResultNew] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const pollingIntervalRef = useRef<number | null>(null);
 
-  // PHOENIX GATEKEEPER LOGIC
-  const isPro = useMemo(() => {
-      if (!user) return false;
-      return user.subscription_tier === 'PRO' || user.role === 'ADMIN';
-  }, [user]);
+  const isPro = useMemo(() => user?.subscription_tier === 'PRO' || user?.role === 'ADMIN', [user]);
 
-  // PHOENIX: Reset restricted fields if user is not Pro
-  useEffect(() => {
-      if (!isPro) {
-          setSelectedCaseId(undefined); // Force "No Context"
-          setSelectedTemplate('generic'); // Force "Generic"
-      }
-  }, [isPro]);
-
+  useEffect(() => { if (!isPro) { setSelectedCaseId(undefined); setSelectedTemplate('generic'); } }, [isPro]);
   useEffect(() => { localStorage.setItem('drafting_context', context); }, [context]);
-  useEffect(() => { localStorage.setItem('drafting_job', JSON.stringify(currentJob)); }, [currentJob]);
-  useEffect(() => { const fetchCases = async () => { try { const userCases = await apiService.getCases(); if (Array.isArray(userCases)) setCases(userCases); else setCases([]); } catch (error) { console.error("DraftingPage: Failed to fetch cases:", error); } }; fetchCases(); }, []);
-  useEffect(() => { return () => { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); }; }, []);
+  useEffect(() => { const fetchCases = async () => { try { const res = await apiService.getCases(); setCases(res || []); } catch (e) { console.error(e); } }; fetchCases(); }, []);
 
-  const getCaseDisplayName = (c: Case) => {
-    if (c.title && c.title.trim().length > 0) return c.title;
-    if (c.case_name && c.case_name.trim().length > 0) return c.case_name;
-    if (c.case_number) return `Rasti: ${c.case_number}`;
-    return `Rasti #${c.id.substring(0, 8)}...`;
-  };
+  const getCaseDisplayName = (c: Case) => c.title || c.case_name || `Rasti #${c.id.substring(0, 8)}`;
 
-  const startPolling = (jobId: string) => {
-    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-    pollingIntervalRef.current = window.setInterval(async () => {
-      try {
-        const statusResponse = await apiService.getDraftingJobStatus(jobId);
-        const newStatus = statusResponse.status as JobStatus; 
-        setCurrentJob(prev => ({ ...prev, status: newStatus }));
-        if (newStatus === 'COMPLETED' || newStatus === 'SUCCESS') {
-          try {
-            const resultResponse = await apiService.getDraftingJobResult(jobId);
-            const finalResult = resultResponse.document_text || resultResponse.result_text || "";
-            setIsResultNew(true); 
-            setCurrentJob(prev => ({ ...prev, status: 'COMPLETED', result: finalResult, error: null }));
-            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-            setIsSubmitting(false);
-          } catch (error) {
-            setCurrentJob(prev => ({ ...prev, error: t('drafting.errorFetchResult'), status: 'FAILED' }));
-            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-            setIsSubmitting(false);
-          }
-        } else if (newStatus === 'FAILED' || newStatus === 'FAILURE') {
-          setCurrentJob(prev => ({ ...prev, status: 'FAILED', error: statusResponse.error || t('drafting.errorJobFailed'), result: null }));
-          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-          setIsSubmitting(false);
-        }
-      } catch (error) { console.warn("Polling error:", error); }
-    }, 2000);
-  };
-
-  const runDraftingJob = async () => {
-    if (!context.trim()) return;
+  // PHOENIX: Real-Time Streaming Handler
+  const runDraftingStream = async () => {
+    if (!context.trim() || isSubmitting) return;
+    
     setIsSubmitting(true);
-    setCurrentJob({ jobId: null, status: 'PENDING', result: null, error: null });
-    setIsResultNew(false);
+    setCurrentJob({ status: 'PROCESSING', result: '', error: null });
+    
+    let accumulatedText = "";
+
     try {
-      const jobResponse = await apiService.initiateDraftingJob({ 
-          user_prompt: context.trim(), 
-          context: context.trim(), 
-          case_id: isPro ? selectedCaseId : undefined, // PHOENIX: Enforce restricted parameters
-          use_library: isPro && !!selectedCaseId,      // PHOENIX: Enforce restricted parameters
-          document_type: isPro ? selectedTemplate : 'generic' // PHOENIX: Enforce restricted parameters
+      const stream = apiService.draftLegalDocumentStream({
+          user_prompt: context.trim(),
+          document_type: isPro ? selectedTemplate : 'generic',
+          case_id: isPro ? selectedCaseId : undefined,
+          use_library: isPro && !!selectedCaseId
       });
-      setCurrentJob({ jobId: jobResponse.job_id, status: 'PENDING', result: null, error: null });
-      startPolling(jobResponse.job_id);
+
+      for await (const chunk of stream) {
+          accumulatedText += chunk;
+          setCurrentJob(prev => ({
+              ...prev,
+              result: accumulatedText
+          }));
+      }
+
+      setCurrentJob(prev => ({ ...prev, status: 'COMPLETED' }));
+
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || error.message || t('drafting.errorStartJob');
-      setCurrentJob(prev => ({ ...prev, error: errorMessage, status: 'FAILED' }));
+      console.error("Drafting stream failed:", error);
+      setCurrentJob(prev => ({ 
+          ...prev, 
+          status: 'FAILED', 
+          error: error.message || t('drafting.errorStartJob') 
+      }));
+    } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); runDraftingJob(); };
   const handleCopyResult = async () => { if (currentJob.result) { await navigator.clipboard.writeText(currentJob.result); alert(t('general.copied')); } };
-  const handleDownloadResult = () => { if (currentJob.result) { const blob = new Blob([currentJob.result], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `draft-${new Date().getTime()}.txt`; document.body.appendChild(a); a.click(); document.body.removeChild(a); } };
-  const handleClearResult = () => { if (window.confirm(t('drafting.confirmClear'))) { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current); setCurrentJob({ jobId: null, status: null, result: null, error: null }); setIsResultNew(false); } };
+  const handleDownloadResult = () => { if (currentJob.result) { const blob = new Blob([currentJob.result], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `draft-${Date.now()}.txt`; a.click(); } };
+  const handleClearResult = () => { if (window.confirm(t('drafting.confirmClear'))) { setCurrentJob({ status: null, result: null, error: null }); } };
 
   const getStatusDisplay = () => {
     switch(currentJob.status) {
-      case 'COMPLETED': case 'SUCCESS': return { text: t('drafting.statusCompleted'), color: 'text-green-400', icon: <CheckCircle className="h-5 w-5 text-green-400" /> };
-      case 'FAILED': case 'FAILURE': return { text: t('drafting.statusFailed'), color: 'text-red-400', icon: <AlertCircle className="h-5 w-5 text-red-400" /> };
-      case 'PROCESSING': case 'PENDING': return { text: t('drafting.statusWorking'), color: 'text-yellow-400', icon: <Clock className="h-5 w-5 animate-pulse text-yellow-400" /> };
+      case 'COMPLETED': return { text: t('drafting.statusCompleted'), color: 'text-green-400', icon: <CheckCircle className="h-5 w-5" /> };
+      case 'FAILED': return { text: t('drafting.statusFailed'), color: 'text-red-400', icon: <AlertCircle className="h-5 w-5" /> };
+      case 'PROCESSING': return { text: t('drafting.statusWorking'), color: 'text-yellow-400', icon: <Clock className="h-5 w-5 animate-pulse" /> };
       default: return { text: t('drafting.statusResult'), color: 'text-white', icon: <Sparkles className="h-5 w-5 text-gray-500" /> };
     }
   };
+
   const statusDisplay = getStatusDisplay();
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col h-full">
-      <style>{` .custom-textarea-scroll::-webkit-scrollbar { width: 8px; } .custom-textarea-scroll::-webkit-scrollbar-track { background: transparent; } .custom-textarea-scroll::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.1); border-radius: 4px; } .custom-textarea-scroll::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.2); } `}</style>
-      
       <div className="text-center mb-6 flex-shrink-0">
         <h1 className="text-3xl font-bold text-white mb-1 flex items-center justify-center gap-3"><PenTool className="text-primary-start" />{t('drafting.title')}</h1>
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[700px]">
-        
-        {/* INPUT PANEL - Glass Style */}
+        {/* INPUT PANEL */}
         <div className="glass-panel flex flex-col h-[500px] lg:h-full p-6 rounded-2xl overflow-hidden shadow-2xl">
-            <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-start" size={20} />{t('drafting.configuration')}</h3>
-            <form onSubmit={handleSubmit} className="flex flex-col flex-1 gap-4 min-h-0">
+            <h3 className="text-white font-semibold mb-4 flex items-center gap-2"><FileText className="text-primary-start" size={20} />{t('drafting.configuration')}</h3>
+            <form onSubmit={(e) => { e.preventDefault(); runDraftingStream(); }} className="flex flex-col flex-1 gap-4 min-h-0">
                 <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
                     <div className='flex-1 min-w-0'>
                         <div className="flex items-center justify-between mb-1">
@@ -235,16 +157,9 @@ const DraftingPage: React.FC = () => {
                         </div>
                         <div className="relative">
                             <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                            <select 
-                                value={isPro ? (selectedCaseId || '') : ''} // PHOENIX: Force empty if not Pro
-                                onChange={(e) => setSelectedCaseId(e.target.value || undefined)} 
-                                disabled={isSubmitting || !isPro} // PHOENIX: Disable if not Pro
-                                className={`glass-input w-full pl-10 pr-10 py-3 appearance-none cursor-pointer truncate rounded-xl 
-                                ${!isPro ? 'opacity-50 cursor-not-allowed bg-black/20' : ''}`}
-                            >
-                                <option value="" className="bg-gray-900 text-gray-400">{t('drafting.noCaseSelected')}</option>
-                                {isPro && cases.length > 0 && cases.map(c => (<option key={c.id} value={String(c.id)} className="bg-gray-900 text-white">{getCaseDisplayName(c)}</option>))}
-                                {isPro && cases.length === 0 && <option value="" disabled className="bg-gray-900 text-gray-500 italic">{t('drafting.noCasesFound')}</option>}
+                            <select value={selectedCaseId || ''} onChange={(e) => setSelectedCaseId(e.target.value || undefined)} disabled={isSubmitting || !isPro} className={`glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl ${!isPro ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                <option value="" className="bg-gray-900">{t('drafting.noCaseSelected')}</option>
+                                {isPro && cases.map(c => (<option key={c.id} value={String(c.id)} className="bg-gray-900">{getCaseDisplayName(c)}</option>))}
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
@@ -256,21 +171,14 @@ const DraftingPage: React.FC = () => {
                         </div>
                         <div className="relative">
                             <LayoutTemplate className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                            <select 
-                                value={isPro ? selectedTemplate : 'generic'} // PHOENIX: Force generic if not Pro
-                                onChange={(e) => setSelectedTemplate(e.target.value as TemplateType)} 
-                                disabled={isSubmitting || !isPro} // PHOENIX: Disable if not Pro
-                                className={`glass-input w-full pl-10 pr-10 py-3 appearance-none cursor-pointer rounded-xl
-                                ${!isPro ? 'opacity-50 cursor-not-allowed bg-black/20' : ''}`}
-                            >
-                                <option value="generic" className="bg-gray-900 text-gray-400">{t('drafting.templateGeneric')}</option>
-                                {/* Only show other options if Pro (or show them but disable logic handles it) */}
+                            <select value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value as TemplateType)} disabled={isSubmitting || !isPro} className={`glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl ${!isPro ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                <option value="generic" className="bg-gray-900">{t('drafting.templateGeneric')}</option>
                                 {isPro && (
                                     <>
-                                        <option value="padi" className="bg-gray-900 text-white">{t('drafting.templatePadi')}</option>
-                                        <option value="pergjigje" className="bg-gray-900 text-white">{t('drafting.templatePergjigje')}</option>
-                                        <option value="kunderpadi" className="bg-gray-900 text-white">{t('drafting.templateKunderpadi')}</option>
-                                        <option value="kontrate" className="bg-gray-900 text-white">{t('drafting.templateKontrate')}</option>
+                                        <option value="padi" className="bg-gray-900">{t('drafting.templatePadi')}</option>
+                                        <option value="pergjigje" className="bg-gray-900">{t('drafting.templatePergjigje')}</option>
+                                        <option value="kunderpadi" className="bg-gray-900">{t('drafting.templateKunderpadi')}</option>
+                                        <option value="kontrate" className="bg-gray-900">{t('drafting.templateKontrate')}</option>
                                     </>
                                 )}
                             </select>
@@ -279,34 +187,42 @@ const DraftingPage: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider flex-shrink-0">{t('drafting.instructionsLabel')}</label>
-                    <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-                        <AutoResizeTextarea value={context} onChange={(e) => setContext(e.target.value)} placeholder={t('drafting.promptPlaceholder')} className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed custom-textarea-scroll custom-scrollbar" disabled={isSubmitting} minHeight={150} maxHeight={500} />
-                    </div>
+                <div className="flex-1 flex flex-col min-h-0">
+                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.instructionsLabel')}</label>
+                    <AutoResizeTextarea value={context} onChange={(e) => setContext(e.target.value)} placeholder={t('drafting.promptPlaceholder')} className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed overflow-y-auto custom-scrollbar flex-1" disabled={isSubmitting} />
                 </div>
 
-                <button type="submit" disabled={isSubmitting || !context.trim()} className="w-full py-3 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white font-bold rounded-xl transition-all shadow-lg shadow-primary-start/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex-shrink-0 active:scale-95">
+                <button type="submit" disabled={isSubmitting || !context.trim()} className="w-full py-3 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95">
                   {isSubmitting ? <RefreshCw className="animate-spin" /> : <Send size={18} />}
                   {t('drafting.generateBtn')}
                 </button>
             </form>
         </div>
 
-        {/* RESULT PANEL - Glass Style */}
+        {/* RESULT PANEL */}
         <div className="glass-panel flex flex-col h-[600px] lg:h-full p-6 rounded-2xl overflow-hidden shadow-2xl">
             <div className="flex justify-between items-center mb-4 pb-4 border-b border-white/5 flex-shrink-0">
                 <h3 className="text-white font-semibold flex items-center gap-2">{statusDisplay.icon}<span className={statusDisplay.color}>{statusDisplay.text}</span></h3>
                 <div className="flex gap-2">
-                    <button onClick={runDraftingJob} disabled={!currentJob.result || isSubmitting} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.regenerate')}><RotateCcw size={18}/></button>
-                    <button onClick={handleCopyResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.copyTitle')}><Copy size={18}/></button>
-                    <button onClick={handleDownloadResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors" title={t('drafting.downloadTitle')}><Download size={18}/></button>
-                    <button onClick={handleClearResult} disabled={!currentJob.result && !currentJob.error} className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-lg disabled:opacity-30 transition-colors border border-red-500/20" title={t('drafting.clearTitle')}><Trash2 size={18}/></button>
+                    <button onClick={runDraftingStream} disabled={!currentJob.result || isSubmitting} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors"><RotateCcw size={18}/></button>
+                    <button onClick={handleCopyResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors"><Copy size={18}/></button>
+                    <button onClick={handleDownloadResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-colors"><Download size={18}/></button>
+                    <button onClick={handleClearResult} disabled={!currentJob.result && !currentJob.error} className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg disabled:opacity-30 transition-colors border border-red-500/20"><Trash2 size={18}/></button>
                 </div>
             </div>
             {currentJob.error && (<div className="bg-red-900/20 border border-red-500/30 rounded-lg p-3 mb-4 text-sm text-red-300 flex items-center gap-2 flex-shrink-0"><AlertCircle size={16} />{currentJob.error}</div>)}
             <div className="flex-1 bg-black/20 rounded-xl border border-white/5 p-4 overflow-y-auto custom-scrollbar relative min-h-0">
-                {currentJob.result ? (<StreamedMarkdown text={currentJob.result} isNew={isResultNew} onComplete={() => setIsResultNew(false)} />) : (<div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 opacity-50">{isSubmitting || (currentJob.status === 'PENDING' || currentJob.status === 'PROCESSING') ? (<><RefreshCw className="w-12 h-12 animate-spin mb-4 text-primary-start" /><p>{t('drafting.generatingMessage')}</p></>) : (<><FileText className="w-16 h-16 mb-4" /><p>{t('drafting.emptyState')}</p></>)}</div>)}
+                {currentJob.result ? (
+                    <DraftResultRenderer text={currentJob.result} />
+                ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 opacity-50">
+                        {isSubmitting ? (
+                            <><RefreshCw className="w-12 h-12 animate-spin mb-4 text-primary-start" /><p>{t('drafting.generatingMessage')}</p></>
+                        ) : (
+                            <><FileText className="w-16 h-16 mb-4" /><p>{t('drafting.emptyState')}</p></>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
       </div>

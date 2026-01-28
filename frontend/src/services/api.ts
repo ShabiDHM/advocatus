@@ -1,7 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V16.0 (STREAMING SUPPORT)
-// 1. ADDED: 'sendChatMessageStream' generator using Fetch API for real-time tokens.
-// 2. STATUS: Enables "Typewriter" effect in Chat Panel.
+// PHOENIX PROTOCOL - API SERVICE V17.0 (FULL HYDRA & STREAMING)
+// 1. ADDED: 'draftLegalDocumentStream' for real-time document generation.
+// 2. RETAINED: 'sendChatMessageStream' for real-time chat.
+// 3. INTEGRITY: Preserved all Forensic, Finance, and Case management orchestration logic.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -139,9 +140,7 @@ class ApiService {
     public async deleteUser(userId: string): Promise<void> { await this.axiosInstance.delete(`/admin/users/${userId}`); }
     
     public async createMobileUploadSession(caseId?: string): Promise<MobileSessionResponse> {
-        const url = caseId 
-            ? `/cases/${caseId}/mobile-upload-session` 
-            : `/finance/mobile-upload-session`;
+        const url = caseId ? `/cases/${caseId}/mobile-upload-session` : `/finance/mobile-upload-session`;
         const response = await this.axiosInstance.post<MobileSessionResponse>(url);
         return response.data;
     }
@@ -161,18 +160,13 @@ class ApiService {
     }
 
     public async checkMobileUploadStatus(token: string): Promise<MobileUploadStatus> {
-        const url = token.startsWith('GEN-') 
-            ? `/finance/mobile-upload-status/${token}`
-            : `/cases/mobile-upload-status/${token}`;
+        const url = token.startsWith('GEN-') ? `/finance/mobile-upload-status/${token}` : `/cases/mobile-upload-status/${token}`;
         const response = await this.axiosInstance.get<MobileUploadStatus>(url);
         return response.data;
     }
 
     public async getMobileSessionFile(token: string): Promise<{ blob: Blob, filename: string }> {
-        const url = token.startsWith('GEN-')
-            ? `/finance/mobile-upload-file/${token}`
-            : `/cases/mobile-upload-file/${token}`;
-
+        const url = token.startsWith('GEN-') ? `/finance/mobile-upload-file/${token}` : `/cases/mobile-upload-file/${token}`;
         const response = await this.axiosInstance.get(url, { responseType: 'blob' });
         const disposition = response.headers['content-disposition'];
         let filename = 'mobile-upload.jpg';
@@ -186,11 +180,7 @@ class ApiService {
     public async publicMobileUpload(token: string, file: File): Promise<{ status: string }> {
         const formData = new FormData();
         formData.append('file', file);
-        
-        const url = token.startsWith('GEN-')
-            ? `${API_V1_URL}/finance/mobile-upload/${token}`
-            : `${API_V1_URL}/cases/mobile-upload/${token}`;
-            
+        const url = token.startsWith('GEN-') ? `${API_V1_URL}/finance/mobile-upload/${token}` : `${API_V1_URL}/cases/mobile-upload/${token}`;
         const response = await axios.post(url, formData);
         return response.data;
     }
@@ -225,7 +215,7 @@ class ApiService {
     public async shareDocument(caseId: string, docId: string, isShared: boolean): Promise<Document> { const response = await this.axiosInstance.put<Document>(`/cases/${caseId}/documents/${docId}/share`, { is_shared: isShared }); return response.data; }
     public async shareArchiveItem(itemId: string, isShared: boolean): Promise<ArchiveItemOut> { const response = await this.axiosInstance.put<ArchiveItemOut>(`/archive/items/${itemId}/share`, { is_shared: isShared }); return response.data; }
     public async shareArchiveCase(caseId: string, isShared: boolean): Promise<void> { await this.axiosInstance.put(`/archive/case/share`, { case_id: caseId, is_shared: isShared }); }
-    public async downloadArchiveItem(itemId: string, title: string): Promise<void> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', title); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); }
+    public async downloadArchiveItem(itemId: string, title: string): Promise<void> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { responseType: 'blob' }); const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', title); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
     public async getArchiveFileBlob(itemId: string): Promise<Blob> { const response = await this.axiosInstance.get(`/archive/items/${itemId}/download`, { params: { preview: true }, responseType: 'blob' }); return response.data; }
     public async getCases(): Promise<Case[]> { const response = await this.axiosInstance.get<any>('/cases'); return Array.isArray(response.data) ? response.data : (response.data.cases || []); }
     public async createCase(data: CreateCaseRequest): Promise<Case> { const response = await this.axiosInstance.post<Case>('/cases', data); return response.data; }
@@ -262,12 +252,7 @@ class ApiService {
         formData.append('analyst_id', 'frontend_user'); 
         formData.append('acquisition_method', 'WEB_UPLOAD');
         formData.append('lang', lang);
-        
-        const response = await this.axiosInstance.post<ForensicSpreadsheetAnalysisResult>(
-            `/cases/${caseId}/analyze/spreadsheet/forensic`,
-            formData,
-            { params: { lang } }
-        );
+        const response = await this.axiosInstance.post<ForensicSpreadsheetAnalysisResult>(`/cases/${caseId}/analyze/spreadsheet/forensic`, formData, { params: { lang } });
         return response.data;
     }
 
@@ -281,18 +266,8 @@ class ApiService {
         return response.data;
     }
 
-    public async forensicInterrogateEvidence(
-        caseId: string, 
-        question: string, 
-        includeChainOfCustody: boolean = true
-    ): Promise<ForensicInterrogationResponse> {
-        const response = await this.axiosInstance.post<ForensicInterrogationResponse>(
-            `/cases/${caseId}/interrogate-finances/forensic`,
-            { 
-                question, 
-                include_chain_of_custody: includeChainOfCustody 
-            }
-        );
+    public async forensicInterrogateEvidence(caseId: string, question: string, includeChainOfCustody: boolean = true): Promise<ForensicInterrogationResponse> {
+        const response = await this.axiosInstance.post<ForensicInterrogationResponse>(`/cases/${caseId}/interrogate-finances/forensic`, { question, include_chain_of_custody: includeChainOfCustody });
         return response.data;
     }
 
@@ -313,161 +288,50 @@ class ApiService {
         window.URL.revokeObjectURL(url);
     }
 
-    // PHOENIX: Legacy Sync Method (Retained but unused by new hook)
-    public async sendChatMessage(
-        caseId: string,
-        message: string,
-        documentId?: string,
-        jurisdiction?: string,
-        mode: 'FAST' | 'DEEP' = 'FAST'
-    ): Promise<string> {
-        const response = await this.axiosInstance.post<{ response: string }>(
-            `/chat/case/${caseId}`,
-            { message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks', mode }
-        );
-        return response.data.response;
-    }
+    // --- STREAMING AI METHODS ---
 
-    // PHOENIX NEW: Stream-enabled chat method
-    public async *sendChatMessageStream(
-        caseId: string,
-        message: string,
-        documentId?: string,
-        jurisdiction?: string,
-        mode: 'FAST' | 'DEEP' = 'FAST'
-    ): AsyncGenerator<string, void, unknown> {
+    public async *sendChatMessageStream(caseId: string, message: string, documentId?: string, jurisdiction?: string, mode: 'FAST' | 'DEEP' = 'FAST'): AsyncGenerator<string, void, unknown> {
         let token = tokenManager.get();
-        if (!token) {
-            await this.refreshToken();
-            token = tokenManager.get();
-        }
-
+        if (!token) { await this.refreshToken(); token = tokenManager.get(); }
         const url = `${API_V1_URL}/chat/case/${caseId}`;
-        
-        // Use native fetch for streaming
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({ 
-                message, 
-                document_id: documentId || null, 
-                jurisdiction: jurisdiction || 'ks', 
-                mode 
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            let errorMessage = `Chat request failed: ${response.status}`;
-            try {
-                const errorJson = JSON.parse(errorText);
-                if (errorJson.detail) errorMessage = errorJson.detail;
-            } catch (e) {}
-            throw new Error(errorMessage);
-        }
-
+        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks', mode }) });
+        if (!response.ok) throw new Error("Chat request failed.");
         if (!response.body) return;
-
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                const chunk = decoder.decode(value, { stream: true });
-                yield chunk;
-            }
-        } finally {
-            reader.releaseLock();
-        }
+        try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
     }
 
-    public async clearChatHistory(caseId: string): Promise<void> {
-        await this.axiosInstance.delete(`/chat/case/${caseId}/history`);
+    public async *draftLegalDocumentStream(data: CreateDraftingJobRequest): AsyncGenerator<string, void, unknown> {
+        let token = tokenManager.get();
+        if (!token) { await this.refreshToken(); token = tokenManager.get(); }
+        const url = `${API_V2_URL}/drafting/stream`;
+        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify(data) });
+        if (!response.ok) throw new Error("Drafting failed.");
+        if (!response.body) return;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
     }
 
-    public async getCalendarEvents(): Promise<CalendarEvent[]> {
-        const response = await this.axiosInstance.get<any>('/calendar/events');
-        return Array.isArray(response.data) ? response.data : (response.data.events || []);
-    }
+    // --- REMAINING METHODS ---
 
-    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> {
-        const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data);
-        return response.data;
-    }
-
-    public async deleteCalendarEvent(eventId: string): Promise<void> {
-        await this.axiosInstance.delete(`/calendar/events/${eventId}`);
-    }
-
-    public async getAlertsCount(): Promise<{ count: number }> {
-        const response = await this.axiosInstance.get<{ count: number }>('/calendar/alerts');
-        return response.data;
-    }
-
-    public async sendContactForm(data: { firstName: string; lastName: string; email: string; phone: string; message: string }): Promise<void> {
-        await this.axiosInstance.post('/support/contact', {
-            first_name: data.firstName,
-            last_name: data.lastName,
-            email: data.email,
-            phone: data.phone,
-            message: data.message
-        });
-    }
-
-    public async getWebSocketUrl(_caseId: string): Promise<string> {
-        return "";
-    }
-
-    public async register(data: RegisterRequest): Promise<void> {
-        await this.axiosInstance.post('/auth/register', data);
-    }
-
-    public async fetchUserProfile(): Promise<User> {
-        const response = await this.axiosInstance.get<User>('/users/me');
-        return response.data;
-    }
-
-    public async changePassword(data: ChangePasswordRequest): Promise<void> {
-        await this.axiosInstance.post('/auth/change-password', data);
-    }
-
-    public async deleteAccount(): Promise<void> {
-        await this.axiosInstance.delete('/users/me');
-    }
-
-    public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> {
-        const response = await this.axiosInstance.post<DraftingJobStatus>(`${API_V2_URL}/drafting/jobs`, data);
-        return response.data;
-    }
-
-    public async getDraftingJobStatus(jobId: string): Promise<DraftingJobStatus> {
-        const response = await this.axiosInstance.get<DraftingJobStatus>(`${API_V2_URL}/drafting/jobs/${jobId}/status`);
-        return response.data;
-    }
-
-    public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> {
-        const response = await this.axiosInstance.get<DraftingJobResult>(`${API_V2_URL}/drafting/jobs/${jobId}/result`);
-        return response.data;
-    }
-    
-    public async reprocessDocument(caseId: string, documentId: string): Promise<ReprocessConfirmation> {
-        const response = await this.axiosInstance.post<ReprocessConfirmation>(
-            `/cases/${caseId}/documents/${documentId}/reprocess`
-        );
-        return response.data;
-    }
-
-    public async reprocessCaseDocuments(caseId: string): Promise<BulkReprocessResponse> {
-        const response = await this.axiosInstance.post<BulkReprocessResponse>(
-            `/cases/${caseId}/documents/reprocess-all`
-        );
-        return response.data;
-    }
+    public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
+    public async getCalendarEvents(): Promise<CalendarEvent[]> { const response = await this.axiosInstance.get<any>('/calendar/events'); return Array.isArray(response.data) ? response.data : (response.data.events || []); }
+    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); return response.data; }
+    public async deleteCalendarEvent(eventId: string): Promise<void> { await this.axiosInstance.delete(`/calendar/events/${eventId}`); }
+    public async getAlertsCount(): Promise<{ count: number }> { const response = await this.axiosInstance.get<{ count: number }>('/calendar/alerts'); return response.data; }
+    public async sendContactForm(data: { firstName: string; lastName: string; email: string; phone: string; message: string }): Promise<void> { await this.axiosInstance.post('/support/contact', { first_name: data.firstName, last_name: data.lastName, email: data.email, phone: data.phone, message: data.message }); }
+    public async getWebSocketUrl(_caseId: string): Promise<string> { return ""; }
+    public async register(data: RegisterRequest): Promise<void> { await this.axiosInstance.post('/auth/register', data); }
+    public async fetchUserProfile(): Promise<User> { const response = await this.axiosInstance.get<User>('/users/me'); return response.data; }
+    public async changePassword(data: ChangePasswordRequest): Promise<void> { await this.axiosInstance.post('/auth/change-password', data); }
+    public async deleteAccount(): Promise<void> { await this.axiosInstance.delete('/users/me'); }
+    public async initiateDraftingJob(data: CreateDraftingJobRequest): Promise<DraftingJobStatus> { const response = await this.axiosInstance.post<DraftingJobStatus>(`${API_V2_URL}/drafting/jobs`, data); return response.data; }
+    public async getDraftingJobStatus(jobId: string): Promise<DraftingJobStatus> { const response = await this.axiosInstance.get<DraftingJobStatus>(`${API_V2_URL}/drafting/jobs/${jobId}/status`); return response.data; }
+    public async getDraftingJobResult(jobId: string): Promise<DraftingJobResult> { const response = await this.axiosInstance.get<DraftingJobResult>(`${API_V2_URL}/drafting/jobs/${jobId}/result`); return response.data; }
+    public async reprocessDocument(caseId: string, documentId: string): Promise<ReprocessConfirmation> { const response = await this.axiosInstance.post<ReprocessConfirmation>(`/cases/${caseId}/documents/${documentId}/reprocess`); return response.data; }
+    public async reprocessCaseDocuments(caseId: string): Promise<BulkReprocessResponse> { const response = await this.axiosInstance.post<BulkReprocessResponse>(`/cases/${caseId}/documents/reprocess-all`); return response.data; }
 }
 
 export const apiService = new ApiService();
