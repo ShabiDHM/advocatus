@@ -1,24 +1,23 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V12.0 (INTELLIGENT BRIEFING: ACTIVITY & DEADLINES)
-// 1. FEAT: Implemented calculation and display of Total Urgent Alerts (based on case 'alert_count').
-// 2. UX: Updated Briefing Row status logic to prioritize Red (Deadlines), then Yellow (Alerts), then Green (OK).
-// 3. ARCH: Maintained all previous structural, type, and gatekeeper integrity fixes.
+// PHOENIX PROTOCOL - DASHBOARD V13.0 (STICKY BRIEFING & INTELLIGENT INSIGHTS)
+// 1. UX: Applied 'sticky' positioning to the Admin Briefing Row. It now floats over content during scroll.
+// 2. LOGIC: Added 'generateDailyInsight' for actionable text summaries based on deadline/alert weights.
+// 3. ARCH: Maintained all existing type safety and state logic.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Loader2, Activity, AlertTriangle, Clock } from 'lucide-react';
+import { Plus, Loader2, AlertTriangle, Clock, CheckCircle2, Zap } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest, CalendarEvent } from '../data/types';
 import CaseCard from '../components/CaseCard';
 import DayEventsModal from '../components/DayEventsModal';
-// Extended date-fns imports
-import { isSameDay, parseISO, isToday, isYesterday, isPast } from 'date-fns'; 
+import { isSameDay, parseISO, isToday, isYesterday, isPast, addDays, isBefore } from 'date-fns'; 
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 
 const DashboardPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth(); // Destructure user from AuthContext
+  const { user } = useAuth();
 
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,14 +29,15 @@ const DashboardPage: React.FC = () => {
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const hasCheckedBriefing = useRef(false);
 
-  // NEW STATE: Critical Deadlines
+  // Intelligent Briefing State
   const [criticalDeadlinesCount, setCriticalDeadlinesCount] = useState<{
     today: number;
     yesterdayMissed: number;
-  }>({ today: 0, yesterdayMissed: 0 });
+    upcoming: number;
+  }>({ today: 0, yesterdayMissed: 0, upcoming: 0 });
   
-  // NEW STATE: Total Activity/Urgent Alerts
   const [totalAlerts, setTotalAlerts] = useState(0);
+  const [dailyInsight, setDailyInsight] = useState<string>("");
 
   const initialNewCaseData = { 
     title: '', 
@@ -47,19 +47,23 @@ const DashboardPage: React.FC = () => {
   };
   const [newCaseData, setNewCaseData] = useState(initialNewCaseData);
 
-  // PHOENIX GATEKEEPER LOGIC: Check for ADMIN role
   const isAdmin = useMemo(() => {
     return user?.role === 'ADMIN';
   }, [user]);
 
-  // LOGIC: Deadline calculation
-  const calculateCriticalDeadlines = (events: CalendarEvent[]) => {
+  // LOGIC: Intelligent Analysis
+  const runIntelligenceEngine = (events: CalendarEvent[], casesList: Case[]) => {
       let todayCount = 0;
       let yesterdayMissedCount = 0;
+      let upcomingCount = 0;
+      
+      const next48Hours = addDays(new Date(), 2);
 
       events.forEach(event => {
-          // Relying only on event.title for criticality check
-          const isCriticalType = ['Seancë Gjyqësore', 'Afat Ligjor'].includes(event.title); 
+          // Broadened criticality check
+          const isCriticalType = ['Seancë Gjyqësore', 'Afat Ligjor', 'Hearing', 'Deadline'].some(type => 
+              event.title.includes(type) || (event.priority === 'CRITICAL')
+          );
 
           if (isCriticalType) {
               const eventDate = parseISO(event.start_date);
@@ -68,21 +72,35 @@ const DashboardPage: React.FC = () => {
                   todayCount++;
               } else if (isYesterday(eventDate) && isPast(eventDate)) {
                   yesterdayMissedCount++;
+              } else if (isBefore(eventDate, next48Hours) && !isPast(eventDate)) {
+                  upcomingCount++;
               }
           }
       });
 
-      setCriticalDeadlinesCount({ today: todayCount, yesterdayMissed: yesterdayMissedCount });
-  };
-  // END LOGIC: Deadline calculation
+      setCriticalDeadlinesCount({ 
+        today: todayCount, 
+        yesterdayMissed: yesterdayMissedCount,
+        upcoming: upcomingCount
+      });
 
-  // NEW LOGIC: Activity calculation
-  const calculateTotalAlerts = (cases: Case[]) => {
-      // Sum the alert_count from all cases as a proxy for unread/urgent activity
-      const totalAlertsCount = cases.reduce((sum, c) => sum + (c.alert_count || 0), 0);
-      setTotalAlerts(totalAlertsCount);
+      // Calculate Alerts
+      const alerts = casesList.reduce((sum, c) => sum + (c.alert_count || 0), 0);
+      setTotalAlerts(alerts);
+
+      // Generate Strategy String
+      if (yesterdayMissedCount > 0) {
+          setDailyInsight("VËMENDJE: Keni afate të humbura nga dje. Rishikoni menjëherë.");
+      } else if (todayCount > 0) {
+          setDailyInsight(`FOKUSI I DITËS: ${todayCount} seanca/afate kërkojnë vëmendje sot.`);
+      } else if (upcomingCount > 0) {
+          setDailyInsight(`Përgatitje: ${upcomingCount} afate të rëndësishme në 48 orët e ardhshme.`);
+      } else if (alerts > 5) {
+          setDailyInsight("Pastrim Administrativ: Shumë njoftime të pa lexuara nëpër raste.");
+      } else {
+          setDailyInsight("Statusi Optimal: Nuk ka urgjenca. Kohë e mirë për të shqyrtuar dosjet e vjetra.");
+      }
   };
-  // END NEW LOGIC: Activity calculation
 
   useEffect(() => {
     loadData();
@@ -104,15 +122,12 @@ const DashboardPage: React.FC = () => {
       }));
       setCases(casesWithDefaults);
       
-      // RUN INTELLIGENCE LOGIC
-      calculateCriticalDeadlines(eventsData);
-      calculateTotalAlerts(casesData); // NEW CALL
+      // RUN INTELLIGENCE
+      runIntelligenceEngine(eventsData, casesWithDefaults);
       
-      // Original Briefing Modal Logic (remains separate from the Admin Row)
       if (!hasCheckedBriefing.current && eventsData.length > 0) {
           const today = new Date();
           const matches = eventsData.filter(e => isSameDay(parseISO(e.start_date), today));
-          
           if (matches.length > 0) {
               setTodaysEvents(matches);
           }
@@ -131,7 +146,6 @@ const DashboardPage: React.FC = () => {
     setIsCreating(true);
     try {
       const tempCaseNumber = `R-${Date.now().toString().slice(-6)}`;
-      
       const payload: CreateCaseRequest = {
           case_number: tempCaseNumber,
           title: newCaseData.title,
@@ -171,90 +185,92 @@ const DashboardPage: React.FC = () => {
     setNewCaseData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Logic: Show all cases in the grid, rely on overflow for scrolling
   const casesToDisplay = cases;
 
-  // Helper for Row Styling
+  // Visual Priority Logic
   const criticalCount = criticalDeadlinesCount.today + criticalDeadlinesCount.yesterdayMissed;
   
-  // Update Row Style to also consider Alerts
   const rowStyleClasses = criticalCount > 0 
-      ? 'from-red-900/40 to-black/20 border border-red-700/50' // RED: Critical Deadlines (Highest Priority)
-      : totalAlerts > 0
-          ? 'from-yellow-900/40 to-black/20 border border-yellow-700/50' // YELLOW: Alerts (Second Priority)
-          : 'from-teal-900/40 to-black/20 border border-teal-700/50'; // TEAL: OK
+      ? 'from-red-950/90 to-black/90 border-red-500/50 text-red-100' 
+      : criticalDeadlinesCount.upcoming > 0 
+        ? 'from-orange-950/90 to-black/90 border-orange-500/50 text-orange-100'
+        : totalAlerts > 5
+          ? 'from-yellow-950/90 to-black/90 border-yellow-500/50 text-yellow-100'
+          : 'from-emerald-950/90 to-black/90 border-emerald-500/50 text-emerald-100';
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 h-full flex flex-col">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen flex flex-col">
       
-      {/* ADMIN: DAILY BRIEFING ROW - Updated Intelligence */}
+      {/* 
+          PHOENIX STICKY FIX: 
+          Added 'sticky top-4 z-30' to ensure this stays visible while scrolling.
+          Added 'backdrop-blur-md' to prevent content bleeding.
+      */}
       {isAdmin && (
           <motion.div 
-              className={`mb-4 p-4 rounded-xl shadow-lg ${rowStyleClasses}`}
-              initial={{ opacity: 0, y: -10 }}
+              className={`sticky top-2 z-30 mb-8 p-0 rounded-xl shadow-2xl backdrop-blur-md border ${rowStyleClasses.split(' ')[2]}`} // Extract border color
+              initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1, duration: 0.3 }}
+              transition={{ delay: 0.1, duration: 0.4 }}
           >
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                      {/* Icon driven by most critical status */}
-                      {criticalCount > 0 ? (
-                          <AlertTriangle className="h-6 w-6 text-red-500 flex-shrink-0 animate-pulse" />
-                      ) : totalAlerts > 0 ? (
-                          <AlertTriangle className="h-6 w-6 text-yellow-400 flex-shrink-0" />
-                      ) : (
-                          <Activity className="h-6 w-6 text-teal-400 flex-shrink-0" />
-                      )}
-                      <h2 className="text-lg font-semibold text-white">{t('adminBriefing.title', 'Përmbledhje Ditore (Admin)')}</h2>
-                  </div>
-
-                  {/* CRITICAL DEADLINES & ACTIVITY DISPLAY */}
-                  <div className="flex items-center gap-4 text-sm font-medium">
-                    {/* Yesterday Missed (RED) */}
-                    {criticalDeadlinesCount.yesterdayMissed > 0 && (
-                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-900/70 text-red-300">
-                            <Clock size={16} />
-                            {criticalDeadlinesCount.yesterdayMissed} {t('briefing.missed', 'Dje i Humbur')}
-                        </span>
-                    )}
-
-                    {/* Today Critical (YELLOW/RED) */}
-                    {criticalDeadlinesCount.today > 0 && (
-                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-800/70 text-yellow-300">
-                            <AlertTriangle size={16} />
-                            {criticalDeadlinesCount.today} {t('briefing.today', 'Sot Kritik')}
-                        </span>
-                    )}
+              <div className={`rounded-xl p-4 bg-gradient-to-r ${rowStyleClasses}`}>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                     
-                    {/* Total Alerts (YELLOW) - Only show if no critical deadlines */}
-                    {criticalCount === 0 && totalAlerts > 0 && (
-                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-800/70 text-yellow-300">
-                            <AlertTriangle size={16} />
-                            {totalAlerts} {t('briefing.alerts', 'Sinjalizime Reja')}
-                        </span>
-                    )}
+                    {/* LEFT: Icon & Status */}
+                    <div className="flex items-center gap-4">
+                        <div className="p-2 bg-white/10 rounded-lg backdrop-blur-sm">
+                            {criticalCount > 0 ? (
+                                <AlertTriangle className="h-6 w-6 animate-pulse text-red-400" />
+                            ) : criticalDeadlinesCount.upcoming > 0 ? (
+                                <Clock className="h-6 w-6 text-orange-400" />
+                            ) : totalAlerts > 5 ? (
+                                <Zap className="h-6 w-6 text-yellow-400" />
+                            ) : (
+                                <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+                            )}
+                        </div>
+                        <div>
+                            <h2 className="text-sm font-bold uppercase tracking-wider opacity-80">
+                                {t('adminBriefing.title', 'Inteligjenca Ditore')}
+                            </h2>
+                            <p className="font-medium text-lg leading-tight">
+                                {dailyInsight}
+                            </p>
+                        </div>
+                    </div>
 
-                    {/* General Status (TEAL) - Only show if no issues */}
-                    {criticalCount === 0 && totalAlerts === 0 && (
-                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-900/70 text-teal-300">
-                            {t('briefing.statusOk', 'Afate OK')}
-                        </span>
-                    )}
-                  </div>
-                  
-                  {/* Action Button */}
-                  <button className="px-3 py-1 text-sm bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium transition-colors"
-                          onClick={() => window.location.href = '/calendar'}
-                  >
-                      {t('adminBriefing.viewCalendar', 'Shiko Kalendarin')}
-                  </button>
+                    {/* RIGHT: Metrics & Actions */}
+                    <div className="flex items-center gap-3 self-end md:self-auto">
+                        {/* Compact Metrics */}
+                        <div className="flex gap-2 mr-2">
+                             {criticalDeadlinesCount.today > 0 && (
+                                <div className="flex flex-col items-center px-3 py-1 bg-black/30 rounded-lg">
+                                    <span className="text-xs opacity-70">Sot</span>
+                                    <span className="font-bold">{criticalDeadlinesCount.today}</span>
+                                </div>
+                             )}
+                             {totalAlerts > 0 && (
+                                <div className="flex flex-col items-center px-3 py-1 bg-black/30 rounded-lg">
+                                    <span className="text-xs opacity-70">Sinjalizime</span>
+                                    <span className="font-bold">{totalAlerts}</span>
+                                </div>
+                             )}
+                        </div>
+
+                        <button 
+                            className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg font-medium transition-all text-sm whitespace-nowrap"
+                            onClick={() => window.location.href = '/calendar'}
+                        >
+                            {t('adminBriefing.viewCalendar', 'Hap Kalendarin')}
+                        </button>
+                    </div>
+                </div>
               </div>
           </motion.div>
       )}
-      {/* END ADMIN: DAILY BRIEFING ROW */}
 
-      {/* Header - NOW INCLUDES BUTTON AND HAS mb-8 */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 flex-shrink-0">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 flex-shrink-0">
         <div>
           <h1 className="text-3xl font-bold text-text-primary tracking-tight">
             {t('dashboard.mainTitle', 'Pasqyra e Rasteve')}
@@ -269,11 +285,11 @@ const DashboardPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Case Grid - Flexible height (Remains Unchanged) */}
+      {/* Case Grid */}
       {isLoading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>
       ) : (
-        <div className="flex-1 overflow-y-auto custom-scrollbar -mr-4 pr-4 pb-4">
+        <div className="flex-1 -mr-4 pr-4 pb-4">
           {casesToDisplay.length === 0 ? (
              <div className="text-center py-20 opacity-50">
                <p className="text-xl text-text-secondary">{t('dashboard.noCases', 'Nuk u gjetën raste.')}</p>
@@ -292,7 +308,7 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Create Modal - Glass Style (Remains Unchanged) */}
+      {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="glass-high w-full max-w-sm p-8 rounded-2xl animate-in fade-in zoom-in-95 duration-200">
@@ -325,7 +341,7 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* Daily Briefing Modal (Remains Unchanged) */}
+      {/* Daily Briefing Modal */}
       <DayEventsModal 
         isOpen={isBriefingOpen}
         onClose={() => setIsBriefingOpen(false)}
