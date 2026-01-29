@@ -1,8 +1,8 @@
 // FILE: frontend/src/pages/EvidenceMapPage.tsx
-// PHOENIX PROTOCOL - FIX V11.1 (LINT & I18N CLEANUP)
-// 1. FIX: Removed unused 'Share2' and 'Printer' imports (TS6133).
-// 2. VERIFIED: All alerts and labels use 't()' for proper internationalization.
-// 3. STATUS: Production Ready.
+// PHOENIX PROTOCOL - FIX V11.2 (DESKTOP UX POLISH)
+// 1. UI: Un-colored the toolbar buttons. They now use a unified "Glass/Dark" background.
+// 2. UI: Used colored text/icons (Yellow for PNG, Red for PDF) to maintain visual cues without the "Fruit Salad" effect.
+// 3. UI: Increased the backdrop-blur for the desktop toolbar to look more premium.
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -15,7 +15,6 @@ import domtoimage from 'dom-to-image-more';
 import '@xyflow/react/dist/style.css';
 import axios from 'axios'; 
 import { useTranslation } from 'react-i18next';
-// PHOENIX FIX: Cleaned import list
 import { Save, Sidebar as SidebarIcon, Download, FileText, BrainCircuit } from 'lucide-react';
 import { ClaimNode, EvidenceNode, MapNodeData } from '../components/evidence-map/Nodes';
 import Sidebar, { IFilters } from '../components/evidence-map/Sidebar';
@@ -29,7 +28,6 @@ const nodeTypes = {
 
 interface ExportBounds { x: number; y: number; xMax: number; yMax: number; } 
 
-// Matching the structure from ImportModal
 interface GraphNode {
   id: string;
   name: string;
@@ -51,7 +49,6 @@ const ExportMap = () => {
     const calculateNodeBounds = useCallback((): ExportBounds => {
         return instance.getNodes().reduce((bounds, node) => {
             const n = node as (Node & { positionAbsolute?: XYPosition, width?: number, height?: number });
-            
             if (n.positionAbsolute && n.width && n.height) {
                 bounds.x = Math.min(bounds.x, n.positionAbsolute.x);
                 bounds.y = Math.min(bounds.y, n.positionAbsolute.y);
@@ -111,7 +108,8 @@ const ExportMap = () => {
         <button 
             onClick={handleExport} 
             disabled={isExporting} 
-            className={`group flex items-center justify-center p-2 sm:px-4 sm:py-2 rounded-xl text-sm transition-all shadow-lg ${isExporting ? 'bg-gray-600' : 'bg-yellow-600 hover:bg-yellow-700'} text-white border border-white/10 active:scale-95`}
+            // PHOENIX POLISH: Unified dark button, yellow text for visual cue
+            className={`group flex items-center justify-center p-2 sm:px-5 sm:py-2.5 rounded-xl text-sm transition-all shadow-lg text-yellow-500 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 font-semibold ${isExporting ? 'opacity-50' : ''}`}
             title={t('export.toPNG')}
         >
             <Download className={`w-5 h-5 sm:mr-2 ${isExporting ? 'animate-spin' : ''}`} />
@@ -361,35 +359,39 @@ const EvidenceMapPage = () => {
                 </button>
             </Panel>
             
-            {/* 2. DESKTOP ACTION BAR */}
+            {/* 2. DESKTOP ACTION BAR - PHOENIX POLISHED */}
             <Panel position="top-center" className="hidden sm:flex justify-center w-full px-2 mt-4 pointer-events-none">
-                <div className="flex flex-row gap-2 bg-black/40 backdrop-blur-lg p-2 rounded-2xl border border-white/10 shadow-2xl pointer-events-auto">
+                <div className="flex flex-row items-center gap-2 bg-black/60 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl pointer-events-auto">
+                    {/* Primary AI Button - Remains Gradient */}
                     <button onClick={() => setIsImportModalOpen(true)} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white rounded-xl text-sm transition-transform active:scale-95 shadow-lg border border-white/10 font-bold">
                         <BrainCircuit className="w-5 h-5 mr-2" /> {t('evidenceMap.sidebar.importButton', 'Gjenero Hartën (AI)')}
                     </button>
-                    <div className="w-px h-8 bg-white/10 mx-2 self-center"></div>
-                    <button onClick={saveMap} disabled={isSaving} className={`flex items-center px-5 py-2.5 rounded-xl text-sm transition-all shadow-lg ${isSaving ? 'bg-gray-600' : 'bg-gray-700 hover:bg-gray-600'} text-white active:scale-95`}>
+                    
+                    <div className="w-px h-8 bg-white/10 mx-1"></div>
+
+                    {/* Secondary Buttons - Unified Glass Style with Color Accents */}
+                    <button onClick={saveMap} disabled={isSaving} className={`flex items-center px-5 py-2.5 rounded-xl text-sm transition-all shadow-lg text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 font-semibold ${isSaving ? 'opacity-50' : ''}`}>
                         <Save className={`w-5 h-5 mr-2 ${isSaving ? 'animate-spin' : ''}`} /> {isSaving ? t('evidenceMap.action.saving') : t('evidenceMap.action.save')}
                     </button>
+                    
                     <ExportMap />
-                    <button onClick={handleExportPdf} disabled={isPdfExporting} className={`flex items-center px-5 py-2.5 rounded-xl text-sm transition-all shadow-lg ${isPdfExporting ? 'bg-gray-600' : 'bg-red-600 hover:bg-red-700'} text-white active:scale-95`}>
-                        <FileText className="w-4 h-4 mr-2" /> PDF
+
+                    <button onClick={handleExportPdf} disabled={isPdfExporting} className={`flex items-center px-5 py-2.5 rounded-xl text-sm transition-all shadow-lg text-red-500 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 font-semibold ${isPdfExporting ? 'opacity-50' : ''}`}>
+                        <FileText className={`w-5 h-5 mr-2 ${isPdfExporting ? 'animate-spin' : ''}`} /> PDF
                     </button>
                 </div>
             </Panel>
 
-            {/* 3. MOBILE FLOATING DOCK (Bottom Center) */}
+            {/* 3. MOBILE FLOATING DOCK (Unchanged from V10.5) */}
             <Panel position="bottom-center" className="flex sm:hidden justify-center w-full pb-8 pointer-events-none z-10">
                  <div className="flex flex-row items-center gap-4 bg-black/80 backdrop-blur-xl px-6 py-4 rounded-full border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] pointer-events-auto">
                     
-                    {/* AI Button (Large) */}
                     <button onClick={() => setIsImportModalOpen(true)} className="group flex items-center justify-center w-14 h-14 bg-gradient-to-r from-primary-start to-primary-end rounded-full text-white shadow-xl border border-white/20 active:scale-90 transition-transform">
                         <BrainCircuit className="w-7 h-7" />
                     </button>
 
                     <div className="w-px h-10 bg-white/20"></div>
 
-                    {/* Secondary Actions (Medium) */}
                     <button onClick={saveMap} disabled={isSaving} className="flex items-center justify-center w-12 h-12 bg-gray-700 hover:bg-gray-600 rounded-full text-white shadow-lg active:scale-90 transition-transform">
                         <Save className={`w-6 h-6 ${isSaving ? 'animate-spin' : ''}`} />
                     </button>
@@ -418,6 +420,7 @@ const EvidenceMapPage = () => {
             />
         </div>
 
+        {/* Mobile Overlay */}
         {isSidebarVisible && (
             <div 
                 className="fixed inset-0 bg-black/60 backdrop-blur-sm md:hidden z-30" 
