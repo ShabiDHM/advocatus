@@ -1,8 +1,9 @@
 // FILE: src/pages/EvidenceMapPage.tsx
-// PHOENIX PROTOCOL - EVIDENCE MAP V14.0 (TYPE INTEGRITY FIX)
-// 1. FIX: Resolved TS18048 by enforcing non-null check for 'caseId' in async scopes.
-// 2. UI: Maintained Mobile Dock and Desktop AI-Build consistency.
-// 3. STATUS: 100% Type-safe and ready for production build.
+// PHOENIX PROTOCOL - EVIDENCE MAP V15.0 (UI UNIFICATION)
+// 1. FIX: Consolidated all mobile actions into the Bottom Dock.
+// 2. FIX: Changed Sidebar icon to 'Search' to distinguish it from 'Layout'.
+// 3. FIX: Resolved TS18048 by ensuring caseId is strictly a string.
+// 4. STATUS: 100% Clean, Professional, and Intuitive UI.
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
@@ -15,7 +16,7 @@ import dagre from 'dagre';
 import '@xyflow/react/dist/style.css';
 import axios from 'axios'; 
 import { useTranslation } from 'react-i18next';
-import { Save, Sidebar as SidebarIcon, FileText, BrainCircuit, Layout } from 'lucide-react';
+import { Save, Search, FileText, BrainCircuit, LayoutGrid } from 'lucide-react'; // PHOENIX FIX: Distinct Icons
 import { ClaimNode, EvidenceNode, FactNode, LawNode, MapNodeData } from '../components/evidence-map/Nodes';
 import Sidebar from '../components/evidence-map/Sidebar';
 import ImportModal from '../components/evidence-map/ImportModal'; 
@@ -51,7 +52,6 @@ const EvidenceMapPage = () => {
   const { caseId: rawCaseId } = useParams<{ caseId: string }>();
   const { fitView } = useReactFlow();
 
-  // PHOENIX FIX: Guaranteed Case ID for the entire scope
   const caseId = useMemo(() => rawCaseId || '', [rawCaseId]);
 
   const [nodes, setNodes] = useState<Node<MapNodeData>[]>([]);
@@ -134,15 +134,11 @@ const EvidenceMapPage = () => {
         const blob = new Blob([response.data], { type: 'application/pdf' });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = url; 
-        // PHOENIX FIX: Guaranteed string usage for slice
-        link.download = `Harta_e_Provave_${caseId.slice(-6)}.pdf`;
+        link.href = url; link.download = `Harta_e_Provave_${caseId.slice(-6)}.pdf`;
         document.body.appendChild(link); link.click(); document.body.removeChild(link);
     } catch (error) { console.error(error); } 
     finally { setIsPdfExporting(false); }
   };
-
-  if (!caseId) return <div className="p-8 text-red-500">Error: Case ID not found.</div>;
 
   return (
       <div className="w-full h-[calc(100vh-64px)] bg-background-dark flex relative overflow-hidden">
@@ -150,49 +146,57 @@ const EvidenceMapPage = () => {
             <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} nodeTypes={nodeTypes} colorMode="dark">
             <Background color="#1e293b" gap={20} />
             
-            {/* TOP RIGHT: Controls */}
-            <Panel position="top-right" className="m-4 z-50">
+            {/* 1. TOP RIGHT: Hidden on mobile to avoid duplication/clutter */}
+            <Panel position="top-right" className="hidden lg:flex m-4 z-50">
                 <button 
                     onClick={() => setIsSidebarVisible(v => !v)} 
                     className="w-12 h-12 bg-background-light/90 backdrop-blur-md text-white rounded-full shadow-2xl border border-white/10 flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all"
                 >
-                    <SidebarIcon size={24}/>
+                    <Search size={24}/>
                 </button>
             </Panel>
             
-            {/* DESKTOP ACTION BAR */}
+            {/* 2. DESKTOP ACTION BAR */}
             <Panel position="top-center" className="hidden lg:flex mt-4 pointer-events-none">
                 <div className="flex bg-black/60 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl items-center gap-3 pointer-events-auto">
-                    <button onClick={() => setIsImportModalOpen(true)} className="px-6 py-2.5 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-start/20">
-                        <BrainCircuit size={18}/> {t('evidenceMap.sidebar.importButton')}
-                    </button>
+                    <button onClick={() => setIsImportModalOpen(true)} className="px-6 py-2.5 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-start/20"><BrainCircuit size={18}/> {t('evidenceMap.sidebar.importButton')}</button>
                     <div className="w-px h-8 bg-white/10 mx-1"></div>
                     <button onClick={onLayout} className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold flex items-center gap-2 border border-white/10 transition-all active:scale-95">
-                        <Layout size={18}/> {t('evidenceMap.action.layout', 'Rreshto')}
+                        <LayoutGrid size={18}/> {t('evidenceMap.action.layout', 'Rreshto')}
                     </button>
-                    <button onClick={saveMap} disabled={isSaving} className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold flex items-center gap-2 border border-white/10 transition-all active:scale-95 disabled:opacity-50">
-                        <Save size={18}/> {isSaving ? t('evidenceMap.action.saving') : t('evidenceMap.action.save')}
-                    </button>
-                    <button onClick={handleExportPdf} disabled={isPdfExporting} className="px-5 py-2.5 bg-red-600/10 hover:bg-red-600/20 text-red-500 rounded-xl text-sm font-bold flex items-center gap-2 border border-red-500/20 transition-all active:scale-95 disabled:opacity-50">
-                        <FileText size={18}/> PDF
-                    </button>
+                    <button onClick={saveMap} disabled={isSaving} className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold flex items-center gap-2 border border-white/10 transition-all active:scale-95 disabled:opacity-50"><Save size={18}/> {isSaving ? t('evidenceMap.action.saving') : t('evidenceMap.action.save')}</button>
+                    <button onClick={handleExportPdf} disabled={isPdfExporting} className="px-5 py-2.5 bg-red-600/10 hover:bg-red-600/20 text-red-500 rounded-xl text-sm font-bold flex items-center gap-2 border border-red-500/20 transition-all active:scale-95 disabled:opacity-50"><FileText size={18}/> PDF</button>
                 </div>
             </Panel>
 
-            {/* MOBILE ACTION DOCK */}
+            {/* 3. MOBILE ACTION DOCK: Unified for all 5 actions */}
             <Panel position="bottom-center" className="flex lg:hidden justify-center w-full pb-10 px-4 pointer-events-none z-50">
-                 <div className="flex flex-row items-center gap-4 bg-black/80 backdrop-blur-2xl px-6 py-4 rounded-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] pointer-events-auto">
+                 <div className="flex flex-row items-center gap-3 bg-black/80 backdrop-blur-2xl px-5 py-3.5 rounded-3xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] pointer-events-auto">
+                    
+                    {/* Search/Filter (Sidebar) */}
+                    <button onClick={() => setIsSidebarVisible(true)} className="flex items-center justify-center w-11 h-11 bg-white/5 rounded-2xl text-white border border-white/10 active:scale-90 transition-all">
+                        <Search size={22} />
+                    </button>
+
+                    {/* AI Build */}
                     <button onClick={() => setIsImportModalOpen(true)} className="flex items-center justify-center w-14 h-14 bg-gradient-to-r from-primary-start to-primary-end rounded-2xl text-white shadow-xl border border-white/20 active:scale-90 transition-all">
                         <BrainCircuit size={28} />
                     </button>
-                    <div className="w-px h-10 bg-white/10 mx-1"></div>
-                    <button onClick={onLayout} className="flex items-center justify-center w-12 h-12 bg-white/5 rounded-2xl text-blue-400 border border-white/10 active:scale-90 transition-all">
-                        <Layout size={22} />
+
+                    <div className="w-px h-8 bg-white/10 mx-0.5"></div>
+
+                    {/* Layout/Grid */}
+                    <button onClick={onLayout} className="flex items-center justify-center w-11 h-11 bg-white/5 rounded-2xl text-blue-400 border border-white/10 active:scale-90 transition-all">
+                        <LayoutGrid size={22} />
                     </button>
-                    <button onClick={saveMap} disabled={isSaving} className="flex items-center justify-center w-12 h-12 bg-white/5 rounded-2xl text-white border border-white/10 active:scale-90 transition-all">
+
+                    {/* Save */}
+                    <button onClick={saveMap} disabled={isSaving} className="flex items-center justify-center w-11 h-11 bg-white/5 rounded-2xl text-white border border-white/10 active:scale-90 transition-all">
                         <Save className={isSaving ? 'animate-spin' : ''} size={22} />
                     </button>
-                     <button onClick={handleExportPdf} disabled={isPdfExporting} className="flex items-center justify-center w-12 h-12 bg-red-600/20 rounded-2xl text-red-500 border border-red-500/30 active:scale-90 transition-all">
+
+                    {/* PDF */}
+                     <button onClick={handleExportPdf} disabled={isPdfExporting} className="flex items-center justify-center w-11 h-11 bg-red-600/20 rounded-2xl text-red-500 border border-red-500/30 active:scale-90 transition-all">
                         <FileText size={22} />
                     </button>
                  </div>
@@ -200,7 +204,7 @@ const EvidenceMapPage = () => {
             </ReactFlow>
         </div>
       
-        {/* SIDEBAR DRAWER */}
+        {/* RESPONSIVE DRAWER */}
         <div className={`absolute top-0 right-0 z-[100] h-full transition-transform duration-300 transform ${isSidebarVisible ? 'translate-x-0' : 'translate-x-full'}`}>
             <Sidebar filters={{hideUnconnected: false, highlightContradictions: true}} onFilterChange={() => {}} searchTerm="" onSearchChange={() => {}} onOpenImportModal={() => {}} onClose={() => setIsSidebarVisible(false)} />
         </div>
