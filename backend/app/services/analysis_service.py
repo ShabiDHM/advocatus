@@ -1,13 +1,14 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V21.0 (PIPELINE DECOUPLING)
-# 1. DECOUPLED: Removed graph creation from `cross_examine_case` to restore its original function.
-# 2. ADDED: Created a dedicated, high-integrity `build_and_get_graph` function for the Evidence Map.
-# 3. STATUS: Clean separation of concerns. Text analysis and Graph analysis are now independent.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V21.1 (ROBUST ID & PIPELINE FIX)
+# 1. FIX: Implemented a robust "Dual-Type ID Query" to find documents regardless of whether case_id is a String or ObjectId.
+# 2. FIX: Decoupled graph creation from `cross_examine_case` to restore its original function.
+# 3. STATUS: This guarantees the text extraction finds the documents, triggering the AI graph build.
 
 import structlog
 from typing import List, Dict, Any
 from pymongo.database import Database
 from bson import ObjectId
+from bson.errors import InvalidId
 
 import app.services.llm_service as llm_service
 from .graph_service import graph_service
@@ -16,35 +17,56 @@ logger = structlog.get_logger(__name__)
 
 # --- UTILITIES ---
 def _get_full_case_text(db: Database, case_id: str) -> str:
+    """
+    PHOENIX FIX: Robustly queries for documents using both String and ObjectId formats
+    to prevent silent failures in the AI pipeline.
+    """
     try:
-        docs = list(db.documents.find({"case_id": ObjectId(case_id)}))
-        if not docs: docs = list(db.documents.find({"case_id": case_id}))
+        # Create a query that checks for the case_id in both formats
+        query_filter = {
+            "$or": [
+                {"case_id": case_id},
+                {"case_id": ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id}
+            ]
+        }
+        docs = list(db.documents.find(query_filter))
         
+        if not docs:
+            logger.warning("No documents found for case_id", case_id=case_id)
+            return ""
+
         buffer = [f"\n--- DOKUMENTI: {d.get('file_name')} ---\n{str(d.get('extracted_text') or d.get('summary') or '')[:8000]}" for d in docs if d.get("extracted_text") or d.get("summary")]
         return "\n".join(buffer)
-    except Exception: 
+    except Exception as e:
+        logger.error("Failed to get case text", case_id=case_id, error=str(e))
         return ""
 
 def authorize_case_access(db: Database, case_id: str, user_id: str) -> bool:
     try:
-        case = db.cases.find_one({"_id": ObjectId(case_id), "user_id": ObjectId(user_id)})
+        user_oid = ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id
+        case_oid = ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id
+        
+        query_filter = {
+            "_id": case_oid,
+            "$or": [
+                {"user_id": user_oid},
+                {"user_id": str(user_oid)}
+            ]
+        }
+        case = db.cases.find_one(query_filter)
         return case is not None
     except Exception:
         return False
 
 # --- DEDICATED GRAPH BUILDER (CALLED BY EVIDENCE MAP) ---
 def build_and_populate_graph(db: Database, case_id: str, user_id: str) -> bool:
-    """
-    The core AI engine for the Evidence Map. Extracts text, calls the AI to create a graph,
-    and ingests it into Neo4j. Returns True on success.
-    """
     if not authorize_case_access(db, case_id, user_id):
         logger.warning("Unauthorized attempt to build graph", case_id=case_id)
         return False
 
     full_text = _get_full_case_text(db, case_id)
     if not full_text:
-        logger.info("No text content to build graph from", case_id=case_id)
+        logger.warning("No text content found to build graph from", case_id=case_id)
         return False
 
     try:
@@ -58,7 +80,6 @@ def build_and_populate_graph(db: Database, case_id: str, user_id: str) -> bool:
             logger.warning("LLM returned no nodes for graph", case_id=case_id)
             return False
 
-        # Ingest the extracted data into Neo4j
         graph_service.ingest_entities_and_relations(
             case_id=case_id,
             document_id=f"case-graph-summary-{case_id}",
@@ -75,10 +96,6 @@ def build_and_populate_graph(db: Database, case_id: str, user_id: str) -> bool:
 
 # --- TEXTUAL ANALYSIS (FOR SOCRATIC ASSISTANT) ---
 def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[str, Any]:
-    """
-    This function is ONLY for the textual 'Analizo Rastin' report.
-    It no longer touches the graph database.
-    """
     if not authorize_case_access(db, case_id, user_id): return {"error": "Unauthorized"}
     
     full_text = _get_full_case_text(db, case_id)
@@ -102,7 +119,6 @@ def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[str, An
 
 # --- OTHER ANALYSIS FUNCTIONS (UNCHANGED) ---
 async def run_deep_strategy(db: Database, case_id: str, user_id: str) -> Dict[str, Any]:
-    # This function's logic remains the same
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     full_text = _get_full_case_text(db, case_id)
     if not full_text: return {"error": "Mungojnë dokumentet."}
