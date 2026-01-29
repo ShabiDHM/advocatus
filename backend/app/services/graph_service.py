@@ -1,13 +1,14 @@
 # FILE: backend/app/services/graph_service.py
-# PHOENIX PROTOCOL - GRAPH INTELLIGENCE V3.0 (SEMANTIC LEGAL MAPPING)
-# 1. UPGRADE: 'ingest_entities_and_relations' now distinguish between Facts, Claims, and Parties.
-# 2. ENHANCEMENT: 'get_case_graph' now returns rich metadata for professional UI display.
-# 3. STATUS: Definitive version for high-end legal graph intelligence.
+# PHOENIX PROTOCOL - GRAPH INTELLIGENCE V3.2 (ROBUST LOGIC MAPPING)
+# 1. FIX: Added safe relationship extraction to handle varied JSON keys from LLM.
+# 2. UPGRADE: Supports specialized legal labels (Claim, Fact, Law, Evidence).
+# 3. STATUS: Fully synchronized with LLM Service V47.0.
 
 import os
 import structlog
 from neo4j import GraphDatabase, Driver, basic_auth
 from typing import List, Dict, Any, Optional
+from datetime import datetime
 
 logger = structlog.get_logger(__name__)
 
@@ -28,16 +29,12 @@ class GraphService:
             self._driver = None
 
     def get_case_graph(self, case_id: str) -> Dict[str, List[Dict[str, Any]]]:
-        """
-        Retrieves the professional argument map for the case.
-        """
         self._connect()
         if not self._driver: return {"nodes": [], "links": []}
         
         nodes_dict = {}
         links_list = []
         
-        # PHOENIX: Fetch specialized legal nodes and their semantic links
         query = """
         MATCH (n) WHERE n.case_id = $case_id
         OPTIONAL MATCH (n)-[r]->(m) WHERE m.case_id = $case_id
@@ -48,71 +45,64 @@ class GraphService:
             with self._driver.session() as session:
                 res = session.run(query, case_id=case_id)
                 for record in res:
-                    n = record['n']
-                    r = record['r']
-                    m = record['m']
+                    n, r, m = record['n'], record['r'], record['m']
                     
                     for node in [n, m]:
                         if node:
                             n_id = str(node.element_id)
                             if n_id not in nodes_dict:
-                                labels = list(node.labels)
-                                primary_label = labels[0] if labels else "Entity"
+                                label = list(node.labels)[0] if node.labels else "Entity"
                                 nodes_dict[n_id] = {
                                     "id": n_id,
                                     "name": node.get('name', 'N/A'),
-                                    "group": primary_label.upper(),
+                                    "group": label.upper(),
                                     "description": node.get('description', ''),
-                                    "val": 25 if primary_label == "Claim" else 15
+                                    "val": 25 if label == "Claim" else 15
                                 }
                     
                     if r and n and m:
                         links_list.append({
                             "source": str(n.element_id),
                             "target": str(m.element_id),
-                            "label": type(r)
+                            "label": type(r).__name__
                         })
-                        
         except Exception as e:
             logger.error(f"Graph Fetch Error: {e}")
             
         return {"nodes": list(nodes_dict.values()), "links": links_list}
 
     def ingest_entities_and_relations(self, case_id: str, document_id: str, doc_name: str, entities: List[Dict], relations: List[Dict], doc_metadata: Optional[Dict] = None):
-        """
-        Professional Ingestion: Maps claims, facts, and citations semantically.
-        """
+        """Robust ingestion for professional argument maps."""
         self._connect()
         if not self._driver: return
 
         def _tx_ingest(tx, c_id, d_id, d_name, ents, rels):
-            # 1. Register the Document
-            tx.run("""
-                MERGE (d:Document {id: $d_id}) 
-                SET d.case_id = $c_id, d.name = $d_name, d.processed_at = datetime()
-            """, d_id=d_id, c_id=c_id, d_name=d_name)
+            tx.run("MERGE (d:Document {id: $d_id}) SET d.case_id = $c_id, d.name = $d_name, d.processed_at = datetime()", d_id=d_id, c_id=c_id, d_name=d_name)
             
-            # 2. Create Semantic Legal Nodes
             for ent in ents:
-                name = ent.get("name", "").strip()
-                label = ent.get("type", "Entity").capitalize()
-                desc = ent.get("description", "")
+                name = (ent.get("name") or ent.get("label") or "").strip()
                 if not name: continue
                 
-                # Merge the node and link it to the current document
+                raw_type = str(ent.get("type", "Entity")).lower()
+                if "claim" in raw_type or "pretendim" in raw_type: label = "Claim"
+                elif "fact" in raw_type or "fakt" in raw_type: label = "Fact"
+                elif "law" in raw_type or "ligj" in raw_type: label = "Law"
+                elif "evidence" in raw_type or "prove" in raw_type: label = "Evidence"
+                else: label = "Party"
+
                 tx.run(f"""
                     MERGE (e:{label} {{name: $name, case_id: $c_id}})
                     SET e.description = $desc
                     WITH e
                     MATCH (d:Document {{id: $d_id}})
                     MERGE (d)-[:MENTIONS]->(e)
-                """, name=name, label=label, c_id=c_id, d_id=d_id, desc=desc)
+                """, name=name, c_id=c_id, d_id=d_id, desc=ent.get("description", ""))
 
-            # 3. Create Semantic Relationships
             for rel in rels:
-                subj, obj = rel.get("subject"), rel.get("target") or rel.get("object")
-                pred = rel.get("relation", "RELATED").upper().replace(" ", "_")
+                subj = rel.get("source") or rel.get("subject")
+                obj = rel.get("target") or rel.get("object")
                 if subj and obj:
+                    pred = str(rel.get("relation", "RELATED")).upper().replace(" ", "_")
                     tx.run(f"""
                         MATCH (a {{name: $subj, case_id: $c_id}}), (b {{name: $obj, case_id: $c_id}})
                         MERGE (a)-[:{pred} {{case_id: $c_id}}]->(b)
@@ -122,7 +112,7 @@ class GraphService:
             with self._driver.session() as session:
                 session.execute_write(_tx_ingest, case_id, document_id, doc_name, entities, relations)
         except Exception as e:
-            logger.error(f"Professional Ingestion Error: {e}")
+            logger.error(f"Ingestion Error: {e}")
 
     def delete_node(self, node_id: str):
         self._connect()
@@ -130,6 +120,6 @@ class GraphService:
         try:
             with self._driver.session() as session:
                 session.run("MATCH (n {id: $id}) DETACH DELETE n", id=node_id)
-        except Exception as e: logger.error(f"Graph Delete Error: {e}")
+        except Exception: pass
 
 graph_service = GraphService()
