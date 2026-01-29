@@ -1,9 +1,8 @@
 // FILE: src/pages/EvidenceMapPage.tsx
-// PHOENIX PROTOCOL - EVIDENCE MAP V18.0
-// 1. FIX: Resolved TS6133 by utilizing 't' for internationalization and 'isPdfExporting' for button states.
-// 2. FIX: Maintained Mobile Dock refinement with optimized bottom spacing.
-// 3. UI: Preserved the Layout Notification and visual feedback for the "4-square" icon.
-// 4. STATUS: Production-ready, zero TS warnings.
+// PHOENIX PROTOCOL - EVIDENCE MAP V19.0 (TREE STRUCTURE RESTORED)
+// 1. FIX: handleImport now uses 'edge.relation' to correctly label logical links.
+// 2. FIX: Optimized Dagre layout for the new handle positions (Target=Top, Source=Bottom).
+// 3. UI: Increased node separation (TB) to prevent card overlapping.
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
@@ -33,14 +32,15 @@ const dagreGraph = new dagre.graphlib.Graph();
 dagreGraph.setDefaultEdgeLabel(() => ({}));
 
 const getLayoutedElements = (nodes: Node<MapNodeData>[], edges: Edge[]) => {
-  dagreGraph.setGraph({ rankdir: 'TB', nodesep: 100, ranksep: 140 });
-  nodes.forEach((node) => { dagreGraph.setNode(node.id, { width: 260, height: 160 }); });
+  // PHOENIX FIX: TB (Top to Bottom) with generous spacing for readable cards
+  dagreGraph.setGraph({ rankdir: 'TB', nodesep: 120, ranksep: 180 });
+  nodes.forEach((node) => { dagreGraph.setNode(node.id, { width: 260, height: 180 }); });
   edges.forEach((edge) => { dagreGraph.setEdge(edge.source, edge.target); });
   dagre.layout(dagreGraph);
   return {
     nodes: nodes.map((node) => {
         const nodeWithPosition = dagreGraph.node(node.id);
-        return { ...node, position: { x: nodeWithPosition.x - 130, y: nodeWithPosition.y - 80 } };
+        return { ...node, position: { x: nodeWithPosition.x - 130, y: nodeWithPosition.y - 90 } };
     }),
     edges
   };
@@ -80,6 +80,10 @@ const EvidenceMapPage = () => {
         const response = await axios.get(`/api/v1/cases/${caseId}/evidence-map`);
         if (response.data.nodes) setNodes(response.data.nodes);
         if (response.data.edges) setEdges(response.data.edges);
+        // Auto-layout on first load if nodes exist
+        if (response.data.nodes?.length > 0) {
+            setTimeout(() => onLayout(), 500);
+        }
       } catch (error) { console.error("Fetch failed", error); }
     };
     fetchMap();
@@ -104,21 +108,29 @@ const EvidenceMapPage = () => {
   const handleImport = (importedNodes: any[], importedEdges: any[]) => {
     const newReactNodes: Node<MapNodeData>[] = importedNodes.map(node => ({
         id: node.id,
-        type: node.type === 'Claim' ? 'claimNode' : node.type === 'Fact' ? 'factNode' : node.type === 'Law' ? 'lawNode' : 'evidenceNode',
-        position: { x: 0, y: 0 },
+        type: node.group === 'CLAIM' ? 'claimNode' : node.group === 'FACT' ? 'factNode' : node.group === 'LAW' ? 'lawNode' : 'evidenceNode',
+        position: { x: Math.random() * 400, y: Math.random() * 400 },
         data: { label: node.name, content: node.description }
     }));
+
     const newReactEdges: Edge[] = importedEdges.map(edge => ({
         id: `e-${edge.source}-${edge.target}`,
-        source: edge.source, target: edge.target,
-        label: edge.relation, animated: true,
-        markerEnd: { type: MarkerType.ArrowClosed },
+        source: edge.source, 
+        target: edge.target,
+        label: edge.relation, 
+        animated: true,
+        markerEnd: { type: MarkerType.ArrowClosed, color: edge.relation === 'KONTRADIKTON' ? '#f87171' : '#4ade80' },
         style: { stroke: edge.relation === 'KONTRADIKTON' ? '#f87171' : '#4ade80', strokeWidth: 2 }
     }));
-    const { nodes: finalNodes, edges: finalEdges } = getLayoutedElements([...nodes, ...newReactNodes], [...edges, ...newReactEdges]);
+
+    const combinedNodes = [...nodes, ...newReactNodes];
+    const combinedEdges = [...edges, ...newReactEdges];
+    
+    // PHOENIX FIX: Immediately layout the tree after import
+    const { nodes: finalNodes, edges: finalEdges } = getLayoutedElements(combinedNodes, combinedEdges);
     setNodes(finalNodes);
     setEdges(finalEdges);
-    setTimeout(() => fitView({ duration: 800 }), 100);
+    setTimeout(() => fitView({ duration: 800, padding: 0.2 }), 100);
   };
 
   const saveMap = async () => {
@@ -151,22 +163,21 @@ const EvidenceMapPage = () => {
             
             {showLayoutToast && (
                 <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[100] bg-blue-600 text-white px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <CheckCircle2 size={16} /> <span className="text-sm font-medium">{t('evidenceMap.action.layoutApplied', 'Harta u rreshtua!')}</span>
+                    <CheckCircle2 size={16} /> <span className="text-sm font-medium">Harta u rreshtua logjikisht!</span>
                 </div>
             )}
 
-            {/* DESKTOP PANEL */}
             <Panel position="top-center" className="hidden lg:flex mt-4 pointer-events-none">
-                <div className="flex bg-black/60 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl items-center gap-3 pointer-events-auto">
+                <div className="flex bg-black/80 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl items-center gap-3 pointer-events-auto">
                     <button onClick={() => setIsImportModalOpen(true)} className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all">
-                      <BrainCircuit size={18}/> {t('evidenceMap.sidebar.importButton', 'Ndërto me AI')}
+                      <BrainCircuit size={18}/> {t('evidenceMap.sidebar.importButton', 'Importo Entitetet')}
                     </button>
                     <div className="w-px h-8 bg-white/10 mx-1"></div>
-                    <button onClick={onLayout} title={t('evidenceMap.action.layout', 'Rreshto automatikisht')} className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold flex items-center gap-2 border border-white/10 transition-all active:scale-95">
-                        <LayoutGrid size={18}/> {t('evidenceMap.action.layout', 'Rreshto')}
+                    <button onClick={onLayout} title="Rreshto automatikisht" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold flex items-center gap-2 border border-white/10 transition-all active:scale-95">
+                        <LayoutGrid size={18}/> Rreshto
                     </button>
                     <button onClick={saveMap} disabled={isSaving} className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold flex items-center gap-2 border border-white/10 transition-all active:scale-95 disabled:opacity-50">
-                      {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18}/>} {isSaving ? t('evidenceMap.action.saving', 'Duke ruajtur...') : t('evidenceMap.action.save', 'Ruaj')}
+                      {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18}/>} Ruaj Hartën
                     </button>
                     <button onClick={handleExportPdf} disabled={isPdfExporting} className="px-5 py-2.5 bg-red-600/10 hover:bg-red-600/20 text-red-500 rounded-xl text-sm font-bold flex items-center gap-2 border border-red-500/20 transition-all disabled:opacity-50">
                         {isPdfExporting ? <Loader2 size={18} className="animate-spin" /> : <FileText size={18}/>} PDF
@@ -177,30 +188,11 @@ const EvidenceMapPage = () => {
             {/* MOBILE ACTION DOCK */}
             <Panel position="bottom-center" className="flex lg:hidden justify-center w-full px-4 pointer-events-none z-[999] mb-8">
                  <div className="flex flex-row items-center gap-2 bg-[#121214]/95 backdrop-blur-2xl px-3 py-3 rounded-[2.5rem] border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.8)] pointer-events-auto">
-                    
-                    <button onClick={() => setIsSidebarVisible(true)} className="flex items-center justify-center w-12 h-12 bg-white/5 rounded-full text-white active:scale-90 transition-all">
-                        <Search size={20} />
-                    </button>
-
-                    <button onClick={() => setIsImportModalOpen(true)} className="flex items-center justify-center w-14 h-14 bg-blue-600 rounded-full text-white shadow-lg shadow-blue-900/40 active:scale-90 transition-all">
-                        <BrainCircuit size={24} />
-                    </button>
-
-                    <button 
-                        onClick={onLayout} 
-                        title="Rreshto Hartën"
-                        className={`flex items-center justify-center w-12 h-12 rounded-full border border-white/10 active:scale-90 transition-all ${showLayoutToast ? 'bg-blue-600/20 text-blue-400' : 'bg-white/5 text-white'}`}
-                    >
-                        <LayoutGrid size={20} />
-                    </button>
-
-                    <button onClick={saveMap} disabled={isSaving} className="flex items-center justify-center w-12 h-12 bg-white/5 rounded-full text-white active:scale-90 transition-all disabled:opacity-50">
-                        {isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
-                    </button>
-
-                     <button onClick={handleExportPdf} disabled={isPdfExporting} className="flex items-center justify-center w-12 h-12 bg-red-600/10 rounded-full text-red-500 active:scale-90 transition-all disabled:opacity-50">
-                        {isPdfExporting ? <Loader2 className="animate-spin" size={20} /> : <FileText size={20} />}
-                    </button>
+                    <button onClick={() => setIsSidebarVisible(true)} className="flex items-center justify-center w-12 h-12 bg-white/5 rounded-full text-white active:scale-90 transition-all"><Search size={20} /></button>
+                    <button onClick={() => setIsImportModalOpen(true)} className="flex items-center justify-center w-14 h-14 bg-blue-600 rounded-full text-white shadow-lg active:scale-90 transition-all"><BrainCircuit size={24} /></button>
+                    <button onClick={onLayout} className={`flex items-center justify-center w-12 h-12 rounded-full border border-white/10 active:scale-90 transition-all ${showLayoutToast ? 'bg-blue-600/20 text-blue-400' : 'bg-white/5 text-white'}`}><LayoutGrid size={20} /></button>
+                    <button onClick={saveMap} disabled={isSaving} className="flex items-center justify-center w-12 h-12 bg-white/5 rounded-full text-white active:scale-90 transition-all disabled:opacity-50">{isSaving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}</button>
+                     <button onClick={handleExportPdf} disabled={isPdfExporting} className="flex items-center justify-center w-12 h-12 bg-red-600/10 rounded-full text-red-500 active:scale-90 transition-all disabled:opacity-50">{isPdfExporting ? <Loader2 className="animate-spin" size={20} /> : <FileText size={20} />}</button>
                  </div>
             </Panel>
             </ReactFlow>
@@ -210,9 +202,7 @@ const EvidenceMapPage = () => {
             <Sidebar filters={{hideUnconnected: false, highlightContradictions: true}} onFilterChange={() => {}} searchTerm="" onSearchChange={() => {}} onOpenImportModal={() => {}} onClose={() => setIsSidebarVisible(false)} />
         </div>
 
-        {isSidebarVisible && (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-md lg:hidden z-[1050]" onClick={() => setIsSidebarVisible(false)} />
-        )}
+        {isSidebarVisible && <div className="fixed inset-0 bg-black/80 backdrop-blur-md lg:hidden z-[1050]" onClick={() => setIsSidebarVisible(false)} />}
 
         <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onImport={handleImport} caseId={caseId} />
         <NodeEditModal isOpen={!!nodeToEdit} onClose={() => setNodes(nds => nds.map(n => ({...n, data: {...n.data, editing: false}})))} node={nodeToEdit || null} onSave={(id, data) => setNodes(nds => nds.map(n => n.id === id ? {...n, data: {...n.data, ...data, editing: false}} : n))} />

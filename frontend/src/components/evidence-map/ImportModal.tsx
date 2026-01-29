@@ -1,9 +1,7 @@
 // FILE: frontend/src/components/evidence-map/ImportModal.tsx
-// PHOENIX PROTOCOL - FIX V11.0 (TS INTEGRITY & ADMIN UI RESTORATION)
-// 1. FIX: Resolved TS6133 by restoring RefreshCw icon usage in the Admin button.
-// 2. FIX: Added spinning animation to RefreshCw when reprocessStatus is active.
-// 3. UI: Maintained V10 micro-scaling for perfect mobile viewport fit.
-// 4. STATUS: 100% Clean Build, Zero TS Warnings.
+// PHOENIX PROTOCOL - FIX V12.0 (EDGE SYNC & COUNT FIX)
+// 1. FIX: Changed 'label' to 'relation' in GraphEdge to match Backend/Page logic.
+// 2. FIX: Passed count variable as an object { count: selectedIds.size } for proper translation.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -21,7 +19,7 @@ interface GraphNode {
 interface GraphEdge {
   source: string;
   target: string;
-  label: string;
+  relation: string; // PHOENIX FIX: Synchronized with EvidenceMapPage
 }
 
 interface ImportModalProps {
@@ -44,7 +42,7 @@ const TypeBadge = ({ type }: { type: string }) => {
     }
 
     return (
-        <span className={`flex items-center gap-1 text-[8px] sm:text-[10px] font-bold px-1 py-0.5 rounded border ${color} uppercase tracking-tighter sm:tracking-wider whitespace-nowrap`}>
+        <span className={`flex items-center gap-1 text-[8px] sm:text-[10px] font-bold px-1 py-0.5 rounded border ${color} uppercase tracking-tighter whitespace-nowrap`}>
             {icon} {type}
         </span>
     );
@@ -73,7 +71,14 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
     try {
       const graphResponse = await apiService.getCaseGraph(caseId);
       const validNodes = (graphResponse.nodes || []).filter((n: any) => n.group !== 'DOCUMENT');
-      const validEdges = graphResponse.links || [];
+      
+      // Map 'label' from API to 'relation' for internal synchronization
+      const validEdges = (graphResponse.links || []).map((l: any) => ({
+        source: l.source,
+        target: l.target,
+        relation: l.label || l.relation || 'LIDHET'
+      }));
+
       setNodes(validNodes);
       setEdges(validEdges);
     } catch (err) {
@@ -125,7 +130,9 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
 
   const handleImportClick = () => {
       const selectedNodes = nodes.filter(n => selectedIds.has(n.id));
+      // PHOENIX FIX: Import edge only if BOTH ends are selected
       const selectedEdges = edges.filter(e => selectedIds.has(e.source) && selectedIds.has(e.target));
+      
       onImport(selectedNodes, selectedEdges);
       onClose();
       setSelectedIds(new Set());
@@ -147,10 +154,9 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-[1100] p-2 sm:p-4 font-sans">
+    <div className="fixed inset-0 bg-black/90 backdrop-blur-xl flex items-center justify-center z-[1100] p-2 sm:p-4">
       <div className="bg-[#121214] border border-white/10 w-full max-w-xl max-h-[85dvh] flex flex-col rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
-        {/* HEADER */}
         <div className="flex justify-between items-start p-3 sm:p-5 border-b border-white/5 bg-white/[0.02]">
           <div className="pr-4">
               <h3 className="flex items-center gap-2 text-base sm:text-lg font-bold text-white leading-tight">
@@ -162,7 +168,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
           <button onClick={onClose} className="shrink-0 text-gray-500 hover:text-white p-1 rounded-full hover:bg-white/5 transition-colors"><X size={20} /></button>
         </div>
 
-        {/* BODY */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-5 space-y-4">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-8 space-y-3">
@@ -180,11 +185,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
                 <BrainCircuit size={40} className="opacity-10" />
                 <p className="text-white text-xs font-medium">Nuk u gjetën të dhëna.</p>
                 {user?.role === 'ADMIN' && (
-                    <button 
-                        onClick={handleForceReprocess} 
-                        disabled={!!reprocessStatus} 
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600/10 text-blue-400 border border-blue-600/20 rounded-full text-[10px] font-bold uppercase transition-all"
-                    >
+                    <button onClick={handleForceReprocess} disabled={!!reprocessStatus} className="px-4 py-2 bg-blue-600/10 text-blue-400 border border-blue-600/20 rounded-full text-[10px] font-bold uppercase transition-all">
                         <RefreshCw size={12} className={reprocessStatus ? 'animate-spin' : ''} />
                         {reprocessStatus || "Ri-analizo"}
                     </button>
@@ -259,7 +260,6 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
           )}
         </div>
 
-        {/* FOOTER */}
         <div className="p-3 sm:p-5 border-t border-white/5 bg-white/[0.01] flex flex-col gap-3">
             <div className="text-[10px] font-bold text-gray-600 uppercase tracking-widest text-center">
                 {selectedIds.size} elemente të zgjedhura
@@ -273,7 +273,7 @@ const ImportModal: React.FC<ImportModalProps> = ({ isOpen, onClose, onImport, ca
                     disabled={selectedIds.size === 0}
                     className="flex-[2] px-6 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-white/5 text-white rounded-xl font-black text-[11px] uppercase tracking-wider shadow-lg transition-all active:scale-95 disabled:text-gray-700"
                 >
-                    {t('evidenceMap.importModal.importBtn', { defaultValue: 'Importo', count: selectedIds.size })}
+                    {t('evidenceMap.importModal.importBtn', { count: selectedIds.size, defaultValue: `Importo (${selectedIds.size})` })}
                 </button>
             </div>
         </div>
