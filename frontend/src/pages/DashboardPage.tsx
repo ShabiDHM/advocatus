@@ -1,8 +1,7 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V16.0 (CONTENT SCROLLING FIX)
-// 1. UX: Implemented a fixed-height container using 'h-full' and 'flex-col'.
-// 2. SCROLL: Ensured only the Case Grid itself is scrollable (overflow-y-auto), keeping the Briefing and Title static.
-// 3. STATUS: Finalizes the Dashboard layout to match the requested image behavior.
+// PHOENIX PROTOCOL - DASHBOARD V16.1 (LOCALIZATION FIX)
+// 1. LOCALE: Corrected the translation key for the 'Client Information' label in the create modal.
+// 2. KEY CHANGE: Changed t('caseCard.client') to the more accurate t('dashboard.clientInformation').
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -147,7 +146,6 @@ const DashboardPage: React.FC = () => {
   const { style: rowStyleClasses, icon: briefingIcon, text: briefingText } = getBriefingDetails();
 
   return (
-    // PHOENIX FIX: Removed 'min-h-screen' to allow the main layout to handle height, and added 'h-full' to this inner div.
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 h-full flex flex-col">
       
       {/* Kujdestari Briefing Card - REMAINS STATIC */}
@@ -199,7 +197,6 @@ const DashboardPage: React.FC = () => {
       {isLoading ? (
         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>
       ) : (
-        // PHOENIX FIX: Added 'flex-1 overflow-y-auto' to make THIS block scrollable, keeping the elements above static.
         <div className="flex-1 overflow-y-auto custom-scrollbar -mr-4 pr-4 pb-4">
           {casesToDisplay.length === 0 ? (
              <div className="text-center py-20 opacity-50"><p className="text-xl text-text-secondary">{t('dashboard.noCases', 'Nuk u gjetën raste.')}</p></div>
@@ -222,7 +219,8 @@ const DashboardPage: React.FC = () => {
                 <input required name="title" type="text" value={newCaseData.title} onChange={handleModalInputChange} className="glass-input w-full rounded-xl px-4 py-2" />
               </div>
               <div className="pt-4 border-t border-white/10">
-                <label className="block text-sm text-primary-start mb-3 font-medium">{t('caseCard.client')}</label>
+                {/* PHOENIX FIX: Corrected translation key */}
+                <label className="block text-sm text-primary-start mb-3 font-medium">{t('dashboard.clientInformation')}</label>
                 <div className="space-y-3">
                     <input required name="clientName" placeholder={t('dashboard.clientName')} type="text" value={newCaseData.clientName} onChange={handleModalInputChange} className="glass-input w-full rounded-xl px-4 py-2" />
                     <input name="clientEmail" placeholder={t('dashboard.clientEmail')} type="email" value={newCaseData.clientEmail} onChange={handleModalInputChange} className="glass-input w-full rounded-xl px-4 py-2" />

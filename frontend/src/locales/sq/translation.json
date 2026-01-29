@@ -1,3 +1,4 @@
+
 {
   "general": {
     "login": "Hyrja",
@@ -63,8 +64,12 @@
     "clientName": "Emri i Klientit",
     "clientEmail": "Email i Klientit",
     "clientPhone": "Telefoni i Klientit",
+    "clientInformation": "Informacioni i Klientit",
     "noCases": "Nuk u gjetën raste.",
     "confirmDelete": "A jeni i sigurt?"
+  },
+  "caseCard": {
+    "clientLabel": "KLIENTI"
   },
   "sidebar": {
     "myOffice": "Zyra",

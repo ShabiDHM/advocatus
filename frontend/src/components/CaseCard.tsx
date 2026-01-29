@@ -1,8 +1,7 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - CASE CARD V5.1 (LOCALIZATION FIX)
-// 1. VISUALS: Glassmorphism maintained.
-// 2. LOCALE: Enforces Albanian Date Format (dd.MM.yyyy).
-// 3. TEXT: Maps missing keys to existing 'general' keys or hardcoded Albanian.
+// PHOENIX PROTOCOL - CASE CARD V5.2 (LOCALIZATION FIX)
+// 1. LOCALE: Changed incorrect translation key 'portal.client_label' to 'caseCard.clientLabel'.
+// 2. CLEANUP: Removed the unnecessary fallback text now that the key is guaranteed to exist.
 
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -34,15 +33,13 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
     navigate('/calendar');
   };
 
-  // PHOENIX FIX: Enforce Kosovo Date Format (Day.Month.Year)
   const formattedDate = new Date(caseData.created_at).toLocaleDateString('en-GB', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric'
-  }).replace(/\//g, '.'); // Converts 20/01/2026 -> 20.01.2026
+  }).replace(/\//g, '.');
 
   const hasTitle = caseData.title && caseData.title.trim() !== '';
-  // Fallback to "Rast pa Emër" if translation missing
   const displayTitle = hasTitle ? caseData.title : (t('caseView.unnamedCase') || 'Rast pa Emër');
 
   return (
@@ -54,7 +51,6 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      {/* Gradient Overlay on Hover */}
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-start/5 to-secondary-end/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
 
       <div>
@@ -69,7 +65,6 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           </div>
           
           <div className="flex items-center gap-2 mt-3">
-            {/* PHOENIX FIX: Hardcoded Albanian label for stability */}
             <p className="text-sm text-text-secondary font-medium">
                 Krijuar më: <span className="text-gray-300">{formattedDate}</span>
             </p>
@@ -80,8 +75,8 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         <div className="flex flex-col mb-6 relative z-10">
           <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
              <User className="w-3.5 h-3.5 text-primary-start" />
-             {/* PHOENIX FIX: Use generic 'client' label or fallback */}
-             <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">{t('portal.client_label') || 'KLIENTI'}</span>
+             {/* PHOENIX FIX: Corrected translation key */}
+             <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">{t('caseCard.clientLabel')}</span>
           </div>
           
           <div className="space-y-1.5 pl-1">
@@ -141,7 +136,6 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         {/* Footer: Actions */}
         <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
           <span className="text-sm font-bold text-primary-start group-hover:text-primary-end transition-colors flex items-center gap-1 cursor-pointer">
-            {/* PHOENIX FIX: Using 'general.view' + 'general.details' logic */}
             {t('general.view')} {t('archive.details')} 
           </span>
           
