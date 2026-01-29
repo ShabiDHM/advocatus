@@ -1,8 +1,8 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - INGESTION PIPELINE V11.0 (GRAPH INTEGRITY)
-# 1. FIX: Removed conditional check in 'task_graph' to ensure Document nodes always exist in Neo4j.
-# 2. FIX: Maintained user_id passthrough for Vector Store isolation.
-# 3. STATUS: Resolves "Empty AI Modal" by guaranteeing graph entry for every processed document.
+# PHOENIX PROTOCOL - INGESTION PIPELINE V12.0 (SEMANTIC BRIDGE)
+# 1. CRITICAL FIX: Maps V44.0 LLM keys ('nodes', 'edges') to Graph Service inputs.
+# 2. LOGIC: Handles both legacy ('entities') and new ('nodes') formats for backward compatibility.
+# 3. STATUS: Ensures the "Legal Architect" data actually reaches Neo4j.
 
 import os
 import tempfile
@@ -165,20 +165,24 @@ def orchestrate_document_processing_mongo(
 
         def task_graph() -> None:
             """
-            PHOENIX FIX: Unconditional ingestion to ensure Document node existence in Neo4j.
+            PHOENIX V12: Handles semantic 'nodes/edges' format from V44 LLM Service.
             """
             try:
                 _emit_progress(redis_client, user_id, document_id_str, "Ndërtimi i Grafit...", 90)
                 graph_data = llm_service.extract_graph_data(extracted_text)
                 
-                # PHOENIX FIX: We call this regardless of whether entities are found.
-                # This ensures the Document exists in the graph for the frontend query to find.
+                # PHOENIX FIX: Map new V44 keys (nodes/edges) to legacy Service keys (entities/relations)
+                # This ensures compatibility regardless of which Prompt the LLM followed
+                entities = graph_data.get("nodes") or graph_data.get("entities") or []
+                relations = graph_data.get("edges") or graph_data.get("relations") or []
+                
+                # We call ingest unconditionally now.
                 graph_service.ingest_entities_and_relations(
                     case_id=case_id_str, 
                     document_id=document_id_str, 
                     doc_name=doc_name,
-                    entities=graph_data.get("entities", []), 
-                    relations=graph_data.get("relations", []),
+                    entities=entities,
+                    relations=relations,
                     doc_metadata=extracted_metadata 
                 )
             except Exception as e: logger.error(f"Graph Ingestion Error: {e}")

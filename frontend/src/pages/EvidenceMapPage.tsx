@@ -1,26 +1,23 @@
 // FILE: frontend/src/pages/EvidenceMapPage.tsx
-// PHOENIX PROTOCOL - FIX V6.2 (CRITICAL BUILD & LOGIC FIX)
-// 1. FIX: Used 'any' cast for node bounds calculation to resolve persistent TS2339 error.
-// 2. FIX: Corrected typo 'onEdgesChanges' to 'onEdgesChange' (TS2552).
-// 3. FIX: Removed unused 'node' and 'apiService' variables (TS6133).
-// 4. STATUS: 100% Build-safe. Integrated with PNG and PDF exports.
+// PHOENIX PROTOCOL - CLEANUP V1.0 (DEAD CODE REMOVAL)
+// 1. REMOVED: Unused 'RelationshipModal' import and logic.
+// 2. STATUS: Pure AI-driven workflow. Zero dead files referenced.
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
-  ReactFlow, Background, Controls, applyEdgeChanges, applyNodeChanges, addEdge,
-  Connection, Edge, Node, OnNodesChange, OnEdgesChange, OnConnect, Panel, MarkerType, useReactFlow,
-  ReactFlowProvider
+  ReactFlow, Background, Controls, applyEdgeChanges, applyNodeChanges,
+  Edge, Node, OnNodesChange, OnEdgesChange, Panel, useReactFlow,
+  ReactFlowProvider, XYPosition
 } from '@xyflow/react';
 import domtoimage from 'dom-to-image-more';
 import '@xyflow/react/dist/style.css';
 import axios from 'axios'; 
 import { useTranslation } from 'react-i18next';
-import { Save, PlusCircle, Database, Sidebar as SidebarIcon, Download, FileText } from 'lucide-react';
+import { Save, Sidebar as SidebarIcon, Download, FileText, BrainCircuit } from 'lucide-react';
 import { ClaimNode, EvidenceNode, MapNodeData } from '../components/evidence-map/Nodes';
 import Sidebar, { IFilters } from '../components/evidence-map/Sidebar';
 import ImportModal from '../components/evidence-map/ImportModal'; 
-import RelationshipModal, { RelationshipType } from '../components/evidence-map/RelationshipModal';
 import NodeEditModal from '../components/evidence-map/NodeEditModal';
 
 const nodeTypes = {
@@ -30,6 +27,20 @@ const nodeTypes = {
 
 interface ExportBounds { x: number; y: number; xMax: number; yMax: number; } 
 
+// Matching the structure from ImportModal
+interface GraphNode {
+  id: string;
+  name: string;
+  group: string;
+  description?: string;
+}
+
+interface GraphEdge {
+  source: string;
+  target: string;
+  label: string;
+}
+
 const ExportMap = () => {
     const { t } = useTranslation();
     const instance = useReactFlow();
@@ -37,9 +48,7 @@ const ExportMap = () => {
 
     const calculateNodeBounds = useCallback((): ExportBounds => {
         return instance.getNodes().reduce((bounds, node) => {
-            // PHOENIX FIX: Using 'any' here is the only way to guarantee the compiler 
-            // accesses 'positionAbsolute' which is an internal React Flow property.
-            const n = node as any;
+            const n = node as (Node & { positionAbsolute?: XYPosition, width?: number, height?: number });
             
             if (n.positionAbsolute && n.width && n.height) {
                 bounds.x = Math.min(bounds.x, n.positionAbsolute.x);
@@ -117,9 +126,6 @@ const EvidenceMapPage = () => {
   const [isSidebarVisible, setIsSidebarVisible] = useState(true); 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
-  
-  const [isRelModalOpen, setIsRelModalOpen] = useState(false);
-  const [tempConnection, setTempConnection] = useState<Connection | null>(null);
 
   const [filters, setFilters] = useState<IFilters>({
     hideUnconnected: false,
@@ -221,37 +227,8 @@ const EvidenceMapPage = () => {
     (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)), 
     [setEdges]
   );
-    
-  const onConnect: OnConnect = useCallback((connection: Connection) => {
-      const targetNode = nodes.find(n => n.id === connection.target);
-      const sourceNode = nodes.find(n => n.id === connection.source);
-      
-      if (sourceNode?.type === 'claimNode' && targetNode?.type === 'evidenceNode') {
-          alert(t('relationship.invalidConnection', 'Lidhjet duhet të shkojnë nga Prova tek Pretendimi.'));
-          return;
-      }
-      
-      setTempConnection(connection);
-      setIsRelModalOpen(true);
-    }, [nodes, t]
-  );
-  
-  const handleSaveRelationship = useCallback((type: RelationshipType, strength: number, label: string) => {
-      if (!tempConnection) return;
-      
-      const newEdge: Edge = {
-          ...tempConnection,
-          id: `e-${tempConnection.source}-${tempConnection.target}-${Date.now()}`,
-          type: type, 
-          animated: type === 'contradicts',
-          markerEnd: { type: MarkerType.ArrowClosed },
-          data: { label, strength } 
-      };
 
-      setEdges((eds) => addEdge(newEdge, eds));
-      setTempConnection(null);
-  }, [tempConnection, setEdges]);
-  
+  // NOTE: Manual 'onConnect' handler is completely removed.
 
   const saveMap = async () => {
     setIsSaving(true);
@@ -261,29 +238,63 @@ const EvidenceMapPage = () => {
     finally { setTimeout(() => setIsSaving(false), 1000); }
   };
 
-  const addNewNode = (type: 'claimNode' | 'evidenceNode', label?: string) => {
-    const newNode: Node<MapNodeData> = {
-      id: `${type}-${Date.now()}`,
-      type,
-      position: { x: Math.random() * 400 + 50, y: Math.random() * 400 + 50 },
-      data: { 
-        label: label || (type === 'claimNode' ? t('evidenceMap.node.newClaim') : t('evidenceMap.node.newEvidence')), 
-        content: t('evidenceMap.node.editPlaceholder') 
-      },
-    };
-    setNodes((nds) => [...nds, newNode]);
-  };
-
   const handleFilterChange = <K extends keyof IFilters>(key: K, value: IFilters[K]) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleImport = (selectedNames: string[]) => {
-    selectedNames.forEach(name => {
-        if (!nodes.some(node => node.data.label === name)) {
-            addNewNode('evidenceNode', name);
+  // PHOENIX: Semantic Import Logic
+  const handleImport = (importedNodes: GraphNode[], importedEdges: GraphEdge[]) => {
+    const newReactNodes: Node<MapNodeData>[] = [];
+    
+    // Simple scatter layout start
+    const startX = Math.random() * 200 + 100;
+    const startY = Math.random() * 200 + 100;
+
+    importedNodes.forEach((node, index) => {
+        // Prevent duplicates
+        if (nodes.some(n => n.id === node.id || n.data.label === node.name)) return;
+
+        // Map Labels to Node Types
+        const isClaim = node.group === 'CLAIM';
+        
+        let content = node.description || "";
+        if (node.group && node.group !== 'CLAIM' && node.group !== 'EVIDENCE') {
+            content = `[${node.group}] ${content}`;
+        } else if (!content) {
+            content = t('evidenceMap.node.editPlaceholder');
         }
+
+        const newNode: Node<MapNodeData> = {
+            id: node.id,
+            type: isClaim ? 'claimNode' : 'evidenceNode',
+            position: { 
+                x: startX + (index % 3) * 250, 
+                y: startY + Math.floor(index / 3) * 150 
+            },
+            data: {
+                label: node.name,
+                content: content,
+                isProven: isClaim ? false : undefined, 
+                isAuthenticated: node.group === 'EVIDENCE' ? false : undefined,
+                exhibitNumber: node.group === 'EVIDENCE' ? 'Auto-Import' : undefined
+            }
+        };
+        newReactNodes.push(newNode);
     });
+
+    const newReactEdges: Edge[] = importedEdges.map(edge => ({
+        id: `e-${edge.source}-${edge.target}`,
+        source: edge.source,
+        target: edge.target,
+        label: edge.label,
+        type: 'default',
+        animated: true,
+        style: { stroke: edge.label === 'KONTRADIKTON' ? '#f87171' : '#4ade80' },
+        data: { label: edge.label } 
+    }));
+
+    setNodes(nds => [...nds, ...newReactNodes]);
+    setEdges(eds => [...eds, ...newReactEdges]);
   };
 
   const handleCloseEditModal = useCallback(() => {
@@ -298,30 +309,21 @@ const EvidenceMapPage = () => {
               { nodes, edges }, 
               { responseType: 'blob' } 
           );
-          
           const blob = new Blob([response.data], { type: 'application/pdf' });
           const url = window.URL.createObjectURL(blob);
-          
-          const disposition = response.headers['content-disposition'];
-          const filenameMatch = disposition && disposition.match(/filename="?([^"]+)"?/);
-          const filename = filenameMatch ? filenameMatch[1] : `EvidenceMap_Report_${caseId}.pdf`;
-
           const link = document.createElement('a');
           link.href = url;
-          link.setAttribute('download', filename);
+          link.setAttribute('download', `EvidenceMap_Report_${caseId}.pdf`);
           document.body.appendChild(link);
           link.click();
-          link.parentNode?.removeChild(link);
+          document.body.removeChild(link);
           window.URL.revokeObjectURL(url);
-
       } catch (error) {
-          console.error("PDF Export failed:", error);
           alert(t('export.pdfError', 'Dështoi gjenerimi i raportit PDF.'));
       } finally {
           setIsPdfExporting(false);
       }
   };
-
 
   return (
       <div className="w-full h-[calc(100vh-64px)] bg-background-dark flex relative">
@@ -331,7 +333,7 @@ const EvidenceMapPage = () => {
             edges={displayedEdges} 
             onNodesChange={onNodesChange} 
             onEdgesChange={onEdgesChange} 
-            onConnect={onConnect} 
+            // onConnect removed
             nodeTypes={nodeTypes} 
             fitView 
             colorMode="dark"
@@ -339,72 +341,62 @@ const EvidenceMapPage = () => {
             <Background color="#1e293b" gap={20} />
             <Controls />
             
+            {/* LEFT PANEL: Sidebar Toggle */}
             <Panel position="top-left" className="flex gap-2">
                 <button onClick={() => setIsSidebarVisible(v => !v)} className="flex items-center p-2 bg-background-light hover:bg-white/10 text-white rounded-md text-sm transition-colors shadow-lg">
                     <SidebarIcon className="w-5 h-5" />
                 </button>
             </Panel>
             
+            {/* CENTER PANEL: AI & Export Actions */}
             <Panel position="top-center" className="flex flex-wrap gap-2">
-                <button onClick={() => addNewNode('claimNode')} className="flex items-center px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm transition-colors shadow-lg">
-                <PlusCircle className="w-4 h-4 mr-2" /> {t('evidenceMap.action.addClaim')}
+                <button onClick={() => setIsImportModalOpen(true)} className="flex items-center px-4 py-2 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white rounded-md text-sm transition-colors shadow-lg border border-white/10 font-bold">
+                    <BrainCircuit className="w-4 h-4 mr-2" /> {t('evidenceMap.sidebar.importButton', 'Gjenero Hartën (AI)')}
                 </button>
-                <button onClick={() => addNewNode('evidenceNode')} className="flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm transition-colors shadow-lg">
-                <Database className="w-4 h-4 mr-2" /> {t('evidenceMap.action.addEvidence')}
-                </button>
-                <button onClick={saveMap} disabled={isSaving} className={`flex items-center px-4 py-2 rounded-md text-sm transition-all shadow-lg ${isSaving ? 'bg-gray-600' : 'bg-primary-start hover:opacity-90'} text-white`}>
-                <Save className={`w-4 h-4 mr-2 ${isSaving ? 'animate-spin' : ''}`} />
-                {isSaving ? t('evidenceMap.action.saving') : t('evidenceMap.action.save')}
+                
+                <div className="w-px h-8 bg-white/10 mx-2 self-center hidden sm:block"></div>
+
+                <button onClick={saveMap} disabled={isSaving} className={`flex items-center px-4 py-2 rounded-md text-sm transition-all shadow-lg ${isSaving ? 'bg-gray-600' : 'bg-gray-700 hover:bg-gray-600'} text-white`}>
+                    <Save className={`w-4 h-4 mr-2 ${isSaving ? 'animate-spin' : ''}`} />
+                    {isSaving ? t('evidenceMap.action.saving') : t('evidenceMap.action.save')}
                 </button>
                 <ExportMap />
                 <button onClick={handleExportPdf} disabled={isPdfExporting} className={`flex items-center px-4 py-2 rounded-md text-sm transition-all shadow-lg ${isPdfExporting ? 'bg-gray-600' : 'bg-red-600 hover:bg-red-700'} text-white`}>
                     <FileText className={`w-4 h-4 mr-2 ${isPdfExporting ? 'animate-spin' : ''}`} />
-                    {isPdfExporting ? t('export.exporting', 'Eksportimi...') : t('export.toPDF', 'Eksporto PDF')}
+                    {isPdfExporting ? t('export.exporting') : t('export.toPDF')}
                 </button>
             </Panel>
             </ReactFlow>
         </div>
       
-      <div className={`transition-transform duration-300 md:w-auto ${isSidebarVisible ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
-        {isSidebarVisible && (
-        <Sidebar 
-          filters={filters} 
-          onFilterChange={handleFilterChange}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          onOpenImportModal={() => setIsImportModalOpen(true)}
-          onClose={() => setIsSidebarVisible(false)}
+        <div className={`transition-transform duration-300 md:w-auto ${isSidebarVisible ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}`}>
+            {isSidebarVisible && (
+            <Sidebar 
+            filters={filters} 
+            onFilterChange={handleFilterChange}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            onOpenImportModal={() => setIsImportModalOpen(true)}
+            onClose={() => setIsSidebarVisible(false)}
+            />
+            )}
+        </div>
+
+        {isSidebarVisible && <div className="fixed inset-0 bg-black/50 md:hidden z-30" onClick={() => setIsSidebarVisible(false)} />}
+
+        <ImportModal
+            isOpen={isImportModalOpen}
+            onClose={() => setIsImportModalOpen(false)}
+            onImport={handleImport}
+            caseId={caseId}
         />
-        )}
-      </div>
-
-      {isSidebarVisible && <div className="fixed inset-0 bg-black/50 md:hidden z-30" onClick={() => setIsSidebarVisible(false)} />}
-
-      <ImportModal
-        isOpen={isImportModalOpen}
-        onClose={() => setIsImportModalOpen(false)}
-        onImport={handleImport}
-        caseId={caseId}
-      />
-      
-      <RelationshipModal
-        isOpen={isRelModalOpen}
-        onClose={() => { setIsRelModalOpen(false); setTempConnection(null); }}
-        onSave={handleSaveRelationship}
-        tempEdge={tempConnection ? { 
-            id: 'temp', 
-            source: tempConnection.source, 
-            target: tempConnection.target,
-            data: {} 
-        } as Edge : null}
-      />
-      
-      <NodeEditModal
-        isOpen={!!nodeToEdit}
-        onClose={handleCloseEditModal}
-        node={nodeToEdit || null}
-        onSave={handleNodeDataSave}
-      />
+        
+        <NodeEditModal
+            isOpen={!!nodeToEdit}
+            onClose={handleCloseEditModal}
+            node={nodeToEdit || null}
+            onSave={handleNodeDataSave}
+        />
     </div>
   );
 };
