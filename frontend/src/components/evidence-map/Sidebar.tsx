@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/evidence-map/Sidebar.tsx
-// PHOENIX PROTOCOL - POLISH V12.0 (SIDEBAR CLEANUP)
-// 1. FIX: Removed duplicate 'Importo Entitetet' button.
-// 2. FOCUS: Sidebar is now strictly for Search & Filter.
+// PHOENIX PROTOCOL - FIX V11.3 (MOBILE DRAWER INTEGRITY)
+// 1. FIX: Changed width to 'w-80' and 'max-w-[85vw]' to prevent screen takeover.
+// 2. UI: Added a solid dark background for mobile readability.
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -31,36 +31,40 @@ const Sidebar: React.FC<SidebarProps> = ({
   const { t } = useTranslation();
 
   return (
-    <div className="h-full w-full flex flex-col gap-6 bg-gray-900 md:bg-background-light/90 md:backdrop-blur-md p-5 border-l border-white/10 shadow-2xl">
+    // PHOENIX FIX: Constrained width and added shadow for professional drawer look
+    <div className="h-full w-80 max-w-[85vw] flex flex-col gap-6 bg-background-dark md:bg-background-light/95 md:backdrop-blur-md p-5 border-l border-white/10 shadow-[-10px_0_30px_rgba(0,0,0,0.5)]">
       
-      {/* Header */}
-      <div className="flex justify-between items-center pb-3 border-b border-white/10 flex-shrink-0">
-          <h3 className="flex items-center gap-2 text-lg font-bold text-white">
-             <BrainCircuit size={18} className="text-primary-start" />
-             {t('evidenceMap.sidebar.aiTitle', 'Ndihmës i AI')}
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors md:hidden">
+      {/* Header with Close Button */}
+      <div className="flex justify-between items-center pb-4 border-b border-white/10 flex-shrink-0">
+          <div className="flex items-center gap-2 text-primary-start">
+             <BrainCircuit size={20} />
+             <h3 className="text-lg font-bold text-white uppercase tracking-tight">KONTROLLI</h3>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 transition-colors"
+          >
               <X size={24} />
           </button>
       </div>
       
       {/* Search Section */}
-      <div className="flex-shrink-0 mt-2">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary mb-3">
-          <Search size={16} className="text-primary-start" />
+      <div className="flex-shrink-0">
+        <h3 className="flex items-center gap-2 text-xs font-black text-gray-500 uppercase tracking-widest mb-3">
+          <Search size={14} />
           <span>{t('evidenceMap.sidebar.searchTitle', 'Gjej Kartelë')}</span>
         </h3>
-        <div className="relative">
+        <div className="relative group">
           <input
             type="text"
-            placeholder={t('evidenceMap.sidebar.searchPlaceholder', 'Shkruaj titullin...')}
+            placeholder={t('evidenceMap.sidebar.searchPlaceholder', 'Kërko titullin...')}
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-text-main focus:ring-2 focus:ring-primary-start focus:outline-none transition-all"
+            className="w-full bg-black/40 border border-white/10 rounded-xl pl-4 pr-10 py-3 text-sm text-text-main focus:ring-2 focus:ring-primary-start focus:outline-none transition-all group-hover:border-white/20"
           />
           {searchTerm && (
             <button onClick={() => onSearchChange('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted hover:text-white transition-colors">
-              <XCircle size={16} />
+              <XCircle size={18} />
             </button>
           )}
         </div>
@@ -68,13 +72,13 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Filter Section */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary mb-3">
-          <Filter size={16} className="text-primary-start" />
+        <h3 className="flex items-center gap-2 text-xs font-black text-gray-500 uppercase tracking-widest mb-3">
+          <Filter size={14} />
           <span>{t('evidenceMap.sidebar.filterTitle', 'Filtro Pamjen')}</span>
         </h3>
-        <div className="space-y-3 bg-black/30 p-4 rounded-xl border border-white/5">
-          <label className="flex items-center justify-between text-sm text-text-secondary cursor-pointer hover:text-white transition-colors">
-            <span>{t('evidenceMap.sidebar.hideUnconnected', 'Fshih Provat e Palidhura')}</span>
+        <div className="space-y-2">
+          <label className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10 transition-colors group">
+            <span className="text-sm text-text-secondary group-hover:text-white transition-colors">Fshih të Palidhura</span>
             <input
               type="checkbox"
               checked={filters.hideUnconnected}
@@ -82,9 +86,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               className="h-5 w-5 rounded bg-background-dark border-white/20 text-primary-start focus:ring-primary-start transition-all"
             />
           </label>
-          <div className="h-px bg-white/5 my-2"></div>
-          <label className="flex items-center justify-between text-sm text-text-secondary cursor-pointer hover:text-white transition-colors">
-            <span>{t('evidenceMap.sidebar.highlightContradictions', 'Thekso Kundërthëniet')}</span>
+          <label className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 cursor-pointer hover:bg-white/10 transition-colors group">
+            <span className="text-sm text-text-secondary group-hover:text-white transition-colors">Thekso Konfliktet</span>
             <input
               type="checkbox"
               checked={filters.highlightContradictions}
@@ -93,6 +96,11 @@ const Sidebar: React.FC<SidebarProps> = ({
             />
           </label>
         </div>
+      </div>
+
+      {/* Sidebar Footer info */}
+      <div className="mt-auto pt-4 border-t border-white/5 text-[10px] text-gray-600 text-center uppercase tracking-widest font-bold">
+          Juristi AI v1.0 • Evidence Map
       </div>
     </div>
   );
