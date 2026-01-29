@@ -1,21 +1,20 @@
 // FILE: frontend/src/pages/EvidenceMapPage.tsx
-// PHOENIX PROTOCOL - FIX V11.2 (DESKTOP UX POLISH)
-// 1. UI: Un-colored the toolbar buttons. They now use a unified "Glass/Dark" background.
-// 2. UI: Used colored text/icons (Yellow for PNG, Red for PDF) to maintain visual cues without the "Fruit Salad" effect.
-// 3. UI: Increased the backdrop-blur for the desktop toolbar to look more premium.
+// PHOENIX PROTOCOL - EVIDENCE MAP V11.0 (TOOLBAR POLISH)
+// 1. FIX: Removed 'ExportMap' (PNG Button) entirely as requested.
+// 2. UI: Simplified Toolbar to 3 buttons: AI Import -> Save -> PDF.
+// 3. UI: Consistent button heights and styling (Dark Glass).
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
   ReactFlow, Background, Controls, applyEdgeChanges, applyNodeChanges,
-  Edge, Node, OnNodesChange, OnEdgesChange, Panel, useReactFlow,
-  ReactFlowProvider, XYPosition
+  Edge, Node, OnNodesChange, OnEdgesChange, Panel, 
+  ReactFlowProvider
 } from '@xyflow/react';
-import domtoimage from 'dom-to-image-more';
 import '@xyflow/react/dist/style.css';
 import axios from 'axios'; 
 import { useTranslation } from 'react-i18next';
-import { Save, Sidebar as SidebarIcon, Download, FileText, BrainCircuit } from 'lucide-react';
+import { Save, Sidebar as SidebarIcon, FileText, BrainCircuit } from 'lucide-react';
 import { ClaimNode, EvidenceNode, MapNodeData } from '../components/evidence-map/Nodes';
 import Sidebar, { IFilters } from '../components/evidence-map/Sidebar';
 import ImportModal from '../components/evidence-map/ImportModal'; 
@@ -26,8 +25,7 @@ const nodeTypes = {
   evidenceNode: EvidenceNode,
 };
 
-interface ExportBounds { x: number; y: number; xMax: number; yMax: number; } 
-
+// Matching the structure from ImportModal
 interface GraphNode {
   id: string;
   name: string;
@@ -40,84 +38,6 @@ interface GraphEdge {
   target: string;
   label: string;
 }
-
-const ExportMap = () => {
-    const { t } = useTranslation();
-    const instance = useReactFlow();
-    const [isExporting, setIsExporting] = useState(false);
-
-    const calculateNodeBounds = useCallback((): ExportBounds => {
-        return instance.getNodes().reduce((bounds, node) => {
-            const n = node as (Node & { positionAbsolute?: XYPosition, width?: number, height?: number });
-            if (n.positionAbsolute && n.width && n.height) {
-                bounds.x = Math.min(bounds.x, n.positionAbsolute.x);
-                bounds.y = Math.min(bounds.y, n.positionAbsolute.y);
-                bounds.xMax = Math.max(bounds.xMax, n.positionAbsolute.x + n.width);
-                bounds.yMax = Math.max(bounds.yMax, n.positionAbsolute.y + n.height);
-            }
-            return bounds;
-        }, { x: Infinity, y: Infinity, xMax: -Infinity, yMax: -Infinity } as ExportBounds);
-    }, [instance]);
-
-
-    const handleExport = useCallback(() => {
-        setIsExporting(true);
-        const viewportElement = document.querySelector('.react-flow__viewport');
-        if (!viewportElement) {
-            alert(t('export.errorView', "Nuk u gjet elementi kryesor i hartës."));
-            setIsExporting(false);
-            return;
-        }
-
-        const nodesBounds = calculateNodeBounds();
-
-        if (nodesBounds.x === Infinity) {
-             alert(t('export.errorEmpty', "Nuk ka asnjë kartelë për të eksportuar."));
-             setIsExporting(false);
-             return;
-        }
-
-        const padding = 50;
-        const width = nodesBounds.xMax - nodesBounds.x + 2 * padding;
-        const height = nodesBounds.yMax - nodesBounds.y + 2 * padding;
-        const x = nodesBounds.x - padding;
-        const y = nodesBounds.y - padding;
-
-        domtoimage.toPng(viewportElement as HTMLElement, {
-            width: width,
-            height: height,
-            style: { transform: `translate(${-x}px, ${-y}px) scale(1)` },
-            quality: 0.95,
-            cacheBust: true,
-        })
-        .then((dataUrl: string) => { 
-            const link = document.createElement('a');
-            link.download = `EvidenceMap_${new Date().toISOString().slice(0, 10)}.png`;
-            link.href = dataUrl;
-            link.click();
-            setIsExporting(false);
-        })
-        .catch((error: Error) => { 
-            console.error('Export error:', error);
-            alert(t('export.error', 'Dështoi eksportimi i hartës!'));
-            setIsExporting(false);
-        });
-    }, [calculateNodeBounds, t]);
-
-    return (
-        <button 
-            onClick={handleExport} 
-            disabled={isExporting} 
-            // PHOENIX POLISH: Unified dark button, yellow text for visual cue
-            className={`group flex items-center justify-center p-2 sm:px-5 sm:py-2.5 rounded-xl text-sm transition-all shadow-lg text-yellow-500 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 font-semibold ${isExporting ? 'opacity-50' : ''}`}
-            title={t('export.toPNG')}
-        >
-            <Download className={`w-5 h-5 sm:mr-2 ${isExporting ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{isExporting ? t('export.exporting') : t('export.toPNG')}</span>
-        </button>
-    );
-};
-
 
 const EvidenceMapPage = () => {
   const { t } = useTranslation();
@@ -359,30 +279,29 @@ const EvidenceMapPage = () => {
                 </button>
             </Panel>
             
-            {/* 2. DESKTOP ACTION BAR - PHOENIX POLISHED */}
+            {/* 2. DESKTOP ACTION BAR */}
             <Panel position="top-center" className="hidden sm:flex justify-center w-full px-2 mt-4 pointer-events-none">
                 <div className="flex flex-row items-center gap-2 bg-black/60 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl pointer-events-auto">
-                    {/* Primary AI Button - Remains Gradient */}
+                    {/* Primary AI Button */}
                     <button onClick={() => setIsImportModalOpen(true)} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white rounded-xl text-sm transition-transform active:scale-95 shadow-lg border border-white/10 font-bold">
                         <BrainCircuit className="w-5 h-5 mr-2" /> {t('evidenceMap.sidebar.importButton', 'Gjenero Hartën (AI)')}
                     </button>
                     
                     <div className="w-px h-8 bg-white/10 mx-1"></div>
 
-                    {/* Secondary Buttons - Unified Glass Style with Color Accents */}
+                    {/* Save */}
                     <button onClick={saveMap} disabled={isSaving} className={`flex items-center px-5 py-2.5 rounded-xl text-sm transition-all shadow-lg text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 font-semibold ${isSaving ? 'opacity-50' : ''}`}>
                         <Save className={`w-5 h-5 mr-2 ${isSaving ? 'animate-spin' : ''}`} /> {isSaving ? t('evidenceMap.action.saving') : t('evidenceMap.action.save')}
                     </button>
                     
-                    <ExportMap />
-
+                    {/* PDF */}
                     <button onClick={handleExportPdf} disabled={isPdfExporting} className={`flex items-center px-5 py-2.5 rounded-xl text-sm transition-all shadow-lg text-red-500 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 font-semibold ${isPdfExporting ? 'opacity-50' : ''}`}>
                         <FileText className={`w-5 h-5 mr-2 ${isPdfExporting ? 'animate-spin' : ''}`} /> PDF
                     </button>
                 </div>
             </Panel>
 
-            {/* 3. MOBILE FLOATING DOCK (Unchanged from V10.5) */}
+            {/* 3. MOBILE FLOATING DOCK */}
             <Panel position="bottom-center" className="flex sm:hidden justify-center w-full pb-8 pointer-events-none z-10">
                  <div className="flex flex-row items-center gap-4 bg-black/80 backdrop-blur-xl px-6 py-4 rounded-full border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] pointer-events-auto">
                     
@@ -396,10 +315,6 @@ const EvidenceMapPage = () => {
                         <Save className={`w-6 h-6 ${isSaving ? 'animate-spin' : ''}`} />
                     </button>
                     
-                    <div className="flex items-center justify-center w-12 h-12 rounded-full active:scale-90 transition-transform">
-                        <ExportMap />
-                    </div>
-
                      <button onClick={handleExportPdf} disabled={isPdfExporting} className="flex items-center justify-center w-12 h-12 bg-red-600 hover:bg-red-500 rounded-full text-white shadow-lg active:scale-90 transition-transform">
                         <FileText className={`w-6 h-6 ${isPdfExporting ? 'animate-spin' : ''}`} />
                     </button>
@@ -408,7 +323,6 @@ const EvidenceMapPage = () => {
             </ReactFlow>
         </div>
       
-        {/* RESPONSIVE DRAWER */}
         <div className={`absolute top-0 right-0 z-40 h-full w-full sm:w-80 transition-transform duration-300 transform ${isSidebarVisible ? 'translate-x-0' : 'translate-x-full'}`}>
             <Sidebar 
                 filters={filters} 
@@ -420,7 +334,6 @@ const EvidenceMapPage = () => {
             />
         </div>
 
-        {/* Mobile Overlay */}
         {isSidebarVisible && (
             <div 
                 className="fixed inset-0 bg-black/60 backdrop-blur-sm md:hidden z-30" 

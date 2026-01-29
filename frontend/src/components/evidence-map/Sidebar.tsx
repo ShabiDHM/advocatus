@@ -1,7 +1,7 @@
 // FILE: frontend/src/components/evidence-map/Sidebar.tsx
-// PHOENIX PROTOCOL - FIX V11.2 (SIDEBAR POLISH)
-// 1. UI: Synced the AI Import button style to match the global application style (Gradient + Bold).
-// 2. UI: Refined padding and text contrast for dark mode.
+// PHOENIX PROTOCOL - POLISH V12.0 (SIDEBAR CLEANUP)
+// 1. FIX: Removed duplicate 'Importo Entitetet' button.
+// 2. FOCUS: Sidebar is now strictly for Search & Filter.
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,7 +26,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onFilterChange,
   searchTerm,
   onSearchChange,
-  onOpenImportModal,
   onClose,
 }) => {
   const { t } = useTranslation();
@@ -45,18 +44,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           </button>
       </div>
       
-      {/* PHOENIX FIX: Upgraded button to match the primary gradient style */}
-      <div className="flex-shrink-0">
-          <button 
-            onClick={onOpenImportModal}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white rounded-xl text-sm transition-all shadow-lg active:scale-95 font-bold"
-          >
-            {t('evidenceMap.sidebar.importButton', 'Importo Entitetet')}
-          </button>
-      </div>
-
       {/* Search Section */}
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0 mt-2">
         <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary mb-3">
           <Search size={16} className="text-primary-start" />
           <span>{t('evidenceMap.sidebar.searchTitle', 'Gjej Kartelë')}</span>
