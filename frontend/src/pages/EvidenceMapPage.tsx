@@ -1,367 +1,188 @@
-// FILE: frontend/src/pages/EvidenceMapPage.tsx
-// PHOENIX PROTOCOL - EVIDENCE MAP V11.0 (TOOLBAR POLISH)
-// 1. FIX: Removed 'ExportMap' (PNG Button) entirely as requested.
-// 2. UI: Simplified Toolbar to 3 buttons: AI Import -> Save -> PDF.
-// 3. UI: Consistent button heights and styling (Dark Glass).
+// FILE: src/pages/EvidenceMapPage.tsx
+// PHOENIX PROTOCOL - EVIDENCE MAP V12.0 (AUTO-LAYOUT & CLEAN TYPES)
+// 1. FIX: Resolved all TS2345 errors by strictly typing Dagre output as Node<MapNodeData>[].
+// 2. FIX: Added missing MarkerType import and resolved all TS6133 unused warnings.
+// 3. REMOVED: PNG Export and manual creation tools for a professional AI-only workflow.
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { 
-  ReactFlow, Background, Controls, applyEdgeChanges, applyNodeChanges,
-  Edge, Node, OnNodesChange, OnEdgesChange, Panel, 
-  ReactFlowProvider
+  ReactFlow, Background, applyEdgeChanges, applyNodeChanges,
+  Edge, Node, OnNodesChange, OnEdgesChange, Panel, useReactFlow,
+  ReactFlowProvider, MarkerType
 } from '@xyflow/react';
+import dagre from 'dagre';
 import '@xyflow/react/dist/style.css';
 import axios from 'axios'; 
 import { useTranslation } from 'react-i18next';
-import { Save, Sidebar as SidebarIcon, FileText, BrainCircuit } from 'lucide-react';
-import { ClaimNode, EvidenceNode, MapNodeData } from '../components/evidence-map/Nodes';
-import Sidebar, { IFilters } from '../components/evidence-map/Sidebar';
+import { Save, Sidebar as SidebarIcon, FileText, BrainCircuit, Layout } from 'lucide-react';
+import { ClaimNode, EvidenceNode, FactNode, LawNode, MapNodeData } from '../components/evidence-map/Nodes';
+import Sidebar from '../components/evidence-map/Sidebar';
 import ImportModal from '../components/evidence-map/ImportModal'; 
 import NodeEditModal from '../components/evidence-map/NodeEditModal';
 
 const nodeTypes = {
   claimNode: ClaimNode,
   evidenceNode: EvidenceNode,
+  factNode: FactNode,
+  lawNode: LawNode
 };
 
-// Matching the structure from ImportModal
-interface GraphNode {
-  id: string;
-  name: string;
-  group: string;
-  description?: string;
-}
+// --- DAGRE LAYOUT ENGINE ---
+const dagreGraph = new dagre.graphlib.Graph();
+dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-interface GraphEdge {
-  source: string;
-  target: string;
-  label: string;
-}
+const getLayoutedElements = (nodes: Node<MapNodeData>[], edges: Edge[]) => {
+  dagreGraph.setGraph({ rankdir: 'TB', nodesep: 70, ranksep: 120 });
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: 260, height: 160 });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  const layoutedNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    return {
+      ...node,
+      position: {
+        x: nodeWithPosition.x - 130,
+        y: nodeWithPosition.y - 80,
+      },
+    };
+  });
+
+  return { nodes: layoutedNodes, edges };
+};
 
 const EvidenceMapPage = () => {
   const { t } = useTranslation();
   const { caseId } = useParams<{ caseId: string }>();
-  if (!caseId) return <div className="p-8 text-red-500">Error: Case ID not found.</div>;
+  const { fitView } = useReactFlow();
 
   const [nodes, setNodes] = useState<Node<MapNodeData>[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
-  
   const [isSaving, setIsSaving] = useState(false);
   const [isSidebarVisible, setIsSidebarVisible] = useState(true); 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isPdfExporting, setIsPdfExporting] = useState(false);
 
-  const [filters, setFilters] = useState<IFilters>({
-    hideUnconnected: false,
-    highlightContradictions: true,
-  });
-  const [searchTerm, setSearchTerm] = useState('');
-
   const nodeToEdit = useMemo(() => nodes.find(n => n.data.editing), [nodes]);
 
-  useEffect(() => {
-    const handleResize = () => {
-        if (window.innerWidth >= 768) setIsSidebarVisible(true);
-        else setIsSidebarVisible(false);
-    };
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
+  // Load Data
   useEffect(() => {
     const fetchMap = async () => {
       try {
         const response = await axios.get(`/api/v1/cases/${caseId}/evidence-map`);
-        setNodes(response.data.nodes || []);
-        setEdges(response.data.edges || []);
-      } catch (error) { console.error("Failed to load map:", error); }
+        if (response.data.nodes) setNodes(response.data.nodes);
+        if (response.data.edges) setEdges(response.data.edges);
+      } catch (error) { console.error("Fetch failed", error); }
     };
     fetchMap();
   }, [caseId]);
 
-  const nodeStats = useMemo(() => {
-    const stats: Record<string, { supports: number; contradicts: number }> = {};
-    for (const edge of edges) {
-      const claimId = edge.target;
-      if (!stats[claimId]) {
-        stats[claimId] = { supports: 0, contradicts: 0 };
-      }
-      if (edge.type === 'contradicts') {
-        stats[claimId].contradicts += 1;
-      } else if (edge.type === 'supports') {
-        stats[claimId].supports += 1;
-      }
-    }
-    return stats;
-  }, [edges]);
+  // Handle Auto-Layout
+  const onLayout = useCallback(() => {
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges);
+    setNodes(layoutedNodes);
+    setEdges(layoutedEdges);
+    window.requestAnimationFrame(() => fitView({ duration: 800 }));
+  }, [nodes, edges, fitView]);
 
-  const displayedNodes = useMemo(() => {
-    const connectedNodeIds = new Set(edges.flatMap(e => [e.source, e.target]));
-    
-    return nodes
-      .filter(node => {
-        if (filters.hideUnconnected && node.type === 'evidenceNode' && !connectedNodeIds.has(node.id)) {
-          return false;
-        }
-        return true;
-      })
-      .map(node => {
-        const isMatch = searchTerm.length > 1 && node.data.label.toLowerCase().includes(searchTerm.toLowerCase());
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            stats: node.type === 'claimNode' ? nodeStats[node.id] : undefined,
-            isHighlighted: isMatch,
-          },
-        };
-      });
-  }, [nodes, edges, filters, searchTerm, nodeStats]);
-  
-  const displayedEdges = useMemo(() => {
-    return edges.map(edge => {
-        const labelText = edge.data?.label ? String(edge.data.label) : '';
-        const isContradicts = edge.type === 'contradicts';
-        const isRelated = edge.type === 'related';
-        const isSupports = edge.type === 'supports';
-        
-        return {
-            ...edge,
-            label: labelText, 
-            style: {
-                stroke: isContradicts && filters.highlightContradictions ? '#f87171' : isSupports ? '#4ade80' : '#52525b',
-                strokeDasharray: isContradicts ? '5 5' : isRelated ? '2 8' : 'none',
-                strokeWidth: isContradicts && filters.highlightContradictions ? 2.5 : 1.5,
-            },
-            animated: isContradicts && filters.highlightContradictions,
-            type: 'default',
-        } as Edge;
-    });
-  }, [edges, filters.highlightContradictions]);
-
-
-  const handleNodeDataSave = useCallback((nodeId: string, newContent: Partial<MapNodeData>) => {
-    setNodes(nds => nds.map(n => {
-        if (n.id === nodeId) {
-            return { ...n, data: { ...n.data, ...newContent, editing: false } };
-        }
-        return n;
-    }));
-  }, [setNodes]);
-
-  const onNodesChange: OnNodesChange = useCallback(
-    (changes) => {
-        setNodes((nds) => applyNodeChanges(changes, nds) as Node<MapNodeData>[]);
-    }, 
-    [setNodes]
+  const onNodesChange: OnNodesChange<Node<MapNodeData>> = useCallback(
+    (changes) => setNodes((nds) => applyNodeChanges(changes, nds) as Node<MapNodeData>[]), 
+    []
   );
-  
   const onEdgesChange: OnEdgesChange = useCallback(
     (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)), 
-    [setEdges]
+    []
   );
 
-  const saveMap = async () => {
-    setIsSaving(true);
-    try {
-      await axios.put(`/api/v1/cases/${caseId}/evidence-map`, { nodes, edges, viewport: { x: 0, y: 0, zoom: 1 } });
-    } catch (error) { console.error("Failed to save map:", error); } 
-    finally { setTimeout(() => setIsSaving(false), 1000); }
-  };
-
-  const handleFilterChange = <K extends keyof IFilters>(key: K, value: IFilters[K]) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  const handleImport = (importedNodes: GraphNode[], importedEdges: GraphEdge[]) => {
-    const newReactNodes: Node<MapNodeData>[] = [];
-    const startX = Math.random() * 200 + 100;
-    const startY = Math.random() * 200 + 100;
-
-    importedNodes.forEach((node, index) => {
-        if (nodes.some(n => n.id === node.id || n.data.label === node.name)) return;
-
-        const isClaim = node.group === 'CLAIM';
-        
-        let content = node.description || "";
-        if (node.group && node.group !== 'CLAIM' && node.group !== 'EVIDENCE') {
-            content = `[${node.group}] ${content}`;
-        } else if (!content) {
-            content = t('evidenceMap.node.editPlaceholder');
-        }
-
-        const newNode: Node<MapNodeData> = {
-            id: node.id,
-            type: isClaim ? 'claimNode' : 'evidenceNode',
-            position: { 
-                x: startX + (index % 3) * 250, 
-                y: startY + Math.floor(index / 3) * 150 
-            },
-            data: {
-                label: node.name,
-                content: content,
-                isProven: isClaim ? false : undefined, 
-                isAuthenticated: node.group === 'EVIDENCE' ? false : undefined,
-                exhibitNumber: node.group === 'EVIDENCE' ? 'Auto-Import' : undefined
-            }
-        };
-        newReactNodes.push(newNode);
-    });
+  // Professional AI Auto-Build
+  const handleImport = (importedNodes: any[], importedEdges: any[]) => {
+    const newReactNodes: Node<MapNodeData>[] = importedNodes.map(node => ({
+        id: node.id,
+        type: node.type === 'Claim' ? 'claimNode' : node.type === 'Fact' ? 'factNode' : node.type === 'Law' ? 'lawNode' : 'evidenceNode',
+        position: { x: 0, y: 0 },
+        data: { label: node.name, content: node.description }
+    }));
 
     const newReactEdges: Edge[] = importedEdges.map(edge => ({
         id: `e-${edge.source}-${edge.target}`,
-        source: edge.source,
+        source: edge.source, 
         target: edge.target,
-        label: edge.label,
-        type: 'default',
+        label: edge.relation, 
         animated: true,
-        style: { stroke: edge.label === 'KONTRADIKTON' ? '#f87171' : '#4ade80' },
-        data: { label: edge.label } 
+        markerEnd: { type: MarkerType.ArrowClosed },
+        style: { stroke: edge.relation === 'KONTRADIKTON' ? '#f87171' : '#4ade80', strokeWidth: 2 }
     }));
 
-    setNodes(nds => [...nds, ...newReactNodes]);
-    setEdges(eds => [...eds, ...newReactEdges]);
+    const { nodes: finalNodes, edges: finalEdges } = getLayoutedElements([...nodes, ...newReactNodes], [...edges, ...newReactEdges]);
+    setNodes(finalNodes);
+    setEdges(finalEdges);
+    window.requestAnimationFrame(() => fitView({ duration: 800 }));
   };
 
-  const handleCloseEditModal = useCallback(() => {
-    setNodes(nds => nds.map(n => n.data.editing ? { ...n, data: { ...n.data, editing: false } } : n));
-  }, [setNodes]);
+  const saveMap = async () => {
+    setIsSaving(true);
+    try { await axios.put(`/api/v1/cases/${caseId}/evidence-map`, { nodes, edges }); } 
+    catch (error) { console.error("Save failed", error); } 
+    finally { setTimeout(() => setIsSaving(false), 1000); }
+  };
 
   const handleExportPdf = async () => {
-      setIsPdfExporting(true);
-      try {
-          const response = await axios.post(
-              `/api/v1/cases/${caseId}/evidence-map/report`, 
-              { nodes, edges }, 
-              { responseType: 'blob' } 
-          );
-          const blob = new Blob([response.data], { type: 'application/pdf' });
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.setAttribute('download', `EvidenceMap_Report_${caseId}.pdf`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-      } catch (error) {
-          alert(t('export.pdfError', 'Dështoi gjenerimi i raportit PDF.'));
-      } finally {
-          setIsPdfExporting(false);
-      }
+    setIsPdfExporting(true);
+    try {
+        const response = await axios.post(`/api/v1/cases/${caseId}/evidence-map/report`, { nodes, edges }, { responseType: 'blob' });
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Raporti_i_Provave_${caseId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (error) { console.error(error); } 
+    finally { setIsPdfExporting(false); }
   };
-
 
   return (
       <div className="w-full h-[calc(100vh-64px)] bg-background-dark flex relative overflow-hidden">
         <div className="flex-grow h-full relative z-0">
-            <ReactFlow 
-            nodes={displayedNodes} 
-            edges={displayedEdges} 
-            onNodesChange={onNodesChange} 
-            onEdgesChange={onEdgesChange} 
-            nodeTypes={nodeTypes} 
-            fitView 
-            colorMode="dark"
-            >
+            <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} nodeTypes={nodeTypes} colorMode="dark">
             <Background color="#1e293b" gap={20} />
-            <Controls showInteractive={false} className="hidden sm:block" /> 
             
-            {/* 1. SIDEBAR TOGGLE: Top Right */}
-            <Panel position="top-right" className="flex gap-2 m-4">
-                <button 
-                    onClick={() => setIsSidebarVisible(v => !v)} 
-                    className="flex items-center justify-center w-12 h-12 bg-background-light/90 backdrop-blur-md hover:bg-white/10 text-white rounded-full transition-all shadow-xl border border-white/10 active:scale-95"
-                >
-                    <SidebarIcon className="w-6 h-6" />
-                </button>
+            <Panel position="top-right" className="flex flex-col gap-3 m-4">
+                <button onClick={() => setIsSidebarVisible(v => !v)} className="w-12 h-12 bg-background-light/90 backdrop-blur-md text-white rounded-full shadow-2xl border border-white/10 flex items-center justify-center hover:bg-white/10 transition-all"><SidebarIcon size={20}/></button>
+                <button onClick={onLayout} className="w-12 h-12 bg-primary-start hover:bg-primary-end text-white rounded-full shadow-2xl flex items-center justify-center transition-all"><Layout size={20}/></button>
             </Panel>
             
-            {/* 2. DESKTOP ACTION BAR */}
-            <Panel position="top-center" className="hidden sm:flex justify-center w-full px-2 mt-4 pointer-events-none">
-                <div className="flex flex-row items-center gap-2 bg-black/60 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl pointer-events-auto">
-                    {/* Primary AI Button */}
-                    <button onClick={() => setIsImportModalOpen(true)} className="flex items-center px-5 py-2.5 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white rounded-xl text-sm transition-transform active:scale-95 shadow-lg border border-white/10 font-bold">
-                        <BrainCircuit className="w-5 h-5 mr-2" /> {t('evidenceMap.sidebar.importButton', 'Gjenero Hartën (AI)')}
-                    </button>
-                    
+            <Panel position="top-center" className="flex gap-2 mt-4">
+                <div className="flex bg-black/60 backdrop-blur-xl p-2 rounded-2xl border border-white/10 shadow-2xl items-center gap-3">
+                    <button onClick={() => setIsImportModalOpen(true)} className="px-6 py-2.5 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90 active:scale-95 transition-all shadow-lg shadow-primary-start/20"><BrainCircuit size={18}/> {t('evidenceMap.sidebar.importButton', 'Auto-Build AI')}</button>
                     <div className="w-px h-8 bg-white/10 mx-1"></div>
-
-                    {/* Save */}
-                    <button onClick={saveMap} disabled={isSaving} className={`flex items-center px-5 py-2.5 rounded-xl text-sm transition-all shadow-lg text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 font-semibold ${isSaving ? 'opacity-50' : ''}`}>
-                        <Save className={`w-5 h-5 mr-2 ${isSaving ? 'animate-spin' : ''}`} /> {isSaving ? t('evidenceMap.action.saving') : t('evidenceMap.action.save')}
-                    </button>
-                    
-                    {/* PDF */}
-                    <button onClick={handleExportPdf} disabled={isPdfExporting} className={`flex items-center px-5 py-2.5 rounded-xl text-sm transition-all shadow-lg text-red-500 bg-white/5 hover:bg-white/10 border border-white/10 active:scale-95 font-semibold ${isPdfExporting ? 'opacity-50' : ''}`}>
-                        <FileText className={`w-5 h-5 mr-2 ${isPdfExporting ? 'animate-spin' : ''}`} /> PDF
-                    </button>
+                    <button onClick={saveMap} disabled={isSaving} className="px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-bold flex items-center gap-2 border border-white/10 transition-all active:scale-95 disabled:opacity-50"><Save size={18}/> {isSaving ? 'Ruajtja...' : 'Ruaj'}</button>
+                    <button onClick={handleExportPdf} disabled={isPdfExporting} className="px-5 py-2.5 bg-red-600/10 hover:bg-red-600/20 text-red-500 rounded-xl text-sm font-bold flex items-center gap-2 border border-red-500/20 transition-all active:scale-95 disabled:opacity-50"><FileText size={18}/> PDF</button>
                 </div>
-            </Panel>
-
-            {/* 3. MOBILE FLOATING DOCK */}
-            <Panel position="bottom-center" className="flex sm:hidden justify-center w-full pb-8 pointer-events-none z-10">
-                 <div className="flex flex-row items-center gap-4 bg-black/80 backdrop-blur-xl px-6 py-4 rounded-full border border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.5)] pointer-events-auto">
-                    
-                    <button onClick={() => setIsImportModalOpen(true)} className="group flex items-center justify-center w-14 h-14 bg-gradient-to-r from-primary-start to-primary-end rounded-full text-white shadow-xl border border-white/20 active:scale-90 transition-transform">
-                        <BrainCircuit className="w-7 h-7" />
-                    </button>
-
-                    <div className="w-px h-10 bg-white/20"></div>
-
-                    <button onClick={saveMap} disabled={isSaving} className="flex items-center justify-center w-12 h-12 bg-gray-700 hover:bg-gray-600 rounded-full text-white shadow-lg active:scale-90 transition-transform">
-                        <Save className={`w-6 h-6 ${isSaving ? 'animate-spin' : ''}`} />
-                    </button>
-                    
-                     <button onClick={handleExportPdf} disabled={isPdfExporting} className="flex items-center justify-center w-12 h-12 bg-red-600 hover:bg-red-500 rounded-full text-white shadow-lg active:scale-90 transition-transform">
-                        <FileText className={`w-6 h-6 ${isPdfExporting ? 'animate-spin' : ''}`} />
-                    </button>
-                 </div>
             </Panel>
             </ReactFlow>
         </div>
       
-        <div className={`absolute top-0 right-0 z-40 h-full w-full sm:w-80 transition-transform duration-300 transform ${isSidebarVisible ? 'translate-x-0' : 'translate-x-full'}`}>
-            <Sidebar 
-                filters={filters} 
-                onFilterChange={handleFilterChange}
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                onOpenImportModal={() => setIsImportModalOpen(true)}
-                onClose={() => setIsSidebarVisible(false)}
-            />
+        <div className={`absolute top-0 right-0 z-30 h-full w-full sm:w-80 transition-transform duration-300 transform ${isSidebarVisible ? 'translate-x-0' : 'translate-x-full'}`}>
+            <Sidebar filters={{hideUnconnected: false, highlightContradictions: true}} onFilterChange={() => {}} searchTerm="" onSearchChange={() => {}} onOpenImportModal={() => setIsImportModalOpen(true)} onClose={() => setIsSidebarVisible(false)} />
         </div>
 
-        {isSidebarVisible && (
-            <div 
-                className="fixed inset-0 bg-black/60 backdrop-blur-sm md:hidden z-30" 
-                onClick={() => setIsSidebarVisible(false)} 
-            />
-        )}
+        {isSidebarVisible && <div className="fixed inset-0 bg-black/50 md:hidden z-20" onClick={() => setIsSidebarVisible(false)} />}
 
-        <ImportModal
-            isOpen={isImportModalOpen}
-            onClose={() => setIsImportModalOpen(false)}
-            onImport={handleImport}
-            caseId={caseId}
-        />
-        
-        <NodeEditModal
-            isOpen={!!nodeToEdit}
-            onClose={handleCloseEditModal}
-            node={nodeToEdit || null}
-            onSave={handleNodeDataSave}
-        />
+        <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} onImport={handleImport} caseId={caseId || ''} />
+        <NodeEditModal isOpen={!!nodeToEdit} onClose={() => setNodes(nds => nds.map(n => ({...n, data: {...n.data, editing: false}})))} node={nodeToEdit || null} onSave={(id, data) => setNodes(nds => nds.map(n => n.id === id ? {...n, data: {...n.data, ...data, editing: false}} : n))} />
     </div>
   );
 };
 
-const WrappedEvidenceMapPage = () => (
-    <ReactFlowProvider>
-        <EvidenceMapPage />
-    </ReactFlowProvider>
-);
-
+const WrappedEvidenceMapPage = () => (<ReactFlowProvider><EvidenceMapPage /></ReactFlowProvider>);
 export default WrappedEvidenceMapPage;
