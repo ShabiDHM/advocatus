@@ -1,30 +1,31 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V5.0 (FULL TOP-BAR NAVIGATION)
-// 1. STRUCTURAL: Integrated the main navigation links ('Zyra', 'Rastet', 'Hartimi') directly into the Header.
-// 2. UX: Removed the mobile 'Menu' button and its handler (toggleSidebar is now obsolete).
-// 3. ALIGNMENT: Added a flex container to align the logo, navigation, and user actions horizontally.
+// PHOENIX PROTOCOL - HEADER V6.0 (MOBILE RESPONSIVENESS IMPLEMENTATION)
+// 1. RESPONSIVE: Added a 'hamburger' menu button, visible only on screens smaller than 'lg'.
+// 2. STATE: Introduced 'isMobileMenuOpen' state to toggle the mobile navigation overlay.
+// 3. COMPONENT: Created a new full-screen mobile navigation menu that appears when toggled.
+// 4. UX: Mobile menu closes on link navigation, and body scrolling is locked while it's open.
+// 5. ICONS: Imported 'Menu' and 'X' icons for the mobile toggle button.
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2 } from 'lucide-react';
+import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
-import { Link, NavLink, useLocation } from 'react-router-dom'; // Added NavLink
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { apiService } from '../services/api';
 import LanguageSwitcher from './LanguageSwitcher';
-import BrandLogo from './BrandLogo'; // Imported BrandLogo
+import BrandLogo from './BrandLogo';
 
-// Removed HeaderProps interface as toggleSidebar is obsolete
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { t } = useTranslation();
   const location = useLocation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [alertCount, setAlertCount] = useState(0);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Define Navigation Items (from old Sidebar)
   const navItems = [
     { icon: Building2, label: t('sidebar.myOffice', 'Zyra'), path: '/business' },
     // Admin link is inserted dynamically
@@ -40,7 +41,20 @@ const Header: React.FC = () => {
       });
   }
 
-  // Poll for alerts (Unchanged)
+  // Effect to lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    // Cleanup function
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isMobileMenuOpen]);
+
+  // Poll for alerts
   useEffect(() => {
     const checkAlerts = async () => {
       if (!user) return;
@@ -56,7 +70,7 @@ const Header: React.FC = () => {
     return () => clearInterval(interval);
   }, [user]);
 
-  // Click Outside Event Listener (Unchanged)
+  // Click Outside Event Listener for Profile Dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -76,127 +90,144 @@ const Header: React.FC = () => {
     };
   }, [isProfileOpen]);
 
+  const handleMobileLinkClick = () => {
+    setIsMobileMenuOpen(false);
+  };
+
   return (
-    <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 top-0 backdrop-blur-xl bg-background-dark/60 border-b border-white/5 transition-all duration-300">
-      
-      {/* LEFT: Logo and Search (Combined) */}
-      <div className="flex items-center h-full gap-8">
-        <BrandLogo /> {/* Logo */}
+    <>
+      <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 top-0 backdrop-blur-xl bg-background-dark/60 border-b border-white/5 transition-all duration-300">
         
-        {/* Search Bar */}
-        <div className="relative hidden sm:block">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary h-4 w-4" />
-          <input 
-            type="text" 
-            placeholder={t('general.search', 'Kërko...')} 
-            className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-text-secondary/50 focus:ring-1 focus:ring-primary-start/50 focus:bg-background-dark/80 focus:border-primary-start/50 outline-none w-64 transition-all focus:w-80"
-          />
-        </div>
-      </div>
-
-      {/* MIDDLE: Main Navigation Links (from Sidebar) - Hidden on mobile */}
-      <nav className="hidden lg:flex items-center h-full space-x-2">
-        {navItems.map((item) => {
-          const isActive = location.pathname.startsWith(item.path) && item.path !== '/business';
-          const isBusinessActive = item.path === '/business' && location.pathname.startsWith('/business');
-          const isCurrentActive = isActive || isBusinessActive;
-
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={`
-                flex items-center px-4 h-full text-sm font-medium transition-all duration-200 relative
-                ${isCurrentActive 
-                  ? 'text-white border-b-2 border-primary-start' 
-                  : 'text-text-secondary hover:text-white hover:bg-white/5'}
-              `}
-            >
-              <item.icon className="h-4 w-4 mr-2" />
-              {item.label}
-            </NavLink>
-          );
-        })}
-      </nav>
-
-      {/* RIGHT: Actions & Profile */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        <div className="hidden">
-          <LanguageSwitcher />
-        </div>
-
-        <Link to="/calendar" className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors relative" title="Kalendari">
-          <Bell size={20} />
-          {alertCount > 0 && (
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-          )}
-        </Link>
-        
-        <div className="h-6 w-px bg-white/10"></div>
-
-        {/* Profile Dropdown Container */}
-        <div className="relative">
-          <button 
-            ref={buttonRef}
-            onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className={`flex items-center gap-3 p-1.5 rounded-xl transition-all border ${isProfileOpen ? 'bg-white/10 border-white/10' : 'border-transparent hover:bg-white/5 hover:border-white/5'}`}
+        {/* LEFT: Logo and Search (Combined) */}
+        <div className="flex items-center h-full gap-4 lg:gap-8">
+          {/* --- MOBILE MENU TOGGLE --- */}
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="lg:hidden p-2 text-text-secondary hover:text-white transition-colors"
+            aria-label="Toggle navigation menu"
           >
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-medium text-white">{user?.username || 'User'}</p>
-              <p className="text-xs text-text-secondary uppercase tracking-wider">
-                {user?.role || 'LAWYER'}
-              </p>
-            </div>
-            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg shadow-secondary-start/20 ring-2 ring-transparent group-hover:ring-white/10">
-              {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
-            </div>
+            <Menu size={24} />
           </button>
-
-          {isProfileOpen && (
-            <div 
-              ref={dropdownRef}
-              className="absolute right-0 mt-2 w-60 bg-background-dark/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2"
-            >
-              <div className="px-4 py-3 border-b border-white/5 mb-1 bg-white/5">
-                <p className="text-sm text-white font-medium truncate">{user?.username}</p>
-                <p className="text-xs text-text-secondary truncate">{user?.email}</p>
-              </div>
-
-              <Link 
-                to="/account" 
-                className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
-                onClick={() => setIsProfileOpen(false)}
-              >
-                <UserIcon size={16} className="mr-3 text-primary-start" />
-                {t('sidebar.account', 'Llogaria Ime')}
-              </Link>
-              
-              <Link 
-                to="/support" 
-                className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
-                onClick={() => setIsProfileOpen(false)}
-              >
-                <MessageSquare size={16} className="mr-3 text-primary-start" />
-                {t('sidebar.support', 'Mbështetja')}
-              </Link>
-
-              <div className="h-px bg-white/5 my-1"></div>
-
-              <button
-                onClick={() => {
-                  setIsProfileOpen(false);
-                  logout();
-                }}
-                className="w-full flex items-center px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
-              >
-                <LogOut size={16} className="mr-3" />
-                {t('general.logout', 'Dilni')}
-              </button>
-            </div>
-          )}
+          
+          <BrandLogo />
+          
+          <div className="relative hidden sm:block">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary h-4 w-4" />
+            <input 
+              type="text" 
+              placeholder={t('general.search', 'Kërko...')} 
+              className="bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-text-secondary/50 focus:ring-1 focus:ring-primary-start/50 focus:bg-background-dark/80 focus:border-primary-start/50 outline-none w-64 transition-all focus:w-80"
+            />
+          </div>
         </div>
-      </div>
-    </header>
+
+        {/* MIDDLE: Main Navigation Links (Desktop) */}
+        <nav className="hidden lg:flex items-center h-full space-x-2">
+          {navItems.map((item) => {
+            const isCurrentActive = location.pathname.startsWith(item.path);
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={`flex items-center px-4 h-full text-sm font-medium transition-all duration-200 relative ${isCurrentActive ? 'text-white border-b-2 border-primary-start' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+              >
+                <item.icon className="h-4 w-4 mr-2" />
+                {item.label}
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        {/* RIGHT: Actions & Profile */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="hidden">
+            <LanguageSwitcher />
+          </div>
+
+          <Link to="/calendar" className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors relative" title="Kalendari">
+            <Bell size={20} />
+            {alertCount > 0 && (
+              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+            )}
+          </Link>
+          
+          <div className="h-6 w-px bg-white/10"></div>
+
+          <div className="relative">
+            <button 
+              ref={buttonRef}
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              className={`flex items-center gap-3 p-1.5 rounded-xl transition-all border ${isProfileOpen ? 'bg-white/10 border-white/10' : 'border-transparent hover:bg-white/5 hover:border-white/5'}`}
+            >
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-medium text-white">{user?.username || 'User'}</p>
+                <p className="text-xs text-text-secondary uppercase tracking-wider">{user?.role || 'LAWYER'}</p>
+              </div>
+              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg shadow-secondary-start/20">
+                {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
+              </div>
+            </button>
+
+            {isProfileOpen && (
+              <div 
+                ref={dropdownRef}
+                className="absolute right-0 mt-2 w-60 bg-background-dark/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2"
+              >
+                <div className="px-4 py-3 border-b border-white/5 mb-1 bg-white/5">
+                  <p className="text-sm text-white font-medium truncate">{user?.username}</p>
+                  <p className="text-xs text-text-secondary truncate">{user?.email}</p>
+                </div>
+                <Link to="/account" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors" onClick={() => setIsProfileOpen(false)}>
+                  <UserIcon size={16} className="mr-3 text-primary-start" />
+                  {t('sidebar.account', 'Llogaria Ime')}
+                </Link>
+                <Link to="/support" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/5 transition-colors" onClick={() => setIsProfileOpen(false)}>
+                  <MessageSquare size={16} className="mr-3 text-primary-start" />
+                  {t('sidebar.support', 'Mbështetja')}
+                </Link>
+                <div className="h-px bg-white/5 my-1"></div>
+                <button onClick={() => { setIsProfileOpen(false); logout(); }} className="w-full flex items-center px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors">
+                  <LogOut size={16} className="mr-3" />
+                  {t('general.logout', 'Dilni')}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* --- MOBILE NAVIGATION OVERLAY --- */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 top-0 bg-background-dark/95 backdrop-blur-xl z-50 animate-in fade-in">
+          <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
+            <BrandLogo />
+            <button
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="p-2 text-text-secondary hover:text-white transition-colors"
+              aria-label="Close navigation menu"
+            >
+              <X size={24} />
+            </button>
+          </div>
+          <nav className="flex flex-col p-4 space-y-2 mt-4">
+            {navItems.map((item) => {
+              const isCurrentActive = location.pathname.startsWith(item.path);
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  onClick={handleMobileLinkClick}
+                  className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-all duration-200 ${isCurrentActive ? 'text-white bg-white/10' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+                >
+                  <item.icon className="h-5 w-5 mr-4" />
+                  {item.label}
+                </NavLink>
+              );
+            })}
+          </nav>
+        </div>
+      )}
+    </>
   );
 };
 
