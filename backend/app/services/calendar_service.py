@@ -3,7 +3,6 @@
 # 1. FEAT: Added 'KOSOVO_HOLIDAYS_2026' set for culturally-aware date calculations.
 # 2. FEAT: Implemented 'is_working_day' and 'calculate_working_days' to count only valid workdays.
 # 3. LOGIC: Augmented 'get_events_for_user' to inject 'severity' and 'working_days_remaining' into every event.
-# 4. ARCH: All existing CRUD operations remain intact and fully functional.
 
 from typing import List, Dict, Any, Set
 from datetime import datetime, timezone, timedelta, date
