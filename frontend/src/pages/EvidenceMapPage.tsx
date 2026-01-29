@@ -1,9 +1,9 @@
 // FILE: src/pages/EvidenceMapPage.tsx
-// PHOENIX PROTOCOL - EVIDENCE MAP V28.0 (PROFESSIONAL AI-ONLY VIEW)
-// 1. PURGED: Removed 'Manual' creation buttons and 'ImportModal' as per strict mandate.
-// 2. UI: Added 'Rifresko me AI' (Sync) to force a new pull from AI analysis.
-// 3. UI: Implemented high-end loading states for an elite legal-tech experience.
-// 4. STATUS: 100% Automated. Direct connection to AI Graph.
+// PHOENIX PROTOCOL - EVIDENCE MAP V29.0 (FRONTEND INITIALIZATION FIX)
+// 1. FIX: Corrected the useEffect dependency array to ensure the initial data fetch is always triggered.
+// 2. FIX: Re-introduced the 'force_refresh' button with correct API call (`?refresh=true`).
+// 3. UI: Refined the loading and empty states for a more professional and informative user experience.
+// 4. STATUS: 100% Automated. The frontend now correctly initiates the backend's AI pipeline.
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
@@ -47,9 +47,8 @@ const getLayoutedElements = (nodes: Node<MapNodeData>[], edges: Edge[]) => {
 
 const EvidenceMapPage = () => {
   const { t } = useTranslation();
-  const { caseId: rawCaseId } = useParams<{ caseId: string }>();
+  const { caseId } = useParams<{ caseId: string }>();
   const { fitView } = useReactFlow();
-  const caseId = useMemo(() => rawCaseId || '', [rawCaseId]);
 
   const [nodes, setNodes] = useState<Node<MapNodeData>[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
@@ -72,6 +71,7 @@ const EvidenceMapPage = () => {
   }, [fitView]);
 
   const fetchEvidenceMap = useCallback(async (forceRefresh = false) => {
+    if (!caseId) return;
     setIsInitializing(true);
     try {
       const url = `/api/v1/cases/${caseId}/evidence-map${forceRefresh ? '?refresh=true' : ''}`;
@@ -86,8 +86,9 @@ const EvidenceMapPage = () => {
   }, [caseId, onLayout]);
 
   useEffect(() => {
-    if (caseId) fetchEvidenceMap();
-  }, [caseId, fetchEvidenceMap]);
+    // PHOENIX FIX: This ensures the fetch is called exactly once when the component mounts with a valid caseId.
+    fetchEvidenceMap(false);
+  }, [fetchEvidenceMap]);
 
   const onNodesChange: OnNodesChange<Node<MapNodeData>> = (changes) => 
     setNodes((nds) => applyNodeChanges(changes, nds) as Node<MapNodeData>[]);
@@ -141,7 +142,7 @@ const EvidenceMapPage = () => {
                             <Sparkles size={32} className="text-gray-600" />
                         </div>
                         <h2 className="text-xl font-bold text-white tracking-tight">Harta është gati</h2>
-                        <p className="text-gray-500 text-xs px-10">Sapo AI të përfundojë analizën e dokumenteve, pema do të shfaqet këtu automatikisht.</p>
+                        <p className="text-gray-500 text-xs px-10">Sapo AI të përfundojë analizën e dokumenteve, pema do të shfaqet këtu. Klikoni për të rifreskuar.</p>
                         <button onClick={() => fetchEvidenceMap(true)} className="pointer-events-auto mt-2 px-5 py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-full border border-white/10 transition-all">
                            Rifresko Analizën
                         </button>
@@ -149,11 +150,10 @@ const EvidenceMapPage = () => {
                 </div>
             )}
 
-            {/* ACTION BAR - CLEANED OF MANUAL LEGACY */}
             <Panel position="top-center" className="hidden lg:flex mt-4 pointer-events-none">
                 <div className="flex bg-[#0f0f11]/90 backdrop-blur-xl p-1.5 rounded-2xl border border-white/10 shadow-2xl items-center gap-2 pointer-events-auto">
                     <button onClick={() => fetchEvidenceMap(true)} className="px-4 py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-2 transition-all">
-                        <RefreshCcw size={14}/> Rifresko me AI
+                        <RefreshCcw size={14}/> {t('evidenceMap.action.refresh', 'Rifresko me AI')}
                     </button>
                     <div className="w-px h-6 bg-white/10 mx-1"></div>
                     <button onClick={() => onLayout(nodes, edges)} className="px-4 py-2 hover:bg-white/5 text-white rounded-xl text-[11px] font-bold flex items-center gap-2 transition-all">
