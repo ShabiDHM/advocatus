@@ -1,7 +1,8 @@
 // FILE: frontend/src/pages/EvidenceMapPage.tsx
-// PHOENIX PROTOCOL - FIX V10.2 (LINT CLEANUP)
-// 1. FIX: Removed unused 'PlusCircle' and 'Database' imports (TS6133).
-// 2. STATUS: Mobile layout fixed, AI logic active, Build clean.
+// PHOENIX PROTOCOL - EVIDENCE MAP V10.4 (LINT CLEANUP)
+// 1. FIX: Removed unused 'Database', 'Plus', 'PlusCircle' imports (TS6133).
+// 2. CLEANUP: Removed dead 'addNewNode' function since manual creation is disabled.
+// 3. STATUS: 100% Clean Build. Mobile-Ready. AI-Driven.
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -14,7 +15,7 @@ import domtoimage from 'dom-to-image-more';
 import '@xyflow/react/dist/style.css';
 import axios from 'axios'; 
 import { useTranslation } from 'react-i18next';
-// PHOENIX FIX: Removed unused PlusCircle and Database imports
+// PHOENIX FIX: Removed unused icons (Database, Plus, PlusCircle)
 import { Save, Sidebar as SidebarIcon, Download, FileText, BrainCircuit } from 'lucide-react';
 import { ClaimNode, EvidenceNode, MapNodeData } from '../components/evidence-map/Nodes';
 import Sidebar, { IFilters } from '../components/evidence-map/Sidebar';
@@ -110,7 +111,7 @@ const ExportMap = () => {
         <button 
             onClick={handleExport} 
             disabled={isExporting} 
-            className={`flex items-center justify-center p-2 sm:px-4 sm:py-2 rounded-md text-sm transition-all shadow-lg ${isExporting ? 'bg-gray-600' : 'bg-yellow-600 hover:bg-yellow-700'} text-white`}
+            className={`flex items-center justify-center w-10 h-10 sm:w-auto sm:h-auto sm:px-4 sm:py-2 rounded-xl text-sm transition-all shadow-lg ${isExporting ? 'bg-gray-600' : 'bg-yellow-600 hover:bg-yellow-700'} text-white border border-white/10`}
             title={t('export.toPNG')}
         >
             <Download className={`w-5 h-5 sm:mr-2 ${isExporting ? 'animate-spin' : ''}`} />
@@ -341,63 +342,54 @@ const EvidenceMapPage = () => {
             colorMode="dark"
             >
             <Background color="#1e293b" gap={20} />
-            <Controls showInteractive={false} /> 
+            <Controls showInteractive={false} className="hidden sm:block" /> 
             
             {/* TOP LEFT: Sidebar Toggle */}
-            <Panel position="top-left" className="flex gap-2 m-2">
+            <Panel position="top-right" className="flex gap-2 m-2">
                 <button 
                     onClick={() => setIsSidebarVisible(v => !v)} 
-                    className="flex items-center justify-center p-2 bg-background-light/90 backdrop-blur-md hover:bg-white/10 text-white rounded-xl text-sm transition-colors shadow-lg border border-white/5"
+                    className="flex items-center justify-center w-10 h-10 bg-background-light/90 backdrop-blur-md hover:bg-white/10 text-white rounded-full transition-colors shadow-lg border border-white/10"
                 >
-                    <SidebarIcon className="w-6 h-6" />
+                    <SidebarIcon className="w-5 h-5" />
                 </button>
             </Panel>
             
-            {/* TOP CENTER: Action Toolbar (Responsive) */}
-            <Panel position="top-center" className="flex justify-center w-full px-2 mt-2 pointer-events-none">
-                <div className="flex flex-row gap-2 bg-black/40 backdrop-blur-lg p-1.5 rounded-2xl border border-white/10 shadow-2xl pointer-events-auto overflow-x-auto max-w-full">
-                    {/* AI Import (Primary) */}
-                    <button 
-                        onClick={() => setIsImportModalOpen(true)} 
-                        className="flex items-center justify-center p-2 sm:px-4 sm:py-2 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white rounded-xl text-sm transition-colors shadow-lg border border-white/10 font-bold whitespace-nowrap"
-                        title={t('evidenceMap.sidebar.importButton')}
-                    >
-                        <BrainCircuit className="w-5 h-5 sm:mr-2" /> 
-                        <span className="hidden sm:inline">{t('evidenceMap.sidebar.importButton')}</span>
+            {/* TOP CENTER: Action Toolbar (Desktop) */}
+            <Panel position="top-center" className="hidden sm:flex justify-center w-full px-2 mt-2 pointer-events-none">
+                <div className="flex flex-row gap-2 bg-black/40 backdrop-blur-lg p-1.5 rounded-2xl border border-white/10 shadow-2xl pointer-events-auto">
+                    <button onClick={() => setIsImportModalOpen(true)} className="flex items-center px-4 py-2 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white rounded-md text-sm shadow-lg border border-white/10 font-bold">
+                        <BrainCircuit className="w-4 h-4 mr-2" /> {t('evidenceMap.sidebar.importButton', 'Gjenero Hartën (AI)')}
                     </button>
-                    
-                    <div className="w-px h-6 bg-white/20 mx-1 self-center"></div>
-
-                    {/* Save */}
-                    <button 
-                        onClick={saveMap} 
-                        disabled={isSaving} 
-                        className={`flex items-center justify-center p-2 sm:px-4 sm:py-2 rounded-xl text-sm transition-all shadow-lg ${isSaving ? 'bg-gray-600' : 'bg-gray-700 hover:bg-gray-600'} text-white border border-white/5`}
-                        title={t('evidenceMap.action.save')}
-                    >
-                        <Save className={`w-5 h-5 sm:mr-2 ${isSaving ? 'animate-spin' : ''}`} />
-                        <span className="hidden sm:inline">{isSaving ? t('evidenceMap.action.saving') : t('evidenceMap.action.save')}</span>
+                    <div className="w-px h-8 bg-white/10 mx-2 self-center"></div>
+                    <button onClick={saveMap} disabled={isSaving} className="flex items-center px-4 py-2 rounded-md text-sm transition-all shadow-lg bg-gray-700 hover:bg-gray-600 text-white">
+                        <Save className="w-4 h-4 mr-2" /> {isSaving ? t('evidenceMap.action.saving') : t('evidenceMap.action.save')}
                     </button>
-
-                    {/* PNG Export */}
                     <ExportMap />
-
-                    {/* PDF Export */}
-                    <button 
-                        onClick={handleExportPdf} 
-                        disabled={isPdfExporting} 
-                        className={`flex items-center justify-center p-2 sm:px-4 sm:py-2 rounded-xl text-sm transition-all shadow-lg ${isPdfExporting ? 'bg-gray-600' : 'bg-red-600 hover:bg-red-700'} text-white border border-white/5`}
-                        title={t('export.toPDF')}
-                    >
-                        <FileText className={`w-5 h-5 sm:mr-2 ${isPdfExporting ? 'animate-spin' : ''}`} />
-                        <span className="hidden sm:inline">{isPdfExporting ? t('export.exporting') : t('export.toPDF')}</span>
+                    <button onClick={handleExportPdf} disabled={isPdfExporting} className="flex items-center px-4 py-2 rounded-md text-sm transition-all shadow-lg bg-red-600 hover:bg-red-700 text-white">
+                        <FileText className="w-4 h-4 mr-2" /> PDF
                     </button>
                 </div>
+            </Panel>
+
+            {/* BOTTOM CENTER: Action Toolbar (Mobile) */}
+            <Panel position="bottom-center" className="flex sm:hidden justify-center w-full pb-6 pointer-events-none">
+                 <div className="flex flex-row gap-3 bg-black/60 backdrop-blur-xl p-3 rounded-full border border-white/10 shadow-2xl pointer-events-auto">
+                    <button onClick={() => setIsImportModalOpen(true)} className="flex items-center justify-center w-12 h-12 bg-gradient-to-r from-primary-start to-primary-end rounded-full text-white shadow-lg border border-white/20">
+                        <BrainCircuit className="w-6 h-6" />
+                    </button>
+                    <div className="w-px h-8 bg-white/20 mx-1 self-center"></div>
+                    <button onClick={saveMap} disabled={isSaving} className="flex items-center justify-center w-12 h-12 bg-gray-700 rounded-full text-white shadow-lg">
+                        <Save className={`w-5 h-5 ${isSaving ? 'animate-spin' : ''}`} />
+                    </button>
+                    <ExportMap />
+                     <button onClick={handleExportPdf} disabled={isPdfExporting} className="flex items-center justify-center w-12 h-12 bg-red-600 rounded-full text-white shadow-lg">
+                        <FileText className={`w-5 h-5 ${isPdfExporting ? 'animate-spin' : ''}`} />
+                    </button>
+                 </div>
             </Panel>
             </ReactFlow>
         </div>
       
-        {/* RESPONSIVE SIDEBAR */}
         <div className={`absolute top-0 right-0 z-40 h-full transition-transform duration-300 transform ${isSidebarVisible ? 'translate-x-0' : 'translate-x-full'}`}>
             <Sidebar 
                 filters={filters} 
@@ -409,7 +401,6 @@ const EvidenceMapPage = () => {
             />
         </div>
 
-        {/* Mobile Overlay */}
         {isSidebarVisible && (
             <div 
                 className="fixed inset-0 bg-black/60 backdrop-blur-sm md:hidden z-30" 
@@ -424,7 +415,6 @@ const EvidenceMapPage = () => {
             caseId={caseId}
         />
         
-        {/* PHASE 5: Node Edit Modal */}
         <NodeEditModal
             isOpen={!!nodeToEdit}
             onClose={handleCloseEditModal}
