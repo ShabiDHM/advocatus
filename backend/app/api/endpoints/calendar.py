@@ -1,4 +1,5 @@
 # FILE: backend/app/api/endpoints/calendar.py
+# PHOENIX PROTOCOL - CALENDAR API V4.0 (SYNCHRONIZATION FIX)
 from fastapi import APIRouter, Depends, status, HTTPException, Response
 from typing import List, Dict, Any
 from bson import ObjectId
@@ -14,15 +15,13 @@ from app.models.user import UserInDB
 
 router = APIRouter()
 
-class ShareUpdateRequest(BaseModel):
-    is_public: bool
-
-# PHOENIX: New response model for the intelligent briefing
+# PHOENIX: Pydantic Model for Intelligent Briefing
 class BriefingResponse(BaseModel):
     count: int
-    greeting: str
-    message: str
+    greeting_key: str
+    message_key: str
     status: str
+    data: Dict[str, Any]
 
 @router.get("/alerts", response_model=BriefingResponse)
 async def get_alerts_briefing(
@@ -30,24 +29,32 @@ async def get_alerts_briefing(
     db: Database = Depends(get_db),
 ):
     """
-    Returns a personalized 'Kujdestari' briefing.
-    Includes count, greeting, and context-aware status message.
+    Returns a personalized i18n-ready 'Kujdestari' briefing.
+    PHOENIX FIX: Parameter name aligned to 'user_id'.
     """
-    # 1. Get the raw count
-    count = await asyncio.to_thread(calendar_service.get_upcoming_alerts_count, db=db, user_id=current_user.id)
+    count = await asyncio.to_thread(
+        calendar_service.get_upcoming_alerts_count, 
+        db=db, 
+        user_id=current_user.id
+    )
     
-    # 2. Generate the Persona message
-    # We use user.full_name if available, otherwise email or generic
-    user_name = current_user.full_name if current_user.full_name else "Avokat"
-    briefing_data = calendar_service.generate_briefing(user_name, count)
+    display_name = current_user.full_name if current_user.full_name else current_user.username
+    briefing_data = calendar_service.generate_briefing(display_name, count)
     
-    # 3. Return combined data
     return BriefingResponse(
         count=count,
-        greeting=briefing_data["greeting"],
-        message=briefing_data["message"],
-        status=briefing_data["status"]
+        greeting_key=briefing_data["greeting_key"],
+        message_key=briefing_data["message_key"],
+        status=briefing_data["status"],
+        data=briefing_data["data"]
     )
+
+@router.get("/events", response_model=List[CalendarEventOut])
+async def get_all_user_events(
+    current_user: UserInDB = Depends(get_current_user),
+    db: Database = Depends(get_db),
+):
+    return await asyncio.to_thread(calendar_service.get_events_for_user, db=db, user_id=current_user.id)
 
 @router.post("/events", response_model=CalendarEventOut, status_code=status.HTTP_201_CREATED)
 async def create_new_event(
@@ -56,50 +63,6 @@ async def create_new_event(
     db: Database = Depends(get_db),
 ):
     return await asyncio.to_thread(calendar_service.create_event, db=db, event_data=event_data, user_id=current_user.id)
-
-@router.put("/events/{event_id}/share", status_code=status.HTTP_200_OK)
-async def update_event_share_status(
-    event_id: str,
-    update_data: ShareUpdateRequest,
-    current_user: UserInDB = Depends(get_current_user),
-    db: Database = Depends(get_db),
-):
-    try:
-        object_id = ObjectId(event_id)
-    except InvalidId:
-        raise HTTPException(status_code=400, detail="Invalid event ID")
-
-    collection = db["calendar_events"]
-
-    def _update():
-        event = collection.find_one({"_id": object_id, "user_id": current_user.id})
-        if not event:
-            return None
-        
-        result = collection.update_one(
-            {"_id": object_id},
-            {"$set": {"is_public": update_data.is_public}}
-        )
-        return result, event.get("is_public", False)
-
-    result_data = await asyncio.to_thread(_update)
-    
-    if result_data is None:
-        raise HTTPException(status_code=404, detail="Event not found or permission denied.")
-
-    update_result, old_status = result_data
-
-    if update_result.modified_count == 1:
-        return {"status": "success", "is_public": update_data.is_public}
-    
-    return {"status": "no_change", "is_public": old_status}
-
-@router.get("/events", response_model=List[CalendarEventOut])
-async def get_all_user_events(
-    current_user: UserInDB = Depends(get_current_user),
-    db: Database = Depends(get_db),
-):
-    return await asyncio.to_thread(calendar_service.get_events_for_user, db=db, user_id=current_user.id)
 
 @router.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_event(
@@ -111,6 +74,5 @@ async def delete_user_event(
         object_id = ObjectId(event_id)
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid event ID")
-    
     await asyncio.to_thread(calendar_service.delete_event, db=db, event_id=object_id, user_id=current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
