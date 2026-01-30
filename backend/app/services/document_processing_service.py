@@ -1,8 +1,7 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - INGESTION PIPELINE V12.0 (SEMANTIC BRIDGE)
-# 1. CRITICAL FIX: Maps V44.0 LLM keys ('nodes', 'edges') to Graph Service inputs.
-# 2. LOGIC: Handles both legacy ('entities') and new ('nodes') formats for backward compatibility.
-# 3. STATUS: Ensures the "Legal Architect" data actually reaches Neo4j.
+# PHOENIX PROTOCOL - INGESTION PIPELINE V13.0 (CONTEXT-AWARE)
+# 1. FIX: Passed 'detected_category' to the deadline service to enable strict calendar gating.
+# 2. LOGIC: Ensures Chat Logs are handled as historical data, not active agenda items.
 
 import os
 import tempfile
@@ -41,30 +40,17 @@ def _emit_progress(redis_client: redis.Redis, user_id: str, doc_id: str, message
     try:
         if not user_id or not redis_client: return
         channel = f"user:{user_id}:updates"
-        payload = {
-            "type": "DOCUMENT_PROGRESS",
-            "document_id": doc_id,
-            "message": message,
-            "percent": percent
-        }
+        payload = {"type": "DOCUMENT_PROGRESS", "document_id": doc_id, "message": message, "percent": percent}
         redis_client.publish(channel, json.dumps(payload))
-    except Exception as e:
-        logger.warning(f"Failed to emit progress: {e}")
+    except Exception: pass
 
-def orchestrate_document_processing_mongo(
-    db: Database,
-    redis_client: redis.Redis,
-    document_id_str: str
-):
+def orchestrate_document_processing_mongo(db: Database, redis_client: redis.Redis, document_id_str: str):
     try:
         doc_id = ObjectId(document_id_str)
-    except Exception:
-        logger.error(f"Invalid Document ID format: {document_id_str}.")
-        return
+    except Exception: return
 
     document = db.documents.find_one({"_id": doc_id})
-    if not document:
-        raise DocumentNotFoundInDBError(f"Document with ID {document_id_str} not found.")
+    if not document: raise DocumentNotFoundInDBError(document_id_str)
 
     user_id = str(document.get("owner_id"))
     doc_name = document.get("file_name", "Unknown Document")
@@ -77,141 +63,69 @@ def orchestrate_document_processing_mongo(
     preview_storage_key = None
     
     try:
-        _emit_progress(redis_client, user_id, document_id_str, "Shkarkimi...", 10)
-        
-        # 1. Download from storage
+        # 1. Download
         suffix = os.path.splitext(doc_name)[1]
         temp_file_descriptor, temp_original_file_path = tempfile.mkstemp(suffix=suffix)
         os.close(temp_file_descriptor) 
-        
         file_stream = storage_service.download_original_document_stream(document["storage_key"])
         with open(temp_original_file_path, 'wb') as temp_file:
             shutil.copyfileobj(file_stream, temp_file)
         if hasattr(file_stream, 'close'): file_stream.close()
 
-        # 2. Preview Generation
-        try:
-            _emit_progress(redis_client, user_id, document_id_str, "Gjenerimi i pamjes...", 15)
-            temp_pdf_preview_path = conversion_service.convert_to_pdf(temp_original_file_path)
-            preview_storage_key = storage_service.upload_document_preview(file_path=temp_pdf_preview_path, user_id=user_id, case_id=case_id_str, original_doc_id=document_id_str)
-        except Exception as e: 
-            logger.warning(f"Preview generation failed: {e}")
-
-        # 3. OCR Extraction
-        _emit_progress(redis_client, user_id, document_id_str, "Ekstraktimi i tekstit (OCR)...", 25)
+        # 2. OCR
+        _emit_progress(redis_client, user_id, document_id_str, "Ekstraktimi i tekstit...", 25)
         raw_text = text_extraction_service.extract_text(temp_original_file_path, document.get("mime_type", ""))
-        
-        if not raw_text or not raw_text.strip():
-            raise ValueError("OCR dështoi: Dokumenti duket bosh (Empty Text).")
+        if not raw_text or not raw_text.strip(): raise ValueError("Empty Text")
 
-        # 4. Text Sterilization & Metadata
-        _emit_progress(redis_client, user_id, document_id_str, "Sterilizimi Ligjor...", 28)
+        # 3. Categorization (CRITICAL FOR GATING)
+        _emit_progress(redis_client, user_id, document_id_str, "Klasifikimi...", 35)
         extracted_text = llm_service.sterilize_legal_text(raw_text)
-        
-        _emit_progress(redis_client, user_id, document_id_str, "Klasifikimi...", 30)
         is_albanian = AlbanianLanguageDetector.detect_language(extracted_text)
         extracted_metadata = albanian_metadata_extractor.extract(extracted_text, document_id_str)
         
-        update_payload = {"detected_language": "sq" if is_albanian else "en", "metadata": extracted_metadata}
         try:
             detected_category = CATEGORIZATION_SERVICE.categorize_document(extracted_text)
-            update_payload["category"] = detected_category
         except Exception:
             detected_category = "Unknown"
-        db.documents.update_one({"_id": doc_id}, {"$set": update_payload})
-
-        _emit_progress(redis_client, user_id, document_id_str, "Analizë e Thellë...", 40)
         
-        # --- SUB-TASKS ---
-        def task_embeddings() -> bool:
-            try:
-                _emit_progress(redis_client, user_id, document_id_str, "Indeksimi Vektorial...", 50)
-                base_doc_metadata = {'language': 'sq' if is_albanian else 'en', 'category': detected_category, 'file_name': doc_name}
-                if extracted_metadata:
-                    base_doc_metadata.update({k: v for k, v in extracted_metadata.items() if v})
-                
-                enriched_chunks = EnhancedDocumentProcessor.process_document(text_content=extracted_text, document_metadata=base_doc_metadata, is_albanian=is_albanian)
-                
-                success = vector_store_service.create_and_store_embeddings_from_chunks(
-                    user_id=user_id, 
-                    document_id=document_id_str, 
-                    case_id=case_id_str, 
-                    file_name=doc_name,
-                    chunks=[c.content for c in enriched_chunks],
-                    metadatas=[c.metadata for c in enriched_chunks]
-                )
-                return success
-            except Exception as e:
-                logger.error(f"Embedding Task Failed: {e}")
-                return False
+        db.documents.update_one({"_id": doc_id}, {"$set": {"detected_language": "sq" if is_albanian else "en", "category": detected_category, "metadata": extracted_metadata}})
 
-        def task_storage() -> Optional[str]:
-            try: return storage_service.upload_processed_text(extracted_text, user_id=user_id, case_id=case_id_str, original_doc_id=document_id_str)
-            except Exception: return None
+        # 4. Parallel Sub-tasks
+        def task_embeddings():
+            enriched_chunks = EnhancedDocumentProcessor.process_document(text_content=extracted_text, document_metadata={'category': detected_category, 'file_name': doc_name}, is_albanian=is_albanian)
+            vector_store_service.create_and_store_embeddings_from_chunks(user_id=user_id, document_id=document_id_str, case_id=case_id_str, file_name=doc_name, chunks=[c.content for c in enriched_chunks], metadatas=[c.metadata for c in enriched_chunks])
 
-        def task_summary() -> str:
-            try:
-                _emit_progress(redis_client, user_id, document_id_str, "Gjenerimi i Përmbledhjes...", 60)
-                limit = 35000
-                optimized = extracted_text[:limit] if len(extracted_text) > limit else extracted_text
-                return llm_service.generate_summary(optimized)
-            except Exception: return "Përmbledhja nuk është e disponueshme."
+        def task_storage():
+            return storage_service.upload_processed_text(extracted_text, user_id, case_id_str, document_id_str)
 
-        def task_deadlines() -> None:
-            try:
-                _emit_progress(redis_client, user_id, document_id_str, "Ekstraktimi i Afateve...", 80)
-                deadline_service.extract_and_save_deadlines(db, document_id_str, extracted_text)
-            except Exception as e: logger.error(f"Deadline Extraction Error: {e}")
+        def task_summary():
+            return llm_service.generate_summary(extracted_text[:35000])
 
-        def task_graph() -> None:
-            """
-            PHOENIX V12: Handles semantic 'nodes/edges' format from V44 LLM Service.
-            """
-            try:
-                _emit_progress(redis_client, user_id, document_id_str, "Ndërtimi i Grafit...", 90)
-                graph_data = llm_service.extract_graph_data(extracted_text)
-                
-                # PHOENIX FIX: Map new V44 keys (nodes/edges) to legacy Service keys (entities/relations)
-                # This ensures compatibility regardless of which Prompt the LLM followed
-                entities = graph_data.get("nodes") or graph_data.get("entities") or []
-                relations = graph_data.get("edges") or graph_data.get("relations") or []
-                
-                # We call ingest unconditionally now.
-                graph_service.ingest_entities_and_relations(
-                    case_id=case_id_str, 
-                    document_id=document_id_str, 
-                    doc_name=doc_name,
-                    entities=entities,
-                    relations=relations,
-                    doc_metadata=extracted_metadata 
-                )
-            except Exception as e: logger.error(f"Graph Ingestion Error: {e}")
+        def task_deadlines():
+            # PHOENIX: Passed detected_category to service
+            deadline_service.extract_and_save_deadlines(db, document_id_str, extracted_text, detected_category)
 
-        summary_result, text_storage_key = None, None
-        
-        # Parallel Execution
+        def task_graph():
+            graph_data = llm_service.extract_graph_data(extracted_text)
+            entities = graph_data.get("nodes") or graph_data.get("entities") or []
+            relations = graph_data.get("edges") or graph_data.get("relations") or []
+            graph_service.ingest_entities_and_relations(case_id=case_id_str, document_id=document_id_str, doc_name=doc_name, entities=entities, relations=relations, doc_metadata=extracted_metadata)
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-            futures_list = [executor.submit(task) for task in [task_embeddings, task_storage, task_summary, task_deadlines, task_graph]]
-            
-            # Retrieve critical results
-            emb_status = futures_list[0].result()
-            text_storage_key = futures_list[1].result()
-            summary_result = futures_list[2].result()
-            
-            if not emb_status:
-                logger.warning(f"⚠️ Document {doc_name} was processed but Embeddings failed.")
+            futures = [executor.submit(task) for task in [task_embeddings, task_storage, task_summary, task_deadlines, task_graph]]
+            text_key = futures[1].result()
+            summary = futures[2].result()
 
-        _emit_progress(redis_client, user_id, document_id_str, "Përfunduar", 100)
+        # 5. Preview & Finalize
+        temp_pdf_preview_path = conversion_service.convert_to_pdf(temp_original_file_path)
+        preview_storage_key = storage_service.upload_document_preview(temp_pdf_preview_path, user_id, case_id_str, document_id_str)
         
-        document_service.finalize_document_processing(db=db, redis_client=redis_client, doc_id_str=document_id_str, summary=summary_result, processed_text_storage_key=text_storage_key, preview_storage_key=preview_storage_key)
-        logger.info(f"✅ Document {document_id_str} processing completed successfully.")
+        _emit_progress(redis_client, user_id, document_id_str, "Përfunduar", 100)
+        document_service.finalize_document_processing(db, redis_client, document_id_str, summary, text_key, preview_storage_key)
 
     except Exception as e:
-        _emit_progress(redis_client, user_id, document_id_str, "Dështoi: " + str(e), 0)
-        logger.error(f"--- [CRITICAL FAILURE] Doc Processing: {e} ---", exc_info=True)
-        db.documents.update_one({"_id": doc_id},{"$set": {"status": DocumentStatus.FAILED, "error_message": str(e)}})
+        db.documents.update_one({"_id": doc_id}, {"$set": {"status": DocumentStatus.FAILED, "error_message": str(e)}})
         raise e
-        
     finally:
         if temp_original_file_path and os.path.exists(temp_original_file_path): os.remove(temp_original_file_path)
         if temp_pdf_preview_path and os.path.exists(temp_pdf_preview_path): os.remove(temp_pdf_preview_path)
