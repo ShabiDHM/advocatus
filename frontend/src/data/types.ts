@@ -1,14 +1,11 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V23.1
-// 1. INTEGRATED: Risk Radar (LEVEL_1_PREKLUZIV) logic for Malpractice prevention.
-// 2. RESTORED: All Forensic, Financial, and Deep Case Analysis interfaces.
-// 3. HARDENED: Unified identity fields with 'full_name' and 'RiskAlert' arrays.
-
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V27.0
+// MANDATE: Absolute restoration of all historical and new features.
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
-// --- USER & AUTHENTICATION ---
+// --- 1. USER & AUTHENTICATION ---
 export interface User { 
     id: string; 
     email: string; 
@@ -19,6 +16,7 @@ export interface User {
     status: 'active' | 'inactive'; 
     created_at: string; 
     token?: string; 
+    last_login?: string;
     
     // SaaS Matrix
     account_type: AccountType;
@@ -43,11 +41,14 @@ export interface UpdateUserRequest {
     account_type?: AccountType;
     subscription_tier?: SubscriptionTier;
     product_plan?: ProductPlan;
+    // PHOENIX RESTORED: Required for Admin Panel lifecycle management
+    subscription_status?: string; 
+    subscription_expiry?: string; 
 }
 
 export interface AcceptInviteRequest { token: string; username: string; password: string; }
 
-// --- THE GUARDIAN: RISK RADAR ---
+// --- 2. THE GUARDIAN (RISK RADAR) ---
 export interface RiskAlert {
     id: string;
     title: string;
@@ -65,7 +66,40 @@ export interface BriefingResponse {
     risk_radar: RiskAlert[];
 }
 
-// --- CASE MANAGEMENT & ANALYSIS ---
+// --- 3. BUSINESS & PROFILE ---
+export interface BusinessProfile { 
+    id: string; 
+    firm_name: string; 
+    address?: string; 
+    city?: string; 
+    phone?: string; 
+    email_public?: string; 
+    website?: string; 
+    tax_id?: string; 
+    branding_color: string; 
+    logo_url?: string; 
+    is_complete: boolean; 
+    vat_rate?: number; 
+    target_margin?: number; 
+    currency?: string; 
+}
+
+export interface BusinessProfileUpdate { 
+    firm_name?: string; 
+    // PHOENIX RESTORED: Required for ProfileTab component
+    address?: string; 
+    city?: string;    
+    phone?: string; 
+    email_public?: string; 
+    website?: string; 
+    tax_id?: string;  
+    branding_color?: string; 
+    vat_rate?: number; 
+    target_margin?: number; 
+    currency?: string; 
+}
+
+// --- 4. CASE MANAGEMENT & LEGAL ANALYSIS ---
 export interface Case { 
     id: string; 
     case_number: string; 
@@ -97,6 +131,22 @@ export interface CreateCaseRequest {
     status?: string; 
 }
 
+export interface CaseAnalysisResult { 
+    summary?: string; 
+    key_issues?: string[]; 
+    legal_basis?: string[]; 
+    strategic_analysis?: string; 
+    weaknesses?: string[]; 
+    action_plan?: string[]; 
+    risk_level?: string; 
+    red_flags?: string[]; 
+    contradictions?: string[]; 
+    chronology?: ChronologyEvent[]; 
+    // PHOENIX RESTORED: Error feedback for UI
+    error?: string; 
+}
+
+// --- 5. DOCUMENTS & ARCHIVE ---
 export interface Document { 
     id: string; 
     file_name: string; 
@@ -122,7 +172,22 @@ export interface DeletedDocumentResponse {
     deletedFindingIds: string[]; 
 }
 
-// --- CALENDAR & LEGAL TRIAGE ---
+export interface ArchiveItemOut { 
+    id: string; 
+    title: string; 
+    file_type: string; 
+    category: string; 
+    storage_key: string; 
+    file_size: number; 
+    created_at: string; 
+    case_id?: string; 
+    parent_id?: string; 
+    item_type?: 'FILE' | 'FOLDER'; 
+    is_shared?: boolean; 
+    indexing_status?: 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED'; 
+}
+
+// --- 6. CALENDAR & DEADLINES ---
 export interface CalendarEvent { 
     id: string; 
     title: string; 
@@ -139,7 +204,7 @@ export interface CalendarEvent {
     priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; 
     attendees?: string[]; 
     is_public?: boolean;
-    // Intelligence injection
+    // Intelligence metrics
     working_days_remaining?: number;
     risk_level?: string;
     effective_deadline?: string;
@@ -160,7 +225,7 @@ export interface CalendarEventCreateRequest {
     attendees?: string[]; 
 }
 
-// --- FINANCE & FORENSIC MODULES ---
+// --- 7. FINANCE & ANALYTICS ---
 export interface InvoiceItem { description: string; quantity: number; unit_price: number; total: number; }
 
 export interface Invoice { 
@@ -217,15 +282,22 @@ export interface CaseFinancialSummary {
     net_balance: number; 
 }
 
+export interface TopProductItem { 
+    product_name: string; 
+    total_quantity: number; 
+    total_revenue: number; 
+}
+
 export interface AnalyticsDashboardData { 
     total_revenue_period: number; 
     total_transactions_period: number; 
     sales_trend: Array<{ date: string; amount: number }>; 
-    top_products: Array<{ product_name: string; total_quantity: number; total_revenue: number }>; 
+    // PHOENIX RESTORED: Required for Finance module
+    top_products: TopProductItem[]; 
     total_profit_period?: number; 
 }
 
-// --- FORENSIC ANALYSIS ---
+// --- 8. FORENSIC ANALYSIS ---
 export interface EnhancedAnomaly {
     date: string;
     amount: number;
@@ -251,11 +323,12 @@ export interface SpreadsheetAnalysisResult {
     charts: any[]; 
     anomalies: EnhancedAnomaly[]; 
     key_statistics: Record<string, string | number>; 
+    preview_rows?: Record<string, any>[]; 
     processed_at: string; 
     forensic_metadata?: ForensicMetadata;
 }
 
-// --- LEGAL STRATEGY & WAR ROOM ---
+// --- 9. LEGAL STRATEGY (WAR ROOM) ---
 export interface ChronologyEvent { date: string; event: string; source_doc?: string; source?: string; }
 
 export interface AdversarialSimulation { 
@@ -279,20 +352,7 @@ export interface DeepAnalysisResult {
     error?: string; 
 }
 
-export interface CaseAnalysisResult { 
-    summary?: string; 
-    key_issues?: string[]; 
-    legal_basis?: string[]; 
-    strategic_analysis?: string; 
-    weaknesses?: string[]; 
-    action_plan?: string[]; 
-    risk_level?: string; 
-    red_flags?: string[]; 
-    contradictions?: string[]; 
-    chronology?: ChronologyEvent[]; 
-}
-
-// --- ORGANIZATION & SaaS ---
+// --- 10. ORGANIZATIONS & SaaS ---
 export interface Organization { 
     id: string; 
     name: string; 
@@ -304,24 +364,38 @@ export interface Organization {
     seat_limit: number; 
     seat_count: number; 
     created_at: string; 
+    owner_email?: string; 
 }
 
-export interface SubscriptionUpdate { status: string; expiry_date?: string; plan_tier?: string; }
-export interface PromoteRequest { firm_name: string; plan_tier: string; }
+export interface SubscriptionUpdate { 
+    status: string; 
+    expiry_date?: string; 
+    plan_tier?: string; 
+}
 
-// --- CHAT & DRAFTING ---
-export interface ChatMessage { role: 'user' | 'ai'; content: string; timestamp: string; }
-export interface CreateDraftingJobRequest { user_prompt: string; template_id?: string; case_id?: string; context?: string; draft_type?: string; }
-export type DraftingJobStatus = { job_id: string; status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; error?: string; };
-export type DraftingJobResult = { document_text: string; document_html?: string; result_text?: string; job_id?: string; };
-
-export interface BusinessProfile { 
-    id: string; 
+export interface PromoteRequest { 
     firm_name: string; 
-    address?: string; 
-    branding_color: string; 
-    logo_url?: string; 
-    is_complete: boolean; 
+    plan_tier: string; 
 }
 
-export interface BusinessProfileUpdate { firm_name?: string; branding_color?: string; }
+// --- 11. CHAT & DRAFTING ---
+export interface ChatMessage { role: 'user' | 'ai'; content: string; timestamp: string; }
+
+export interface CreateDraftingJobRequest { 
+    user_prompt: string; 
+    template_id?: string; 
+    case_id?: string; 
+    context?: string; 
+    draft_type?: string; 
+    // PHOENIX RESTORED: Required by Drafting module
+    document_type?: string; 
+    use_library?: boolean; 
+}
+
+export type DraftingJobStatus = { job_id: string; status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; error?: string; result_summary?: string; };
+export type DraftingJobResult = { document_text: string; document_html?: string; result_text?: string; job_id?: string; status?: string; };
+
+// --- 12. KNOWLEDGE GRAPH ---
+export interface GraphNode { id: string; name: string; group: string; val: number; }
+export interface GraphLink { source: string; target: string; label: string; }
+export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
