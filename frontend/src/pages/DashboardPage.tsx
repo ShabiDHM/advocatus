@@ -1,15 +1,15 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V25.0 (REAL-TIME RISK RADAR)
-// 1. FIX: Integrated 'now' state into countdown calculation to resolve TS6133.
-// 2. FEAT: Implemented dynamic ticking for Risk Radar (seconds decrease in real-time).
-// 3. CLEANUP: Synchronized with restored types and removed unused declarations.
+// PHOENIX PROTOCOL - DASHBOARD V26.0 (DELETE CASE FIX)
+// 1. FIX: Implemented robust 'handleDeleteCase' function to correctly call apiService.deleteCase.
+// 2. LOGIC: Ensures case is deleted from backend BEFORE reloading the data.
+// 3. UI: Added confirmation dialog for deletion to prevent accidental data loss.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
   Plus, Loader2, AlertTriangle, CheckCircle2, ShieldAlert, 
-  PartyPopper, Coffee, Quote as QuoteIcon, Timer
-} from 'lucide-react';
+  PartyPopper, Coffee, Quote as QuoteIcon, Timer, Trash2
+} from 'lucide-react'; // Added Trash2 for potential confirmation modal
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest, CalendarEvent, BriefingResponse, RiskAlert } from '../data/types'; 
 import CaseCard from '../components/CaseCard';
@@ -29,9 +29,12 @@ const DashboardPage: React.FC = () => {
   const [briefing, setBriefing] = useState<BriefingResponse | null>(null);
   const [newCaseData, setNewCaseData] = useState({ title: '', clientName: '', clientEmail: '', clientPhone: '' });
   
-  // PHOENIX: Real-time clock to drive the Risk Radar ticks
   const [now, setNow] = useState<number>(Date.now());
   const [fetchTimestamp, setFetchTimestamp] = useState<number>(Date.now());
+
+  // PHOENIX: State for deletion confirmation
+  const [caseToDeleteId, setCaseToDeleteId] = useState<string | null>(null);
+  const [isDeletingCase, setIsDeletingCase] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -39,7 +42,6 @@ const DashboardPage: React.FC = () => {
   }, []);
 
   const formatCountdown = (initialSeconds: number) => {
-    // Calculate elapsed time since the data was fetched
     const elapsedSeconds = Math.floor((now - fetchTimestamp) / 1000);
     const remaining = initialSeconds - elapsedSeconds;
 
@@ -75,7 +77,7 @@ const DashboardPage: React.FC = () => {
       
       setCases(cData);
       setBriefing(bData);
-      setFetchTimestamp(Date.now()); // Mark the exact time data was received
+      setFetchTimestamp(Date.now());
 
       if (!hasCheckedBriefing.current && eData.length > 0) {
         const today = new Date();
@@ -113,6 +115,26 @@ const DashboardPage: React.FC = () => {
       alert(t('error.generic') as string);
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  // PHOENIX: Corrected onDelete handler for CaseCard
+  const handleDeleteCase = (caseId: string) => {
+    setCaseToDeleteId(caseId); // Open confirmation modal
+  };
+
+  const confirmDeleteCase = async () => {
+    if (!caseToDeleteId) return;
+    setIsDeletingCase(true);
+    try {
+      await apiService.deleteCase(caseToDeleteId);
+      await loadData(); // Reload data after successful deletion
+      setCaseToDeleteId(null);
+    } catch (error) {
+      console.error("Failed to delete case:", error);
+      alert(t('error.caseDeleteFailed') || 'Dështoi fshirja e rastit.');
+    } finally {
+      setIsDeletingCase(false);
     }
   };
 
@@ -209,7 +231,7 @@ const DashboardPage: React.FC = () => {
       ) : (
         <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 pb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {cases.map((c) => (<CaseCard key={c.id} caseData={c} onDelete={() => loadData()} />))}
+            {cases.map((c) => (<CaseCard key={c.id} caseData={c} onDelete={handleDeleteCase} />))}
           </div>
         </div>
       )}
@@ -236,6 +258,40 @@ const DashboardPage: React.FC = () => {
           </motion.div>
         </div>
       )}
+
+      {/* PHOENIX: Delete Confirmation Modal */}
+      {caseToDeleteId && (
+        <div className="fixed inset-0 bg-background-dark/90 backdrop-blur-xl flex items-center justify-center z-[110] p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }} 
+            animate={{ opacity: 1, scale: 1 }} 
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="glass-high w-full max-w-md p-8 rounded-3xl shadow-2xl text-center"
+          >
+            <Trash2 className="h-12 w-12 text-red-500 mx-auto mb-6" />
+            <h2 className="text-2xl font-bold text-white mb-4">{t('caseDelete.confirmTitle', 'Fshij Rastin?')}</h2>
+            <p className="text-text-secondary mb-8">{t('caseDelete.confirmMessage', 'Kjo veprim nuk mund të anulohet. Jeni i sigurt?')}</p>
+            <div className="flex justify-center gap-4">
+              <button 
+                type="button" 
+                onClick={() => setCaseToDeleteId(null)} 
+                className="px-6 py-2 font-bold text-white/60 hover:text-white transition-all rounded-xl"
+              >
+                {t('general.cancel', 'Anulo')}
+              </button>
+              <button 
+                type="button" 
+                onClick={confirmDeleteCase} 
+                disabled={isDeletingCase}
+                className="px-8 py-3 rounded-2xl bg-red-600 text-white font-black shadow-xl flex items-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDeletingCase ? <Loader2 className="animate-spin h-5 w-5" /> : t('general.delete', 'Fshij')}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       <DayEventsModal isOpen={isBriefingOpen} onClose={() => setIsBriefingOpen(false)} date={new Date()} events={todaysEvents} t={t} onAddEvent={() => { setIsBriefingOpen(false); window.location.href = '/calendar'; }} />
     </div>
   );

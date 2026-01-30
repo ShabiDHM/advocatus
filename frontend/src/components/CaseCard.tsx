@@ -1,16 +1,15 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - CASE CARD V5.2 (LOCALIZATION FIX)
-// 1. LOCALE: Changed incorrect translation key 'portal.client_label' to 'caseCard.clientLabel'.
-// 2. CLEANUP: Removed the unnecessary fallback text now that the key is guaranteed to exist.
+// PHOENIX PROTOCOL - CASE CARD V6.0 (SEMANTIC FIX)
+// 1. FIX: Removed invalid <button> inside <a> nesting. The card is now a <div>.
+// 2. LOGIC: Navigation is handled via onClick on the container, ignored if the delete button is clicked.
+// 3. UI: Preserved all hover effects and animations while fixing the interaction model.
 
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Case } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { Trash2, FileText, AlertTriangle, CalendarDays, User, Mail, Phone } from 'lucide-react';
-
-const MotionLink = motion(Link);
 
 interface CaseCardProps {
   caseData: Case;
@@ -21,14 +20,16 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
+  const handleCardClick = () => {
+    navigate(`/cases/${caseData.id}`);
+  };
+
   const handleDeleteClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.stopPropagation(); // Stop event from triggering the card navigation
     onDelete(caseData.id);
   };
 
   const handleCalendarNav = (e: React.MouseEvent) => {
-    e.preventDefault();
     e.stopPropagation();
     navigate('/calendar');
   };
@@ -43,13 +44,13 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
   const displayTitle = hasTitle ? caseData.title : (t('caseView.unnamedCase') || 'Rast pa Emër');
 
   return (
-    <MotionLink 
-      to={`/cases/${caseData.id}`}
-      className="glass-panel group relative flex flex-col justify-between h-full p-6 rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
-      whileTap={{ scale: 0.98 }}
+    <motion.div 
+      onClick={handleCardClick}
+      className="glass-panel group relative flex flex-col justify-between h-full p-6 rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
+      whileTap={{ scale: 0.99 }}
     >
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-primary-start/5 to-secondary-end/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
 
@@ -75,13 +76,12 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         <div className="flex flex-col mb-6 relative z-10">
           <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
              <User className="w-3.5 h-3.5 text-primary-start" />
-             {/* PHOENIX FIX: Corrected translation key */}
-             <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">{t('caseCard.clientLabel')}</span>
+             <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">{t('caseCard.clientLabel', 'Klienti')}</span>
           </div>
           
           <div className="space-y-1.5 pl-1">
               <p className="text-base font-medium text-white truncate">
-                {caseData.client?.name || t('general.notAvailable')}
+                {caseData.client?.name || t('general.notAvailable', 'N/A')}
               </p>
               
               {caseData.client?.email && (
@@ -101,7 +101,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
       </div>
       
       <div className="relative z-10">
-        {/* Statistics Section - Interactive Icons */}
+        {/* Statistics Section */}
         <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-2">
           
           <div className="flex items-center gap-4">
@@ -135,22 +135,22 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
 
         {/* Footer: Actions */}
         <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-          <span className="text-sm font-bold text-primary-start group-hover:text-primary-end transition-colors flex items-center gap-1 cursor-pointer">
-            {t('general.view')} {t('archive.details')} 
+          <span className="text-sm font-bold text-primary-start group-hover:text-primary-end transition-colors flex items-center gap-1">
+            {t('general.view', 'Shiko')} {t('archive.details', 'Detajet')} 
           </span>
           
           <motion.button
             onClick={handleDeleteClick}
-            className="p-2 -mr-2 rounded-lg text-text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            className="p-2 -mr-2 rounded-lg text-text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors z-20 relative"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            title={t('general.delete')}
+            title={t('general.delete', 'Fshij')}
           >
             <Trash2 className="h-4 w-4" />
           </motion.button>
         </div>
       </div>
-    </MotionLink>
+    </motion.div>
   );
 };
 
