@@ -1,8 +1,5 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# PHOENIX PROTOCOL - CALENDAR API V4.1 (FORMATTING PATCH)
-# 1. FIX: Applied .title() to display_name to ensure proper capitalization in greetings.
-# 2. ALIGN: Maintained i18n-ready BriefingResponse and parameter synchronization.
-
+# PHOENIX PROTOCOL - CALENDAR API V4.2 (INTERFACE SYNC)
 from fastapi import APIRouter, Depends, status, HTTPException, Response
 from typing import List, Dict, Any
 from bson import ObjectId
@@ -18,7 +15,6 @@ from app.models.user import UserInDB
 
 router = APIRouter()
 
-# Pydantic Model for Intelligent Briefing
 class BriefingResponse(BaseModel):
     count: int
     greeting_key: str
@@ -31,22 +27,17 @@ async def get_alerts_briefing(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    """
-    Returns a personalized i18n-ready 'Kujdestari' briefing.
-    Title cases the name regardless of how it was stored in the DB.
-    """
+    """Returns the intelligent Guardian briefing."""
     count = await asyncio.to_thread(
         calendar_service.get_upcoming_alerts_count, 
         db=db, 
         user_id=current_user.id
     )
-    
-    # PHOENIX FIX: Ensure name is always capitalized correctly (e.g. Shaban Bala)
-    raw_name = current_user.full_name if current_user.full_name else current_user.username
-    display_name = raw_name.title()
-    
-    briefing_data = calendar_service.generate_briefing(display_name, count)
-    
+    # Service now handles Title Case internally
+    briefing_data = calendar_service.generate_briefing(
+        current_user.full_name or current_user.username, 
+        count
+    )
     return BriefingResponse(
         count=count,
         greeting_key=briefing_data["greeting_key"],
@@ -68,7 +59,13 @@ async def create_new_event(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    return await asyncio.to_thread(calendar_service.create_event, db=db, event_data=event_data, user_id=current_user.id)
+    """Synchronized call to calendar_service.create_event."""
+    return await asyncio.to_thread(
+        calendar_service.create_event, 
+        db=db, 
+        event_data=event_data, 
+        user_id=current_user.id
+    )
 
 @router.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_event(
@@ -76,9 +73,16 @@ async def delete_user_event(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
+    """Synchronized call to calendar_service.delete_event."""
     try:
         object_id = ObjectId(event_id)
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid event ID")
-    await asyncio.to_thread(calendar_service.delete_event, db=db, event_id=object_id, user_id=current_user.id)
+    
+    await asyncio.to_thread(
+        calendar_service.delete_event, 
+        db=db, 
+        event_id=object_id, 
+        user_id=current_user.id
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
