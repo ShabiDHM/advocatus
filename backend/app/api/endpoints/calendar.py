@@ -1,21 +1,14 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# PHOENIX PROTOCOL - CALENDAR API V3.1 (SYNC REPAIR)
-# 1. FIX: Removed 'get_async_db' import (caused ImportError).
-# 2. FIX: Replaced with 'get_db' and 'asyncio.to_thread' for stability.
-# 3. STATUS: Resolves the startup crash.
-
 from fastapi import APIRouter, Depends, status, HTTPException, Response
-from typing import List, Dict
+from typing import List, Dict, Any
 from bson import ObjectId
 from bson.errors import InvalidId
 from pydantic import BaseModel
 from pymongo.database import Database
 import asyncio
 
-# PHOENIX FIX: Import the sync service instance
 from app.services.calendar_service import calendar_service
 from app.models.calendar import CalendarEventOut, CalendarEventCreate
-# PHOENIX FIX: Import get_db instead of get_async_db
 from app.api.endpoints.dependencies import get_current_user, get_db
 from app.models.user import UserInDB
 
@@ -24,17 +17,37 @@ router = APIRouter()
 class ShareUpdateRequest(BaseModel):
     is_public: bool
 
-@router.get("/alerts", response_model=Dict[str, int])
-async def get_alerts_count(
+# PHOENIX: New response model for the intelligent briefing
+class BriefingResponse(BaseModel):
+    count: int
+    greeting: str
+    message: str
+    status: str
+
+@router.get("/alerts", response_model=BriefingResponse)
+async def get_alerts_briefing(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
     """
-    Returns the number of upcoming urgent events (next 7 days).
+    Returns a personalized 'Kujdestari' briefing.
+    Includes count, greeting, and context-aware status message.
     """
-    # Run sync service in thread to not block the loop
+    # 1. Get the raw count
     count = await asyncio.to_thread(calendar_service.get_upcoming_alerts_count, db=db, user_id=current_user.id)
-    return {"count": count}
+    
+    # 2. Generate the Persona message
+    # We use user.full_name if available, otherwise email or generic
+    user_name = current_user.full_name if current_user.full_name else "Avokat"
+    briefing_data = calendar_service.generate_briefing(user_name, count)
+    
+    # 3. Return combined data
+    return BriefingResponse(
+        count=count,
+        greeting=briefing_data["greeting"],
+        message=briefing_data["message"],
+        status=briefing_data["status"]
+    )
 
 @router.post("/events", response_model=CalendarEventOut, status_code=status.HTTP_201_CREATED)
 async def create_new_event(
@@ -42,9 +55,6 @@ async def create_new_event(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    """
-    Creates a new calendar event.
-    """
     return await asyncio.to_thread(calendar_service.create_event, db=db, event_data=event_data, user_id=current_user.id)
 
 @router.put("/events/{event_id}/share", status_code=status.HTTP_200_OK)
@@ -54,9 +64,6 @@ async def update_event_share_status(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    """
-    Toggles the public visibility of an existing calendar event.
-    """
     try:
         object_id = ObjectId(event_id)
     except InvalidId:
@@ -64,7 +71,6 @@ async def update_event_share_status(
 
     collection = db["calendar_events"]
 
-    # Sync DB call inside thread
     def _update():
         event = collection.find_one({"_id": object_id, "user_id": current_user.id})
         if not event:

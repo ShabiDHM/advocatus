@@ -1,4 +1,3 @@
-
 {
   "general": {
     "login": "Hyrja",
@@ -36,8 +35,39 @@
     "stricken": "Hequr",
     "saving": "Duke u ruajtur..."
   },
+  "briefing": {
+    "kujdestari_title": "Kujdestari Ditor",
+    "view_calendar": "Shiko Kalendarin",
+    "greetings": {
+      "morning": "Mirëmëngjes, {{name}}.",
+      "afternoon": "Mirëdita, {{name}}.",
+      "evening": "Mirëmbrëma, {{name}}.",
+      "holiday_greet": "Gëzuar {{holiday_name}}, {{name}}!"
+    },
+    "messages": {
+      "holiday_msg": "Sot është festë zyrtare. Shpresoj të jeni duke pushuar.",
+      "weekend_msg": "Sot është e shtunë. Shijoni fundjavën!",
+      "sunday_msg": "E diel e qetë. Bëhuni gati për javën e re.",
+      "work_optimal_msg": "Statusi Optimal: Nuk ka urgjenca për 7 ditët e ardhshme.",
+      "work_warning_msg": "Kujdes: Keni {{count}} afate që kërkojnë vëmendje së shpejti.",
+      "work_critical_msg": "ALARM: Keni {{count}} afate kritike. Kontrolloni kalendarin tani!"
+    }
+  },
+  "holidays": {
+    "new_year": "Vitin e Ri",
+    "independence_day": "Ditën e Pavarësisë",
+    "fiter_bajram": "Fitër Bajramin",
+    "kurban_bajram": "Kurban Bajramin",
+    "orthodox_christmas": "Krishtlindjet Ortodokse",
+    "constitution_day": "Ditën e Kushtetutës",
+    "catholic_easter": "Pashkët Katolike",
+    "orthodox_easter": "Pashkët Ortodokse",
+    "labor_day": "Ditën e Punëtorëve",
+    "europe_day": "Ditën e Evropës",
+    "catholic_christmas": "Krishtlindjet Katolike"
+  },
   "adminBriefing": {
-   "title": "Kujdestari",
+    "title": "Kujdestari",
     "viewCalendar": "Shiko Kalendarin",
     "insight": {
       "optimal": "Statusi Optimal: Nuk ka urgjenca."

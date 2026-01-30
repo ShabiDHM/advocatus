@@ -1,8 +1,7 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - USER MODEL V8.0 (SUBSCRIPTION MATRIX)
-# 1. ADDED: Enums for AccountType (SOLO/ORGANIZATION) and SubscriptionTier (BASIC/PRO).
-# 2. REFACTORED: Replaced ambiguous 'plan_tier' string with clear, decoupled fields.
-# 3. ENHANCED: Plan limits are now tied to a ProductPlan Enum for robust quota management.
+# PHOENIX PROTOCOL - USER MODEL V8.1 (IDENTITY PATCH)
+# 1. FIX: Added 'full_name' to UserBase to resolve Pylance error in Calendar API.
+# 2. FEAT: Added 'full_name' to UserUpdate to allow profile personalization.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional, Dict, Any
@@ -28,6 +27,8 @@ class ProductPlan(str, Enum):
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
+    # PHOENIX FIX: Added for personalized "Kujdestari" greetings
+    full_name: Optional[str] = Field(None, max_length=100) 
     role: str = "STANDARD" # System-level role: ADMIN, STANDARD
     
     # Organization Context
@@ -55,6 +56,7 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[EmailStr] = None
+    full_name: Optional[str] = None # PHOENIX FIX: Allow updating name
     role: Optional[str] = None
     
     org_id: Optional[PyObjectId] = None

@@ -1,8 +1,4 @@
 # FILE: backend/app/models/calendar.py
-# PHOENIX PROTOCOL - MODEL ALIGNMENT V5.7 (FINANCIAL EVENT TYPE)
-# 1. FEATURE: Added 'PAYMENT' to EventType Enum.
-# 2. RESULT: Allows proper categorization of dates from financial documents.
-
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional, List
 from datetime import datetime
@@ -18,7 +14,7 @@ class EventType(str, Enum):
     FILING = "FILING"
     COURT_DATE = "COURT_DATE"
     CONSULTATION = "CONSULTATION"
-    PAYMENT = "PAYMENT" # PHOENIX: Added for financial documents
+    PAYMENT = "PAYMENT"
     OTHER = "OTHER"
 
 class EventPriority(str, Enum):
@@ -69,10 +65,15 @@ class CalendarEventInDB(CalendarEventBase):
     case_id: str 
     document_id: Optional[str] = None 
     status: EventStatus = EventStatus.PENDING
+    is_public: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
     model_config = ConfigDict(populate_by_name=True)
 
 class CalendarEventOut(CalendarEventInDB):
-    pass
+    # PHOENIX: These fields carry the Kujdestari Intelligence
+    working_days_remaining: Optional[int] = Field(None, description="Working days left until effective deadline")
+    severity: Optional[str] = Field(None, description="Urgency level based on keywords (PREKLUZIV/GJYQESOR)")
+    effective_deadline: Optional[datetime] = Field(None, description="The legal deadline after holiday shifts")
+    is_extended: bool = Field(False, description="True if deadline was shifted due to holiday/weekend")

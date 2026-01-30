@@ -1,9 +1,5 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V17.0 (FULL HYDRA & STREAMING)
-// 1. ADDED: 'draftLegalDocumentStream' for real-time document generation.
-// 2. RETAINED: 'sendChatMessageStream' for real-time chat.
-// 3. INTEGRITY: Preserved all Forensic, Finance, and Case management orchestration logic.
-
+// PHOENIX PROTOCOL - API SERVICE V18.0 (KUJDESTARI PERSONA & STREAMING)
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
     LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, User, UpdateUserRequest,
@@ -11,7 +7,8 @@ import type {
     DraftingJobStatus, DraftingJobResult, ChangePasswordRequest, CaseAnalysisResult, DeepAnalysisResult,
     BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest, InvoiceItem,
     GraphData, ArchiveItemOut, CaseFinancialSummary, AnalyticsDashboardData, Expense, ExpenseCreateRequest, ExpenseUpdate,
-    SpreadsheetAnalysisResult, Organization, AcceptInviteRequest, SubscriptionUpdate, PromoteRequest
+    SpreadsheetAnalysisResult, Organization, AcceptInviteRequest, SubscriptionUpdate, PromoteRequest,
+    BriefingResponse
 } from '../data/types';
 
 export interface AuditIssue { id: string; severity: 'CRITICAL' | 'WARNING'; message: string; related_item_id?: string; item_type?: 'INVOICE' | 'EXPENSE'; }
@@ -314,13 +311,30 @@ class ApiService {
         try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
     }
 
-    // --- REMAINING METHODS ---
+    // --- CALENDAR & BRIEFING (PHOENIX UPDATED) ---
+
+    public async getCalendarEvents(): Promise<CalendarEvent[]> { 
+        const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events'); 
+        return response.data; 
+    }
+
+    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { 
+        const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); 
+        return response.data; 
+    }
+
+    public async getBriefing(): Promise<BriefingResponse> { 
+        const response = await this.axiosInstance.get<BriefingResponse>('/calendar/alerts'); 
+        return response.data; 
+    }
+
+    public async getAlertsCount(): Promise<{ count: number }> { 
+        const response = await this.getBriefing();
+        return { count: response.count };
+    }
 
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
-    public async getCalendarEvents(): Promise<CalendarEvent[]> { const response = await this.axiosInstance.get<any>('/calendar/events'); return Array.isArray(response.data) ? response.data : (response.data.events || []); }
-    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); return response.data; }
     public async deleteCalendarEvent(eventId: string): Promise<void> { await this.axiosInstance.delete(`/calendar/events/${eventId}`); }
-    public async getAlertsCount(): Promise<{ count: number }> { const response = await this.axiosInstance.get<{ count: number }>('/calendar/alerts'); return response.data; }
     public async sendContactForm(data: { firstName: string; lastName: string; email: string; phone: string; message: string }): Promise<void> { await this.axiosInstance.post('/support/contact', { first_name: data.firstName, last_name: data.lastName, email: data.email, phone: data.phone, message: data.message }); }
     public async getWebSocketUrl(_caseId: string): Promise<string> { return ""; }
     public async register(data: RegisterRequest): Promise<void> { await this.axiosInstance.post('/auth/register', data); }
