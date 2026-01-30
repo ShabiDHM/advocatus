@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# PHOENIX PROTOCOL - CALENDAR API V4.2 (INTERFACE SYNC)
+# PHOENIX PROTOCOL - CALENDAR API V5.0 (RISK RADAR SYNC)
 from fastapi import APIRouter, Depends, status, HTTPException, Response
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from bson import ObjectId
 from bson.errors import InvalidId
 from pydantic import BaseModel
@@ -15,36 +15,38 @@ from app.models.user import UserInDB
 
 router = APIRouter()
 
+class RiskAlert(BaseModel):
+    id: str
+    title: str
+    level: str
+    seconds_remaining: int
+    effective_deadline: str
+
 class BriefingResponse(BaseModel):
     count: int
     greeting_key: str
     message_key: str
     status: str
     data: Dict[str, Any]
+    risk_radar: List[RiskAlert] # PHOENIX: The High-Severity Queue
 
 @router.get("/alerts", response_model=BriefingResponse)
 async def get_alerts_briefing(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    """Returns the intelligent Guardian briefing."""
-    count = await asyncio.to_thread(
-        calendar_service.get_upcoming_alerts_count, 
-        db=db, 
-        user_id=current_user.id
+    """Returns the intelligent Guardian briefing with Risk Radar."""
+    display_name = current_user.full_name or current_user.username
+    
+    # Passing the DB directly to allow internal event fetching
+    briefing_data = await asyncio.to_thread(
+        calendar_service.generate_briefing,
+        db=db,
+        user_id=current_user.id,
+        user_name=display_name
     )
-    # Service now handles Title Case internally
-    briefing_data = calendar_service.generate_briefing(
-        current_user.full_name or current_user.username, 
-        count
-    )
-    return BriefingResponse(
-        count=count,
-        greeting_key=briefing_data["greeting_key"],
-        message_key=briefing_data["message_key"],
-        status=briefing_data["status"],
-        data=briefing_data["data"]
-    )
+    
+    return BriefingResponse(**briefing_data)
 
 @router.get("/events", response_model=List[CalendarEventOut])
 async def get_all_user_events(
@@ -59,13 +61,7 @@ async def create_new_event(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    """Synchronized call to calendar_service.create_event."""
-    return await asyncio.to_thread(
-        calendar_service.create_event, 
-        db=db, 
-        event_data=event_data, 
-        user_id=current_user.id
-    )
+    return await asyncio.to_thread(calendar_service.create_event, db=db, event_data=event_data, user_id=current_user.id)
 
 @router.delete("/events/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user_event(
@@ -73,16 +69,9 @@ async def delete_user_event(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    """Synchronized call to calendar_service.delete_event."""
     try:
         object_id = ObjectId(event_id)
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid event ID")
-    
-    await asyncio.to_thread(
-        calendar_service.delete_event, 
-        db=db, 
-        event_id=object_id, 
-        user_id=current_user.id
-    )
+    await asyncio.to_thread(calendar_service.delete_event, db=db, event_id=object_id, user_id=current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

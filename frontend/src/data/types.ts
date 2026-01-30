@@ -1,10 +1,14 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL ARCHITECTURAL RESTORATION V22.0
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V23.1
+// 1. INTEGRATED: Risk Radar (LEVEL_1_PREKLUZIV) logic for Malpractice prevention.
+// 2. RESTORED: All Forensic, Financial, and Deep Case Analysis interfaces.
+// 3. HARDENED: Unified identity fields with 'full_name' and 'RiskAlert' arrays.
+
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
 
-// --- USER & AUTH ---
+// --- USER & AUTHENTICATION ---
 export interface User { 
     id: string; 
     email: string; 
@@ -15,15 +19,16 @@ export interface User {
     status: 'active' | 'inactive'; 
     created_at: string; 
     token?: string; 
+    
+    // SaaS Matrix
     account_type: AccountType;
     subscription_tier: SubscriptionTier;
     product_plan: ProductPlan;
     subscription_status?: string; 
     subscription_expiry?: string; 
+    
     business_profile?: BusinessProfile; 
 }
-
-export type AdminUser = User;
 
 export interface LoginRequest { username: string; password: string; }
 export interface RegisterRequest { email: string; password: string; username: string; }
@@ -38,71 +43,29 @@ export interface UpdateUserRequest {
     account_type?: AccountType;
     subscription_tier?: SubscriptionTier;
     product_plan?: ProductPlan;
-    subscription_status?: string; 
-    subscription_expiry?: string; 
 }
 
 export interface AcceptInviteRequest { token: string; username: string; password: string; }
 
-// --- SaaS MANAGEMENT ---
-export interface SubscriptionUpdate {
-    status: string;
-    expiry_date?: string; 
-    plan_tier?: string; 
+// --- THE GUARDIAN: RISK RADAR ---
+export interface RiskAlert {
+    id: string;
+    title: string;
+    level: 'LEVEL_1_PREKLUZIV' | 'LEVEL_2_GJYQESOR' | 'LEVEL_3_PROCEDURAL';
+    seconds_remaining: number;
+    effective_deadline: string;
 }
 
-export interface PromoteRequest {
-    firm_name: string;
-    plan_tier: string;
-}
-
-// --- KUJDESTARI INTELLIGENCE ---
 export interface BriefingResponse {
     count: number;
     greeting_key: string; 
     message_key: string;  
     status: 'OPTIMAL' | 'HOLIDAY' | 'WEEKEND' | 'WARNING' | 'CRITICAL';
-    data: Record<string, any>; 
+    data: Record<string, any>;
+    risk_radar: RiskAlert[];
 }
 
-// --- BUSINESS PROFILE ---
-export interface BusinessProfile { 
-    id: string; 
-    firm_name: string; 
-    address?: string; 
-    city?: string; 
-    phone?: string; 
-    email_public?: string; 
-    website?: string; 
-    tax_id?: string; 
-    branding_color: string; 
-    logo_url?: string; 
-    is_complete: boolean; 
-    vat_rate?: number; 
-    target_margin?: number; 
-    currency?: string; 
-}
-
-export interface BusinessProfileUpdate { 
-    firm_name?: string; 
-    address?: string; 
-    city?: string; 
-    phone?: string; 
-    email_public?: string; 
-    website?: string; 
-    tax_id?: string; 
-    branding_color?: string; 
-    vat_rate?: number; 
-    target_margin?: number; 
-    currency?: string; 
-}
-
-// --- CASE & LEGAL ASSETS ---
-export type AgentType = 'business' | 'legal';
-export type Jurisdiction = 'ks' | 'al';
-export type ChatMode = 'general' | 'document';
-export interface ChatMessage { role: 'user' | 'ai'; content: string; timestamp: string; }
-
+// --- CASE MANAGEMENT & ANALYSIS ---
 export interface Case { 
     id: string; 
     case_number: string; 
@@ -159,7 +122,7 @@ export interface DeletedDocumentResponse {
     deletedFindingIds: string[]; 
 }
 
-// --- CALENDAR & DEADLINES ---
+// --- CALENDAR & LEGAL TRIAGE ---
 export interface CalendarEvent { 
     id: string; 
     title: string; 
@@ -176,8 +139,9 @@ export interface CalendarEvent {
     priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; 
     attendees?: string[]; 
     is_public?: boolean;
+    // Intelligence injection
     working_days_remaining?: number;
-    severity?: string;
+    risk_level?: string;
     effective_deadline?: string;
     is_extended?: boolean;
 }
@@ -196,13 +160,8 @@ export interface CalendarEventCreateRequest {
     attendees?: string[]; 
 }
 
-// --- FINANCE & FORENSIC ---
-export interface InvoiceItem { 
-    description: string; 
-    quantity: number; 
-    unit_price: number; 
-    total: number; 
-}
+// --- FINANCE & FORENSIC MODULES ---
+export interface InvoiceItem { description: string; quantity: number; unit_price: number; total: number; }
 
 export interface Invoice { 
     id: string; 
@@ -246,21 +205,8 @@ export interface Expense {
     related_case_id?: string; 
 }
 
-export interface ExpenseCreateRequest { 
-    category: string; 
-    amount: number; 
-    description?: string; 
-    date?: string; 
-    related_case_id?: string; 
-}
-
-export interface ExpenseUpdate { 
-    category?: string; 
-    amount?: number; 
-    description?: string; 
-    date?: string; 
-    related_case_id?: string; 
-}
+export interface ExpenseCreateRequest { category: string; amount: number; description?: string; date?: string; related_case_id?: string; }
+export interface ExpenseUpdate { category?: string; amount?: number; description?: string; date?: string; related_case_id?: string; }
 
 export interface CaseFinancialSummary { 
     case_id: string; 
@@ -271,63 +217,45 @@ export interface CaseFinancialSummary {
     net_balance: number; 
 }
 
-export interface SalesTrendPoint { date: string; amount: number; }
-export interface TopProductItem { product_name: string; total_quantity: number; total_revenue: number; }
-
 export interface AnalyticsDashboardData { 
     total_revenue_period: number; 
     total_transactions_period: number; 
-    sales_trend: SalesTrendPoint[]; 
-    top_products: TopProductItem[]; 
+    sales_trend: Array<{ date: string; amount: number }>; 
+    top_products: Array<{ product_name: string; total_quantity: number; total_revenue: number }>; 
     total_profit_period?: number; 
 }
 
-// --- ARCHIVE & DRAFTING ---
-export interface ArchiveItemOut { 
-    id: string; 
-    title: string; 
-    file_type: string; 
-    category: string; 
-    storage_key: string; 
-    file_size: number; 
-    created_at: string; 
-    case_id?: string; 
-    parent_id?: string; 
-    item_type?: 'FILE' | 'FOLDER'; 
-    is_shared?: boolean; 
-    indexing_status?: 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED'; 
+// --- FORENSIC ANALYSIS ---
+export interface EnhancedAnomaly {
+    date: string;
+    amount: number;
+    description: string;
+    risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'CRITICAL';
+    explanation: string;
+    forensic_type?: string;
+    confidence?: number;
 }
 
-export interface CreateDraftingJobRequest { 
-    user_prompt: string; 
-    template_id?: string; 
-    case_id?: string; 
-    context?: string; 
-    draft_type?: string; 
-    document_type?: string; 
-    use_library?: boolean; 
+export interface ForensicMetadata {
+    evidence_hash: string;
+    analysis_timestamp: string;
+    record_count: number;
 }
 
-export type DraftingJobStatus = { 
-    job_id: string; 
-    status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; 
-    error?: string; 
-    result_summary?: string; 
-};
+export interface SpreadsheetAnalysisResult { 
+    file_id?: string; 
+    filename: string; 
+    record_count: number; 
+    columns: string[]; 
+    narrative_report: string; 
+    charts: any[]; 
+    anomalies: EnhancedAnomaly[]; 
+    key_statistics: Record<string, string | number>; 
+    processed_at: string; 
+    forensic_metadata?: ForensicMetadata;
+}
 
-export type DraftingJobResult = { 
-    document_text: string; 
-    document_html?: string; 
-    result_text?: string; 
-    job_id?: string; 
-    status?: string; 
-};
-
-// --- GRAPH & DEEP ANALYSIS ---
-export interface GraphNode { id: string; name: string; group: string; val: number; }
-export interface GraphLink { source: string; target: string; label: string; }
-export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
-
+// --- LEGAL STRATEGY & WAR ROOM ---
 export interface ChronologyEvent { date: string; event: string; source_doc?: string; source?: string; }
 
 export interface AdversarialSimulation { 
@@ -362,24 +290,9 @@ export interface CaseAnalysisResult {
     red_flags?: string[]; 
     contradictions?: string[]; 
     chronology?: ChronologyEvent[]; 
-    judicial_observation?: string; 
-    strategic_summary?: string; 
-    error?: string; 
 }
 
-export interface SpreadsheetAnalysisResult { 
-    file_id?: string; 
-    filename: string; 
-    record_count: number; 
-    columns: string[]; 
-    narrative_report: string; 
-    charts: any[]; 
-    anomalies: any[]; 
-    key_statistics: Record<string, string | number>; 
-    preview_rows?: Record<string, any>[]; 
-    processed_at: string; 
-}
-
+// --- ORGANIZATION & SaaS ---
 export interface Organization { 
     id: string; 
     name: string; 
@@ -391,5 +304,24 @@ export interface Organization {
     seat_limit: number; 
     seat_count: number; 
     created_at: string; 
-    owner_email?: string; 
 }
+
+export interface SubscriptionUpdate { status: string; expiry_date?: string; plan_tier?: string; }
+export interface PromoteRequest { firm_name: string; plan_tier: string; }
+
+// --- CHAT & DRAFTING ---
+export interface ChatMessage { role: 'user' | 'ai'; content: string; timestamp: string; }
+export interface CreateDraftingJobRequest { user_prompt: string; template_id?: string; case_id?: string; context?: string; draft_type?: string; }
+export type DraftingJobStatus = { job_id: string; status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; error?: string; };
+export type DraftingJobResult = { document_text: string; document_html?: string; result_text?: string; job_id?: string; };
+
+export interface BusinessProfile { 
+    id: string; 
+    firm_name: string; 
+    address?: string; 
+    branding_color: string; 
+    logo_url?: string; 
+    is_complete: boolean; 
+}
+
+export interface BusinessProfileUpdate { firm_name?: string; branding_color?: string; }
