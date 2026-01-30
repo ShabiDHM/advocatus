@@ -51,6 +51,18 @@
       "work_optimal_msg": "Statusi Optimal: Nuk ka urgjenca për 7 ditët e ardhshme.",
       "work_warning_msg": "Kujdes: Keni {{count}} afate që kërkojnë vëmendje së shpejti.",
       "work_critical_msg": "ALARM: Keni {{count}} afate kritike. Kontrolloni kalendarin tani!"
+    },
+     "quotes": {
+      "quote_1": "Drejtësia vonon por nuk harron.",
+      "quote_2": "Ligji është fuqia e të pafuqishmit.",
+      "quote_3": "Paqe pa drejtësi nuk ka.",
+      "quote_4": "Një avokat i mirë njeh ligjin; një avokat i shkëlqyer njeh të vërtetën.",
+      "quote_5": "Drejtësia mbretëron vetëm atëherë kur askush nuk është mbi ligjin.",
+      "quote_6": "Mbrojtja e të drejtës është detyra më fisnike e njeriut.",
+      "quote_7": "Ligji është arsyeja e çliruar nga pasioni.",
+      "quote_8": "Nuk ka liri pa drejtësi.",
+      "quote_9": "E vërteta është bija e kohës, jo e autoritetit.",
+      "quote_10": "Suksessi është shuma e përpjekjeve të vogla, të përsëritura ditë pas dite."
     }
   },
   "holidays": {

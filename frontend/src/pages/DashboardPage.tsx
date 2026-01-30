@@ -1,5 +1,5 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V22.0 (INTEGRATED GUARDIAN)
+// PHOENIX PROTOCOL - DASHBOARD V21.0 (WISDOM RENDERING)
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
@@ -9,7 +9,8 @@ import {
   CheckCircle2, 
   ShieldAlert, 
   PartyPopper, 
-  Coffee 
+  Coffee,
+  Quote
 } from 'lucide-react';
 import { apiService } from '../services/api';
 import { Case, CreateCaseRequest, CalendarEvent, BriefingResponse } from '../data/types'; 
@@ -20,20 +21,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const DashboardPage: React.FC = () => {
   const { t } = useTranslation();
-
   const [cases, setCases] = useState<Case[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  
   const [todaysEvents, setTodaysEvents] = useState<CalendarEvent[]>([]);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const hasCheckedBriefing = useRef<boolean>(false);
   const [briefing, setBriefing] = useState<BriefingResponse | null>(null);
 
-  const [newCaseData, setNewCaseData] = useState({ 
-    title: '', clientName: '', clientEmail: '', clientPhone: '' 
-  });
+  const [newCaseData, setNewCaseData] = useState({ title: '', clientName: '', clientEmail: '', clientPhone: '' });
 
   const getBriefingTheme = (status: string) => {
     switch (status) {
@@ -57,44 +54,23 @@ const DashboardPage: React.FC = () => {
       ]);
       setCases(casesData);
       setBriefing(briefingData);
-      
       if (!hasCheckedBriefing.current && eventsData.length > 0) {
           const today = new Date();
           const matches = eventsData.filter(e => isSameDay(parseISO(e.start_date), today));
-          if (matches.length > 0) { 
-            setTodaysEvents(matches); 
-            setIsBriefingOpen(true); 
-          }
+          if (matches.length > 0) { setTodaysEvents(matches); setIsBriefingOpen(true); }
           hasCheckedBriefing.current = true;
       }
-    } catch (error) { 
-      console.error("Dashboard Sync Failed:", error);
-    } finally { 
-      setIsLoading(false); 
-    }
+    } catch { setIsLoading(false); } finally { setIsLoading(false); }
   };
 
   const handleCreateCase = async (e: React.FormEvent) => {
-    e.preventDefault(); 
-    setIsCreating(true);
+    e.preventDefault(); setIsCreating(true);
     try {
-      const payload: CreateCaseRequest = { 
-        case_number: `R-${Date.now().toString().slice(-6)}`, 
-        title: newCaseData.title, 
-        clientName: newCaseData.clientName, 
-        clientEmail: newCaseData.clientEmail, 
-        clientPhone: newCaseData.clientPhone, 
-        status: 'open' 
-      };
+      const payload: CreateCaseRequest = { case_number: `R-${Date.now().toString().slice(-6)}`, title: newCaseData.title, clientName: newCaseData.clientName, clientEmail: newCaseData.clientEmail, clientPhone: newCaseData.clientPhone, status: 'open' };
       await apiService.createCase(payload);
-      setShowCreateModal(false); 
-      setNewCaseData({ title: '', clientName: '', clientEmail: '', clientPhone: '' });
+      setShowCreateModal(false); setNewCaseData({ title: '', clientName: '', clientEmail: '', clientPhone: '' });
       loadData();
-    } catch { 
-      alert(t('error.generic') as string); 
-    } finally { 
-      setIsCreating(false); 
-    }
+    } catch { alert(t('error.generic') as string); } finally { setIsCreating(false); }
   };
 
   const theme = getBriefingTheme(briefing?.status || 'OPTIMAL');
@@ -103,39 +79,39 @@ const DashboardPage: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8 h-full flex flex-col">
       <AnimatePresence mode="wait">
         {briefing && (
-          <motion.div 
-              key={briefing.status}
-              className={`shrink-0 mb-8 rounded-2xl shadow-2xl backdrop-blur-md border ${theme.style.split(' ')[2]} overflow-hidden relative`}
-              initial={{ opacity: 0, y: -20 }} 
-              animate={{ opacity: 1, y: 0 }}
-          >
+          <motion.div key={briefing.status} className={`shrink-0 mb-8 rounded-2xl shadow-2xl backdrop-blur-md border ${theme.style.split(' ')[2]} overflow-hidden relative`} initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
               <div className={`absolute -right-10 -top-10 w-40 h-40 blur-3xl rounded-full ${theme.glow} opacity-50`} />
               <div className={`p-5 bg-gradient-to-r ${theme.style}`}>
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                     <div className="flex items-center gap-5">
-                        <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md ring-1 ring-white/20">
-                            {theme.icon}
-                        </div>
+                        <div className="p-3 bg-white/10 rounded-xl backdrop-blur-md ring-1 ring-white/20">{theme.icon}</div>
                         <div>
-                            <h2 className="text-xs font-black uppercase tracking-widest text-white/60 mb-1">
-                                {t('briefing.kujdestari_title') as string}
-                            </h2>
+                            <h2 className="text-xs font-black uppercase tracking-widest text-white/60 mb-1">{t('briefing.kujdestari_title') as string}</h2>
                             <div className="space-y-1">
                               <p className="font-bold text-xl text-white">
                                   {t(`briefing.greetings.${briefing.greeting_key}`, briefing.data || {}) as string}
                               </p>
-                              <p className="text-white/80 font-medium">
-                                  {t(`briefing.messages.${briefing.message_key}`, {
-                                    ...(briefing.data || {}),
-                                    holiday_name: briefing.data?.holiday ? t(`holidays.${briefing.data.holiday}`) : ''
-                                  }) as string}
-                              </p>
+                              
+                              {/* PHOENIX: Message or Quote Rendering */}
+                              {briefing.status === 'OPTIMAL' && briefing.data?.quote_key ? (
+                                <div className="flex items-start gap-2 mt-1 py-1 px-3 bg-white/5 rounded-lg border border-white/10 italic">
+                                   <Quote size={14} className="text-emerald-400 shrink-0 mt-1" />
+                                   <p className="text-emerald-50/90 text-sm font-medium">
+                                       {t(`briefing.quotes.${briefing.data.quote_key}`) as string}
+                                   </p>
+                                </div>
+                              ) : (
+                                <p className="text-white/80 font-medium">
+                                    {t(`briefing.messages.${briefing.message_key}`, {
+                                      ...(briefing.data || {}),
+                                      holiday_name: briefing.data?.holiday ? t(`holidays.${briefing.data.holiday}`) : ''
+                                    }) as string}
+                                </p>
+                              )}
                             </div>
                         </div>
                     </div>
-                    <button onClick={() => window.location.href = '/calendar'} className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-all border border-white/10 text-sm active:scale-95">
-                        {t('briefing.view_calendar') as string}
-                    </button>
+                    <button onClick={() => window.location.href = '/calendar'} className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold border border-white/10 text-sm whitespace-nowrap active:scale-95">{t('briefing.view_calendar') as string}</button>
                 </div>
               </div>
           </motion.div>
@@ -167,7 +143,7 @@ const DashboardPage: React.FC = () => {
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="glass-high w-full max-w-md p-8 rounded-3xl shadow-2xl">
             <h2 className="text-3xl font-black text-white mb-8 tracking-tight">{t('dashboard.createCaseTitle') as string}</h2>
             <form onSubmit={handleCreateCase} className="space-y-6">
-              <input required placeholder={t('dashboard.caseTitle') as string} value={newCaseData.title} onChange={(e) => setNewCaseData(p => ({...p, title: e.target.value}))} className="glass-input w-full rounded-2xl px-5 py-3 outline-none" />
+              <input required placeholder={t('dashboard.caseTitle') as string} value={newCaseData.title} onChange={(e) => setNewCaseData(p => ({...p, title: e.target.value}))} className="glass-input w-full rounded-2xl px-5 py-3 outline-none focus:ring-2 ring-primary-start" />
               <div className="pt-6 border-t border-white/10 space-y-3">
                   <input required placeholder={t('dashboard.clientName') as string} value={newCaseData.clientName} onChange={(e) => setNewCaseData(p => ({...p, clientName: e.target.value}))} className="glass-input w-full rounded-2xl px-5 py-3 outline-none" />
                   <input placeholder={t('dashboard.clientEmail') as string} value={newCaseData.clientEmail} onChange={(e) => setNewCaseData(p => ({...p, clientEmail: e.target.value}))} className="glass-input w-full rounded-2xl px-5 py-3 outline-none" />

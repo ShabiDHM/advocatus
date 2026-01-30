@@ -1,5 +1,8 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# PHOENIX PROTOCOL - CALENDAR API V4.0 (SYNCHRONIZATION FIX)
+# PHOENIX PROTOCOL - CALENDAR API V4.1 (FORMATTING PATCH)
+# 1. FIX: Applied .title() to display_name to ensure proper capitalization in greetings.
+# 2. ALIGN: Maintained i18n-ready BriefingResponse and parameter synchronization.
+
 from fastapi import APIRouter, Depends, status, HTTPException, Response
 from typing import List, Dict, Any
 from bson import ObjectId
@@ -15,7 +18,7 @@ from app.models.user import UserInDB
 
 router = APIRouter()
 
-# PHOENIX: Pydantic Model for Intelligent Briefing
+# Pydantic Model for Intelligent Briefing
 class BriefingResponse(BaseModel):
     count: int
     greeting_key: str
@@ -30,7 +33,7 @@ async def get_alerts_briefing(
 ):
     """
     Returns a personalized i18n-ready 'Kujdestari' briefing.
-    PHOENIX FIX: Parameter name aligned to 'user_id'.
+    Title cases the name regardless of how it was stored in the DB.
     """
     count = await asyncio.to_thread(
         calendar_service.get_upcoming_alerts_count, 
@@ -38,7 +41,10 @@ async def get_alerts_briefing(
         user_id=current_user.id
     )
     
-    display_name = current_user.full_name if current_user.full_name else current_user.username
+    # PHOENIX FIX: Ensure name is always capitalized correctly (e.g. Shaban Bala)
+    raw_name = current_user.full_name if current_user.full_name else current_user.username
+    display_name = raw_name.title()
+    
     briefing_data = calendar_service.generate_briefing(display_name, count)
     
     return BriefingResponse(
