@@ -1,7 +1,7 @@
 // FILE: src/App.tsx
 // PHOENIX PROTOCOL - ROUTING V4.0 (EXPORT-READY IMPORT)
 // 1. FIX: Renamed the EvidenceMapPage import to match its final export name (WrappedEvidenceMapPage) to resolve local build conflicts.
-// 2. STATUS: Router is ready for the export-enabled component.
+
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
