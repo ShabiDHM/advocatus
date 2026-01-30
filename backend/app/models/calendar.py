@@ -17,6 +17,11 @@ class EventType(str, Enum):
     PAYMENT = "PAYMENT"
     OTHER = "OTHER"
 
+class EventCategory(str, Enum):
+    # PHOENIX: Added to separate Agenda from Metadata
+    AGENDA = "AGENDA"  # Appears in Calendar (Deadlines, seanca)
+    FACT = "FACT"      # Metadata only (Birthdays, historical dates)
+
 class EventPriority(str, Enum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
@@ -38,6 +43,7 @@ class CalendarEventBase(BaseModel):
     end_date: Optional[datetime] = None
     is_all_day: bool = False
     event_type: EventType = EventType.MEETING
+    category: EventCategory = EventCategory.AGENDA # PHOENIX: Default to Agenda
     priority: EventPriority = EventPriority.MEDIUM
     location: Optional[str] = Field(None, max_length=100)
     attendees: Optional[List[str]] = None
@@ -72,8 +78,8 @@ class CalendarEventInDB(CalendarEventBase):
     model_config = ConfigDict(populate_by_name=True)
 
 class CalendarEventOut(CalendarEventInDB):
-    # PHOENIX: These fields carry the Kujdestari Intelligence
-    working_days_remaining: Optional[int] = Field(None, description="Working days left until effective deadline")
-    severity: Optional[str] = Field(None, description="Urgency level based on keywords (PREKLUZIV/GJYQESOR)")
-    effective_deadline: Optional[datetime] = Field(None, description="The legal deadline after holiday shifts")
-    is_extended: bool = Field(False, description="True if deadline was shifted due to holiday/weekend")
+    working_days_remaining: Optional[int] = None
+    severity: Optional[str] = None
+    effective_deadline: Optional[datetime] = None
+    is_extended: bool = False
+    risk_level: Optional[str] = None

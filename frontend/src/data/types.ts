@@ -1,6 +1,9 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V27.0
-// MANDATE: Absolute restoration of all historical and new features.
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V28.0
+// 1. INTEGRATED: 'category' field in CalendarEvent (AGENDA vs FACT) for noise reduction.
+// 2. HARDENED: Total restoration of all Forensic, Financial, and Legal interfaces.
+// 3. MANDATE: Unabridged file replacement.
+
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
 export type ConnectionStatus = 'CONNECTED' | 'CONNECTING' | 'DISCONNECTED' | 'ERROR';
@@ -41,7 +44,6 @@ export interface UpdateUserRequest {
     account_type?: AccountType;
     subscription_tier?: SubscriptionTier;
     product_plan?: ProductPlan;
-    // PHOENIX RESTORED: Required for Admin Panel lifecycle management
     subscription_status?: string; 
     subscription_expiry?: string; 
 }
@@ -86,7 +88,6 @@ export interface BusinessProfile {
 
 export interface BusinessProfileUpdate { 
     firm_name?: string; 
-    // PHOENIX RESTORED: Required for ProfileTab component
     address?: string; 
     city?: string;    
     phone?: string; 
@@ -142,7 +143,6 @@ export interface CaseAnalysisResult {
     red_flags?: string[]; 
     contradictions?: string[]; 
     chronology?: ChronologyEvent[]; 
-    // PHOENIX RESTORED: Error feedback for UI
     error?: string; 
 }
 
@@ -196,6 +196,7 @@ export interface CalendarEvent {
     end_date: string; 
     is_all_day: boolean; 
     event_type: 'APPOINTMENT' | 'TASK' | 'PAYMENT_DUE' | 'TAX_DEADLINE' | 'PERSONAL' | 'OTHER'; 
+    category: 'AGENDA' | 'FACT'; // PHOENIX: Filtered categorization
     status: 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'OVERDUE' | 'ARCHIVED'; 
     case_id?: string; 
     document_id?: string; 
@@ -204,7 +205,6 @@ export interface CalendarEvent {
     priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; 
     attendees?: string[]; 
     is_public?: boolean;
-    // Intelligence metrics
     working_days_remaining?: number;
     risk_level?: string;
     effective_deadline?: string;
@@ -292,7 +292,6 @@ export interface AnalyticsDashboardData {
     total_revenue_period: number; 
     total_transactions_period: number; 
     sales_trend: Array<{ date: string; amount: number }>; 
-    // PHOENIX RESTORED: Required for Finance module
     top_products: TopProductItem[]; 
     total_profit_period?: number; 
 }
@@ -367,16 +366,8 @@ export interface Organization {
     owner_email?: string; 
 }
 
-export interface SubscriptionUpdate { 
-    status: string; 
-    expiry_date?: string; 
-    plan_tier?: string; 
-}
-
-export interface PromoteRequest { 
-    firm_name: string; 
-    plan_tier: string; 
-}
+export interface SubscriptionUpdate { status: string; expiry_date?: string; plan_tier?: string; }
+export interface PromoteRequest { firm_name: string; plan_tier: string; }
 
 // --- 11. CHAT & DRAFTING ---
 export interface ChatMessage { role: 'user' | 'ai'; content: string; timestamp: string; }
@@ -387,7 +378,6 @@ export interface CreateDraftingJobRequest {
     case_id?: string; 
     context?: string; 
     draft_type?: string; 
-    // PHOENIX RESTORED: Required by Drafting module
     document_type?: string; 
     use_library?: boolean; 
 }
