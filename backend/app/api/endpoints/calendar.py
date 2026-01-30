@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/calendar.py
-# PHOENIX PROTOCOL - CALENDAR API V5.0 (RISK RADAR SYNC)
+# PHOENIX PROTOCOL - CALENDAR API V5.1 (VALIDATION FIX)
 from fastapi import APIRouter, Depends, status, HTTPException, Response
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from bson import ObjectId
 from bson.errors import InvalidId
 from pydantic import BaseModel
@@ -28,17 +28,17 @@ class BriefingResponse(BaseModel):
     message_key: str
     status: str
     data: Dict[str, Any]
-    risk_radar: List[RiskAlert] # PHOENIX: The High-Severity Queue
+    risk_radar: List[RiskAlert]
 
 @router.get("/alerts", response_model=BriefingResponse)
 async def get_alerts_briefing(
     current_user: UserInDB = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    """Returns the intelligent Guardian briefing with Risk Radar."""
+    """Returns the Guardian briefing. Fixes root-level 'count' requirement."""
+    # We pass the raw name to the service; it handles .title() internally now
     display_name = current_user.full_name or current_user.username
     
-    # Passing the DB directly to allow internal event fetching
     briefing_data = await asyncio.to_thread(
         calendar_service.generate_briefing,
         db=db,
@@ -46,6 +46,7 @@ async def get_alerts_briefing(
         user_name=display_name
     )
     
+    # Return directly. Service V3.2 guaranteed the 'count' key is present at root.
     return BriefingResponse(**briefing_data)
 
 @router.get("/events", response_model=List[CalendarEventOut])
