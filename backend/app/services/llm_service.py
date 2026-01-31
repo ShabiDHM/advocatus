@@ -3,7 +3,6 @@
 # 1. FIX: "Legal Basis" now follows the User's "Sample Output" structure exactly.
 # 2. FEAT: Enforced 3-Part Argumentation (Principle -> Application -> Citation).
 # 3. FIX: Corrected Law Numbers (Family Law 2004/32 vs Obligations 04/L-077).
-# 4. STATUS: Unabridged replacement.
 
 import os
 import json
