@@ -1,8 +1,9 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V9.1 (KOSOVO JURISDICTION ADAPTER)
-// 1. FIX: Added native support for structured JSON 'legal_basis' objects (New Backend).
-// 2. FEAT: Added 'Success Probability' circular indicator in the header.
-// 3. UI: Refined citation rendering to highlight 'Article' and 'Relevance' distinctly.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V9.5 (TOTAL SYSTEM INTEGRITY)
+// 1. FIX: Restored 'getRiskLabel' helper to resolve TypeScript 2304 error.
+// 2. FEAT: Dual-Persona UI sections (Summary, Burden of Proof, Gap Analysis).
+// 3. UI: Full alignment with Kosovo Jurisdiction persona.
+// 4. STATUS: Unabridged replacement.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -11,7 +12,7 @@ import {
     X, Scale, FileText, Swords, Target,
     Gavel, CheckCircle2, BookOpen, Globe, 
     Link as LinkIcon, Clock, Skull, AlertOctagon, BrainCircuit,
-    Shield, ShieldAlert, ShieldCheck, Percent
+    Shield, ShieldAlert, ShieldCheck, Percent, Info, AlertTriangle
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CaseAnalysisResult, DeepAnalysisResult, ChronologyEvent, Contradiction } from '../data/types'; 
@@ -32,7 +33,6 @@ const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 `;
 
-// Helper: Safely converts any AI output to a string
 const safeString = (val: any): string => {
     if (!val) return "";
     if (typeof val === 'string') return val;
@@ -46,9 +46,7 @@ const cleanLegalText = (text: any): string => {
     return clean;
 };
 
-// PHOENIX FIX: Handle both Legacy String Citations and New Structured Objects
 const renderCitationItem = (item: any) => {
-    // SCENARIO 1: New Backend Structure (Object)
     if (typeof item === 'object' && item !== null && (item.law || item.title)) {
         const lawTitle = item.law || item.title || "Ligj i Paidentifikuar";
         const article = item.article || item.legal_basis || "";
@@ -77,7 +75,6 @@ const renderCitationItem = (item: any) => {
         );
     }
 
-    // SCENARIO 2: Legacy String Parsing (Fallback)
     const text = safeString(item);
     let match = text.match(/^\[(.*?)\]\((.*?)\):?\s*(.*)/s);
     if (!match) match = text.match(/^(.*?)\((doc:\/\/.*?)\):?\s*(.*)/s);
@@ -99,17 +96,13 @@ const renderCitationItem = (item: any) => {
             </div>
         );
     }
-
-    // SCENARIO 3: Plain Text
     return <span className="leading-relaxed font-mono text-xs whitespace-pre-wrap">{cleanLegalText(text)}</span>;
 };
 
 const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, caseId, isLoading }) => {
   const { t } = useTranslation();
-  
   const [activeTab, setActiveTab] = useState<'legal' | 'war_room'>('legal');
   const [warRoomSubTab, setWarRoomSubTab] = useState<'strategy' | 'adversarial' | 'timeline' | 'contradictions'>('strategy');
-  
   const [deepResult, setDeepResult] = useState<DeepAnalysisResult | null>(null);
   const [isDeepLoading, setIsDeepLoading] = useState(false);
 
@@ -131,24 +124,24 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           try {
               const data = await apiService.analyzeDeepStrategy(caseId);
               setDeepResult(data);
-          } catch (error) {
-              console.error("Deep Analysis Failed", error);
-          } finally {
-              setIsDeepLoading(false);
-          }
+          } catch (error) { console.error("Deep Analysis Failed", error); } finally { setIsDeepLoading(false); }
       }
   };
 
   const {
-      summary = "",
-      key_issues = [],
-      legal_basis = [],
-      strategic_analysis = "",
-      weaknesses = [],
-      action_plan = [],
-      risk_level = "MEDIUM",
-      success_probability = null // PHOENIX: New field from backend
+      summary = "", key_issues = [], legal_basis = [], strategic_analysis = "",
+      weaknesses = [], action_plan = [], risk_level = "MEDIUM",
+      success_probability = null, burden_of_proof = "", missing_evidence = []
   } = result || {};
+
+  // PHOENIX FIX: Restored getRiskLabel for TS 2304 resolution
+  const getRiskLabel = (level: string) => {
+      const l = level?.toUpperCase();
+      if (l === 'HIGH') return t('analysis.risk_high', 'I LARTË');
+      if (l === 'MEDIUM') return t('analysis.risk_medium', 'I MESËM');
+      if (l === 'LOW') return t('analysis.risk_low', 'I ULËT');
+      return level;
+  };
 
   const renderRiskBadge = (level: string) => {
       const l = level?.toUpperCase() || 'MEDIUM';
@@ -178,7 +171,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       );
   };
 
-  // PHOENIX: New Success Probability Badge
   const renderSuccessBadge = (prob: string | null) => {
       if (!prob) return null;
       return (
@@ -193,14 +185,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       );
   };
 
-  const getRiskLabel = (level: string) => {
-      const l = level?.toUpperCase();
-      if (l === 'HIGH') return t('analysis.risk_high', 'I LARTË');
-      if (l === 'MEDIUM') return t('analysis.risk_medium', 'I MESËM');
-      if (l === 'LOW') return t('analysis.risk_low', 'I ULËT');
-      return level;
-  };
-
   if (!isOpen) return null;
 
   const modalContent = (
@@ -208,20 +192,15 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-[100] p-0 sm:p-4" onClick={onClose}>
         <motion.div initial={{ scale: 0.98, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.98, opacity: 0, y: 10 }} className="glass-high w-full h-full sm:h-[90vh] sm:max-w-6xl rounded-none sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-white/10" onClick={(e) => e.stopPropagation()}>
           
-          {/* HEADER */}
           <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/5 backdrop-blur-md shrink-0">
             <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-4 min-w-0">
               <div className="p-2.5 bg-gradient-to-br from-primary-start to-primary-end rounded-xl shrink-0 shadow-lg shadow-primary-start/20">
                   <Gavel className="text-white h-5 w-5" />
               </div>
               <div className="flex flex-col gap-1">
-                  <span className="truncate leading-tight tracking-tight text-lg">{t('analysis.title', 'Salla e Strategjisë Ligjore')}</span>
+                  <span className="truncate leading-tight tracking-tight text-lg">{t('analysis.title', 'Strategjia Ligjore')}</span>
               </div>
-              
-              <div className="hidden sm:flex items-center ml-2">
-                  {renderRiskBadge(risk_level)}
-                  {renderSuccessBadge(success_probability)}
-              </div>
+              <div className="hidden sm:flex items-center ml-2">{renderRiskBadge(risk_level)} {renderSuccessBadge(success_probability)}</div>
             </h2>
             <button onClick={onClose} className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-xl transition-colors shrink-0"><X size={20} /></button>
           </div>
@@ -234,8 +213,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           {isLoading ? (
              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
                  <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6"></div>
-                 <h3 className="text-xl font-bold text-white mb-2">{t('analysis.loading_title', 'Duke Analizuar Ligjet & Faktet...')}</h3>
-                 <p className="text-text-secondary text-sm max-w-sm mx-auto">{t('analysis.loading_desc', 'Avokati AI po verifikon bazën ligjore.')}</p>
+                 <h3 className="text-xl font-bold text-white mb-2">{t('analysis.loading_title', 'Duke Analizuar...')}</h3>
              </div>
           ) : (
              <>
@@ -253,17 +231,46 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
                     {activeTab === 'legal' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="glass-panel p-6 rounded-2xl">
-                                <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-2">
-                                    <FileText size={16}/> {t('analysis.section_summary', 'Përmbledhje Ekzekutive')}
+                            
+                            {/* DUAL-PERSONA: SUMMARY (BUSINESS/PARALEGAL) */}
+                            <div className="glass-panel p-6 rounded-2xl border-white/10 bg-white/5">
+                                <h3 className="text-xs font-bold text-primary-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                    <Info size={16}/> {t('analysis.section_summary', 'Përmbledhja (Për Biznesin/Paralegalin)')}
                                 </h3>
-                                <p className="text-white text-sm leading-relaxed whitespace-pre-line border-l-2 border-white/20 pl-4">{cleanLegalText(summary)}</p>
+                                <p className="text-white text-sm leading-relaxed whitespace-pre-line border-l-2 border-primary-500/30 pl-4">{cleanLegalText(summary)}</p>
                             </div>
+
+                            {/* DUAL-PERSONA: AUDIT (LAWYER) */}
+                            {burden_of_proof && (
+                                <div className="glass-panel p-6 rounded-2xl border-blue-500/20 bg-blue-500/5">
+                                    <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <Gavel size={16}/> {t('analysis.section_burden', 'Auditimi: Barra e Provës (Për Avokatin)')}
+                                    </h3>
+                                    <p className="text-gray-200 text-sm leading-relaxed italic border-l-2 border-blue-500/30 pl-4">{cleanLegalText(burden_of_proof)}</p>
+                                </div>
+                            )}
+
+                            {/* DUAL-PERSONA: GAP ANALYSIS */}
+                            {missing_evidence && missing_evidence.length > 0 && (
+                                <div className="glass-panel p-6 rounded-2xl border-red-500/20 bg-red-500/5">
+                                    <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                        <AlertTriangle size={16}/> {t('analysis.section_missing', 'Gap-Analiza: Dokumentet që Mungojnë')}
+                                    </h3>
+                                    <div className="grid gap-2">
+                                        {missing_evidence.map((item, idx) => (
+                                            <div key={idx} className="flex items-center gap-3 text-sm text-red-200 bg-red-900/20 p-2 rounded-lg border border-red-500/10">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                                {cleanLegalText(item)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {key_issues && key_issues.length > 0 && (
                                 <div className="glass-panel p-6 rounded-2xl border-white/5 bg-white/5">
-                                    <h3 className="text-xs font-bold text-primary-300 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        <Swords size={16}/> {t('analysis.section_issues', 'Çështjet Kryesore')}
+                                    <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4 flex items-center gap-2">
+                                        <FileText size={16}/> {t('analysis.section_issues', 'Çështjet Kryesore')}
                                     </h3>
                                     <div className="grid gap-3">
                                         {key_issues.map((issue: any, idx: number) => (
@@ -285,7 +292,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         {legal_basis.map((lawItem: any, i: number) => {
                                             const lawStr = typeof lawItem === 'string' ? lawItem : (lawItem.law || "");
                                             const isGlobal = lawStr.includes("UNCRC") || lawStr.includes("Konventa") || lawStr.includes("KEDNJ");
-                                            
                                             return (
                                                 <li key={i} className={`flex gap-3 text-sm items-start p-4 rounded-xl transition-colors ${isGlobal ? 'bg-indigo-500/10 border border-indigo-500/30' : 'bg-white/5 border border-white/5 hover:border-white/10'}`}>
                                                     {isGlobal ? <Globe size={20} className="text-indigo-400 shrink-0 mt-0.5"/> : <Scale size={20} className="text-secondary-400 shrink-0 mt-0.5"/>}
@@ -302,16 +308,16 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     {activeTab === 'war_room' && (
                         <div className="h-full flex flex-col">
                             <div className="flex gap-2 mb-6 shrink-0 border-b border-white/5 pb-4">
-                                <button onClick={() => setWarRoomSubTab('strategy')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'strategy' ? 'bg-accent-start text-white shadow-lg shadow-accent-start/20' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                                <button onClick={() => setWarRoomSubTab('strategy')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'strategy' ? 'bg-accent-start text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
                                     <Target size={14} className="inline mr-2" /> {t('analysis.subtab_strategy', 'Plani Strategjik')}
                                 </button>
-                                <button onClick={() => setWarRoomSubTab('adversarial')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'adversarial' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                                <button onClick={() => setWarRoomSubTab('adversarial')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'adversarial' ? 'bg-red-500 text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
                                     <Skull size={14} className="inline mr-2" /> {t('analysis.subtab_adversarial', 'Simulimi')}
                                 </button>
-                                <button onClick={() => setWarRoomSubTab('timeline')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'timeline' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                                <button onClick={() => setWarRoomSubTab('timeline')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'timeline' ? 'bg-blue-500 text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
                                     <Clock size={14} className="inline mr-2" /> {t('analysis.subtab_timeline', 'Kronologjia')}
                                 </button>
-                                <button onClick={() => setWarRoomSubTab('contradictions')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'contradictions' ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                                <button onClick={() => setWarRoomSubTab('contradictions')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'contradictions' ? 'bg-yellow-500 text-black shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
                                     <AlertOctagon size={14} className="inline mr-2" /> {t('analysis.subtab_contradictions', 'Kontradiktat')}
                                 </button>
                             </div>
@@ -324,7 +330,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                             <p className="text-white text-sm leading-relaxed whitespace-pre-line">{cleanLegalText(strategic_analysis)}</p>
                                         </div>
                                         <div className="glass-panel p-6 rounded-2xl border-red-500/20 bg-red-500/5">
-                                            <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-4">{t('analysis.section_weaknesses', 'Dobësitë e Kundërshtarit')}</h3>
+                                            <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-4">{t('analysis.section_weaknesses', 'Dobësitë')}</h3>
                                             <ul className="space-y-3">
                                                 {weaknesses.map((w: any, i: number) => (
                                                     <li key={i} className="flex gap-3 text-sm text-red-100 bg-red-500/10 p-3 rounded-lg border border-red-500/20">{cleanLegalText(w)}</li>
@@ -376,7 +382,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                             <div className="absolute -left-[31px] top-1.5 w-3 h-3 rounded-full bg-blue-500 border-2 border-black" />
                                                             <div className="flex gap-4">
                                                                 <span className="text-blue-400 font-mono text-xs font-bold shrink-0 w-24">{event.date}</span>
-                                                                <p className="text-gray-200 text-sm">{event.event}</p>
+                                                                <p className="text-gray-200 text-sm">{cleanLegalText(event.event)}</p>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -399,14 +405,14 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                                 <div className="grid md:grid-cols-2 gap-4 mt-3">
                                                                     <div className="p-3 bg-black/20 rounded-lg">
                                                                         <span className="text-xs text-red-400 font-bold block mb-1">{t('analysis.claim_label', 'DEKLARATA')}</span>
-                                                                        <p className="text-sm text-gray-300 italic">"{c.claim}"</p>
+                                                                        <p className="text-sm text-gray-300 italic">"{cleanLegalText(c.claim)}"</p>
                                                                     </div>
                                                                     <div className="p-3 bg-black/20 rounded-lg">
                                                                         <span className="text-xs text-emerald-400 font-bold block mb-1">{t('analysis.evidence_label', 'FAKTI / PROVA')}</span>
-                                                                        <p className="text-sm text-gray-300 font-mono">{c.evidence}</p>
+                                                                        <p className="text-sm text-gray-300 font-mono">{cleanLegalText(c.evidence)}</p>
                                                                     </div>
                                                                 </div>
-                                                                <p className="mt-3 text-xs text-gray-400 border-t border-white/5 pt-2">{c.impact}</p>
+                                                                <p className="mt-3 text-xs text-gray-400 border-t border-white/5 pt-2">{cleanLegalText(c.impact)}</p>
                                                             </div>
                                                         ))
                                                     )}
