@@ -35,6 +35,27 @@
     "stricken": "Hequr",
     "saving": "Duke u ruajtur..."
   },
+  "landing": {
+    "login": "Hyrja",
+    "getStarted": "Fillo Tani",
+    "versionBadge": "Juristi AI v2.0",
+    "heroTitle": "Zgjidhni rastet me",
+    "heroHighlight": "Inteligjencë Gjyqësore",
+    "heroSubtitle": "Një platformë e fuqishme ligjore e drejtuar nga AI për të transformuar menaxhimin e rasteve, analizën ligjore dhe strategjinë. Fokusohuni në ligj, ne do të kujdesemi për pjesën tjetër.",
+    "socraticAssistantTitle": "Asistenti Sokratik AI",
+    "socraticAssistantDescription": "Bisedoni me dokumentet tuaja. Bëni pyetje komplekse juridike dhe merrni përgjigje të menjëhershme me citime preçize.",
+    "fullSecurityTitle": "Siguri e Plotë",
+    "fullSecurityDescription": "Të dhënat tuaja janë të enkriptuara dhe të mbrojtura me standardet më të larta të industrisë.",
+    "businessCenterTitle": "Qendra e Biznesit",
+    "businessCenterDescription": "Gjeneroni fatura, menaxhoni klientët dhe gjurmoni financat e zyrës në kohë reale.",
+    "intelligentArchiveTitle": "Arkiva Inteligjente",
+    "intelligentArchiveDescription": "Skanoni, ruani dhe kërkoni në sekonda brenda mijëra faqeve PDF me fuqinë e OCR."
+  },
+  "footer": {
+    "copyright": "© {{year}} Data And Human Management. Të gjitha të drejtat e rezervuara.",
+    "encryption": "Enkriptim i Sigurt 256-bit",
+    "jurisdiction": "Jurisdiksioni i Kosovës"
+  },
   "briefing": {
     "kujdestari_title": "Kujdestari Virtual",
     "view_calendar": "Shiko Kalendarin",
@@ -52,7 +73,7 @@
       "work_warning_msg": "Kujdes: Keni {{count}} afate që kërkojnë vëmendje së shpejti.",
       "work_critical_msg": "ALARM: Keni {{count}} afate kritike. Kontrolloni kalendarin tani!"
     },
-     "quotes": {
+    "quotes": {
       "quote_1": "Drejtësia vonon por nuk harron.",
       "quote_2": "Ligji është fuqia e të pafuqishmit.",
       "quote_3": "Paqe pa drejtësi nuk ka.",

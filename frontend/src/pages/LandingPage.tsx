@@ -1,7 +1,8 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING V6.3 (I18N FIX)
-// 1. FIX: Removed hardcoded "Juristi AI v2.0" string.
-// 2. LOGIC: Now uses t('landing.versionBadge') for dynamic updates.
+// PHOENIX PROTOCOL - LANDING V7.0 (FULL I18N INTEGRATION)
+// 1. FIX: Replaced all hardcoded strings with i18n keys for full localization.
+// 2. LOGIC: All t() calls now reference the 'landing' and 'footer' namespaces.
+// 3. STATUS: 100% Internationalized. No truncation.
 
 import React from 'react';
 import { Link } from 'react-router-dom';
@@ -49,8 +50,7 @@ const LandingPage: React.FC = () => {
             >
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-primary-300 mb-8 uppercase tracking-wider shadow-lg shadow-primary-start/5">
                     <BrainCircuit size={14} /> 
-                    {/* PHOENIX FIX: Soft-coded via I18N */}
-                    {t('landing.versionBadge', 'Juristi AI v2.0')}
+                    {t('landing.versionBadge')}
                 </div>
                 
                 <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 leading-tight">
@@ -87,9 +87,9 @@ const LandingPage: React.FC = () => {
                     <div className="w-12 h-12 bg-primary-start/20 rounded-xl flex items-center justify-center mb-4 text-primary-300 border border-primary-start/20">
                         <Zap className="w-6 h-6" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-2 text-white">Asistenti Sokratik AI</h3>
+                    <h3 className="text-2xl font-bold mb-2 text-white">{t('landing.socraticAssistantTitle')}</h3>
                     <p className="text-text-secondary leading-relaxed">
-                        Bisedoni me dokumentet tuaja. Bëni pyetje komplekse juridike dhe merrni përgjigje të menjëhershme me citime preçize.
+                        {t('landing.socraticAssistantDescription')}
                     </p>
                 </div>
             </div>
@@ -98,9 +98,9 @@ const LandingPage: React.FC = () => {
                  <div className="w-12 h-12 bg-success-start/20 rounded-xl flex items-center justify-center mb-4 text-success-300 border border-success-start/20">
                     <Lock className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-white">Siguri e Plotë</h3>
+                <h3 className="text-xl font-bold mb-2 text-white">{t('landing.fullSecurityTitle')}</h3>
                 <p className="text-text-secondary text-sm">
-                    Të dhënat tuaja janë të enkriptuara dhe të mbrojtura me standardet më të larta të industrisë.
+                    {t('landing.fullSecurityDescription')}
                 </p>
             </div>
 
@@ -108,9 +108,9 @@ const LandingPage: React.FC = () => {
                 <div className="w-12 h-12 bg-accent-start/20 rounded-xl flex items-center justify-center mb-4 text-accent-300 border border-accent-start/20">
                     <TrendingUp className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-white">Qendra e Biznesit</h3>
+                <h3 className="text-xl font-bold mb-2 text-white">{t('landing.businessCenterTitle')}</h3>
                 <p className="text-text-secondary text-sm">
-                    Gjeneroni fatura, menaxhoni klientët dhe gjurmoni financat e zyrës në kohë reale.
+                    {t('landing.businessCenterDescription')}
                 </p>
             </div>
 
@@ -122,9 +122,9 @@ const LandingPage: React.FC = () => {
                     <div className="w-12 h-12 bg-secondary-start/20 rounded-xl flex items-center justify-center mb-4 text-secondary-300 border border-secondary-start/20">
                         <FileText className="w-6 h-6" />
                     </div>
-                    <h3 className="text-2xl font-bold mb-2 text-white">Arkiva Inteligjente</h3>
+                    <h3 className="text-2xl font-bold mb-2 text-white">{t('landing.intelligentArchiveTitle')}</h3>
                     <p className="text-text-secondary leading-relaxed">
-                        Skanoni, ruani dhe kërkoni në sekonda brenda mijëra faqeve PDF me fuqinë e OCR.
+                        {t('landing.intelligentArchiveDescription')}
                     </p>
                 </div>
             </div>
@@ -135,10 +135,10 @@ const LandingPage: React.FC = () => {
 
       {/* Footer */}
       <footer className="border-t border-white/5 py-12 text-center text-gray-600 text-sm relative z-10 bg-black/20">
-        <p>&copy; {new Date().getFullYear()} Data And Human Management. Të gjitha të drejtat e rezervuara.</p>
+        <p>{t('footer.copyright', { year: new Date().getFullYear() })}</p>
         <div className="flex justify-center gap-6 mt-4">
-            <span className="flex items-center gap-1"><Lock size={12}/> Secure 256-bit Encryption</span>
-            <span className="flex items-center gap-1"><Globe size={12}/> Kosovo Jurisdiction</span>
+            <span className="flex items-center gap-1"><Lock size={12}/> {t('footer.encryption')}</span>
+            <span className="flex items-center gap-1"><Globe size={12}/> {t('footer.jurisdiction')}</span>
         </div>
       </footer>
     </div>
