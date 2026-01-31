@@ -1,25 +1,23 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V58.0 (BRUTE FORCE CONSTRAINTS)
-# 1. FIX: Embedded Legal Reference Table to stop article hallucination.
-# 2. FIX: Strict Terminology Blacklist (Alimentacion, Issue, Gap, Summary).
-# 3. FIX: Forced quoting of "Substanca e Nenit" for professional authority.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V58.1 (JURISDICTIONAL ALIGNMENT)
+# 1. FIX: "Robotic Tone" cured via 'Senior Legal Auditor' persona injection.
+# 2. FIX: Citation logic split into 'Substance' (Abstract) and 'Application' (Concrete).
+# 3. FIX: Strict Albanian Legal Terminology (e.g., "Paditësi" instead of "Ai").
 # 4. STATUS: Unabridged replacement.
 
 import os
 import json
 import logging
-import httpx
 import re
-import asyncio
 from typing import List, Dict, Any, Optional, AsyncGenerator
-from datetime import datetime, timezone
+from datetime import datetime
 from openai import OpenAI, AsyncOpenAI
 
 from .text_sterilization_service import sterilize_text_for_llm
 
 logger = logging.getLogger(__name__)
 
-# --- EXPORT LIST (18 FUNCTIONS VERIFIED) ---
+# --- EXPORT LIST ---
 __all__ = [
     "analyze_financial_portfolio", "analyze_case_integrity", "generate_adversarial_simulation",
     "build_case_chronology", "translate_for_client", "detect_contradictions",
@@ -36,160 +34,268 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 EMBEDDING_MODEL = "text-embedding-3-small" 
 
-def get_deepseek_client(): return OpenAI(api_key=DEEPSEEK_API_KEY, base_url=OPENROUTER_BASE_URL) if DEEPSEEK_API_KEY else None
-def get_openai_client(): return OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
-def get_async_deepseek_client(): return AsyncOpenAI(api_key=DEEPSEEK_API_KEY, base_url=OPENROUTER_BASE_URL) if DEEPSEEK_API_KEY else None
+def get_deepseek_client(): 
+    return OpenAI(api_key=DEEPSEEK_API_KEY, base_url=OPENROUTER_BASE_URL) if DEEPSEEK_API_KEY else None
+
+def get_openai_client(): 
+    return OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+
+def get_async_deepseek_client(): 
+    return AsyncOpenAI(api_key=DEEPSEEK_API_KEY, base_url=OPENROUTER_BASE_URL) if DEEPSEEK_API_KEY else None
 
 def _parse_json_safely(content: Optional[str]) -> Dict[str, Any]:
+    """Extracts JSON from LLM response, handling markdown code blocks."""
     if not content: return {}
-    try: return json.loads(content)
+    try: 
+        return json.loads(content)
     except:
+        # Regex to find JSON inside ```json ... ``` or just {...}
         match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
         if match:
             try: return json.loads(match.group(1))
             except: pass
+        # Fallback for plain text that looks like JSON
+        try:
+            match_loose = re.search(r'(\{.*\})', content, re.DOTALL)
+            if match_loose: return json.loads(match_loose.group(1))
+        except: pass
+        
+        logger.error(f"Failed to parse JSON content: {content[:100]}...")
         return {"raw_response": content, "error": "JSON_PARSE_FAILED"}
 
 def _call_llm(system_prompt: str, user_prompt: str, json_mode: bool = False, temp: float = 0.1) -> Optional[str]:
+    """Standardized synchronous LLM call wrapper."""
     client = get_deepseek_client()
-    if not client: return None
+    if not client: 
+        logger.error("DeepSeek Client not initialized (Missing Key).")
+        return None
     try:
-        kwargs = {"model": OPENROUTER_MODEL, "messages": [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}], "temperature": temp}
-        if json_mode: kwargs["response_format"] = {"type": "json_object"}
+        kwargs = {
+            "model": OPENROUTER_MODEL, 
+            "messages": [
+                {"role": "system", "content": system_prompt}, 
+                {"role": "user", "content": user_prompt}
+            ], 
+            "temperature": temp
+        }
+        if json_mode: 
+            kwargs["response_format"] = {"type": "json_object"}
+            
         res = client.chat.completions.create(**kwargs)
         return res.choices[0].message.content
     except Exception as e:
         logger.error(f"LLM Call Failed: {e}")
         return None
 
-# --- KOSOVO LEGAL MASTER RULEBOOK (CONSTRAINTS) ---
+# --- KOSOVO LEGAL MASTER RULEBOOK (ENHANCED) ---
 KOSOVO_LEGAL_PERSONA = """
-ROLI: Ti je Avokat i Lartë (Senior Partner) në Prishtinë. 
-DETYRA: Analizë juridike strikte, pa emocione, e bazuar në ligjet e RKS.
+ROLI: Ti je 'Senior Legal Auditor' (Auditues Ligjor i Lartë) me 20 vite përvojë në Gjykatat e Kosovës.
+STILI I SHKRIMIT:
+- Formal, Juridik, Autoritativ.
+- Përdor 'Vetën e Tretë' (Gjykata, Paditësi, I Padituri). KURRË mos përdor "Unë" ose "Ne".
+- Përdor terminologji standarde të LPK (Ligji i Procedurës Kontestimore).
 
-TABELA E REFERENCAVE (MANDATORE - MOS GUXO TË PËRDORËSH TË TJERA):
-1. FAMILJA (Fëmijët/Mbajtja): Ligji Nr. 2004/32 për Familjen i Kosovës. 
-   - Neni 170: Obligimi i prindërve për mbajtjen e fëmijës.
-   - Neni 171: Ndryshimi i shumës së kontributit nëse ndryshojnë rrethanat.
-2. PROCEDURA CIVILE: Ligji Nr. 03/L-006 për Procedurën Kontestimore (LPK).
-   - Neni 7: Barra e palëve për të paraqitur faktet.
-   - Neni 319: Barra e provës (Kush e thotë një fakt, duhet ta provojë).
-3. PUNA: Ligji Nr. 03/L-212 i Punës.
-4. DETYRIMET: Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve.
+TERMINOLOGJIA E DETYRUESHME (WHITELIST):
+- Në vend të "Alimentacion" -> PËRDOR "Kontributi për mbajtje".
+- Në vend të "Issue/Problem" -> PËRDOR "Çështja Kontestimore" ose "Objekti i Kontestit".
+- Në vend të "Gap" -> PËRDOR "Mungesë materiale" ose "Vakuum provues".
+- Në vend të "Summary" -> PËRDOR "Historiku Procedural dhe Faktik".
 
-BLACKLISTA E FJALËVE (NDALOHET RREPTËSISHT):
-- MOS PËRDOR: "Alimentacion", "Issue", "Gap", "Summary", "Plan", "Alimentacioni".
-- PËRDOR VETËM: "Kontributi për mbajtje", "Çështja", "Mangësia", "Përmbledhja", "Plani i Veprimit".
+HIERARKIA LIGJORE (Baza për Referencë):
+1. KUSHTETUTA E REPUBLIKËS SË KOSOVËS.
+2. KONVENTAT NDËRKOMBËTARE (KEDNJ, Konventa për të Drejtat e Fëmijës).
+3. LIGJET MATERIALE:
+   - Ligji Nr. 2004/32 për Familjen (LFK).
+   - Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD).
+   - Ligji i Punës (për konteste pune).
+4. LIGJET PROCEDURALE:
+   - Ligji Nr. 03/L-006 për Procedurën Kontestimore (LPK).
 
-RREGULLI I RELEVANCËS:
-Te fusha 'relevance', DUHET të citosh tekstualisht substancën: "Sipas Nenit [X], [Shkruaj rregullin e plotë ligjor]. Në rastin e klientit tonë, kjo do të thotë se...".
+OBJEKTIVI: Të prodhosh një analizë që mund të dorëzohet direkt në Gjykatë ose te Klienti si 'Legal Opinion'.
 """
 
 def analyze_case_integrity(context: str) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_PERSONA}
-    OBJEKTIVI: Auditimi Juridik i Integritetit të Lëndës.
     
-    UDHËZIME PËR JSON:
-    - Çelësi 'summary' duhet të jetë: "Përmbledhja Ekzekutive".
-    - Çelësi 'missing_evidence' duhet të identifikohet si: "Mangësia [X] (Dokumenti)".
-    - Çelësi 'legal_basis' duhet të jetë citim shterues.
+    DETYRA: Kryej një Auditim të plotë juridik të tekstit të dhënë.
     
-    JSON STRUCTURE:
+    UDHËZIME SPECIFIKE PËR FUSHAT E DALJES (JSON):
+    
+    1. "summary": 
+       - Mos bëj përmbledhje shkollore. Ndërtoje si 'Hyrje e Ankesës/Padisë'.
+       - Struktura: Identifikimi i Palëve -> Objekti i Kontestit (çka kërkohet) -> Baza Faktike Kryesore.
+       
+    2. "key_issues":
+       - Identifiko saktësisht pikat ku palët nuk pajtohen.
+       - Formati: "Çështja [X]: [Përshkrimi juridik]".
+       
+    3. "burden_of_proof" (AUDITIMI):
+       - Cito Nenin 7 dhe 319 të LPK.
+       - Analizo kush dështoi të sjellë prova për cilin fakt specifik.
+       - Tono kritik: "Pala paditëse dështoi të provojë..." ose "Barra i kalon të paditurit sepse...".
+       
+    4. "legal_basis" (ARRAY):
+       - Gjej nenin PRECIZ. Mos thuaj "Ligji për Familjen", thuaj "Neni 171, Paragrafi 2".
+       - "relevance": Kjo fushë është kritike.
+         * Pjesa 1 (SUBSTANCA): Shkruaj rregullin abstrakt (psh: 'Ndryshimi i rrethanave kërkon provë materiale...').
+         * Pjesa 2 (ZBATIMI): Shpjego pse ky rregull e godet ose e mbron klientin në këtë rast specifik.
+         
+    5. "missing_evidence":
+       - Listë e dokumenteve konkrete që mungojnë (psh: "Pasqyra bankare 12-mujore", "Vërtetimi i ATK-së").
+       
+    6. "strategic_analysis":
+       - Jep një opinion strategjik. A duhet të shkojmë në pajtim gjyqësor apo në gjykim kryesor?
+       
+    JSON STRUCTURE EXPECTED:
     {{
-        "summary": "Përmbledhja formale juridike (Letrare)...",
-        "key_issues": ["Çështja 1 (Juridike): [Teksti]", "Çështja 2 (Procedurale): [Teksti]"],
-        "burden_of_proof": "Auditimi i detajuar i Barrës së Provës sipas Nenit 319 të LPK-së...",
-        "legal_basis": [{{ 
-            "law": "Ligji Nr. [Numri] për [Emri i Plotë] i Kosovës", 
-            "article": "Neni [X]", 
-            "relevance": "SUBSTANCA E LIGJIT: [Citim i saktë i substancës]. LIDHJA ME RASTIN: [Analiza]." 
-        }}],
-        "strategic_analysis": "Strategjia e mbrojtjes bazuar në Lex Specialis...",
-        "missing_evidence": ["Mangësia 1 (Dokumenti): [Përshkrimi]", "Mangësia 2 (Prova): [Përshkrimi]"],
-        "action_plan": ["Hapi 1: [Veprimi]", "Hapi 2: [Veprimi]"],
-        "success_probability": "XX%",
-        "risk_level": "I ULËT|I MESËM|I LARTË"
-    }}"""
-    return _parse_json_safely(_call_llm(system_prompt, context[:50000], True, temp=0.1))
+        "summary": "Teksti i strukturuar...",
+        "key_issues": ["Çështja 1...", "Çështja 2..."],
+        "burden_of_proof": "Analiza e Nenit 319...",
+        "legal_basis": [
+            {{ "law": "Emri i Ligjit", "article": "Neni X", "relevance": "SUBSTANCA: ... ZBATIMI: ..." }}
+        ],
+        "strategic_analysis": "Teksti...",
+        "missing_evidence": ["Dokumenti 1...", "Dokumenti 2..."],
+        "action_plan": ["Hapi 1...", "Hapi 2..."],
+        "success_probability": "XX% (Vlerësim i përafërt)",
+        "risk_level": "I ULËT / I MESËM / I LARTË"
+    }}
+    """
+    
+    # Limiting context to prevent token overflow, generally 30-50k chars is safe for DeepSeek
+    safe_context = context[:45000] if context else "Nuk ka tekst për analizë."
+    
+    return _parse_json_safely(_call_llm(system_prompt, safe_context, json_mode=True, temp=0.2))
 
 # --- WAR ROOM FUNCTIONS ---
 
 def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_PERSONA}
-    ROLI: Avokati Kundërshtar. Gjej dobësitë tona (Parashkrimi, Kompetenca, Legjitimiteti).
-    JSON: {{ 'opponent_strategy': 'Strategjia e kundërshtarit...', 'weakness_attacks': ['Pika 1', 'Pika 2'], 'counter_claims': ['...'] }}"""
-    return _parse_json_safely(_call_llm(system_prompt, context[:30000], True, temp=0.3))
+    ROLI: Avokati i Palës Kundërshtare (Djalli i Avokatit).
+    QËLLIMI: Të shkatërrosh argumentet e rastit tonë.
+    
+    FOKUSI:
+    1. A ka parashkrim (vjetërsim)?
+    2. A ka mungesë legjitimiteti aktiv/pasiv?
+    3. A ka kundërthënie në deklarata?
+    
+    JSON Output: {{ 'opponent_strategy': '...', 'weakness_attacks': ['...'], 'counter_claims': ['...'] }}"""
+    return _parse_json_safely(_call_llm(system_prompt, context[:30000], True, temp=0.4))
 
 def build_case_chronology(text: str) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_PERSONA}
-    DETYRA: Kronologjia e fakteve juridike (Jo biseda, vetëm veprime ligjore).
-    JSON: {{'timeline': [{{'date': 'YYYY-MM-DD', 'event': 'Ngjarja', 'source': '...'}}]}}"""
+    DETYRA: Krijo 'Kronologjinë Procesuale'.
+    VETËM fakte juridike (Datat e padive, seancave, vendimeve, pagesave).
+    Injoro opinionet ose ndjenjat.
+    
+    JSON: {{'timeline': [{{'date': 'YYYY-MM-DD (ose E panjohur)', 'event': 'Përshkrimi objektiv', 'source': 'Ku gjendet ky fakt'}}]}}"""
     return _parse_json_safely(_call_llm(system_prompt, text[:40000], True))
 
 def detect_contradictions(text: str) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_PERSONA}
-    DETYRA: Gjej mospërputhjet në dëshmi dhe dokumente. JSON: {{'contradictions': [{{'claim': '...', 'evidence': '...', 'severity': 'HIGH|LOW', 'impact': '...'}}]}}"""
+    DETYRA: 'Impeachment' i dëshmitarëve/palëve.
+    Gjej çdo rast kur një palë ka thënë diçka ndryshe nga provat shkresore ose deklaratat e mëparshme.
+    
+    JSON: {{'contradictions': [{{'claim': 'Çka u tha', 'evidence': 'Çka tregon prova', 'severity': 'HIGH|MEDIUM|LOW', 'impact': 'Pasojat juridike'}}]}}"""
     return _parse_json_safely(_call_llm(system_prompt, text[:30000], True))
 
 # --- SYSTEM UTILITIES ---
 
 def extract_graph_data(text: str) -> Dict[str, Any]:
-    system_prompt = f"""{KOSOVO_LEGAL_PERSONA} Shndërro në Nodes/Edges JSON."""
+    system_prompt = f"""{KOSOVO_LEGAL_PERSONA} Analizo entitetet (Personat, Gjykatat, Provat) dhe lidhjet mes tyre për vizualizim rrjetor. JSON Nodes/Edges."""
     return _parse_json_safely(_call_llm(system_prompt, text[:30000], True))
 
 def analyze_financial_portfolio(data: str) -> Dict[str, Any]:
-    system_prompt = f"""{KOSOVO_LEGAL_PERSONA} Analist Financiar JSON."""
+    system_prompt = f"""{KOSOVO_LEGAL_PERSONA} Vepro si Ekspert Financiar Gjyqësor. Analizo të hyrat, shpenzimet dhe obligimet. JSON."""
     return _parse_json_safely(_call_llm(system_prompt, data, True))
 
 def translate_for_client(legal_text: str) -> str:
-    return _call_llm(f"{KOSOVO_LEGAL_PERSONA} Shpjego thjeshtë.", legal_text) or "Gabim."
+    system_prompt = f"{KOSOVO_LEGAL_PERSONA} DETYRA: Përkthe 'Legalisht' në 'Shqip të Thjeshtë' për klientin që nuk është jurist. Ruaj kuptimin, thjeshtëso gjuhën."
+    return _call_llm(system_prompt, legal_text) or "Gabim në përpunim."
 
 def extract_deadlines(text: str) -> Dict[str, Any]:
-    return _parse_json_safely(_call_llm(f"{KOSOVO_LEGAL_PERSONA} Gjej afatet JSON.", text[:15000], True))
+    system_prompt = f"{KOSOVO_LEGAL_PERSONA} DETYRA: Identifiko Afatet Prekluzive dhe Instruktive (Nenet, Ankesat, Pagesat). JSON."
+    return _parse_json_safely(_call_llm(system_prompt, text[:20000], True))
 
 def perform_litigation_cross_examination(target: str, context: List[str]) -> Dict[str, Any]:
-    return _parse_json_safely(_call_llm(f"{KOSOVO_LEGAL_PERSONA} Cross-check.", f"{target} {context}", True))
+    context_str = "\n".join(context)
+    system_prompt = f"{KOSOVO_LEGAL_PERSONA} DETYRA: Përgatit pyetje për marrje në pyetje (Cross-Exam) për subjektin: {target}. Bazu në mospërputhjet e dosjes."
+    return _parse_json_safely(_call_llm(system_prompt, context_str[:40000], True))
 
 def generate_summary(text: str) -> str:
-    return _call_llm(f"{KOSOVO_LEGAL_PERSONA} Përmblidh në 3 pika juridike.", text[:20000]) or ""
+    # Quick summary for lists/previews, not the deep analysis
+    return _call_llm(f"{KOSOVO_LEGAL_PERSONA} Përmblidh thelbin e çështjes në 3 fjali koncize.", text[:20000]) or ""
 
 def get_embedding(text: str) -> List[float]:
     client = get_openai_client()
     if not client: return [0.0] * 1536
     try:
+        # Sanitize newlines to avoid embedding degradation
         res = client.embeddings.create(input=[text.replace("\n", " ")], model=EMBEDDING_MODEL)
         return res.data[0].embedding
-    except: return [0.0] * 1536
+    except Exception as e:
+        logger.error(f"Embedding failed: {e}")
+        return [0.0] * 1536
 
 def forensic_interrogation(question: str, context_rows: List[str]) -> str:
-    prompt = f"{KOSOVO_LEGAL_PERSONA} Përgjigju nga provat: {' '.join(context_rows)}"
-    return _call_llm(prompt, question) or "Nuk ka informacion."
+    # RAG Response generator
+    context_block = "\n---\n".join(context_rows)
+    prompt = f"""{KOSOVO_LEGAL_PERSONA}
+    Përgjigju pyetjes SAKTËSISHT duke u bazuar VETËM në fragmentet e mëposhtme të dosjes.
+    Nëse informacioni nuk është në fragmente, thuaj "Nuk rezulton nga dokumentet e shqyrtuara".
+    
+    FRAGMENTS:
+    {context_block}
+    """
+    return _call_llm(prompt, question, temp=0.0) or "Nuk ka informacion."
 
 def categorize_document_text(text: str) -> str:
-    res = _call_llm("Kategorizo: Padi, Aktgjykim, Kontratë.", text[:5000], True)
+    res = _call_llm("Kategorizo dokumentin: (Padi, Përgjigje në Padi, Aktgjykim, Procesverbal, Kontratë, Provë Financiare). Kthe vetëm JSON {'category': '...'}.", text[:5000], True)
     return _parse_json_safely(res).get("category", "Të tjera")
 
 def sterilize_legal_text(text: str) -> str:
     return sterilize_text_for_llm(text)
 
 def extract_expense_details_from_text(raw_text: str) -> Dict[str, Any]:
-    res = _parse_json_safely(_call_llm("OCR Shpenzime JSON.", raw_text[:3000], True))
-    return {"category": res.get("category", "Të tjera"), "amount": float(res.get("amount", 0.0)), "date": res.get("date", datetime.now().strftime("%Y-%m-%d")), "description": res.get("merchant", "")}
+    prompt = "Identifiko: {'amount': float, 'date': 'YYYY-MM-DD', 'merchant': '...', 'category': '...'}."
+    res = _parse_json_safely(_call_llm(prompt, raw_text[:3000], True))
+    return {
+        "category": res.get("category", "Shpenzime të ndryshme"),
+        "amount": float(res.get("amount", 0.0)),
+        "date": res.get("date", datetime.now().strftime("%Y-%m-%d")),
+        "description": res.get("merchant", "")
+    }
 
 def query_global_rag_for_claims(rag_results: str, user_query: str) -> Dict[str, Any]:
-    return _parse_json_safely(_call_llm(f"{KOSOVO_LEGAL_PERSONA} Sugjero pretendime JSON.", f"{rag_results} {user_query}", True))
+    system_prompt = f"{KOSOVO_LEGAL_PERSONA} Sugjero pretendime ose argumente shtesë bazuar në kërkimin global (Global Knowledge). JSON."
+    return _parse_json_safely(_call_llm(system_prompt, f"RAG: {rag_results}\nQuery: {user_query}", True))
 
 async def process_large_document_async(text: str, task_type: str = "SUMMARY") -> str:
+    # Wrapper for potential future async pipeline enhancements
     return generate_summary(text)
 
 async def stream_text_async(system_prompt: str, user_prompt: str, temp: float = 0.2) -> AsyncGenerator[str, None]:
     client = get_async_deepseek_client()
-    if not client: yield "[Offline]"; return
-    full_system = system_prompt if "Avokat" in system_prompt else f"{KOSOVO_LEGAL_PERSONA}\n{system_prompt}"
+    if not client: 
+        yield "[System Offline: API Key Missing]"
+        return
+        
+    full_system = f"{KOSOVO_LEGAL_PERSONA}\n{system_prompt}"
     try:
-        stream = await client.chat.completions.create(model=OPENROUTER_MODEL, messages=[{"role": "system", "content": full_system}, {"role": "user", "content": user_prompt}], temperature=temp, stream=True)
+        stream = await client.chat.completions.create(
+            model=OPENROUTER_MODEL, 
+            messages=[
+                {"role": "system", "content": full_system}, 
+                {"role": "user", "content": user_prompt}
+            ], 
+            temperature=temp, 
+            stream=True
+        )
         async for chunk in stream:
-            if chunk.choices[0].delta.content: yield chunk.choices[0].delta.content
-    except Exception as e: yield f"[Gabim: {str(e)}]"
+            if chunk.choices[0].delta.content: 
+                yield chunk.choices[0].delta.content
+    except Exception as e:
+        logger.error(f"Stream Error: {e}")
+        yield f"[Ndërprerje: {str(e)}]"
 
 # --- END OF FILE ---
