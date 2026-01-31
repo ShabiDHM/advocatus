@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V50.1 (DUAL-PERSONA: SUMMARY + AUDIT)
-# 1. FEAT: Integrated Summary (Plain Language) and Legal Audit (Professional).
-# 2. FEAT: Explicit "Burden of Proof" (Barra e Provës) analysis.
-# 3. FEAT: Gap Analysis for missing documentation based on case type.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V52.0 (TOTAL ANALYSIS HARDENING)
+# 1. FIX: Hardened prompts for Adversarial, Chronology, and Contradiction functions.
+# 2. FIX: Mandated evidentiary weighing (Public vs. Private documents).
+# 3. FIX: Integrated Procedural Roadblocks (Parashkrimi, Kompetenca) into Strategy.
 # 4. STATUS: Unabridged replacement.
 
 import os
@@ -95,89 +95,134 @@ def _call_llm(system_prompt: str, user_prompt: str, json_mode: bool = False, tem
 
 # --- KOSOVO JURISDICTION PERSONA ---
 KOSOVO_LEGAL_PERSONA = """
-ROLI: Ti je Avokat Kryesor (Senior Partner) në një studio ligjore prestigjioze në Prishtinë.
-QËLLIMI: Shërbeji dy lloje përdoruesish njëkohësisht:
-1. PËR BIZNESIN/PARALEGALIN: Ofro një përmbledhje të thjeshtë popullore që shpjegon thelbin e rastit pa terma teknikë.
-2. PËR AVOKATIN: Ofro një auditim të thellë ligjor duke përcaktuar Barrën e Provës (Sipas LPK/LPP) dhe gap-analizën e dokumenteve.
-
-GJUHA: Shqipe Standarde (Letrare). Profesionalizëm maksimal.
-METODOLOGJIA: Ndiq parimin "Lex Specialis". Identifiko degën e lëndës (Punës, Familjare, Pronësore, Penale, etj).
+ROLI: Ti je Avokat i Lartë (Senior Partner) në Prishtinë.
+STANDARTI: IRAC (Issue, Rule, Analysis, Conclusion). Profesionalizëm i nivelit të lartë akademik dhe gjyqësor.
+RREGULLAT E CITIMIT: "Neni [X] i Ligjit Nr. [Y/L-Z] për [Emri i Plotë]".
+GJUHA: Shqipe Standarde Juridike.
 """
 
 # --- 18 EXPORTED FUNCTIONS ---
 
 def analyze_case_integrity(context: str) -> Dict[str, Any]:
+    """
+    Primary hub for the 'Analyze Case' UI. 
+    Provides the dual-persona summary and deep procedural audit.
+    """
     system_prompt = f"""{KOSOVO_LEGAL_PERSONA}
+    OBJEKTIVI: Kryej auditimin fillestar të integritetit të lëndës.
     
-    OBJEKTIVI: Analizo integritetin e lëndës në dy nivele: Përmbledhje dhe Auditim Ligjor.
+    UDHËZIME:
+    1. SUMMARY: Përmbledhje faktike për klientin/paralegalin.
+    2. BURDEN OF PROOF: Analizo barrën e provës sipas Neneve 7 dhe 319 të LPK-së.
+    3. GAP ANALYSIS: Identifiko dëshmitë që mungojnë (psh. Fleta poseduese, Certifikata e martesës, etj).
     
-    TI DUHET TË PRODHOSH NJË RAPORT JSON ME KËTË STRUKTURË:
+    JSON:
     {{
-        "summary": "Përmbledhje në gjuhë të thjeshtë popullore për biznesin/paralegalin (max 100 fjalë).",
-        "key_issues": ["Çështja 1 (Faktike)", "Çështja 2 (Procedurale)"],
-        "burden_of_proof": "Auditimi i Barrës së Provës: Shpjegim se cila palë duhet të vërtetojë faktet kyçe bazuar në LPK/LPP të Kosovës.",
-        "legal_basis": [
-            {{ "law": "Emri i Ligjit", "article": "Neni specifik", "relevance": "Pse është relevant?" }}
-        ],
-        "strategic_analysis": "Analizë e thellë profesionale mbi shanset dhe rreziqet për avokatin.",
-        "missing_evidence": ["Dokumenti X që mungon për këtë lloj lënde", "Prova Y që duhet siguruar"],
-        "action_plan": ["Hapi 1: ...", "Hapi 2: ..."],
+        "summary": "...",
+        "key_issues": ["..."],
+        "burden_of_proof": "Auditimi i detajuar i barrës së provës...",
+        "legal_basis": [{{ "law": "...", "article": "...", "relevance": "..." }}],
+        "strategic_analysis": "Analizë e rreziqeve procedurale (Kompetenca, Parashkrimi)...",
+        "missing_evidence": ["..."],
+        "action_plan": ["..."],
         "success_probability": "XX%",
         "risk_level": "LOW|MEDIUM|HIGH"
     }}
     """
     return _parse_json_safely(_call_llm(system_prompt, context[:50000], True, temp=0.2))
 
-def extract_graph_data(text: str) -> Dict[str, Any]:
+def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
+    """
+    The 'War Room' Adversarial Tab.
+    """
     system_prompt = f"""{KOSOVO_LEGAL_PERSONA}
-    DETYRA: Shndërro tekstin në Hartë Logjike: Pretendim (Claim), Fakt (Fact), Provë (Evidence), Ligj (Law).
-    JSON: {{"nodes": [{{"id": "id", "name": "...", "type": "Claim|Fact|Evidence|Law"}}], "edges": [{{"source": "id1", "relation": "...", "target": "id2"}}]}}"""
+    ROLI: Ti je Avokati Kundërshtar ( Devil's Advocate).
+    MISIONI: Gjej "vrimat" në mbrojtjen tonë. Fokusohu te:
+    1. Parashkrimi (Statute of limitations).
+    2. Mungesa e legjitimitetit aktiv/pasiv.
+    3. Shkeljet procedurale në sigurimin e provave.
+    
+    JSON:
+    {{
+        "opponent_strategy": "Strategjia kryesore që do të përdorte kundërshtari...",
+        "weakness_attacks": ["Si do t'i sulmojë provat tona?", "Cilat afate mund të pretendojë se kanë kaluar?"],
+        "counter_claims": ["Kundërpaditë e mundshme..."]
+    }}
+    """
+    return _parse_json_safely(_call_llm(system_prompt, context[:30000], True, temp=0.4))
+
+def build_case_chronology(text: str) -> Dict[str, Any]:
+    """
+    The 'War Room' Chronology Tab.
+    """
+    system_prompt = f"""{KOSOVO_LEGAL_PERSONA}
+    DETYRA: Krijo kronologjinë e lëndës. 
+    KUJDES: Vetëm ngjarjet me rëndësi JURIDIKE (psh. dorëzimi i padisë, njoftimi, data e kontratës). 
+    Injoro bisedat e parëndësishme.
+    
+    JSON:
+    {{
+        "timeline": [
+            {{ "date": "YYYY-MM-DD", "event": "Përshkrimi i shkurtër juridik", "source": "Dokumenti referues" }}
+        ]
+    }}
+    """
+    return _parse_json_safely(_call_llm(system_prompt, text[:40000], True))
+
+def detect_contradictions(text: str) -> Dict[str, Any]:
+    """
+    The 'War Room' Contradictions Tab.
+    """
+    system_prompt = f"""{KOSOVO_LEGAL_PERSONA}
+    DETYRA: Analizo mospërputhjet në dëshmi dhe dokumente.
+    PESHIMI I PROVAVE: Dokumenti publik (Akt Publik) ka përparësi ndaj dëshmisë verbale.
+    
+    JSON:
+    {{
+        "contradictions": [
+            {{ 
+                "claim": "Deklarata A", 
+                "evidence": "Prova B që e kundërshton", 
+                "severity": "HIGH|MEDIUM|LOW", 
+                "impact": "Si ndikon kjo në besueshmërinë e palës?" 
+            }}
+        ]
+    }}
+    """
     return _parse_json_safely(_call_llm(system_prompt, text[:30000], True))
 
-def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
-    system_prompt = f"""{KOSOVO_LEGAL_PERSONA} 
-    ROLI: Avokati Kundërshtar. Gjej dobësitë tona dhe pikat ku mund të na rrëzojnë proceduralisht.
-    JSON: {{ 'opponent_strategy': '...', 'weakness_attacks': [], 'counter_claims': [] }}"""
-    return _parse_json_safely(_call_llm(system_prompt, context[:30000], True, temp=0.3))
+def extract_graph_data(text: str) -> Dict[str, Any]:
+    system_prompt = f"""{KOSOVO_LEGAL_PERSONA}
+    DETYRA: Shndërro lëndën në Hartë Logjike: Claim -> Fact -> Evidence -> Law.
+    JSON: {{"nodes": [{{"id": "id", "name": "...", "type": "..."}}], "edges": [{{"source": "id1", "relation": "...", "target": "id2"}}]}}"""
+    return _parse_json_safely(_call_llm(system_prompt, text[:30000], True))
 
 def analyze_financial_portfolio(data: str) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_PERSONA}
-    ROLI: Ekspert Financiar Gjyqësor. Analizo transaksionet për anomali sipas ligjeve të Kosovës (ATK).
+    ROLI: Ekspert Financiar Gjyqësor. Analizo për parregullsi dhe evazion sipas standardeve të Kosovës.
     JSON: {{'executive_summary': '...', 'anomalies': [], 'recommendations': []}}"""
     return _parse_json_safely(_call_llm(system_prompt, data, True))
 
-def build_case_chronology(text: str) -> Dict[str, Any]:
-    system_prompt = f"""{KOSOVO_LEGAL_PERSONA} 
-    DETYRA: Krijo një kronologji faktike të detajuar.
-    JSON: {{'timeline': [{{'date': 'YYYY-MM-DD', 'event': 'Ngjarja...', 'source': 'Dokumenti Referues'}}]}}"""
-    return _parse_json_safely(_call_llm(system_prompt, text[:40000], True))
-
 def translate_for_client(legal_text: str) -> str:
     system_prompt = f"""{KOSOVO_LEGAL_PERSONA} 
-    DETYRA: Thjeshto këtë gjuhë juridike për klientin, pa humbur saktësinë."""
-    return _call_llm(system_prompt, legal_text) or "Gabim në thjeshtësim."
-
-def detect_contradictions(text: str) -> Dict[str, Any]:
-    system_prompt = f"""{KOSOVO_LEGAL_PERSONA} 
-    DETYRA: Identifiko kundërthëniet mes dëshmive ose dokumenteve.
-    JSON: {{'contradictions': [{{'claim': '...', 'evidence': '...', 'severity': 'HIGH|LOW', 'impact': '...'}}]}}"""
-    return _parse_json_safely(_call_llm(system_prompt, text[:30000], True))
+    DETYRA: Shpjego këtë tekst për klientin sikur po i flet në zyre, thjeshtë por me autoritet."""
+    return _call_llm(system_prompt, legal_text) or "Gabim."
 
 def extract_deadlines(text: str) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_PERSONA} 
-    DETYRA: Gjej afatet procedurale sipas LPK/LPP të Kosovës.
+    DETYRA: Gjej afatet prekluzive sipas LPK/LPP të Kosovës.
     JSON: {{'is_judgment': bool, 'deadline_date': 'YYYY-MM-DD', 'action_required': '...'}}"""
     return _parse_json_safely(_call_llm(system_prompt, text[:15000], True))
 
 def perform_litigation_cross_examination(target_text: str, context_summaries: List[str]) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_PERSONA} 
-    DETYRA: Kryqëzo faktet e dokumentit të ri me ato ekzistuese.
+    DETYRA: Kryqëzo dokumentin e ri me krejt dosjen. A po gënjen dikush?
     JSON: {{'consistency_check': '...', 'contradictions': [], 'corroborations': []}}"""
     user_prompt = f"TARGET: {target_text[:15000]}\nCONTEXT: {' '.join(context_summaries)}"
     return _parse_json_safely(_call_llm(system_prompt, user_prompt, True))
 
 def generate_summary(text: str) -> str:
-    system_prompt = f"{KOSOVO_LEGAL_PERSONA} Përmblidh këtë dokument shkurt duke evidentuar rëndësinë juridike."
+    system_prompt = f"{KOSOVO_LEGAL_PERSONA} Përmblidh dokumentin në 3 pika kyçe juridike."
     return _call_llm(system_prompt, text[:20000]) or ""
 
 def get_embedding(text: str) -> List[float]:
@@ -189,11 +234,11 @@ def get_embedding(text: str) -> List[float]:
 
 def forensic_interrogation(question: str, context_rows: List[str]) -> str:
     prompt = f"""{KOSOVO_LEGAL_PERSONA}
-    Përgjigju pyetjes duke u bazuar VETËM në provat e ofruara: {' '.join(context_rows)}"""
-    return _call_llm(prompt, question) or "Nuk u gjet informacion."
+    Përgjigju VETËM nga provat: {' '.join(context_rows)}"""
+    return _call_llm(prompt, question) or "Nuk ka informacion."
 
 def categorize_document_text(text: str) -> str:
-    system_prompt = "Kategorizo dokumentin: Padi, Aktgjykim, Aktvendim, Kontratë, Parashtresë. JSON: {'category': '...'}"
+    system_prompt = "Kategorizo: Padi, Aktgjykim, Vendim, Kontratë, Parashtresë."
     res = _call_llm(system_prompt, text[:5000], True)
     return _parse_json_safely(res).get("category", "Të tjera")
 
@@ -202,16 +247,16 @@ def sterilize_legal_text(text: str) -> str:
 
 def extract_expense_details_from_text(raw_text: str) -> Dict[str, Any]:
     current_date = datetime.now().strftime("%Y-%m-%d")
-    prompt = f"Nxjerr faturën nga OCR JSON: {{'merchant': '...', 'amount': 0.0, 'date': '...', 'category': '...'}}"
+    prompt = f"Nxjerr faturën JSON: {{'merchant': '...', 'amount': 0.0, 'date': '...', 'category': '...'}}"
     result = _parse_json_safely(_call_llm(prompt, raw_text[:3000], True))
     amount = float(result.get("amount", 0.0))
     return {"category": result.get("category", "Të tjera"), "amount": round(amount, 2), "date": result.get("date", current_date), "description": result.get("merchant", "")}
 
 def query_global_rag_for_claims(rag_results: str, user_query: str) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_PERSONA}
-    DETYRA: Sugjero pretendime ligjore nga ligjet e gjetura.
+    DETYRA: Bazuar në ligjet e Kosovës, sugjero pretendime ligjore.
     JSON: {{ 'suggested_claims': [ {{ "title": "...", "legal_basis": "...", "argument": "..." }} ] }}"""
-    user_prompt = f"RAG RESULTS: {rag_results}\nQUERY: {user_query}"
+    user_prompt = f"RAG: {rag_results}\nQUERY: {user_query}"
     return _parse_json_safely(_call_llm(system_prompt, user_prompt, True))
 
 async def process_large_document_async(text: str, task_type: str = "SUMMARY") -> str:
@@ -233,3 +278,5 @@ async def stream_text_async(system_prompt: str, user_prompt: str, temp: float = 
     except Exception as e:
         logger.error(f"Stream Error: {e}")
         yield f"[Gabim: {str(e)}]"
+
+# --- END OF FILE ---
