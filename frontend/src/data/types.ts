@@ -1,8 +1,8 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V28.4
-// 1. RESTORED: All 15+ missing interfaces required by api.ts and pages.
-// 2. INTEGRATED: Dual-Persona AI fields (burden_of_proof, missing_evidence).
-// 3. FIX: CreateCaseRequest and CreateDraftingJobRequest property alignment.
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V28.5
+// 1. RESTORED: All Finance (Invoice/Expense), Calendar, and Admin properties.
+// 2. INTEGRATED: Dual-Persona AI fields (burden_of_proof, missing_evidence, success_probability).
+// 3. FIX: Total alignment with FinanceTab, InvoiceModal, and CalendarPage.
 // 4. STATUS: Unabridged replacement.
 
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
@@ -21,11 +21,14 @@ export interface User {
     created_at: string; 
     token?: string; 
     last_login?: string;
+    
+    // SaaS Matrix
     account_type: AccountType;
     subscription_tier: SubscriptionTier;
     product_plan: ProductPlan;
     subscription_status?: string; 
     subscription_expiry?: string; 
+    
     business_profile?: BusinessProfile; 
 }
 
@@ -42,6 +45,8 @@ export interface UpdateUserRequest {
     account_type?: AccountType;
     subscription_tier?: SubscriptionTier;
     product_plan?: ProductPlan;
+    subscription_status?: string; 
+    subscription_expiry?: string; 
 }
 
 export interface AcceptInviteRequest { token: string; username: string; password: string; }
@@ -82,20 +87,6 @@ export interface BusinessProfile {
     currency?: string; 
 }
 
-export interface BusinessProfileUpdate { 
-    firm_name?: string; 
-    address?: string; 
-    city?: string;    
-    phone?: string; 
-    email_public?: string; 
-    website?: string; 
-    tax_id?: string;  
-    branding_color?: string; 
-    vat_rate?: number; 
-    target_margin?: number; 
-    currency?: string; 
-}
-
 // --- 4. CASE MANAGEMENT & LEGAL ANALYSIS ---
 export interface Case { 
     id: string; 
@@ -125,7 +116,7 @@ export interface CreateCaseRequest {
     clientName?: string; 
     clientEmail?: string; 
     clientPhone?: string; 
-    status?: string; // FIXED: Added back for DashboardPage compatibility
+    status?: string; 
 }
 
 export interface CaseAnalysisResult { 
@@ -137,8 +128,8 @@ export interface CaseAnalysisResult {
     action_plan?: string[]; 
     risk_level?: string; 
     success_probability?: string;
-    burden_of_proof?: string; // NEW DUAL-PERSONA FIELD
-    missing_evidence?: string[]; // NEW DUAL-PERSONA FIELD
+    burden_of_proof?: string; 
+    missing_evidence?: string[]; 
     red_flags?: string[]; 
     contradictions?: string[]; 
     chronology?: ChronologyEvent[]; 
@@ -158,7 +149,11 @@ export interface Document {
     summary?: string; 
     risk_score?: number; 
     ocr_status?: string; 
+    processed_text_storage_key?: string; 
+    preview_storage_key?: string; 
+    error_message?: string; 
     progress_percent?: number; 
+    progress_message?: string; 
     is_shared?: boolean; 
 }
 
@@ -175,6 +170,8 @@ export interface ArchiveItemOut {
     storage_key: string; 
     file_size: number; 
     created_at: string; 
+    case_id?: string; 
+    parent_id?: string; 
     item_type?: 'FILE' | 'FOLDER'; 
     is_shared?: boolean; 
 }
@@ -191,7 +188,16 @@ export interface CalendarEvent {
     category: 'AGENDA' | 'FACT'; 
     status: 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'OVERDUE' | 'ARCHIVED'; 
     case_id?: string; 
+    document_id?: string; 
+    location?: string; 
+    notes?: string; 
     priority?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'; 
+    attendees?: string[]; 
+    is_public?: boolean;
+    working_days_remaining?: number;
+    risk_level?: string;
+    effective_deadline?: string;
+    is_extended?: boolean;
 }
 
 export interface CalendarEventCreateRequest { 
@@ -220,10 +226,19 @@ export interface Invoice {
     id: string; 
     invoice_number: string; 
     client_name: string; 
-    total_amount: number; 
-    status: 'DRAFT' | 'SENT' | 'PAID' | 'PENDING' | 'OVERDUE' | 'CANCELLED'; 
+    client_email?: string; 
+    client_address?: string; 
     issue_date: string; 
     due_date: string; 
+    items: InvoiceItem[]; 
+    subtotal: number; 
+    tax_rate: number; 
+    tax_amount: number; 
+    total_amount: number; 
+    currency: string; 
+    status: 'DRAFT' | 'SENT' | 'PAID' | 'PENDING' | 'OVERDUE' | 'CANCELLED'; 
+    notes?: string; 
+    related_case_id?: string; 
 }
 
 export interface InvoiceCreateRequest { 
@@ -244,6 +259,9 @@ export interface Expense {
     amount: number; 
     description?: string; 
     date: string; 
+    currency: string; 
+    receipt_url?: string; 
+    related_case_id?: string; 
 }
 
 export interface ExpenseCreateRequest { 
@@ -271,35 +289,58 @@ export interface CaseFinancialSummary {
     net_balance: number; 
 }
 
+export interface TopProductItem { 
+    product_name: string; 
+    total_quantity: number; 
+    total_revenue: number; 
+}
+
 export interface AnalyticsDashboardData { 
     total_revenue_period: number; 
     total_transactions_period: number; 
     sales_trend: Array<{ date: string; amount: number }>; 
-    top_products: any[]; 
+    top_products: TopProductItem[]; 
     total_profit_period?: number; 
 }
 
 // --- 8. FORENSIC ANALYSIS ---
 export interface EnhancedAnomaly {
-    date: string; 
-    amount: number; 
+    date: string;
+    amount: number;
     description: string;
-    risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'CRITICAL'; 
+    risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'CRITICAL';
     explanation: string;
+    forensic_type?: string;
+    confidence?: number;
 }
 
 export interface SpreadsheetAnalysisResult { 
+    file_id?: string; 
     filename: string; 
     record_count: number; 
+    columns: string[]; 
     narrative_report: string; 
+    charts: any[]; 
     anomalies: EnhancedAnomaly[]; 
+    key_statistics: Record<string, string | number>; 
+    preview_rows?: Record<string, any>[]; 
     processed_at: string; 
 }
 
 // --- 9. LEGAL STRATEGY (WAR ROOM) ---
-export interface ChronologyEvent { date: string; event: string; source?: string; }
-export interface AdversarialSimulation { opponent_strategy: string; weakness_attacks: string[]; counter_claims: string[]; }
-export interface Contradiction { claim: string; evidence: string; severity: 'HIGH' | 'MEDIUM' | 'LOW'; impact: string; }
+export interface ChronologyEvent { date: string; event: string; source_doc?: string; source?: string; }
+export interface AdversarialSimulation { 
+    opponent_strategy: string; 
+    weakness_attacks: string[]; 
+    counter_claims: string[]; 
+    predicted_outcome?: string; 
+}
+export interface Contradiction { 
+    claim: string; 
+    evidence: string; 
+    severity: 'HIGH' | 'MEDIUM' | 'LOW'; 
+    impact: string; 
+}
 
 export interface DeepAnalysisResult { 
     adversarial_simulation: AdversarialSimulation; 
@@ -314,6 +355,9 @@ export interface Organization {
     name: string; 
     owner_id: string; 
     tier: 'TIER_1' | 'TIER_2'; 
+    plan: string; 
+    status: string; 
+    expiry?: string; 
     seat_limit: number; 
     seat_count: number; 
     created_at: string; 
@@ -327,9 +371,11 @@ export interface ChatMessage { role: 'user' | 'ai'; content: string; timestamp: 
 
 export interface CreateDraftingJobRequest { 
     user_prompt: string; 
+    template_id?: string; 
     case_id?: string; 
+    context?: string; 
     draft_type?: string; 
-    document_type?: string; // FIXED: Added back for DraftingPage compatibility
+    document_type?: string; 
     use_library?: boolean; 
 }
 
@@ -337,10 +383,13 @@ export interface DraftingJobStatus {
     job_id: string; 
     status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED'; 
     error?: string; 
+    result_summary?: string; 
 }
 
 export interface DraftingJobResult { 
     document_text: string; 
+    document_html?: string; 
+    result_text?: string; 
     job_id?: string; 
     status?: string; 
 }
