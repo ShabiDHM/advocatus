@@ -1,7 +1,4 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V3.4 (VALIDATION FIX)
-# 1. FIX: Added 'created_at' field when creating a placeholder user.
-# 2. STATUS: Resolves the Pydantic ValidationError and 500 crash on GET /members.
 
 from typing import List, Optional, Dict
 from bson import ObjectId

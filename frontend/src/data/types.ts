@@ -1,7 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V28.0
-// 1. INTEGRATED: 'category' field in CalendarEvent (AGENDA vs FACT) for noise reduction.
-// 2. HARDENED: Total restoration of all Forensic, Financial, and Legal interfaces.
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V28.1 (TYPE HARMONIZATION)
+// 1. UPDATE: 'CaseAnalysisResult' now supports structured legal basis and success probability.
+// 2. STATUS: Fully aligned with Backend V48.0 (Kosovo Legal Persona).
 // 3. MANDATE: Unabridged file replacement.
 
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
@@ -135,11 +135,14 @@ export interface CreateCaseRequest {
 export interface CaseAnalysisResult { 
     summary?: string; 
     key_issues?: string[]; 
-    legal_basis?: string[]; 
+    // PHOENIX FIX: legal_basis now accepts strings (Legacy) OR objects (New Backend)
+    legal_basis?: (string | { law?: string; article?: string; relevance?: string; title?: string; argument?: string })[]; 
     strategic_analysis?: string; 
     weaknesses?: string[]; 
     action_plan?: string[]; 
     risk_level?: string; 
+    // PHOENIX FIX: Added success_probability
+    success_probability?: string;
     red_flags?: string[]; 
     contradictions?: string[]; 
     chronology?: ChronologyEvent[]; 

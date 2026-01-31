@@ -1,8 +1,8 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V9.0 (UI POLISH)
-// 1. UI: Redesigned 'Risk Level' badge to be professional, pill-shaped, and icon-enhanced.
-// 2. FIX: Added 'Shield', 'ShieldCheck', 'ShieldAlert' to imports.
-// 3. STATUS: Visuals match the high-end dashboard aesthetic.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V9.1 (KOSOVO JURISDICTION ADAPTER)
+// 1. FIX: Added native support for structured JSON 'legal_basis' objects (New Backend).
+// 2. FEAT: Added 'Success Probability' circular indicator in the header.
+// 3. UI: Refined citation rendering to highlight 'Article' and 'Relevance' distinctly.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -11,7 +11,7 @@ import {
     X, Scale, FileText, Swords, Target,
     Gavel, CheckCircle2, BookOpen, Globe, 
     Link as LinkIcon, Clock, Skull, AlertOctagon, BrainCircuit,
-    Shield, ShieldAlert, ShieldCheck 
+    Shield, ShieldAlert, ShieldCheck, Percent
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { CaseAnalysisResult, DeepAnalysisResult, ChronologyEvent, Contradiction } from '../data/types'; 
@@ -43,13 +43,42 @@ const safeString = (val: any): string => {
 const cleanLegalText = (text: any): string => {
     let clean = safeString(text);
     clean = clean.replace(/\[\[?([^\]]+)\]?\]/g, '$1');
-    clean = clean.replace(/^Ligji\/Neni \(Kosovë\):\s*/i, '');
-    clean = clean.replace(/^Konventa \(Global\):\s*/i, '');
     return clean;
 };
 
-const renderStructuredCitation = (rawText: any) => {
-    const text = safeString(rawText);
+// PHOENIX FIX: Handle both Legacy String Citations and New Structured Objects
+const renderCitationItem = (item: any) => {
+    // SCENARIO 1: New Backend Structure (Object)
+    if (typeof item === 'object' && item !== null && (item.law || item.title)) {
+        const lawTitle = item.law || item.title || "Ligj i Paidentifikuar";
+        const article = item.article || item.legal_basis || "";
+        const body = item.relevance || item.argument || item.description || "";
+
+        return (
+            <div className="flex flex-col gap-2 w-full">
+                <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2 font-bold text-primary-200 text-xs uppercase tracking-wide group">
+                        <LinkIcon size={12} className="text-primary-400" />
+                        <span className="border-b border-dashed border-primary-500/30 pb-0.5">{lawTitle}</span>
+                    </div>
+                    {article && (
+                        <span className="px-2 py-0.5 rounded bg-white/10 text-[10px] font-mono text-emerald-400 border border-emerald-500/20">
+                            {article}
+                        </span>
+                    )}
+                </div>
+                {body && (
+                    <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed pl-5 border-l border-white/10 ml-0.5 mt-1">
+                        <span className="text-secondary-400 text-xs font-bold uppercase mr-2">Relevanca:</span>
+                        {body}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // SCENARIO 2: Legacy String Parsing (Fallback)
+    const text = safeString(item);
     let match = text.match(/^\[(.*?)\]\((.*?)\):?\s*(.*)/s);
     if (!match) match = text.match(/^(.*?)\((doc:\/\/.*?)\):?\s*(.*)/s);
 
@@ -65,28 +94,13 @@ const renderStructuredCitation = (rawText: any) => {
                     <span title={link} className="border-b border-dashed border-primary-500/30 pb-0.5">{title}</span>
                 </div>
                 <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed pl-5 border-l border-white/10 ml-0.5">
-                    {body.split('\n').map((line: string, i: number) => {
-                        const trimmed = line.trim();
-                        if (!trimmed) return null;
-                        if (trimmed.startsWith('Përmbajtja:') || trimmed.startsWith('Relevanca:')) {
-                            const splitIdx = trimmed.indexOf(':');
-                            const key = trimmed.substring(0, splitIdx);
-                            const val = trimmed.substring(splitIdx + 1);
-                            return (
-                                <div key={i} className="mb-2 last:mb-0">
-                                    <span className={`font-semibold text-xs uppercase tracking-wider ${key === 'Relevanca' ? 'text-emerald-400' : 'text-secondary-400'}`}>
-                                        {key}
-                                    </span>
-                                    <div className="mt-0.5 text-gray-200">{val.trim()}</div>
-                                </div>
-                            );
-                        }
-                        return <div key={i} className="mb-1">{trimmed}</div>;
-                    })}
+                    {body}
                 </div>
             </div>
         );
     }
+
+    // SCENARIO 3: Plain Text
     return <span className="leading-relaxed font-mono text-xs whitespace-pre-wrap">{cleanLegalText(text)}</span>;
 };
 
@@ -132,10 +146,10 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       strategic_analysis = "",
       weaknesses = [],
       action_plan = [],
-      risk_level = "MEDIUM"
+      risk_level = "MEDIUM",
+      success_probability = null // PHOENIX: New field from backend
   } = result || {};
 
-  // PHOENIX: Redesigned Risk Badge
   const renderRiskBadge = (level: string) => {
       const l = level?.toUpperCase() || 'MEDIUM';
       let styles = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
@@ -164,6 +178,21 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       );
   };
 
+  // PHOENIX: New Success Probability Badge
+  const renderSuccessBadge = (prob: string | null) => {
+      if (!prob) return null;
+      return (
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20 backdrop-blur-md shadow-sm ml-2">
+            <Percent size={14} />
+            <div className="flex items-center gap-1.5 text-xs font-bold tracking-wide">
+                <span className="opacity-70 font-medium uppercase text-[10px]">SUKSESI</span>
+                <span className="w-1 h-1 rounded-full bg-current opacity-50" />
+                <span>{prob}</span>
+            </div>
+        </div>
+      );
+  };
+
   const getRiskLabel = (level: string) => {
       const l = level?.toUpperCase();
       if (l === 'HIGH') return t('analysis.risk_high', 'I LARTË');
@@ -189,17 +218,17 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                   <span className="truncate leading-tight tracking-tight text-lg">{t('analysis.title', 'Salla e Strategjisë Ligjore')}</span>
               </div>
               
-              {/* PHOENIX: Modern Risk Badge positioned next to title */}
-              <div className="hidden sm:block ml-2">
+              <div className="hidden sm:flex items-center ml-2">
                   {renderRiskBadge(risk_level)}
+                  {renderSuccessBadge(success_probability)}
               </div>
             </h2>
             <button onClick={onClose} className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-xl transition-colors shrink-0"><X size={20} /></button>
           </div>
           
-          {/* Mobile Risk Badge (if needed) */}
-          <div className="sm:hidden px-6 pb-2 -mt-2">
+          <div className="sm:hidden px-6 pb-2 -mt-2 flex gap-2">
                {renderRiskBadge(risk_level)}
+               {renderSuccessBadge(success_probability)}
           </div>
 
           {isLoading ? (
@@ -253,13 +282,14 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         <BookOpen size={16}/> {t('analysis.section_rules', 'Baza Ligjore')}
                                     </h3>
                                     <ul className="space-y-3">
-                                        {legal_basis.map((law: any, i: number) => {
-                                            const lawStr = safeString(law);
+                                        {legal_basis.map((lawItem: any, i: number) => {
+                                            const lawStr = typeof lawItem === 'string' ? lawItem : (lawItem.law || "");
                                             const isGlobal = lawStr.includes("UNCRC") || lawStr.includes("Konventa") || lawStr.includes("KEDNJ");
+                                            
                                             return (
                                                 <li key={i} className={`flex gap-3 text-sm items-start p-4 rounded-xl transition-colors ${isGlobal ? 'bg-indigo-500/10 border border-indigo-500/30' : 'bg-white/5 border border-white/5 hover:border-white/10'}`}>
                                                     {isGlobal ? <Globe size={20} className="text-indigo-400 shrink-0 mt-0.5"/> : <Scale size={20} className="text-secondary-400 shrink-0 mt-0.5"/>}
-                                                    {renderStructuredCitation(lawStr)}
+                                                    {renderCitationItem(lawItem)}
                                                 </li>
                                             );
                                         })}
