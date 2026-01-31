@@ -1,9 +1,8 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V28.5
-// 1. RESTORED: All Finance (Invoice/Expense), Calendar, and Admin properties.
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V28.6
+// 1. RESTORED: 'BusinessProfileUpdate' to fix build error TS2724.
 // 2. INTEGRATED: Dual-Persona AI fields (burden_of_proof, missing_evidence, success_probability).
-// 3. FIX: Total alignment with FinanceTab, InvoiceModal, and CalendarPage.
-// 4. STATUS: Unabridged replacement.
+// 3. STATUS: Unabridged replacement.
 
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
@@ -82,6 +81,20 @@ export interface BusinessProfile {
     branding_color: string; 
     logo_url?: string; 
     is_complete: boolean; 
+    vat_rate?: number; 
+    target_margin?: number; 
+    currency?: string; 
+}
+
+export interface BusinessProfileUpdate { 
+    firm_name?: string; 
+    address?: string; 
+    city?: string;    
+    phone?: string; 
+    email_public?: string; 
+    website?: string; 
+    tax_id?: string;  
+    branding_color?: string; 
     vat_rate?: number; 
     target_margin?: number; 
     currency?: string; 
