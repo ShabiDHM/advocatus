@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V63.0 (NATIVE ALBANIAN ENFORCEMENT)
-# 1. FIX: System Prompt rewritten entirely in Albanian to force language compliance.
-# 2. FEAT: "Logjika e Dominit" (Domain Logic) adapted to local context (Familjar, Penal, Civil).
-# 3. FEAT: "Lista e Pazarit" (Shopping List) specifically asks for Kosovo documents (Trusti, ATK, QPS).
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V64.0 (HIGH-AUTHORITY STYLE)
+# 1. FIX: "Legal Basis" now follows the User's "Sample Output" structure exactly.
+# 2. FEAT: Enforced 3-Part Argumentation (Principle -> Application -> Citation).
+# 3. FIX: Corrected Law Numbers (Family Law 2004/32 vs Obligations 04/L-077).
 # 4. STATUS: Unabridged replacement.
 
 import os
@@ -81,74 +81,74 @@ def _call_llm(system_prompt: str, user_prompt: str, json_mode: bool = False, tem
         logger.error(f"LLM Call Failed: {e}")
         return None
 
-# --- INTELLIGENCE CORE: PERSONA E KOSOVËS (NATIVE) ---
-# Kjo është "Truri" i sistemit. Është shkruar shqip për të garantuar output shqip.
+# --- INTELLIGENCE CORE: PARTNERI EKZEKUTIV (SHQIP) ---
 
 KOSOVO_LEGAL_BRAIN = """
-ROLI: Ti je "Partner Strategjik" në një studio ligjore elitare në Prishtinë.
-QËLLIMI: Të bësh Auditim Ligjor, Përmbledhje Ekzekutive dhe Strategji për avokatët.
+ROLI: Ti je 'Senior Legal Partner' në Kosovë.
+DETYRA: Të prodhosh analiza ligjore të nivelit 'Supreme Court'.
+GJUHA: VETËM SHQIP.
 
-GJUHA E DALJES: VETËM SHQIP (ALBANIAN). Ndalohet anglishtja.
+STRUKTURA E ARGUMENTIMIT (Baza Ligjore):
+Kur citon një ligj, ndiq KËTË STRUKTURË FIKSE (jo shkurtime):
+1. **PARIMI:** Shpjego çka thotë neni (jo vetëm numrin). Psh: "Ky nen parashikon..."
+2. **LIDHJA ME RASTIN:** Apliko parimin te faktet. Psh: "Në këtë rast, paditësi dështoi..."
+3. **CITIM:** Formati zyrtar. Psh: [Ligji Nr. 2004/32 për Familjen, Neni 15]
 
-LOGJIKA E BRENDSHME (SI TË MENDOSH):
-1. **IDENTIFIKO LLOJIN E RASTIT:**
-   - A është *Familjar*? (Shkurorëzim, Alimentacion, Besim i fëmijës).
-   - A është *Civil/Borxh*? (Fatura, Kontrata, Dëmshpërblim).
-   - A është *Pronësor*? (Vërtetim pronësie, Pengim posedimi).
-   - A është *Penal*? (Aktakuzë, Paraburgim).
+LOGJIKA E DOMINIT (Rulebook):
+1. RASTE FAMILJARE (Ligji Nr. 2004/32):
+   - Fokusi: "Interesi më i lartë i fëmijës".
+   - Dokumente Kyçe: Raporti i QPS, Vërtetimi i Pagave, Shpenzimet e fëmijës.
+2. RASTE DETYRIMESH (Ligji Nr. 04/L-077):
+   - Fokusi: "Pacta Sunt Servanda" (Kontrata duhet respektuar).
+   - Dokumente Kyçe: Faturat, Kontrata Bazë, Librat Kontabël.
+3. RASTE PROCEDURALE (Ligji Nr. 03/L-006 - LPK):
+   - Fokusi: "Barra e Provës" (Neni 7, 319).
 
-2. **APLIKO RREGULLAT E FUSHËS:**
-   - *NËSE FAMILJAR:* Kërko raportin e QPS (Qendrës për Punë Sociale). Kërko prova për shpenzimet e fëmijës (shkolla, mjeku). Parimi kyç: "Interesi më i lartë i fëmijës".
-   - *NËSE CIVIL:* Kërko fatura të nënshkruara, libra kontabël, vërtetim nga ATK. Kërko "Parashkrimin" (Afatin e vjetërsimit).
-   - *NËSE PRONËSOR:* Kërko Fletën Poseduese, Kopjen e Planit.
+FORMATI JSON (DALJA E KËRKUAR):
 
-UDHËZIME PËR FORMATIN JSON (STRIKTE):
+"summary":
+- Një tekst narrativ profesional.
+- Shpjego konfliktin sikur t'ia prezantoje Gjyqtarit në fjalën hyrëse.
 
-1. "summary" (Për Klientin/Biznesin):
-   - Një përmbledhje "Narrative" e qartë.
-   - Struktura: "Kush janë palët?" -> "Çka kërkohet (Objekti)?" -> "Cili është statusi aktual?".
-   - Pa terma latinë të panevojshëm. Thjesht dhe pastër.
+"burden_of_proof":
+- Auditimi "Forensic".
+- Cito Nenet 7 & 319 LPK.
+- Identifiko saktësisht kush dështoi të sjellë prova.
+- Përdor shprehje si "Vakuum provues", "Pretendim i pa mbështetur".
 
-2. "burden_of_proof" (Për Avokatin - Auditimi Teknik):
-   - Këtu duhet të jesh kritik.
-   - Cito Nenin 7 dhe 319 të LPK (Barra e Provës).
-   - Analizo: "Paditësi pretendon X, por nuk ka sjellë provën Y".
-   - Përdor terma si: "Vakuum provues", "Dështim në argumentim".
+"missing_evidence":
+- "Checklist" për asistentin.
+- Të jenë dokumente reale të sistemit të Kosovës (ATK, QPS, Kadastër, Trusti).
 
-3. "missing_evidence" (Për Paralegalin - Lista e Detyrave):
-   - LISTO DOKUMENTET SPECIFIKE QË MUNGOJNË.
-   - Mos thuaj "Prova financiare". Thuaj: "Pasqyra e llogarisë bankare (12 muaj)", "Vërtetimi i ATK-së", "Raporti i QPS-së", "Fleta Poseduese e Pronës".
-   - Kjo shërben si "Checklist" për ekipin.
-
-4. "legal_basis" (Baza Ligjore):
-   - Lidh Nenin me Faktin.
-   - Shembull: "Sipas Nenit 171 të LFK, ndryshimi i rrethanave duhet të provohet, gjë që nuk ka ndodhur."
-
-5. "strategic_analysis" (Dhoma e Luftës):
-   - Cila është lëvizja e radhës?
-   - Shembull: "Të kërkohet hedhja e padisë për shkak të parashkrimit", "Të propozohet pajtim gjyqësor", "Të kërkohet ekspertizë financiare".
-
-"risk_level": "I ULËT | I MESËM | I LARTË"
-"success_probability": "Përqindje (psh: 60%)"
+"strategic_analysis":
+- Këshilla përfundimtare. A të shkojmë në gjyq apo në pajtim?
 """
 
 def analyze_case_integrity(context: str) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_BRAIN}
     
-    DETYRA: KRYEJ NJË AUDITIM TË PLOTË TË KËTIJ RASTI.
+    DETYRA: KRYEJ ANALIZËN E PLOTË LIGJORE.
     
-    OUTPUT I KËRKUAR (JSON):
+    UDHËZIM SPECIFIK PËR 'LEGAL_BASIS':
+    Te fusha 'relevance', MOS shkruaj vetëm një fjali. Shkruaj një paragraf të plotë që përmban:
+    (1) Përmbajtjen e Nenit dhe (2) Analizën e Rastit.
+    
+    OUTPUT JSON:
     {{
-        "summary": "String (Përmbledhja narrative në Shqip)",
-        "key_issues": ["String (Çështja 1)", "String (Çështja 2)"],
-        "burden_of_proof": "String (Auditimi kritik ligjor)",
+        "summary": "Teksti narrative...",
+        "key_issues": ["Çështja 1...", "Çështja 2..."],
+        "burden_of_proof": "Auditimi kritik...",
         "legal_basis": [
-            {{ "law": "String (Emri i Ligjit)", "article": "String (Neni)", "relevance": "String (Argumentimi)" }}
+            {{ 
+                "law": "Emri i Ligjit (psh: Ligji Nr. 2004/32 për Familjen)", 
+                "article": "Neni X", 
+                "relevance": "PARIMI: [Shpjego ligjin]... LIDHJA ME RASTIN: [Analizo faktet]... CITIM: [Formati Zyrtar]"
+            }}
         ],
-        "strategic_analysis": "String (Rekomandimi strategjik)",
-        "missing_evidence": ["String (Dokumenti 1 që duhet kërkuar)", "String (Dokumenti 2)"],
-        "action_plan": ["String (Hapi 1)", "String (Hapi 2)"],
-        "success_probability": "String",
+        "strategic_analysis": "Rekomandimi strategjik...",
+        "missing_evidence": ["Dokumenti 1...", "Dokumenti 2..."],
+        "action_plan": ["Hapi 1...", "Hapi 2..."],
+        "success_probability": "XX%",
         "risk_level": "I ULËT | I MESËM | I LARTË"
     }}
     """
@@ -160,52 +160,48 @@ def analyze_case_integrity(context: str) -> Dict[str, Any]:
 
 def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_BRAIN}
-    ROLI: Avokati Kundërshtar (Djalli i Avokatit).
-    DETYRA: Gjej pikat e dobëta të rastit tonë.
-    JSON: {{ 
-        'opponent_strategy': 'Strategjia e sulmit...', 
-        'weakness_attacks': ['Pika e dobët 1', 'Pika e dobët 2'], 
-        'counter_claims': ['Kundërpadia ose Pretendimi...'] 
-    }}"""
+    ROLI: Avokati Kundërshtar.
+    DETYRA: Zbulo dobësitë tona.
+    JSON: {{ 'opponent_strategy': '...', 'weakness_attacks': ['...'], 'counter_claims': ['...'] }}"""
     return _parse_json_safely(_call_llm(system_prompt, context[:30000], True, temp=0.4))
 
 def build_case_chronology(text: str) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_BRAIN}
-    DETYRA: Ndërto Kronologjinë e verifikuar (Datat, Ngjarjet, Burimi).
-    JSON: {{'timeline': [{{'date': 'YYYY-MM-DD', 'event': 'Përshkrimi', 'source': 'Dokumenti'}}]}}"""
+    DETYRA: Kronologjia e verifikuar (Datat, Ngjarjet, Burimi).
+    JSON: {{'timeline': [{{'date': 'YYYY-MM-DD', 'event': '...', 'source': '...'}}]}}"""
     return _parse_json_safely(_call_llm(system_prompt, text[:40000], True))
 
 def detect_contradictions(text: str) -> Dict[str, Any]:
     system_prompt = f"""{KOSOVO_LEGAL_BRAIN}
-    DETYRA: Gjej Gënjeshtrat/Mospërputhjet (Impeachment).
-    JSON: {{'contradictions': [{{'claim': 'Çka u tha', 'evidence': 'Çka tregon prova', 'severity': 'I LARTË', 'impact': 'Pasoja ligjore'}}]}}"""
+    DETYRA: Zbulo Gënjeshtrat (Impeachment).
+    JSON: {{'contradictions': [{{'claim': '...', 'evidence': '...', 'severity': 'I LARTË', 'impact': '...'}}]}}"""
     return _parse_json_safely(_call_llm(system_prompt, text[:30000], True))
 
 # --- UTILITY & HELPER FUNCTIONS ---
 
 def extract_graph_data(text: str) -> Dict[str, Any]:
-    system_prompt = f"""{KOSOVO_LEGAL_BRAIN} Nxjerr Entitetet dhe Lidhjet për Grafikun. JSON."""
+    system_prompt = f"""{KOSOVO_LEGAL_BRAIN} Nxjerr Entitetet dhe Lidhjet. JSON."""
     return _parse_json_safely(_call_llm(system_prompt, text[:30000], True))
 
 def analyze_financial_portfolio(data: str) -> Dict[str, Any]:
-    system_prompt = f"""{KOSOVO_LEGAL_BRAIN} Analizo Financat (Forensic). JSON."""
+    system_prompt = f"""{KOSOVO_LEGAL_BRAIN} Analizo Financat. JSON."""
     return _parse_json_safely(_call_llm(system_prompt, data, True))
 
 def translate_for_client(legal_text: str) -> str:
-    system_prompt = f"{KOSOVO_LEGAL_BRAIN} Përkthe në gjuhë të thjeshtë për klientin. Shpjego rrezikun qartë."
+    system_prompt = f"{KOSOVO_LEGAL_BRAIN} Përkthe ligjin në gjuhë të thjeshtë popullore."
     return _call_llm(system_prompt, legal_text) or "Përkthimi dështoi."
 
 def extract_deadlines(text: str) -> Dict[str, Any]:
-    system_prompt = f"{KOSOVO_LEGAL_BRAIN} Gjej Afatet Ligjore (Ankesat, Parashtresat). JSON."
+    system_prompt = f"{KOSOVO_LEGAL_BRAIN} Gjej Afatet (Ankesat, Përgjigjet). JSON."
     return _parse_json_safely(_call_llm(system_prompt, text[:20000], True))
 
 def perform_litigation_cross_examination(target: str, context: List[str]) -> Dict[str, Any]:
     context_str = "\n".join(context)
-    system_prompt = f"{KOSOVO_LEGAL_BRAIN} Përgatit pyetje kryqëzuese për dëshmitarin: {target}."
+    system_prompt = f"{KOSOVO_LEGAL_BRAIN} Përgatit pyetje kryqëzuese për: {target}."
     return _parse_json_safely(_call_llm(system_prompt, context_str[:40000], True))
 
 def generate_summary(text: str) -> str:
-    return _call_llm(f"{KOSOVO_LEGAL_BRAIN} Përmblidh në 3 pika esenciale.", text[:20000]) or ""
+    return _call_llm(f"{KOSOVO_LEGAL_BRAIN} Përmbledhje ekzekutive (3 pika).", text[:20000]) or ""
 
 def get_embedding(text: str) -> List[float]:
     client = get_openai_client()
@@ -220,8 +216,7 @@ def get_embedding(text: str) -> List[float]:
 def forensic_interrogation(question: str, context_rows: List[str]) -> str:
     context_block = "\n---\n".join(context_rows)
     prompt = f"""{KOSOVO_LEGAL_BRAIN}
-    Përgjigju VETËM bazuar në tekstin e mëposhtëm.
-    DOKUMENTET:
+    Përgjigju VETËM nga dokumentet e mëposhtme:
     {context_block}
     """
     return _call_llm(prompt, question, temp=0.0) or "Nuk ka informacion."
@@ -234,7 +229,7 @@ def sterilize_legal_text(text: str) -> str:
     return sterilize_text_for_llm(text)
 
 def extract_expense_details_from_text(raw_text: str) -> Dict[str, Any]:
-    prompt = "Nxjerr të dhënat e shpenzimit: {'amount': float, 'date': 'YYYY-MM-DD', 'merchant': '...', 'category': '...'}."
+    prompt = "Nxjerr shpenzimin: {'amount': float, 'date': 'YYYY-MM-DD', 'merchant': '...', 'category': '...'}."
     res = _parse_json_safely(_call_llm(prompt, raw_text[:3000], True))
     return {
         "category": res.get("category", "Shpenzime"),
@@ -244,7 +239,7 @@ def extract_expense_details_from_text(raw_text: str) -> Dict[str, Any]:
     }
 
 def query_global_rag_for_claims(rag_results: str, user_query: str) -> Dict[str, Any]:
-    system_prompt = f"{KOSOVO_LEGAL_BRAIN} Përdor njohuri globale për të sugjeruar argumente kreative. JSON."
+    system_prompt = f"{KOSOVO_LEGAL_BRAIN} Sugjero argumente shtesë nga praktika gjyqësore. JSON."
     return _parse_json_safely(_call_llm(system_prompt, f"RAG: {rag_results}\nQuery: {user_query}", True))
 
 async def process_large_document_async(text: str, task_type: str = "SUMMARY") -> str:

@@ -257,7 +257,7 @@
     "logoUploadFailed": "Ngarkimi i logos dështoi."
   },
   "analysis": {
-    "title": "Salla e Strategjisë Ligjore",
+    "title": "Strategjia Ligjore",
     "risk_label": "RREZIKU",
     "risk_high": "I LARTË",
     "risk_medium": "I MESËM",
@@ -265,7 +265,7 @@
     "risk_format": "RREZIK {{level}}",
     "loading_title": "Duke Analizuar Ligjet & Faktet...",
     "loading_desc": "Sokrati po verifikon bazën ligjore.",
-    "loading_deep_title": "Duke Simuluar Kundërshtarin...",
+    "loading_deep_title": "Duke Simuluar Rastin...",
     "loading_deep_desc": "AI po kërkon kontradikta dhe po ndërton kronologjinë.",
     "tab_legal": "Analiza Ligjore",
     "tab_strategic": "Plani Strategjik",
