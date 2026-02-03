@@ -1,8 +1,8 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V2.2 (FINAL SYNC)
-// 1. FIXED: Restored all UI icons and success states (Mail, Crown, Briefcase, etc.).
-// 2. FIXED: TypeScript comparison for 'pending_invite' now aligns with Types V2.2.
-// 3. CORRECTED: Maintained DEFAULT=1 and GROWTH=10 seat logic.
+// PHOENIX PROTOCOL - TEAM TAB V2.3 (i18n & SYNC FIX)
+// 1. FIXED: Removed all hardcoded English strings to support multi-language.
+// 2. FIXED: Logic now utilizes backend 'current_active_users' for accurate progress.
+// 3. STATUS: Production Ready & Fully Internationalized.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -68,11 +68,11 @@ export const TeamTab: React.FC = () => {
         setInviteResult(null);
         try {
             const res = await apiService.inviteMember(inviteEmail);
-            setInviteResult(res.message);
+            setInviteResult(res.message || t('team.invite_success_detail'));
             setInviteEmail(""); 
             fetchData();
         } catch (err: any) {
-            const detail = err.response?.data?.detail || "Failed to invite.";
+            const detail = err.response?.data?.detail || t('team.invite_error_generic');
             setErrorMsg(detail);
         } finally {
             setInviting(false);
@@ -80,7 +80,7 @@ export const TeamTab: React.FC = () => {
     };
 
     const handleRemoveMember = async (userId: string) => {
-        if (!window.confirm(t('team.confirmRemove', 'Are you sure?'))) return;
+        if (!window.confirm(t('team.confirm_remove_member'))) return;
         try {
             await apiService.removeOrganizationMember(userId);
             fetchData();
@@ -91,9 +91,8 @@ export const TeamTab: React.FC = () => {
 
     if (loading) return <div className="flex justify-center h-64 items-center"><Loader2 className="animate-spin text-primary-start w-10 h-10" /></div>;
 
-    // PHOENIX: Baseline Logic (DEFAULT=1)
     const seatLimit = organization?.user_limit || 1; 
-    const usedSeats = members.length;
+    const usedSeats = organization?.current_active_users || members.length;
     const availableSeats = seatLimit - usedSeats;
     const progressPercent = Math.min((usedSeats / seatLimit) * 100, 100);
     const isCurrentUserOwner = currentUser?.role === 'ADMIN' || currentUser?.organization_role === 'OWNER';
@@ -107,8 +106,8 @@ export const TeamTab: React.FC = () => {
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                         <div>
-                            <h2 className="text-2xl font-bold text-white mb-2">{t('team.manageTeam')}</h2>
-                            <p className="text-text-secondary text-sm max-w-lg">{t('team.description')}</p>
+                            <h2 className="text-2xl font-bold text-white mb-2">{t('team.manage_team_title')}</h2>
+                            <p className="text-text-secondary text-sm max-w-lg">{t('team.manage_team_subtitle')}</p>
                         </div>
                         {isCurrentUserOwner && (
                             <button 
@@ -116,7 +115,7 @@ export const TeamTab: React.FC = () => {
                                 disabled={availableSeats <= 0}
                                 className="bg-primary-start/20 hover:bg-primary-start/30 text-primary-300 border border-primary-start/50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 w-full sm:w-auto justify-center"
                             >
-                                <UserPlus size={18} /> {t('team.inviteButton')}
+                                <UserPlus size={18} /> {t('team.invite_member_button')}
                             </button>
                         )}
                     </div>
@@ -126,13 +125,13 @@ export const TeamTab: React.FC = () => {
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-accent-start to-accent-end" />
                     <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-2">
-                            <span className="text-gray-400 font-bold text-xs uppercase tracking-wider">{t('team.planUsage')}</span>
+                            <span className="text-gray-400 font-bold text-xs uppercase tracking-wider">{t('team.plan_usage_label')}</span>
                             <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold">
                                 {planName}
                             </span>
                         </div>
                         <span className={`px-2 py-1 rounded text-xs font-bold ${availableSeats <= 0 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                            {availableSeats > 0 ? 'Active' : 'Limit Reached'}
+                            {availableSeats > 0 ? t('team.status_active') : t('team.status_limit_reached')}
                         </span>
                     </div>
                     <div className="flex items-end gap-2 mb-2">
@@ -150,10 +149,10 @@ export const TeamTab: React.FC = () => {
                     <table className="w-full text-left min-w-[600px]">
                         <thead className="bg-white/5 text-gray-400 text-xs uppercase tracking-wider">
                             <tr>
-                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.user')}</th>
-                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.role')}</th>
-                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.status')}</th>
-                                <th className="px-6 py-4 font-bold text-right whitespace-nowrap">{t('team.actions')}</th>
+                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.table_user')}</th>
+                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.table_role')}</th>
+                                <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.table_status')}</th>
+                                <th className="px-6 py-4 font-bold text-right whitespace-nowrap">{t('team.table_actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5 text-sm">
@@ -184,22 +183,26 @@ export const TeamTab: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold ${member.status === 'pending_invite' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
                                                 <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${member.status === 'pending_invite' ? 'bg-yellow-400' : 'bg-emerald-400'}`} /> 
-                                                {member.status === 'pending_invite' ? 'Pending' : 'Active'}
+                                                {member.status === 'pending_invite' ? t('team.status_pending') : t('team.status_active')}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right whitespace-nowrap">
                                             <div className="relative inline-block text-left">
-                                                <button onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)} className="p-2 text-gray-500 hover:text-white">
+                                                <button onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)} className="p-2 text-gray-500 hover:text-white transition-colors">
                                                     <MoreHorizontal size={20} />
                                                 </button>
                                                 <AnimatePresence>
                                                     {openMenuId === member.id && (
-                                                        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="absolute right-0 mt-2 w-48 bg-[#1a1f2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden" ref={menuRef}>
-                                                            {isCurrentUserOwner && !isSelf && (
-                                                                <button onClick={() => handleRemoveMember(member.id)} className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2">
-                                                                    <Trash2 size={16} /> {t('team.removeMember', 'Remove Member')}
-                                                                </button>
-                                                            )}
+                                                        <motion.div initial={{ opacity: 0, scale: 0.95, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -10 }} className="absolute right-0 mt-2 w-48 bg-[#1a1f2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden" ref={menuRef}>
+                                                            <div className="py-1">
+                                                                {isCurrentUserOwner && !isSelf ? (
+                                                                    <button onClick={() => handleRemoveMember(member.id)} className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors">
+                                                                        <Trash2 size={16} /> {t('team.action_remove')}
+                                                                    </button>
+                                                                ) : (
+                                                                    <div className="px-4 py-3 text-sm text-gray-500 italic text-center">{isSelf ? t('team.label_current_user') : t('team.label_no_actions')}</div>
+                                                                )}
+                                                            </div>
                                                         </motion.div>
                                                     )}
                                                 </AnimatePresence>
@@ -217,14 +220,15 @@ export const TeamTab: React.FC = () => {
             <AnimatePresence>
                 {showInviteModal && (
                     <div className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass-high w-full max-w-md p-8 rounded-3xl shadow-2xl relative">
+                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="glass-high w-full max-w-md p-8 rounded-3xl shadow-2xl relative">
                             <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="absolute top-6 right-6 text-gray-500 hover:text-white"><X size={24} /></button>
                             
                             <div className="mb-6">
                                 <div className="w-12 h-12 rounded-2xl bg-primary-start/20 flex items-center justify-center mb-4 text-primary-start">
                                     <UserPlus size={24} />
                                 </div>
-                                <h3 className="text-2xl font-bold text-white">{t('team.inviteTitle')}</h3>
+                                <h3 className="text-2xl font-bold text-white">{t('team.invite_modal_title')}</h3>
+                                <p className="text-gray-400 text-sm mt-1">{t('team.invite_modal_subtitle')}</p>
                             </div>
 
                             {!inviteResult ? (
@@ -236,14 +240,15 @@ export const TeamTab: React.FC = () => {
                                         </div>
                                     )}
                                     <div className="space-y-2">
+                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{t('general.email_label')}</label>
                                         <div className="relative">
                                             <Mail className="absolute left-4 top-3.5 w-5 h-5 text-gray-500" />
-                                            <input type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-white" placeholder="colleague@firm.com" />
+                                            <input autoFocus type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-white" placeholder={t('general.email_placeholder')} />
                                         </div>
                                     </div>
                                     <button type="submit" disabled={inviting} className="w-full py-3.5 bg-primary-start text-white rounded-xl font-bold shadow-lg shadow-primary-start/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
                                         {inviting ? <Loader2 className="animate-spin w-5 h-5" /> : <UserPlus size={18} />}
-                                        {t('team.sendInvite')}
+                                        {t('team.button_send_invite')}
                                     </button>
                                 </form>
                             ) : (
@@ -252,7 +257,9 @@ export const TeamTab: React.FC = () => {
                                         <CheckCircle className="flex-shrink-0" size={20} />
                                         <span className="font-medium">{inviteResult}</span>
                                     </div>
-                                    <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="w-full py-3.5 bg-white/10 text-white rounded-xl font-bold">{t('general.close')}</button>
+                                    <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="w-full py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-colors">
+                                        {t('general.button_close')}
+                                    </button>
                                 </div>
                             )}
                         </motion.div>
