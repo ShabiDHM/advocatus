@@ -1,8 +1,8 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V29.0
-// 1. UPDATED: User status now includes 'pending_invite' to resolve TS2367.
-// 2. UPDATED: Organization interface aligned with Backend Tier Expansion (V2.1).
-// 3. STATUS: Unabridged replacement.
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V29.1
+// 1. RESTORED: 'Contradiction' interface name to resolve build error TS2305.
+// 2. MAINTAINED: 'pending_invite' status for Team Expansion.
+// 3. MAINTAINED: Organization Tier Expansion fields.
 
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
@@ -16,7 +16,7 @@ export interface User {
     full_name?: string; 
     role: 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD'; 
     organization_role?: 'OWNER' | 'MEMBER';
-    status: 'active' | 'inactive' | 'pending_invite'; // PHOENIX FIX: Added pending_invite
+    status: 'active' | 'inactive' | 'pending_invite'; 
     created_at: string; 
     token?: string; 
     last_login?: string;
@@ -348,7 +348,7 @@ export interface AdversarialSimulation {
     counter_claims: string[]; 
     predicted_outcome?: string; 
 }
-export interface ConflictResult { 
+export interface Contradiction { 
     claim: string; 
     evidence: string; 
     severity: 'HIGH' | 'MEDIUM' | 'LOW'; 
@@ -358,7 +358,7 @@ export interface ConflictResult {
 export interface DeepAnalysisResult { 
     adversarial_simulation: AdversarialSimulation; 
     chronology: ChronologyEvent[]; 
-    contradictions: ConflictResult[]; 
+    contradictions: Contradiction[]; 
     error?: string; 
 }
 

@@ -1,9 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V9.5 (TOTAL SYSTEM INTEGRITY)
-// 1. FIX: Restored 'getRiskLabel' helper to resolve TypeScript 2304 error.
-// 2. FEAT: Dual-Persona UI sections (Summary, Burden of Proof, Gap Analysis).
-// 3. UI: Full alignment with Kosovo Jurisdiction persona.
-// 4. STATUS: Unabridged replacement.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V9.6 (TYPE SYNC)
+// 1. SYNCED: Explicitly uses 'Contradiction' from types to resolve TS2305.
+// 2. STATUS: Unabridged replacement.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -134,7 +132,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       success_probability = null, burden_of_proof = "", missing_evidence = []
   } = result || {};
 
-  // PHOENIX FIX: Restored getRiskLabel for TS 2304 resolution
   const getRiskLabel = (level: string) => {
       const l = level?.toUpperCase();
       if (l === 'HIGH') return t('analysis.risk_high', 'I LARTË');
@@ -231,8 +228,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
                     {activeTab === 'legal' && (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            
-                            {/* DUAL-PERSONA: SUMMARY (BUSINESS/PARALEGAL) */}
                             <div className="glass-panel p-6 rounded-2xl border-white/10 bg-white/5">
                                 <h3 className="text-xs font-bold text-primary-300 uppercase tracking-wider mb-3 flex items-center gap-2">
                                     <Info size={16}/> {t('analysis.section_summary', 'Përmbledhja (Për Biznesin/Paralegalin)')}
@@ -240,7 +235,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                 <p className="text-white text-sm leading-relaxed whitespace-pre-line border-l-2 border-primary-500/30 pl-4">{cleanLegalText(summary)}</p>
                             </div>
 
-                            {/* DUAL-PERSONA: AUDIT (LAWYER) */}
                             {burden_of_proof && (
                                 <div className="glass-panel p-6 rounded-2xl border-blue-500/20 bg-blue-500/5">
                                     <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -250,7 +244,6 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                 </div>
                             )}
 
-                            {/* DUAL-PERSONA: GAP ANALYSIS */}
                             {missing_evidence && missing_evidence.length > 0 && (
                                 <div className="glass-panel p-6 rounded-2xl border-red-500/20 bg-red-500/5">
                                     <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-2">
