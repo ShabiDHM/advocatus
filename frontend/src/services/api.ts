@@ -1,5 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V18.0 (KUJDESTARI PERSONA & STREAMING)
+// PHOENIX PROTOCOL - API SERVICE V19.0 (TIER EXPANSION)
+// 1. ADDED: 'getOrganization()' to support dynamic tier limits in TeamTab.
+// 2. RETAINED: All streaming, forensic, and legacy endpoints.
+
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
     LoginRequest, RegisterRequest, Case, CreateCaseRequest, Document, User, UpdateUserRequest,
@@ -123,8 +126,10 @@ class ApiService {
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
     public logout() { tokenManager.set(null); }
 
+    // --- ORGANIZATION METHODS (UPDATED) ---
     public async inviteMember(email: string): Promise<any> { const response = await this.axiosInstance.post('/organizations/invite', { email }); return response.data; }
     public async getOrganizationMembers(): Promise<User[]> { const response = await this.axiosInstance.get<User[]>('/organizations/members'); return response.data; }
+    public async getOrganization(): Promise<Organization> { const response = await this.axiosInstance.get<Organization>('/organizations/me'); return response.data; } // <-- ADDED THIS
     public async acceptInvite(data: AcceptInviteRequest): Promise<{ message: string }> { const response = await this.axiosInstance.post('/organizations/accept-invite', data); return response.data; }
     public async removeOrganizationMember(memberId: string): Promise<any> { const response = await this.axiosInstance.delete(`/organizations/members/${memberId}`); return response.data; }
 

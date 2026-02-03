@@ -1,14 +1,15 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V11.1 (CLEANUP)
-// 1. FIXED: Removed unused imports ('Users', 'Crown', 'SubscriptionUpdate').
-// 2. STATUS: All linter warnings and type errors are now resolved.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V12.0 (TIER EXPANSION)
+// 1. IMPLEMENTED: Organization Tier and User Limit management.
+// 2. INTEGRATED: 'upgradeOrganizationTier' API call.
+// 3. CLEANUP: Removed unused imports (ShieldCheck).
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
     Search, Edit2, Trash2, CheckCircle, Loader2, Clock, 
     Briefcase, Calendar as CalendarIcon, 
-    AlertTriangle, Building2, User as UserIcon, Star 
+    AlertTriangle, Building2, User as UserIcon, Shield
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DatePicker from 'react-datepicker';
@@ -23,6 +24,9 @@ type UnifiedAdminUser = User & {
     subscription_tier: SubscriptionTier;
     product_plan: ProductPlan;
     expiry_date?: Date | null;
+    // Tier Expansion Fields
+    plan_tier?: 'DEFAULT' | 'GROWTH';
+    user_limit?: number;
 };
 
 const AdminDashboardPage: React.FC = () => {
@@ -50,7 +54,10 @@ const AdminDashboardPage: React.FC = () => {
                 subscription_tier: user.subscription_tier || SubscriptionTier.BASIC,
                 product_plan: user.product_plan || ProductPlan.SOLO_PLAN,
                 firmName: user.organization_name,
-                expiry_date: user.subscription_expiry ? new Date(user.subscription_expiry) : null
+                expiry_date: user.subscription_expiry ? new Date(user.subscription_expiry) : null,
+                // Default to standard limits if not present
+                plan_tier: user.plan_tier || 'DEFAULT',
+                user_limit: user.user_limit || 5
             })).filter((user: any) => user && typeof user.id === 'string' && user.id.trim() !== '');
 
             mappedUsers.sort((a, b) => getStatusScore(a) - getStatusScore(b));
@@ -81,6 +88,7 @@ const AdminDashboardPage: React.FC = () => {
         if (!editingUser?.id) return;
         
         try {
+            // 1. Update Core User Data
             const userUpdatePayload: UpdateUserRequest = {
                 username: editForm.username,
                 email: editForm.email,
@@ -94,11 +102,17 @@ const AdminDashboardPage: React.FC = () => {
 
             await apiService.updateUser(editingUser.id, userUpdatePayload);
 
+            // 2. TIER EXPANSION: Update Organization Tier if it changed
+            if (editForm.plan_tier && editForm.plan_tier !== editingUser.plan_tier) {
+                await apiService.upgradeOrganizationTier(editingUser.id, editForm.plan_tier);
+            }
+
             setEditingUser(null);
             setTimeout(() => loadAdminData(), 200); 
-        } catch (error) {
-            console.error("Failed to update user", error);
-            alert(t('error.generic', 'Ndodhi një gabim.'));
+        } catch (error: any) {
+            console.error("Failed to update user/tier", error);
+            const msg = error.response?.data?.detail || t('error.generic', 'Ndodhi një gabim.');
+            alert(msg);
         }
     };
 
@@ -187,9 +201,10 @@ const AdminDashboardPage: React.FC = () => {
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col">
                                             <div className="flex items-center gap-2 mb-1">
-                                                {user.subscription_tier === 'PRO' && <Star className="w-3 h-3 text-amber-400" />}
-                                                <span className={`text-xs font-mono uppercase font-bold ${user.subscription_tier === 'PRO' ? 'text-amber-400' : 'text-gray-300'}`}>{user.subscription_tier}</span>
-                                                <span className="text-gray-500 text-xs">({user.product_plan})</span>
+                                                {user.plan_tier === 'GROWTH' && <Shield className="w-3 h-3 text-emerald-400" />}
+                                                <span className={`text-xs font-mono uppercase font-bold ${user.plan_tier === 'GROWTH' ? 'text-emerald-400' : 'text-gray-300'}`}>
+                                                    {user.plan_tier} ({user.user_limit} Seats)
+                                                </span>
                                             </div>
                                             {user.expiry_date && (
                                                 <div className="flex items-center text-[10px] text-gray-500"><CalendarIcon className="w-3 h-3 mr-1" />{user.expiry_date.toLocaleDateString()}</div>
@@ -211,33 +226,19 @@ const AdminDashboardPage: React.FC = () => {
 
             {editingUser && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#1f2937] border border-white/10 p-6 rounded-2xl w-full max-w-lg shadow-2xl overflow-visible">
+                    <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#1f2937] border border-white/10 p-6 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
                         <h3 className="text-xl font-bold text-white mb-6 border-b border-white/10 pb-4">Menaxho Përdoruesin: {editingUser.username}</h3>
                         <form onSubmit={handleUpdateUser} className="space-y-4">
+                            
+                            {/* Section 1: Subscription & Access */}
                             <div className="p-4 bg-white/5 rounded-xl border border-white/10 space-y-4">
-                                <h4 className="text-sm font-bold text-primary-300 flex items-center gap-2"><Briefcase size={16}/> Abonimi</h4>
+                                <h4 className="text-sm font-bold text-primary-300 flex items-center gap-2"><Briefcase size={16}/> Aksesi & Abonimi</h4>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Tipi i Llogarisë</label>
                                         <select value={editForm.account_type} onChange={e => setEditForm({ ...editForm, account_type: e.target.value as AccountType })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
                                             <option value={AccountType.SOLO}>SOLO (Individual)</option>
                                             <option value={AccountType.ORGANIZATION}>ORGANIZATION (Firmë)</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Plani i Produktit (Kuota)</label>
-                                        <select value={editForm.product_plan} onChange={e => setEditForm({ ...editForm, product_plan: e.target.value as ProductPlan })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
-                                            <option value={ProductPlan.SOLO_PLAN}>SOLO_PLAN (1 Përdorues)</option>
-                                            <option value={ProductPlan.TEAM_PLAN}>TEAM_PLAN (5 Përdorues)</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Niveli i Abonimit (Features)</label>
-                                        <select value={editForm.subscription_tier} onChange={e => setEditForm({ ...editForm, subscription_tier: e.target.value as SubscriptionTier })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
-                                            <option value={SubscriptionTier.BASIC}>BASIC (Funksione Bazike)</option>
-                                            <option value={SubscriptionTier.PRO}>PRO (AI & Forenzika)</option>
                                         </select>
                                     </div>
                                     <div>
@@ -251,11 +252,29 @@ const AdminDashboardPage: React.FC = () => {
                                 <div>
                                     <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Data e Skadimit</label>
                                     <DatePicker selected={editForm.expiry_date} onChange={(date) => setEditForm({ ...editForm, expiry_date: date })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none focus:border-primary-start" placeholderText="Pa limit (No Expiry)" dateFormat="dd/MM/yyyy" />
-                                    <p className="text-[10px] text-gray-500 mt-1">Lëre bosh për akses të përhershëm.</p>
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-3 pt-4">
+                            {/* Section 2: TIER EXPANSION - Organization Controls */}
+                            {editForm.account_type === 'ORGANIZATION' && (
+                                <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20 space-y-4">
+                                    <h4 className="text-sm font-bold text-emerald-400 flex items-center gap-2"><Shield size={16}/> Organizata & Limitet</h4>
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-400 uppercase mb-1">Plani i Organizatës (Tiers)</label>
+                                        <select 
+                                            value={editForm.plan_tier} 
+                                            onChange={e => setEditForm({ ...editForm, plan_tier: e.target.value as 'DEFAULT' | 'GROWTH' })} 
+                                            className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select"
+                                        >
+                                            <option value="DEFAULT">DEFAULT (Limit: 5 Users)</option>
+                                            <option value="GROWTH">GROWTH (Limit: 10 Users)</option>
+                                        </select>
+                                        <p className="text-[10px] text-gray-500 mt-2">Ndryshimi i Tier-it do të përditësojë automatikisht kuotën e 'Seats' për këtë firmë.</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
                                 <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-gray-400 hover:text-white transition-colors">{t('general.cancel', 'Anulo')}</button>
                                 <button type="submit" className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-lg font-bold shadow-lg shadow-primary-start/20">{t('general.save', 'Ruaj')}</button>
                             </div>

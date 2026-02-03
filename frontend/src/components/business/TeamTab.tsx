@@ -1,16 +1,16 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V1.8 (WHITESPACE FIX)
-// 1. FIX: Added 'whitespace-nowrap' to table cells (td, th) to prevent text wrapping.
-// 2. RESULT: Columns now maintain their width, fixing the compressed text on mobile.
+// PHOENIX PROTOCOL - TEAM TAB V2.0 (DYNAMIC LIMITS)
+// 1. IMPLEMENTED: Dynamic 'user_limit' and 'plan_tier' from Backend.
+// 2. REMOVED: Hardcoded MAX_SEATS constant.
+// 3. UI: Added Plan Tier badge and dynamic progress bar.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     UserPlus, Mail, CheckCircle, X, Loader2, 
-    AlertTriangle, Briefcase, Crown, MoreHorizontal, Trash2
-} from 'lucide-react';
+    AlertTriangle, Briefcase, Crown, MoreHorizontal, Trash2} from 'lucide-react';
 import { apiService } from '../../services/api';
-import { User } from '../../data/types';
+import { User, Organization } from '../../data/types';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 
@@ -19,6 +19,7 @@ export const TeamTab: React.FC = () => {
     const { user: currentUser } = useAuth(); 
     
     const [members, setMembers] = useState<User[]>([]);
+    const [organization, setOrganization] = useState<Organization | null>(null);
     const [loading, setLoading] = useState(true);
     
     const [inviteEmail, setInviteEmail] = useState("");
@@ -30,10 +31,8 @@ export const TeamTab: React.FC = () => {
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
-    const MAX_SEATS = 5; 
-
     useEffect(() => {
-        fetchMembers();
+        fetchData();
     }, []);
 
     useEffect(() => {
@@ -46,12 +45,18 @@ export const TeamTab: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const fetchMembers = async () => {
+    const fetchData = async () => {
         try {
-            const data = await apiService.getOrganizationMembers();
-            setMembers(data);
+            // PHOENIX: Fetch both Members and Organization Details in parallel
+            const [membersData, orgData] = await Promise.all([
+                apiService.getOrganizationMembers(),
+                apiService.getOrganization()
+            ]);
+            
+            setMembers(membersData);
+            setOrganization(orgData);
         } catch (error) {
-            console.error("Failed to fetch team", error);
+            console.error("Failed to fetch team data", error);
         } finally {
             setLoading(false);
         }
@@ -66,6 +71,8 @@ export const TeamTab: React.FC = () => {
             const res = await apiService.inviteMember(inviteEmail);
             setInviteResult(res.message);
             setInviteEmail(""); 
+            // Refresh data to update counts
+            fetchData();
         } catch (err: any) {
             const detail = err.response?.data?.detail || "Failed to invite.";
             setErrorMsg(detail);
@@ -83,6 +90,8 @@ export const TeamTab: React.FC = () => {
 
         try {
             await apiService.removeOrganizationMember(userId);
+            // Refresh to sync counters
+            fetchData();
         } catch (error) {
             console.error("Failed to remove member", error);
             setMembers(originalMembers);
@@ -92,11 +101,13 @@ export const TeamTab: React.FC = () => {
 
     if (loading) return <div className="flex justify-center h-64 items-center"><Loader2 className="animate-spin text-primary-start w-10 h-10" /></div>;
 
+    // PHOENIX: Dynamic Limits Calculation
+    const seatLimit = organization?.user_limit || 5; // Default to 5 if loading/error
     const usedSeats = members.length;
-    const availableSeats = MAX_SEATS - usedSeats;
-    const progressPercent = (usedSeats / MAX_SEATS) * 100;
-
+    const availableSeats = seatLimit - usedSeats;
+    const progressPercent = Math.min((usedSeats / seatLimit) * 100, 100);
     const isCurrentUserOwner = currentUser?.role === 'ADMIN' || currentUser?.organization_role === 'OWNER';
+    const planName = organization?.plan_tier || 'DEFAULT';
 
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-20">
@@ -124,14 +135,19 @@ export const TeamTab: React.FC = () => {
                 <div className="glass-panel rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-accent-start to-accent-end" />
                     <div className="flex justify-between items-center mb-4">
-                        <span className="text-gray-400 font-bold text-xs uppercase tracking-wider">{t('team.planUsage')}</span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-gray-400 font-bold text-xs uppercase tracking-wider">{t('team.planUsage')}</span>
+                            <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold">
+                                {planName}
+                            </span>
+                        </div>
                         <span className={`px-2 py-1 rounded text-xs font-bold ${availableSeats <= 0 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
                             {availableSeats > 0 ? 'Active' : 'Limit Reached'}
                         </span>
                     </div>
                     <div className="flex items-end gap-2 mb-2">
                         <span className="text-4xl font-bold text-white">{usedSeats}</span>
-                        <span className="text-lg text-gray-500 mb-1">/ {MAX_SEATS}</span>
+                        <span className="text-lg text-gray-500 mb-1">/ {seatLimit}</span>
                     </div>
                     <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                         <div className="h-full bg-gradient-to-r from-primary-start to-accent-start transition-all duration-1000" style={{ width: `${progressPercent}%` }} />
@@ -298,7 +314,7 @@ export const TeamTab: React.FC = () => {
                                         <span className="font-medium">{inviteResult}</span>
                                     </div>
                                     <button 
-                                        onClick={() => { setShowInviteModal(false); setInviteResult(null); fetchMembers(); }} 
+                                        onClick={() => { setShowInviteModal(false); setInviteResult(null); fetchData(); }} 
                                         className="w-full py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-colors"
                                     >
                                         {t('general.close')}

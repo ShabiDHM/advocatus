@@ -1,8 +1,7 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V28.6
-// 1. RESTORED: 'BusinessProfileUpdate' to fix build error TS2724.
-// 2. INTEGRATED: Dual-Persona AI fields (burden_of_proof, missing_evidence, success_probability).
-// 3. STATUS: Unabridged replacement.
+// PHOENIX PROTOCOL - TYPES V2.1 (TIER EXPANSION)
+// 1. UPDATED: Organization interface to match Backend V2.0 (plan_tier, user_limit).
+// 2. RETAINED: All other interfaces for system stability.
 
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
@@ -366,14 +365,20 @@ export interface DeepAnalysisResult {
 export interface Organization { 
     id: string; 
     name: string; 
-    owner_id: string; 
-    tier: 'TIER_1' | 'TIER_2'; 
-    plan: string; 
+    owner_email?: string; 
+    plan_tier: 'DEFAULT' | 'GROWTH'; // Strict Typing
+    user_limit: number;
+    current_active_users: number;
     status: string; 
-    expiry?: string; 
-    seat_limit: number; 
-    seat_count: number; 
     created_at: string; 
+    
+    // Legacy / Backward Compat
+    tier?: string; 
+    plan?: string; 
+    seat_limit?: number; 
+    seat_count?: number; 
+    owner_id?: string;
+    expiry?: string;
 }
 
 export interface SubscriptionUpdate { status: string; expiry_date?: string; plan_tier?: string; }
