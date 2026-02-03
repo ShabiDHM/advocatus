@@ -1,7 +1,8 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TYPES V2.1 (TIER EXPANSION)
-// 1. UPDATED: Organization interface to match Backend V2.0 (plan_tier, user_limit).
-// 2. RETAINED: All other interfaces for system stability.
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V29.0
+// 1. UPDATED: User status now includes 'pending_invite' to resolve TS2367.
+// 2. UPDATED: Organization interface aligned with Backend Tier Expansion (V2.1).
+// 3. STATUS: Unabridged replacement.
 
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
@@ -15,7 +16,7 @@ export interface User {
     full_name?: string; 
     role: 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD'; 
     organization_role?: 'OWNER' | 'MEMBER';
-    status: 'active' | 'inactive'; 
+    status: 'active' | 'inactive' | 'pending_invite'; // PHOENIX FIX: Added pending_invite
     created_at: string; 
     token?: string; 
     last_login?: string;
@@ -39,7 +40,7 @@ export interface UpdateUserRequest {
     email?: string; 
     full_name?: string; 
     role?: string; 
-    status?: 'active' | 'inactive';
+    status?: 'active' | 'inactive' | 'pending_invite';
     account_type?: AccountType;
     subscription_tier?: SubscriptionTier;
     product_plan?: ProductPlan;
@@ -347,7 +348,7 @@ export interface AdversarialSimulation {
     counter_claims: string[]; 
     predicted_outcome?: string; 
 }
-export interface Contradiction { 
+export interface ConflictResult { 
     claim: string; 
     evidence: string; 
     severity: 'HIGH' | 'MEDIUM' | 'LOW'; 
@@ -357,7 +358,7 @@ export interface Contradiction {
 export interface DeepAnalysisResult { 
     adversarial_simulation: AdversarialSimulation; 
     chronology: ChronologyEvent[]; 
-    contradictions: Contradiction[]; 
+    contradictions: ConflictResult[]; 
     error?: string; 
 }
 
@@ -365,8 +366,8 @@ export interface DeepAnalysisResult {
 export interface Organization { 
     id: string; 
     name: string; 
-    owner_email?: string; 
-    plan_tier: 'DEFAULT' | 'GROWTH'; // Strict Typing
+    owner_email?: string;
+    plan_tier: 'DEFAULT' | 'GROWTH'; 
     user_limit: number;
     current_active_users: number;
     status: string; 
