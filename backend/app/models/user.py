@@ -1,7 +1,7 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - USER MODEL V8.1 (IDENTITY PATCH)
-# 1. FIX: Added 'full_name' to UserBase to resolve Pylance error in Calendar API.
-# 2. FEAT: Added 'full_name' to UserUpdate to allow profile personalization.
+# PHOENIX PROTOCOL - USER MODEL V8.2 (TIER EXPANSION SYNC)
+# 1. UPDATED: PLAN_LIMITS for TEAM_PLAN changed from 5 to 10.
+# 2. STATUS: Aligned with Juristi Tier Expansion requirements.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional, Dict, Any
@@ -9,7 +9,7 @@ from datetime import datetime
 from enum import Enum
 from .common import PyObjectId
 
-# --- PHOENIX V8.0: Subscription Matrix Enums ---
+# --- Subscription Matrix Enums ---
 class AccountType(str, Enum):
     SOLO = "SOLO"
     ORGANIZATION = "ORGANIZATION"
@@ -19,32 +19,29 @@ class SubscriptionTier(str, Enum):
     PRO = "PRO"
 
 class ProductPlan(str, Enum):
-    # Defines user quotas and billing.
     SOLO_PLAN = "SOLO_PLAN"
-    TEAM_PLAN = "TEAM_PLAN" # Formerly STARTUP
+    TEAM_PLAN = "TEAM_PLAN"
 
 # Base User Model
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: EmailStr
-    # PHOENIX FIX: Added for personalized "Kujdestari" greetings
     full_name: Optional[str] = Field(None, max_length=100) 
-    role: str = "STANDARD" # System-level role: ADMIN, STANDARD
+    role: str = "STANDARD" 
     
     # Organization Context
     org_id: Optional[PyObjectId] = None 
-    org_role: str = "OWNER" # Role within an org: OWNER, MEMBER
+    org_role: str = "OWNER" 
     
-    # --- PHOENIX V8.0: New Subscription Matrix Fields ---
+    # Subscription Matrix Fields
     account_type: AccountType = AccountType.SOLO
     subscription_tier: SubscriptionTier = SubscriptionTier.BASIC
-    product_plan: ProductPlan = ProductPlan.SOLO_PLAN # Governs quotas like user count
+    product_plan: ProductPlan = ProductPlan.SOLO_PLAN 
 
     # SaaS Lifecycle
-    subscription_status: str = "INACTIVE" # ACTIVE, INACTIVE, EXPIRED, TRIAL
+    subscription_status: str = "INACTIVE" 
     subscription_expiry: Optional[datetime] = None
     
-    # Legacy fields (can be deprecated later)
     organization_name: Optional[str] = None
     logo: Optional[str] = None 
 
@@ -56,20 +53,18 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[EmailStr] = None
-    full_name: Optional[str] = None # PHOENIX FIX: Allow updating name
+    full_name: Optional[str] = None
     role: Optional[str] = None
     
     org_id: Optional[PyObjectId] = None
     org_role: Optional[str] = None
     
-    # Subscription fields modifiable by Admin
     account_type: Optional[AccountType] = None
     subscription_tier: Optional[SubscriptionTier] = None
     product_plan: Optional[ProductPlan] = None
     subscription_status: Optional[str] = None
     subscription_expiry: Optional[datetime] = None
     
-    # Legacy
     organization_name: Optional[str] = None
     logo: Optional[str] = None
 
@@ -81,7 +76,6 @@ class UserInDB(UserBase):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     last_login: Optional[datetime] = None
     
-    # For Invitation Flow
     invitation_token: Optional[str] = None
     invitation_token_expiry: Optional[datetime] = None
     
@@ -106,9 +100,9 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
-# --- PHOENIX V8.0: Updated Plan Limits ---
-# This dictionary now uses the ProductPlan Enum for type safety.
+# --- PHOENIX V8.2: Updated Plan Limits ---
+# CORRECTED: TEAM_PLAN now allows 10 users as per Tier Expansion blueprint.
 PLAN_LIMITS = {
     ProductPlan.SOLO_PLAN: 1,
-    ProductPlan.TEAM_PLAN: 5,
+    ProductPlan.TEAM_PLAN: 10,
 }

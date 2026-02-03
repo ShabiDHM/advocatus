@@ -1,15 +1,15 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V12.2 (FULL UI RESTORATION)
-// 1. RESTORED: DatePicker for subscription expiry management.
-// 2. RESTORED: AlertTriangle, CalendarIcon, and Star icons in JSX.
-// 3. MAINTAINED: DEFAULT (1 Seat) vs GROWTH (10 Seats) baseline.
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V13.1 (ICON REINTEGRATION)
+// 1. RESTORED: 'Briefcase' icon usage in the User Base header to resolve TS6133.
+// 2. MAINTAINED: Full Feature Tier (BASIC/PRO) and Capacity (1/10 Seats) logic.
+// 3. STATUS: Clean, warning-free build.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
     Search, Edit2, Trash2, CheckCircle, Loader2, Clock, 
     Briefcase, Calendar as CalendarIcon, 
-    AlertTriangle, Building2, User as UserIcon, Star, Shield, Mail
+    AlertTriangle, Building2, User as UserIcon, Star, Shield, Mail, Zap
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DatePicker from 'react-datepicker';
@@ -20,9 +20,6 @@ import { AccountType, SubscriptionTier, ProductPlan } from '../data/enums';
 
 type UnifiedAdminUser = User & { 
     firmName?: string; 
-    account_type: AccountType;
-    subscription_tier: SubscriptionTier;
-    product_plan: ProductPlan;
     expiry_date?: Date | null;
     plan_tier?: 'DEFAULT' | 'GROWTH';
     user_limit?: number;
@@ -49,13 +46,10 @@ const AdminDashboardPage: React.FC = () => {
             const mappedUsers: UnifiedAdminUser[] = userData.map((user: any) => ({
                 ...user,
                 id: user.id || user._id,
-                account_type: user.account_type || AccountType.SOLO,
-                subscription_tier: user.subscription_tier || SubscriptionTier.BASIC,
-                product_plan: user.product_plan || ProductPlan.SOLO_PLAN,
                 firmName: user.organization_name,
                 expiry_date: user.subscription_expiry ? new Date(user.subscription_expiry) : null,
-                plan_tier: user.plan_tier || 'DEFAULT',
-                user_limit: user.user_limit || 1 
+                plan_tier: user.plan_tier || (user.product_plan === ProductPlan.TEAM_PLAN ? 'GROWTH' : 'DEFAULT'),
+                user_limit: user.user_limit || (user.product_plan === ProductPlan.TEAM_PLAN ? 10 : 1) 
             })).filter((user: any) => user && typeof user.id === 'string' && user.id.trim() !== '');
 
             mappedUsers.sort((a, b) => getStatusScore(a) - getStatusScore(b));
@@ -100,8 +94,11 @@ const AdminDashboardPage: React.FC = () => {
 
             await apiService.updateUser(editingUser.id, userUpdatePayload);
 
-            if (editForm.plan_tier && editForm.plan_tier !== editingUser.plan_tier) {
-                await apiService.upgradeOrganizationTier(editingUser.id, editForm.plan_tier);
+            const targetOrgTier = editForm.product_plan === ProductPlan.TEAM_PLAN ? 'GROWTH' : 'DEFAULT';
+            
+            if (targetOrgTier !== editingUser.plan_tier || editForm.plan_tier !== editingUser.plan_tier) {
+                const finalTier = editForm.plan_tier || targetOrgTier;
+                await apiService.upgradeOrganizationTier(editingUser.id, finalTier);
             }
 
             setEditingUser(null);
@@ -128,14 +125,12 @@ const AdminDashboardPage: React.FC = () => {
         if (user.status === 'pending_invite') {
             return <span className="flex items-center text-amber-400 bg-amber-400/10 px-2 py-1 rounded-lg text-xs font-bold w-fit border border-amber-500/20"><Mail className="w-3 h-3 mr-1" /> FTESË</span>;
         }
-
         if (user.subscription_status === 'ACTIVE') {
             if (isExpired) {
                 return <span className="flex items-center text-red-400 bg-red-400/10 px-2 py-1 rounded-lg text-xs font-bold w-fit border border-red-500/20"><AlertTriangle className="w-3 h-3 mr-1" /> SKADUAR</span>;
             }
             return <span className="flex items-center text-green-400 bg-green-400/10 px-2 py-1 rounded-lg text-xs font-bold w-fit border border-green-500/20"><CheckCircle className="w-3 h-3 mr-1" /> AKTIV</span>;
         }
-        
         return <span className="flex items-center text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-lg text-xs font-bold w-fit border border-yellow-500/20"><Clock className="w-3 h-3 mr-1" /> PRITJE</span>;
     };
 
@@ -152,12 +147,15 @@ const AdminDashboardPage: React.FC = () => {
             
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-white mb-2">{t('admin.title')}</h1>
-                <p className="text-gray-400">Menaxhimi i Tiers dhe Limiteve të Juristi.tech</p>
+                <p className="text-gray-400">Juristi SaaS Administration: Features & Capacity</p>
             </div>
 
             <div className="bg-background-light/10 backdrop-blur-md rounded-2xl border border-glass-edge overflow-hidden">
                 <div className="p-4 border-b border-glass-edge flex justify-between items-center bg-white/5">
-                    <h3 className="text-lg font-semibold text-white">Përdoruesit & Organizatat</h3>
+                    <div className="flex items-center gap-2">
+                        <Briefcase className="w-5 h-5 text-primary-start" />
+                        <h3 className="text-lg font-semibold text-white">User Base</h3>
+                    </div>
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                         <input type="text" placeholder="Kërko..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-4 py-2 bg-black/40 border border-white/10 rounded-lg text-sm text-white outline-none focus:ring-1 focus:ring-primary-start" />
@@ -168,11 +166,12 @@ const AdminDashboardPage: React.FC = () => {
                     <table className="w-full text-left text-sm text-gray-400">
                         <thead className="bg-black/20 text-white uppercase text-xs font-bold">
                             <tr>
-                                <th className="px-6 py-4">Përdoruesi</th>
-                                <th className="px-6 py-4">Tipi</th>
-                                <th className="px-6 py-4">Plani / Limiti</th>
-                                <th className="px-6 py-4">Statusi</th>
-                                <th className="px-6 py-4 text-right">Veprime</th>
+                                <th className="px-6 py-4">User</th>
+                                <th className="px-6 py-4 text-center">Plan Type</th>
+                                <th className="px-6 py-4">Feature Tier</th>
+                                <th className="px-6 py-4">Capacity</th>
+                                <th className="px-6 py-4">Status</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/5">
@@ -182,15 +181,23 @@ const AdminDashboardPage: React.FC = () => {
                                         <div className="font-medium text-white">{user.username}</div>
                                         <div className="text-xs text-gray-500">{user.email}</div>
                                     </td>
+                                    <td className="px-6 py-4 text-center">
+                                        {user.account_type === AccountType.ORGANIZATION ? <Building2 className="w-4 h-4 text-purple-400 mx-auto" /> : <UserIcon className="w-4 h-4 text-gray-500 mx-auto" />}
+                                    </td>
                                     <td className="px-6 py-4">
-                                        {user.account_type === 'ORGANIZATION' ? <Building2 className="w-4 h-4 text-purple-400" /> : <UserIcon className="w-4 h-4 text-gray-500" />}
+                                        <div className="flex items-center gap-2">
+                                            {user.subscription_tier === SubscriptionTier.PRO ? <Zap className="w-3 h-3 text-yellow-400" /> : <Shield className="w-3 h-3 text-gray-500" />}
+                                            <span className={`text-xs font-bold uppercase ${user.subscription_tier === SubscriptionTier.PRO ? 'text-yellow-400' : 'text-gray-400'}`}>
+                                                {user.subscription_tier}
+                                            </span>
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col gap-1">
                                             <div className="flex items-center gap-2">
-                                                {user.plan_tier === 'GROWTH' ? <Star className="w-3 h-3 text-amber-400" /> : <Shield className="w-3 h-3 text-gray-500" />}
-                                                <span className={`text-xs font-bold ${user.plan_tier === 'GROWTH' ? 'text-amber-400' : 'text-gray-300'}`}>
-                                                    {user.plan_tier} ({user.user_limit} Seats)
+                                                {user.product_plan === ProductPlan.TEAM_PLAN ? <Star className="w-3 h-3 text-amber-400" /> : <UserIcon className="w-3 h-3 text-gray-500" />}
+                                                <span className={`text-xs font-bold ${user.product_plan === ProductPlan.TEAM_PLAN ? 'text-amber-400' : 'text-gray-400'}`}>
+                                                    {user.product_plan} ({user.user_limit} Seats)
                                                 </span>
                                             </div>
                                             {user.expiry_date && (
@@ -215,58 +222,60 @@ const AdminDashboardPage: React.FC = () => {
             {editingUser && (
                 <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#1f2937] border border-white/10 p-6 rounded-2xl w-full max-w-lg shadow-2xl overflow-y-auto max-h-[90vh]">
-                        <h3 className="text-xl font-bold text-white mb-6">Redakto: {editingUser.username}</h3>
+                        <h3 className="text-xl font-bold text-white mb-6 border-b border-white/10 pb-4">Manage SaaS Profile: {editingUser.username}</h3>
                         <form onSubmit={handleUpdateUser} className="space-y-6">
                             
-                            <div className="p-4 bg-white/5 rounded-xl border border-white/10 space-y-4">
-                                <h4 className="text-xs font-bold text-primary-300 uppercase tracking-widest flex items-center gap-2"><Briefcase size={14}/> Profilat & Statusi</h4>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Statusi i Llogarisë</label>
-                                        <select value={editForm.status} onChange={e => setEditForm({ ...editForm, status: e.target.value as any })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
-                                            <option value="active">Active</option>
-                                            <option value="inactive">Inactive</option>
-                                            <option value="pending_invite">Pending Invite</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Gatekeeper</label>
-                                        <select value={editForm.subscription_status} onChange={e => setEditForm({ ...editForm, subscription_status: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
-                                            <option value="ACTIVE">ACTIVE (Lejo)</option>
-                                            <option value="INACTIVE">INACTIVE (Blloko)</option>
-                                        </select>
-                                    </div>
-                                </div>
+                            <div className="p-4 bg-yellow-500/5 rounded-xl border border-yellow-500/20 space-y-4">
+                                <h4 className="text-xs font-bold text-yellow-400 uppercase tracking-widest flex items-center gap-2"><Zap size={14}/> Features & AI Access</h4>
                                 <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Data e Skadimit</label>
-                                    <DatePicker 
-                                        selected={editForm.expiry_date} 
-                                        onChange={(date) => setEditForm({ ...editForm, expiry_date: date })} 
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none focus:border-primary-start" 
-                                        placeholderText="Pa limit (No Expiry)" 
-                                        dateFormat="dd/MM/yyyy" 
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20 space-y-4">
-                                <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-2"><Shield size={14}/> Plani i Organizatës</h4>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Zgjidh Tier-in</label>
-                                    <select 
-                                        value={editForm.plan_tier} 
-                                        onChange={e => setEditForm({ ...editForm, plan_tier: e.target.value as 'DEFAULT' | 'GROWTH' })} 
-                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select"
-                                    >
-                                        <option value="DEFAULT">DEFAULT (1 Seat / Single User)</option>
-                                        <option value="GROWTH">GROWTH (10 Seats / Team)</option>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Subscription Tier</label>
+                                    <select value={editForm.subscription_tier} onChange={e => setEditForm({ ...editForm, subscription_tier: e.target.value as SubscriptionTier })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
+                                        <option value={SubscriptionTier.BASIC}>BASIC (Standard)</option>
+                                        <option value={SubscriptionTier.PRO}>PRO (AI + Forensics)</option>
                                     </select>
                                 </div>
                             </div>
 
+                            <div className="p-4 bg-emerald-500/5 rounded-xl border border-emerald-500/20 space-y-4">
+                                <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-2"><Star size={14}/> Capacity & Quotas</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Product Plan</label>
+                                        <select value={editForm.product_plan} onChange={e => setEditForm({ ...editForm, product_plan: e.target.value as ProductPlan })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
+                                            <option value={ProductPlan.SOLO_PLAN}>SOLO (1 Seat)</option>
+                                            <option value={ProductPlan.TEAM_PLAN}>TEAM (10 Seats)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Account Type</label>
+                                        <select value={editForm.account_type} onChange={e => setEditForm({ ...editForm, account_type: e.target.value as AccountType })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
+                                            <option value={AccountType.SOLO}>Individual</option>
+                                            <option value={AccountType.ORGANIZATION}>Firm/Organization</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-4 bg-white/5 rounded-xl border border-white/10 space-y-4">
+                                <h4 className="text-xs font-bold text-primary-300 uppercase tracking-widest flex items-center gap-2"><Clock size={14}/> Lifecycle & Status</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Gatekeeper Status</label>
+                                        <select value={editForm.subscription_status} onChange={e => setEditForm({ ...editForm, subscription_status: e.target.value })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select">
+                                            <option value="ACTIVE">ACTIVE (Access Granted)</option>
+                                            <option value="INACTIVE">INACTIVE (Access Denied)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Expiry Date</label>
+                                        <DatePicker selected={editForm.expiry_date} onChange={(date) => setEditForm({ ...editForm, expiry_date: date })} className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none" placeholderText="No Expiry" dateFormat="dd/MM/yyyy" />
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
-                                <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-gray-400 hover:text-white">Anulo</button>
-                                <button type="submit" className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-lg font-bold shadow-lg">Ruaj Ndryshimet</button>
+                                <button type="button" onClick={() => setEditingUser(null)} className="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
+                                <button type="submit" className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-lg font-bold shadow-lg">Save SaaS Profile</button>
                             </div>
                         </form>
                     </motion.div>
