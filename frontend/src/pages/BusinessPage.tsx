@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V11.1 (RESPONSIVE TABS)
-// 1. FIX: Correctly applied 'hidden sm:inline' to text labels for mobile view.
-// 2. FIX: Removed hardcoded text abbreviations ('Fin.', 'Arch.').
-// 3. UI: Tabs now correctly show Icon-Only on mobile and Icon+Text on desktop.
+// PHOENIX PROTOCOL - BUSINESS PAGE V11.2 (i18n FIX)
+// 1. FIXED: Corrected 'welcome' translation key to use 'general.welcome_name'.
+// 2. FIXED: Removed hardcoded English fallbacks in tab buttons.
+// 3. STATUS: 100% Internationalized.
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen, Users } from 'lucide-react';
@@ -21,7 +21,7 @@ const BusinessPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('profile');
 
   const capitalize = (s: string | undefined) => {
-    if (!s) return 'Përdorues';
+    if (!s) return '';
     return s
       .split(' ')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -48,10 +48,10 @@ const BusinessPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-10 gap-4 sm:gap-6">
         <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2 tracking-tight">
-                {t('dashboard.welcome', { name: capitalize(user?.username) })}
+                {t('general.welcome_name', { name: capitalize(user?.username) })}
             </h1>
             <p className="text-text-secondary text-sm sm:text-base">
-                {t('business.title', 'Qendra e Biznesit')}
+                {t('business.subtitle')}
             </p>
         </div>
         
@@ -67,10 +67,10 @@ const BusinessPage: React.FC = () => {
             <button 
                 onClick={() => setActiveTab('team')} 
                 className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${activeTab === 'team' ? 'bg-gradient-to-r from-primary-start to-primary-end text-white shadow-lg shadow-primary-start/20' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
-                title={t('business.team', 'Team')}
+                title={t('business.team')}
             >
                 <Users size={16} className="sm:w-[18px] sm:h-[18px]" />
-                <span className="truncate hidden sm:inline">{t('business.team', 'Team')}</span>
+                <span className="truncate hidden sm:inline">{t('business.team')}</span>
             </button>
             <button 
                 onClick={() => setActiveTab('finance')} 
