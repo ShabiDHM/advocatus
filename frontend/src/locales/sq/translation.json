@@ -33,7 +33,11 @@
     "pending": "Në Pritje",
     "admitted": "Pranuar",
     "stricken": "Hequr",
-    "saving": "Duke u ruajtur..."
+    "saving": "Duke u ruajtur...",
+    "welcome_name": "Mirësevini, {{name}}",
+    "email_label": "Email",
+    "email_placeholder": "kolegu@zyra.com",
+    "button_close": "Mbyll"
   },
   "landing": {
     "login": "Hyrja",
@@ -109,7 +113,7 @@
       "prekluziv_missed": "AFAT I HUMBUR: '{{title}}' ishte një afat prekluziv!",
       "prekluziv_today": "VËMENDJE E LARTË: Afati PREKLUZIV për '{{title}}' skadon sot!",
       "prekluziv_upcoming": "PRIORITET MAKSIMAL: Afati PREKLUZIV për '{{title}}' është za {{count}} ditë pune.",
-      "gjyqesor_missed": "KUJDES: Afati gjyqësor për '{{title}}' ka skaduar.",
+      "gjyqesor_missed": "KUJDES: Afati gjyqëëor për '{{title}}' ka skaduar.",
       "gjyqesor_today": "FOKUS: Afati gjyqësor për '{{title}}' duhet të përmbushet sot.",
       "gjyqesor_upcoming": "PËRGATITJE: Afati gjyqësor për '{{title}}' është za {{count}} ditë pune."
     },
@@ -143,21 +147,26 @@
     "support": "Mbështetja"
   },
   "team": {
-    "manageTeam": "Menaxhimi i Ekipit",
-    "description": "Ftoni kolegët për të bashkëpunuar në raste dhe dokumente.",
-    "inviteButton": "Fto Anëtar",
-    "planUsage": "Përdorimi i Planit",
-    "upgradePrompt": "Përmirësoni planin për më shumë vende",
-    "seatsRemaining": "{{count}} vende të mbetura",
-    "user": "Përdoruesi",
-    "role": "Roli",
-    "status": "Statusi",
-    "actions": "Veprime",
-    "inviteTitle": "Fto Anëtar",
-    "inviteSubtitle": "Dërgoni një lidhje ftese një kolegu.",
-    "sendInvite": "Dërgo Ftesën",
-    "removeMember": "Largo Anëtarin",
-    "confirmRemove": "A jeni të sigurt që doni të largoni këtë anëtar? Rastet e tyre do të transferohen tek ju."
+    "manage_team_title": "Menaxhimi i Ekipit",
+    "manage_team_subtitle": "Ftoni kolegët për të bashkëpunuar në raste dhe dokumente.",
+    "invite_member_button": "Fto Anëtar",
+    "plan_usage_label": "Përdorimi i Planit",
+    "status_active": "Aktiv",
+    "status_limit_reached": "Limiti u Arrit",
+    "table_user": "Përdoruesi",
+    "table_role": "Roli",
+    "table_status": "Statusi",
+    "table_actions": "Veprime",
+    "status_pending": "Në Pritje",
+    "action_remove": "Largo Anëtarin",
+    "label_current_user": "Përdoruesi Aktual",
+    "label_no_actions": "S'ka Veprime",
+    "invite_modal_title": "Fto Anëtar",
+    "invite_modal_subtitle": "Dërgoni një lidhje ftese një kolegu.",
+    "invite_success_detail": "Ftesa u dërgua me sukses.",
+    "invite_error_generic": "Dërgimi i ftesës dështoi.",
+    "confirm_remove_member": "A jeni i sigurt që doni të largoni këtë anëtar?",
+    "button_send_invite": "Dërgo Ftesën"
   },
   "invite": {
     "title": "Aktivizo Llogarinë Tënde",
@@ -176,18 +185,49 @@
   },
   "admin": {
     "title": "Paneli i Administratorit",
+    "dashboard_title": "Administrimi i Juristi.tech",
+    "dashboard_subtitle": "Menaxhimi i Funksioneve dhe Kapacitetit",
+    "user_base_title": "Baza e Përdoruesve",
+    "seats": "Vende",
+    "manage_saas_profile": "Menaxho Profilin SaaS",
+    "section_features_ai": "Funksionet & Aksesi AI",
+    "label_subscription_tier": "Niveli i Abonimit",
+    "option_tier_basic": "BASIC (Standard)",
+    "option_tier_pro": "PRO (AI + Forenzika)",
+    "section_capacity_quotas": "Kapaciteti & Kuotat",
+    "label_product_plan": "Plani i Produktit",
+    "option_plan_solo": "SOLO (1 Vend)",
+    "option_plan_team": "TEAM (10 Vende)",
+    "label_account_type": "Tipi i Llogarisë",
+    "option_account_individual": "Individual",
+    "option_account_organization": "Firmë/Organizatë",
+    "section_lifecycle_status": "Cikli i Jetës & Statusi",
+    "label_gatekeeper_status": "Statusi i Gatekeeper",
+    "option_status_active": "ACTIVE (Akses i Lejuar)",
+    "option_status_inactive": "INACTIVE (Akses i Refuzuar)",
+    "label_expiry_date": "Data e Skadimit",
+    "placeholder_no_expiry": "Pa Skadim",
+    "button_save_profile": "Ruaj Profilin SaaS",
+    "status": {
+      "invite_pending": "FTESË",
+      "expired": "SKADUAR",
+      "active": "AKTIV",
+      "pending": "PRITJE"
+    },
+    "table": {
+      "user": "Përdoruesi",
+      "plan_type": "Tipi i Planit",
+      "feature_tier": "Niveli i Funksioneve",
+      "capacity": "Kapaciteti",
+      "status": "Statusi",
+      "actions": "Veprime"
+    },
     "subtitle": "Menaxhimi i përdoruesve dhe sistemit.",
     "totalUsers": "Total Përdorues",
     "totalOrgs": "Total Firma",
     "pendingApproval": "Në Pritje",
     "userManagement": "Menaxhimi i Përdoruesve",
     "searchOrgs": "Kërko...",
-    "table": {
-      "user": "Përdoruesi",
-      "status": "Statusi",
-      "role": "Roli",
-      "registered": "Regjistruar"
-    },
     "statuses": {
       "ACTIVE": "Aktiv",
       "INACTIVE": "Në Pritje"
@@ -205,7 +245,7 @@
       "STANDARD": "Përdorues",
       "ADMIN": "Admin"
     },
-    "confirmDelete": "A jeni të sigurt? Kjo do të fshijë TË GJITHA të dhënat.",
+    "confirmDelete": "A jeni i sigurt? Kjo do të fshijë TË GJITHA të dhënat.",
     "firmName": "Emri i Firmës",
     "tier": "Niveli",
     "ownerId": "ID e Pronarit",
@@ -490,7 +530,7 @@
     "view": "Shiko",
     "download": "Shkarko",
     "delete": "Fshi",
-    "deleteConfirm": "A jeni i sigurt që doni ta fshini këtë element? Veprimi është i pakthyeshëm."
+    "deleteConfirm": "A jeni i sigurt që doni të fshini këtë element? Veprimi është i pakthyeshëm."
   },
   "calendar": {
     "loadFailure": "Dështoi ngarkimi i të dhënave të kalendarit.",
