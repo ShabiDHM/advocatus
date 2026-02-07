@@ -1,9 +1,9 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA DRAFTING V27.0
-# 1. HYDRA: Parallelized context acquisition optimized for 8-core execution.
-# 2. STABILITY: Integrated with V68.0 Global Semaphore to prevent API starvation.
-# 3. PERSONA: Hardened "Senior Legal Partner" logic with Substantive Law Priority.
-# 4. STATUS: 100% Unabridged. Async-optimized.
+# PHOENIX PROTOCOL - JURISTI HYDRA DRAFTING V27.4 (POLYMATH DOMAIN LOGIC)
+# 1. LOGIC: Replaced hardcoded Family Law logic with "Polymath" Dynamic Domain Recognition.
+# 2. CODEX: Integrated Kosovo's Full Legislative Matrix (Criminal, Civil, Admin) into System Context.
+# 3. ACCURACY: AI now explicitly differentiates between Procedural (LPK/KPP) and Material Law.
+# 4. STATUS: Ready for Multi-Domain Operations.
 
 import os
 import io
@@ -28,39 +28,40 @@ TEMPLATE_MAP = {
     "generic": "Harto një dokument zyrtar juridik me strukturë logjike, paragrafë të numërtuar dhe bazë ligjore të saktë.",
     
     "padi": """
-    STRUKTURA E PADISË (STANDARDET E KOSOVËS):
-    1. KOKA: Gjykata kompetente, Paditësi dhe i Padituri, Vlera e kontestit.
+    STRUKTURA E PADISË (CIVILE / FAMILJARE / EKONOMIKE):
+    1. KOKA: Gjykata, Palët, Vlera e kontestit.
     2. TITULLI: "PADI" (E qendërzuar, Bold).
-    3. IDENTIFIKIMI I BAZËS: Përcakto ligjin material (Familja, Puna, Detyrimet, etj.) nga konteksti.
-    4. SHPJEGIMI I FAKTEVE: Analizë kronologjike e rrethanave të rastit.
-    5. ANALIZA LIGJORE: Ndërlidhja e fakteve me nenet specifike të ligjit material.
-    6. PETITUMI (KËRKESËPADIA): E hartuar me saktësi në formë urdhëri.
-    7. PROVAT: Referencat në dokumentet e bashkëngjitura.
+    3. BAZA JURIDIKE: Përcakto saktë ligjin material sipas natyrës së rastit.
+    4. SHPJEGIMI I FAKTEVE: Analizë kronologjike.
+    5. ANALIZA LIGJORE: Ndërlidhja e fakteve me nenet specifike.
+    6. PETITUMI: Kërkesa e saktë (p.sh. "Të aprovohet padia...").
+    7. PROVAT: Lista e dëshmive.
     """,
     
     "pergjigje": """
     STRUKTURA E PËRGJIGJES NË PADI:
-    1. KOKA: Numri i lëndës (C.nr...), Identifikimi i palëve.
-    2. TITULLI: "PËRGJIGJE NË PADI" (Bold, qendër).
-    3. DEKLARIMI MBI BAZUESHMËRINË: Kontestimi i kërkesëpadisë.
-    4. MBROJTJA SUBSTANTIVE: Përdor ligjin material përkatës për të rrëzuar pretendimet.
-    5. PROPOZIMI: Refuzimi i padisë si të pabazuar.
+    1. KOKA: Numri i lëndës, Palët.
+    2. TITULLI: "PËRGJIGJE NË PADI".
+    3. DEKLARIMI: Kontestimi i bazueshmërisë (Në tërësi ose pjesërisht).
+    4. KUNDËR-ARGUMENTET: Përdor ligjin material për të rrëzuar pretendimet.
+    5. PROPOZIMI: Refuzimi i kërkesëpadisë.
     """,
     
     "kunderpadi": """
     STRUKTURA E KUNDËRPADISË:
-    1. LIDHJA: Shpjegimi i lidhjes me kërkesën fillestare.
-    2. PRETENDIMET E REJA: Faktet mbështetëse.
-    3. BAZA LIGJORE: Nenet autorizuese.
-    4. PETITUMI: Kërkesa specifike.
+    1. LIDHJA: Lidhja me padinë kryesore (Connexity).
+    2. PRETENDIMET E REJA: Faktet e reja që ndryshojnë gjendjen.
+    3. BAZA LIGJORE: Ligji për Procedurën Kontestimore + Ligji Material.
+    4. PETITUMI: Kërkesa specifike kundër paditësit.
     """,
     
     "kontrate": """
-    STRUKTURA E KONTRATËS (SIPAS LIGJIT PËR DETYRIMET):
-    1. TITULLI DHE PALËT: Identifikimi i saktë i palëve kontraktuese.
-    2. OBJEKTI I KONTRATËS: Përshkrim i detajuar.
-    3. TË DREJTAT DHE OBLIGIMET: Detajet teknike të marrëveshjes.
-    4. DISPOZITAT E FUNDIT: Kohëzgjatja dhe kompetenca gjyqësore.
+    STRUKTURA E KONTRATËS:
+    1. HYRJE: Palët dhe data.
+    2. NENI 1: Objekti i Kontratës.
+    3. NENI X: Çmimi / Pagesa (nëse aplikohet).
+    4. NENI Y: Të drejtat dhe detyrimet.
+    5. NENI Z: Zgjidhja e mosmarrëveshjeve.
     """
 }
 
@@ -72,13 +73,11 @@ async def stream_draft_generator(
     user_prompt: str
 ) -> AsyncGenerator[str, None]:
     """
-    PHOENIX HYDRA DRAFTING: Non-blocking context synthesis and generation.
-    Utilizes parallel vector threads and throttled async LLM streaming.
+    PHOENIX HYDRA DRAFTING: Multi-Domain Contextual Generation.
     """
     logger.info(f"Hydra Drafting initiated", type=draft_type, user=user_id)
     
-    # 1. HYDRA TACTIC: Parallel Context Acquisition (CPU & I/O Parallelism)
-    # We use to_thread because vector queries are often blocking/synchronous drivers
+    # 1. HYDRA TACTIC: Parallel Context Acquisition
     tasks = [
         asyncio.to_thread(
             vector_store_service.query_case_knowledge_base, 
@@ -96,55 +95,73 @@ async def stream_draft_generator(
         global_laws = results[1]
     except Exception as e:
         logger.error(f"Hydra Context Acquisition Failed: {e}")
-        yield "[GABIM: Dështoi mbledhja e fakteve dhe bazës ligjore.]"
+        yield "**[GABIM: Dështoi mbledhja e fakteve dhe bazës ligjore.]**"
         return
     
     # 2. CONTEXT SYNTHESIS
-    facts_block = "\n".join([f"DOKUMENTI [{f.get('source', 'E Panjohur')}]: {f.get('text', '')}" for f in case_facts])
-    laws_block = "\n".join([f"LIGJI RELEVANT [{l.get('source', 'E Panjohur')}]: {l.get('text', '')}" for l in global_laws])
+    facts_block = "\n".join([f"- **DOKUMENTI [{f.get('source', 'E Panjohur')}]:** {f.get('text', '')}" for f in case_facts])
+    laws_block = "\n".join([f"- **LIGJI RELEVANT [{l.get('source', 'E Panjohur')}]:** {l.get('text', '')}" for l in global_laws])
     
     template_instruction = TEMPLATE_MAP.get(draft_type, TEMPLATE_MAP["generic"])
     
-    # 3. THE PARTNER PERSONA (V68.0 ALIGNED)
+    # 3. THE "POLYMATH" PERSONA (Dynamic Domain Logic)
     system_prompt = f"""
-    ROLI: Ti je 'Senior Legal Partner' me përvojë 20-vjeçare në Gjykata e Kosovës.
+    ROLI: Ti je 'Senior Legal Partner' në Kosovë. Je ekspert në të gjitha fushat ligjore.
     DETYRA: Harto dokumentin ligjor: {draft_type.upper()}.
-    PRIORITETI: LIGJI MATERIAL (SUBSTANTIV) është thelbi i argumentit.
 
-    UDHËZIME TË RREPTA:
-    1. GJUHA: Shqipe profesionale juridike (Akademike dhe Formale).
-    2. PROTOKOLLI I PLOTËSIMIT: Për çdo të dhënë që mungon, përdor VETËM: [PLOTËSO: ...].
-    3. ZERO-TRUST: Përdor vetëm faktet nga 'KONTEKSTI I RASTIT' më poshtë.
-    4. CITIMI: Çdo nen i cituar duhet të ndjekë formatin: [Emri i Ligjit, Neni X].
+    HAPI 1: DIAGNOSTIFIKIMI I FUSHËS (DO TË ZGJEDHËSH VETËM NJË):
+    
+    A. FUSHA PENALE (CRIMINAL):
+       - Nëse rasti përfshin vepra penale, dhunë, vjedhje, kanosje.
+       - LIGJET KRYESORE: **[Kodi Penal i Kosovës 06/L-074](doc://ligji)** dhe **[Kodi i Procedurës Penale 08/L-032](doc://ligji)**.
+       
+    B. FUSHA CIVILE - FAMILJARE (FAMILY):
+       - Nëse rasti përfshin shkurorëzim, alimentacion, kujdestari, trashëgimi.
+       - LIGJET KRYESORE: **[Ligji Nr. 2004/32 Për Familjen e Kosovës](doc://ligji)** dhe **[LPK - Ligji Nr. 03/L-006](doc://ligji)**.
+       
+    C. FUSHA CIVILE - DETYRIME/KONTRAKTUALE (OBLIGATIONS):
+       - Nëse rasti përfshin borxhe, kontrata, dëme materiale.
+       - LIGJET KRYESORE: **[Ligji Nr. 04/L-077 Për Marrëdhëniet e Detyrimeve (LMD)](doc://ligji)**.
+       
+    D. FUSHA ADMINISTRATIVE:
+       - Nëse rasti përfshin vendime të shtetit, ministrive, komunave.
+       - LIGJET KRYESORE: **[Ligji Nr. 05/L-031 Për Procedurën e Përgjithshme Administrative](doc://ligji)**.
+
+    HAPI 2: ZBATIMI I RREPTË:
+    - Mos përdor ligje penale në raste civile (përveç nëse ka elemente penale).
+    - Mos përdor ligje të vjetra (UNMIK) nëse ka ligje të reja të Republikës së Kosovës.
+    - Cito ligjin saktësisht me formatin vizual.
+
+    UDHËZIME PËR FORMATIMIN VIZUAL:
+    - **CITIMET LIGJORE DUHEN THEKSUAR**: Përdor gjithmonë formatin: `[Emri i Ligjit/Neni](doc://ligji)`.
+    - **TITUJT**: Përdor **Bold** dhe ### Titujt.
 
     STRUKTURA E KËRKUAR:
     {template_instruction}
     
-    KONTEKSTI I RASTIT (FAKTET):
+    KONTEKSTI I RASTIT (FAKTET NGA DOSJA):
     {facts_block}
     
-    BAZA LIGJORE (LIGJI MATERIAL):
+    BAZA LIGJORE (SUGJERIME NGA BAZA E TË DHËNAVE):
     {laws_block}
     
-    KËRKESA SHTESË:
+    KËRKESA SHTESË E PËRDORUESIT (FOKUSI):
     {user_prompt}
     """
     
     # 4. THROTTLED TOKEN STREAMING
-    # This automatically respects the 10-call Global Semaphore in llm_service.py
     full_content = ""
     try:
-        async for token in llm_service.stream_text_async(system_prompt, "Filloni hartimin e draftit tani.", temp=0.1):
+        async for token in llm_service.stream_text_async(system_prompt, "Filloni analizën e fushës dhe pastaj hartimin.", temp=0.2):
             full_content += token
             yield token
     except Exception as e:
         logger.error(f"Hydra Stream Generation Failed: {e}")
-        yield f"\n[GABIM KRITIK GJATË GJENERIMIT: {str(e)}]"
+        yield f"\n**[GABIM KRITIK GJATË GJENERIMIT: {str(e)}]**"
 
     # 5. ASYNC PERSISTENCE
     if full_content.strip() and case_id:
         try:
-            # Wrap DB call in thread to avoid blocking loop
             await asyncio.to_thread(
                 db.drafting_results.insert_one,
                 {
