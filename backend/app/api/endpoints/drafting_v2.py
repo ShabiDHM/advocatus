@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/drafting_v2.py
-# PHOENIX PROTOCOL - DRAFTING ENDPOINT V2.3 (PYLANCE FIX)
-# 1. FIX: Handled Optional[str] for draft_type by providing fallback (TS-35).
-# 2. FIX: Re-ordered function signatures to ensure required arguments precede defaults (TS-71).
-# 3. STATUS: API is fully synchronized with the streaming service.
+# PHOENIX PROTOCOL - DRAFTING ENDPOINT V2.4 (STREAMING INTEGRITY FIX)
+# 1. FIX: Added 'X-Accel-Buffering' and 'Cache-Control' headers to force Caddy/Nginx to flush chunks immediately.
+# 2. FIX: Explicitly set charset to utf-8 in Content-Type to prevent encoding buffering.
+# 3. STATUS: Real-time Typewriter Effect restored.
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from fastapi.responses import StreamingResponse
@@ -27,10 +27,19 @@ async def stream_legal_draft(
     """
     PHOENIX: Direct Streaming Endpoint. 
     Uses Hydra Tactic to bypass Celery for instant UI feedback.
+    Includes anti-buffering headers for Reverse Proxies.
     """
     # PHOENIX FIX: Ensure draft_type is a string (handles Optional[str] from model)
     draft_type = request_data.document_type or "generic"
     
+    # PHOENIX FIX: Anti-buffering headers for Caddy/Nginx
+    headers = {
+        "X-Accel-Buffering": "no",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Content-Type": "text/plain; charset=utf-8"
+    }
+
     return StreamingResponse(
         drafting_service.stream_draft_generator(
             db=db,
@@ -39,7 +48,8 @@ async def stream_legal_draft(
             draft_type=draft_type,
             user_prompt=request_data.prompt
         ),
-        media_type="text/plain"
+        media_type="text/plain",
+        headers=headers
     )
 
 @router.post("/jobs", status_code=status.HTTP_202_ACCEPTED)
@@ -77,7 +87,7 @@ async def get_job_status(
 @router.get("/jobs/{job_id}/result")
 async def get_job_result(
     job_id: str, 
-    current_user: Annotated[UserInDB, Depends(get_current_active_user)], # PHOENIX FIX: Required arg before default
+    current_user: Annotated[UserInDB, Depends(get_current_active_user)], 
     db: Database = Depends(get_db)
 ):
     """
