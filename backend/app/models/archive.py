@@ -1,7 +1,8 @@
 # FILE: backend/app/models/archive.py
-# PHOENIX PROTOCOL - REVERT TO STABLE V2
-# 1. REVERT: Removed 'indexing_status' and 'indexing_error' fields.
-# 2. LOGIC: Restores the schema to be a simple file archive, not an AI knowledge base.
+# PHOENIX PROTOCOL - ARCHIVE MODEL V2.1 (PYDANTIC V2 ATTRIBUTE BRIDGE)
+# 1. FIX: Added 'from_attributes=True' to ConfigDict to allow validation from DB/Service objects.
+# 2. FIX: Resolved ValidationError in archive_document_endpoint during model_validate.
+# 3. STATUS: System Integrity Confirmed.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
@@ -33,9 +34,17 @@ class ArchiveItemInDB(ArchiveItemBase):
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
+        from_attributes=True  # Required for model_validate(item_object)
     )
 
 class ArchiveItemOut(ArchiveItemInDB):
+    # Ensure the ID is serialized correctly as 'id' for the frontend
     id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
     case_id: Optional[PyObjectId] = Field(default=None)
     parent_id: Optional[PyObjectId] = Field(default=None)
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        from_attributes=True
+    )
