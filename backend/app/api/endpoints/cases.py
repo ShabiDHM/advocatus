@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V21.0 (GOLDEN SOURCE)
+# PHOENIX PROTOCOL - CASES ROUTER V21.1 (GOLDEN SOURCE)
 # 1. VERIFIED: All endpoints (Delete, Graph Auto-Build, Financial Analysis) are present.
-# 2. STATUS: System Integrity Confirmed. Ready for deployment.
+# 2. STATUS: AttributeAccessIssue resolved via Analysis Service V22.7 Update.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional, Any

@@ -1,8 +1,8 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V22.6 (ARGUMENTATION INTEGRITY)
-# 1. FIX: Eliminated "Parroting" by forcing a 3-part statutory object (Badge + Article + Relevance).
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V22.7 (GRAPH INTEGRATION)
+# 1. FIX: Restored 'build_and_populate_graph' to bridge Documents and Neo4j.
 # 2. FIX: Mandated 'Statutory reasoning' - AI must explain HOW the law applies to the facts.
-# 3. STATUS: Unabridged. Professional Senior Partner logic fully restored.
+# 3. STATUS: Synchronous logic verified.
 
 import asyncio
 import structlog
@@ -33,6 +33,62 @@ def authorize_case_access(db: Database, case_id: str, user_id: str) -> bool:
         u_oid = ObjectId(user_id) if ObjectId.is_valid(user_id) else user_id
         return db.cases.find_one({"_id": c_oid, "owner_id": u_oid}) is not None
     except: return False
+
+def build_and_populate_graph(db: Database, case_id: str, user_id: str) -> bool:
+    """
+    Synchronously extracts entities from all case documents and populates the Graph DB.
+    """
+    if not authorize_case_access(db, case_id, user_id):
+        logger.warning("Unauthorized graph build attempt", case_id=case_id, user_id=user_id)
+        return False
+
+    try:
+        from .document_service import get_document_content_by_key
+        from .graph_service import graph_service
+        
+        # 1. Fetch all processed documents for the case
+        doc_cursor = db.documents.find({"case_id": ObjectId(case_id)})
+        docs = list(doc_cursor)
+        
+        if not docs:
+            logger.info("No documents found to build graph", case_id=case_id)
+            return False
+
+        for doc in docs:
+            text_key = doc.get("processed_text_storage_key")
+            if not text_key:
+                continue
+            
+            # 2. Retrieve Text Content
+            content = get_document_content_by_key(text_key)
+            if not content:
+                continue
+
+            # 3. Extract Graph Data (Nodes/Edges) via LLM
+            # llm_service.extract_graph_data returns {'nodes': [], 'edges': []}
+            graph_data = llm_service.extract_graph_data(content)
+            
+            entities = graph_data.get("nodes", [])
+            relations = graph_data.get("edges", [])
+
+            if not entities:
+                continue
+
+            # 4. Ingest into Neo4j
+            graph_service.ingest_entities_and_relations(
+                case_id=str(case_id),
+                document_id=str(doc["_id"]),
+                doc_name=doc.get("file_name", "Unknown"),
+                entities=entities,
+                relations=relations
+            )
+            
+        logger.info("Graph population complete", case_id=case_id)
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to build graph: {e}", exc_info=True)
+        return False
 
 def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[str, Any]:
     """
@@ -79,7 +135,7 @@ def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[str, An
         return {
             "summary": raw_res.get("executive_summary"),
             "burden_of_proof": audit.get("burden_of_proof"),
-            "legal_basis": audit.get("legal_basis", []), # Now returning objects with relevance
+            "legal_basis": audit.get("legal_basis", []), 
             "strategic_analysis": rec.get("recommendation_text"),
             "weaknesses": rec.get("weaknesses", []),
             "action_plan": rec.get("action_plan", []),
