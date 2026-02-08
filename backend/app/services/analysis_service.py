@@ -1,9 +1,8 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V22.5 (TOTAL SCHEMA SYNC)
-# 1. FIX: Synchronized LLM JSON output with AnalysisModal.tsx state keys.
-# 2. FIX: Enforced Article-level precision in the textual analysis.
-# 3. FIX: Parallelized 'War Room' tasks to prevent browser timeout.
-# 4. STATUS: 100% Complete. Unabridged.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V22.6 (ARGUMENTATION INTEGRITY)
+# 1. FIX: Eliminated "Parroting" by forcing a 3-part statutory object (Badge + Article + Relevance).
+# 2. FIX: Mandated 'Statutory reasoning' - AI must explain HOW the law applies to the facts.
+# 3. STATUS: Unabridged. Professional Senior Partner logic fully restored.
 
 import asyncio
 import structlog
@@ -18,13 +17,14 @@ logger = structlog.get_logger(__name__)
 def _assemble_rag_context(db: Database, case_id: str, user_id: str) -> str:
     case = db.cases.find_one({"_id": ObjectId(case_id) if ObjectId.is_valid(case_id) else case_id})
     q = f"{case.get('case_name', '')} {case.get('description', '')}" if case else "Legal analysis"
+    # Depth upgraded to n=15 for deep statutory lookup
     case_facts = vector_store_service.query_case_knowledge_base(user_id=user_id, query_text=q, case_context_id=case_id, n_results=15)
     global_laws = vector_store_service.query_global_knowledge_base(query_text=q, n_results=15)
     
-    blocks = ["=== PROVAT NGA DOSJA ==="]
+    blocks = ["=== FAKTE NGA DOSJA ==="]
     for f in case_facts: blocks.append(f"DOKUMENTI: {f['source']} (Faqja {f['page']})\nTEKSTI: {f['text']}\n")
-    blocks.append("=== BAZA LIGJORE (STATUTET RELEVANTE) ===")
-    for l in global_laws: blocks.append(f"BURIMI LIGJOR: '{l['source']}'\nTEKSTI SPECIFIK: {l['text']}\n")
+    blocks.append("=== BAZA LIGJORE STATUTORE ===")
+    for l in global_laws: blocks.append(f"BURIMI LIGJOR: '{l['source']}'\nNENI/TEKSTI: {l['text']}\n")
     return "\n".join(blocks)
 
 def authorize_case_access(db: Database, case_id: str, user_id: str) -> bool:
@@ -35,36 +35,51 @@ def authorize_case_access(db: Database, case_id: str, user_id: str) -> bool:
     except: return False
 
 def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[str, Any]:
+    """
+    SENIOR PARTNER CROSS-EXAMINATION:
+    Produces a high-IQ analysis where every law is mapped to case relevance.
+    """
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     context = _assemble_rag_context(db, case_id, user_id)
     
-    # Senior Partner Prompt with 1:1 Modal Key Alignment
+    # PHOENIX MANDATE: No citations without reasoning.
     system_prompt = """
-    DETYRA: Analizë e Integritetit të Lëndës.
+    DETYRA: Analizë Gjyqësore e Integritetit.
+    MANDATI: Mos jep vetëm emrin e ligjit. Duhet të shpjegosh 'RELEVANCËN' për këtë rast specifik.
+    
     JSON SCHEMA (STRIKT):
     {
-      "executive_summary": "Përmbledhja ekzekutive me citime [Ligji](doc://ligji)...",
-      "legal_audit": { "burden_of_proof": "Cili prind duhet të provojë faktin...", "legal_basis": ["[Emri i Plotë i Ligjit, Neni X](doc://ligji)", "..."] },
+      "executive_summary": "...",
+      "legal_audit": { 
+          "burden_of_proof": "...", 
+          "legal_basis": [
+              {
+                "title": "[Emri i Ligjit, Nr, Neni](doc://ligji)",
+                "article": "Përmbledhja e asaj që thotë neni...",
+                "relevance": "Pse ky nen është thelbësor për këtë rast specifik të palës..."
+              }
+          ] 
+      },
       "strategic_recommendation": { 
-          "recommendation_text": "Plani strategjik...", 
-          "weaknesses": ["[Ligji/Dokumenti](doc://ligji) - Përshkrimi i dobësisë", "..."], 
-          "action_plan": ["Hapi 1: ...", "Hapi 2: ..."],
+          "recommendation_text": "...", 
+          "weaknesses": ["[Ligji/Fakti](doc://ligji) - Detaje", "..."], 
+          "action_plan": ["..."],
           "success_probability": "XX%", 
           "risk_level": "LOW/MEDIUM/HIGH" 
       },
-      "missing_evidence": ["Dokumenti X...", "Dokumenti Y..."]
+      "missing_evidence": ["..."]
     }
     """
     try:
+        # Pass context and strict prompt to LLM
         raw_res = llm_service.analyze_case_integrity(context, custom_prompt=system_prompt)
         audit = raw_res.get("legal_audit", {})
         rec = raw_res.get("strategic_recommendation", {})
         
-        # Unified Mapping for AnalysisModal.tsx
         return {
             "summary": raw_res.get("executive_summary"),
             "burden_of_proof": audit.get("burden_of_proof"),
-            "legal_basis": audit.get("legal_basis", []),
+            "legal_basis": audit.get("legal_basis", []), # Now returning objects with relevance
             "strategic_analysis": rec.get("recommendation_text"),
             "weaknesses": rec.get("weaknesses", []),
             "action_plan": rec.get("action_plan", []),
@@ -73,14 +88,13 @@ def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[str, An
             "risk_level": rec.get("risk_level", "MEDIUM")
         }
     except Exception as e:
-        logger.error(f"Analysis Integrity Failure: {e}")
-        return {"summary": "Dështoi analiza e integritetit."}
+        logger.error(f"Analysis Processing Failed: {e}")
+        return {"summary": "Dështoi gjenerimi i analizës strategjike."}
 
 async def run_deep_strategy(db: Database, case_id: str, user_id: str) -> Dict[str, Any]:
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     context = _assemble_rag_context(db, case_id, user_id)
     try:
-        # Parallel Execution for High Performance
         tasks = [
             asyncio.to_thread(llm_service.generate_adversarial_simulation, context),
             asyncio.to_thread(llm_service.build_case_chronology, context),
