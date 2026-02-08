@@ -1,8 +1,7 @@
 # FILE: backend/app/api/endpoints/chat.py
-# PHOENIX PROTOCOL - CHAT ROUTER V7.1 (STREAMING FIX)
-# 1. FIX: Updated handle_chat_message to call 'stream_chat_response'.
-# 2. FIX: Returns 'StreamingResponse' instead of JSON to enable real-time tokens.
-# 3. STATUS: Correctly synchronized with chat_service V25.2.
+# PHOENIX PROTOCOL - CHAT ROUTER V7.4 (INFRASTRUCTURE INTEGRITY)
+# 1. FIX: Injected 'X-Accel-Buffering' and 'Cache-Control' headers to bypass Proxy buffering.
+# 2. STATUS: Fully synchronized with chat_service.py and albanian_rag_service.py.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -35,10 +34,10 @@ async def handle_chat_message(
     Sends a message to the AI Case Chat and returns a real-time stream.
     """
     if not chat_request.message: 
-        raise HTTPException(status_code=400, detail="Empty message")
+        raise HTTPException(status_code=400, detail="Mesazhi është i zbrazët.")
         
     try:
-        # PHOENIX FIX: Call the generator function from chat_service
+        # Generate the stream via the Chat Service
         generator = chat_service.stream_chat_response(
             db=db, 
             case_id=case_id, 
@@ -49,14 +48,22 @@ async def handle_chat_message(
             mode=chat_request.mode
         )
         
-        # PHOENIX FIX: Return StreamingResponse for real-time frontend updates
+        # PHOENIX FIX: Mandatory Anti-Buffering Headers for Caddy/Nginx
+        headers = {
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Content-Type": "text/plain; charset=utf-8"
+        }
+        
         return StreamingResponse(
             generator,
-            media_type="text/plain"
+            media_type="text/plain",
+            headers=headers
         )
         
     except Exception as e:
-        logger.error(f"Chat API Error: {e}", exc_info=True)
+        logger.error(f"Chat Router Failure: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Ndodhi një gabim në shërbimin e bisedës.")
 
 @router.delete("/case/{case_id}/history", status_code=status.HTTP_204_NO_CONTENT)
@@ -67,7 +74,6 @@ def clear_chat_history(
 ):
     from bson import ObjectId
     try:
-        # Sync DB operation
         result = db.cases.update_one(
             {"_id": ObjectId(case_id), "owner_id": current_user.id},
             {"$set": {"chat_history": []}}
