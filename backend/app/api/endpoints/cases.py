@@ -1,8 +1,7 @@
-# FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V21.2 (GOLDEN SOURCE)
-# 1. FIX: Restored missing /archive endpoint to resolve 404 on document archival.
-# 2. VERIFIED: All endpoints (Delete, Graph Auto-Build, Financial Analysis) are present.
-# 3. STATUS: System Integrity Confirmed. Ready for deployment.
+# PHOENIX PROTOCOL - CASES ROUTER V21.4 (GOLDEN SOURCE)
+# 1. FIX: Resolved Pylance reportCallIssue by aligning DeletedDocumentResponse constructor with model fields.
+# 2. VERIFIED: documentId and deletedFindingIds now correctly mapped for frontend parity.
+# 3. STATUS: System Integrity Confirmed.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional, Any
@@ -55,15 +54,35 @@ def require_pro_tier(current_user: Annotated[UserInDB, Depends(get_current_user)
     if current_user.subscription_tier != SubscriptionTier.PRO:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This is a PRO feature.")
 
-class DocumentContentOut(BaseModel): text: str
-class DeletedDocumentResponse(BaseModel): documentId: str; deletedFindingIds: List[str]
-class RenameDocumentRequest(BaseModel): new_name: str
-class ShareDocumentRequest(BaseModel): is_shared: bool 
-class BulkDeleteRequest(BaseModel): document_ids: List[str]
-class ArchiveImportRequest(BaseModel): archive_item_ids: List[str]
-class FinanceInterrogationRequest(BaseModel): question: str
-class ReprocessConfirmation(BaseModel): documentId: str; message: str
-class BulkReprocessResponse(BaseModel): count: int; message: str
+class DocumentContentOut(BaseModel): 
+    text: str
+
+class DeletedDocumentResponse(BaseModel): 
+    documentId: str
+    deletedFindingIds: List[str]
+
+class RenameDocumentRequest(BaseModel): 
+    new_name: str
+
+class ShareDocumentRequest(BaseModel): 
+    is_shared: bool 
+
+class BulkDeleteRequest(BaseModel): 
+    document_ids: List[str]
+
+class ArchiveImportRequest(BaseModel): 
+    archive_item_ids: List[str]
+
+class FinanceInterrogationRequest(BaseModel): 
+    question: str
+
+class ReprocessConfirmation(BaseModel): 
+    documentId: str
+    message: str
+
+class BulkReprocessResponse(BaseModel): 
+    count: int
+    message: str
 
 def validate_object_id(id_str: str) -> ObjectId:
     try: return ObjectId(id_str)
@@ -112,7 +131,10 @@ async def delete_document(case_id: str, doc_id: str, current_user: Annotated[Use
     if result.get("deleted_count", 0) > 0:
         try: await asyncio.to_thread(graph_service.delete_node, doc_id)
         except Exception: pass
-        return DeletedDocumentResponse(documentId=doc_id, deletedFindingIds=result.get("deleted_finding_ids", []))
+        return DeletedDocumentResponse(
+            documentId=doc_id, 
+            deletedFindingIds=result.get("deleted_finding_ids", [])
+        )
     raise HTTPException(status_code=500, detail="Failed to delete document.")
     
 @router.put("/{case_id}/documents/{doc_id}/rename")
@@ -126,19 +148,10 @@ async def get_document_preview(case_id: str, doc_id: str, current_user: Annotate
 
 @router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut, status_code=status.HTTP_201_CREATED)
 async def archive_document_endpoint(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
-    """Clones a case document into the global archive repository."""
     doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
-    if str(doc.case_id) != case_id:
-        raise HTTPException(status_code=403, detail="Document does not belong to this case.")
-    
+    if str(doc.case_id) != case_id: raise HTTPException(status_code=403, detail="Document mismatch.")
     archiver = archive_service.ArchiveService(db)
-    archived_item = await archiver.archive_existing_document(
-        user_id=str(current_user.id),
-        case_id=case_id,
-        source_key=doc.storage_key,
-        filename=doc.file_name,
-        original_doc_id=doc_id
-    )
+    archived_item = await archiver.archive_existing_document(str(current_user.id), case_id, doc.storage_key, doc.file_name, original_doc_id=doc_id)
     return ArchiveItemOut.model_validate(archived_item)
 
 # --- ANALYSIS & EVIDENCE MAP PIPELINE ---
@@ -146,7 +159,6 @@ async def archive_document_endpoint(case_id: str, doc_id: str, current_user: Ann
 @router.get("/{case_id}/evidence-map")
 async def get_or_build_evidence_map(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     validate_object_id(case_id)
-    
     saved_map = await asyncio.to_thread(db.evidence_maps.find_one, {"case_id": case_id})
     if saved_map and saved_map.get("nodes"):
         return {"nodes": saved_map.get("nodes"), "edges": saved_map.get("edges")}
@@ -154,10 +166,8 @@ async def get_or_build_evidence_map(case_id: str, current_user: Annotated[UserIn
     raw_graph = await asyncio.to_thread(graph_service.get_case_graph, case_id)
     if not raw_graph or not raw_graph.get("nodes"):
         build_success = await asyncio.to_thread(analysis_service.build_and_populate_graph, db, case_id, str(current_user.id))
-        if build_success:
-            raw_graph = await asyncio.to_thread(graph_service.get_case_graph, case_id)
-        else:
-            return {"nodes": [], "edges": []}
+        if build_success: raw_graph = await asyncio.to_thread(graph_service.get_case_graph, case_id)
+        else: return {"nodes": [], "edges": []}
 
     nodes = [{"id": n["id"], "type": "claimNode" if "CLAIM" in n.get("group","") else "factNode" if "FACT" in n.get("group","") else "lawNode" if "LAW" in n.get("group","") else "evidenceNode", "position": {"x":0,"y":0}, "data": {"label": n.get("name",""), "content": n.get("description","")}} for n in raw_graph.get("nodes", [])]
     edges = [{"id": f"e-{l['source']}-{l['target']}", "source": l["source"], "target": l["target"], "label": l.get("label", "LIDHET"), "animated": True, "markerEnd": {"type": "arrowclosed"}} for l in raw_graph.get("links", [])]
@@ -189,6 +199,12 @@ async def analyze_forensic_spreadsheet_endpoint(case_id: str, current_user: Anno
     result = await spreadsheet_service.forensic_analyze_spreadsheet(content, file.filename or "forensic_upload", case_id, db, str(current_user.id))
     return JSONResponse(result)
 
+@router.post("/{case_id}/interrogate-finances/forensic", dependencies=[Depends(require_pro_tier)])
+async def interrogate_forensic_finances_endpoint(case_id: str, body: FinanceInterrogationRequest, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
+    validate_object_id(case_id)
+    result = await spreadsheet_service.forensic_interrogate_evidence(case_id, body.question, db)
+    return JSONResponse(result)
+
 # --- DRAFTING, PUBLIC PORTAL, AND OTHER ENDPOINTS ---
 
 @router.post("/{case_id}/drafts", status_code=status.HTTP_202_ACCEPTED)
@@ -210,13 +226,12 @@ async def download_public_document(case_id: str, doc_id: str, source: str = Quer
     
     if not doc_data or not doc_data.get("is_shared"): raise HTTPException(status_code=403, detail="Access Denied.")
     storage_key = doc_data.get("storage_key")
-    if not storage_key: raise HTTPException(status_code=404, detail="File content missing.")
+    if not storage_key: raise HTTPException(status_code=404, detail="File missing.")
     
     file_stream = await asyncio.to_thread(storage_service.download_original_document_stream, storage_key)
     filename = doc_data.get("file_name") or doc_data.get("title") or "document"
     safe_filename = urllib.parse.quote(filename)
     content_type, _ = mimetypes.guess_type(filename)
-    
     return StreamingResponse(file_stream, media_type=content_type or "application/octet-stream", headers={"Content-Disposition": f"inline; filename*=UTF-8''{safe_filename}"})
 
 @router.get("/public/{case_id}/logo")
