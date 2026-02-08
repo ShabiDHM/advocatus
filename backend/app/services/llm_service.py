@@ -1,8 +1,8 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V70.0 (ASYNC OPTIMIZATION)
-# 1. UPGRADED: Simulation functions (Adversarial, Chronology, Contradictions) now use native AsyncOpenAI.
-# 2. OPTIMIZED: Prompts refined for "Surgical Accuracy" to prevent context pollution.
-# 3. RETAINED: All 18 legacy exports and strict 'doc://ligji' formatting.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V70.1 (ALBANIAN LANGUAGE ENFORCEMENT)
+# 1. ENFORCED: Hard mandate for Albanian language in all async and sync functions.
+# 2. OPTIMIZED: Prompts translated to Albanian to prevent English defaulting.
+# 3. RETAINED: All 18 legacy exports, parallel async pipeline, and JSON key integrity.
 # 4. STATUS: 100% System Integrity Verified.
 
 import os, json, logging, re, asyncio
@@ -55,6 +55,7 @@ def _parse_json_safely(content: Optional[str]) -> Dict[str, Any]:
 KOSOVO_LEGAL_BRAIN = """
 ROLI: Ti je 'Senior Legal Partner' në Kosovë.
 MANDATI: Është e ndaluar të japësh vetëm emrin e ligjit (Parroting).
+GJUHA: Çdo përgjigje duhet të jetë VETËM në gjuhën SHQIPE. Mos përdor Anglisht.
 DETYRA: Për çdo ligj të cituar, DUHET:
 1. Të përdorësh formatin: [Emri i Ligjit, Neni X](doc://ligji).
 2. Të tregosh 'RELEVANCËN' (Pse ky ligj mbron ose rrezikon palën në këtë rast specifik).
@@ -90,8 +91,8 @@ async def _call_llm_async(sys_p: str, user_p: str, json_mode: bool = False, temp
 
 async def process_large_document_async(text: str, task_type: str = "SUMMARY") -> str:
     if not text: return "Nuk u gjet tekst."
-    map_p = "Analizo këtë segment. Identifiko faktet dhe citoni [Ligjin](doc://ligji)."
-    reduce_p = "Sintezo në opinion suprem juridik me citime të plota [Ligji](doc://ligji)."
+    map_p = "Analizo këtë segment. Identifiko faktet dhe citoni [Ligjin](doc://ligji). Përgjigju vetëm SHQIP."
+    reduce_p = "Sintezo në opinion suprem juridik me citime të plota [Ligji](doc://ligji). Përgjigju vetëm SHQIP."
     chunks = [text[i:i+5000] for i in range(0, len(text), 5000)]
     tasks = [_call_llm_async(map_p, f"SEGMENTI:\n{c}") for c in chunks]
     results = await asyncio.gather(*tasks)
@@ -101,30 +102,32 @@ async def process_large_document_async(text: str, task_type: str = "SUMMARY") ->
 # --- ASYNC OPTIMIZED ANALYSIS FUNCTIONS ---
 
 async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
-    """PHOENIX: Async Simulation of Opposing Counsel Strategy."""
+    """PHOENIX: Async Simulation of Opposing Counsel Strategy (Albanian)."""
     sys = (
         "Ti je Avokati Kundërshtar më agresiv në Kosovë. Detyra jote është të shkatërrosh rastin e palës sonë. "
-        "Gjej dobësitë procedurale dhe materiale. Përdor 'doc://ligji' për çdo argument. "
-        "Kthe JSON: {'opponent_strategy':'string', 'weakness_attacks':['string'], 'counter_claims':['string']}"
+        "MANDATI: Përgjigju vetëm në gjuhën SHQIPE. Gjej dobësitë procedurale dhe materiale. "
+        "Përdor 'doc://ligji' për çdo argument. "
+        "Kthe JSON: {'opponent_strategy':'tekst_ne_shqip', 'weakness_attacks':['sulm_ne_shqip'], 'counter_claims':['pretendim_ne_shqip']}"
     )
     res = await _call_llm_async(sys, context[:40000], True, 0.4)
     return _parse_json_safely(res)
 
 async def detect_contradictions(text: str) -> Dict[str, Any]:
-    """PHOENIX: Async Detection of logical or evidentiary inconsistencies."""
+    """PHOENIX: Async Detection of logical or evidentiary inconsistencies (Albanian)."""
     sys = (
         "Identifiko mospërputhjet midis deklaratave dhe provave materiale. "
-        "Përdor formatin [Ligji/Dokumenti](doc://ligji). "
-        "Kthe JSON: {'contradictions': [{'severity': 'HIGH/MEDIUM/LOW', 'claim': 'string', 'evidence': 'string', 'impact': 'string'}]}"
+        "MANDATI: Përgjigju vetëm në gjuhën SHQIPE. Përdor formatin [Ligji/Dokumenti](doc://ligji). "
+        "Kthe JSON: {'contradictions': [{'severity': 'HIGH/MEDIUM/LOW', 'claim': 'tekst_shqip', 'evidence': 'tekst_shqip', 'impact': 'tekst_shqip'}]}"
     )
     res = await _call_llm_async(sys, text[:40000], True, 0.1)
     return _parse_json_safely(res)
 
 async def build_case_chronology(text: str) -> Dict[str, Any]:
-    """PHOENIX: Async Extraction of chronological events with facts."""
+    """PHOENIX: Async Extraction of chronological events with facts (Albanian)."""
     sys = (
-        "Nxirr një kronologji precize të ngjarjeve nga ky tekst. Injoro analizat ligjore, përqëndruhu vetëm te faktet dhe datat. "
-        "Përdor formatin JSON: {'timeline': [{'date': 'YYYY-MM-DD ose Tekst', 'event': 'Përshkrimi i faktit'}]}"
+        "Nxirr një kronologji precize të ngjarjeve nga ky tekst. Injoro analizat ligjore. "
+        "MANDATI: Përgjigju vetëm në gjuhën SHQIPE. Përqëndruhu vetëm te faktet dhe datat. "
+        "Përdor formatin JSON: {'timeline': [{'date': 'Data ose Periudha', 'event': 'Përshkrimi i faktit në shqip'}]}"
     )
     res = await _call_llm_async(sys, text[:50000], True, 0.1)
     return _parse_json_safely(res)
@@ -132,20 +135,20 @@ async def build_case_chronology(text: str) -> Dict[str, Any]:
 # --- LEGACY SUPPORT FUNCTIONS (NO DEGRADATION) ---
 
 def analyze_case_integrity(context: str, custom_prompt: Optional[str] = None) -> Dict[str, Any]:
-    sys = custom_prompt or "Analizo integritetin statutore. Kthe JSON."
+    sys = custom_prompt or "Analizo integritetin statutore. Përgjigju vetëm SHQIP. Kthe JSON."
     return _parse_json_safely(_call_llm(sys, context[:100000], True, 0.1))
 
 def extract_deadlines(text: str) -> Dict[str, Any]:
-    return _parse_json_safely(_call_llm("Gjej afatet. JSON: {'deadlines':[]}", text[:20000], True))
+    return _parse_json_safely(_call_llm("Gjej afatet në SHQIP. JSON: {'deadlines':[]}", text[:20000], True))
 
 def perform_litigation_cross_examination(target: str, context: List[str]) -> Dict[str, Any]:
-    return _parse_json_safely(_call_llm(f"Pyetje për: {target}. JSON.", "\n".join(context)[:40000], True))
+    return _parse_json_safely(_call_llm(f"Pyetje për: {target} në SHQIP. JSON.", "\n".join(context)[:40000], True))
 
 def generate_summary(text: str) -> str:
-    return _call_llm("Krijo përmbledhje në 3 pika.", text[:20000]) or ""
+    return _call_llm("Krijo përmbledhje në 3 pika në SHQIP.", text[:20000]) or ""
 
 def extract_graph_data(text: str) -> Dict[str, Any]:
-    return _parse_json_safely(_call_llm("Nxjerr nyjet. JSON: {'nodes':[], 'edges':[]}", text[:30000], True))
+    return _parse_json_safely(_call_llm("Nxjerr nyjet. Përgjigju SHQIP. JSON: {'nodes':[], 'edges':[]}", text[:30000], True))
 
 def get_embedding(text: str) -> List[float]:
     from openai import OpenAI as OAI
@@ -165,10 +168,10 @@ async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2) -> Async
         except Exception as e: yield f"[Gabim: {str(e)}]"
 
 def forensic_interrogation(q: str, rows: List[str]) -> str:
-    return _call_llm(f"Përgjigju statutore me [Ligji](doc://ligji) duke u bazuar në: {' '.join(rows)}", q, temp=0.0) or ""
+    return _call_llm(f"Përgjigju statutore SHQIP me [Ligji](doc://ligji) duke u bazuar në: {' '.join(rows)}", q, temp=0.0) or ""
 
 def categorize_document_text(text: str) -> str:
-    res = _call_llm("Kategorizo. JSON {'category': '...'}.", text[:5000], True)
+    res = _call_llm("Kategorizo në SHQIP. JSON {'category': '...'}.", text[:5000], True)
     return _parse_json_safely(res).get("category", "Të tjera")
 
 def sterilize_legal_text(text: str) -> str:
@@ -176,14 +179,14 @@ def sterilize_legal_text(text: str) -> str:
     return sterilize_text_for_llm(text)
 
 def extract_expense_details_from_text(t: str) -> Dict[str, Any]:
-    r = _parse_json_safely(_call_llm("Nxirr shpenzimin JSON.", t[:3000], True))
+    r = _parse_json_safely(_call_llm("Nxirr shpenzimin në SHQIP. JSON.", t[:3000], True))
     return {"category": r.get("category", "Shpenzime"), "amount": float(r.get("amount", 0.0)), "date": r.get("date", datetime.now().strftime("%Y-%m-%d")), "description": r.get("merchant", "")}
 
 def analyze_financial_portfolio(d: str) -> Dict[str, Any]:
-    return _parse_json_safely(_call_llm("Analizo financat. JSON.", d, True))
+    return _parse_json_safely(_call_llm("Analizo financat në SHQIP. JSON.", d, True))
 
 def translate_for_client(t: str) -> str:
-    return _call_llm("Përkthe.", t) or ""
+    return _call_llm("Përkthe në SHQIP.", t) or ""
 
 def query_global_rag_for_claims(r: str, q: str) -> Dict[str, Any]:
-    return _parse_json_safely(_call_llm("Argumente statutore me [Ligji](doc://ligji). JSON.", f"RAG: {r}\nQ: {q}", True))
+    return _parse_json_safely(_call_llm("Argumente statutore në SHQIP me [Ligji](doc://ligji). JSON.", f"RAG: {r}\nQ: {q}", True))
