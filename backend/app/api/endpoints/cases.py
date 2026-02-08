@@ -1,7 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V21.1 (GOLDEN SOURCE)
-# 1. VERIFIED: All endpoints (Delete, Graph Auto-Build, Financial Analysis) are present.
-# 2. STATUS: AttributeAccessIssue resolved via Analysis Service V22.7 Update.
+# PHOENIX PROTOCOL - CASES ROUTER V21.2 (GOLDEN SOURCE)
+# 1. FIX: Restored missing /archive endpoint to resolve 404 on document archival.
+# 2. VERIFIED: All endpoints (Delete, Graph Auto-Build, Financial Analysis) are present.
+# 3. STATUS: System Integrity Confirmed. Ready for deployment.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional, Any
@@ -122,6 +123,23 @@ async def rename_document_endpoint(case_id: str, doc_id: str, body: RenameDocume
 async def get_document_preview(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
     stream, doc = await asyncio.to_thread(document_service.get_preview_document_stream, db, doc_id, current_user)
     return StreamingResponse(stream, media_type="application/pdf")
+
+@router.post("/{case_id}/documents/{doc_id}/archive", response_model=ArchiveItemOut, status_code=status.HTTP_201_CREATED)
+async def archive_document_endpoint(case_id: str, doc_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
+    """Clones a case document into the global archive repository."""
+    doc = await asyncio.to_thread(document_service.get_and_verify_document, db, doc_id, current_user)
+    if str(doc.case_id) != case_id:
+        raise HTTPException(status_code=403, detail="Document does not belong to this case.")
+    
+    archiver = archive_service.ArchiveService(db)
+    archived_item = await archiver.archive_existing_document(
+        user_id=str(current_user.id),
+        case_id=case_id,
+        source_key=doc.storage_key,
+        filename=doc.file_name,
+        original_doc_id=doc_id
+    )
+    return ArchiveItemOut.model_validate(archived_item)
 
 # --- ANALYSIS & EVIDENCE MAP PIPELINE ---
 
