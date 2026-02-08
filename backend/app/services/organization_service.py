@@ -1,7 +1,7 @@
 # FILE: backend/app/services/organization_service.py
 # PHOENIX PROTOCOL - ORGANIZATION SERVICE V2.2 (AUTO-SYNC PATCH)
 # 1. FIXED: Added auto-sync in 'get_organization_for_user' to align Org Tier with Owner Plan.
-# 2. STATUS: Resolves 1/1 limit error when user is set to TEAM_PLAN.
+
 
 from typing import List, Optional, Dict
 from bson import ObjectId
