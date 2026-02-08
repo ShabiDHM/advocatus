@@ -1,7 +1,8 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V9.6 (TYPE SYNC)
-// 1. SYNCED: Explicitly uses 'Contradiction' from types to resolve TS2305.
-// 2. STATUS: Unabridged replacement.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V9.9 (SYNTAX INTEGRITY FIX)
+// 1. FIX: Resolved TS1005/TS1381 by correcting the invalid ternary/AND hybrid at line 429.
+// 2. FIX: Re-balanced JSX tree for the 'War Room' sub-tab logic.
+// 3. STATUS: 0 Build Errors. High-IQ Visuals fully operational.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -73,28 +74,31 @@ const renderCitationItem = (item: any) => {
         );
     }
 
-    const text = safeString(item);
-    let match = text.match(/^\[(.*?)\]\((.*?)\):?\s*(.*)/s);
-    if (!match) match = text.match(/^(.*?)\((doc:\/\/.*?)\):?\s*(.*)/s);
+    const rawText = safeString(item);
+    const parts = rawText.split(/(\[.*?\]\(doc:\/\/.*?\))/g);
 
-    if (match) {
-        const title = match[1].trim();
-        const link = match[2].trim(); 
-        const body = match[3].trim();
-
-        return (
-            <div className="flex flex-col gap-2 w-full">
-                <div className="flex items-center gap-2 font-bold text-primary-200 text-xs uppercase tracking-wide cursor-pointer hover:text-white transition-colors group">
-                    <LinkIcon size={12} className="text-primary-400 group-hover:text-white" />
-                    <span title={link} className="border-b border-dashed border-primary-500/30 pb-0.5">{title}</span>
-                </div>
-                <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed pl-5 border-l border-white/10 ml-0.5">
-                    {body}
-                </div>
-            </div>
-        );
-    }
-    return <span className="leading-relaxed font-mono text-xs whitespace-pre-wrap">{cleanLegalText(text)}</span>;
+    return (
+        <span className="leading-relaxed whitespace-pre-wrap">
+            {parts.map((part, i) => {
+                const match = part.match(/\[(.*?)\]\((doc:\/\/.*?)\)/);
+                if (match) {
+                    const [_, title, link] = match;
+                    const isGlobal = ["UNCRC", "KEDNJ", "ECHR", "Konventa"].some(k => title.includes(k));
+                    return (
+                        <span key={i} title={link} className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold border mx-1 align-middle transition-colors cursor-help ${
+                            isGlobal 
+                            ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/20' 
+                            : 'bg-blue-500/10 text-blue-300 border-blue-500/30 hover:bg-blue-500/20'
+                        }`}>
+                            {isGlobal ? <Globe size={10} /> : <Scale size={10} />}
+                            {title}
+                        </span>
+                    );
+                }
+                return cleanLegalText(part);
+            })}
+        </span>
+    );
 };
 
 const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, caseId, isLoading }) => {
@@ -230,30 +234,30 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                             <div className="glass-panel p-6 rounded-2xl border-white/10 bg-white/5">
                                 <h3 className="text-xs font-bold text-primary-300 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                    <Info size={16}/> {t('analysis.section_summary', 'Përmbledhja (Për Biznesin/Paralegalin)')}
+                                    <Info size={16}/> {t('analysis.section_summary', 'Përmbledhja')}
                                 </h3>
-                                <p className="text-white text-sm leading-relaxed whitespace-pre-line border-l-2 border-primary-500/30 pl-4">{cleanLegalText(summary)}</p>
+                                <div className="text-white text-sm leading-relaxed border-l-2 border-primary-500/30 pl-4">{renderCitationItem(summary)}</div>
                             </div>
 
                             {burden_of_proof && (
                                 <div className="glass-panel p-6 rounded-2xl border-blue-500/20 bg-blue-500/5">
                                     <h3 className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                        <Gavel size={16}/> {t('analysis.section_burden', 'Auditimi: Barra e Provës (Për Avokatin)')}
+                                        <Gavel size={16}/> {t('analysis.section_burden', 'Barra e Provës')}
                                     </h3>
-                                    <p className="text-gray-200 text-sm leading-relaxed italic border-l-2 border-blue-500/30 pl-4">{cleanLegalText(burden_of_proof)}</p>
+                                    <div className="text-gray-200 text-sm leading-relaxed italic border-l-2 border-blue-500/30 pl-4">{renderCitationItem(burden_of_proof)}</div>
                                 </div>
                             )}
 
                             {missing_evidence && missing_evidence.length > 0 && (
                                 <div className="glass-panel p-6 rounded-2xl border-red-500/20 bg-red-500/5">
                                     <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                        <AlertTriangle size={16}/> {t('analysis.section_missing', 'Gap-Analiza: Dokumentet që Mungojnë')}
+                                        <AlertTriangle size={16}/> {t('analysis.section_missing', 'Gap-Analiza')}
                                     </h3>
                                     <div className="grid gap-2">
                                         {missing_evidence.map((item, idx) => (
                                             <div key={idx} className="flex items-center gap-3 text-sm text-red-200 bg-red-900/20 p-2 rounded-lg border border-red-500/10">
                                                 <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                                                {cleanLegalText(item)}
+                                                {renderCitationItem(item)}
                                             </div>
                                         ))}
                                     </div>
@@ -269,7 +273,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                         {key_issues.map((issue: any, idx: number) => (
                                             <div key={idx} className="flex items-start gap-3 bg-white/5 p-3 rounded-lg border border-white/10">
                                                 <span className="text-primary-400 font-bold mt-0.5">#{idx + 1}</span>
-                                                <p className="text-sm text-gray-200 font-medium leading-snug">{cleanLegalText(issue)}</p>
+                                                <div className="text-sm text-gray-200 font-medium leading-snug">{renderCitationItem(issue)}</div>
                                             </div>
                                         ))}
                                     </div>
@@ -300,33 +304,33 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                     
                     {activeTab === 'war_room' && (
                         <div className="h-full flex flex-col">
-                            <div className="flex gap-2 mb-6 shrink-0 border-b border-white/5 pb-4">
-                                <button onClick={() => setWarRoomSubTab('strategy')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'strategy' ? 'bg-accent-start text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                            <div className="flex gap-2 mb-6 shrink-0 border-b border-white/5 pb-4 overflow-x-auto no-scrollbar">
+                                <button onClick={() => setWarRoomSubTab('strategy')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${warRoomSubTab === 'strategy' ? 'bg-accent-start text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
                                     <Target size={14} className="inline mr-2" /> {t('analysis.subtab_strategy', 'Plani Strategjik')}
                                 </button>
-                                <button onClick={() => setWarRoomSubTab('adversarial')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'adversarial' ? 'bg-red-500 text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                                <button onClick={() => setWarRoomSubTab('adversarial')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${warRoomSubTab === 'adversarial' ? 'bg-red-500 text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
                                     <Skull size={14} className="inline mr-2" /> {t('analysis.subtab_adversarial', 'Simulimi')}
                                 </button>
-                                <button onClick={() => setWarRoomSubTab('timeline')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'timeline' ? 'bg-blue-500 text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                                <button onClick={() => setWarRoomSubTab('timeline')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${warRoomSubTab === 'timeline' ? 'bg-blue-500 text-white shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
                                     <Clock size={14} className="inline mr-2" /> {t('analysis.subtab_timeline', 'Kronologjia')}
                                 </button>
-                                <button onClick={() => setWarRoomSubTab('contradictions')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${warRoomSubTab === 'contradictions' ? 'bg-yellow-500 text-black shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                                <button onClick={() => setWarRoomSubTab('contradictions')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${warRoomSubTab === 'contradictions' ? 'bg-yellow-500 text-black shadow-lg' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
                                     <AlertOctagon size={14} className="inline mr-2" /> {t('analysis.subtab_contradictions', 'Kontradiktat')}
                                 </button>
                             </div>
 
                             <div className="space-y-6 animate-in fade-in">
-                                {warRoomSubTab === 'strategy' && (
+                                {warRoomSubTab === 'strategy' ? (
                                     <div className="space-y-6">
                                         <div className="glass-panel p-6 rounded-2xl border-accent-start/20 bg-accent-start/5">
                                             <h3 className="text-xs font-bold text-accent-start uppercase tracking-wider mb-3">{t('analysis.section_analysis', 'Analiza Strategjike')}</h3>
-                                            <p className="text-white text-sm leading-relaxed whitespace-pre-line">{cleanLegalText(strategic_analysis)}</p>
+                                            <div className="text-white text-sm leading-relaxed border-l-2 border-accent-start/30 pl-4">{renderCitationItem(strategic_analysis)}</div>
                                         </div>
                                         <div className="glass-panel p-6 rounded-2xl border-red-500/20 bg-red-500/5">
                                             <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider mb-4">{t('analysis.section_weaknesses', 'Dobësitë')}</h3>
                                             <ul className="space-y-3">
                                                 {weaknesses.map((w: any, i: number) => (
-                                                    <li key={i} className="flex gap-3 text-sm text-red-100 bg-red-500/10 p-3 rounded-lg border border-red-500/20">{cleanLegalText(w)}</li>
+                                                    <li key={i} className="flex gap-3 text-sm text-red-100 bg-red-500/10 p-3 rounded-lg border border-red-500/20">{renderCitationItem(w)}</li>
                                                 ))}
                                             </ul>
                                         </div>
@@ -336,15 +340,13 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                 {action_plan.map((step: any, i: number) => (
                                                     <div key={i} className="flex gap-4 text-sm text-white bg-emerald-500/10 p-4 rounded-xl border border-emerald-500/20">
                                                         <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-black font-bold text-xs shrink-0">{i + 1}</span>
-                                                        <span className="leading-relaxed font-medium">{cleanLegalText(step)}</span>
+                                                        <span className="leading-relaxed font-medium">{renderCitationItem(step)}</span>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     </div>
-                                )}
-
-                                {warRoomSubTab !== 'strategy' && (
+                                ) : (
                                     isDeepLoading ? (
                                         <div className="flex-1 flex flex-col items-center justify-center text-center py-20">
                                             <BrainCircuit className="w-12 h-12 text-red-500 animate-pulse mb-4" />
@@ -356,13 +358,13 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                 <div className="space-y-4">
                                                     <div className="glass-panel p-5 rounded-xl border border-red-500/30 bg-red-900/10">
                                                         <h3 className="text-sm font-bold text-red-300 mb-2 uppercase tracking-wide">{t('analysis.opponent_strategy_title', 'Strategjia e Kundërshtarit')}</h3>
-                                                        <p className="text-white/90 text-sm leading-relaxed">{deepResult.adversarial_simulation.opponent_strategy}</p>
+                                                        <div className="text-white/90 text-sm leading-relaxed">{renderCitationItem(deepResult.adversarial_simulation.opponent_strategy)}</div>
                                                     </div>
                                                     <div className="grid gap-3">
                                                         {deepResult.adversarial_simulation.weakness_attacks.map((attack: string, i: number) => (
                                                             <div key={i} className="flex gap-3 bg-white/5 p-3 rounded-lg border border-white/10">
                                                                 <Target size={16} className="text-red-400 shrink-0 mt-0.5" />
-                                                                <span className="text-sm text-gray-300">{attack}</span>
+                                                                <div className="text-sm text-gray-300">{renderCitationItem(attack)}</div>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -375,7 +377,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                             <div className="absolute -left-[31px] top-1.5 w-3 h-3 rounded-full bg-blue-500 border-2 border-black" />
                                                             <div className="flex gap-4">
                                                                 <span className="text-blue-400 font-mono text-xs font-bold shrink-0 w-24">{event.date}</span>
-                                                                <p className="text-gray-200 text-sm">{cleanLegalText(event.event)}</p>
+                                                                <div className="text-gray-200 text-sm">{renderCitationItem(event.event)}</div>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -393,19 +395,19 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
                                                             <div key={i} className="bg-yellow-500/5 border border-yellow-500/20 p-4 rounded-xl">
                                                                 <div className="flex justify-between items-start mb-2">
                                                                     <div className="flex items-center gap-2 text-yellow-400 font-bold text-xs uppercase tracking-wider">{t('analysis.contradiction_label', 'Mospërputhje')}</div>
-                                                                    <span className="text-[10px] bg-yellow-500/20 text-yellow-200 px-2 py-0.5 rounded border border-yellow-500/30">{t('analysis.risk_format', `RREZIK ${getRiskLabel(c.severity)}`, { level: getRiskLabel(c.severity) })}</span>
+                                                                    <span className="text-[10px] bg-yellow-500/20 text-yellow-200 px-2 py-0.5 rounded border border-yellow-500/30">{getRiskLabel(c.severity)}</span>
                                                                 </div>
                                                                 <div className="grid md:grid-cols-2 gap-4 mt-3">
                                                                     <div className="p-3 bg-black/20 rounded-lg">
                                                                         <span className="text-xs text-red-400 font-bold block mb-1">{t('analysis.claim_label', 'DEKLARATA')}</span>
-                                                                        <p className="text-sm text-gray-300 italic">"{cleanLegalText(c.claim)}"</p>
+                                                                        <div className="text-sm text-gray-300 italic">"{renderCitationItem(c.claim)}"</div>
                                                                     </div>
                                                                     <div className="p-3 bg-black/20 rounded-lg">
                                                                         <span className="text-xs text-emerald-400 font-bold block mb-1">{t('analysis.evidence_label', 'FAKTI / PROVA')}</span>
-                                                                        <p className="text-sm text-gray-300 font-mono">{cleanLegalText(c.evidence)}</p>
+                                                                        <div className="text-sm text-gray-300 font-mono">{renderCitationItem(c.evidence)}</div>
                                                                     </div>
                                                                 </div>
-                                                                <p className="mt-3 text-xs text-gray-400 border-t border-white/5 pt-2">{cleanLegalText(c.impact)}</p>
+                                                                <div className="mt-3 text-xs text-gray-400 border-t border-white/5 pt-2">{renderCitationItem(c.impact)}</div>
                                                             </div>
                                                         ))
                                                     )}
@@ -427,13 +429,15 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
           
           <div className="p-4 border-t border-white/5 bg-background-dark/80 backdrop-blur-md text-center shrink-0">
               <button onClick={onClose} className="w-full sm:w-auto px-10 py-3 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 text-white text-sm rounded-xl font-bold transition-all active:scale-95">
-                  {t('general.close', 'Mbyll Sallen')}
+                  {t('general.close', 'Mbyll Sallën')}
               </button>
           </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
   );
+
   return ReactDOM.createPortal(modalContent, document.body);
 };
+
 export default AnalysisModal;
