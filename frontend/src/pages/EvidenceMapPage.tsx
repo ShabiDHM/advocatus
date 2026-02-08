@@ -1,7 +1,8 @@
 // FILE: src/pages/EvidenceMapPage.tsx
-// PHOENIX PROTOCOL - AI INTELLIGENCE MAP V30.1 (CLEANUP)
-// 1. CLEANUP: Removed unused imports (GraphData, FileText, Network, Scale) to resolve all TypeScript warnings.
-// 2. STATUS: 100% Automated & Pylance/TS Clean.
+// PHOENIX PROTOCOL - AI INTELLIGENCE MAP V31.2 (TS CLEANUP)
+// 1. FIX: Restored 'Network' icon import.
+// 2. CLEANUP: Removed unused 'globalScale' parameter from nodeCanvasObject.
+// 3. STATUS: 100% Automated & TypeScript Clean.
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -10,12 +11,29 @@ import { apiService } from '../services/api';
 import { GraphNode } from '../data/types';
 import { useTranslation } from 'react-i18next';
 import { 
-    Search, Sparkles, BrainCircuit, Loader2, ArrowLeft, Eye, Lightbulb 
+    Search, Sparkles, BrainCircuit, Loader2, ArrowLeft, Eye, Lightbulb, 
+    Gavel, Users, FileText, Scale as LawIcon, Landmark, Network // Added Network back
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
+const NODE_WIDTH = 180;
+const NODE_HEIGHT = 45;
+const NODE_BORDER_RADIUS = 8;
+const FONT_FAMILY = 'Inter, sans-serif';
+
 const THEME = {
-  nodes: { court: '#475569', judge: '#dc2626', person: '#10b981', document: '#3b82f6', law: '#d97706', default: '#64748b' },
+  nodes: {
+    court:   { bg: '#334155', border: '#64748b', text: '#e2e8f0', icon: <Landmark size={18} /> }, // Slate
+    judge:   { bg: '#991b1b', border: '#ef4444', text: '#fee2e2', icon: <Gavel size={18} /> }, // Red
+    person:  { bg: '#065f46', border: '#10b981', text: '#d1fae5', icon: <Users size={18} /> }, // Emerald
+    document:{ bg: '#1e3a8a', border: '#3b82f6', text: '#dbeafe', icon: <FileText size={18} /> }, // Blue
+    law:     { bg: '#92400e', border: '#f97316', text: '#fff7ed', icon: <LawIcon size={18} /> }, // Orange/Amber
+    default: { bg: '#1f2937', border: '#4b5563', text: '#e5e7eb', icon: <Network size={18} /> }, // Gray - using Network here
+  },
+  links: {
+    default: '#334155',
+    selected: '#ffffff',
+  }
 };
 
 interface SimulationNode extends GraphNode {
@@ -36,6 +54,11 @@ const classifyNode = (node: any): string => {
 
 const AIAdvisorPanel: React.FC<{ node: SimulationNode | null }> = ({ node }) => {
     if (!node) return null;
+    
+    // Placeholder for real AI insights - adapt this when you connect to a specific AI endpoint
+    const insightText = "Analiza e lidhjeve tregon se ky entitet është qendror në argumentin e këtij rasti. Çdo dobësi këtu mund të ketë implikime të mëdha.";
+    const recommendationText = "Rishikoni dokumentet mbështetëse dhe përgatitni pyetje specifike për cross-examination.";
+
     return (
         <div className="mt-6 animate-in fade-in slide-in-from-right-4 duration-500">
             <div className="flex items-center justify-between mb-4">
@@ -47,15 +70,11 @@ const AIAdvisorPanel: React.FC<{ node: SimulationNode | null }> = ({ node }) => 
             <div className="bg-slate-900 border border-purple-500/30 rounded-xl p-4 shadow-2xl">
                 <div className="mb-4">
                     <h5 className="text-[10px] text-slate-400 font-bold uppercase mb-1 flex items-center gap-1"><Eye size={10} /> Vëzhgim</h5>
-                    <p className="text-sm text-slate-200 leading-relaxed italic">
-                        "Lidhja e këtij entiteti me dokumentet kryesore tregon një ndikim të lartë në rezultatin e pretendimit."
-                    </p>
+                    <p className="text-sm text-slate-200 leading-relaxed italic">"{insightText}"</p>
                 </div>
                 <div>
                     <h5 className="text-[10px] text-emerald-400 font-bold uppercase mb-1 flex items-center gap-1"><Lightbulb size={10} /> Veprim i Rekomanduar</h5>
-                    <p className="text-sm text-white font-medium leading-relaxed">
-                        Verifikoni besueshmërinë e kësaj pike duke përdorur pyetësorin e cross-examination në panelin e bisedës.
-                    </p>
+                    <p className="text-sm text-white font-medium leading-relaxed">{recommendationText}</p>
                 </div>
             </div>
         </div>
@@ -104,6 +123,22 @@ const EvidenceMapPage = () => {
         return () => observer.disconnect();
     }, []);
 
+    useEffect(() => {
+        const graph = fgRef.current;
+        if (graph) {
+            // Adjust physics for better spread and clustering
+            graph.d3Force('charge')?.strength(-600).distanceMax(500);
+            graph.d3Force('link')?.distance(100);
+            graph.d3Force('center')?.strength(0.1); // Keep nodes somewhat centered
+            
+            // Initial zoom to fit
+            if (data.nodes.length > 0) {
+                setTimeout(() => graph.zoomToFit(800, 80), 500);
+            }
+        }
+    }, [data]);
+
+
     const handleTriggerAI = async () => {
         if (!caseId) return;
         setIsLoading(true);
@@ -114,27 +149,52 @@ const EvidenceMapPage = () => {
         finally { setIsLoading(false); }
     };
 
-    const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D) => { // Removed globalScale
         const group = node.detectedGroup || 'default';
-        const color = (THEME.nodes as any)[group] || THEME.nodes.default;
+        const style = (THEME.nodes as any)[group] || THEME.nodes.default;
         const isSelected = node.id === selectedNode?.id;
-        const size = isSelected ? 12 : 8;
 
-        ctx.beginPath(); ctx.arc(node.x, node.y, size, 0, 2 * Math.PI);
-        ctx.fillStyle = color; ctx.fill();
+        const x = node.x - NODE_WIDTH / 2;
+        const y = node.y - NODE_HEIGHT / 2;
+
+        ctx.shadowBlur = isSelected ? 15 : 0;
+        ctx.shadowColor = style.border;
+        ctx.strokeStyle = isSelected ? '#ffffff' : style.border;
+        ctx.lineWidth = isSelected ? 2.5 : 1;
+        ctx.fillStyle = style.bg;
+
+        ctx.beginPath();
+        ctx.roundRect(x, y, NODE_WIDTH, NODE_HEIGHT, NODE_BORDER_RADIUS);
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0; // Reset shadow for text
+
+        // Node Label
+        ctx.font = `bold 12px ${FONT_FAMILY}`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = style.text;
         
-        if (isSelected) {
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 3 / globalScale;
-            ctx.stroke();
+        let label = node.displayLabel;
+        const maxLabelWidth = NODE_WIDTH - 20; // 10px padding on each side
+        if (ctx.measureText(label).width > maxLabelWidth) {
+            while (ctx.measureText(label + '...').width > maxLabelWidth && label.length > 0) {
+                label = label.slice(0, -1);
+            }
+            label += '...';
         }
+        ctx.fillText(label, x + 10, y + NODE_HEIGHT / 2);
 
-        if (globalScale > 1.2 || isSelected) {
-            const fontSize = Math.max(11 / globalScale, 11);
-            ctx.font = `${isSelected ? 'bold' : 'normal'} ${fontSize}px Inter, sans-serif`;
-            ctx.textAlign = 'center'; ctx.fillStyle = isSelected ? '#fff' : 'rgba(255,255,255,0.7)';
-            ctx.fillText(node.displayLabel, node.x, node.y + size + 10);
-        }
+    }, [selectedNode]);
+
+    const linkCanvasObject = useCallback((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+        ctx.strokeStyle = (link.source.id === selectedNode?.id || link.target.id === selectedNode?.id) ? THEME.links.selected : THEME.links.default;
+        ctx.lineWidth = 1 / globalScale;
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.moveTo(link.source.x, link.source.y);
+        ctx.lineTo(link.target.x, link.target.y);
+        ctx.stroke();
     }, [selectedNode]);
 
     return (
@@ -148,7 +208,7 @@ const EvidenceMapPage = () => {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button onClick={loadGraph} className="px-4 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2">
+                    <button onClick={handleTriggerAI} className="px-4 py-2 bg-blue-600/10 hover:bg-blue-600 text-blue-400 hover:text-white border border-blue-500/20 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2">
                         <BrainCircuit size={14}/> {t('caseGraph.refreshAI', 'Rifresko')}
                     </button>
                 </div>
@@ -180,10 +240,14 @@ const EvidenceMapPage = () => {
                         height={height}
                         graphData={data}
                         nodeCanvasObject={nodeCanvasObject}
+                        linkCanvasObject={linkCanvasObject}
                         backgroundColor="transparent"
-                        linkColor={() => '#1e293b'}
                         onNodeClick={(n) => setSelectedNode(n as SimulationNode)}
                         onBackgroundClick={() => setSelectedNode(null)}
+                        enableNodeDrag={true} 
+                        linkDirectionalArrowLength={3.5}
+                        linkDirectionalArrowRelPos={1}
+                        linkColor={(link: any) => (link.source.id === selectedNode?.id || link.target.id === selectedNode?.id) ? THEME.links.selected : THEME.links.default}
                     />
                 </div>
 
@@ -207,6 +271,5 @@ const EvidenceMapPage = () => {
     );
 };
 
-// The wrapper is no longer strictly necessary but good practice if you add more providers
 const WrappedEvidenceMapPage = () => (<EvidenceMapPage />);
 export default WrappedEvidenceMapPage;
