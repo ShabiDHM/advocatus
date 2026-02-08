@@ -1,8 +1,9 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V9.9 (SYNTAX INTEGRITY FIX)
-// 1. FIX: Resolved TS1005/TS1381 by correcting the invalid ternary/AND hybrid at line 429.
-// 2. FIX: Re-balanced JSX tree for the 'War Room' sub-tab logic.
-// 3. STATUS: 0 Build Errors. High-IQ Visuals fully operational.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V10.0 (READABILITY & ACCESSIBILITY UPGRADE)
+// 1. FIX: Increased font size of green article summaries from 10px to text-xs (12px).
+// 2. FIX: Switched from font-mono to font-medium for article text to improve legibility.
+// 3. FIX: Enhanced contrast with text-emerald-300 and wider padding.
+// 4. STATUS: 0 Build Errors. High-IQ Visuals fully optimized for readability.
 
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -52,21 +53,22 @@ const renderCitationItem = (item: any) => {
         const body = item.relevance || item.argument || item.description || "";
 
         return (
-            <div className="flex flex-col gap-2 w-full">
+            <div className="flex flex-col gap-3 w-full">
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="flex items-center gap-2 font-bold text-primary-200 text-xs uppercase tracking-wide group">
                         <LinkIcon size={12} className="text-primary-400" />
                         <span className="border-b border-dashed border-primary-500/30 pb-0.5">{lawTitle}</span>
                     </div>
+                    {/* PHOENIX FIX: Enhanced readability for the article summary (Green box) */}
                     {article && (
-                        <span className="px-2 py-0.5 rounded bg-white/10 text-[10px] font-mono text-emerald-400 border border-emerald-500/20">
+                        <div className="px-3 py-1 rounded-lg bg-emerald-500/10 text-xs font-medium text-emerald-300 border border-emerald-500/20 leading-relaxed italic">
                             {article}
-                        </span>
+                        </div>
                     )}
                 </div>
                 {body && (
                     <div className="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed pl-5 border-l border-white/10 ml-0.5 mt-1">
-                        <span className="text-secondary-400 text-xs font-bold uppercase mr-2">Relevanca:</span>
+                        <span className="text-secondary-400 text-xs font-bold uppercase mr-2 tracking-wider">Relevanca:</span>
                         {body}
                     </div>
                 )}
@@ -193,6 +195,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-[100] p-0 sm:p-4" onClick={onClose}>
         <motion.div initial={{ scale: 0.98, opacity: 0, y: 10 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.98, opacity: 0, y: 10 }} className="glass-high w-full h-full sm:h-[90vh] sm:max-w-6xl rounded-none sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col border border-white/10" onClick={(e) => e.stopPropagation()}>
           
+          {/* Modal Header */}
           <div className="px-6 py-4 border-b border-white/5 flex justify-between items-center bg-white/5 backdrop-blur-md shrink-0">
             <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-4 min-w-0">
               <div className="p-2.5 bg-gradient-to-br from-primary-start to-primary-end rounded-xl shrink-0 shadow-lg shadow-primary-start/20">

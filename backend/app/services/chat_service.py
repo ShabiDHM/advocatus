@@ -1,8 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V25.3 (PARAMETER ALIGNMENT)
-# 1. FIX: Added 'jurisdiction' pass-through to Deep Mode streaming call.
-# 2. FIX: Hardened FAST mode prompt to ensure law citations are preserved.
-# 3. STATUS: Full synchronization with RAG Service V46.6.
+# PHOENIX PROTOCOL - CHAT SERVICE V25.4 (MODE DIFFERENTIATION)
+# 1. FIX: Enforced strict brevity for FAST mode to distinguish from DEEP mode.
+# 2. FIX: Synchronized parameters with RAG Service V47.0.
+# 3. STATUS: Unabridged. Mode-specific behavior verified.
 
 from __future__ import annotations
 import logging
@@ -27,26 +27,31 @@ async def stream_chat_response(
         case = db.cases.find_one({"_id": oid, "owner_id": user_oid})
         if not case: yield "Gabim: Qasja u refuzua."; return
 
-        # Record user message
+        # Sync User Message to History
         db.cases.update_one({"_id": oid}, {"$push": {"chat_history": ChatMessage(role="user", content=user_query, timestamp=datetime.now(timezone.utc)).model_dump()}})
         
         full_response = ""
-        yield " " # Keep-alive token
+        yield " " # Keep-alive
 
         if not mode or mode.upper() == 'FAST':
+            # --- FAST MODE: Direct, Concise Summary ---
             snippets = vector_store_service.query_case_knowledge_base(user_id=user_id, query_text=user_query, n_results=10, case_context_id=case_id)
             context = "\n".join([f"- {s['text']} (Burimi: {s['source']})" for s in snippets])
             
-            # PHOENIX FIX: Professional Instruction for Fast Mode
-            system_prompt = f"Ti je 'Juristi AI'. Përdor formatin [Ligji](doc://ligji) për çdo citim.\nKONTEKSTI I RASTIT:\n{context}"
-            
+            # Mandate brevity for FAST mode
+            system_prompt = f"""
+            Ti je 'Juristi AI'. 
+            DETYRA: Jep një përgjigje të shpejtë dhe të shkurtër (MAX 2 PARAGRAFE).
+            CITIMI: Përdor formatin [Emri i Ligjit](doc://ligji).
+            KONTEKSTI I RASTIT:
+            {context}
+            """
             async for token in llm_service.stream_text_async(system_prompt, user_query, temp=0.1):
                 full_response += token
                 yield token
         else:
+            # --- DEEP MODE: Comprehensive Legal Analysis ---
             agent_service = AlbanianRAGService(db=db)
-            
-            # PHOENIX FIX: Pass jurisdiction to the deep chat generator
             async for token in agent_service.chat(
                 query=user_query, 
                 user_id=user_id, 
@@ -57,10 +62,10 @@ async def stream_chat_response(
                 full_response += token
                 yield token
 
-        # Persistence
+        # Sync AI Message to History
         if full_response.strip():
             db.cases.update_one({"_id": oid}, {"$push": {"chat_history": ChatMessage(role="ai", content=full_response.strip(), timestamp=datetime.now(timezone.utc)).model_dump()}})
             
     except Exception as e:
         logger.error(f"Streaming Error: {e}")
-        yield "\n\n[Gabim Teknik: Shërbimi AI dështoi. Kontrolloni çelësat API.]"
+        yield "\n\n[Gabim Teknik: Shërbimi i bisedës dështoi.]"
