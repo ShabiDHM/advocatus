@@ -1,5 +1,8 @@
-# FILE: backend/app/services/report_service.py (FINAL PYLANCE FIX V6.3)
-# 1. FIX: Used triple-quote f-string to safely include the newline escape sequence, resolving TS-356.
+# FILE: backend/app/services/report_service.py
+# PHOENIX PROTOCOL - REPORT SERVICE V6.4 (LAYOUT & BRANDING FIX)
+# 1. FIXED: Removed hardcoded "ADVOCATUS | SYSTEM" from the PDF footer.
+# 2. FIXED: Header "Strategjia: Pa Titull" is now hidden if the case has no title.
+# 3. RETAINED: All invoice and evidence map generation logic without degradation.
 
 import io
 import os
@@ -198,7 +201,6 @@ def _build_doc(buffer: io.BytesIO, branding: dict, lang: str) -> BaseDocTemplate
     return doc
 
 def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang: str = "sq") -> io.BytesIO:
-    # ... (Invoice PDF generation remains unchanged) ...
     branding = _get_branding(db, user_id)
     buffer = io.BytesIO()
     doc = _build_doc(buffer, branding, lang)
@@ -277,16 +279,19 @@ def create_pdf_from_text(text: str, document_title: str) -> io.BytesIO:
     
     html_body = markdown2.markdown(text, extras=["tables", "fenced-code-blocks", "cuddled-lists"])
 
-    header_html = f"<div id='header_content'><h1>{escape(document_title)}</h1></div>"
+    # PHOENIX FIX: Hide header if title is generic
+    if document_title and "Pa Titull" not in document_title:
+        header_html = f"<div id='header_content'><h1>{escape(document_title)}</h1></div>"
+    else:
+        header_html = "<div id='header_content'></div>"
     
-    # PHOENIX FIX: Replaced page count with a static, professional footer.
-    firm_name = "ADVOCATUS | SYSTEM"
+    # PHOENIX FIX: Remove system branding from footer
     generation_date = datetime.now().strftime('%d/%m/%Y')
     footer_html = f"""
     <div id='footer_content' style='font-size: 9pt; color: #888;'>
         <table width="100%" style="border-top: 1px solid #ccc; padding-top: 5px;">
             <tr>
-                <td align="left">{firm_name}</td>
+                <td align="left"></td>
                 <td align="right">Data e Gjenerimit: {generation_date}</td>
             </tr>
         </table>
