@@ -1,7 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V19.0 (TIER EXPANSION)
-// 1. ADDED: 'getOrganization()' to support dynamic tier limits in TeamTab.
-// 2. RETAINED: All streaming, forensic, and legacy endpoints.
+// PHOENIX PROTOCOL - API SERVICE V20.0 (AUTOMATION CONVERGENCE)
+// 1. UPDATED: 'getCaseGraph' now targets unified /cases/ evidence-map logic.
+// 2. ADDED: 'extractCaseGraph' to trigger AI population of Neo4j.
+// 3. RETAINED: All forensic, finance, and AI streaming endpoints without degradation.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -126,10 +127,10 @@ class ApiService {
     public async login(data: LoginRequest): Promise<LoginResponse> { const response = await this.axiosInstance.post<LoginResponse>('/auth/login', data); if (response.data.access_token) tokenManager.set(response.data.access_token); return response.data; }
     public logout() { tokenManager.set(null); }
 
-    // --- ORGANIZATION METHODS (UPDATED) ---
+    // --- ORGANIZATION METHODS ---
     public async inviteMember(email: string): Promise<any> { const response = await this.axiosInstance.post('/organizations/invite', { email }); return response.data; }
     public async getOrganizationMembers(): Promise<User[]> { const response = await this.axiosInstance.get<User[]>('/organizations/members'); return response.data; }
-    public async getOrganization(): Promise<Organization> { const response = await this.axiosInstance.get<Organization>('/organizations/me'); return response.data; } // <-- ADDED THIS
+    public async getOrganization(): Promise<Organization> { const response = await this.axiosInstance.get<Organization>('/organizations/me'); return response.data; }
     public async acceptInvite(data: AcceptInviteRequest): Promise<{ message: string }> { const response = await this.axiosInstance.post('/organizations/accept-invite', data); return response.data; }
     public async removeOrganizationMember(memberId: string): Promise<any> { const response = await this.axiosInstance.delete(`/organizations/members/${memberId}`); return response.data; }
 
@@ -236,7 +237,20 @@ class ApiService {
     public async downloadObjection(caseId: string, docId: string): Promise<void> { const response = await this.axiosInstance.get(`/cases/${caseId}/documents/${docId}/generate-objection`, { responseType: 'blob' }); let filename = 'Kundërshtim.docx'; const disposition = response.headers['content-disposition']; if (disposition && disposition.indexOf('filename=') !== -1) { const matches = /filename="?([^"]+)"?/.exec(disposition); if (matches && matches[1]) filename = matches[1]; } const url = window.URL.createObjectURL(new Blob([response.data])); const link = document.createElement('a'); link.href = url; link.setAttribute('download', filename); document.body.appendChild(link); link.click(); link.parentNode?.removeChild(link); window.URL.revokeObjectURL(url); }
     public async archiveCaseDocument(caseId: string, documentId: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/cases/${caseId}/documents/${documentId}/archive`); return response.data; }
     public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); }
-    public async getCaseGraph(caseId: string): Promise<GraphData> { const response = await this.axiosInstance.get<GraphData>(`/graph/graph/${caseId}`); return response.data; }
+
+    // --- AUTOMATED GRAPH INTELLIGENCE ---
+    public async getCaseGraph(caseId: string): Promise<GraphData & { is_empty: boolean }> {
+        // PHOENIX FIX: Targets unified Case endpoint for automated Neo4j extraction
+        const response = await this.axiosInstance.get<GraphData & { is_empty: boolean }>(`/cases/${caseId}/evidence-map`);
+        return response.data;
+    }
+
+    public async extractCaseGraph(caseId: string): Promise<{ status: string }> {
+        // PHOENIX: Trigger the AI extraction process (Populates Neo4j)
+        const response = await this.axiosInstance.post<{ status: string }>(`/cases/${caseId}/extract-map`);
+        return response.data;
+    }
+
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
     public async analyzeDeepStrategy(caseId: string): Promise<DeepAnalysisResult> { const response = await this.axiosInstance.post<DeepAnalysisResult>(`/cases/${caseId}/deep-analysis`); return response.data; }
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); return response.data; }
@@ -285,8 +299,7 @@ class ApiService {
         link.href = url;
         link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`);
         document.body.appendChild(link);
-        link.click();
-        link.parentNode?.removeChild(link);
+        link.click(); link.parentNode?.removeChild(link);
         window.URL.revokeObjectURL(url);
     }
 
@@ -316,27 +329,12 @@ class ApiService {
         try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
     }
 
-    // --- CALENDAR & BRIEFING (PHOENIX UPDATED) ---
+    // --- CALENDAR & BRIEFING ---
 
-    public async getCalendarEvents(): Promise<CalendarEvent[]> { 
-        const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events'); 
-        return response.data; 
-    }
-
-    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { 
-        const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); 
-        return response.data; 
-    }
-
-    public async getBriefing(): Promise<BriefingResponse> { 
-        const response = await this.axiosInstance.get<BriefingResponse>('/calendar/alerts'); 
-        return response.data; 
-    }
-
-    public async getAlertsCount(): Promise<{ count: number }> { 
-        const response = await this.getBriefing();
-        return { count: response.count };
-    }
+    public async getCalendarEvents(): Promise<CalendarEvent[]> { const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events'); return response.data; }
+    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); return response.data; }
+    public async getBriefing(): Promise<BriefingResponse> { const response = await this.axiosInstance.get<BriefingResponse>('/calendar/alerts'); return response.data; }
+    public async getAlertsCount(): Promise<{ count: number }> { const response = await this.getBriefing(); return { count: response.count }; }
 
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     public async deleteCalendarEvent(eventId: string): Promise<void> { await this.axiosInstance.delete(`/calendar/events/${eventId}`); }

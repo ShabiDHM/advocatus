@@ -1,7 +1,8 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V12.0 (TYPE STABILIZATION)
-# 1. FIX: Suppressed Pylance 'reportArgumentType' on ProxyHeadersMiddleware.
-# 2. STATUS: 100% Pylance Clear. Security & Routing Fully Synchronized.
+# PHOENIX PROTOCOL - MAIN APPLICATION V12.2 (SAFE CLEANUP)
+# 1. REMOVED: graph_router reference to eliminate manual logic dependency.
+# 2. PRESERVED: All core business, finance, and auth routers.
+# 3. STATUS: 100% Pylance Clear.
 
 import os
 import logging
@@ -26,7 +27,6 @@ from app.api.endpoints.support import router as support_router
 from app.api.endpoints.business import router as business_router
 from app.api.endpoints.finance import router as finance_router
 from app.api.endpoints import finance_wizard
-from app.api.endpoints.graph import router as graph_router
 from app.api.endpoints.archive import router as archive_router
 from app.api.endpoints.share import router as share_router
 from app.api.endpoints.drafting_v2 import router as drafting_v2_router
@@ -37,13 +37,11 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ---
-# PHOENIX FIX: Added type ignore to resolve Pylance signature mismatch with Uvicorn
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")  # type: ignore
 
 # --- UNIFIED CORS CONFIGURATION ---
 allowed_origins = [str(origin).rstrip("/") for origin in settings.BACKEND_CORS_ORIGINS]
 
-# Explicit Production & Local Whitelist
 production_origins = [
     "https://juristi.tech",
     "https://www.juristi.tech",
@@ -80,7 +78,6 @@ api_v1_router.include_router(support_router, prefix="/support", tags=["Support"]
 api_v1_router.include_router(business_router, prefix="/business", tags=["Business"])
 api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"])
 api_v1_router.include_router(finance_wizard.router, prefix="/finance/wizard", tags=["Finance Wizard"])
-api_v1_router.include_router(graph_router, prefix="/graph", tags=["Graph"])
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 
@@ -92,10 +89,8 @@ app.include_router(api_v2_router)
 
 @app.get("/health", tags=["Health Check"])
 def health_check():
-    return {"status": "ok", "version": "1.2.1", "environment": settings.ENVIRONMENT}
+    return {"status": "ok", "version": "1.2.2", "environment": settings.ENVIRONMENT}
 
-# --- SERVE STATIC FRONTEND ---
-# Assuming standard Docker structure: /app/frontend/dist
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
 
 if os.path.exists(FRONTEND_DIR):
