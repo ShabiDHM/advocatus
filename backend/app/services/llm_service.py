@@ -2,8 +2,7 @@
 # PHOENIX PROTOCOL - CORE INTELLIGENCE V69.2 (ANTI-PARROT ENFORCEMENT)
 # 1. FIX: Enforced 'Argumentative Reasoning' - AI must justify every law citation.
 # 2. RESTORED: All 18 legacy and parallel functions (Hydra Map-Reduce).
-# 3. ENFORCED: Strict 'doc://ligji' formatting for all domains.
-# 4. STATUS: Unabridged. Total Integrity achieved.
+# 3. ENFORCED: Strict 'doc://ligji' formatting for all domain
 
 import os, json, logging, re, asyncio
 from typing import List, Dict, Any, Optional, AsyncGenerator
