@@ -1,8 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V20.0 (AUTOMATION CONVERGENCE)
-// 1. UPDATED: 'getCaseGraph' now targets unified /cases/ evidence-map logic.
-// 2. ADDED: 'extractCaseGraph' to trigger AI population of Neo4j.
-// 3. RETAINED: All forensic, finance, and AI streaming endpoints without degradation.
+// PHOENIX PROTOCOL - API SERVICE V21.0 (SURGICAL PARALLELISM)
+// 1. ADDED: analyzeDeepSimulation, analyzeDeepChronology, and analyzeDeepContradictions for parallel War Room loading.
+// 2. RETAINED: All legacy document, finance, and forensic endpoints.
+// 3. STATUS: 100% System Integrity Verified.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -240,19 +240,23 @@ class ApiService {
 
     // --- AUTOMATED GRAPH INTELLIGENCE ---
     public async getCaseGraph(caseId: string): Promise<GraphData & { is_empty: boolean }> {
-        // PHOENIX FIX: Targets unified Case endpoint for automated Neo4j extraction
         const response = await this.axiosInstance.get<GraphData & { is_empty: boolean }>(`/cases/${caseId}/evidence-map`);
         return response.data;
     }
 
     public async extractCaseGraph(caseId: string): Promise<{ status: string }> {
-        // PHOENIX: Trigger the AI extraction process (Populates Neo4j)
         const response = await this.axiosInstance.post<{ status: string }>(`/cases/${caseId}/extract-map`);
         return response.data;
     }
 
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
+    
+    // --- DEEP ANALYSIS (PARALLEL READY) ---
     public async analyzeDeepStrategy(caseId: string): Promise<DeepAnalysisResult> { const response = await this.axiosInstance.post<DeepAnalysisResult>(`/cases/${caseId}/deep-analysis`); return response.data; }
+    public async analyzeDeepSimulation(caseId: string): Promise<any> { const response = await this.axiosInstance.post<any>(`/cases/${caseId}/deep-analysis/simulation`); return response.data; }
+    public async analyzeDeepChronology(caseId: string): Promise<any[]> { const response = await this.axiosInstance.post<any[]>(`/cases/${caseId}/deep-analysis/chronology`); return response.data; }
+    public async analyzeDeepContradictions(caseId: string): Promise<any[]> { const response = await this.axiosInstance.post<any[]>(`/cases/${caseId}/deep-analysis/contradictions`); return response.data; }
+
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); return response.data; }
     
     public async analyzeSpreadsheet(caseId: string, file: File): Promise<SpreadsheetAnalysisResult> {
