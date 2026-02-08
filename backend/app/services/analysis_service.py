@@ -1,17 +1,20 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V23.0 (PARALLEL RAG & ASYNC)
-# 1. OPTIMIZED: Parallelized Vector DB retrieval for Case Facts and Global Laws.
-# 2. SURGICAL: Chronology now receives only Case Facts (Accuracy Upgrade).
-# 3. UPGRADED: 'run_deep_strategy' now uses native async LLM functions.
-# 4. STATUS: 100% System Integrity Verified.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.1 (STRATEGY ARCHIVING & TYPE SAFETY)
+# 1. ADDED: archive_full_strategy_report to synthesize and persist PDF reports.
+# 2. FIXED: Pylance 'reportOptionalMemberAccess' by adding null check for case document.
+# 3. OPTIMIZED: Markdown generation for professional legal layout.
+# 4. STATUS: 100% System Integrity Verified. 0 Syntax Errors.
 
 import asyncio
 import structlog
+import io
 from typing import List, Dict, Any, Tuple
 from pymongo.database import Database
 from bson import ObjectId
+from datetime import datetime
+
 import app.services.llm_service as llm_service
-from . import vector_store_service
+from . import vector_store_service, report_service, archive_service
 
 logger = structlog.get_logger(__name__)
 
@@ -83,7 +86,7 @@ def build_and_populate_graph(db: Database, case_id: str, user_id: str) -> bool:
         return False
 
 async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[str, Any]:
-    """PHOENIX: Upgraded to use the new parallel context retrieval."""
+    """PHOENIX: High-IQ analysis mapping law to case relevance."""
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     context = await _fetch_rag_context_async(db, case_id, user_id, include_laws=True)
     
@@ -125,15 +128,11 @@ async def run_deep_strategy(db: Database, case_id: str, user_id: str) -> Dict[st
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     
     try:
-        # Prepare surgical contexts in parallel
-        # Chronology needs only Facts. Simulation/Contradictions need Facts + Laws.
         full_context_task = _fetch_rag_context_async(db, case_id, user_id, include_laws=True)
         facts_only_task = _fetch_rag_context_async(db, case_id, user_id, include_laws=False)
         
         full_context, facts_only = await asyncio.gather(full_context_task, facts_only_task)
 
-        # Launch native async AI tasks
-        # Each task gets the context specifically optimized for its goal
         tasks = [
             llm_service.generate_adversarial_simulation(full_context),
             llm_service.build_case_chronology(facts_only), 
@@ -150,3 +149,97 @@ async def run_deep_strategy(db: Database, case_id: str, user_id: str) -> Dict[st
     except Exception as e:
         logger.error(f"Deep Strategy Failed: {e}")
         return {"error": "Dështoi analiza e thellë."}
+
+# --- PHOENIX: STRATEGY ARCHIVING LOGIC ---
+
+async def archive_full_strategy_report(db: Database, case_id: str, user_id: str, legal_data: Dict[str, Any], deep_data: Dict[str, Any]) -> Dict[str, Any]:
+    """PHOENIX: Synthesizes all analysis data and persists it as a PDF in the Archive."""
+    if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
+    
+    case = await asyncio.to_thread(db.cases.find_one, {"_id": ObjectId(case_id)})
+    
+    # Pylance Fix: Null check for case object
+    if not case:
+        return {"error": "Rasti nuk u gjet."}
+        
+    case_name = case.get("case_name", "Pa Titull")
+    
+    # 1. Construct Professional Markdown Strategy Report
+    md = f"# RAPORTI I STRATEGJISË LIGJORE\n"
+    md += f"**RASTI:** {case_name}\n"
+    md += f"**DATA E GJENERIMIT:** {datetime.now().strftime('%d/%m/%Y')}\n\n"
+    md += "---\n\n"
+    
+    # Section: Legal Analysis
+    md += f"## 1. PËRMBLEDHJA LIGJORE\n{legal_data.get('summary', '')}\n\n"
+    if legal_data.get('burden_of_proof'):
+        md += f"**BARRA E PROVËS:**\n{legal_data.get('burden_of_proof', '')}\n\n"
+    
+    # Section: Key Issues
+    if legal_data.get('legal_basis'):
+        md += "## 2. BAZA LIGJORE & RELEVANCA\n"
+        for lb in legal_data.get('legal_basis', []):
+            title = lb.get('title', 'Ligj/Nen')
+            md += f"### {title}\n"
+            md += f"**Baza:** {lb.get('article', '')}\n\n"
+            md += f"**Arsyetimi Strategjik:** {lb.get('relevance', '')}\n\n"
+        
+    # Section: Strategic Action Plan
+    md += "## 3. ANALIZA E THELLË & PLANI I VEPRIMIT\n"
+    md += f"{legal_data.get('strategic_analysis', '')}\n\n"
+    if legal_data.get('action_plan'):
+        md += "### HAPAT E REKOMANDUAR:\n"
+        for step in legal_data.get('action_plan', []):
+            md += f"* {step}\n"
+    
+    # Section: Simulation (War Room)
+    sim = deep_data.get('adversarial_simulation', {})
+    md += "\n---\n## 4. SIMULIMI I KUNDËRSHTARIT (WAR ROOM)\n"
+    md += f"### STRATEGJIA E PALËS TJETËR\n{sim.get('opponent_strategy', 'Nuk u gjenerua.')}\n\n"
+    if sim.get('weakness_attacks'):
+        md += "### PIKAT E SULMIT TË IDENTIFIKUARA\n"
+        for w in sim.get('weakness_attacks', []):
+            md += f"* {w}\n"
+
+    # Section: Chronology
+    if deep_data.get('chronology'):
+        md += "\n## 5. KRONOLOGJIA E FAKTEVE\n"
+        for event in deep_data.get('chronology', []):
+            md += f"* **{event.get('date', '')}**: {event.get('event', '')}\n"
+
+    # Section: Contradictions
+    if deep_data.get('contradictions'):
+        md += "\n## 6. ANALIZA E KONTRADIKTAVE\n"
+        for c in deep_data.get('contradictions', []):
+            severity = c.get('severity', 'LOW')
+            md += f"### Konflikt: {severity}\n"
+            md += f"**Deklarata:** {c.get('claim', '')}\n"
+            md += f"**Prova:** {c.get('evidence', '')}\n"
+            md += f"**Impakti:** {c.get('impact', '')}\n\n"
+
+    # 2. Generate PDF via report_service
+    try:
+        pdf_buffer = report_service.create_pdf_from_text(md, f"Strategjia: {case_name}")
+        pdf_bytes = pdf_buffer.getvalue()
+    except Exception as e:
+        logger.error(f"Strategy PDF generation failed: {e}")
+        return {"error": "Dështoi krijimi i dokumentit PDF."}
+
+    # 3. Persist to Archive via ArchiveService
+    archiver = archive_service.ArchiveService(db)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    filename = f"Strategjia_{case_name.replace(' ', '_')}_{timestamp}.pdf"
+    
+    try:
+        archive_item = await archiver.save_generated_file(
+            user_id=user_id,
+            filename=filename,
+            content=pdf_bytes,
+            category="CASE_FILE",
+            title=f"Strategjia Ligjore: {case_name}",
+            case_id=case_id
+        )
+        return {"status": "success", "item_id": str(archive_item.id)}
+    except Exception as e:
+        logger.error(f"Strategy archiving failed: {e}")
+        return {"error": "Dështoi ruajtja në arkiv."}

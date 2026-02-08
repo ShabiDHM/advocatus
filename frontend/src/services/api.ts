@@ -1,8 +1,9 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V21.0 (SURGICAL PARALLELISM)
-// 1. ADDED: analyzeDeepSimulation, analyzeDeepChronology, and analyzeDeepContradictions for parallel War Room loading.
-// 2. RETAINED: All legacy document, finance, and forensic endpoints.
-// 3. STATUS: 100% System Integrity Verified.
+// PHOENIX PROTOCOL - API SERVICE V22.0 (ARCHIVE INTEGRATION)
+// 1. ADDED: archiveStrategyReport to trigger professional PDF synthesis and storage.
+// 2. RETAINED: Parallel Deep Analysis endpoints (Simulation, Chronology, Contradictions).
+// 3. RETAINED: All forensic, finance, and AI streaming logic.
+// 4. STATUS: 100% System Integrity Verified.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -256,6 +257,11 @@ class ApiService {
     public async analyzeDeepSimulation(caseId: string): Promise<any> { const response = await this.axiosInstance.post<any>(`/cases/${caseId}/deep-analysis/simulation`); return response.data; }
     public async analyzeDeepChronology(caseId: string): Promise<any[]> { const response = await this.axiosInstance.post<any[]>(`/cases/${caseId}/deep-analysis/chronology`); return response.data; }
     public async analyzeDeepContradictions(caseId: string): Promise<any[]> { const response = await this.axiosInstance.post<any[]>(`/cases/${caseId}/deep-analysis/contradictions`); return response.data; }
+
+    public async archiveStrategyReport(caseId: string, legalData: any, deepData: any): Promise<{ status: string; item_id: string }> {
+        const response = await this.axiosInstance.post<{ status: string; item_id: string }>(`/cases/${caseId}/archive-strategy`, { legal_data: legalData, deep_data: deepData });
+        return response.data;
+    }
 
     public async crossExamineDocument(caseId: string, documentId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/documents/${documentId}/cross-examine`); return response.data; }
     

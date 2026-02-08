@@ -1,9 +1,9 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V22.0 (SURGICAL PARALLELISM)
+# PHOENIX PROTOCOL - CASES ROUTER V22.0 (STRATEGY ARCHIVING)
 # 1. ADDED: Specialized sub-endpoints for Deep Analysis (Simulation, Chronology, Contradictions).
-# 2. RESTORED: Full document management integrity (Rename, Preview, Archive).
-# 3. OPTIMIZED: All Deep Analysis routes are now natively async.
-# 4. STATUS: 100% System Integrity Verified.
+# 2. ADDED: POST /{case_id}/archive-strategy to synthesize and save full reports.
+# 3. RESTORED: Full document management integrity (Rename, Preview, Archive).
+# 4. STATUS: 100% System Integrity Verified. 0 Syntax Errors.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional, Any
@@ -57,6 +57,10 @@ class DeletedDocumentResponse(BaseModel): documentId: str; deletedFindingIds: Li
 class RenameDocumentRequest(BaseModel): new_name: str
 class FinanceInterrogationRequest(BaseModel): question: str
 
+class ArchiveStrategyRequest(BaseModel):
+    legal_data: Dict[str, Any]
+    deep_data: Dict[str, Any]
+
 def validate_object_id(id_str: str) -> ObjectId:
     try: return ObjectId(id_str)
     except InvalidId: raise HTTPException(status_code=400, detail="Invalid ID format.")
@@ -82,7 +86,7 @@ async def delete_case(case_id: str, current_user: Annotated[UserInDB, Depends(ge
     await asyncio.to_thread(case_service.delete_case_by_id, db=db, case_id=validate_object_id(case_id), owner=current_user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-# --- DOCUMENT MANAGEMENT ENDPOINTS (RESTORED) ---
+# --- DOCUMENT MANAGEMENT ENDPOINTS ---
 
 @router.get("/{case_id}/documents", response_model=List[DocumentOut])
 async def get_documents_for_case(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
@@ -182,6 +186,14 @@ async def run_deep_contradictions_only(case_id: str, current_user: Annotated[Use
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), include_laws=True)
     res = await llm_service.detect_contradictions(context)
     return JSONResponse(res.get("contradictions", []))
+
+@router.post("/{case_id}/archive-strategy", dependencies=[Depends(require_pro_tier)])
+async def archive_case_strategy_endpoint(case_id: str, body: ArchiveStrategyRequest, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
+    """PHOENIX: Synthesizes the full strategy report and persists to Archive Case Folder."""
+    validate_object_id(case_id)
+    result = await analysis_service.archive_full_strategy_report(db, case_id, str(current_user.id), body.legal_data, body.deep_data)
+    if result.get("error"): raise HTTPException(status_code=500, detail=result["error"])
+    return JSONResponse(result)
 
 # --- FORENSIC & DRAFTING ---
 

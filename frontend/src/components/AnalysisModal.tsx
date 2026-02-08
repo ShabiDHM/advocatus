@@ -1,9 +1,9 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V11.1 (PARALLEL ACTIVATION & SYNTAX FIX)
-// 1. FIXED: Resolved TS2322/TS1003 by correcting Lucide icon syntax in renderRiskBadge.
-// 2. UPGRADED: handleWarRoomEntry now triggers surgical parallel requests for Timeline, Simulation, and Contradictions.
-// 3. OPTIMIZED: Granular loading states per sub-tab to eliminate "Long Wait" perception.
-// 4. RETAINED: V10.0 Readability fixes (text-xs summaries, font-medium articles, High-IQ Emerald contrast).
+// PHOENIX PROTOCOL - ANALYSIS MODAL V12.0 (STRATEGY ARCHIVING & UI STABILITY)
+// 1. ADDED: 'Ruaj në Arkiv' logic to trigger master strategy PDF synthesis and persistence.
+// 2. FIXED: Lucide icon syntax error in renderRiskBadge (size={14} />).
+// 3. RETAINED: Surgical parallel loading for Chronology, Simulation, and Contradictions.
+// 4. RETAINED: V10.0 Readability fixes (Emerald contrast, medium weights).
 // 5. STATUS: 100% System Integrity Verified. 0 Build Errors.
 
 import React, { useEffect, useState } from 'react';
@@ -113,6 +113,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   const [isSimLoading, setIsSimLoading] = useState(false);
   const [isChronLoading, setIsChronLoading] = useState(false);
   const [isContradictLoading, setIsContradictLoading] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   useEffect(() => {
     if (isOpen) { 
@@ -127,13 +128,12 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
 
   const handleWarRoomEntry = async () => {
       setActiveTab('war_room');
-      // Only trigger if we don't have results and aren't currently loading anything
+      // Only trigger if we don't have results and aren't currently loading
       if (!deepResult && !isSimLoading && !isChronLoading && !isContradictLoading) {
           setIsSimLoading(true);
           setIsChronLoading(true);
           setIsContradictLoading(true);
 
-          // PHOENIX: Parallel Surgical Requests
           // Task 1: Chronology (Optimized/Fast)
           apiService.analyzeDeepChronology(caseId).then(data => {
               setDeepResult(prev => ({
@@ -143,7 +143,7 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
               setIsChronLoading(false);
           }).catch(() => setIsChronLoading(false));
 
-          // Task 2: Simulation (Compute Intensive)
+          // Task 2: Adversarial Simulation (Compute Intensive)
           apiService.analyzeDeepSimulation(caseId).then(data => {
               setDeepResult(prev => ({
                   ...(prev || { adversarial_simulation: { opponent_strategy: '', weakness_attacks: [], counter_claims: [] }, chronology: [], contradictions: [] }),
@@ -161,6 +161,20 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
               setIsContradictLoading(false);
           }).catch(() => setIsContradictLoading(false));
       }
+  };
+
+  const handleArchiveStrategy = async () => {
+    if (!deepResult || isArchiving) return;
+    setIsArchiving(true);
+    try {
+        await apiService.archiveStrategyReport(caseId, result, deepResult);
+        alert(t('analysis.archive_success', 'Strategjia u ruajt me sukses në dosjen e rastit në Arkiv!'));
+    } catch (error) {
+        console.error("Archive Failed", error);
+        alert(t('analysis.archive_error', 'Dështoi ruajtja në arkiv.'));
+    } finally {
+        setIsArchiving(false);
+    }
   };
 
   const {
@@ -459,7 +473,24 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
              </>
           )}
           
-          <div className="p-4 border-t border-white/5 bg-background-dark/80 backdrop-blur-md text-center shrink-0">
+          <div className="p-4 border-t border-white/5 bg-background-dark/80 backdrop-blur-md flex flex-col sm:flex-row gap-3 justify-center items-center shrink-0">
+              <button 
+                  onClick={handleArchiveStrategy} 
+                  disabled={isArchiving || !deepResult}
+                  className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 border ${
+                      isArchiving || !deepResult 
+                      ? 'bg-white/5 text-gray-500 border-white/5 cursor-not-allowed' 
+                      : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20 active:scale-95'
+                  }`}
+              >
+                  {isArchiving ? (
+                      <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                      <CheckCircle2 size={18} />
+                  )}
+                  {t('analysis.btn_archive', 'Ruaj Strategjinë në Arkiv')}
+              </button>
+              
               <button onClick={onClose} className="w-full sm:w-auto px-10 py-3 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-lg hover:shadow-primary-start/20 text-white text-sm rounded-xl font-bold transition-all active:scale-95">
                   {t('general.close', 'Mbyll Sallën')}
               </button>
