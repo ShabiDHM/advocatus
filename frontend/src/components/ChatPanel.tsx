@@ -1,7 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V5.5 (VISUAL & BUILD SYNC)
-// 1. RESTORED: 'FileCheck' and 'Lock' icons in the JSX tree to resolve TS6133 without losing features.
-// 2. ENFORCED: Visual distinction for Evidence vs Law badges using icons.
+// PHOENIX PROTOCOL - CHAT PANEL V5.6 (I18N BUTTON LABELS)
+// 1. FIXED: "FAST" and "DEEP" button labels are now translated using i18next.
+// 2. RETAINED: All other functionality and styling remain unchanged.
 // 3. STATUS: 0 Build Errors. Professional UI + Senior Partner Intelligence fully aligned.
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -105,10 +105,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
         <div className="flex items-center gap-2">
             <div className="flex items-center bg-black/30 rounded-lg p-0.5 border border-white/5">
-                <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400' : 'text-gray-500'}`}><Zap size={12} /> FAST</button>
+                <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400' : 'text-gray-500'}`}>
+                    <Zap size={12} /> {t('chatPanel.modeFast')}
+                </button>
                 <button onClick={() => isPro && setReasoningMode('DEEP')} disabled={!isPro} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'DEEP' ? 'bg-purple-500/20 text-purple-400' : 'text-gray-600'}`}>
                     {!isPro ? <Lock size={10} className="mr-1" /> : <GraduationCap size={12} className="mr-1" />}
-                    DEEP
+                    {t('chatPanel.modeDeep')}
                 </button>
             </div>
             <button onClick={onClearChat} className="p-2 text-text-secondary hover:text-red-400 transition-colors"><Trash2 size={16} /></button>
