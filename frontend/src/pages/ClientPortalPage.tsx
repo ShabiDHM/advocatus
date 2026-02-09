@@ -1,9 +1,8 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V7.0 (ICON RESTORATION & TS COMPLIANCE)
-// 1. FIX: Restored dynamic icon mapping for 'DEADLINE', 'HEARING', and 'MEETING'.
-// 2. RESOLVED: Fixed TS6133 warnings by utilizing AlertCircle, Gavel, and Users imports.
-// 3. MOBILE: Maintained touch-optimized layout and responsive padding.
-// 4. INTEGRITY: Fully synced with Backend V25.0 Mirror Logic.
+// PHOENIX PROTOCOL - CLIENT PORTAL V7.1 (TAB COUNT RESTORATION)
+// 1. FIX: Restored document count badge to the 'Skedarët' tab button.
+// 2. UI: Maintained mobile responsiveness and touch-optimized targets.
+// 3. INTEGRITY: Standardized icon mapping and TS6133 compliance.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -86,10 +85,10 @@ const ClientPortalPage: React.FC = () => {
     };
 
     const getEventIcon = (type: string) => {
-        const t = type.toUpperCase();
-        if (t === 'DEADLINE') return <AlertCircle size={14} className="text-rose-400" />;
-        if (t === 'HEARING') return <Gavel size={14} className="text-purple-400" />;
-        if (t === 'MEETING') return <Users size={14} className="text-blue-400" />;
+        const typeKey = type.toUpperCase();
+        if (typeKey === 'DEADLINE') return <AlertCircle size={14} className="text-rose-400" />;
+        if (typeKey === 'HEARING') return <Gavel size={14} className="text-purple-400" />;
+        if (typeKey === 'MEETING') return <Users size={14} className="text-blue-400" />;
         return <Calendar size={14} className="text-gray-400" />;
     };
 
@@ -109,6 +108,8 @@ const ClientPortalPage: React.FC = () => {
     );
 
     const logoSrc = data.logo ? (data.logo.startsWith('http') ? data.logo : `${API_V1_URL.replace(/\/$/, '')}${data.logo.startsWith('/') ? data.logo : `/${data.logo}`}`) : null;
+    const documents = data.documents || [];
+    const timeline = data.timeline || [];
 
     return (
         <div className="min-h-screen bg-background-dark text-gray-100 pb-10 relative overflow-x-hidden">
@@ -175,24 +176,31 @@ const ClientPortalPage: React.FC = () => {
                     </button>
                     <button 
                         onClick={() => setActiveTab('documents')} 
-                        className={`px-6 sm:px-10 py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 ${
+                        className={`px-6 sm:px-10 py-2 rounded-full text-xs sm:text-sm font-bold transition-all duration-300 flex items-center gap-2 ${
                             activeTab === 'documents' ? 'bg-white text-black shadow-lg' : 'text-gray-400 hover:text-white'
                         }`}
                     >
                         {t('portal.documents', 'Skedarët')}
+                        {documents.length > 0 && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold transition-colors ${
+                                activeTab === 'documents' ? 'bg-blue-500/10 text-blue-600' : 'bg-white/10 text-white'
+                            }`}>
+                                {documents.length}
+                            </span>
+                        )}
                     </button>
                 </div>
 
                 <AnimatePresence mode="wait">
                     {activeTab === 'timeline' ? (
                         <motion.div key="timeline" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
-                            {data.timeline.length === 0 ? (
+                            {timeline.length === 0 ? (
                                 <div className="text-center py-20 opacity-30 text-xs bg-white/5 rounded-2xl border border-dashed border-white/10">
                                     <Calendar size={48} className="mx-auto mb-4" />
                                     <p>{t('portal.empty_timeline', 'Nuk ka termine.')}</p>
                                 </div>
                             ) : (
-                                data.timeline.map((ev, i) => (
+                                timeline.map((ev, i) => (
                                     <div key={i} className="relative pl-6 pb-6 last:pb-0 group">
                                         <div className="absolute left-[11px] top-[24px] bottom-0 w-px bg-white/10 last:hidden" />
                                         <div className="absolute left-0 top-0 w-6 h-6 rounded-full bg-background-dark border border-white/20 flex items-center justify-center z-10 group-hover:border-primary-start transition-colors">
@@ -213,13 +221,13 @@ const ClientPortalPage: React.FC = () => {
                         </motion.div>
                     ) : (
                         <motion.div key="documents" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid gap-3">
-                            {data.documents.length === 0 ? (
+                            {documents.length === 0 ? (
                                 <div className="text-center py-20 opacity-30 text-xs bg-white/5 rounded-2xl border border-dashed border-white/10">
                                     <FileText size={48} className="mx-auto mb-4" />
                                     <p>{t('portal.empty_documents', 'Nuk ka skedarë.')}</p>
                                 </div>
                             ) : (
-                                data.documents.map((doc, i) => (
+                                documents.map((doc, i) => (
                                     <div key={i} className="glass-panel p-3 rounded-xl flex items-center justify-between bg-white/5 border border-white/5 hover:bg-white/10 transition-all">
                                         <div className="flex items-center gap-3 min-w-0">
                                             <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 shrink-0">
