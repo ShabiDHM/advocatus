@@ -1,12 +1,12 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V5.7 (SOKRATI THINKING STATE FIX)
-// 1. FIX: Resolved double-bubble issue by filtering empty messages during loading.
-// 2. BRANDING: Implemented "Sokrati duke menduar..." with animated dots.
-// 3. UI: Hardened scroll-to-bottom logic and cleaned up thinking indicator styling.
-// 4. INTEGRITY: Retained all Markdown, Reasoning Modes, and Pro-Tier features.
+// PHOENIX PROTOCOL - CHAT PANEL V5.8 (SOKRATI THINKING LOGIC FIX)
+// 1. FIX: Resolved double-bubble by hiding Thinking state as soon as AI content arrives.
+// 2. BRANDING: Cleaned "Sokrati duke menduar..." with smoother motion dots.
+// 3. UI: Hardened scroll-to-bottom and filtered empty message artifacts.
+// 4. INTEGRITY: Retained Markdown, Reasoning Modes, and Pro-Tier features.
 
 import React, { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Send, BrainCircuit, Trash2, User, Copy, Check, Zap, GraduationCap, Scale, Globe, FileCheck, Lock 
 } from 'lucide-react';
@@ -36,9 +36,9 @@ interface ChatPanelProps {
 
 const ThinkingDots = () => (
     <span className="inline-flex items-center ml-1">
-        <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1.5, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
-        <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1.5, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
-        <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1.5, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
     </span>
 );
 
@@ -84,8 +84,6 @@ const MarkdownComponents = {
     },
 };
 
-// --- MAIN COMPONENT ---
-
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
     messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, t, className, activeContextId, isPro = false 
 }) => {
@@ -106,6 +104,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
   
+  // PHOENIX: Determine if we should show the branded thinking state
+  // Only show if we are sending AND the last message is not yet an AI response with content
+  const lastMessage = messages[messages.length - 1];
+  const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content.trim());
+
   return (
     <div className={`flex flex-col glass-panel rounded-2xl overflow-hidden h-full w-full ${className}`}>
       {/* Header */}
@@ -129,28 +132,29 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-black/20 custom-scrollbar relative">
-        {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
-            <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shrink-0"><BrainCircuit className="w-4 h-4 text-white" /></div>}
-                <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' : 'glass-panel text-text-primary rounded-bl-none'}`}>
-                    <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
-                    <div className="markdown-content select-text">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{msg.content}</ReactMarkdown>
+        <AnimatePresence initial={false}>
+            {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
+                <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shrink-0"><BrainCircuit className="w-4 h-4 text-white" /></div>}
+                    <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' : 'glass-panel text-text-primary rounded-bl-none'}`}>
+                        <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
+                        <div className="markdown-content select-text">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{msg.content}</ReactMarkdown>
+                        </div>
                     </div>
-                </div>
-                {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/5 shrink-0"><User className="w-4 h-4 text-text-secondary" /></div>}
-            </motion.div>
-        ))}
-        
-        {/* PHOENIX: Clean branded thinking state */}
-        {isSendingMessage && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-white" /></div>
-                <div className="glass-panel text-blue-400 font-bold rounded-2xl px-5 py-3.5 text-sm flex items-center gap-1 border border-blue-500/20 shadow-blue-500/5">
-                    Sokrati duke menduar<ThinkingDots />
-                </div>
-            </motion.div>
-        )}
+                    {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/5 shrink-0"><User className="w-4 h-4 text-text-secondary" /></div>}
+                </motion.div>
+            ))}
+
+            {showThinking && (
+                <motion.div key="thinking-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-white" /></div>
+                    <div className="glass-panel text-blue-400 font-bold rounded-2xl px-5 py-3.5 text-sm flex items-center gap-1 border border-blue-500/20 shadow-blue-500/5">
+                        Sokrati duke menduar<ThinkingDots />
+                    </div>
+                </motion.div>
+            )}
+        </AnimatePresence>
         
         <div ref={messagesEndRef} />
       </div>
