@@ -1,7 +1,6 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V4.0 (EXPORT-READY IMPORT)
-// 1. FIX: Renamed the EvidenceMapPage import to match its final export name (WrappedEvidenceMapPage) to resolve local build conflicts.
-
+// PHOENIX PROTOCOL - ROUTING V4.1 (DECOMMISSION)
+// 1. REMOVED: EvidenceMapPage route and import. Feature effectively disabled.
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -24,9 +23,6 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import FinanceWizardPage from './pages/FinanceWizardPage';
 import ClientPortalPage from './pages/ClientPortalPage';
 import MobileConnect from './pages/MobileConnect';
-
-// PHOENIX NEW: Import the correctly named component for export functionality
-import WrappedEvidenceMapPage from './pages/EvidenceMapPage'; 
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -72,10 +68,6 @@ const AppRoutes: React.FC = () => {
       <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/cases/:caseId" element={<CaseViewPage />} />
-        
-        {/* PHOENIX NEW: Evidence Map Route (using the wrapped component) */}
-        <Route path="/cases/:caseId/evidence-map" element={<WrappedEvidenceMapPage />} />
-
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/drafting" element={<DraftingPage />} />
         <Route path="/support" element={<SupportPage />} />

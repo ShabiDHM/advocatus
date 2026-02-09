@@ -1,9 +1,9 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - I18N V1.1 (SCHEMA ALIGNMENT)
-// 1. FIX: Changed translation key from 'caseView.header.evidenceMap' to 'caseView.evidenceMapButton' to match existing flat JSON structure.
+// PHOENIX PROTOCOL - CLEANUP
+// 1. REMOVED: Evidence Map button link.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
@@ -16,7 +16,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock, Map } from 'lucide-react';
+import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock } from 'lucide-react'; // Removed Map icon
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -96,7 +96,7 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-5' : 'md:grid-cols-4'}`}>
+              <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-4'}`}>
                     <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap"><Calendar className="h-4 w-4 text-blue-400" />{new Date(caseDetails.created_at).toLocaleDateString()}</div>
                     <div className="md:col-span-1 h-12 md:h-11 min-w-0">{viewMode === 'workspace' && (<GlobalContextSwitcher documents={documents} activeContextId={activeContextId} onContextChange={onContextChange} className="w-full h-full" />)}</div>
                     
@@ -108,14 +108,6 @@ const CaseHeader: React.FC<{
                     <button onClick={onAnalyze} disabled={!isPro || isAnalyzing || viewMode !== 'workspace'} className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent ${!isPro ? 'bg-gray-700/50 cursor-not-allowed text-gray-400 shadow-none' : 'bg-primary-start hover:bg-primary-end shadow-primary-start/20'} disabled:opacity-70`} type="button" title={!isPro ? "Available on Pro Plan" : ""}>
                         {isAnalyzing ? ( <><Loader2 className="h-4 w-4 animate-spin text-white/70" /> <span className="text-white/70">{t('analysis.analyzing')}...</span></> ) : !isPro ? ( <><Lock className="h-4 w-4" /> <span>{analyzeButtonText}</span></> ) : ( <><ShieldCheck className="h-4 w-4" /> <span>{analyzeButtonText}</span></> )}
                     </button>
-
-                    {isAdmin && (
-                        <Link to={`/cases/${caseDetails.id}/evidence-map`} className="md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold bg-purple-600/10 border border-purple-500/30 text-purple-300 hover:bg-purple-600 hover:text-white transition-all duration-300 whitespace-nowrap shadow-lg shadow-purple-900/10">
-                            <Map className="h-4 w-4" />
-                            {/* PHOENIX: CORRECTED KEY */}
-                            <span>{t('caseView.evidenceMapButton')}</span>
-                        </Link>
-                    )}
               </div>
           </div>
         </motion.div>

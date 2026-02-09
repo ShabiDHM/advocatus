@@ -1,9 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V22.0 (ARCHIVE INTEGRATION)
-// 1. ADDED: archiveStrategyReport to trigger professional PDF synthesis and storage.
-// 2. RETAINED: Parallel Deep Analysis endpoints (Simulation, Chronology, Contradictions).
-// 3. RETAINED: All forensic, finance, and AI streaming logic.
-
+// PHOENIX PROTOCOL - API SERVICE V22.1 (UI CLEANUP / BACKEND GRAPH PRESERVED)
+// 1. REMOVED: UI-only Graph methods. Feature decommissioned from frontend view.
+// 2. RETAINED: All Backend Integration logic for RAG and Deep Analysis.
+// 3. RETAINED: archiveStrategyReport (V22.0) and all forensic/financial logic.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -11,13 +10,13 @@ import type {
     DeletedDocumentResponse, CalendarEvent, CalendarEventCreateRequest, CreateDraftingJobRequest,
     DraftingJobStatus, DraftingJobResult, ChangePasswordRequest, CaseAnalysisResult, DeepAnalysisResult,
     BusinessProfile, BusinessProfileUpdate, Invoice, InvoiceCreateRequest, InvoiceItem,
-    GraphData, ArchiveItemOut, CaseFinancialSummary, AnalyticsDashboardData, Expense, ExpenseCreateRequest, ExpenseUpdate,
+    ArchiveItemOut, CaseFinancialSummary, AnalyticsDashboardData, Expense, ExpenseCreateRequest, ExpenseUpdate,
     SpreadsheetAnalysisResult, Organization, AcceptInviteRequest, SubscriptionUpdate, PromoteRequest,
     BriefingResponse
 } from '../data/types';
 
 export interface AuditIssue { id: string; severity: 'CRITICAL' | 'WARNING'; message: string; related_item_id?: string; item_type?: 'INVOICE' | 'EXPENSE'; }
-export interface TaxCalculation { period_month: number; period_year: number; total_sales_gross: number; total_purchases_gross: number; vat_collected: number; vat_deductible: number; net_obligation: number; currency: string; status: string; regime: string; tax_rate_applied: string; description: string; }
+export interface TaxCalculation { period_month: number; period_year: number; total_sales_gross: number; total_purchases_gross: number; vat_collected: number; vat_deductible: number; net_obligation: number; currency: string; status: string; regime: string; taxation_rate_applied: string; description: string; }
 export interface WizardState { calculation: TaxCalculation; issues: AuditIssue[]; ready_to_close: boolean; }
 export interface InvoiceUpdate { client_name?: string; client_email?: string; client_address?: string; items?: InvoiceItem[]; tax_rate?: number; due_date?: string; status?: string; notes?: string; }
 
@@ -239,17 +238,6 @@ class ApiService {
     public async archiveCaseDocument(caseId: string, documentId: string): Promise<ArchiveItemOut> { const response = await this.axiosInstance.post<ArchiveItemOut>(`/cases/${caseId}/documents/${documentId}/archive`); return response.data; }
     public async renameDocument(caseId: string, docId: string, newName: string): Promise<void> { await this.axiosInstance.put(`/cases/${caseId}/documents/${docId}/rename`, { new_name: newName }); }
 
-    // --- AUTOMATED GRAPH INTELLIGENCE ---
-    public async getCaseGraph(caseId: string): Promise<GraphData & { is_empty: boolean }> {
-        const response = await this.axiosInstance.get<GraphData & { is_empty: boolean }>(`/cases/${caseId}/evidence-map`);
-        return response.data;
-    }
-
-    public async extractCaseGraph(caseId: string): Promise<{ status: string }> {
-        const response = await this.axiosInstance.post<{ status: string }>(`/cases/${caseId}/extract-map`);
-        return response.data;
-    }
-
     public async analyzeCase(caseId: string): Promise<CaseAnalysisResult> { const response = await this.axiosInstance.post<CaseAnalysisResult>(`/cases/${caseId}/analyze`); return response.data; }
     
     // --- DEEP ANALYSIS (PARALLEL READY) ---
@@ -309,7 +297,8 @@ class ApiService {
         link.href = url;
         link.setAttribute('download', `Raporti_Forenzik_${caseId.slice(-6)}.pdf`);
         document.body.appendChild(link);
-        link.click(); link.parentNode?.removeChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
         window.URL.revokeObjectURL(url);
     }
 
@@ -341,10 +330,25 @@ class ApiService {
 
     // --- CALENDAR & BRIEFING ---
 
-    public async getCalendarEvents(): Promise<CalendarEvent[]> { const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events'); return response.data; }
-    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); return response.data; }
-    public async getBriefing(): Promise<BriefingResponse> { const response = await this.axiosInstance.get<BriefingResponse>('/calendar/alerts'); return response.data; }
-    public async getAlertsCount(): Promise<{ count: number }> { const response = await this.getBriefing(); return { count: response.count }; }
+    public async getCalendarEvents(): Promise<CalendarEvent[]> { 
+        const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events'); 
+        return response.data; 
+    }
+
+    public async createCalendarEvent(data: CalendarEventCreateRequest): Promise<CalendarEvent> { 
+        const response = await this.axiosInstance.post<CalendarEvent>('/calendar/events', data); 
+        return response.data; 
+    }
+
+    public async getBriefing(): Promise<BriefingResponse> { 
+        const response = await this.axiosInstance.get<BriefingResponse>('/calendar/alerts'); 
+        return response.data; 
+    }
+
+    public async getAlertsCount(): Promise<{ count: number }> { 
+        const response = await this.getBriefing();
+        return { count: response.count };
+    }
 
     public async clearChatHistory(caseId: string): Promise<void> { await this.axiosInstance.delete(`/chat/case/${caseId}/history`); }
     public async deleteCalendarEvent(eventId: string): Promise<void> { await this.axiosInstance.delete(`/calendar/events/${eventId}`); }
