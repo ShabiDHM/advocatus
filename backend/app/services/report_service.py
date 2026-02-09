@@ -1,14 +1,17 @@
 # FILE: backend/app/services/report_service.py
-# PHOENIX PROTOCOL - REPORT SERVICE V6.4 (LAYOUT & BRANDING FIX)
-# 1. FIXED: Removed hardcoded "ADVOCATUS | SYSTEM" from the PDF footer.
-# 2. FIXED: Header "Strategjia: Pa Titull" is now hidden if the case has no title.
-# 3. RETAINED: All invoice and evidence map generation logic without degradation.
+# PHOENIX PROTOCOL - REPORT SERVICE V6.5 (LEGAL STRATEGY REPORT LAYOUT FIX)
+# 1. ADDED: New function `generate_legal_strategy_report` for specific report type.
+# 2. FIXED: "RAPORTI I STRATEGJISË LIGJORE" replaced with "Analiza e rastit" for specific report.
+# 3. FIXED: "RASTI: Pa Titull DATA E GJENERIMIT: [date]" moved to structured header, date removed from body.
+# 4. FIXED: General layout and styling polished for improved readability.
+# 5. RETAINED: All invoice and evidence map generation logic without degradation.
 
 import io
 import os
 import structlog
 import requests
 import markdown2
+import re # Import for regex operations
 from xhtml2pdf import pisa
 from datetime import datetime
 from reportlab.pdfgen import canvas
@@ -34,7 +37,7 @@ logger = structlog.get_logger(__name__)
 COLOR_PRIMARY_TEXT = HexColor("#111827")
 COLOR_SECONDARY_TEXT = HexColor("#6B7280")
 COLOR_BORDER = HexColor("#E5E7EB")
-BRAND_COLOR_DEFAULT = "#4f46e5"
+BRAND_COLOR_DEFAULT = "#4f46e5" # A distinct, brand-like color for meta info
 
 STYLES = getSampleStyleSheet()
 STYLES.add(ParagraphStyle(name='H1', parent=STYLES['h1'], fontSize=22, textColor=COLOR_PRIMARY_TEXT, alignment=TA_RIGHT, fontName='Helvetica-Bold'))
@@ -52,7 +55,7 @@ STYLES.add(ParagraphStyle(name='NotesLabel', parent=STYLES['AddressLabel'], spac
 STYLES.add(ParagraphStyle(name='FirmName', parent=STYLES['h3'], alignment=TA_RIGHT, fontSize=14, spaceAfter=4, textColor=COLOR_PRIMARY_TEXT))
 STYLES.add(ParagraphStyle(name='FirmMeta', parent=STYLES['Normal'], alignment=TA_RIGHT, fontSize=9, textColor=COLOR_SECONDARY_TEXT, leading=12))
 
-# --- TRANSLATIONS (Updated) ---
+# --- TRANSLATIONS (Updated with new keys) ---
 TRANSLATIONS = {
     "sq": {
         "invoice_title": "FATURA", "invoice_num": "Nr.", "date_issue": "Data e Lëshimit", "date_due": "Afati i Pagesës",
@@ -72,55 +75,76 @@ TRANSLATIONS = {
         "map_rel_supports": "Mbështet",
         "map_rel_contradicts": "Kundërthotë",
         "map_rel_related": "Lidhet me",
-        "map_notes": "Shënime: "
+        "map_notes": "Shënime: ",
+        # PHOENIX ADDITION: Legal Strategy Report Keys
+        "analysis_title": "Analiza e rastit", # New title for legal strategy report
+        "report_case_label": "Rasti:" # Label for the case title in reports
     }
 }
 
-# --- PHOENIX: PROFESSIONAL REPORT STYLES (Unchanged) ---
-REPORT_CSS = """
-    @page {
+# --- PHOENIX: PROFESSIONAL REPORT STYLES (Updated with .report-meta) ---
+REPORT_CSS = f"""
+    @page {{
         size: a4 portrait;
-        @frame header_frame {
+        @frame header_frame {{
             -pdf-frame-content: header_content;
-            left: 20mm; width: 170mm; top: 20mm; height: 25mm;
-        }
-        @frame content_frame {
-            left: 20mm; width: 170mm; top: 50mm; height: 217mm;
-        }
-        @frame footer_frame {
+            left: 20mm; width: 170mm; top: 20mm; height: 35mm; /* Increased height to accommodate new meta info */
+        }}
+        @frame content_frame {{
+            left: 20mm; width: 170mm; top: 60mm; height: 207mm; /* Adjusted top and height */
+        }}
+        @frame footer_frame {{
             -pdf-frame-content: footer_content;
             left: 20mm; width: 170mm; bottom: 10mm; height: 10mm;
-        }
-    }
-    body {
+        }}
+    }}
+    body {{
         font-family: 'Helvetica', sans-serif;
         font-size: 11pt;
         line-height: 1.6;
         color: #333;
-    }
-    h1, h2, h3, h4 {
+    }}
+    h1, h2, h3, h4 {{
         font-family: 'Helvetica-Bold', sans-serif;
         color: #1a2c4b;
         margin-bottom: 8px;
         padding-bottom: 4px;
         line-height: 1.3;
-    }
-    h1 { font-size: 18pt; border-bottom: 2px solid #1a2c4b; }
-    h2 { font-size: 14pt; border-bottom: 1px solid #e0e0e0; margin-top: 20px;}
-    h3 { font-size: 12pt; margin-top: 15px; }
-    h4 { font-size: 11pt; color: #4f46e5; margin-top: 10px; }
-    p { margin: 0 0 10px 0; }
-    ul {
+    }}
+    h1 {{ 
+        font-size: 18pt; 
+        border-bottom: 2px solid #1a2c4b; 
+        margin-bottom: 5px; /* Adjust spacing */
+        padding-bottom: 4px; 
+    }}
+    h2 {{ 
+        font-size: 14pt; 
+        border-bottom: 1px solid #e0e0e0; 
+        margin-top: 20px;
+        color: #1a2c4b; 
+    }}
+    h2.report-meta {{ /* Specific style for meta info like "Rasti: Pa Titull" */
+        font-size: 12pt; /* Slightly smaller than H1 */
+        color: {BRAND_COLOR_DEFAULT}; /* Use a distinct brand color */
+        margin-top: 10px; /* Space from H1 */
+        margin-bottom: 15px; /* Space before content */
+        font-family: 'Helvetica', sans-serif; /* Not bold */
+        border-bottom: none; /* No line below meta */
+    }}
+    h3 {{ font-size: 12pt; margin-top: 15px; }}
+    h4 {{ font-size: 11pt; color: #4f46e5; margin-top: 10px; }}
+    p {{ margin: 0 0 10px 0; }}
+    ul {{
         list-style-type: disc;
         padding-left: 20px;
-    }
-    li {
+    }}
+    li {{
         margin-bottom: 5px;
-    }
-    strong {
+    }}
+    strong {{
         font-family: 'Helvetica-Bold', sans-serif;
         color: #000;
-    }
+    }}
 """
 
 def _get_text(key: str, lang: str = "sq") -> str:
@@ -271,21 +295,29 @@ def generate_invoice_pdf(invoice: InvoiceInDB, db: Database, user_id: str, lang:
     buffer.seek(0)
     return buffer
 
-def create_pdf_from_text(text: str, document_title: str) -> io.BytesIO:
+def create_pdf_from_text(text: str, document_title: str, header_meta_content_html: Optional[str] = None) -> io.BytesIO:
     """
     Generates a professional PDF from Markdown text using an HTML+CSS pipeline.
+    Accepts optional header_meta_content_html to inject styled meta-data below the main title.
     """
     buffer = io.BytesIO()
     
     html_body = markdown2.markdown(text, extras=["tables", "fenced-code-blocks", "cuddled-lists"])
 
-    # PHOENIX FIX: Hide header if title is generic
-    if document_title and "Pa Titull" not in document_title:
-        header_html = f"<div id='header_content'><h1>{escape(document_title)}</h1></div>"
-    else:
-        header_html = "<div id='header_content'></div>"
+    # Build header content HTML dynamically
+    header_content_parts = []
+    # PHOENIX FIX: Hide h1 only if document_title explicitly contains "Pa Titull" as primary identifier.
+    # Otherwise, render the title.
+    if document_title and "Pa Titull" not in document_title: 
+        header_content_parts.append(f"<h1>{escape(document_title)}</h1>")
     
-    # PHOENIX FIX: Remove system branding from footer
+    # PHOENIX ADDITION: Inject meta-content HTML if provided
+    if header_meta_content_html:
+        header_content_parts.append(header_meta_content_html)
+    
+    header_html = f"<div id='header_content'>{''.join(header_content_parts)}</div>"
+    
+    # PHOENIX FIX: Remove system branding from footer (already implemented)
     generation_date = datetime.now().strftime('%d/%m/%Y')
     footer_html = f"""
     <div id='footer_content' style='font-size: 9pt; color: #888;'>
@@ -321,7 +353,7 @@ def create_pdf_from_text(text: str, document_title: str) -> io.BytesIO:
     buffer.seek(0)
     return buffer
 
-# PHOENIX PHASE 4: EVIDENCE MAP REPORT FUNCTION
+# PHOENIX PHASE 4: EVIDENCE MAP REPORT FUNCTION (Unchanged)
 def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_title: str = "N/A", lang: str = "sq") -> io.BytesIO:
     """
     Converts Evidence Map nodes/edges data into a structured Markdown report for PDF generation.
@@ -335,6 +367,8 @@ def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_ti
     report_parts: List[str] = []
     
     # --- Preamble ---
+    # The evidence map report includes its meta-information as part of the markdown body,
+    # which is then rendered by markdown2. This is distinct from the legal strategy report.
     report_parts.append(f"# {_get_text('map_report_title', lang)}")
     report_parts.append(f"**{_get_text('map_case_id', lang)}** {case_title} ({case_id})")
     report_parts.append(f"**{_get_text('footer_gen', lang)}** Juristi.tech | **{_get_text('date_issue', lang)}** {datetime.now().strftime('%d/%m/%Y')}")
@@ -423,3 +457,34 @@ def generate_evidence_map_report(case_id: str, map_data: Dict[str, Any], case_ti
     # Final PDF Generation
     final_markdown = "\n".join(report_parts)
     return create_pdf_from_text(final_markdown, _get_text('map_report_title', lang))
+
+# PHOENIX ADDITION: New function to generate Legal Strategy Reports
+def generate_legal_strategy_report(case_title: str, raw_report_markdown: str, lang: str = "sq") -> io.BytesIO:
+    """
+    Generates a Legal Strategy Report PDF with specific title and meta-information layout.
+    This function preprocesses the raw markdown to ensure correct header formatting.
+    """
+    # 1. Determine the main title for the report (always "Analiza e rastit" for this type)
+    main_title = _get_text('analysis_title', lang)
+
+    # 2. Construct the meta-information HTML (e.g., "Rasti: Pa Titull")
+    display_case_title = case_title if case_title and case_title.strip() != "" else "Pa Titull"
+    header_meta_content_html = f"<h2 class='report-meta'>{_get_text('report_case_label', lang)} {escape(display_case_title)}</h2>"
+    
+    # 3. Preprocess the raw markdown to remove the unwanted "RASTI: ... DATA E GJENERIMIT: ..." line
+    # This regex looks for a line starting with "RASTI:", followed by any content, then "DATA E GJENERIMIT:", and a date.
+    # It's flexible enough for variations in case title and spacing.
+    # The re.MULTILINE flag ensures '^' matches start of lines, not just start of string.
+    cleaned_report_markdown = re.sub(
+        r"^\s*RASTI:\s*.*?DATA\s+E\s+GJENERIMIT:\s*\d{2}/\d{2}/\d{4}\s*$", 
+        "", 
+        raw_report_markdown, 
+        flags=re.IGNORECASE | re.MULTILINE
+    ).strip() # .strip() removes any resulting empty lines at start/end
+
+    # 4. Call the generic create_pdf_from_text with the specific title, meta-HTML, and cleaned content
+    return create_pdf_from_text(
+        text=cleaned_report_markdown, 
+        document_title=main_title, 
+        header_meta_content_html=header_meta_content_html
+    )

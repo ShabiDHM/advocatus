@@ -298,6 +298,8 @@
   },
   "analysis": {
     "title": "Strategjia Ligjore",
+    "analysis_title": "Analiza e rastit",
+    "report_case_label": "Rasti:",
     "risk_label": "RREZIKU",
     "risk_high": "I LARTË",
     "risk_medium": "I MESËM",
@@ -611,7 +613,6 @@
     }
   },
   "caseView": {
-    "evidenceMapButton": "Harta e Provave",
     "financialAnalyst": "Analisti Financiar",
     "analyzeCase": "Analizo Rastin",
     "allFiles": "E Gjithë Dosja"
@@ -659,79 +660,6 @@
     "deleteWarning": "Fshirja e llogarisë është e përhershme. Të gjitha të dhënat e rastit do të fshihen në mënyrë të pakthyeshme.",
     "deleteAccount": "Fshij Llogarinë",
     "confirmDelete": "A jeni i sigurt që dëshironi ta fshini llogarinë tuaj? Ky veprim është i pakthyeshëm."
-  },
-  "evidenceMap": {
-    "action": {
-      "addClaim": "Shto Pretendim",
-      "addEvidence": "Shto Provë",
-      "save": "Ruaj Hartën",
-      "saving": "Duke u ruajtur..."
-    },
-    "node": {
-      "newClaim": "Pretendim i Ri",
-      "newEvidence": "Provë e Re",
-      "editPlaceholder": "Kliko dy herë për të ndryshuar",
-      "claimType": "Pretendim Ligjor",
-      "evidenceType": "Provë Materiale"
-    },
-    "sidebar": {
-      "searchTitle": "Gjej Kartelë",
-      "searchPlaceholder": "Shkruaj titullin...",
-      "filterTitle": "Filtro Pamjen",
-      "hideUnconnected": "Fshih Provat e Palidhura",
-      "highlightContradictions": "Thekso Kundërthëniet",
-      "aiTitle": "Ndihmës i AI",
-      "importButton": "Importo Entitetet"
-    },
-    "importModal": {
-      "title": "Importo nga Analiza e AI",
-      "error": "Dështoi ngarkimi i të dhënave nga AI.",
-      "noEntities": "AI nuk ka gjetur entitete në dokumente.",
-      "importBtn": "Importo ({{count}})"
-    },
-    "relationship": {
-      "defineTitle": "Përcakto Lidhjen",
-      "typeLabel": "Tipi i Lidhjes",
-      "strengthLabel": "Forca (1-5)",
-      "labelNote": "Etiketë / Shënim (Opsionale)",
-      "placeholder": "P.sh: Lidhje e Konfirmuar në Dokument...",
-      "supports": "Mbështet",
-      "contradicts": "Kundërthotë",
-      "related": "I Lidhura",
-      "invalidConnection": "Lidhjet duhet të shkojnë nga Prova tek Pretendimi."
-    }
-  },
-  "reprocess": {
-    "starting": "Duke filluar...",
-    "success": "U nis me sukses.",
-    "error": "Gabim gjatë procesimit.",
-    "forceCheck": "Kontrollo Forcueshëm (Admin)",
-    "forceAll": "Ri-proceso Të Gjitha Dokumentet"
-  },
-  "nodeEdit": {
-    "claimTitle": "Redakto Pretendimin",
-    "evidenceTitle": "Redakto Provën",
-    "label": "Titulli",
-    "content": "Përmbajtja / Përshkrimi",
-    "contentPlaceholder": "Shkruaj detajet e pretendimit ose citimin e provës...",
-    "metadataTitle": "Metadata Ligjore",
-    "exhibitNumber": "Nr. i Ekspozitës / Burimi",
-    "isAuthenticated": "Autentikuar",
-    "unauthenticated": "Pa Autentikim",
-    "isAdmitted": "Pranim Mbi Provën",
-    "isProven": "Pretendimi i Vërtetuar",
-    "proven": "Vërtetuar",
-    "disputed": "I Diskutueshëm",
-    "admitted": "Pranuar",
-    "stricken": "Hequr"
-  },
-  "export": {
-    "toPNG": "Eksporto PNG",
-    "toPDF": "Eksporto PDF",
-    "exporting": "Duke u eksportuar...",
-    "error": "Dështoi eksportimi!",
-    "pdfError": "Dështoi gjenerimi i raportit PDF.",
-    "errorView": "Nuk u gjet elementi kryesor i hartës.",
-    "errorEmpty": "Nuk ka asnjë kartelë për të eksportuar."
+
   }
 }

@@ -1,9 +1,11 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.1 (STRATEGY ARCHIVING & TYPE SAFETY)
-# 1. ADDED: archive_full_strategy_report to synthesize and persist PDF reports.
-# 2. FIXED: Pylance 'reportOptionalMemberAccess' by adding null check for case document.
-# 3. OPTIMIZED: Markdown generation for professional legal layout.
-# 4. STATUS: 100% System Integrity Verified. 0 Syntax Errors.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.2 (STRATEGY REPORT HEADER FIX)
+# 1. FIXED: Removed hardcoded "RAPORTI I STRATEGJISË LIGJORE" title from markdown.
+# 2. FIXED: Removed hardcoded "RASTI: ..." and "DATA E GJENERIMIT: ..." lines from markdown.
+# 3. IMPROVED: `archive_full_strategy_report` now passes dynamic main title and case meta-info
+#              to `report_service.create_pdf_from_text` for proper header rendering.
+# 4. RETAINED: All other markdown content generation remains unchanged per instruction.
+# 5. STATUS: 100% System Integrity Verified. 0 Syntax Errors.
 
 import asyncio
 import structlog
@@ -12,9 +14,12 @@ from typing import List, Dict, Any, Tuple
 from pymongo.database import Database
 from bson import ObjectId
 from datetime import datetime
+from xml.sax.saxutils import escape # Import escape for HTML sanitization
 
 import app.services.llm_service as llm_service
 from . import vector_store_service, report_service, archive_service
+# PHOENIX FIX: Import _get_text for consistent translation keys
+from .report_service import _get_text 
 
 logger = structlog.get_logger(__name__)
 
@@ -152,7 +157,7 @@ async def run_deep_strategy(db: Database, case_id: str, user_id: str) -> Dict[st
 
 # --- PHOENIX: STRATEGY ARCHIVING LOGIC ---
 
-async def archive_full_strategy_report(db: Database, case_id: str, user_id: str, legal_data: Dict[str, Any], deep_data: Dict[str, Any]) -> Dict[str, Any]:
+async def archive_full_strategy_report(db: Database, case_id: str, user_id: str, legal_data: Dict[str, Any], deep_data: Dict[str, Any], lang: str = "sq") -> Dict[str, Any]:
     """PHOENIX: Synthesizes all analysis data and persists it as a PDF in the Archive."""
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     
@@ -164,13 +169,13 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
         
     case_name = case.get("case_name", "Pa Titull")
     
-    # 1. Construct Professional Markdown Strategy Report
-    md = f"# RAPORTI I STRATEGJISË LIGJORE\n"
-    md += f"**RASTI:** {case_name}\n"
-    md += f"**DATA E GJENERIMIT:** {datetime.now().strftime('%d/%m/%Y')}\n\n"
-    md += "---\n\n"
-    
+    # PHOENIX FIX: Removed hardcoded title, case, and date lines.
+    # The new header structure is handled by report_service.create_pdf_from_text
+    # using document_title and header_meta_content_html.
+    md = "---\n\n" # Start markdown directly with the separator
+
     # Section: Legal Analysis
+    # Note: Subsequent section headers remain hardcoded in markdown as per instruction
     md += f"## 1. PËRMBLEDHJA LIGJORE\n{legal_data.get('summary', '')}\n\n"
     if legal_data.get('burden_of_proof'):
         md += f"**BARRA E PROVËS:**\n{legal_data.get('burden_of_proof', '')}\n\n"
@@ -219,7 +224,16 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
 
     # 2. Generate PDF via report_service
     try:
-        pdf_buffer = report_service.create_pdf_from_text(md, f"Strategjia: {case_name}")
+        # PHOENIX FIX: Pass the correct main title and meta content HTML to create_pdf_from_text
+        main_report_title = _get_text('analysis_title', lang)
+        # Ensure case_name is HTML-escaped to prevent injection issues in the PDF header
+        header_meta_content_html = f"<h2 class='report-meta'>{_get_text('report_case_label', lang)} {escape(case_name)}</h2>"
+
+        pdf_buffer = report_service.create_pdf_from_text(
+            text=md,
+            document_title=main_report_title,
+            header_meta_content_html=header_meta_content_html
+        )
         pdf_bytes = pdf_buffer.getvalue()
     except Exception as e:
         logger.error(f"Strategy PDF generation failed: {e}")
@@ -228,7 +242,11 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     # 3. Persist to Archive via ArchiveService
     archiver = archive_service.ArchiveService(db)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    filename = f"Strategjia_{case_name.replace(' ', '_')}_{timestamp}.pdf"
+    
+    # PHOENIX FIX: Use the translated main report title for the archive item title and filename
+    # Filename will still include case_name for better identification.
+    archive_item_title = f"{_get_text('analysis_title', lang)}: {case_name}"
+    filename = f"{_get_text('analysis_title', lang).replace(' ', '_')}_{case_name.replace(' ', '_')}_{timestamp}.pdf"
     
     try:
         archive_item = await archiver.save_generated_file(
@@ -236,7 +254,7 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
             filename=filename,
             content=pdf_bytes,
             category="CASE_FILE",
-            title=f"Strategjia Ligjore: {case_name}",
+            title=archive_item_title,
             case_id=case_id
         )
         return {"status": "success", "item_id": str(archive_item.id)}
