@@ -1,6 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CLEANUP
-// 1. REMOVED: Evidence Map button link.
+// PHOENIX PROTOCOL - CASE VIEW V10.1 (I18N FIX)
+// 1. FIX: Removed hardcoded "Analyzing......" string.
+// 2. I18N: Button state now uses t('analysis.analyzing') for translation.
+// 3. INTEGRITY: Retained all Modal, Analyst, and Workspace logic.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -16,7 +18,7 @@ import { useDocumentSocket } from '../hooks/useDocumentSocket';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock } from 'lucide-react'; // Removed Map icon
+import { AlertCircle, User, ShieldCheck, Loader2, X, Save, Calendar, Activity, Lock } from 'lucide-react';
 import { sanitizeDocument } from '../utils/documentUtils';
 import { TFunction } from 'i18next';
 import DockedPDFViewer from '../components/DockedPDFViewer';
@@ -102,11 +104,17 @@ const CaseHeader: React.FC<{
                     
                     <button onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')} disabled={!isPro} className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-white/5 border-white/10 text-gray-500 cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-white' : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'}`} title={!isPro ? "Available on Pro Plan" : ""}>
                         {!isPro ? <Lock className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
-                        <span>{t('caseView.analyst', 'Analisti Financiar')}</span>
+                        <span>{t('caseView.financialAnalyst', 'Analisti Financiar')}</span>
                     </button>
 
                     <button onClick={onAnalyze} disabled={!isPro || isAnalyzing || viewMode !== 'workspace'} className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent ${!isPro ? 'bg-gray-700/50 cursor-not-allowed text-gray-400 shadow-none' : 'bg-primary-start hover:bg-primary-end shadow-primary-start/20'} disabled:opacity-70`} type="button" title={!isPro ? "Available on Pro Plan" : ""}>
-                        {isAnalyzing ? ( <><Loader2 className="h-4 w-4 animate-spin text-white/70" /> <span className="text-white/70">{t('analysis.analyzing')}...</span></> ) : !isPro ? ( <><Lock className="h-4 w-4" /> <span>{analyzeButtonText}</span></> ) : ( <><ShieldCheck className="h-4 w-4" /> <span>{analyzeButtonText}</span></> )}
+                        {isAnalyzing ? (
+                            <><Loader2 className="h-4 w-4 animate-spin text-white/70" /> <span className="text-white/70">{t('analysis.analyzing', 'Duke analizuar...')}</span></>
+                        ) : !isPro ? (
+                            <><Lock className="h-4 w-4" /> <span>{analyzeButtonText}</span></>
+                        ) : (
+                            <><ShieldCheck className="h-4 w-4" /> <span>{analyzeButtonText}</span></>
+                        )}
                     </button>
               </div>
           </div>
