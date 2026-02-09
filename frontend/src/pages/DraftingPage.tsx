@@ -1,8 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V8.1 (BUILD INTEGRITY FIX)
-// 1. FIX: Removed unused 'useCallback' import (TS6133).
-// 2. FIX: Removed unused 'contentStr' variable in DraftResultRenderer (TS6133).
-// 3. STATUS: 0 Build Errors. Hydra Streaming and Pro Gatekeeper fully intact.
+// PHOENIX PROTOCOL - DRAFTING PAGE V8.3 (SOKRATI BRANDING SYNC)
+// 1. BRANDING: Synchronized "Thinking" state with ChatPanel.
+// 2. FIX: Implemented logic to replace thinking state immediately with real content.
+// 3. UI: Touch-optimized controls and Pro Gatekeeper fully intact.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -12,8 +12,9 @@ import { useAuth } from '../context/AuthContext';
 import { 
   PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, 
   FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate,
-  FileCheck, Lock 
+  FileCheck, Lock, BrainCircuit
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -26,7 +27,16 @@ interface DraftingJobState {
   error: string | null;
 }
 
-// --- AUTO RESIZE TEXTAREA ---
+// --- SUB-COMPONENTS ---
+
+const ThinkingDots = () => (
+    <span className="inline-flex items-center ml-1">
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+    </span>
+);
+
 const AutoResizeTextarea: React.FC<{ 
     value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void; 
     placeholder?: string; disabled?: boolean; className?: string; minHeight?: number; maxHeight?: number;
@@ -41,7 +51,6 @@ const AutoResizeTextarea: React.FC<{
     return <textarea ref={textareaRef} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} className={className} />;
 };
 
-// --- DRAFT RENDERER ---
 const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
     return (
         <div className="markdown-content text-gray-300 text-sm leading-8 font-serif select-text">
@@ -53,7 +62,6 @@ const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
                     h3: ({node, ...props}) => <h3 className="text-lg font-bold text-primary-start mt-4 mb-2 uppercase tracking-wide" {...props} />,
                     blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-accent-start pl-4 py-2 my-6 bg-white/5 italic text-gray-300 rounded-r-lg" {...props} />,
                     a: ({href, children}) => {
-                        // PHOENIX FIX: Removed unused contentStr (TS6133)
                         if (href?.startsWith('doc://')) {
                             return (<span className="inline-flex items-center gap-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 px-1.5 py-0.5 rounded-[4px] text-xs font-bold tracking-wide mx-0.5 no-underline font-sans not-italic"><FileCheck size={10} />{children}</span>);
                         }
@@ -83,7 +91,6 @@ const DraftingPage: React.FC = () => {
 
   const getCaseDisplayName = (c: Case) => c.title || c.case_name || `Rasti #${c.id.substring(0, 8)}`;
 
-  // PHOENIX: Real-Time Streaming Handler
   const runDraftingStream = async () => {
     if (!context.trim() || isSubmitting) return;
     
@@ -215,11 +222,23 @@ const DraftingPage: React.FC = () => {
                 {currentJob.result ? (
                     <DraftResultRenderer text={currentJob.result} />
                 ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-600 opacity-50">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
                         {isSubmitting ? (
-                            <><RefreshCw className="w-12 h-12 animate-spin mb-4 text-primary-start" /><p>{t('drafting.generatingMessage')}</p></>
+                            <AnimatePresence>
+                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center">
+                                    <div className="w-12 h-12 rounded-full bg-primary-start flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.4)] mb-4">
+                                        <BrainCircuit className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div className="text-blue-400 font-bold text-sm flex items-center gap-1">
+                                        Sokrati duke menduar<ThinkingDots />
+                                    </div>
+                                </motion.div>
+                            </AnimatePresence>
                         ) : (
-                            <><FileText className="w-16 h-16 mb-4" /><p>{t('drafting.emptyState')}</p></>
+                            <div className="opacity-50">
+                                <FileText className="w-16 h-16 mb-4 mx-auto text-gray-600" />
+                                <p className="text-gray-600 text-sm font-medium">{t('drafting.emptyState')}</p>
+                            </div>
                         )}
                     </div>
                 )}
