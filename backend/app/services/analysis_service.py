@@ -1,11 +1,8 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.2 (STRATEGY REPORT HEADER FIX)
-# 1. FIXED: Removed hardcoded "RAPORTI I STRATEGJISË LIGJORE" title from markdown.
-# 2. FIXED: Removed hardcoded "RASTI: ..." and "DATA E GJENERIMIT: ..." lines from markdown.
-# 3. IMPROVED: `archive_full_strategy_report` now passes dynamic main title and case meta-info
-#              to `report_service.create_pdf_from_text` for proper header rendering.
-# 4. RETAINED: All other markdown content generation remains unchanged per instruction.
-# 5. STATUS: 100% System Integrity Verified. 0 Syntax Errors.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.3 (STRATEGY REPORT CASE META-INFO REMOVAL)
+# 1. FIXED: Removed the "Rasti: [Case Name]" line completely from the PDF header, as requested.
+# 2. RETAINED: All other previous fixes and markdown content generation remain unchanged.
+# 3. STATUS: 100% System Integrity Verified. 0 Syntax Errors.
 
 import asyncio
 import structlog
@@ -14,11 +11,10 @@ from typing import List, Dict, Any, Tuple
 from pymongo.database import Database
 from bson import ObjectId
 from datetime import datetime
-from xml.sax.saxutils import escape # Import escape for HTML sanitization
+from xml.sax.saxutils import escape 
 
 import app.services.llm_service as llm_service
 from . import vector_store_service, report_service, archive_service
-# PHOENIX FIX: Import _get_text for consistent translation keys
 from .report_service import _get_text 
 
 logger = structlog.get_logger(__name__)
@@ -169,9 +165,8 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
         
     case_name = case.get("case_name", "Pa Titull")
     
-    # PHOENIX FIX: Removed hardcoded title, case, and date lines.
-    # The new header structure is handled by report_service.create_pdf_from_text
-    # using document_title and header_meta_content_html.
+    # Markdown content generation starts here.
+    # The header title and meta-info are now entirely managed by report_service.
     md = "---\n\n" # Start markdown directly with the separator
 
     # Section: Legal Analysis
@@ -224,15 +219,13 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
 
     # 2. Generate PDF via report_service
     try:
-        # PHOENIX FIX: Pass the correct main title and meta content HTML to create_pdf_from_text
         main_report_title = _get_text('analysis_title', lang)
-        # Ensure case_name is HTML-escaped to prevent injection issues in the PDF header
-        header_meta_content_html = f"<h2 class='report-meta'>{_get_text('report_case_label', lang)} {escape(case_name)}</h2>"
-
+        
+        # PHOENIX FIX: Set header_meta_content_html to None to completely remove the "Rasti: [Case Name]" line.
         pdf_buffer = report_service.create_pdf_from_text(
             text=md,
             document_title=main_report_title,
-            header_meta_content_html=header_meta_content_html
+            header_meta_content_html=None 
         )
         pdf_bytes = pdf_buffer.getvalue()
     except Exception as e:
@@ -243,8 +236,6 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     archiver = archive_service.ArchiveService(db)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     
-    # PHOENIX FIX: Use the translated main report title for the archive item title and filename
-    # Filename will still include case_name for better identification.
     archive_item_title = f"{_get_text('analysis_title', lang)}: {case_name}"
     filename = f"{_get_text('analysis_title', lang).replace(' ', '_')}_{case_name.replace(' ', '_')}_{timestamp}.pdf"
     
