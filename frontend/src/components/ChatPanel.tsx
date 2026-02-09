@@ -1,13 +1,14 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V5.6 (I18N BUTTON LABELS)
-// 1. FIXED: "FAST" and "DEEP" button labels are now translated using i18next.
-// 2. RETAINED: All other functionality and styling remain unchanged.
-// 3. STATUS: 0 Build Errors. Professional UI + Senior Partner Intelligence fully aligned.
+// PHOENIX PROTOCOL - CHAT PANEL V5.7 (SOKRATI THINKING STATE FIX)
+// 1. FIX: Resolved double-bubble issue by filtering empty messages during loading.
+// 2. BRANDING: Implemented "Sokrati duke menduar..." with animated dots.
+// 3. UI: Hardened scroll-to-bottom logic and cleaned up thinking indicator styling.
+// 4. INTEGRITY: Retained all Markdown, Reasoning Modes, and Pro-Tier features.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-    Send, BrainCircuit, Trash2, Loader2, User, Copy, Check, Zap, GraduationCap, Scale, Globe, FileCheck, Lock 
+    Send, BrainCircuit, Trash2, User, Copy, Check, Zap, GraduationCap, Scale, Globe, FileCheck, Lock 
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -30,6 +31,16 @@ interface ChatPanelProps {
   activeContextId: string;
   isPro?: boolean;
 }
+
+// --- SUB-COMPONENTS ---
+
+const ThinkingDots = () => (
+    <span className="inline-flex items-center ml-1">
+        <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1.5, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1.5, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1.5, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+    </span>
+);
 
 const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, isUser }) => {
     const [copied, setCopied] = useState(false);
@@ -59,8 +70,6 @@ const MarkdownComponents = {
         if (href?.startsWith('doc://')) {
             const isGlobal = ["UNCRC", "KEDNJ", "ECHR", "Konventa"].some(k => contentStr.includes(k));
             const isEvidence = contentStr.includes("Burimi") || contentStr.includes("Dokument");
-            
-            // PHOENIX RESTORATION: Use FileCheck for Evidence, Scale/Globe for Laws
             return (
                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold border mx-1 align-middle transition-all shadow-sm ${
                     isEvidence ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
@@ -74,6 +83,8 @@ const MarkdownComponents = {
         return <a className="text-primary-start hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" href={href}>{children}</a>;
     },
 };
+
+// --- MAIN COMPONENT ---
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
     messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, t, className, activeContextId, isPro = false 
@@ -118,24 +129,29 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-black/20 custom-scrollbar relative">
-        {messages.map((msg, idx) => (
+        {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
             <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-white" /></div>}
+                {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shrink-0"><BrainCircuit className="w-4 h-4 text-white" /></div>}
                 <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' : 'glass-panel text-text-primary rounded-bl-none'}`}>
                     <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
                     <div className="markdown-content select-text">
                         <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{msg.content}</ReactMarkdown>
                     </div>
                 </div>
-                {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/5"><User className="w-4 h-4 text-text-secondary" /></div>}
+                {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/5 shrink-0"><User className="w-4 h-4 text-text-secondary" /></div>}
             </motion.div>
         ))}
-        {isSendingMessage && !messages[messages.length-1]?.content && (
-            <div className="flex items-start gap-3 animate-pulse">
-                <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center"><BrainCircuit className="w-4 h-4 text-white" /></div>
-                <div className="glass-panel text-text-secondary rounded-2xl px-5 py-3.5 text-sm flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> {t('chatPanel.thinking')}</div>
-            </div>
+        
+        {/* PHOENIX: Clean branded thinking state */}
+        {isSendingMessage && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-white" /></div>
+                <div className="glass-panel text-blue-400 font-bold rounded-2xl px-5 py-3.5 text-sm flex items-center gap-1 border border-blue-500/20 shadow-blue-500/5">
+                    Sokrati duke menduar<ThinkingDots />
+                </div>
+            </motion.div>
         )}
+        
         <div ref={messagesEndRef} />
       </div>
 
