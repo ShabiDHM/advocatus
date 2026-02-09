@@ -2,7 +2,7 @@
 // PHOENIX PROTOCOL - CHAT PANEL V5.8 (SOKRATI THINKING LOGIC FIX)
 // 1. FIX: Resolved double-bubble by hiding Thinking state as soon as AI content arrives.
 // 2. BRANDING: Cleaned "Sokrati duke menduar..." with smoother motion dots.
-// 3. UI: Hardened scroll-to-bottom and filtered empty message artifacts.
+
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
