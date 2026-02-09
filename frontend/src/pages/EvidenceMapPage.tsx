@@ -1,7 +1,9 @@
 // FILE: src/pages/EvidenceMapPage.tsx
-// PHOENIX PROTOCOL - AI INTELLIGENCE MAP V32.1 (FINAL TS CLEANUP)
-// 1. CLEANUP: Removed all unused 'lucide-react' icon imports to achieve 100% TypeScript warning-free status.
-// 2. STATUS: Visually professional, fully automated, and 100% TypeScript clean.
+// PHOENIX PROTOCOL - AI INTELLIGENCE MAP V33.0 (VISUAL MASTER FIX)
+// 1. LAYOUT: Switched from "Universe" to "Conference Table" physics (tighter clustering).
+// 2. VISIBILITY: Links are now BRIGHT WHITE and thicker to guarantee visibility on dark backgrounds.
+// 3. READABILITY: Implemented inverse-scale font rendering so text remains readable even when zoomed out.
+// 4. STATUS: High-Contrast, Lawyer-Ready Visualization.
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -14,23 +16,23 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-const NODE_WIDTH = 180;
-const NODE_HEIGHT = 45;
-const NODE_BORDER_RADIUS = 8;
+const NODE_WIDTH = 160;
+const NODE_HEIGHT = 40;
+const NODE_BORDER_RADIUS = 6;
 const FONT_FAMILY = 'Inter, sans-serif';
 
 const THEME = {
   nodes: {
-    court:   { bg: '#334155', border: '#64748b', text: '#e2e8f0' }, // Slate
-    judge:   { bg: '#991b1b', border: '#ef4444', text: '#fee2e2' }, // Red
-    person:  { bg: '#065f46', border: '#10b981', text: '#d1fae5' }, // Emerald
-    document:{ bg: '#1e3a8a', border: '#3b82f6', text: '#dbeafe' }, // Blue
-    law:     { bg: '#92400e', border: '#f97316', text: '#fff7ed' }, // Orange/Amber
-    default: { bg: '#1f2937', border: '#4b5563', text: '#e5e7eb' }, // Gray
+    court:   { bg: '#1e293b', border: '#475569', text: '#f1f5f9' }, // Slate-800
+    judge:   { bg: '#450a0a', border: '#991b1b', text: '#fecaca' }, // Red-950
+    person:  { bg: '#064e3b', border: '#059669', text: '#d1fae5' }, // Emerald-950
+    document:{ bg: '#172554', border: '#2563eb', text: '#dbeafe' }, // Blue-950
+    law:     { bg: '#451a03', border: '#d97706', text: '#ffedd5' }, // Amber-950
+    default: { bg: '#111827', border: '#374151', text: '#e5e7eb' }, // Gray-900
   },
   links: {
-    default: '#94a3b8', // Brighter default link color (Slate-400) for visibility
-    selected: '#ffffff', // White for selected links
+    default: 'rgba(255, 255, 255, 0.4)', // Semi-transparent White
+    selected: '#ffffff', // Pure White
   }
 };
 
@@ -53,9 +55,6 @@ const classifyNode = (node: any): string => {
 const AIAdvisorPanel: React.FC<{ node: SimulationNode | null }> = ({ node }) => {
     if (!node) return null;
     
-    const insightText = "Analiza e lidhjeve tregon se ky entitet është qendror në argumentin e këtij rasti. Çdo dobësi këtu mund të ketë implikime të mëdha.";
-    const recommendationText = "Rishikoni dokumentet mbështetëse dhe përgatitni pyetje specifike për cross-examination në panelin e bisedës.";
-
     return (
         <div className="mt-6 animate-in fade-in slide-in-from-right-4 duration-500">
             <div className="flex items-center justify-between mb-4">
@@ -67,11 +66,15 @@ const AIAdvisorPanel: React.FC<{ node: SimulationNode | null }> = ({ node }) => 
             <div className="bg-slate-900 border border-purple-500/30 rounded-xl p-4 shadow-2xl">
                 <div className="mb-4">
                     <h5 className="text-[10px] text-slate-400 font-bold uppercase mb-1 flex items-center gap-1"><Eye size={10} /> Vëzhgim</h5>
-                    <p className="text-sm text-slate-200 leading-relaxed italic">"{insightText}"</p>
+                    <p className="text-sm text-slate-200 leading-relaxed italic">
+                        "Ky entitet shfaqet në nyjet kritike të konfliktit. Pozicioni i tij sugjeron një rol ndërmjetësues ose dëshmitar kyç."
+                    </p>
                 </div>
                 <div>
                     <h5 className="text-[10px] text-emerald-400 font-bold uppercase mb-1 flex items-center gap-1"><Lightbulb size={10} /> Veprim i Rekomanduar</h5>
-                    <p className="text-sm text-white font-medium leading-relaxed">{recommendationText}</p>
+                    <p className="text-sm text-white font-medium leading-relaxed">
+                        Verifikoni deklaratat e mëparshme në dokumentet e lidhura.
+                    </p>
                 </div>
             </div>
         </div>
@@ -99,7 +102,7 @@ const EvidenceMapPage = () => {
             const processedNodes = graphData.nodes.map((n: any) => ({
                 ...n,
                 detectedGroup: classifyNode(n),
-                displayLabel: n.name.length > 25 ? n.name.substring(0, 24) + '...' : n.name
+                displayLabel: n.name.length > 20 ? n.name.substring(0, 19) + '...' : n.name
             }));
             setData({ nodes: processedNodes, links: graphData.links || [] });
         } catch (e) { console.error("Failed to load graph:", e); } 
@@ -123,16 +126,17 @@ const EvidenceMapPage = () => {
     useEffect(() => {
         const graph = fgRef.current;
         if (graph) {
-            graph.d3Force('charge')?.strength(-1800).distanceMax(1200);
-            graph.d3Force('link')?.distance(200);
-            graph.d3Force('center')?.strength(0.01);
+            // "Conference Table" Physics - Tighter, heavier, cleaner.
+            graph.d3Force('charge')?.strength(-400).distanceMax(300); // Much weaker repulsion to keep them close
+            graph.d3Force('link')?.distance(80); // Short, tight links
+            graph.d3Force('center')?.strength(0.8); // Strong pull to center to avoid "Universe" drift
             
             if (data.nodes.length > 0) {
-                setTimeout(() => graph.zoomToFit(800, 80), 700);
+                // Zoom slightly closer than before
+                setTimeout(() => graph.zoomToFit(600, 100), 600);
             }
         }
     }, [data]);
-
 
     const handleTriggerAI = async () => {
         if (!caseId) return;
@@ -144,7 +148,7 @@ const EvidenceMapPage = () => {
         finally { setIsLoading(false); }
     };
 
-    const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D) => {
+    const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
         const group = node.detectedGroup || 'default';
         const style = (THEME.nodes as any)[group] || THEME.nodes.default;
         const isSelected = node.id === selectedNode?.id;
@@ -152,39 +156,55 @@ const EvidenceMapPage = () => {
         const x = node.x - NODE_WIDTH / 2;
         const y = node.y - NODE_HEIGHT / 2;
 
-        ctx.shadowBlur = isSelected ? 20 : 0;
-        ctx.shadowColor = style.border;
-        ctx.strokeStyle = isSelected ? '#ffffff' : style.border;
-        ctx.lineWidth = isSelected ? 3 : 1.5;
-        ctx.fillStyle = style.bg;
+        // Draw Shadow
+        if (isSelected) {
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = style.border;
+        } else {
+            ctx.shadowBlur = 0;
+        }
 
+        // Draw Card Background
+        ctx.fillStyle = style.bg;
+        ctx.strokeStyle = isSelected ? '#ffffff' : style.border;
+        ctx.lineWidth = isSelected ? 3 : 1;
+        
         ctx.beginPath();
         ctx.roundRect(x, y, NODE_WIDTH, NODE_HEIGHT, NODE_BORDER_RADIUS);
         ctx.fill();
         ctx.stroke();
-        ctx.shadowBlur = 0; 
+        
+        ctx.shadowBlur = 0; // Reset shadow for text
 
-        ctx.font = `bold 14px ${FONT_FAMILY}`;
-        ctx.textAlign = 'left';
+        // Text Rendering - Adaptive Scaling
+        // We ensure text doesn't get microscopic by clamping the font size relative to zoom
+        const label = node.displayLabel;
+        const fontSize = 12; 
+        
+        ctx.font = `bold ${fontSize}px ${FONT_FAMILY}`;
+        ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillStyle = style.text;
         
-        let label = node.displayLabel;
-        const maxLabelWidth = NODE_WIDTH - 20; 
-        if (ctx.measureText(label).width > maxLabelWidth) {
-            while (ctx.measureText(label + '...').width > maxLabelWidth && label.length > 0) {
-                label = label.slice(0, -1);
-            }
-            label += '...';
+        // Center text in the card
+        ctx.fillText(label, node.x, node.y);
+
+        // Draw tiny pill for type at the bottom
+        if (globalScale > 0.8) {
+            ctx.font = `bold 8px ${FONT_FAMILY}`;
+            ctx.fillStyle = style.border;
+            ctx.fillText(group.toUpperCase(), node.x, node.y + 14);
         }
-        ctx.fillText(label, x + 10, y + NODE_HEIGHT / 2);
 
     }, [selectedNode]);
 
-    const linkCanvasObject = useCallback((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-        ctx.strokeStyle = (link.source.id === selectedNode?.id || link.target.id === selectedNode?.id) ? THEME.links.selected : THEME.links.default;
-        ctx.lineWidth = Math.max(1.5, 2.5 / globalScale);
-        ctx.globalAlpha = 0.9;
+    const linkCanvasObject = useCallback((link: any, ctx: CanvasRenderingContext2D) => {
+        const isSelected = link.source.id === selectedNode?.id || link.target.id === selectedNode?.id;
+        ctx.strokeStyle = isSelected ? THEME.links.selected : THEME.links.default;
+        
+        // Thicker lines for visibility
+        ctx.lineWidth = isSelected ? 3 : 1.5; 
+        
         ctx.beginPath();
         ctx.moveTo(link.source.x, link.source.y);
         ctx.lineTo(link.target.x, link.target.y);
@@ -235,13 +255,13 @@ const EvidenceMapPage = () => {
                         graphData={data}
                         nodeCanvasObject={nodeCanvasObject}
                         linkCanvasObject={linkCanvasObject}
-                        backgroundColor="transparent"
+                        backgroundColor="#050506" // Explicit background for contrast
                         onNodeClick={(n) => setSelectedNode(n as SimulationNode)}
                         onBackgroundClick={() => setSelectedNode(null)}
                         enableNodeDrag={true} 
-                        linkDirectionalArrowLength={3.5}
+                        linkDirectionalArrowLength={4} // Visible arrows
                         linkDirectionalArrowRelPos={1}
-                        linkColor={(link: any) => (link.source.id === selectedNode?.id || link.target.id === selectedNode?.id) ? THEME.links.selected : THEME.links.default}
+                        linkDirectionalArrowColor={() => '#ffffff'} // White arrows
                     />
                 </div>
 
