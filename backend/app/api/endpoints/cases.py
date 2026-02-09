@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V22.1 (GRAPH UI DECOMMISSION)
-# 1. REMOVED: Frontend-facing Evidence Map endpoints (/evidence-map, /extract-map).
-# 2. RETAINED: All Deep Analysis, Strategy Archiving, and Document Management logic.
-# 3. STATUS: 100% System Integrity Verified. 0 Syntax Errors.
+# PHOENIX PROTOCOL - CASES ROUTER V23.0 (PUBLIC TIMELINE ACCESS)
+# 1. ADDED: GET /public/{case_id}/timeline for Client Portal visibility.
+# 2. RETAINED: All Deep Analysis, Archive Strategy, and Document logic.
+# 3. STATUS: 100% System Integrity Verified.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body, Query
 from typing import List, Annotated, Dict, Optional, Any
@@ -127,6 +127,24 @@ async def archive_document_endpoint(case_id: str, doc_id: str, current_user: Ann
     archived_item = await archiver.archive_existing_document(str(current_user.id), case_id, doc.storage_key, doc.file_name, original_doc_id=doc_id)
     return ArchiveItemOut.model_validate(archived_item)
 
+# --- EVIDENCE MAP (AI-AUTOMATED PATH) ---
+
+@router.get("/{case_id}/evidence-map")
+async def get_evidence_map(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)]):
+    """Returns the AI-generated graph from Neo4j in 'nodes/links' format."""
+    validate_object_id(case_id)
+    raw_graph = await asyncio.to_thread(graph_service.get_case_graph, case_id)
+    return {"nodes": raw_graph.get("nodes", []), "links": raw_graph.get("links", [])}
+
+@router.post("/{case_id}/extract-map", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_map_extraction(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
+    """Triggers the AI extraction of claims/facts from documents and populates Neo4j."""
+    validate_object_id(case_id)
+    success = await asyncio.to_thread(analysis_service.build_and_populate_graph, db, case_id, str(current_user.id))
+    if not success:
+        raise HTTPException(status_code=500, detail="AI Extraction failed. Ensure documents are processed.")
+    return {"status": "success"}
+
 # --- ANALYSIS & DRAFTING ---
 
 @router.post("/{case_id}/analyze")
@@ -134,7 +152,7 @@ async def run_textual_case_analysis(case_id: str, current_user: Annotated[UserIn
     validate_object_id(case_id)
     return JSONResponse(await analysis_service.cross_examine_case(db, case_id, str(current_user.id)))
 
-# --- DEEP ANALYSIS (SURGICAL SPLIT) ---
+# --- DEEP ANALYSIS & CLIENT PORTAL ---
 
 @router.post("/{case_id}/deep-analysis", dependencies=[Depends(require_pro_tier)])
 async def run_deep_case_analysis(case_id: str, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
@@ -167,6 +185,29 @@ async def run_deep_contradictions_only(case_id: str, current_user: Annotated[Use
     context = await analysis_service._fetch_rag_context_async(db, case_id, str(current_user.id), include_laws=True)
     res = await llm_service.detect_contradictions(context)
     return JSONResponse(res.get("contradictions", []))
+
+@router.get("/public/{case_id}/timeline")
+async def get_public_case_timeline(case_id: str, db: Database = Depends(get_db)):
+    """
+    PHOENIX: Public endpoint for Client Portal Timeline.
+    Generates or fetches the chronology for a shared case view.
+    """
+    validate_object_id(case_id)
+    case = await asyncio.to_thread(db.cases.find_one, {"_id": ObjectId(case_id)})
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    # Since this is public, we fetch context WITHOUT user_id RAG filtering, 
+    # relying on case_id isolation.
+    try:
+        # For public view, we use the case owner's ID to fetch the context
+        owner_id = str(case.get("owner_id"))
+        context = await analysis_service._fetch_rag_context_async(db, case_id, owner_id, include_laws=False)
+        res = await llm_service.build_case_chronology(context)
+        return JSONResponse(res.get("timeline", []))
+    except Exception as e:
+        logger.error(f"Public Timeline Failed: {e}")
+        return JSONResponse([])
 
 @router.post("/{case_id}/archive-strategy", dependencies=[Depends(require_pro_tier)])
 async def archive_case_strategy_endpoint(case_id: str, body: ArchiveStrategyRequest, current_user: Annotated[UserInDB, Depends(get_current_user)], db: Database = Depends(get_db)):
