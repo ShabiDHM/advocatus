@@ -1,8 +1,8 @@
 // FILE: src/pages/ClientPortalPage.tsx
-// PHOENIX PROTOCOL - CLIENT PORTAL V6.1 (STYLING UPDATE)
-// 1. VISUALS: Updated Hero Title to Blue.
-// 2. VISUALS: Updated Contact Icons to Blue theme.
-// 3. STATUS: Layout matches "Case Card" structure with requested branding.
+// PHOENIX PROTOCOL - CLIENT PORTAL V6.2 (NULL-SAFETY UPGRADE)
+// 1. CRITICAL FIX: Added optional chaining to documents/timeline to prevent .length crash.
+// 2. STABILITY: Defaulted collections to empty arrays in render logic.
+// 3. VISUALS: Maintained Blue branding theme for Hero and Contacts.
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -160,6 +160,10 @@ const ClientPortalPage: React.FC = () => {
     );
 
     const logoSrc = getLogoUrl();
+    
+    // SAFE COLLECTION ACCESS
+    const timeline = data?.timeline || [];
+    const documents = data?.documents || [];
 
     return (
         <div className="min-h-screen bg-background-dark font-sans text-gray-100 selection:bg-primary-start/30 pb-20 relative overflow-hidden">
@@ -198,12 +202,10 @@ const ClientPortalPage: React.FC = () => {
 
             <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-8 relative z-10">
                 
-                {/* HERO SECTION - REDESIGNED */}
+                {/* HERO SECTION */}
                 <div className="relative mb-10">
                     <div className="glass-panel p-6 sm:p-8 rounded-3xl shadow-2xl relative overflow-hidden border border-white/5 bg-gradient-to-br from-white/5 to-transparent">
-                        {/* Title & Date */}
                         <div className="mb-8">
-                            {/* UPDATED: Title color changed to blue-400 */}
                             <h1 className="text-3xl sm:text-4xl font-bold text-blue-400 leading-tight mb-2">
                                 {data.title}
                             </h1>
@@ -217,7 +219,6 @@ const ClientPortalPage: React.FC = () => {
                             )}
                         </div>
 
-                        {/* Client Info Section */}
                         <div className="space-y-4">
                             <div className="flex items-center gap-2 text-primary-400 mb-3">
                                 <User size={16} />
@@ -227,16 +228,13 @@ const ClientPortalPage: React.FC = () => {
                             </div>
                             
                             <div className="space-y-3">
-                                {/* Name */}
                                 <div className="text-xl font-bold text-white pl-1">
                                     {data.client_name}
                                 </div>
 
-                                {/* Contact Details */}
                                 <div className="flex flex-col gap-2">
                                     {data.client_email && (
                                         <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors group">
-                                            {/* UPDATED: Icon container and icon set to blue theme */}
                                             <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
                                                 <Mail size={14} className="text-blue-400" />
                                             </div>
@@ -245,7 +243,6 @@ const ClientPortalPage: React.FC = () => {
                                     )}
                                     {data.client_phone && (
                                         <div className="flex items-center gap-3 text-gray-400 hover:text-white transition-colors group">
-                                            {/* UPDATED: Icon container and icon set to blue theme */}
                                             <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
                                                 <Phone size={14} className="text-blue-400" />
                                             </div>
@@ -258,7 +255,7 @@ const ClientPortalPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* TABS - Glass Style */}
+                {/* TABS */}
                 <div className="flex justify-center mb-8">
                     <div className="glass-panel p-1.5 rounded-full flex gap-1 shadow-lg">
                         <button 
@@ -280,9 +277,9 @@ const ClientPortalPage: React.FC = () => {
                             }`}
                         >
                             {t('portal.documents', 'Dokumentet')} 
-                            {data.documents.length > 0 && (
+                            {documents.length > 0 && (
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${activeTab === 'documents' ? 'bg-black/10 text-black' : 'bg-white/20 text-white'}`}>
-                                    {data.documents.length}
+                                    {documents.length}
                                 </span>
                             )}
                         </button>
@@ -293,7 +290,7 @@ const ClientPortalPage: React.FC = () => {
                 <AnimatePresence mode="wait">
                     {activeTab === 'timeline' && (
                         <motion.div key="timeline" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
-                            {data.timeline.length === 0 ? (
+                            {timeline.length === 0 ? (
                                 <div className="glass-panel text-center py-20 rounded-3xl border-dashed">
                                     <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
                                         <Calendar className="text-gray-500 opacity-50" size={32} />
@@ -302,19 +299,14 @@ const ClientPortalPage: React.FC = () => {
                                 </div>
                             ) : (
                                 <div className="space-y-6">
-                                    {data.timeline.map((ev, i) => (
+                                    {timeline.map((ev, i) => (
                                         <div key={i} className="group relative pl-8 pb-8 last:pb-0">
-                                            {/* Timeline Line */}
                                             <div className="absolute left-[15px] top-[24px] bottom-0 w-px bg-gradient-to-b from-white/20 to-transparent group-last:hidden" />
-                                            
-                                            {/* Timeline Dot */}
                                             <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-background-dark border border-white/20 flex items-center justify-center z-10 group-hover:border-primary-start group-hover:shadow-[0_0_15px_rgba(37,99,235,0.4)] transition-all">
                                                 <div className="scale-75 text-gray-400 group-hover:text-primary-start transition-colors">
                                                     {getEventIcon(ev.type)}
                                                 </div>
                                             </div>
-
-                                            {/* Event Card - Glass Style */}
                                             <div className="glass-panel rounded-2xl p-6 hover:bg-white/5 transition-all ml-4 group-hover:-translate-y-1 duration-300">
                                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-2">
                                                     <h3 className="text-base font-bold text-white">{ev.title}</h3>
@@ -334,7 +326,7 @@ const ClientPortalPage: React.FC = () => {
                     {activeTab === 'documents' && (
                         <motion.div key="documents" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }}>
                             <div className="grid grid-cols-1 gap-4">
-                                {data.documents.length === 0 ? (
+                                {documents.length === 0 ? (
                                     <div className="glass-panel text-center py-20 rounded-3xl border-dashed">
                                         <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
                                             <FileText className="text-gray-500 opacity-50" size={32} />
@@ -342,7 +334,7 @@ const ClientPortalPage: React.FC = () => {
                                         <p className="text-gray-500 text-sm">{t('portal.empty_documents', 'Nuk ka dokumente të ndara me ju.')}</p>
                                     </div>
                                 ) : (
-                                    data.documents.map((doc, i) => (
+                                    documents.map((doc, i) => (
                                         <div key={i} className="glass-panel rounded-2xl p-4 hover:bg-white/5 transition-all flex items-center justify-between group hover:-translate-y-0.5 duration-200">
                                             <div className="flex items-center gap-4 min-w-0">
                                                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500/10 to-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 flex-shrink-0 group-hover:shadow-[0_0_15px_rgba(59,130,246,0.2)] transition-all">
