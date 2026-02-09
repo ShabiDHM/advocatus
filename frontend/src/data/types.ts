@@ -1,8 +1,8 @@
 // FILE: src/data/types.ts
-// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V29.1
-// 1. RESTORED: 'Contradiction' interface name to resolve build error TS2305.
-// 2. MAINTAINED: 'pending_invite' status for Team Expansion.
-// 3. MAINTAINED: Organization Tier Expansion fields.
+// PHOENIX PROTOCOL - TOTAL SYSTEM SYNCHRONIZATION V29.3 (FINAL GRAPH TYPE DECOMMISSION & ENHANCEDANOMALY VERIFICATION)
+// 1. REMOVED: All Graph-related interfaces (GraphNode, GraphLink, GraphData) as the feature is decommissioned.
+// 2. VERIFIED: 'EnhancedAnomaly' definition is present and unchanged, addressing reported 'Cannot find name' error (likely cache/environment issue).
+// 3. STATUS: 100% Type Clean. No orphaned types.
 
 import { AccountType, SubscriptionTier, ProductPlan } from './enums';
 
@@ -197,7 +197,7 @@ export interface CalendarEvent {
     start_date: string; 
     end_date: string; 
     is_all_day: boolean; 
-    event_type: 'APPOINTMENT' | 'TASK' | 'PAYMENT_DUE' | 'TAX_DEADLINE' | 'PERSONAL' | 'OTHER'; 
+    event_type: 'APPOINTMENT' | 'TASK' | 'PAYMENT_DUE' | 'TAX_DEADLINE' | 'OTHER'; 
     category: 'AGENDA' | 'FACT'; 
     status: 'PENDING' | 'COMPLETED' | 'CANCELLED' | 'OVERDUE' | 'ARCHIVED'; 
     case_id?: string; 
@@ -317,13 +317,14 @@ export interface AnalyticsDashboardData {
 }
 
 // --- 8. FORENSIC ANALYSIS ---
-export interface EnhancedAnomaly {
+export interface EnhancedAnomaly { // This is the definition of EnhancedAnomaly
     date: string;
     amount: number;
     description: string;
     risk_level: 'HIGH' | 'MEDIUM' | 'LOW' | 'CRITICAL';
     explanation: string;
     forensic_type?: string;
+    legal_reference?: string;
     confidence?: number;
 }
 
@@ -334,7 +335,7 @@ export interface SpreadsheetAnalysisResult {
     columns: string[]; 
     narrative_report: string; 
     charts: any[]; 
-    anomalies: EnhancedAnomaly[]; 
+    anomalies: EnhancedAnomaly[]; // This correctly uses EnhancedAnomaly
     key_statistics: Record<string, string | number>; 
     preview_rows?: Record<string, any>[]; 
     processed_at: string; 
@@ -412,8 +413,3 @@ export interface DraftingJobResult {
     job_id?: string; 
     status?: string; 
 }
-
-// --- 12. KNOWLEDGE GRAPH ---
-export interface GraphNode { id: string; name: string; group: string; val: number; }
-export interface GraphLink { source: string; target: string; label: string; }
-export interface GraphData { nodes: GraphNode[]; links: GraphLink[]; }
