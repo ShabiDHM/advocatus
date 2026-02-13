@@ -1,5 +1,7 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAW LIBRARY (FIXED DOUBLE PREFIX)
+# PHOENIX PROTOCOL - ROUTE ORDER FIX V1.0 (SEARCH PRIORITY)
+# 1. MOVED: /search endpoint above /{chunk_id} to prevent route shadowing.
+# 2. STATUS: Fixed Critical Logic Error.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.database import Database
@@ -7,6 +9,19 @@ from app.services import vector_store_service
 from app.api.endpoints.dependencies import get_current_user, get_db
 
 router = APIRouter(tags=["Laws"])
+
+@router.get("/search")
+async def search_laws(
+    q: str = Query(..., description="Search query"),
+    limit: int = Query(10, ge=1, le=50),
+    current_user = Depends(get_current_user)
+):
+    """Semantic search for laws. Returns matching chunks with metadata."""
+    try:
+        results = vector_store_service.query_global_knowledge_base(q, n_results=limit)
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
 @router.get("/{chunk_id}")
 async def get_law_chunk(
@@ -39,16 +54,3 @@ async def get_law_chunk(
         "source": metadata.get("source"),
         "text": law_text
     }
-
-@router.get("/search")
-async def search_laws(
-    q: str = Query(..., description="Search query"),
-    limit: int = Query(10, ge=1, le=50),
-    current_user = Depends(get_current_user)
-):
-    """Semantic search for laws. Returns matching chunks with metadata."""
-    try:
-        results = vector_store_service.query_global_knowledge_base(q, n_results=limit)
-        return results
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
