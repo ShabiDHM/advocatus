@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V52.4 (IMMEDIATE FLUSH DIAGNOSTICS)
+# PHOENIX PROTOCOL - RAG SERVICE V52.5 (IMPROVED BUFFER FLUSH)
 
 import os
 import sys
@@ -180,8 +180,11 @@ class AlbanianRAGService:
         """
 
         buffer = ""
-        MAX_BUFFER = 200
-        incomplete_pattern = re.compile(r'(Ligji[^,]*,\s*Neni\s*|Neni\s+\d+\s+i\s+Ligji[^,]*)$', re.IGNORECASE)
+        MAX_BUFFER = 2000  # Increased to allow more complete sentences
+        # Patterns for incomplete citations at the end of buffer
+        incomplete_start = re.compile(r'(Ligji[^,]*,\s*Neni\s*|Neni\s+\d+\s+i\s+Ligji[^,]*)$', re.IGNORECASE)
+        # Also pattern for a complete citation start (for checking after delimiter)
+        complete_start = re.compile(r'^(Ligji[^,]*,\s*Neni\s+\d+|Neni\s+\d+\s+i\s+Ligji[^,]*)', re.IGNORECASE)
 
         try:
             async for chunk in self.llm.astream(prompt):
@@ -189,32 +192,62 @@ class AlbanianRAGService:
                     raw = str(chunk.content)
                     buffer += raw
 
+                    # First, try to flush on punctuation (safe boundaries)
+                    flushed = False
+                    for delim in ('.', '!', '?', '\n'):
+                        if delim in buffer:
+                            # Find the last occurrence of this delimiter
+                            pos = buffer.rfind(delim)
+                            if pos != -1:
+                                # Look at the text after this delimiter
+                                rest = buffer[pos+1:].lstrip()
+                                # If the rest starts with a citation, keep it in buffer
+                                if rest and complete_start.match(rest):
+                                    print(f"BUFFER_DIAG: Holding rest after delimiter: '{rest[:50]}...'", flush=True)
+                                    continue  # Don't flush this delimiter yet
+                                # Otherwise, flush up to and including delimiter
+                                to_send = buffer[:pos+1]
+                                buffer = buffer[pos+1:]
+                                if to_send.strip():
+                                    print(f"BUFFER_DIAG: Flushing on delimiter '{delim}', len={len(to_send)}", flush=True)
+                                    yield self._format_citations(to_send)
+                                flushed = True
+                                break  # Only flush once per chunk
+
+                    if flushed:
+                        continue
+
+                    # If no punctuation flush, check buffer size
                     if len(buffer) >= MAX_BUFFER:
-                        last_space = buffer.rfind(' ')
+                        # Try to find last space before MAX_BUFFER
+                        last_space = buffer.rfind(' ', 0, MAX_BUFFER)
                         if last_space != -1:
+                            # Check if the part after last_space is an incomplete citation start
                             trailing = buffer[last_space+1:]
-                            if incomplete_pattern.search(trailing):
-                                continue
+                            if incomplete_start.search(trailing):
+                                # Can't split here; find an earlier space if possible
+                                earlier_space = buffer.rfind(' ', 0, last_space)
+                                if earlier_space != -1:
+                                    last_space = earlier_space
+                                    trailing = buffer[last_space+1:]
+                                else:
+                                    # No earlier space, have to flush anyway, but log warning
+                                    print(f"BUFFER_DIAG: WARNING: Forced flush may split citation: '{trailing[:50]}...'", flush=True)
                             to_send = buffer[:last_space+1]
                             buffer = buffer[last_space+1:]
                             if to_send.strip():
+                                print(f"BUFFER_DIAG: Flushing due to MAX_BUFFER, len={len(to_send)}", flush=True)
                                 yield self._format_citations(to_send)
+                        else:
+                            # No space found, just flush everything (rare)
+                            if buffer.strip():
+                                print(f"BUFFER_DIAG: Flushing all due to MAX_BUFFER (no space)", flush=True)
+                                yield self._format_citations(buffer)
+                            buffer = ""
 
-                    for delim in ('.', '!', '?', '\n'):
-                        if delim in buffer:
-                            pos = buffer.rfind(delim)
-                            if pos != -1:
-                                to_send = buffer[:pos+1]
-                                rest = buffer[pos+1:]
-                                if rest and incomplete_pattern.match(rest):
-                                    buffer = rest
-                                else:
-                                    buffer = rest
-                                if to_send.strip():
-                                    yield self._format_citations(to_send)
-                                break
-
+            # End of stream: flush remaining buffer
             if buffer.strip():
+                print(f"BUFFER_DIAG: Flushing final buffer, len={len(buffer)}", flush=True)
                 yield self._format_citations(buffer)
             yield AI_DISCLAIMER
         except Exception as e:
