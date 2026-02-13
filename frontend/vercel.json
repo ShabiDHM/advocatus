@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "http://146.19.215.77:8000/api/$1" },
+    { "source": "/api/(.*)", "destination": "https://api.juristi.tech/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
