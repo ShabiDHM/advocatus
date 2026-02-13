@@ -1,28 +1,22 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAW VIEWER ENDPOINT (FIXED)
-# 1. FIXED: Pylance errors – safe handling of None values.
-# 2. PURPOSE: Serve law article text by chunk ID, authenticated.
+# PHOENIX PROTOCOL - LAW LIBRARY (FIXED TYPE ERRORS)
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.database import Database
 from app.services import vector_store_service
 from app.api.endpoints.dependencies import get_current_user, get_db
 
-router = APIRouter(prefix="/laws", tags=["laws"])
+router = APIRouter(prefix="/laws", tags=["Laws"])
 
 @router.get("/{chunk_id}")
 async def get_law_chunk(
     chunk_id: str,
-    current_user = Depends(get_current_user),  # require authentication
+    current_user = Depends(get_current_user),
     db: Database = Depends(get_db)
 ):
-    """
-    Retrieve a law chunk by its ChromaDB ID.
-    Returns the article text and metadata.
-    """
+    """Retrieve a specific law chunk by its ID."""
     try:
         collection = vector_store_service.get_global_collection()
-        # ChromaDB get() returns a dict with keys: ids, documents, metadatas
         result = collection.get(ids=[chunk_id], include=["documents", "metadatas"])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
@@ -46,3 +40,17 @@ async def get_law_chunk(
         "source": metadata.get("source"),
         "text": law_text
     }
+
+@router.get("/search")
+async def search_laws(
+    q: str = Query(..., description="Search query"),
+    limit: int = Query(10, ge=1, le=50),
+    current_user = Depends(get_current_user)
+):
+    """Semantic search for laws. Returns matching chunks with metadata."""
+    try:
+        results = vector_store_service.query_global_knowledge_base(q, n_results=limit)
+        # results is already a list of dicts with safe fields
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")

@@ -1,13 +1,8 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V6.0 (MOBILE RESPONSIVENESS IMPLEMENTATION)
-// 1. RESPONSIVE: Added a 'hamburger' menu button, visible only on screens smaller than 'lg'.
-// 2. STATE: Introduced 'isMobileMenuOpen' state to toggle the mobile navigation overlay.
-// 3. COMPONENT: Created a new full-screen mobile navigation menu that appears when toggled.
-// 4. UX: Mobile menu closes on link navigation, and body scrolling is locked while it's open.
-// 5. ICONS: Imported 'Menu' and 'X' icons for the mobile toggle button.
+// PHOENIX PROTOCOL - HEADER V6.1 (ADDED LAW LIBRARY LINK)
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X } from 'lucide-react';
+import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen } from 'lucide-react'; // Added BookOpen icon
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, useLocation } from 'react-router-dom';
@@ -31,6 +26,8 @@ const Header: React.FC = () => {
     // Admin link is inserted dynamically
     { icon: Scale, label: t('sidebar.juristiAi', 'Rastet'), path: '/dashboard' },
     { icon: FileText, label: t('sidebar.drafting', 'Hartimi'), path: '/drafting' },
+    // NEW: Law Library link
+    { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
   
   if (user?.role === 'ADMIN') {
@@ -48,7 +45,6 @@ const Header: React.FC = () => {
     } else {
       document.body.style.overflow = 'auto';
     }
-    // Cleanup function
     return () => {
       document.body.style.overflow = 'auto';
     };
