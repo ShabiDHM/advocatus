@@ -1,7 +1,7 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V16.6 (COURT FIELD NORMALIZATION)
-# 1. FIXED: Special handling for 'court' metadata – extracts 'name' as plain string.
-# 2. FIXED: Fallback to 'Gjykata e panjohur' if no name or non‑dict.
+# PHOENIX PROTOCOL - VECTOR STORE V16.7 (JUDGE FIELD NORMALIZATION)
+# 1. FIXED: Added special handling for 'judge' metadata – extracts 'name' as plain string.
+# 2. FIXED: Added generic dict‑to‑string fallback for all metadata fields (ensures scalars).
 # 3. STATUS: ChromaDB now receives only scalar values – no more 422 errors.
 
 from __future__ import annotations
@@ -27,17 +27,16 @@ _active_user_collections: Dict[str, Collection] = {}
 # --- PHOENIX: Robust metadata sanitizer for ChromaDB ---
 def _sanitize_metadata_value(value: Any, key: Optional[str] = None) -> Union[str, int, float, bool, None]:
     """
-    Convert any value into a ChromaDB‑compatible type.
-    Special handling for 'court' field: extract name as simple string.
+    Convert any value into a ChromaDB‑compatible scalar.
+    Special handling for known dictionary fields: extract a readable string.
     """
-    # Special case: court field should be a simple string, never JSON
+    # --- Special case: court ---
     if key == "court":
         if isinstance(value, dict):
-            # Try to get the court name
             name = value.get("name") or value.get("emri") or value.get("title")
             if name and isinstance(name, str):
                 return name.strip()
-            # Fallback to a readable string representation
+            # Fallback: JSON string (still a string, ChromaDB will accept)
             try:
                 return json.dumps(value, ensure_ascii=False)
             except Exception:
@@ -47,14 +46,39 @@ def _sanitize_metadata_value(value: Any, key: Optional[str] = None) -> Union[str
         else:
             return str(value)
 
-    # General sanitization for all other fields
+    # --- Special case: judge ---
+    if key == "judge":
+        if isinstance(value, dict):
+            name = value.get("name") or value.get("emri") or value.get("full_name") or value.get("judge_name")
+            if name and isinstance(name, str):
+                return name.strip()
+            try:
+                return json.dumps(value, ensure_ascii=False)
+            except Exception:
+                return str(value)
+        elif value is None:
+            return "Gjyqtari i panjohur"
+        else:
+            return str(value)
+
+    # --- General sanitization for all other fields ---
+    # None and scalar types are safe
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
+
+    # Dict: try to get a "name" field, otherwise JSON string
     if isinstance(value, dict):
+        # Try to find a human-readable identifier
+        name = value.get("name") or value.get("title") or value.get("label")
+        if name and isinstance(name, str):
+            return name.strip()
+        # Otherwise, convert to JSON string
         try:
             return json.dumps(value, ensure_ascii=False)
         except Exception:
             return str(value)
+
+    # List: convert to JSON string
     if isinstance(value, list):
         try:
             return json.dumps(value, ensure_ascii=False)
@@ -63,6 +87,8 @@ def _sanitize_metadata_value(value: Any, key: Optional[str] = None) -> Union[str
                 return ", ".join(str(v) for v in value)
             except Exception:
                 return str(value)
+
+    # Fallback for any other type
     try:
         return str(value)
     except Exception:
@@ -138,7 +164,7 @@ def create_and_store_embeddings_from_chunks(
             embeddings.append(emb)
             valid_chunks.append(chunk)
 
-            # Sanitize metadata with special court handling
+            # Sanitize metadata with special field handling
             raw_meta = dict(metadatas[i])
             raw_meta['source_document_id'] = str(document_id)
             raw_meta['case_id'] = str(case_id)
