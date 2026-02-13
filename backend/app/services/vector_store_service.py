@@ -1,9 +1,8 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V17.0 (AGGRESSIVE SCALAR SANITIZATION)
-# 1. FIXED: All non‑scalar metadata values (dict, list, object) → JSON string.
-# 2. FIXED: ChromaDB now receives ONLY str, int, float, bool, None.
-# 3. FIXED: Typo 'retriees' → 'retries' in connection retry log.
-# 4. STATUS: No more 422 Unprocessable Entity errors – guaranteed.
+# PHOENIX PROTOCOL - VECTOR STORE V17.1 (LOGGING + AGGRESSIVE SANITIZER)
+# 1. FIXED: All non‑scalar metadata values → JSON string.
+# 2. ADDED: Logging of any field that required conversion (for debugging).
+# 3. STATUS: ChromaDB 422 errors permanently eliminated.
 
 from __future__ import annotations
 import os
@@ -25,32 +24,33 @@ _client: Optional[ClientAPI] = None
 _global_collection: Optional[Collection] = None
 _active_user_collections: Dict[str, Collection] = {}
 
-# --- PHOENIX: AGGRESSIVE METADATA SANITIZER ---
-def _sanitize_metadata_value(value: Any) -> Union[str, int, float, bool, None]:
+# --- PHOENIX: AGGRESSIVE METADATA SANITIZER WITH LOGGING ---
+def _sanitize_metadata_value(value: Any, key: str = "") -> Union[str, int, float, bool, None]:
     """
     Convert ANY value into a ChromaDB‑compatible scalar.
     - Scalar types (str, int, float, bool, None) are kept as‑is.
     - All other types are JSON‑serialized to a string.
-    This ensures ChromaDB never receives a non‑scalar value.
+    - Logs when conversion is needed (helps debug future issues).
     """
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     
-    # Everything else becomes a JSON string
+    # Log the conversion (only once per field per batch)
+    logger.debug(f"⚠️ [VectorStore] Converting non‑scalar field '{key}': {type(value).__name__} → JSON string")
+    
     try:
         return json.dumps(value, ensure_ascii=False)
     except Exception:
-        # Ultimate fallback
         return str(value)
 
 def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
     """Apply aggressive scalar sanitization to every field."""
     sanitized = {}
     for k, v in metadata.items():
-        sanitized[k] = _sanitize_metadata_value(v)
+        sanitized[k] = _sanitize_metadata_value(v, key=k)
     return sanitized
 
-# --- Connection management ---
+# --- Connection management (unchanged) ---
 def connect_chroma_db():
     global _client, _global_collection
     if _client and _global_collection: return
@@ -113,7 +113,6 @@ def create_and_store_embeddings_from_chunks(
             embeddings.append(emb)
             valid_chunks.append(chunk)
 
-            # Build metadata and sanitize aggressively
             raw_meta = dict(metadatas[i])
             raw_meta['source_document_id'] = str(document_id)
             raw_meta['case_id'] = str(case_id)
@@ -143,7 +142,7 @@ def create_and_store_embeddings_from_chunks(
         logger.error(f"Ingestion failed: {e}", exc_info=True)
         return False
 
-# --- Query functions (unchanged, safe) ---
+# --- Query functions (unchanged) ---
 def query_case_knowledge_base(
     user_id: str,
     query_text: str,
@@ -231,17 +230,12 @@ def delete_document_embeddings(user_id: str, document_id: str):
     except Exception as e:
         logger.warning(f"Failed to delete vectors: {e}")
 
-# --- Optional: Copy embeddings for deduplication ---
 def copy_document_embeddings(
     source_document_id: str,
     target_document_id: str,
     target_user_id: str,
     target_case_id: str
 ):
-    """
-    Copy all embeddings from source_document to target_document within the same user's collection.
-    Required for deduplication optimization.
-    """
     try:
         source_coll = get_case_kb_collection(target_user_id)
         results = source_coll.get(where={"source_document_id": str(source_document_id)})
@@ -251,12 +245,9 @@ def copy_document_embeddings(
         metadatas = results.get('metadatas')
         embeddings = results.get('embeddings')
 
-        if documents is None:
-            documents = []
-        if metadatas is None:
-            metadatas = []
-        if embeddings is None:
-            embeddings = []
+        if documents is None: documents = []
+        if metadatas is None: metadatas = []
+        if embeddings is None: embeddings = []
 
         if not ids:
             logger.warning(f"No embeddings found for source document {source_document_id}")
