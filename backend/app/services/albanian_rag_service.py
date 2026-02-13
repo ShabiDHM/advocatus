@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V52.2 (FORCE DEBUG LOGGING)
+# PHOENIX PROTOCOL - RAG SERVICE V52.3 (FORCED PRINT DIAGNOSTICS)
 
 import os
 import asyncio
@@ -10,7 +10,7 @@ from langchain_openai import ChatOpenAI
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # <-- FORCE DEBUG OUTPUT
+logger.setLevel(logging.DEBUG)
 
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY") 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -47,18 +47,13 @@ class AlbanianRAGService:
             self.llm = None
 
     def _normalize_law_title(self, title: str) -> str:
-        """Normalize law title for consistent lookup."""
         return ' '.join(title.strip().split())
 
     def _extract_law_number(self, text: str) -> Optional[str]:
-        """Extract law number like '04/L-077' from any text."""
         match = re.search(r'Nr\.?\s*([\d/]+(?:\-[\d/]+)?)', text, re.IGNORECASE)
-        if match:
-            return match.group(1)
-        return None
+        return match.group(1) if match else None
 
     def _build_citation_map(self, global_docs: List[Dict[str, Any]]):
-        """Populate mapping from (law_title, article_num) and (law_number, article_num) to chunk_id."""
         self.citation_map.clear()
         self.law_number_map.clear()
         for d in global_docs:
@@ -69,66 +64,57 @@ class AlbanianRAGService:
                 norm_title = self._normalize_law_title(law_title)
                 key = (norm_title, str(article_num).strip())
                 self.citation_map[key] = chunk_id
-                # Also store by law number if present
                 law_number = self._extract_law_number(law_title)
                 if law_number:
                     num_key = (law_number, str(article_num).strip())
                     self.law_number_map[num_key] = chunk_id
 
     def _format_citations(self, text: str) -> str:
-        """
-        Convert plain‑text law citations to Markdown links with diagnostic logging.
-        """
-        # Pattern for "Ligji [law_title], Neni [article_num]" (may include law number)
         pattern1 = r'(Ligji[^,]+(?:Nr\.?\s*[\d/]+(?:\-[\d/]+)?)?[^,]*?,\s*Neni\s+(\d+))'
-        # Pattern for "Neni [article_num] i Ligjit [law_title]"
         pattern2 = r'Neni\s+(\d+)\s+i\s+(Ligji[^\.]+)'
 
         def replacer_pattern1(match):
-            full_citation = match.group(1)
-            article_num = match.group(2)
-            law_part = full_citation.split(', Neni')[0].strip()
-            return self._make_link(law_part, article_num, full_citation)
+            full = match.group(1)
+            art = match.group(2)
+            law_part = full.split(', Neni')[0].strip()
+            return self._make_link(law_part, art, full)
 
         def replacer_pattern2(match):
-            article_num = match.group(1)
+            art = match.group(1)
             law_part = match.group(2).strip()
-            full_citation = f"Neni {article_num} i {law_part}"
-            return self._make_link(law_part, article_num, full_citation)
+            full = f"Neni {art} i {law_part}"
+            return self._make_link(law_part, art, full)
 
         text = re.sub(pattern1, replacer_pattern1, text, flags=re.IGNORECASE)
         text = re.sub(pattern2, replacer_pattern2, text, flags=re.IGNORECASE)
         return text
 
     def _make_link(self, law_text: str, article_num: str, full_citation: str) -> str:
-        """Generate markdown link with logging."""
-        logger.info(f"CITATION_DEBUG: Processing: '{full_citation}'")
-        logger.info(f"CITATION_DEBUG: law_text='{law_text}', article_num='{article_num}'")
+        # PRINT for guaranteed output
+        print(f"CITATION_DIAG: Processing: '{full_citation}'")
+        print(f"CITATION_DIAG: law_text='{law_text}', article_num='{article_num}'")
 
-        # Try law number first
         law_number = self._extract_law_number(law_text)
         if law_number:
-            logger.info(f"CITATION_DEBUG: Extracted law number: '{law_number}'")
+            print(f"CITATION_DIAG: Extracted law number: '{law_number}'")
             num_key = (law_number, article_num.strip())
             chunk_id = self.law_number_map.get(num_key)
             if chunk_id:
-                logger.info(f"CITATION_DEBUG: Found by law number! chunk_id={chunk_id}")
+                print(f"CITATION_DIAG: Found by law number! chunk_id={chunk_id}")
                 return f"[{full_citation}](/laws/{chunk_id})"
             else:
-                logger.info(f"CITATION_DEBUG: No match for law number key: {num_key}")
+                print(f"CITATION_DIAG: No match for law number key: {num_key}")
 
-        # Try normalized title
         norm_title = self._normalize_law_title(law_text)
         key = (norm_title, article_num.strip())
         chunk_id = self.citation_map.get(key)
         if chunk_id:
-            logger.info(f"CITATION_DEBUG: Found by title! chunk_id={chunk_id}")
+            print(f"CITATION_DIAG: Found by title! chunk_id={chunk_id}")
             return f"[{full_citation}](/laws/{chunk_id})"
         else:
-            logger.info(f"CITATION_DEBUG: No match for title key: {key}")
+            print(f"CITATION_DIAG: No match for title key: {key}")
 
-        # If still not found, log warning and return plain text
-        logger.warning(f"CITATION_MISS: No chunk_id found for: '{full_citation}'")
+        print(f"CITATION_DIAG: No chunk_id found, returning plain text")
         return full_citation
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict]) -> str:
@@ -150,29 +136,26 @@ class AlbanianRAGService:
             context += f"LIGJI: {citation}\nPËRMBAJTJA: {d.get('text')}\n\n"
         return context
 
-    async def chat(self, query: str, user_id: str, case_id: Optional[str] = None, 
+    async def chat(self, query: str, user_id: str, case_id: Optional[str] = None,
                    document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> AsyncGenerator[str, None]:
-        """
-        Streaming legal analysis with optimized buffer and flexible law linking.
-        """
         if not self.llm:
             yield "Sistemi AI nuk është aktiv."
             yield AI_DISCLAIMER
             return
-            
+
         from . import vector_store_service
-        
+
         case_docs = vector_store_service.query_case_knowledge_base(
-            user_id=user_id, query_text=query, case_context_id=case_id, 
+            user_id=user_id, query_text=query, case_context_id=case_id,
             document_ids=document_ids, n_results=20
         )
         global_docs = vector_store_service.query_global_knowledge_base(
             query_text=query, jurisdiction=jurisdiction, n_results=15
         )
-        
+
         self._build_citation_map(global_docs)
         context_str = self._build_context(case_docs, global_docs)
-        
+
         prompt = f"""
         Ti je "Senior Legal Partner". Detyra jote është të japësh një opinion ligjor suprem.
         {PROTOKOLLI_MANDATOR}
@@ -194,7 +177,7 @@ class AlbanianRAGService:
         
         Fillo hartimin tani:
         """
-        
+
         buffer = ""
         MAX_BUFFER = 200
         incomplete_pattern = re.compile(r'(Ligji[^,]*,\s*Neni\s*|Neni\s+\d+\s+i\s+Ligji[^,]*)$', re.IGNORECASE)
@@ -202,8 +185,8 @@ class AlbanianRAGService:
         try:
             async for chunk in self.llm.astream(prompt):
                 if chunk.content:
-                    raw_content = str(chunk.content)
-                    buffer += raw_content
+                    raw = str(chunk.content)
+                    buffer += raw
 
                     if len(buffer) >= MAX_BUFFER:
                         last_space = buffer.rfind(' ')
@@ -215,7 +198,7 @@ class AlbanianRAGService:
                             buffer = buffer[last_space+1:]
                             if to_send.strip():
                                 yield self._format_citations(to_send)
-                    
+
                     for delim in ('.', '!', '?', '\n'):
                         if delim in buffer:
                             pos = buffer.rfind(delim)
@@ -239,8 +222,7 @@ class AlbanianRAGService:
             yield AI_DISCLAIMER
 
     async def generate_legal_draft(self, instruction: str, user_id: str, case_id: Optional[str]) -> str:
-        """Generate a legal draft with fully formatted citations."""
-        if not self.llm: 
+        if not self.llm:
             return "Sistemi AI Offline." + AI_DISCLAIMER
         from . import vector_store_service
         p_docs = vector_store_service.query_case_knowledge_base(
@@ -254,16 +236,16 @@ class AlbanianRAGService:
         prompt = f"{PROTOKOLLI_MANDATOR}\n{context_str}\nDETYRA: Harto {instruction}."
         try:
             res = await self.llm.ainvoke(prompt)
-            raw_response = str(res.content)
-            formatted_response = self._format_citations(raw_response)
-            return formatted_response + AI_DISCLAIMER
+            raw = str(res.content)
+            formatted = self._format_citations(raw)
+            return formatted + AI_DISCLAIMER
         except Exception as e:
             logger.error(f"Drafting failure: {e}")
             return f"Gabim gjatë draftimit: {str(e)}" + AI_DISCLAIMER
 
     async def fast_rag(self, query: str, user_id: str, case_id: Optional[str] = None) -> str:
-        """Quick RAG response with formatted citations."""
-        if not self.llm: return ""
+        if not self.llm:
+            return ""
         from . import vector_store_service
         l_docs = vector_store_service.query_global_knowledge_base(query_text=query, n_results=5)
         self._build_citation_map(l_docs)
@@ -271,8 +253,8 @@ class AlbanianRAGService:
         prompt = f"Përgjigju shkurt duke përdorur citimet me badge [Ligji](doc://ligji): {laws}\n\nPyetja: {query}"
         try:
             res = await self.llm.ainvoke(prompt)
-            raw_response = str(res.content)
-            formatted_response = self._format_citations(raw_response)
-            return formatted_response
+            raw = str(res.content)
+            formatted = self._format_citations(raw)
+            return formatted
         except Exception:
             return "Gabim teknik."
