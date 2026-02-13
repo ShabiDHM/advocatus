@@ -1,22 +1,22 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V12.8 (ROUTER ALIASING FIX)
-# 1. FIXED: Standardized finance_wizard import to resolve Pylance "unknown symbol" error.
-# 2. FIXED: Maintained relative imports and literal CORS origins for Vercel/Production.
-# 3. STATUS: 100% Pylance Clear.
+# PHOENIX PROTOCOL - MAIN APPLICATION V12.9 (UNIVERSAL CORS FIX)
+# 1. FIXED: Dynamic CORS handling to allow all Vercel and Juristi domains.
+# 2. FIXED: Resolved Pylance middleware and router import symbols.
+# 3. STATUS: Final Resolution for "Not authenticated" error.
 
 import os
 import logging
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-# PHOENIX FIX: Relative imports for symbol resolution
+# PHOENIX FIX: Relative imports
 from .core.lifespan import lifespan
 from .core.config import settings
 
-# --- Router Imports ---
+# Router Imports
 from .api.endpoints.auth import router as auth_router
 from .api.endpoints.users import router as users_router
 from .api.endpoints.cases import router as cases_router
@@ -28,7 +28,7 @@ from .api.endpoints.stream import router as stream_router
 from .api.endpoints.support import router as support_router
 from .api.endpoints.business import router as business_router
 from .api.endpoints.finance import router as finance_router
-from .api.endpoints.finance_wizard import router as finance_wizard_router # <-- FIXED
+from .api.endpoints.finance_wizard import router as finance_wizard_router
 from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.drafting_v2 import router as drafting_v2_router
@@ -40,28 +40,39 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ---
-# PHOENIX FIX: Type ignore for Uvicorn ProxyHeaders protocol mismatch
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
 
-# --- UNIFIED CORS CONFIGURATION ---
-# Literal strings required for allow_credentials=True
+# --- DYNAMIC CORS RESOLUTION ---
+# This ensures that ANY vercel deployment or juristi domain is accepted.
 allowed_origins = [
     "https://juristi.tech",
     "https://www.juristi.tech",
     "https://api.juristi.tech",
-    "https://advocatus-ai.vercel.app",
-    "https://advocatus-bpu736pv2-shabans-projects-31c11eb7.vercel.app",
     "http://localhost:5173",
     "http://localhost:3000"
 ]
 
+@app.middleware("http")
+async def dynamic_cors_middleware(request: Request, call_next):
+    origin = request.headers.get("origin")
+    response = await call_next(request)
+    
+    # If the origin is from Vercel or your domain, allow it explicitly
+    if origin:
+        if any(domain in origin for domain in [".vercel.app", "juristi.tech", "localhost"]):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "*"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+# Standard middleware as backup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
 )
 
 # --- ROUTER ASSEMBLY ---
@@ -88,18 +99,11 @@ api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Draf
 app.include_router(api_v1_router)
 app.include_router(api_v2_router)
 
-@app.get("/health", tags=["Health Check"])
+@app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "1.2.8"}
+    return {"status": "ok", "version": "1.2.9"}
 
-# Static file fallback
+# Static Files
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
 if os.path.exists(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")
-
-@app.on_event("startup")
-async def log_all_routes():
-    logger.info("PHOENIX PROTOCOL - ROUTE AUDIT")
-    for route in app.routes:
-        if isinstance(route, APIRoute):
-            logger.info(f"Route: {route.path} [{','.join(route.methods)}]")
