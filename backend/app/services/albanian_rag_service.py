@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V52.5 (IMPROVED BUFFER FLUSH)
+# PHOENIX PROTOCOL - RAG SERVICE V53.0 (ROBUST FLEXIBLE MATCHING)
 
 import os
 import sys
@@ -24,7 +24,7 @@ PROTOKOLLI_MANDATOR = """
 **URDHËRA TË RREPTË FORMATIMI:**
 1. Çdo argument ligjor DUHET të citojë **nenin konkret** duke përdorur **emrin e plotë zyrtar të ligjit** siç paraqitet në kontekst, duke përfshirë numrin zyrtar nëse ekziston.  
    **Shembull i saktë:** `Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve, Neni 5`  
-   **Mos përdorni emra të shkurtuar si "Ligji për Familjen" – përdorni gjithmonë emrin e plotë.**
+   **Mos përdorni emra të shkurtuar – përdorni gjithmonë emrin e plotë.**
 2. Për çdo ligj të cituar, DUHET të shtoni rreshtin: **RELEVANCA:** [Pse ky nen është thelbësor për rastin].
 3. Përdor TITUJT MARKDOWN (###) për të ndarë seksionet.
 4. MOS përdor blloqe kodi.
@@ -71,20 +71,25 @@ class AlbanianRAGService:
                     self.law_number_map[num_key] = chunk_id
 
     def _format_citations(self, text: str) -> str:
-        pattern1 = r'(Ligji[^,]+(?:Nr\.?\s*[\d/]+(?:\-[\d/]+)?)?[^,]*?,\s*Neni\s+(\d+))'
-        pattern2 = r'Neni\s+(\d+)\s+i\s+(Ligji[^\.]+)'
+        """
+        Match both standard and genitive forms, and extract law numbers.
+        """
+        # Pattern for "Ligji ... , Neni X" (allows Ligji/Ligjit)
+        pattern1 = r'(Ligj(i|it)?[^,]+(?:Nr\.?\s*[\d/]+(?:\-[\d/]+)?)?[^,]*?,\s*Neni\s+(\d+))'
+        # Pattern for "Neni X i Ligjit ..."
+        pattern2 = r'Neni\s+(\d+)\s+i\s+(Ligj(i|it)?[^\.]+)'
 
         def replacer_pattern1(match):
-            full = match.group(1)
-            art = match.group(2)
-            law_part = full.split(', Neni')[0].strip()
-            return self._make_link(law_part, art, full)
+            full_citation = match.group(1)
+            article_num = match.group(3)
+            law_part = full_citation.split(', Neni')[0].strip()
+            return self._make_link(law_part, article_num, full_citation)
 
         def replacer_pattern2(match):
-            art = match.group(1)
+            article_num = match.group(1)
             law_part = match.group(2).strip()
-            full = f"Neni {art} i {law_part}"
-            return self._make_link(law_part, art, full)
+            full_citation = f"Neni {article_num} i {law_part}"
+            return self._make_link(law_part, article_num, full_citation)
 
         text = re.sub(pattern1, replacer_pattern1, text, flags=re.IGNORECASE)
         text = re.sub(pattern2, replacer_pattern2, text, flags=re.IGNORECASE)
@@ -94,7 +99,8 @@ class AlbanianRAGService:
         print(f"CITATION_DIAG: Processing: '{full_citation}'", flush=True)
         print(f"CITATION_DIAG: law_text='{law_text}', article_num='{article_num}'", flush=True)
 
-        law_number = self._extract_law_number(law_text)
+        # Try to extract law number from law_text (or full_citation)
+        law_number = self._extract_law_number(full_citation)
         if law_number:
             print(f"CITATION_DIAG: Extracted law number: '{law_number}'", flush=True)
             num_key = (law_number, article_num.strip())
@@ -105,6 +111,7 @@ class AlbanianRAGService:
             else:
                 print(f"CITATION_DIAG: No match for law number key: {num_key}", flush=True)
 
+        # Try normalized title
         norm_title = self._normalize_law_title(law_text)
         key = (norm_title, article_num.strip())
         chunk_id = self.citation_map.get(key)
@@ -180,74 +187,28 @@ class AlbanianRAGService:
         """
 
         buffer = ""
-        MAX_BUFFER = 2000  # Increased to allow more complete sentences
-        # Patterns for incomplete citations at the end of buffer
-        incomplete_start = re.compile(r'(Ligji[^,]*,\s*Neni\s*|Neni\s+\d+\s+i\s+Ligji[^,]*)$', re.IGNORECASE)
-        # Also pattern for a complete citation start (for checking after delimiter)
-        complete_start = re.compile(r'^(Ligji[^,]*,\s*Neni\s+\d+|Neni\s+\d+\s+i\s+Ligji[^,]*)', re.IGNORECASE)
-
+        # Simple punctuation-based flushing, no complex hold logic
         try:
             async for chunk in self.llm.astream(prompt):
                 if chunk.content:
                     raw = str(chunk.content)
                     buffer += raw
 
-                    # First, try to flush on punctuation (safe boundaries)
-                    flushed = False
+                    # Flush on sentence-ending punctuation
                     for delim in ('.', '!', '?', '\n'):
                         if delim in buffer:
-                            # Find the last occurrence of this delimiter
                             pos = buffer.rfind(delim)
                             if pos != -1:
-                                # Look at the text after this delimiter
-                                rest = buffer[pos+1:].lstrip()
-                                # If the rest starts with a citation, keep it in buffer
-                                if rest and complete_start.match(rest):
-                                    print(f"BUFFER_DIAG: Holding rest after delimiter: '{rest[:50]}...'", flush=True)
-                                    continue  # Don't flush this delimiter yet
-                                # Otherwise, flush up to and including delimiter
                                 to_send = buffer[:pos+1]
                                 buffer = buffer[pos+1:]
                                 if to_send.strip():
-                                    print(f"BUFFER_DIAG: Flushing on delimiter '{delim}', len={len(to_send)}", flush=True)
+                                    print(f"BUFFER_DIAG: Flushing {len(to_send)} chars", flush=True)
                                     yield self._format_citations(to_send)
-                                flushed = True
                                 break  # Only flush once per chunk
-
-                    if flushed:
-                        continue
-
-                    # If no punctuation flush, check buffer size
-                    if len(buffer) >= MAX_BUFFER:
-                        # Try to find last space before MAX_BUFFER
-                        last_space = buffer.rfind(' ', 0, MAX_BUFFER)
-                        if last_space != -1:
-                            # Check if the part after last_space is an incomplete citation start
-                            trailing = buffer[last_space+1:]
-                            if incomplete_start.search(trailing):
-                                # Can't split here; find an earlier space if possible
-                                earlier_space = buffer.rfind(' ', 0, last_space)
-                                if earlier_space != -1:
-                                    last_space = earlier_space
-                                    trailing = buffer[last_space+1:]
-                                else:
-                                    # No earlier space, have to flush anyway, but log warning
-                                    print(f"BUFFER_DIAG: WARNING: Forced flush may split citation: '{trailing[:50]}...'", flush=True)
-                            to_send = buffer[:last_space+1]
-                            buffer = buffer[last_space+1:]
-                            if to_send.strip():
-                                print(f"BUFFER_DIAG: Flushing due to MAX_BUFFER, len={len(to_send)}", flush=True)
-                                yield self._format_citations(to_send)
-                        else:
-                            # No space found, just flush everything (rare)
-                            if buffer.strip():
-                                print(f"BUFFER_DIAG: Flushing all due to MAX_BUFFER (no space)", flush=True)
-                                yield self._format_citations(buffer)
-                            buffer = ""
 
             # End of stream: flush remaining buffer
             if buffer.strip():
-                print(f"BUFFER_DIAG: Flushing final buffer, len={len(buffer)}", flush=True)
+                print(f"BUFFER_DIAG: Flushing final {len(buffer)} chars", flush=True)
                 yield self._format_citations(buffer)
             yield AI_DISCLAIMER
         except Exception as e:
