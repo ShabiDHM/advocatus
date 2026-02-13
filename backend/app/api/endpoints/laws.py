@@ -1,12 +1,12 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAW LIBRARY (FIXED TYPE ERRORS)
+# PHOENIX PROTOCOL - LAW LIBRARY (FIXED DOUBLE PREFIX)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.database import Database
 from app.services import vector_store_service
 from app.api.endpoints.dependencies import get_current_user, get_db
 
-router = APIRouter(prefix="/laws", tags=["Laws"])
+router = APIRouter(tags=["Laws"])
 
 @router.get("/{chunk_id}")
 async def get_law_chunk(
@@ -21,7 +21,6 @@ async def get_law_chunk(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-    # Safety checks
     if result is None:
         raise HTTPException(status_code=404, detail="Law chunk not found")
 
@@ -50,7 +49,6 @@ async def search_laws(
     """Semantic search for laws. Returns matching chunks with metadata."""
     try:
         results = vector_store_service.query_global_knowledge_base(q, n_results=limit)
-        # results is already a list of dicts with safe fields
         return results
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
