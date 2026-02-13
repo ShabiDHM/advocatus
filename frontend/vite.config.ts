@@ -1,7 +1,5 @@
 // FILE: vite.config.ts
-// PHOENIX PROTOCOL - BUILD FIX V2.1 (RE-APPLY)
-// 1. FIX: Enforces 'base: "/"' to ensure Vite injects absolute paths into the clean index.html.
-// 2. STATUS: This is the definitive configuration for Vercel deployment.
+// PHOENIX PROTOCOL - BUILD FIX V2.3 (REMOTE PROXY TARGET)
 
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -48,6 +46,16 @@ export default defineConfig({
       }
     })
   ],
+  // --- PROXY CONFIGURATION (UPDATED) ---
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://146.19.215.77:8000', // Your remote server IP:port
+        changeOrigin: true,
+        secure: false,
+      }
+    }
+  },
   build: {
     outDir: 'dist',
     sourcemap: true
