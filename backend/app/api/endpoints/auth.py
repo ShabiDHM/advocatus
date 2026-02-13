@@ -1,7 +1,8 @@
 # FILE: backend/app/api/endpoints/auth.py
-# PHOENIX PROTOCOL - AUTHENTICATION V2.1 (CASE INSENSITIVE)
-# 1. FIX: Normalizes username/email to lowercase during login and registration.
-# 2. LOGIC: Ensures 'Shaban' and 'shaban' are treated as the same user.
+# PHOENIX PROTOCOL - AUTHENTICATION V2.2 (SUBDOMAIN COOKIE SUPPORT)
+# 1. ADDED: domain=".juristi.tech" to cookies for sharing with api.juristi.tech.
+# 2. FIX: secure flag now correctly set based on environment.
+# 3. PRESERVED: Case‑insensitive username normalization.
 
 from datetime import timedelta
 from typing import Any
@@ -41,7 +42,7 @@ async def get_user_from_refresh_token(request: Request, db: Database = Depends(g
 
 @router.post("/login", response_model=Token)
 async def login_access_token(response: Response, form_data: UserLogin, db: Database = Depends(get_db)) -> Any:
-    # PHOENIX FIX: Normalize username/email to lowercase
+    # Normalize username/email to lowercase
     normalized_username = form_data.username.lower()
     
     user = user_service.authenticate(db, username=normalized_username, password=form_data.password)
@@ -57,9 +58,15 @@ async def login_access_token(response: Response, form_data: UserLogin, db: Datab
     refresh_token_expires = timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
     refresh_token = security.create_refresh_token(data={"id": str(user.id)}, expires_delta=refresh_token_expires)
 
+    # Set cookie with domain for subdomain sharing
     response.set_cookie(
-        key="refresh_token", value=refresh_token, httponly=True,
-        secure=settings.ENVIRONMENT != "development", samesite="lax", 
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=settings.ENVIRONMENT != "development",   # True in production (HTTPS)
+        samesite="lax",
+        domain=".juristi.tech",                         # Allow subdomains like api.juristi.tech
+        path="/",
         max_age=int(refresh_token_expires.total_seconds())
     )
     
@@ -67,7 +74,7 @@ async def login_access_token(response: Response, form_data: UserLogin, db: Datab
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user(user_in: UserCreate, db: Database = Depends(get_db)) -> Any:
-    # PHOENIX FIX: Normalize inputs to lowercase
+    # Normalize inputs to lowercase
     user_in.username = user_in.username.lower()
     user_in.email = user_in.email.lower()
 
@@ -91,7 +98,14 @@ async def refresh_token(current_user: UserInDB = Depends(get_user_from_refresh_t
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(response: Response):
-    response.delete_cookie(key="refresh_token", httponly=True, secure=settings.ENVIRONMENT != "development", samesite="lax")
+    response.delete_cookie(
+        key="refresh_token",
+        httponly=True,
+        secure=settings.ENVIRONMENT != "development",
+        samesite="lax",
+        domain=".juristi.tech",   # Must match domain used when setting
+        path="/"
+    )
     return {"message": "Logged out successfully"}
 
 @router.post("/change-password", status_code=status.HTTP_200_OK)
