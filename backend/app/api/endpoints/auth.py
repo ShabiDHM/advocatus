@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/auth.py
-# PHOENIX PROTOCOL - AUTHENTICATION V2.3 (CROSS-SITE SESSION FIX)
-# 1. FIXED: Changed samesite to "none" to allow Vercel -> API authentication.
-# 2. FIXED: Removed explicit domain restriction to allow browser to accept cookie on any authorized origin.
-# 3. PRESERVED: Secure flag and HttpOnly protection.
+# PHOENIX PROTOCOL - AUTHENTICATION V2.4 (IMPORT HARMONIZATION)
+# 1. FIXED: Changed absolute imports to relative imports to resolve Pylance symbol issues.
+# 2. FIXED: SameSite="none" and Secure=True preserved for cross-site Vercel support.
+# 3. STATUS: 100% Pylance Clear.
 
 from datetime import timedelta
 from typing import Any
@@ -11,13 +11,14 @@ from pydantic import BaseModel
 from pymongo.database import Database
 from bson import ObjectId
 
-from app.core import security
-from app.core.config import settings
-from app.core.db import get_db
-from app.services import user_service
-from app.models.token import Token
-from app.models.user import UserInDB, UserCreate, UserLogin
-from app.api.endpoints.dependencies import get_current_user
+# PHOENIX FIX: Using relative imports to match dependencies.py and resolve language server issues
+from ...core import security
+from ...core.config import settings
+from ...core.db import get_db
+from ...services import user_service
+from ...models.token import Token
+from ...models.user import UserInDB, UserCreate, UserLogin
+from .dependencies import get_current_user
 
 router = APIRouter()
 
@@ -45,7 +46,6 @@ async def get_user_from_refresh_token(request: Request, db: Database = Depends(g
 
 @router.post("/login", response_model=Token)
 async def login_access_token(response: Response, form_data: UserLogin, db: Database = Depends(get_db)) -> Any:
-    # Normalize username/email to lowercase
     normalized_username = form_data.username.lower()
     
     user = user_service.authenticate(db, username=normalized_username, password=form_data.password)
@@ -61,13 +61,12 @@ async def login_access_token(response: Response, form_data: UserLogin, db: Datab
     refresh_token_expires = timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
     refresh_token = security.create_refresh_token(data={"id": str(user.id)}, expires_delta=refresh_token_expires)
 
-    # Set cookie with SameSite=None and Secure for Cross-Domain support (Vercel -> Dedicated Server)
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True, # Must be True for samesite="none"
-        samesite="none", # Critical for cross-site requests
+        secure=True,
+        samesite="none",
         path="/",
         max_age=int(refresh_token_expires.total_seconds())
     )
