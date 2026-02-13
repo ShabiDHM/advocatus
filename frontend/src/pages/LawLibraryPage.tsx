@@ -1,6 +1,7 @@
 // FILE: src/pages/LawLibraryPage.tsx
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { API_V1_URL } from '../services/api'; // <-- Import base URL
 
 interface LawResult {
   law_title: string;
@@ -21,7 +22,8 @@ export default function LawLibraryPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`/api/v1/laws/search?q=${encodeURIComponent(query)}`, {
+      // Use API_V1_URL to form the full URL
+      const res = await fetch(`${API_V1_URL}/laws/search?q=${encodeURIComponent(query)}`, {
         credentials: 'include',
       });
       if (!res.ok) {
