@@ -1,12 +1,14 @@
 // FILE: src/pages/LawLibraryPage.tsx
-// PHOENIX PROTOCOL - API INTEGRATION V1.1 (AUTHENTICATED SEARCH)
-// 1. REPLACED: Raw fetch with apiService.axiosInstance for JWT support.
-// 2. FIXED: "Not authenticated" error by utilizing unified auth headers.
+// PHOENIX PROTOCOL - AUTHENTICATED SEARCH V1.2 (SESSION VALIDATION)
+// 1. ADDED: useAuth check to ensure search only proceeds if isAuthenticated is true.
+// 2. FIXED: Improved error handling for 401 Unauthorized cases.
 // 3. STATUS: Protocol Compliant.
 
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import { Search, AlertCircle, Loader2 } from 'lucide-react';
 
 interface LawResult {
   law_title: string;
@@ -17,82 +19,127 @@ interface LawResult {
 }
 
 export default function LawLibraryPage() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const navigate = useNavigate();
+  
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<LawResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Protect the route: If not loading and not authenticated, redirect
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      console.warn("[LawLibrary] Unauthorized access attempt. Redirecting to login.");
+      // Optional: navigate('/login');
+    }
+  }, [isAuthenticated, isLoading, navigate]);
+
   const handleSearch = async () => {
     if (!query.trim()) return;
+    if (!isAuthenticated) {
+        setError("Duhet të jeni i identifikuar (Logged In) për të përdorur këtë veçori.");
+        return;
+    }
+
     setLoading(true);
     setError('');
     
     try {
-      // Utilizing the unified axios instance which handles Bearer tokens automatically
       const response = await apiService.axiosInstance.get<LawResult[]>('/laws/search', {
         params: { q: query }
       });
-      
       setResults(response.data);
     } catch (err: any) {
-      console.error("[LawLibrary] Search failed:", err);
-      // Handle cases where err.response exists (Axios error) or generic error
-      const errorMessage = err.response?.data?.detail || err.message || 'Kërkimi dështoi';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      if (err.response?.status === 401) {
+        setError("Sesioni juaj ka skaduar ose nuk jeni i identifikuar. Ju lutem hyni përsëri.");
+      } else {
+        setError(err.response?.data?.detail || "Kërkimi dështoi. Provoni përsëri.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  if (isLoading) {
+    return (
+        <div className="flex items-center justify-center min-h-[400px]">
+            <Loader2 className="animate-spin text-indigo-600 w-8 h-8" />
+        </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Biblioteka Ligjore</h1>
-      <p className="text-gray-600 mb-4">
-        Kërkoni ligje duke përdorur fjalë kyçe, numër të ligjit, ose nen. Rezultatet janë të renditura sipas ngjashmërisë.
-      </p>
+      <header className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+          <Search className="text-indigo-600" />
+          Biblioteka Ligjore
+        </h1>
+        <p className="text-gray-600 mt-2">
+          Kërkoni në bazën tonë të të dhënave ligjore për nene, rregullore dhe vendime.
+        </p>
+      </header>
       
-      <div className="flex gap-2 mb-6">
+      {!isAuthenticated && (
+          <div className="mb-6 p-4 bg-amber-50 border-l-4 border-amber-400 text-amber-800 flex items-center gap-3">
+              <AlertCircle size={20} />
+              <p>Ju duhet të <strong>hyni në llogari</strong> për të kryer kërkime në bibliotekë.</p>
+              <Link to="/login" className="ml-auto font-bold underline hover:text-amber-900">Hyni këtu</Link>
+          </div>
+      )}
+
+      <div className="flex gap-2 mb-8">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder="p.sh. alimentacion, Neni 68, 04/L-077..."
-          className="flex-1 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-primary-start bg-white text-gray-900"
+          placeholder="p.sh. Kodi Civil, Neni 45, Ligji për punën..."
+          disabled={!isAuthenticated}
+          className="flex-1 p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
         />
         <button
           onClick={handleSearch}
-          disabled={loading}
-          className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors disabled:opacity-50"
+          disabled={loading || !isAuthenticated}
+          className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all shadow-md disabled:opacity-50"
         >
           {loading ? 'Duke kërkuar...' : 'Kërko'}
         </button>
       </div>
 
       {error && (
-        <div className="p-3 mb-4 bg-red-50 border border-red-200 text-red-600 rounded">
-          Gabim: {error}
+        <div className="p-4 mb-6 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center gap-2">
+          <AlertCircle size={18} />
+          {error}
         </div>
       )}
 
-      {results.length === 0 && query && !loading && !error && (
-        <p className="text-gray-500">Nuk u gjet asnjë rezultat.</p>
-      )}
-
-      <div className="space-y-4">
+      <div className="grid gap-4">
         {results.map((r) => (
           <Link
             key={r.chunk_id}
             to={`/laws/${r.chunk_id}`}
-            className="block p-4 border rounded hover:shadow-md hover:border-indigo-300 transition-all bg-white"
+            className="block p-5 border border-gray-200 rounded-xl hover:shadow-lg hover:border-indigo-300 transition-all bg-white group"
           >
-            <h2 className="text-lg font-semibold text-indigo-900">{r.law_title}</h2>
+            <h2 className="text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                {r.law_title}
+            </h2>
             {r.article_number && (
-              <p className="text-gray-700 mt-1 font-medium">Neni {r.article_number}</p>
+              <p className="text-indigo-700 font-medium mt-1">Neni {r.article_number}</p>
             )}
-            <p className="text-sm text-gray-500 mt-2 italic">Burimi: {r.source || 'i panjohur'}</p>
+            <p className="text-sm text-gray-500 mt-3 flex items-center gap-1">
+                <span className="font-semibold uppercase text-xs bg-gray-100 px-2 py-0.5 rounded">Burimi</span>
+                {r.source || 'i panjohur'}
+            </p>
           </Link>
         ))}
+        
+        {results.length === 0 && query && !loading && !error && (
+            <div className="text-center py-12 text-gray-500">
+                Nuk u gjet asnjë rezultat për "{query}".
+            </div>
+        )}
       </div>
     </div>
   );
