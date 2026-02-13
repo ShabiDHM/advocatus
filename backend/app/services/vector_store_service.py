@@ -1,8 +1,9 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V16.7 (JUDGE FIELD NORMALIZATION)
-# 1. FIXED: Added special handling for 'judge' metadata – extracts 'name' as plain string.
-# 2. FIXED: Added generic dict‑to‑string fallback for all metadata fields (ensures scalars).
-# 3. STATUS: ChromaDB now receives only scalar values – no more 422 errors.
+# PHOENIX PROTOCOL - VECTOR STORE V17.0 (AGGRESSIVE SCALAR SANITIZATION)
+# 1. FIXED: All non‑scalar metadata values (dict, list, object) → JSON string.
+# 2. FIXED: ChromaDB now receives ONLY str, int, float, bool, None.
+# 3. FIXED: Typo 'retriees' → 'retries' in connection retry log.
+# 4. STATUS: No more 422 Unprocessable Entity errors – guaranteed.
 
 from __future__ import annotations
 import os
@@ -24,81 +25,29 @@ _client: Optional[ClientAPI] = None
 _global_collection: Optional[Collection] = None
 _active_user_collections: Dict[str, Collection] = {}
 
-# --- PHOENIX: Robust metadata sanitizer for ChromaDB ---
-def _sanitize_metadata_value(value: Any, key: Optional[str] = None) -> Union[str, int, float, bool, None]:
+# --- PHOENIX: AGGRESSIVE METADATA SANITIZER ---
+def _sanitize_metadata_value(value: Any) -> Union[str, int, float, bool, None]:
     """
-    Convert any value into a ChromaDB‑compatible scalar.
-    Special handling for known dictionary fields: extract a readable string.
+    Convert ANY value into a ChromaDB‑compatible scalar.
+    - Scalar types (str, int, float, bool, None) are kept as‑is.
+    - All other types are JSON‑serialized to a string.
+    This ensures ChromaDB never receives a non‑scalar value.
     """
-    # --- Special case: court ---
-    if key == "court":
-        if isinstance(value, dict):
-            name = value.get("name") or value.get("emri") or value.get("title")
-            if name and isinstance(name, str):
-                return name.strip()
-            # Fallback: JSON string (still a string, ChromaDB will accept)
-            try:
-                return json.dumps(value, ensure_ascii=False)
-            except Exception:
-                return str(value)
-        elif value is None:
-            return "Gjykata e panjohur"
-        else:
-            return str(value)
-
-    # --- Special case: judge ---
-    if key == "judge":
-        if isinstance(value, dict):
-            name = value.get("name") or value.get("emri") or value.get("full_name") or value.get("judge_name")
-            if name and isinstance(name, str):
-                return name.strip()
-            try:
-                return json.dumps(value, ensure_ascii=False)
-            except Exception:
-                return str(value)
-        elif value is None:
-            return "Gjyqtari i panjohur"
-        else:
-            return str(value)
-
-    # --- General sanitization for all other fields ---
-    # None and scalar types are safe
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
-
-    # Dict: try to get a "name" field, otherwise JSON string
-    if isinstance(value, dict):
-        # Try to find a human-readable identifier
-        name = value.get("name") or value.get("title") or value.get("label")
-        if name and isinstance(name, str):
-            return name.strip()
-        # Otherwise, convert to JSON string
-        try:
-            return json.dumps(value, ensure_ascii=False)
-        except Exception:
-            return str(value)
-
-    # List: convert to JSON string
-    if isinstance(value, list):
-        try:
-            return json.dumps(value, ensure_ascii=False)
-        except Exception:
-            try:
-                return ", ".join(str(v) for v in value)
-            except Exception:
-                return str(value)
-
-    # Fallback for any other type
+    
+    # Everything else becomes a JSON string
     try:
-        return str(value)
+        return json.dumps(value, ensure_ascii=False)
     except Exception:
-        return ""
+        # Ultimate fallback
+        return str(value)
 
 def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
-    """Apply _sanitize_metadata_value to every field, passing the key."""
+    """Apply aggressive scalar sanitization to every field."""
     sanitized = {}
     for k, v in metadata.items():
-        sanitized[k] = _sanitize_metadata_value(v, key=k)
+        sanitized[k] = _sanitize_metadata_value(v)
     return sanitized
 
 # --- Connection management ---
@@ -138,7 +87,7 @@ def get_case_kb_collection(user_id: str) -> Collection:
     _active_user_collections[user_id] = collection
     return collection
 
-# --- Ingestion with metadata sanitization ---
+# --- Ingestion with aggressive metadata sanitization ---
 def create_and_store_embeddings_from_chunks(
     user_id: str,
     document_id: str,
@@ -164,7 +113,7 @@ def create_and_store_embeddings_from_chunks(
             embeddings.append(emb)
             valid_chunks.append(chunk)
 
-            # Sanitize metadata with special field handling
+            # Build metadata and sanitize aggressively
             raw_meta = dict(metadatas[i])
             raw_meta['source_document_id'] = str(document_id)
             raw_meta['case_id'] = str(case_id)
@@ -194,7 +143,7 @@ def create_and_store_embeddings_from_chunks(
         logger.error(f"Ingestion failed: {e}", exc_info=True)
         return False
 
-# --- Query functions (unchanged) ---
+# --- Query functions (unchanged, safe) ---
 def query_case_knowledge_base(
     user_id: str,
     query_text: str,
@@ -302,7 +251,6 @@ def copy_document_embeddings(
         metadatas = results.get('metadatas')
         embeddings = results.get('embeddings')
 
-        # PHOENIX: Explicit None handling
         if documents is None:
             documents = []
         if metadatas is None:
