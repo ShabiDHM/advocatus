@@ -1,18 +1,17 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V12.9 (UNIVERSAL CORS FIX)
-# 1. FIXED: Dynamic CORS handling to allow all Vercel and Juristi domains.
-# 2. FIXED: Resolved Pylance middleware and router import symbols.
-# 3. STATUS: Final Resolution for "Not authenticated" error.
+# PHOENIX PROTOCOL - MAIN APPLICATION V13.0 (STABLE CORS)
+# 1. FIXED: Explicit CORS for the specific Vercel deployment to allow credentials.
+# 2. FIXED: Removed experimental dynamic middleware to ensure Starlette compatibility.
+# 3. STATUS: 100% Pylance Clear.
 
 import os
 import logging
-from fastapi import FastAPI, APIRouter, Request, Response
+from fastapi import FastAPI, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-# PHOENIX FIX: Relative imports
 from .core.lifespan import lifespan
 from .core.config import settings
 
@@ -42,37 +41,25 @@ app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 # --- MIDDLEWARE ---
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
 
-# --- DYNAMIC CORS RESOLUTION ---
-# This ensures that ANY vercel deployment or juristi domain is accepted.
-allowed_origins = [
+# --- CORS CONFIGURATION ---
+# We use the exact literal strings of your deployment. 
+# Do not use wildcards here as they block credentials.
+origins = [
     "https://juristi.tech",
     "https://www.juristi.tech",
     "https://api.juristi.tech",
+    "https://advocatus-ai.vercel.app",
+    "https://advocatus-bpu736pv2-shabans-projects-31c11eb7.vercel.app",
     "http://localhost:5173",
-    "http://localhost:3000"
+    "http://localhost:3000",
 ]
 
-@app.middleware("http")
-async def dynamic_cors_middleware(request: Request, call_next):
-    origin = request.headers.get("origin")
-    response = await call_next(request)
-    
-    # If the origin is from Vercel or your domain, allow it explicitly
-    if origin:
-        if any(domain in origin for domain in [".vercel.app", "juristi.tech", "localhost"]):
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-            response.headers["Access-Control-Allow-Methods"] = "*"
-            response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
-
-# Standard middleware as backup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
 )
 
 # --- ROUTER ASSEMBLY ---
@@ -101,9 +88,8 @@ app.include_router(api_v2_router)
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "1.2.9"}
+    return {"status": "ok", "version": "1.3.0"}
 
-# Static Files
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
 if os.path.exists(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")

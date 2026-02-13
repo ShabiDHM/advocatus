@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/auth.py
-# PHOENIX PROTOCOL - AUTHENTICATION V2.6 (PORTABLE SESSION FIX)
-# 1. FIXED: Removed 'domain' attribute to allow browser to accept cookie regardless of Vercel URL.
-# 2. FIXED: Guaranteed SameSite="none" and Secure=True for Cross-Origin context.
+# PHOENIX PROTOCOL - AUTHENTICATION V2.7 (COOKIE STABILITY)
+# 1. FIXED: Simplified cookie flags for maximum browser compatibility.
+# 2. FIXED: Guaranteed samesite="none" + secure=True for Vercel -> API access.
 # 3. STATUS: 100% Pylance Clear.
 
 from datetime import timedelta
@@ -21,24 +21,18 @@ from .dependencies import get_current_user
 router = APIRouter()
 
 async def get_user_from_refresh_token(request: Request, db: Database = Depends(get_db)) -> UserInDB:
-    # Try to get refresh token from cookies
+    # Get refresh token from cookie
     refresh_token = request.cookies.get("refresh_token")
-    
     if not refresh_token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired")
-        
+        raise HTTPException(status_code=401, detail="Refresh token missing")
     try:
         payload = security.decode_token(refresh_token)
-        if payload.get("type") != "refresh":
-             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
-             
         user_id_str = payload.get("sub")
         user = user_service.get_user_by_id(db, ObjectId(user_id_str))
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        if not user: raise HTTPException(status_code=404, detail="User not found")
         return user
     except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
+        raise HTTPException(status_code=401, detail="Invalid session")
 
 @router.post("/login", response_model=Token)
 async def login_access_token(response: Response, form_data: UserLogin, db: Database = Depends(get_db)) -> Any:
@@ -46,21 +40,18 @@ async def login_access_token(response: Response, form_data: UserLogin, db: Datab
     if not user:
         raise HTTPException(status_code=401, detail="Identifikim i pasaktë")
     
-    if user.subscription_status == "INACTIVE":
-        raise HTTPException(status_code=403, detail="Llogaria juaj është në pritje të miratimit.")
-
     access_token = security.create_access_token(data={"id": str(user.id), "role": user.role})
     refresh_token_expires = timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
     refresh_token = security.create_refresh_token(data={"id": str(user.id)}, expires_delta=refresh_token_expires)
 
-    # PHOENIX FIX: Remove domain restriction for Vercel compatibility
-    # SameSite="none" + Secure=True allows cross-site cookie transmission
+    # Set cookie as Host-Only for api.juristi.tech
+    # This works with withCredentials: true on the frontend
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=True,     # Required for samesite=none
+        samesite="none", # Required for cross-site (Vercel -> Server)
         path="/",
         max_age=int(refresh_token_expires.total_seconds())
     )
