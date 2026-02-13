@@ -1,8 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V52.0 (DIAGNOSTIC LOGGING)
-# 1. DIAGNOSTIC: Logs every citation attempt and mapping result.
-# 2. FLEXIBLE: Uses law number + article as primary key, with fallback to title.
-# 3. DEBUG: Run a query, then check logs with `docker compose logs backend | grep "CITATION"`.
+# PHOENIX PROTOCOL - RAG SERVICE V52.2 (FORCE DEBUG LOGGING)
 
 import os
 import asyncio
@@ -13,6 +10,7 @@ from langchain_openai import ChatOpenAI
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # <-- FORCE DEBUG OUTPUT
 
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY") 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -154,7 +152,9 @@ class AlbanianRAGService:
 
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None, 
                    document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> AsyncGenerator[str, None]:
-        # ... (unchanged, same as before) ...
+        """
+        Streaming legal analysis with optimized buffer and flexible law linking.
+        """
         if not self.llm:
             yield "Sistemi AI nuk është aktiv."
             yield AI_DISCLAIMER
@@ -239,7 +239,7 @@ class AlbanianRAGService:
             yield AI_DISCLAIMER
 
     async def generate_legal_draft(self, instruction: str, user_id: str, case_id: Optional[str]) -> str:
-        # ... (unchanged) ...
+        """Generate a legal draft with fully formatted citations."""
         if not self.llm: 
             return "Sistemi AI Offline." + AI_DISCLAIMER
         from . import vector_store_service
@@ -262,7 +262,7 @@ class AlbanianRAGService:
             return f"Gabim gjatë draftimit: {str(e)}" + AI_DISCLAIMER
 
     async def fast_rag(self, query: str, user_id: str, case_id: Optional[str] = None) -> str:
-        # ... (unchanged) ...
+        """Quick RAG response with formatted citations."""
         if not self.llm: return ""
         from . import vector_store_service
         l_docs = vector_store_service.query_global_knowledge_base(query_text=query, n_results=5)
