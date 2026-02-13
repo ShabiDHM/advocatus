@@ -2,7 +2,7 @@
 // PHOENIX PROTOCOL - DASHBOARD V27.0 (MOBILE UI POLISH)
 // 1. UI: Optimized 'Virtual Guardian' card for mobile (font scaling, padding adjustments).
 // 2. UI: Improved 'Case Management' header alignment for small screens.
-// 3. LOGIC: Preserved all real-time ticking and deletion logic.
+
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
