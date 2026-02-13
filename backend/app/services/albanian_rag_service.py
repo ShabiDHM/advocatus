@@ -1,7 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V52.3 (FORCED PRINT DIAGNOSTICS)
+# PHOENIX PROTOCOL - RAG SERVICE V52.4 (IMMEDIATE FLUSH DIAGNOSTICS)
 
 import os
+import sys
 import asyncio
 import logging
 import re
@@ -90,31 +91,30 @@ class AlbanianRAGService:
         return text
 
     def _make_link(self, law_text: str, article_num: str, full_citation: str) -> str:
-        # PRINT for guaranteed output
-        print(f"CITATION_DIAG: Processing: '{full_citation}'")
-        print(f"CITATION_DIAG: law_text='{law_text}', article_num='{article_num}'")
+        print(f"CITATION_DIAG: Processing: '{full_citation}'", flush=True)
+        print(f"CITATION_DIAG: law_text='{law_text}', article_num='{article_num}'", flush=True)
 
         law_number = self._extract_law_number(law_text)
         if law_number:
-            print(f"CITATION_DIAG: Extracted law number: '{law_number}'")
+            print(f"CITATION_DIAG: Extracted law number: '{law_number}'", flush=True)
             num_key = (law_number, article_num.strip())
             chunk_id = self.law_number_map.get(num_key)
             if chunk_id:
-                print(f"CITATION_DIAG: Found by law number! chunk_id={chunk_id}")
+                print(f"CITATION_DIAG: Found by law number! chunk_id={chunk_id}", flush=True)
                 return f"[{full_citation}](/laws/{chunk_id})"
             else:
-                print(f"CITATION_DIAG: No match for law number key: {num_key}")
+                print(f"CITATION_DIAG: No match for law number key: {num_key}", flush=True)
 
         norm_title = self._normalize_law_title(law_text)
         key = (norm_title, article_num.strip())
         chunk_id = self.citation_map.get(key)
         if chunk_id:
-            print(f"CITATION_DIAG: Found by title! chunk_id={chunk_id}")
+            print(f"CITATION_DIAG: Found by title! chunk_id={chunk_id}", flush=True)
             return f"[{full_citation}](/laws/{chunk_id})"
         else:
-            print(f"CITATION_DIAG: No match for title key: {key}")
+            print(f"CITATION_DIAG: No match for title key: {key}", flush=True)
 
-        print(f"CITATION_DIAG: No chunk_id found, returning plain text")
+        print(f"CITATION_DIAG: No chunk_id found, returning plain text", flush=True)
         return full_citation
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict]) -> str:
@@ -138,6 +138,7 @@ class AlbanianRAGService:
 
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None,
                    document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> AsyncGenerator[str, None]:
+        print("CITATION_DIAG: chat method started", flush=True)
         if not self.llm:
             yield "Sistemi AI nuk është aktiv."
             yield AI_DISCLAIMER
