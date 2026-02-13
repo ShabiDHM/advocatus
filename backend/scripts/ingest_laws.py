@@ -1,10 +1,8 @@
 # FILE: backend/scripts/ingest_laws.py
-# PHOENIX PROTOCOL - INGESTION SCRIPT V3.0 (ARTICLE‑LEVEL METADATA)
-# 1. ADDED: Law title extraction from document content (Kosovo standard).
-# 2. ADDED: Article‑aware splitting – each chunk corresponds to one article.
-# 3. ADDED: Metadata fields: law_title, article_number, source, jurisdiction, page.
-# 4. FIXED: Now enables precise citations [Ligji, Neni XX](doc://ligji) in downstream RAG.
-# 5. STATUS: Full article metadata extraction – no more “Neni përkatës” hallucinations.
+# PHOENIX PROTOCOL - INGESTION SCRIPT V3.1 (UNIQUE CHUNK IDS)
+# 1. FIXED: ChromaDB duplicate ID error – added UUID to chunk ID.
+# 2. FIXED: Handles multiple occurrences of same article number.
+# 3. STATUS: 100% unique IDs – no more duplicate errors.
 
 import os
 import sys
@@ -12,6 +10,7 @@ import glob
 import hashlib
 import argparse
 import re
+import uuid
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
@@ -51,40 +50,37 @@ def extract_law_title(full_text: str) -> str:
     for line in lines[:20]:  # scan first 20 lines
         # Look for patterns: "LIGJI Nr. ..." or "LIGJI PËR ..."
         if re.match(r'^\s*LIGJI(\s+[Nn]r\.?\s*\d+)?(\s+PËR|\s+[A-Z])', line, re.IGNORECASE):
-            # Clean up the line: strip, remove multiple spaces
             title = ' '.join(line.strip().split())
             return title
-    # Fallback: use the first non‑empty line if it looks like a title
     for line in lines[:10]:
         if line.strip() and len(line.strip()) > 15 and not line.strip()[0].isdigit():
             return line.strip()
-    return "Ligji i Republikës së Kosovës"  # ultimate fallback
+    return "Ligji i Republikës së Kosovës"
 
 def split_by_article(text: str) -> List[Tuple[str, str]]:
     """
     Splits a legal document into articles.
     Returns list of (article_number, article_content).
+    Handles multiple occurrences of the same article number gracefully.
     """
-    # Kosovo laws use "Neni [numri]" as article header
     pattern = r'(Neni\s+(\d+(?:\.\d+)?))'
     matches = list(re.finditer(pattern, text, re.IGNORECASE))
     
     if len(matches) <= 1:
-        # No clear article boundaries – treat whole document as one article (Neni 1)
         return [("1", text.strip())]
     
     articles = []
     for i, match in enumerate(matches):
         start = match.start()
         article_num = match.group(2).strip()
-        # End is start of next article, or end of text
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         article_content = text[start:end].strip()
+        # PHOENIX: Append occurrence count if same article number appears again?
+        # Not needed – we will handle via UUID in ID.
         articles.append((article_num, article_content))
     
     return articles
 
-# --- FILE HASH (unchanged) ---
 def calculate_file_hash(filepath: str) -> str:
     hasher = hashlib.md5()
     try:
@@ -96,7 +92,6 @@ def calculate_file_hash(filepath: str) -> str:
         print(f"⚠️ Could not hash file {filepath}: {e}")
         return ""
 
-# --- MAIN INGESTION ---
 def ingest_legal_docs(directory_path: str, force_reingest: bool = False):
     abs_path = os.path.abspath(directory_path)
     print(f"📂 Scanning Directory: {abs_path}")
@@ -199,14 +194,15 @@ def ingest_legal_docs(directory_path: str, force_reingest: bool = False):
             batch_texts = []
             batch_metadatas = []
 
+            # PHOENIX: Use UUID to guarantee unique chunk IDs
+            splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+            
             for article_num, article_content in articles:
-                # Further split article if it's too long (preserve article boundaries)
-                # Use small chunks with overlap but keep article number on all chunks
-                splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
                 chunks = splitter.split_text(article_content)
-                
                 for i, chunk in enumerate(chunks):
-                    chunk_id = f"{filename}_art{article_num}_ch{i}_{TARGET_JURISDICTION}_{current_hash[:8]}"
+                    # Unique ID: filename + hash + article_num + chunk_index + UUID
+                    # UUID ensures no collisions even if same file/article/chunk is reprocessed.
+                    chunk_id = f"{filename}_{current_hash[:8]}_art{article_num}_ch{i}_{uuid.uuid4()}"
                     batch_ids.append(chunk_id)
                     batch_texts.append(chunk)
                     
@@ -217,7 +213,7 @@ def ingest_legal_docs(directory_path: str, force_reingest: bool = False):
                         "type": "LAW",
                         "jurisdiction": TARGET_JURISDICTION,
                         "file_hash": current_hash,
-                        "page": 0,  # page info is lost after combining; could be improved
+                        "page": 0,
                     }
                     batch_metadatas.append(metadata)
 
