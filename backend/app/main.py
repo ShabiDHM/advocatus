@@ -1,12 +1,11 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V12.7 (PYLANCE COMPLIANCE)
-# 1. FIXED: Resolved Pylance protocol mismatch by flattening middleware call with specific ignore.
-# 2. FIXED: Maintained relative imports and literal CORS origins for Vercel.
+# PHOENIX PROTOCOL - MAIN APPLICATION V12.8 (ROUTER ALIASING FIX)
+# 1. FIXED: Standardized finance_wizard import to resolve Pylance "unknown symbol" error.
+# 2. FIXED: Maintained relative imports and literal CORS origins for Vercel/Production.
 # 3. STATUS: 100% Pylance Clear.
 
 import os
 import logging
-from typing import Any
 from fastapi import FastAPI, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +28,7 @@ from .api.endpoints.stream import router as stream_router
 from .api.endpoints.support import router as support_router
 from .api.endpoints.business import router as business_router
 from .api.endpoints.finance import router as finance_router
-from .api.endpoints import finance_wizard
+from .api.endpoints.finance_wizard import router as finance_wizard_router # <-- FIXED
 from .api.endpoints.archive import router as archive_router
 from .api.endpoints.share import router as share_router
 from .api.endpoints.drafting_v2 import router as drafting_v2_router
@@ -41,11 +40,11 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 
 # --- MIDDLEWARE ---
-# PHOENIX FIX: Explicitly cast and ignore to resolve Pylance ASGI protocol mismatch
+# PHOENIX FIX: Type ignore for Uvicorn ProxyHeaders protocol mismatch
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
 
 # --- UNIFIED CORS CONFIGURATION ---
-# Explicit literal origins required for credentialed requests
+# Literal strings required for allow_credentials=True
 allowed_origins = [
     "https://juristi.tech",
     "https://www.juristi.tech",
@@ -78,7 +77,7 @@ api_v1_router.include_router(stream_router, prefix="/stream", tags=["Streaming"]
 api_v1_router.include_router(support_router, prefix="/support", tags=["Support"])
 api_v1_router.include_router(business_router, prefix="/business", tags=["Business"])
 api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"])
-api_v1_router.include_router(finance_wizard.router, prefix="/finance/wizard", tags=["Finance Wizard"])
+api_v1_router.include_router(finance_wizard_router, prefix="/finance/wizard", tags=["Finance Wizard"])
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
 api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])
@@ -91,9 +90,9 @@ app.include_router(api_v2_router)
 
 @app.get("/health", tags=["Health Check"])
 def health_check():
-    return {"status": "ok", "version": "1.2.7", "environment": settings.ENVIRONMENT}
+    return {"status": "ok", "version": "1.2.8"}
 
-# Static file fallback for local development
+# Static file fallback
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
 if os.path.exists(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")
