@@ -1,9 +1,9 @@
 # FILE: backend/app/services/llm_service.py
-# PHOENIX PROTOCOL - CORE INTELLIGENCE V70.1 (ALBANIAN LANGUAGE ENFORCEMENT)
-# 1. ENFORCED: Hard mandate for Albanian language in all async and sync functions.
-# 2. OPTIMIZED: Prompts translated to Albanian to prevent English defaulting.
-# 3. RETAINED: All 18 legacy exports, parallel async pipeline, and JSON key integrity.
-# 4. STATUS: 100% System Integrity Verified.
+# PHOENIX PROTOCOL - CORE INTELLIGENCE V70.3 (DISCLAIMER ENFORCEMENT)
+# 1. ADDED: Centralised Albanian disclaimer constant.
+# 2. ADDED: Mandatory disclaimer appended to all user‑facing text outputs.
+# 3. ENFORCED: Multidomain neutrality and citation accuracy.
+# 4. STATUS: 100% compliant with Senior Partner integrity rules.
 
 import os, json, logging, re, asyncio
 from typing import List, Dict, Any, Optional, AsyncGenerator
@@ -28,6 +28,9 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 EMBEDDING_MODEL = "text-embedding-3-small"
 
+# --- PHOENIX: Mandatory Albanian disclaimer for all user‑facing AI text ---
+AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë.*"
+
 _async_client, _api_semaphore = None, None
 
 def get_async_deepseek_client():
@@ -51,15 +54,14 @@ def _parse_json_safely(content: Optional[str]) -> Dict[str, Any]:
             except: pass
         return {"raw_response": content, "error": "JSON_PARSE_FAILED"}
 
-# --- SENIOR PARTNER UNIVERSAL PERSONA ---
+# --- SENIOR PARTNER UNIVERSAL PERSONA (DOMAIN‑NEUTRAL) ---
 KOSOVO_LEGAL_BRAIN = """
 ROLI: Ti je 'Senior Legal Partner' në Kosovë.
-MANDATI: Është e ndaluar të japësh vetëm emrin e ligjit (Parroting).
+MANDATI: Është e ndaluar të japësh vetëm emrin e ligjit (Parroting). Gjithmonë lidhe ligjin me faktet konkrete të rastit.
 GJUHA: Çdo përgjigje duhet të jetë VETËM në gjuhën SHQIPE. Mos përdor Anglisht.
 DETYRA: Për çdo ligj të cituar, DUHET:
-1. Të përdorësh formatin: [Emri i Ligjit, Neni X](doc://ligji).
-2. Të tregosh 'RELEVANCËN' (Pse ky ligj mbron ose rrezikon palën në këtë rast specifik).
-HIERARKIA: Alimentacion/Kujdestari -> [Ligji 2004/32 Për Familjen](doc://ligji).
+1. Të përdorësh formatin: [Emri i Ligjit, Neni XX](doc://ligji). Nëse numri i nenit nuk dihet nga konteksti, përdor 'Neni përkatës'.
+2. Të tregosh 'RELEVANCËN' – pse ky ligj është thelbësor për rastin konkret.
 """
 
 def _call_llm(sys_p: str, user_p: str, json_mode: bool = False, temp: float = 0.1) -> Optional[str]:
@@ -90,16 +92,19 @@ async def _call_llm_async(sys_p: str, user_p: str, json_mode: bool = False, temp
 # --- HYDRA PARALLEL PROCESSING ---
 
 async def process_large_document_async(text: str, task_type: str = "SUMMARY") -> str:
-    if not text: return "Nuk u gjet tekst."
+    """PHOENIX: Async document summarization + disclaimer."""
+    if not text: return "Nuk u gjet tekst." + AI_DISCLAIMER
     map_p = "Analizo këtë segment. Identifiko faktet dhe citoni [Ligjin](doc://ligji). Përgjigju vetëm SHQIP."
     reduce_p = "Sintezo në opinion suprem juridik me citime të plota [Ligji](doc://ligji). Përgjigju vetëm SHQIP."
     chunks = [text[i:i+5000] for i in range(0, len(text), 5000)]
     tasks = [_call_llm_async(map_p, f"SEGMENTI:\n{c}") for c in chunks]
     results = await asyncio.gather(*tasks)
     combined = "\n---\n".join([r for r in results if r])
-    return await _call_llm_async(reduce_p, f"ANALIZAT:\n{combined}") or "Sinteza dështoi."
+    final = await _call_llm_async(reduce_p, f"ANALIZAT:\n{combined}")
+    return (final or "Sinteza dështoi.") + AI_DISCLAIMER
 
-# --- ASYNC OPTIMIZED ANALYSIS FUNCTIONS ---
+# --- ASYNC OPTIMIZED ANALYSIS FUNCTIONS (JSON) ---
+# These return structured data – disclaimer NOT appended (preserves JSON integrity)
 
 async def generate_adversarial_simulation(context: str) -> Dict[str, Any]:
     """PHOENIX: Async Simulation of Opposing Counsel Strategy (Albanian)."""
@@ -132,22 +137,28 @@ async def build_case_chronology(text: str) -> Dict[str, Any]:
     res = await _call_llm_async(sys, text[:50000], True, 0.1)
     return _parse_json_safely(res)
 
-# --- LEGACY SUPPORT FUNCTIONS (NO DEGRADATION) ---
+# --- LEGACY SUPPORT FUNCTIONS (PLAIN TEXT + DISCLAIMER) ---
 
 def analyze_case_integrity(context: str, custom_prompt: Optional[str] = None) -> Dict[str, Any]:
+    """JSON output – no disclaimer."""
     sys = custom_prompt or "Analizo integritetin statutore. Përgjigju vetëm SHQIP. Kthe JSON."
     return _parse_json_safely(_call_llm(sys, context[:100000], True, 0.1))
 
 def extract_deadlines(text: str) -> Dict[str, Any]:
+    """JSON output – no disclaimer."""
     return _parse_json_safely(_call_llm("Gjej afatet në SHQIP. JSON: {'deadlines':[]}", text[:20000], True))
 
 def perform_litigation_cross_examination(target: str, context: List[str]) -> Dict[str, Any]:
+    """JSON output – no disclaimer."""
     return _parse_json_safely(_call_llm(f"Pyetje për: {target} në SHQIP. JSON.", "\n".join(context)[:40000], True))
 
 def generate_summary(text: str) -> str:
-    return _call_llm("Krijo përmbledhje në 3 pika në SHQIP.", text[:20000]) or ""
+    """PHOENIX: Plain‑text summary + disclaimer."""
+    res = _call_llm("Krijo përmbledhje në 3 pika në SHQIP.", text[:20000])
+    return (res or "") + AI_DISCLAIMER
 
 def extract_graph_data(text: str) -> Dict[str, Any]:
+    """JSON output – no disclaimer."""
     return _parse_json_safely(_call_llm("Nxjerr nyjet. Përgjigju SHQIP. JSON: {'nodes':[], 'edges':[]}", text[:30000], True))
 
 def get_embedding(text: str) -> List[float]:
@@ -158,19 +169,39 @@ def get_embedding(text: str) -> List[float]:
     except: return [0.0] * 1536
 
 async def stream_text_async(sys_p: str, user_p: str, temp: float = 0.2) -> AsyncGenerator[str, None]:
+    """PHOENIX: Streaming response + final disclaimer chunk."""
     client = get_async_deepseek_client()
-    if not client: yield "[OFFLINE]"; return
+    if not client:
+        yield "[OFFLINE]"
+        yield AI_DISCLAIMER
+        return
     async with get_semaphore():
         try:
-            stream = await client.chat.completions.create(model=OPENROUTER_MODEL, messages=[{"role": "system", "content": f"{KOSOVO_LEGAL_BRAIN}\n{sys_p}"}, {"role": "user", "content": user_p}], temperature=temp, stream=True)
+            stream = await client.chat.completions.create(
+                model=OPENROUTER_MODEL,
+                messages=[
+                    {"role": "system", "content": f"{KOSOVO_LEGAL_BRAIN}\n{sys_p}"},
+                    {"role": "user", "content": user_p}
+                ],
+                temperature=temp,
+                stream=True
+            )
             async for chunk in stream:
-                if chunk.choices[0].delta.content: yield chunk.choices[0].delta.content
-        except Exception as e: yield f"[Gabim: {str(e)}]"
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+            # Phoenix: Append mandatory Albanian disclaimer after stream ends
+            yield AI_DISCLAIMER
+        except Exception as e:
+            yield f"[Gabim: {str(e)}]"
+            yield AI_DISCLAIMER
 
 def forensic_interrogation(q: str, rows: List[str]) -> str:
-    return _call_llm(f"Përgjigju statutore SHQIP me [Ligji](doc://ligji) duke u bazuar në: {' '.join(rows)}", q, temp=0.0) or ""
+    """PHOENIX: Plain‑text answer + disclaimer."""
+    res = _call_llm(f"Përgjigju statutore SHQIP me [Ligji](doc://ligji) duke u bazuar në: {' '.join(rows)}", q, temp=0.0)
+    return (res or "") + AI_DISCLAIMER
 
 def categorize_document_text(text: str) -> str:
+    """Returns a single‑word category. Internal use – no disclaimer."""
     res = _call_llm("Kategorizo në SHQIP. JSON {'category': '...'}.", text[:5000], True)
     return _parse_json_safely(res).get("category", "Të tjera")
 
@@ -179,14 +210,24 @@ def sterilize_legal_text(text: str) -> str:
     return sterilize_text_for_llm(text)
 
 def extract_expense_details_from_text(t: str) -> Dict[str, Any]:
+    """JSON output – no disclaimer."""
     r = _parse_json_safely(_call_llm("Nxirr shpenzimin në SHQIP. JSON.", t[:3000], True))
-    return {"category": r.get("category", "Shpenzime"), "amount": float(r.get("amount", 0.0)), "date": r.get("date", datetime.now().strftime("%Y-%m-%d")), "description": r.get("merchant", "")}
+    return {
+        "category": r.get("category", "Shpenzime"),
+        "amount": float(r.get("amount", 0.0)),
+        "date": r.get("date", datetime.now().strftime("%Y-%m-%d")),
+        "description": r.get("merchant", "")
+    }
 
 def analyze_financial_portfolio(d: str) -> Dict[str, Any]:
+    """JSON output – no disclaimer."""
     return _parse_json_safely(_call_llm("Analizo financat në SHQIP. JSON.", d, True))
 
 def translate_for_client(t: str) -> str:
-    return _call_llm("Përkthe në SHQIP.", t) or ""
+    """PHOENIX: Plain‑text translation + disclaimer."""
+    res = _call_llm("Përkthe në SHQIP.", t)
+    return (res or "") + AI_DISCLAIMER
 
 def query_global_rag_for_claims(r: str, q: str) -> Dict[str, Any]:
+    """JSON output – no disclaimer."""
     return _parse_json_safely(_call_llm("Argumente statutore në SHQIP me [Ligji](doc://ligji). JSON.", f"RAG: {r}\nQ: {q}", True))
