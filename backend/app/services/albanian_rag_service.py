@@ -1,8 +1,9 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V47.5 (DISCLAIMER ENFORCEMENT)
-# 1. ADDED: Mandatory Albanian disclaimer at the end of every chat response and legal draft.
-# 2. FIXED: Multidomain neutrality and citation accuracy (no hardcoded law names).
-# 3. STATUS: 100% compliant with Senior Partner integrity rules.
+# PHOENIX PROTOCOL - RAG SERVICE V47.6 (CITATION METADATA INTEGRATION)
+# 1. ENHANCED: Global law context now includes explicit law_title and article_number metadata.
+# 2. ENHANCED: Pre‑formatted Markdown citation [Ligji, Neni XX](doc://ligji) shown to LLM.
+# 3. FIXED: Eliminates hallucination of article numbers via structured metadata.
+# 4. STATUS: Full synergy with ingest_laws.py V3.0 article‑level ingestion.
 
 import os
 import asyncio
@@ -18,7 +19,6 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 OPENROUTER_MODEL = "deepseek/deepseek-chat" 
 LLM_TIMEOUT = 120
 
-# Albanian disclaimer – MUST appear at the end of every AI‑generated legal text
 AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë.*"
 
 PROTOKOLLI_MANDATOR = """
@@ -49,7 +49,7 @@ class AlbanianRAGService:
         
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None, document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> AsyncGenerator[str, None]:
         """
-        DEEP MODE: High-IQ Streaming Legal Analysis + Albanian disclaimer.
+        DEEP MODE: High-IQ Streaming Legal Analysis + Metadata‑enriched citations.
         """
         if not self.llm:
             yield "Sistemi AI nuk është aktiv."
@@ -66,8 +66,17 @@ class AlbanianRAGService:
             context_str += f"[{d.get('source')}, FAQJA: {d.get('page')}]: {d.get('text')}\n\n"
         
         context_str += "\n<<< BAZA LIGJORE STATUTORE >>>\n"
-        for d in global_docs: 
-            context_str += f"LIGJI: '{d.get('source')}': {d.get('text')}\n\n"
+        for d in global_docs:
+            # PHOENIX: Extract metadata – law_title supersedes source, article_number if available
+            law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
+            article_num = d.get('article_number')
+            
+            if article_num:
+                citation = f"[{law_title}, Neni {article_num}](doc://ligji)"
+            else:
+                citation = f"[{law_title}](doc://ligji)"
+            
+            context_str += f"LIGJI: {citation}\nPËRMBAJTJA: {d.get('text')}\n\n"
         
         prompt = f"""
         Ti je "Senior Legal Partner". Detyra jote është të japësh një opinion ligjor suprem.
@@ -95,7 +104,6 @@ class AlbanianRAGService:
             async for chunk in self.llm.astream(prompt):
                 if chunk.content:
                     yield str(chunk.content)
-            # Phoenix: Append mandatory Albanian disclaimer after the full response
             yield AI_DISCLAIMER
         except Exception as e:
             logger.error(f"Deep Chat Stream Failure: {e}")
@@ -104,16 +112,29 @@ class AlbanianRAGService:
 
     async def generate_legal_draft(self, instruction: str, user_id: str, case_id: Optional[str]) -> str:
         """
-        Generates a legal draft document and appends the Albanian disclaimer.
+        Generates a legal draft document with metadata‑aware law citations + disclaimer.
         """
         if not self.llm: 
             return "Sistemi AI Offline." + AI_DISCLAIMER
         from . import vector_store_service
         p_docs = vector_store_service.query_case_knowledge_base(user_id=user_id, query_text=instruction, case_context_id=case_id, n_results=15)
         l_docs = vector_store_service.query_global_knowledge_base(query_text=instruction, n_results=15)
+        
         facts = "\n".join([f"[{r.get('source')}]: {r.get('text')}" for r in p_docs])
-        laws = "\n".join([f"[{r.get('source')}]: {r.get('text')}" for r in l_docs])
-        prompt = f"{PROTOKOLLI_MANDATOR}\nPROVAT: {facts}\nLIGJET: {laws}\nDETYRA: Harto {instruction}."
+        
+        # PHOENIX: Enriched law context with citation metadata
+        laws = []
+        for d in l_docs:
+            law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
+            article_num = d.get('article_number')
+            if article_num:
+                citation = f"[{law_title}, Neni {article_num}](doc://ligji)"
+            else:
+                citation = f"[{law_title}](doc://ligji)"
+            laws.append(f"{citation}: {d.get('text')}")
+        laws_str = "\n".join(laws)
+        
+        prompt = f"{PROTOKOLLI_MANDATOR}\nPROVAT: {facts}\nLIGJET: {laws_str}\nDETYRA: Harto {instruction}."
         try:
             res = await self.llm.ainvoke(prompt)
             return str(res.content) + AI_DISCLAIMER
