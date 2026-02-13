@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V48.0 (OPTIMIZED STREAMING BUFFER)
-# 1. FEATURE: Smooth character‑by‑character streaming with 100% citation formatting.
-# 2. OPTIMIZATION: Flushes buffer on spaces and punctuation, holds partial citations.
-# 3. STATUS: Production‑ready, no degradation, perfect citations.
+# PHOENIX PROTOCOL - RAG SERVICE V48.1 (HTTP LAW LINKS)
+# 1. FEATURE: Generates real HTTP links to law viewer endpoint.
+# 2. OPTIMIZED: Smooth streaming buffer with 100% citation formatting.
+# 3. DEPENDENCY: Requires chunk_id from vector_store_service.
 
 import os
 import asyncio
@@ -52,11 +52,32 @@ class AlbanianRAGService:
         pattern = r'(Ligji[^,]+(?:Nr\.?\s*\d+/\d+)?[^,]*?,\s*Neni\s+(\d+))'
         return re.sub(pattern, r'[\1](doc://ligji)', text, flags=re.IGNORECASE)
 
+    def _build_context(self, case_docs: List[Dict], global_docs: List[Dict]) -> str:
+        context = "\n<<< MATERIALET E DOSJES >>>\n"
+        for d in case_docs:
+            context += f"[{d.get('source')}, FAQJA: {d.get('page')}]: {d.get('text')}\n\n"
+
+        context += "\n<<< BAZA LIGJORE STATUTORE >>>\n"
+        for d in global_docs:
+            law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
+            article_num = d.get('article_number')
+            chunk_id = d.get('chunk_id')
+            # Build the link – use chunk_id if available, otherwise fallback
+            if article_num and chunk_id:
+                link = f"/api/v1/laws/{chunk_id}"
+                citation = f"[{law_title}, Neni {article_num}]({link})"
+            elif chunk_id:
+                link = f"/api/v1/laws/{chunk_id}"
+                citation = f"[{law_title}]({link})"
+            else:
+                citation = law_title
+            context += f"LIGJI: {citation}\nPËRMBAJTJA: {d.get('text')}\n\n"
+        return context
+
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None, 
                    document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> AsyncGenerator[str, None]:
         """
-        Streaming legal analysis with optimized buffer.
-        Citations are formatted instantly without splitting, while the stream feels responsive.
+        Streaming legal analysis with optimized buffer and real HTTP law links.
         """
         if not self.llm:
             yield "Sistemi AI nuk është aktiv."
@@ -73,19 +94,7 @@ class AlbanianRAGService:
             query_text=query, jurisdiction=jurisdiction, n_results=15
         )
         
-        context_str = "\n<<< MATERIALET E DOSJES >>>\n"
-        for d in case_docs: 
-            context_str += f"[{d.get('source')}, FAQJA: {d.get('page')}]: {d.get('text')}\n\n"
-        
-        context_str += "\n<<< BAZA LIGJORE STATUTORE >>>\n"
-        for d in global_docs:
-            law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
-            article_num = d.get('article_number')
-            if article_num:
-                citation = f"[{law_title}, Neni {article_num}](doc://ligji)"
-            else:
-                citation = f"[{law_title}](doc://ligji)"
-            context_str += f"LIGJI: {citation}\nPËRMBAJTJA: {d.get('text')}\n\n"
+        context_str = self._build_context(case_docs, global_docs)
         
         prompt = f"""
         Ti je "Senior Legal Partner". Detyra jote është të japësh një opinion ligjor suprem.
@@ -110,8 +119,7 @@ class AlbanianRAGService:
         """
         
         buffer = ""
-        MAX_BUFFER = 200  # Flush when buffer gets this large (prevents memory buildup)
-        # Regex to detect an incomplete citation (ends with "Neni " and optional spaces)
+        MAX_BUFFER = 200
         incomplete_pattern = re.compile(r'(Ligji[^,]*,\s*Neni\s*)$', re.IGNORECASE)
 
         try:
@@ -120,38 +128,34 @@ class AlbanianRAGService:
                     raw_content = str(chunk.content)
                     buffer += raw_content
 
-                    # Flush if buffer is too long (at last space)
+                    # Flush if buffer too long (at last space)
                     if len(buffer) >= MAX_BUFFER:
                         last_space = buffer.rfind(' ')
                         if last_space != -1:
                             trailing = buffer[last_space+1:]
-                            # If trailing part looks like an incomplete citation, hold it
                             if incomplete_pattern.search(trailing):
-                                # Keep in buffer, wait for more
                                 continue
-                            # Safe to send up to last_space
                             to_send = buffer[:last_space+1]
                             buffer = buffer[last_space+1:]
                             if to_send.strip():
                                 yield self._format_citations(to_send)
                     
-                    # Flush on punctuation (sentence boundaries) for natural breaks
+                    # Flush on punctuation
                     for delim in ('.', '!', '?', '\n'):
                         if delim in buffer:
                             pos = buffer.rfind(delim)
                             if pos != -1:
                                 to_send = buffer[:pos+1]
                                 rest = buffer[pos+1:]
-                                # If the rest starts with an incomplete citation, hold it
                                 if rest and incomplete_pattern.match(rest):
                                     buffer = rest
                                 else:
                                     buffer = rest
                                 if to_send.strip():
                                     yield self._format_citations(to_send)
-                                break  # Only flush once per chunk
+                                break
 
-            # End of stream: flush remaining buffer
+            # End of stream
             if buffer.strip():
                 yield self._format_citations(buffer)
             
@@ -173,20 +177,9 @@ class AlbanianRAGService:
             query_text=instruction, n_results=15
         )
         
-        facts = "\n".join([f"[{r.get('source')}]: {r.get('text')}" for r in p_docs])
+        context_str = self._build_context(p_docs, l_docs)
         
-        laws = []
-        for d in l_docs:
-            law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
-            article_num = d.get('article_number')
-            if article_num:
-                citation = f"[{law_title}, Neni {article_num}](doc://ligji)"
-            else:
-                citation = f"[{law_title}](doc://ligji)"
-            laws.append(f"{citation}: {d.get('text')}")
-        laws_str = "\n".join(laws)
-        
-        prompt = f"{PROTOKOLLI_MANDATOR}\nPROVAT: {facts}\nLIGJET: {laws_str}\nDETYRA: Harto {instruction}."
+        prompt = f"{PROTOKOLLI_MANDATOR}\n{context_str}\nDETYRA: Harto {instruction}."
         try:
             res = await self.llm.ainvoke(prompt)
             raw_response = str(res.content)

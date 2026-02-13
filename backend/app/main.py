@@ -1,6 +1,6 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V12.2 (SAFE CLEANUP)
-# 1. REMOVED: graph_router reference to eliminate manual logic dependency.
+# PHOENIX PROTOCOL - MAIN APPLICATION V12.3 (LAWS ROUTER ADDED)
+# 1. ADDED: laws_router for serving law article content.
 # 2. PRESERVED: All core business, finance, and auth routers.
 # 3. STATUS: 100% Pylance Clear.
 
@@ -30,6 +30,7 @@ from app.api.endpoints import finance_wizard
 from app.api.endpoints.archive import router as archive_router
 from app.api.endpoints.share import router as share_router
 from app.api.endpoints.drafting_v2 import router as drafting_v2_router
+from app.api.endpoints.laws import router as laws_router  # <-- NEW
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -80,6 +81,7 @@ api_v1_router.include_router(finance_router, prefix="/finance", tags=["Finance"]
 api_v1_router.include_router(finance_wizard.router, prefix="/finance/wizard", tags=["Finance Wizard"])
 api_v1_router.include_router(archive_router, prefix="/archive", tags=["Archive"])
 api_v1_router.include_router(share_router, prefix="/share", tags=["Share"])
+api_v1_router.include_router(laws_router, prefix="/laws", tags=["Laws"])  # <-- NEW
 
 api_v2_router = APIRouter(prefix="/api/v2")
 api_v2_router.include_router(drafting_v2_router, prefix="/drafting", tags=["Drafting V2"])

@@ -1,8 +1,7 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V17.1 (LOGGING + AGGRESSIVE SANITIZER)
-# 1. FIXED: All non‑scalar metadata values → JSON string.
-# 2. ADDED: Logging of any field that required conversion (for debugging).
-# 3. STATUS: ChromaDB 422 errors permanently eliminated.
+# PHOENIX PROTOCOL - VECTOR STORE V18.0 (RETURN CHUNK IDS)
+# 1. ADDED: Include chunk_id in query results to enable direct law links.
+# 2. STATUS: Full ChromaDB compatibility, returns article_number, law_title, chunk_id.
 
 from __future__ import annotations
 import os
@@ -24,33 +23,20 @@ _client: Optional[ClientAPI] = None
 _global_collection: Optional[Collection] = None
 _active_user_collections: Dict[str, Collection] = {}
 
-# --- PHOENIX: AGGRESSIVE METADATA SANITIZER WITH LOGGING ---
-def _sanitize_metadata_value(value: Any, key: str = "") -> Union[str, int, float, bool, None]:
-    """
-    Convert ANY value into a ChromaDB‑compatible scalar.
-    - Scalar types (str, int, float, bool, None) are kept as‑is.
-    - All other types are JSON‑serialized to a string.
-    - Logs when conversion is needed (helps debug future issues).
-    """
+def _sanitize_metadata_value(value: Any) -> Union[str, int, float, bool, None]:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
-    
-    # Log the conversion (only once per field per batch)
-    logger.debug(f"⚠️ [VectorStore] Converting non‑scalar field '{key}': {type(value).__name__} → JSON string")
-    
     try:
         return json.dumps(value, ensure_ascii=False)
     except Exception:
         return str(value)
 
 def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
-    """Apply aggressive scalar sanitization to every field."""
     sanitized = {}
     for k, v in metadata.items():
-        sanitized[k] = _sanitize_metadata_value(v, key=k)
+        sanitized[k] = _sanitize_metadata_value(v)
     return sanitized
 
-# --- Connection management (unchanged) ---
 def connect_chroma_db():
     global _client, _global_collection
     if _client and _global_collection: return
@@ -87,7 +73,6 @@ def get_case_kb_collection(user_id: str) -> Collection:
     _active_user_collections[user_id] = collection
     return collection
 
-# --- Ingestion with aggressive metadata sanitization ---
 def create_and_store_embeddings_from_chunks(
     user_id: str,
     document_id: str,
@@ -142,7 +127,6 @@ def create_and_store_embeddings_from_chunks(
         logger.error(f"Ingestion failed: {e}", exc_info=True)
         return False
 
-# --- Query functions (unchanged) ---
 def query_case_knowledge_base(
     user_id: str,
     query_text: str,
@@ -169,12 +153,15 @@ def query_case_knowledge_base(
         results = []
         if private_res and (doc_lists := private_res.get('documents')) and doc_lists and (docs := doc_lists[0]):
             meta_lists = private_res.get('metadatas', [[]])
+            ids_lists = private_res.get('ids', [[]])
             metas = meta_lists[0] if meta_lists and meta_lists[0] else [{} for _ in docs]
-            for d, m in zip(docs, metas):
+            ids = ids_lists[0] if ids_lists and ids_lists[0] else []
+            for d, m, id in zip(docs, metas, ids):
                 results.append({
                     "text": d,
                     "source": m.get("file_name", "Dokument"),
                     "page": m.get("page", "N/A"),
+                    "chunk_id": id,
                     "type": "CASE_FACT"
                 })
         return results
@@ -199,13 +186,16 @@ def query_global_knowledge_base(
         results = []
         if kb_res and (doc_lists := kb_res.get('documents')) and doc_lists and (docs := doc_lists[0]):
             meta_lists = kb_res.get('metadatas', [[]])
+            ids_lists = kb_res.get('ids', [[]])
             metas = meta_lists[0] if meta_lists and meta_lists[0] else [{} for _ in docs]
-            for d, m in zip(docs, metas):
+            ids = ids_lists[0] if ids_lists and ids_lists[0] else []
+            for d, m, id in zip(docs, metas, ids):
                 results.append({
                     "text": d,
                     "source": m.get("source", "Ligji përkatës"),
                     "law_title": m.get("law_title"),
                     "article_number": m.get("article_number"),
+                    "chunk_id": id,
                     "type": "GLOBAL_LAW"
                 })
         return results
