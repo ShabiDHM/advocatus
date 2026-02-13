@@ -1,7 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V49.0 (CITATION MAP FOR LAW LINKS)
-# 1. FEATURE: Maps law titles + article numbers to chunk IDs for correct link generation.
-# 2. FIXED: Deep mode citations now use /laws/{chunk_id} instead of doc://ligji.
+# PHOENIX PROTOCOL - RAG SERVICE V50.0 (FLEXIBLE CITATION PATTERNS)
+# 1. FEATURE: Supports multiple citation formats (standard and reverse order).
+# 2. FIXED: Now correctly maps "Neni XX i Ligjit ..." to chunk IDs.
 # 3. OPTIMIZED: Smooth streaming buffer with 100% citation formatting.
 
 import os
@@ -48,6 +48,11 @@ class AlbanianRAGService:
         else:
             self.llm = None
 
+    def _normalize_law_title(self, title: str) -> str:
+        """Normalize law title for consistent lookup."""
+        # Remove extra spaces and standardize
+        return ' '.join(title.strip().split())
+
     def _build_citation_map(self, global_docs: List[Dict[str, Any]]):
         """Populate mapping from (law_title, article_num) to chunk_id."""
         self.citation_map.clear()
@@ -56,33 +61,49 @@ class AlbanianRAGService:
             article_num = d.get('article_number')
             chunk_id = d.get('chunk_id')
             if law_title and article_num and chunk_id:
-                # Normalize keys for reliable lookup
-                key = (law_title.strip(), str(article_num).strip())
+                norm_title = self._normalize_law_title(law_title)
+                key = (norm_title, str(article_num).strip())
                 self.citation_map[key] = chunk_id
 
     def _format_citations(self, text: str) -> str:
         """
         Convert plain‑text law citations to Markdown links using the citation map.
-        Example: "Ligji për Familje, Neni 68" → "[Ligji për Familje, Neni 68](/laws/abc123)"
+        Supports both "Ligji ... , Neni XX" and "Neni XX i Ligjit ..." patterns.
         """
-        # Pattern captures the full citation and the article number
-        pattern = r'(Ligji[^,]+(?:Nr\.?\s*\d+/\d+)?[^,]*?,\s*Neni\s+(\d+))'
+        # Pattern 1: "Ligji [law_title], Neni [article_num]"
+        pattern1 = r'(Ligji[^,]+(?:Nr\.?\s*\d+/\d+)?[^,]*?,\s*Neni\s+(\d+))'
         
-        def replacer(match):
+        # Pattern 2: "Neni [article_num] i Ligjit [law_title]"
+        pattern2 = r'Neni\s+(\d+)\s+i\s+(Ligji[^\.]+)'
+
+        def replacer_pattern1(match):
             full_citation = match.group(1)
             article_num = match.group(2)
-            # Try to extract law title (everything before ", Neni")
+            # Extract law title (everything before ", Neni")
             law_title = full_citation.split(', Neni')[0].strip()
-            key = (law_title, article_num)
-            chunk_id = self.citation_map.get(key)
-            if chunk_id:
-                return f"[{full_citation}](/laws/{chunk_id})"
-            else:
-                # Fallback: use a generic placeholder (shouldn't happen)
-                logger.warning(f"No chunk_id found for citation: {full_citation}")
-                return f"[{full_citation}](/laws/not-found)"
-        
-        return re.sub(pattern, replacer, text, flags=re.IGNORECASE)
+            return self._make_link(law_title, article_num, full_citation)
+
+        def replacer_pattern2(match):
+            article_num = match.group(1)
+            law_title = match.group(2).strip()
+            full_citation = f"Neni {article_num} i {law_title}"
+            return self._make_link(law_title, article_num, full_citation)
+
+        # Apply both patterns
+        text = re.sub(pattern1, replacer_pattern1, text, flags=re.IGNORECASE)
+        text = re.sub(pattern2, replacer_pattern2, text, flags=re.IGNORECASE)
+        return text
+
+    def _make_link(self, law_title: str, article_num: str, full_citation: str) -> str:
+        """Generate markdown link using citation map."""
+        norm_title = self._normalize_law_title(law_title)
+        key = (norm_title, article_num.strip())
+        chunk_id = self.citation_map.get(key)
+        if chunk_id:
+            return f"[{full_citation}](/laws/{chunk_id})"
+        else:
+            logger.warning(f"No chunk_id found for citation: {full_citation}")
+            return full_citation  # fallback to plain text
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict]) -> str:
         context = "\n<<< MATERIALET E DOSJES >>>\n"
@@ -94,7 +115,6 @@ class AlbanianRAGService:
             law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
             article_num = d.get('article_number')
             chunk_id = d.get('chunk_id')
-            # Build a link even in context (the LLM may copy it)
             if article_num and chunk_id:
                 citation = f"[{law_title}, Neni {article_num}](/laws/{chunk_id})"
             elif chunk_id:
@@ -153,7 +173,7 @@ class AlbanianRAGService:
         
         buffer = ""
         MAX_BUFFER = 200
-        incomplete_pattern = re.compile(r'(Ligji[^,]*,\s*Neni\s*)$', re.IGNORECASE)
+        incomplete_pattern = re.compile(r'(Ligji[^,]*,\s*Neni\s*|Neni\s+\d+\s+i\s+Ligji[^,]*)$', re.IGNORECASE)
 
         try:
             async for chunk in self.llm.astream(prompt):
@@ -210,7 +230,6 @@ class AlbanianRAGService:
             query_text=instruction, n_results=15
         )
         
-        # Build citation map for this call
         self._build_citation_map(l_docs)
         context_str = self._build_context(p_docs, l_docs)
         
