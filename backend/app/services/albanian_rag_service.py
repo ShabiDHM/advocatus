@@ -1,14 +1,14 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V48.1 (HTTP LAW LINKS)
-# 1. FEATURE: Generates real HTTP links to law viewer endpoint.
-# 2. OPTIMIZED: Smooth streaming buffer with 100% citation formatting.
-# 3. DEPENDENCY: Requires chunk_id from vector_store_service.
+# PHOENIX PROTOCOL - RAG SERVICE V49.0 (CITATION MAP FOR LAW LINKS)
+# 1. FEATURE: Maps law titles + article numbers to chunk IDs for correct link generation.
+# 2. FIXED: Deep mode citations now use /laws/{chunk_id} instead of doc://ligji.
+# 3. OPTIMIZED: Smooth streaming buffer with 100% citation formatting.
 
 import os
 import asyncio
 import logging
 import re
-from typing import List, Optional, Dict, Any, AsyncGenerator
+from typing import List, Optional, Dict, Any, AsyncGenerator, Tuple
 from langchain_openai import ChatOpenAI
 from bson import ObjectId
 
@@ -35,6 +35,7 @@ PROTOKOLLI_MANDATOR = """
 class AlbanianRAGService:
     def __init__(self, db: Any):
         self.db = db
+        self.citation_map: Dict[Tuple[str, str], str] = {}  # (law_title, article_num) -> chunk_id
         if DEEPSEEK_API_KEY:
             self.llm = ChatOpenAI(
                 model=OPENROUTER_MODEL, 
@@ -47,10 +48,41 @@ class AlbanianRAGService:
         else:
             self.llm = None
 
+    def _build_citation_map(self, global_docs: List[Dict[str, Any]]):
+        """Populate mapping from (law_title, article_num) to chunk_id."""
+        self.citation_map.clear()
+        for d in global_docs:
+            law_title = d.get('law_title')
+            article_num = d.get('article_number')
+            chunk_id = d.get('chunk_id')
+            if law_title and article_num and chunk_id:
+                # Normalize keys for reliable lookup
+                key = (law_title.strip(), str(article_num).strip())
+                self.citation_map[key] = chunk_id
+
     def _format_citations(self, text: str) -> str:
-        """Convert all complete law citations to Markdown links."""
+        """
+        Convert plain‑text law citations to Markdown links using the citation map.
+        Example: "Ligji për Familje, Neni 68" → "[Ligji për Familje, Neni 68](/laws/abc123)"
+        """
+        # Pattern captures the full citation and the article number
         pattern = r'(Ligji[^,]+(?:Nr\.?\s*\d+/\d+)?[^,]*?,\s*Neni\s+(\d+))'
-        return re.sub(pattern, r'[\1](doc://ligji)', text, flags=re.IGNORECASE)
+        
+        def replacer(match):
+            full_citation = match.group(1)
+            article_num = match.group(2)
+            # Try to extract law title (everything before ", Neni")
+            law_title = full_citation.split(', Neni')[0].strip()
+            key = (law_title, article_num)
+            chunk_id = self.citation_map.get(key)
+            if chunk_id:
+                return f"[{full_citation}](/laws/{chunk_id})"
+            else:
+                # Fallback: use a generic placeholder (shouldn't happen)
+                logger.warning(f"No chunk_id found for citation: {full_citation}")
+                return f"[{full_citation}](/laws/not-found)"
+        
+        return re.sub(pattern, replacer, text, flags=re.IGNORECASE)
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict]) -> str:
         context = "\n<<< MATERIALET E DOSJES >>>\n"
@@ -62,13 +94,11 @@ class AlbanianRAGService:
             law_title = d.get('law_title') or d.get('source') or "Ligji përkatës"
             article_num = d.get('article_number')
             chunk_id = d.get('chunk_id')
-            # Build the link – use chunk_id if available, otherwise fallback
+            # Build a link even in context (the LLM may copy it)
             if article_num and chunk_id:
-                link = f"/api/v1/laws/{chunk_id}"
-                citation = f"[{law_title}, Neni {article_num}]({link})"
+                citation = f"[{law_title}, Neni {article_num}](/laws/{chunk_id})"
             elif chunk_id:
-                link = f"/api/v1/laws/{chunk_id}"
-                citation = f"[{law_title}]({link})"
+                citation = f"[{law_title}](/laws/{chunk_id})"
             else:
                 citation = law_title
             context += f"LIGJI: {citation}\nPËRMBAJTJA: {d.get('text')}\n\n"
@@ -93,6 +123,9 @@ class AlbanianRAGService:
         global_docs = vector_store_service.query_global_knowledge_base(
             query_text=query, jurisdiction=jurisdiction, n_results=15
         )
+        
+        # Build the citation map for post-processing
+        self._build_citation_map(global_docs)
         
         context_str = self._build_context(case_docs, global_docs)
         
@@ -177,6 +210,8 @@ class AlbanianRAGService:
             query_text=instruction, n_results=15
         )
         
+        # Build citation map for this call
+        self._build_citation_map(l_docs)
         context_str = self._build_context(p_docs, l_docs)
         
         prompt = f"{PROTOKOLLI_MANDATOR}\n{context_str}\nDETYRA: Harto {instruction}."
@@ -194,6 +229,7 @@ class AlbanianRAGService:
         if not self.llm: return ""
         from . import vector_store_service
         l_docs = vector_store_service.query_global_knowledge_base(query_text=query, n_results=5)
+        self._build_citation_map(l_docs)
         laws = "\n".join([d.get('text', '') for d in l_docs])
         prompt = f"Përgjigju shkurt duke përdorur citimet me badge [Ligji](doc://ligji): {laws}\n\nPyetja: {query}"
         try:
