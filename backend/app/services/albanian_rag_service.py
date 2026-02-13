@@ -1,5 +1,5 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V54.0 (FINAL – HOLD INCOMPLETE CITATIONS)
+# PHOENIX PROTOCOL - RAG SERVICE V55.0 (FINAL – STRICT PROMPT + LAW NUMBER ENFORCEMENT)
 
 import os
 import sys
@@ -21,10 +21,11 @@ LLM_TIMEOUT = 120
 AI_DISCLAIMER = "\n\n---\n*Kjo përgjigje është gjeneruar nga AI, vetëm për referencë.*"
 
 PROTOKOLLI_MANDATOR = """
-**URDHËRA TË RREPTË FORMATIMI:**
-1. Çdo argument ligjor DUHET të citojë **nenin konkret** duke përdorur **emrin e plotë zyrtar të ligjit** siç paraqitet në kontekst, duke përfshirë numrin zyrtar nëse ekziston.  
-   **Shembull i saktë:** `Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve, Neni 5`  
-   **Mos përdorni emra të shkurtuar – përdorni gjithmonë emrin e plotë.**
+**URDHËRA TË RREPTË FORMATIMI (NDIQINI ME PRECIZION):**
+1. Çdo citim ligjor DUHET të përmbajë **EMRIN E PLOTË ZYRTAR TË LIGJIT** dhe **NUMRIN ZYRTAR** (p.sh., "Nr. 04/L-077") siç shfaqen në kontekstin më poshtë.  
+   **Shembull i saktë (kopjojeni fjalë për fjalë):**  
+   `Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve, Neni 5`  
+   **Mos përdorni emra të shkurtuar si "Ligji për Familjen" – përdorni gjithmonë formën e plotë me numër.**
 2. Për çdo ligj të cituar, DUHET të shtoni rreshtin: **RELEVANCA:** [Pse ky nen është thelbësor për rastin].
 3. Përdor TITUJT MARKDOWN (###) për të ndarë seksionet.
 4. MOS përdor blloqe kodi.
@@ -203,41 +204,33 @@ class AlbanianRAGService:
                     flushed = False
                     for delim in ('.', '!', '?', '\n'):
                         if delim in buffer:
-                            # Find the last occurrence of this delimiter
                             pos = buffer.rfind(delim)
                             if pos != -1:
-                                # Look at the text after this delimiter
                                 rest = buffer[pos+1:].lstrip()
-                                # If the rest starts with a citation, keep it in buffer
                                 if rest and complete_start.match(rest):
                                     print(f"BUFFER_DIAG: Holding rest after delimiter: '{rest[:50]}...'", flush=True)
-                                    continue  # Don't flush this delimiter yet
-                                # Otherwise, flush up to and including delimiter
+                                    continue
                                 to_send = buffer[:pos+1]
                                 buffer = buffer[pos+1:]
                                 if to_send.strip():
                                     print(f"BUFFER_DIAG: Flushing {len(to_send)} chars", flush=True)
                                     yield self._format_citations(to_send)
                                 flushed = True
-                                break  # Only flush once per chunk
+                                break
 
                     if flushed:
                         continue
 
-                    # If no punctuation flush and buffer too large, force split at last space
                     if len(buffer) >= MAX_BUFFER:
                         last_space = buffer.rfind(' ')
                         if last_space != -1:
-                            # Check if the trailing part after last space is an incomplete citation
                             trailing = buffer[last_space+1:]
                             if incomplete_start.search(trailing):
-                                # Try to find an earlier space
                                 earlier_space = buffer.rfind(' ', 0, last_space)
                                 if earlier_space != -1:
                                     last_space = earlier_space
                                     trailing = buffer[last_space+1:]
                                 else:
-                                    # No earlier space, flush anyway with warning
                                     print(f"BUFFER_DIAG: WARNING: Forced flush may split citation: '{trailing[:50]}...'", flush=True)
                             to_send = buffer[:last_space+1]
                             buffer = buffer[last_space+1:]
@@ -245,13 +238,11 @@ class AlbanianRAGService:
                                 print(f"BUFFER_DIAG: Flushing due to MAX_BUFFER, {len(to_send)} chars", flush=True)
                                 yield self._format_citations(to_send)
                         else:
-                            # No space, flush all (rare)
                             if buffer.strip():
                                 print(f"BUFFER_DIAG: Flushing all due to MAX_BUFFER (no space)", flush=True)
                                 yield self._format_citations(buffer)
                             buffer = ""
 
-            # End of stream: flush remaining buffer
             if buffer.strip():
                 print(f"BUFFER_DIAG: Flushing final {len(buffer)} chars", flush=True)
                 yield self._format_citations(buffer)
