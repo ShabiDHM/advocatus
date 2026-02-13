@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/auth.py
-# PHOENIX PROTOCOL - AUTHENTICATION V2.2 (SUBDOMAIN COOKIE SUPPORT)
-# 1. ADDED: domain=".juristi.tech" to cookies for sharing with api.juristi.tech.
-# 2. FIX: secure flag now correctly set based on environment.
-# 3. PRESERVED: Case‑insensitive username normalization.
+# PHOENIX PROTOCOL - AUTHENTICATION V2.3 (CROSS-SITE SESSION FIX)
+# 1. FIXED: Changed samesite to "none" to allow Vercel -> API authentication.
+# 2. FIXED: Removed explicit domain restriction to allow browser to accept cookie on any authorized origin.
+# 3. PRESERVED: Secure flag and HttpOnly protection.
 
 from datetime import timedelta
 from typing import Any
@@ -31,11 +31,14 @@ async def get_user_from_refresh_token(request: Request, db: Database = Depends(g
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token not found")
     try:
         payload = security.decode_token(refresh_token)
-        if payload.get("type") != "refresh": raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+        if payload.get("type") != "refresh": 
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
         user_id_str = payload.get("sub")
-        if user_id_str is None: raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+        if user_id_str is None: 
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
         user = user_service.get_user_by_id(db, ObjectId(user_id_str))
-        if user is None: raise HTTPException(status_code=404, detail="User not found")
+        if user is None: 
+            raise HTTPException(status_code=404, detail="User not found")
         return user
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Could not validate credentials: {e}")
@@ -58,14 +61,13 @@ async def login_access_token(response: Response, form_data: UserLogin, db: Datab
     refresh_token_expires = timedelta(minutes=settings.REFRESH_TOKEN_EXPIRE_MINUTES)
     refresh_token = security.create_refresh_token(data={"id": str(user.id)}, expires_delta=refresh_token_expires)
 
-    # Set cookie with domain for subdomain sharing
+    # Set cookie with SameSite=None and Secure for Cross-Domain support (Vercel -> Dedicated Server)
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=settings.ENVIRONMENT != "development",   # True in production (HTTPS)
-        samesite="lax",
-        domain=".juristi.tech",                         # Allow subdomains like api.juristi.tech
+        secure=True, # Must be True for samesite="none"
+        samesite="none", # Critical for cross-site requests
         path="/",
         max_age=int(refresh_token_expires.total_seconds())
     )
@@ -74,7 +76,6 @@ async def login_access_token(response: Response, form_data: UserLogin, db: Datab
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register_user(user_in: UserCreate, db: Database = Depends(get_db)) -> Any:
-    # Normalize inputs to lowercase
     user_in.username = user_in.username.lower()
     user_in.email = user_in.email.lower()
 
@@ -101,9 +102,8 @@ async def logout(response: Response):
     response.delete_cookie(
         key="refresh_token",
         httponly=True,
-        secure=settings.ENVIRONMENT != "development",
-        samesite="lax",
-        domain=".juristi.tech",   # Must match domain used when setting
+        secure=True,
+        samesite="none",
         path="/"
     )
     return {"message": "Logged out successfully"}
