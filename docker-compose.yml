@@ -1,8 +1,7 @@
 # FILE: docker-compose.yml
-# PHOENIX PROTOCOL - INFRASTRUCTURE V10.7 (DEADLOCK RESOLUTION)
-# 1. FIX: Increased ai-core-service RAM to 10G to prevent OOM during Torch init.
-# 2. FIX: Relaxed backend/celery dependencies to 'service_started' to break boot deadlock.
-# 3. FIX: Extended healthcheck start_period to 300s (5 min) for slow CPU model loading.
+# PHOENIX PROTOCOL - INFRASTRUCTURE V10.8 (BACKEND PORT EXPOSED)
+# 1. ADDED: ports: - "8000:8000" to backend service for host access.
+# 2. PRESERVED: All existing fixes and configurations.
 
 services:
   ai-core-service:
@@ -17,13 +16,13 @@ services:
     deploy:
       resources:
         limits:
-          memory: 10G # PHOENIX FIX: Allocated more room for simultaneous model loading
+          memory: 10G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 300s # PHOENIX FIX: 5 minutes for CPU-based loading
+      start_period: 300s
 
   local-llm:
     image: ollama/ollama:latest
@@ -43,6 +42,8 @@ services:
     container_name: juristi-backend
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --log-level info --proxy-headers
     env_file: ./.env
+    ports:
+      - "8000:8000"                       # <-- ADDED
     volumes:
       - ./data:/app/data
     networks: 
@@ -51,7 +52,6 @@ services:
     depends_on: 
       mongo: { condition: service_healthy }
       redis: { condition: service_healthy }
-      # PHOENIX FIX: Changed to service_started to prevent blocking the whole app
       ai-core-service: { condition: service_started }
       local-llm: { condition: service_started }
     deploy:
