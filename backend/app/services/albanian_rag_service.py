@@ -1,9 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V51.0 (FLEXIBLE CITATION MATCHING)
-# 1. ENHANCED: Prompt forces exact law titles and includes law numbers.
-# 2. FLEXIBLE: Citation map supports both full title and law number keys.
-# 3. ROBUST: Falls back to law number extraction for unmatched citations.
-# 4. STATUS: Production‑ready, 100% citation accuracy.
+# PHOENIX PROTOCOL - RAG SERVICE V52.0 (DIAGNOSTIC LOGGING)
+# 1. DIAGNOSTIC: Logs every citation attempt and mapping result.
+# 2. FLEXIBLE: Uses law number + article as primary key, with fallback to title.
+# 3. DEBUG: Run a query, then check logs with `docker compose logs backend | grep "CITATION"`.
 
 import os
 import asyncio
@@ -53,10 +52,12 @@ class AlbanianRAGService:
         """Normalize law title for consistent lookup."""
         return ' '.join(title.strip().split())
 
-    def _extract_law_number(self, title: str) -> Optional[str]:
-        """Extract law number like '04/L-077' from full title."""
-        match = re.search(r'Nr\.?\s*([\d/]+(?:\-[\d/]+)?)', title, re.IGNORECASE)
-        return match.group(1) if match else None
+    def _extract_law_number(self, text: str) -> Optional[str]:
+        """Extract law number like '04/L-077' from any text."""
+        match = re.search(r'Nr\.?\s*([\d/]+(?:\-[\d/]+)?)', text, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        return None
 
     def _build_citation_map(self, global_docs: List[Dict[str, Any]]):
         """Populate mapping from (law_title, article_num) and (law_number, article_num) to chunk_id."""
@@ -78,8 +79,7 @@ class AlbanianRAGService:
 
     def _format_citations(self, text: str) -> str:
         """
-        Convert plain‑text law citations to Markdown links.
-        Supports multiple formats and falls back to law number matching.
+        Convert plain‑text law citations to Markdown links with diagnostic logging.
         """
         # Pattern for "Ligji [law_title], Neni [article_num]" (may include law number)
         pattern1 = r'(Ligji[^,]+(?:Nr\.?\s*[\d/]+(?:\-[\d/]+)?)?[^,]*?,\s*Neni\s+(\d+))'
@@ -89,7 +89,6 @@ class AlbanianRAGService:
         def replacer_pattern1(match):
             full_citation = match.group(1)
             article_num = match.group(2)
-            # Extract law title part (everything before ", Neni")
             law_part = full_citation.split(', Neni')[0].strip()
             return self._make_link(law_part, article_num, full_citation)
 
@@ -104,21 +103,34 @@ class AlbanianRAGService:
         return text
 
     def _make_link(self, law_text: str, article_num: str, full_citation: str) -> str:
-        """Generate markdown link using citation maps."""
+        """Generate markdown link with logging."""
+        logger.info(f"CITATION_DEBUG: Processing: '{full_citation}'")
+        logger.info(f"CITATION_DEBUG: law_text='{law_text}', article_num='{article_num}'")
+
+        # Try law number first
+        law_number = self._extract_law_number(law_text)
+        if law_number:
+            logger.info(f"CITATION_DEBUG: Extracted law number: '{law_number}'")
+            num_key = (law_number, article_num.strip())
+            chunk_id = self.law_number_map.get(num_key)
+            if chunk_id:
+                logger.info(f"CITATION_DEBUG: Found by law number! chunk_id={chunk_id}")
+                return f"[{full_citation}](/laws/{chunk_id})"
+            else:
+                logger.info(f"CITATION_DEBUG: No match for law number key: {num_key}")
+
+        # Try normalized title
         norm_title = self._normalize_law_title(law_text)
         key = (norm_title, article_num.strip())
         chunk_id = self.citation_map.get(key)
         if chunk_id:
+            logger.info(f"CITATION_DEBUG: Found by title! chunk_id={chunk_id}")
             return f"[{full_citation}](/laws/{chunk_id})"
-        # Try matching by law number extracted from law_text
-        law_number = self._extract_law_number(law_text)
-        if law_number:
-            num_key = (law_number, article_num.strip())
-            chunk_id = self.law_number_map.get(num_key)
-            if chunk_id:
-                return f"[{full_citation}](/laws/{chunk_id})"
+        else:
+            logger.info(f"CITATION_DEBUG: No match for title key: {key}")
+
         # If still not found, log warning and return plain text
-        logger.warning(f"No chunk_id found for citation: {full_citation}")
+        logger.warning(f"CITATION_MISS: No chunk_id found for: '{full_citation}'")
         return full_citation
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict]) -> str:
@@ -142,9 +154,7 @@ class AlbanianRAGService:
 
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None, 
                    document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> AsyncGenerator[str, None]:
-        """
-        Streaming legal analysis with optimized buffer and flexible law linking.
-        """
+        # ... (unchanged, same as before) ...
         if not self.llm:
             yield "Sistemi AI nuk është aktiv."
             yield AI_DISCLAIMER
@@ -229,6 +239,7 @@ class AlbanianRAGService:
             yield AI_DISCLAIMER
 
     async def generate_legal_draft(self, instruction: str, user_id: str, case_id: Optional[str]) -> str:
+        # ... (unchanged) ...
         if not self.llm: 
             return "Sistemi AI Offline." + AI_DISCLAIMER
         from . import vector_store_service
@@ -251,6 +262,7 @@ class AlbanianRAGService:
             return f"Gabim gjatë draftimit: {str(e)}" + AI_DISCLAIMER
 
     async def fast_rag(self, query: str, user_id: str, case_id: Optional[str] = None) -> str:
+        # ... (unchanged) ...
         if not self.llm: return ""
         from . import vector_store_service
         l_docs = vector_store_service.query_global_knowledge_base(query_text=query, n_results=5)
