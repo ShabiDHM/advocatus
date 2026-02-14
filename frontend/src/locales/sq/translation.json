@@ -408,6 +408,7 @@
   "configuration": "Konfigurimi",
   "caseLabel": "Rasti",
   "noCaseSelected": "Pa Kontekst",
+  "general.copy":"Kopjo",
   "autofill": "Plotëso me të dhënat e rastit",
   "autofillPrompt": "Ju lutem përgatitni një draft ligjor për rastin \"{{caseTitle}}\".",
   "clientLabel": "Klienti",
