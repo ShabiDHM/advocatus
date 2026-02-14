@@ -1,8 +1,9 @@
 # FILE: backend/app/services/deadline_service.py
-# PHOENIX PROTOCOL - DEADLINE ENGINE V8.1 (DIAGNOSTIC LOGGING)
-# 1. ADDED: Logging of extracted items from LLM.
-# 2. ADDED: Logging of parsed dates and gating decisions.
-# 3. STATUS: Full visibility into extraction process.
+# PHOENIX PROTOCOL - DEADLINE ENGINE V8.2 (DEEP LLM LOGGING)
+# 1. ADDED: Log first 500 chars of the text sent to LLM.
+# 2. ADDED: Log raw LLM response content.
+# 3. ADDED: Log truncated text length.
+# 4. STATUS: Full diagnostic visibility.
 
 import os
 import json
@@ -41,6 +42,10 @@ def _extract_dates_with_llm(full_text: str, doc_category: str) -> List[Dict[str,
     truncated_text = full_text[:25000]
     current_date = datetime.now().strftime("%d %B %Y")
     
+    # Log the truncated text for debugging
+    logger.info(f"LLM input text length: {len(truncated_text)}")
+    logger.info(f"LLM input text preview: {truncated_text[:500]}...")
+    
     # AI Logic: Be extremely conservative with Chat Logs
     is_chat = doc_category.upper() in ["CHAT_LOG", "WHATSAPP", "COMMUNICATION", "BISEDË"]
     
@@ -69,12 +74,16 @@ def _extract_dates_with_llm(full_text: str, doc_category: str) -> List[Dict[str,
                 response_format={"type": "json_object"},
                 temperature=0.1
             )
-            data = json.loads(response.choices[0].message.content or "{}")
+            raw_content = response.choices[0].message.content or "{}"
+            # Log the raw response for debugging
+            logger.info(f"LLM raw response: {raw_content}")
+            data = json.loads(raw_content)
             events = data.get("events", [])
-            logger.info(f"LLM extracted events: {events}")
+            logger.info(f"LLM extracted events count: {len(events)}")
             return events
         except Exception as e:
             logger.warning(f"LLM Extraction Failed: {e}")
+            logger.exception("Full traceback:")
     return []
 
 def extract_and_save_deadlines(db: Database, document_id: str, full_text: str, doc_category: str = "Unknown"):
@@ -102,7 +111,6 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str, d
             log.debug("Skipping item with empty date_text", item=item)
             continue
         
-        # Log raw date text
         log.debug("Processing date", raw_date=raw_date)
         
         parsed = dateparser.parse(_preprocess_date_text(raw_date), settings={'DATE_ORDER': 'DMY'})
@@ -112,7 +120,6 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str, d
         
         log.debug("Parsed date", parsed_date=parsed.isoformat())
         
-        # Track 1: Metadata Chronology (Always saved for AI reference)
         metadata_chronology.append({
             "title": item.get("title"),
             "date": parsed,
@@ -120,11 +127,6 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str, d
             "description": item.get("description")
         })
 
-        # Track 2: Calendar Events (STRICT GATING)
-        # Gating Rules: 
-        # 1. Must be labeled AGENDA 
-        # 2. Must be in the FUTURE
-        # 3. Source must not be a CHAT LOG
         is_agenda = item.get("category") == "AGENDA"
         is_future = parsed >= now
         is_not_chat = doc_category.upper() not in ["CHAT_LOG", "WHATSAPP", "BISEDË"]
@@ -149,14 +151,12 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str, d
             })
             log.info("Added to calendar", title=item.get("title"), date=parsed.isoformat())
 
-    # Save Metadata to Document
     db.documents.update_one(
         {"_id": doc_oid}, 
         {"$set": {"ai_metadata.case_chronology": metadata_chronology}}
     )
     log.info("Saved chronology items", count=len(metadata_chronology))
 
-    # Clean up existing and insert new Calendar Events
     db.calendar_events.delete_many({"document_id": document_id}) 
     if calendar_events:
         db.calendar_events.insert_many(calendar_events)
