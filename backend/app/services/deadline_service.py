@@ -1,8 +1,8 @@
 # FILE: backend/app/services/deadline_service.py
-# PHOENIX PROTOCOL - DEADLINE ENGINE V8.0 (PROFESSIONAL GATING)
-# 1. FIX: Implemented "Double-Track" storage. Agenda items go to Calendar; Facts go to Document Metadata.
-# 2. FIX: Past dates and Chat Log dates are now strictly excluded from the user's Agenda.
-# 3. UPGRADE: Prompt now explicitly instructs LLM to treat chat timestamps as 'FACT'.
+# PHOENIX PROTOCOL - DEADLINE ENGINE V8.1 (DIAGNOSTIC LOGGING)
+# 1. ADDED: Logging of extracted items from LLM.
+# 2. ADDED: Logging of parsed dates and gating decisions.
+# 3. STATUS: Full visibility into extraction process.
 
 import os
 import json
@@ -70,7 +70,9 @@ def _extract_dates_with_llm(full_text: str, doc_category: str) -> List[Dict[str,
                 temperature=0.1
             )
             data = json.loads(response.choices[0].message.content or "{}")
-            return data.get("events", [])
+            events = data.get("events", [])
+            logger.info(f"LLM extracted events: {events}")
+            return events
         except Exception as e:
             logger.warning(f"LLM Extraction Failed: {e}")
     return []
@@ -82,10 +84,13 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str, d
         document_raw = db.documents.find_one({"_id": doc_oid})
         if not document_raw: return
         document = DocumentOut.model_validate(document_raw)
-    except Exception: return
+    except Exception:
+        return
 
     extracted_items = _extract_dates_with_llm(full_text, doc_category)
-    if not extracted_items: return
+    if not extracted_items:
+        log.info("No events extracted from document.")
+        return
 
     calendar_events = []
     metadata_chronology = []
@@ -93,10 +98,19 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str, d
 
     for item in extracted_items:
         raw_date = item.get("date_text", "")
-        if not raw_date: continue
+        if not raw_date:
+            log.debug("Skipping item with empty date_text", item=item)
+            continue
+        
+        # Log raw date text
+        log.debug("Processing date", raw_date=raw_date)
         
         parsed = dateparser.parse(_preprocess_date_text(raw_date), settings={'DATE_ORDER': 'DMY'})
-        if not parsed: continue
+        if not parsed:
+            log.warning("Could not parse date", raw_date=raw_date)
+            continue
+        
+        log.debug("Parsed date", parsed_date=parsed.isoformat())
         
         # Track 1: Metadata Chronology (Always saved for AI reference)
         metadata_chronology.append({
@@ -115,6 +129,8 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str, d
         is_future = parsed >= now
         is_not_chat = doc_category.upper() not in ["CHAT_LOG", "WHATSAPP", "BISEDË"]
 
+        log.debug("Gating checks", is_agenda=is_agenda, is_future=is_future, is_not_chat=is_not_chat)
+
         if is_agenda and is_future and is_not_chat:
             calendar_events.append({
                 "case_id": str(document.case_id),       
@@ -131,12 +147,14 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str, d
                 "priority": EventPriority.HIGH, 
                 "created_at": datetime.now(timezone.utc)
             })
+            log.info("Added to calendar", title=item.get("title"), date=parsed.isoformat())
 
     # Save Metadata to Document
     db.documents.update_one(
         {"_id": doc_oid}, 
         {"$set": {"ai_metadata.case_chronology": metadata_chronology}}
     )
+    log.info("Saved chronology items", count=len(metadata_chronology))
 
     # Clean up existing and insert new Calendar Events
     db.calendar_events.delete_many({"document_id": document_id}) 
