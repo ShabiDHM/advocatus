@@ -1,9 +1,9 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V30.0 (READABILITY & CONTRAST FIX)
-// 1. MODIFIED: Enhanced input contrast by brightening placeholders and labels.
-// 2. MODIFIED: Adjusted modal typography to match the V29.0 harmonization standard.
-// 3. UI: Synchronized "Anulo" and "Krijo" button visibility for accessibility.
-// 4. STATUS: 100% Consistent with System Architectural Snapshot.
+// PHOENIX PROTOCOL - DASHBOARD V31.0 (GLASSMORPHISM UNIFICATION)
+// 1. REFACTOR: Replaced custom panel styles with standard glass utilities (glass-panel, glass-high, glass-input, glass-button).
+// 2. CONSISTENCY: Uses the same color variables (primary-start, secondary-start, etc.) as CaseCard.
+// 3. UI: Preserved all existing functionality and animations.
+// 4. STATUS: 100% consistent with System Architectural Snapshot.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -128,19 +128,23 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  // REFINED INPUT CLASSES FOR BETTER READABILITY
-  const inputClasses = "w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 outline-none focus:ring-2 ring-primary-start/40 focus:border-primary-start text-sm text-white transition-all placeholder:text-white/20 shadow-inner";
-  const labelClasses = "block text-[11px] font-bold text-primary-start/90 uppercase tracking-widest mb-2 ml-1";
+  // Standardized glass input and label classes
+  const inputClasses = "glass-input w-full px-5 py-3.5 rounded-2xl text-sm transition-all placeholder:text-text-secondary/50";
+  const labelClasses = "block text-[11px] font-bold text-primary-start uppercase tracking-widest mb-2 ml-1";
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 h-full flex flex-col relative">
       <AnimatePresence mode="wait">
         {briefing && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className={`shrink-0 mb-8 rounded-[2rem] border backdrop-blur-md overflow-hidden shadow-2xl ${theme.style.split(' ')[2]}`}>
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            className={`shrink-0 mb-8 rounded-[2rem] border backdrop-blur-md overflow-hidden shadow-2xl ${theme.style.split(' ')[2]}`}
+          >
             <div className={`p-6 sm:p-8 bg-gradient-to-br ${theme.style}`}>
               <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-8">
                 <div className="flex items-start gap-5">
-                  <div className="p-4 bg-white/10 rounded-2xl backdrop-blur-xl shrink-0 border border-white/10 shadow-xl">
+                  <div className="glass-high p-4 rounded-2xl shrink-0 border border-white/10 shadow-xl">
                     {theme.icon}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -181,11 +185,11 @@ const DashboardPage: React.FC = () => {
                     ) : (
                         <div className="h-full flex items-center">
                             {briefing.status === 'OPTIMAL' && briefing.data?.quote_key && (
-                                <div className="flex items-start gap-4 p-5 bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 italic w-full shadow-inner">
-                                    <QuoteIcon size={18} className="text-primary-start shrink-0 mt-1 opacity-40" />
-                                    <p className="text-white/70 text-sm sm:text-base leading-relaxed tracking-wide font-medium">
+                                <div className="glass-panel p-5 rounded-2xl w-full">
+                                    <QuoteIcon size={18} className="text-primary-start shrink-0 mt-1 opacity-40 inline mr-2" />
+                                    <span className="text-white/70 text-sm sm:text-base leading-relaxed tracking-wide font-medium">
                                         {t(`briefing.quotes.${briefing.data.quote_key}`) as string}
-                                    </p>
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -194,7 +198,7 @@ const DashboardPage: React.FC = () => {
                 
                 <button 
                     onClick={() => window.location.href = '/calendar'} 
-                    className="w-full lg:w-auto px-8 py-4 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-black border border-white/10 text-[10px] tracking-[0.2em] uppercase transition-all active:scale-95 shrink-0 flex items-center justify-center gap-3 shadow-xl"
+                    className="glass-button w-full lg:w-auto px-8 py-4 rounded-2xl font-black text-[10px] tracking-[0.2em] uppercase flex items-center justify-center gap-3"
                 >
                     <Calendar size={18} className="opacity-50" />
                     {t('briefing.view_calendar', 'Kalendari')}
@@ -228,7 +232,7 @@ const DashboardPage: React.FC = () => {
       ) : (
         <div className="flex-1 overflow-y-auto custom-scrollbar pb-8">
           {cases.length === 0 ? (
-             <div className="flex flex-col items-center justify-center py-24 text-gray-600">
+             <div className="glass-panel flex flex-col items-center justify-center py-24 text-gray-600">
                 <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mb-6 border border-white/5">
                     <ShieldAlert size={40} className="opacity-20" />
                 </div>
@@ -249,7 +253,7 @@ const DashboardPage: React.FC = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95 }} 
-              className="bg-white/10 border border-white/20 backdrop-blur-2xl w-full max-w-lg p-8 sm:p-10 rounded-[3rem] shadow-2xl shadow-black/60"
+              className="glass-high w-full max-w-lg p-8 sm:p-10 rounded-[3rem] shadow-2xl shadow-black/60"
             >
               <h2 className="text-2xl font-bold text-white mb-8 tracking-tight uppercase">{t('dashboard.createCaseTitle', 'Krijo Rast të Ri')}</h2>
               <form onSubmit={handleCreateCase} className="space-y-6">
@@ -267,7 +271,7 @@ const DashboardPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between items-center mt-10">
                   <button type="button" onClick={() => setShowCreateModal(false)} className="px-6 py-4 font-bold text-gray-400 hover:text-white transition-all text-xs uppercase tracking-widest">{t('general.cancel', 'Anulo')}</button>
-                  <button type="submit" disabled={isCreating} className="px-10 h-14 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-xl hover:shadow-primary-start/20 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 text-xs uppercase tracking-widest">
+                  <button type="submit" disabled={isCreating} className="glass-button px-10 h-14 rounded-2xl flex items-center justify-center gap-3 active:scale-95 text-xs uppercase tracking-widest disabled:opacity-50">
                       {isCreating ? <Loader2 className="animate-spin h-5 w-5" /> : t('general.create', 'Krijo')}
                   </button>
                 </div>
@@ -278,14 +282,14 @@ const DashboardPage: React.FC = () => {
 
         {caseToDeleteId && (
           <div className="fixed inset-0 bg-background-dark/60 backdrop-blur-xl flex items-center justify-center z-[110] p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="bg-white/10 border border-rose-500/30 backdrop-blur-2xl w-full max-w-md p-10 rounded-[3rem] shadow-2xl text-center">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="glass-high w-full max-w-md p-10 rounded-[3rem] shadow-2xl text-center border border-rose-500/30">
               <div className="w-20 h-20 bg-rose-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-rose-500/20 shadow-inner">
                   <Trash2 className="h-10 w-10 text-rose-500" />
               </div>
               <h2 className="text-2xl font-black text-white mb-3 uppercase tracking-tight">{t('caseDelete.confirmTitle', 'Fshij Rastin?')}</h2>
               <p className="text-gray-400 text-sm mb-10 leading-relaxed italic font-medium">{t('caseDelete.confirmMessage', 'Kjo veprim është i pakthyeshëm. Të gjitha dokumentet do të fshihen.')}</p>
               <div className="flex justify-center gap-5">
-                <button type="button" onClick={() => setCaseToDeleteId(null)} className="flex-1 h-14 font-black text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all text-[10px] uppercase tracking-widest">{t('general.cancel', 'Anulo')}</button>
+                <button type="button" onClick={() => setCaseToDeleteId(null)} className="glass-button flex-1 h-14 rounded-2xl text-[10px] uppercase tracking-widest">{t('general.cancel', 'Anulo')}</button>
                 <button type="button" onClick={confirmDeleteCase} disabled={isDeletingCase} className="flex-1 h-14 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black shadow-lg flex items-center justify-center gap-3 active:scale-95 text-[10px] uppercase tracking-widest disabled:opacity-50 transition-all">
                   {isDeletingCase ? <Loader2 className="animate-spin h-5 w-5" /> : t('general.delete', 'Fshij')}
                 </button>
