@@ -1,8 +1,9 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V22.4 (ADDED LIMIT TO SEARCHLAWS)
-// 1. ADDED: limit parameter to searchLaws (default 50).
-// 2. RETAINED: getLawArticle and all existing methods.
-// 3. STATUS: 100% Pylance Clear.
+// PHOENIX PROTOCOL - API SERVICE V22.5 (ADDED GET LAW ARTICLES BY TITLE)
+// 1. ADDED: getLawArticlesByTitle to fetch all articles for a law (table of contents).
+// 2. ENHANCED: searchLaws now accepts limit parameter (default 50).
+// 3. RETAINED: All existing functionality.
+// 4. STATUS: 100% Pylance Clear.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -315,10 +316,17 @@ class ApiService {
         return response.data;
     }
 
-    // --- Fetch full article by law title and article number ---
     public async getLawArticle(lawTitle: string, articleNumber: string): Promise<any> {
         const response = await this.axiosInstance.get('/laws/article', {
             params: { law_title: lawTitle, article_number: articleNumber }
+        });
+        return response.data;
+    }
+
+    // --- NEW: Get all articles for a law (table of contents) ---
+    public async getLawArticlesByTitle(lawTitle: string): Promise<any> {
+        const response = await this.axiosInstance.get('/laws/by-title', {
+            params: { law_title: lawTitle }
         });
         return response.data;
     }

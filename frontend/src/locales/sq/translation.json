@@ -711,24 +711,35 @@
     "result": "rezultat",
     "results": "rezultate",
     "viewDetails": "Shiko detajet",
-    "startTyping": "Fillo të shkruash për të kërkuar..."
+    "startTyping": "Fillo të shkruash për të kërkuar...",
+    "viewAll": "Të gjitha",
+    "viewAllArticles": "Të gjitha nenet e këtij ligji"
   },
   "lawViewer": {
     "missingId": "ID e fragmentit mungon.",
     "fetchError": "Dështoi ngarkimi i ligjit.",
     "backToSearch": "Kthehu te kërkimi",
     "notFound": "Ligji nuk u gjet.",
-    "lawViewer.lawTitle": "LIGJI",
-"lawViewer.article": "Neni",
-"lawViewer.source": "Burimi",
-"general.top": "Lart",
-"lawArticle": {
-  "missingParams": "Parametrat e artikullit mungojnë.",
-  "fetchError": "Dështoi ngarkimi i artikullit.",
-  "backToSearch": "Kthehu te kërkimi",
-  "lawTitle": "LIGJI",
-  "article": "Neni",
-  "source": "Burimi"
-}
+    "lawTitle": "LIGJI",
+    "article": "Neni",
+    "source": "Burimi"
+  },
+  "lawArticle": {
+    "missingParams": "Parametrat e artikullit mungojnë.",
+    "fetchError": "Dështoi ngarkimi i artikullit.",
+    "backToSearch": "Kthehu te kërkimi",
+    "lawTitle": "LIGJI",
+    "article": "Neni",
+    "source": "Burimi"
+  },
+  "lawOverview": {
+    "missingTitle": "Titulli i ligjit mungon.",
+    "fetchError": "Dështoi ngarkimi i ligjit.",
+    "backToSearch": "Kthehu te kërkimi",
+    "lawTitle": "LIGJI",
+    "source": "Burimi",
+    "articles": "nene",
+    "tableOfContents": "Përmbajtja"
+
   }
 }

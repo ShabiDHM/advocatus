@@ -1,9 +1,9 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - GROUPED LAW SEARCH BY ARTICLE
+// PHOENIX PROTOCOL - GROUPED LAW SEARCH WITH OVERVIEW LINK
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, X, BookOpen, AlertCircle, ChevronRight } from 'lucide-react';
+import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
 
@@ -15,12 +15,11 @@ interface LawResult {
   chunk_id: string;
 }
 
-// Grouped article representation
 interface ArticleGroup {
   law_title: string;
   article_number: string;
   source: string;
-  preview: string; // first chunk text
+  preview: string;
   chunkCount: number;
   chunkIds: string[];
 }
@@ -43,7 +42,6 @@ export default function LawSearchPage() {
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Group results by article (law_title + article_number)
   const groupedResults = useMemo(() => {
     const groups = new Map<string, ArticleGroup>();
     rawResults.forEach(item => {
@@ -76,7 +74,6 @@ export default function LawSearchPage() {
     setLoading(true);
     setError('');
     try {
-      // Request up to 100 results to get more articles
       const data = await apiService.searchLaws(searchTerm, undefined, 100);
       setRawResults(data);
       setHasSearched(true);
@@ -172,23 +169,28 @@ export default function LawSearchPage() {
             {groupedResults.length} {groupedResults.length === 1 ? 'nen' : 'nene'} të gjetur
           </p>
           {groupedResults.map((article, idx) => (
-            <Link
+            <div
               key={idx}
-              to={`/laws/article?lawTitle=${encodeURIComponent(article.law_title)}&articleNumber=${encodeURIComponent(article.article_number)}`}
-              className="glass-panel p-6 rounded-2xl hover:shadow-xl transition-all cursor-pointer group block no-underline"
+              className="glass-panel p-6 rounded-2xl hover:shadow-xl transition-all cursor-pointer group block"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-xl font-bold text-text-primary group-hover:text-primary-start transition-colors mb-1">
-                    {article.law_title}
-                    <span className="text-text-secondary ml-2 font-normal">
+                  <div className="flex items-center flex-wrap gap-2 mb-2">
+                    <Link
+                      to={`/laws/overview?lawTitle=${encodeURIComponent(article.law_title)}`}
+                      className="text-xl font-bold text-text-primary hover:text-primary-start transition-colors"
+                      title={t('lawSearch.viewAllArticles', 'Shiko të gjitha nenet')}
+                    >
+                      {article.law_title}
+                    </Link>
+                    <span className="text-text-secondary font-normal">
                       – Neni {article.article_number}
                     </span>
-                  </h2>
+                  </div>
                   <p className="text-sm text-text-secondary mb-3 line-clamp-3">
                     {article.preview}
                   </p>
-                  <div className="flex items-center gap-3 text-xs">
+                  <div className="flex items-center gap-3 text-xs flex-wrap">
                     <span className="px-2 py-1 bg-white/5 rounded-full text-text-secondary">
                       {article.source}
                     </span>
@@ -197,14 +199,25 @@ export default function LawSearchPage() {
                         {article.chunkCount} pjesë
                       </span>
                     )}
-                    <span className="text-primary-start group-hover:text-primary-end transition-colors font-medium flex items-center gap-1">
+                    <Link
+                      to={`/laws/article?lawTitle=${encodeURIComponent(article.law_title)}&articleNumber=${encodeURIComponent(article.article_number)}`}
+                      className="text-primary-start group-hover:text-primary-end transition-colors font-medium flex items-center gap-1"
+                    >
                       {t('lawSearch.viewDetails', 'Shiko detajet')}
                       <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
-                    </span>
+                    </Link>
+                    <Link
+                      to={`/laws/overview?lawTitle=${encodeURIComponent(article.law_title)}`}
+                      className="text-text-secondary hover:text-primary-start transition-colors font-medium flex items-center gap-1 ml-auto"
+                      title={t('lawSearch.viewAllArticles', 'Të gjitha nenet e këtij ligji')}
+                    >
+                      <FileText size={14} />
+                      {t('lawSearch.viewAll', 'Të gjitha')}
+                    </Link>
                   </div>
                 </div>
               </div>
-            </Link>
+            </div>
           ))}
         </div>
       )}

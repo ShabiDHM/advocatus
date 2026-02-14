@@ -1,8 +1,9 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - ADDED ARTICLE FETCH ENDPOINT V1.4
-# 1. FIXED: Type‑safe extraction of chunk_index for sorting.
-# 2. ENHANCED: search limit increased to 50 (max 200).
-# 3. RETAINED: Existing functionality.
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V2.0 (ADDED TABLE OF CONTENTS)
+# 1. ADDED: /by-title endpoint to list all articles of a law.
+# 2. ENHANCED: Search limit increased to 50 (max 200).
+# 3. FIXED: Type‑safe chunk sorting for article retrieval.
+# 4. RETAINED: All existing functionality.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.database import Database
@@ -19,6 +20,11 @@ def _safe_int(value) -> int:
         return int(value)
     except (ValueError, TypeError):
         return 0
+
+def _natural_sort_key(article: str):
+    """Split article number into parts for natural sorting (e.g., 5.1 -> [5,1])."""
+    parts = article.split('.')
+    return [int(p) for p in parts if p.isdigit()]
 
 @router.get("/search")
 async def search_laws(
@@ -45,7 +51,6 @@ async def get_law_article(
     """
     try:
         collection = vector_store_service.get_global_collection()
-        # Query with metadata filter: both law_title and article_number must match
         results = collection.get(
             where={
                 "$and": [
@@ -65,7 +70,6 @@ async def get_law_article(
 
     # Sort chunks by chunk_index if present, otherwise assume order.
     if metadatas and all("chunk_index" in m for m in metadatas):
-        # Pair documents with metadatas and sort by chunk_index safely
         pairs = list(zip(documents, metadatas))
         pairs.sort(key=lambda x: _safe_int(x[1].get("chunk_index")))
         documents = [d for d, _ in pairs]
@@ -74,7 +78,6 @@ async def get_law_article(
     # Combine all chunks with double newline as separator
     full_text = "\n\n".join(documents)
 
-    # Use metadata from the first chunk for law_title, article_number, source
     meta = metadatas[0] if metadatas else {}
     return {
         "law_title": meta.get("law_title", law_title),
@@ -82,6 +85,47 @@ async def get_law_article(
         "source": meta.get("source", ""),
         "text": full_text
     }
+
+@router.get("/by-title")
+async def get_law_articles(
+    law_title: str = Query(..., description="Law title"),
+    current_user = Depends(get_current_user)
+):
+    """
+    Retrieve all articles for a given law title, returning a sorted list of article numbers.
+    Used for table of contents.
+    """
+    try:
+        collection = vector_store_service.get_global_collection()
+        # Get up to 1000 chunks (should cover any law)
+        results = collection.get(
+            where={"law_title": {"$eq": law_title}},
+            include=["metadatas"],
+            limit=1000
+        )
+        metadatas = results.get("metadatas", [])
+        if not metadatas:
+            raise HTTPException(status_code=404, detail="Law not found")
+
+        # Collect unique article numbers
+        articles = set()
+        for m in metadatas:
+            art = m.get("article_number")
+            if art:
+                articles.add(art)
+
+        # Sort naturally
+        sorted_articles = sorted(articles, key=_natural_sort_key)
+
+        first = metadatas[0]
+        return {
+            "law_title": first.get("law_title", law_title),
+            "source": first.get("source", ""),
+            "article_count": len(sorted_articles),
+            "articles": sorted_articles
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 @router.get("/{chunk_id}")
 async def get_law_chunk(
