@@ -1,8 +1,8 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V28.0 (GLASSMORPHISM CONVERSION)
-// 1. STYLING: Converted Create Case & Delete modals to unified glass stack.
-// 2. STYLING: Synchronized form inputs and buttons with theme gradients.
-// 3. UI: Enhanced Guardian Card typography and spacing for high-density consistency.
+// PHOENIX PROTOCOL - DASHBOARD V29.0 (TYPOGRAPHY HARMONIZATION)
+// 1. MODIFIED: Scaled down main title from 5xl to 3xl for better visual hierarchy.
+// 2. MODIFIED: Removed forced uppercase on header to align with application typography.
+// 3. UI: Maintained all Glassmorphism attributes and Guardian logic.
 // 4. STATUS: 100% Consistent with System Architectural Snapshot.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -145,7 +145,7 @@ const DashboardPage: React.FC = () => {
                     <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2">
                       {t('briefing.kujdestari_title', 'KUJDESTARI VIRTUAL')}
                     </h2>
-                    <p className="font-black text-xl sm:text-3xl text-white tracking-tight leading-tight">
+                    <p className="font-black text-xl sm:text-2xl text-white tracking-tight leading-tight">
                         {t(`briefing.greetings.${briefing.greeting_key}`, briefing.data || {}) as string}
                     </p>
                     <p className="text-white/60 font-semibold mt-2 text-sm sm:text-base italic">
@@ -203,20 +203,20 @@ const DashboardPage: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <div className="flex flex-row justify-between items-end mb-8 gap-4">
+      <div className="flex flex-row justify-between items-end mb-8 gap-4 px-2">
         <div>
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tighter uppercase tracking-[0.05em]">
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
             {t('dashboard.mainTitle', 'Pasqyra e Rasteve')}
           </h1>
-          <p className="text-xs sm:text-base text-gray-500 font-bold mt-2 uppercase tracking-widest italic opacity-60">
+          <p className="text-xs sm:text-sm text-gray-500 font-bold mt-1 uppercase tracking-widest opacity-60">
             {t('dashboard.subtitle', 'Menaxhimi i Lëndëve Aktive')}
           </p>
         </div>
         <button 
             onClick={() => setShowCreateModal(true)} 
-            className="flex items-center gap-3 px-6 py-4 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-2xl hover:shadow-primary-start/20 rounded-[1.5rem] text-white font-black text-xs uppercase tracking-[0.2em] transition-all active:scale-95 shrink-0"
+            className="flex items-center gap-3 px-6 py-3.5 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-2xl hover:shadow-primary-start/20 rounded-2xl text-white font-black text-xs uppercase tracking-[0.1em] transition-all active:scale-95 shrink-0"
         >
-          <Plus size={20} strokeWidth={4} /> 
+          <Plus size={18} strokeWidth={4} /> 
           <span className="hidden sm:inline">{t('dashboard.newCase', 'Rast i Ri')}</span>
         </button>
       </div>
