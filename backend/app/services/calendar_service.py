@@ -1,5 +1,8 @@
 # FILE: backend/app/services/calendar_service.py
-# PHOENIX PROTOCOL - CALENDAR SERVICE V3.6 (HYBRID VISIBILITY)
+# PHOENIX PROTOCOL - CALENDAR SERVICE V3.7 (DATETIME AWARENESS FIX)
+# 1. FIXED: In generate_briefing, make event start_date timezone-aware before subtraction.
+# 2. STATUS: All datetime operations now consistently use offset‑aware UTC.
+
 from typing import List, Dict, Any, Tuple, Optional
 from datetime import datetime, timezone, timedelta, date
 from bson import ObjectId
@@ -53,13 +56,17 @@ class CalendarService:
         }).sort("start_date", 1))
 
         for e in events:
-            diff = e['start_date'] - now
+            # Ensure start_date is timezone-aware (it is stored naive but represents UTC)
+            start = e['start_date']
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+            diff = start - now
             radar_items.append({
                 "id": str(e['_id']),
                 "title": e['title'],
                 "level": self.get_event_triage(e['title']),
                 "seconds_remaining": int(diff.total_seconds()),
-                "effective_deadline": e['start_date'].isoformat()
+                "effective_deadline": start.isoformat()
             })
 
         urgent_count = db.calendar_events.count_documents({
