@@ -1,9 +1,9 @@
 # FILE: backend/app/services/deadline_service.py
-# PHOENIX PROTOCOL - DEADLINE ENGINE V8.2 (DEEP LLM LOGGING)
-# 1. ADDED: Log first 500 chars of the text sent to LLM.
-# 2. ADDED: Log raw LLM response content.
-# 3. ADDED: Log truncated text length.
-# 4. STATUS: Full diagnostic visibility.
+# PHOENIX PROTOCOL - DEADLINE ENGINE V8.3 (STRONGER AGENDA CLASSIFICATION + FALLBACK RULES)
+# 1. ENHANCED: System prompt now explicitly lists AGENDA examples.
+# 2. ADDED: Fallback rule: future dates with procedural keywords are forced to AGENDA.
+# 3. ADDED: Logging of fallback overrides.
+# 4. STATUS: More reliable calendar population.
 
 import os
 import json
@@ -32,6 +32,13 @@ AL_MONTHS = {
     "dhjetor": "December"
 }
 
+# Keywords that indicate a date is likely an actionable agenda item
+AGENDA_KEYWORDS = [
+    "seancë", "seanca", "gjykim", "shqyrtim", "afat", "afati", "dorëzim", "paraqitje",
+    "pagesë", "depozitë", "inspektim", "takim", "dëgjim", "seancë dëgjimore",
+    "mbrojtje", "ankesë", "padi", "kërkesë", "paradhënie", "provim"
+]
+
 def _preprocess_date_text(text: str) -> str:
     text_lower = text.lower()
     for sq, en in AL_MONTHS.items():
@@ -42,27 +49,30 @@ def _extract_dates_with_llm(full_text: str, doc_category: str) -> List[Dict[str,
     truncated_text = full_text[:25000]
     current_date = datetime.now().strftime("%d %B %Y")
     
-    # Log the truncated text for debugging
     logger.info(f"LLM input text length: {len(truncated_text)}")
     logger.info(f"LLM input text preview: {truncated_text[:500]}...")
     
-    # AI Logic: Be extremely conservative with Chat Logs
-    is_chat = doc_category.upper() in ["CHAT_LOG", "WHATSAPP", "COMMUNICATION", "BISEDË"]
-    
+    # Enhanced prompt with explicit AGENDA examples
     system_prompt = f"""
     Ti je "Senior Legal Analyst". DATA SOT: {current_date}.
-    DETYRA: Analizo këtë dokument ({doc_category}) dhe nxirr datat e rëndësishme.
+    DETYRA: Analizo këtë dokument ({doc_category}) dhe nxirr të gjitha datat e rëndësishme.
     
     RREGULLA TË RREPTA:
-    1. Nëse dokumenti është bisedë (CHAT), të gjitha datat e mesazheve janë "FACT".
-    2. "AGENDA" janë VETËM afatet ligjore të ardhshme (seanca, ankesa, takime).
-    3. Çdo gjë që ka ndodhur në të kaluarën është "FACT".
-
+    - **AGENDA** janë VETËM afatet ligjore të ardhshme që kërkojnë veprim nga avokati ose palët, si:
+        * Seanca gjyqësore, dëgjime, inspektime.
+        * Afate për dorëzimin e provave, ekspertizave, ankesave.
+        * Pagesa të detyrueshme, paradhënie, depozita.
+        * Takime me klientin ose palët e tjera.
+    - **FACT** janë të gjitha datat e tjera:
+        * Data e ngjarjeve të kaluara (lindje, nënshkrim kontrate, ngjarje historike).
+        * Data të mesazheve në biseda (CHAT).
+        * Data që nuk kanë ndikim në veprimet e ardhshme ligjore.
+    
     KATEGORITË:
-    - "AGENDA": Duhet të shfaqet në kalendarin e avokatit.
-    - "FACT": Kronologji historike, prova, fakte (NUK shfaqet në kalendar).
-
-    JSON: {{ "events": [ {{ "title": "...", "date_text": "...", "category": "AGENDA|FACT", "description": "..." }} ] }}
+    - "AGENDA": Shfaqet në kalendarin e avokatit.
+    - "FACT": Përdoret vetëm për kronologji dhe analizë.
+    
+    Kthe JSON: {{ "events": [ {{ "title": "...", "date_text": "...", "category": "AGENDA|FACT", "description": "..." }} ] }}
     """
 
     if DEEPSEEK_API_KEY:
@@ -75,7 +85,6 @@ def _extract_dates_with_llm(full_text: str, doc_category: str) -> List[Dict[str,
                 temperature=0.1
             )
             raw_content = response.choices[0].message.content or "{}"
-            # Log the raw response for debugging
             logger.info(f"LLM raw response: {raw_content}")
             data = json.loads(raw_content)
             events = data.get("events", [])
@@ -120,27 +129,46 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str, d
         
         log.debug("Parsed date", parsed_date=parsed.isoformat())
         
-        metadata_chronology.append({
-            "title": item.get("title"),
-            "date": parsed,
-            "category": item.get("category"),
-            "description": item.get("description")
-        })
-
-        is_agenda = item.get("category") == "AGENDA"
+        # Get LLM category (default to FACT if missing)
+        llm_category = item.get("category", "FACT")
+        description = item.get("description", "")
+        title = item.get("title", "")
+        
+        # --- FALLBACK RULE: Force AGENDA if future and contains procedural keywords ---
         is_future = parsed >= now
         is_not_chat = doc_category.upper() not in ["CHAT_LOG", "WHATSAPP", "BISEDË"]
+        contains_keyword = any(kw in description.lower() or kw in title.lower() for kw in AGENDA_KEYWORDS)
+        
+        final_category = llm_category
+        if is_future and is_not_chat and contains_keyword:
+            if final_category != "AGENDA":
+                logger.info(f"Fallback: overriding {llm_category} to AGENDA for date {raw_date} (keyword match)")
+                final_category = "AGENDA"
+        
+        # Build chronology item
+        metadata_chronology.append({
+            "title": title,
+            "date": parsed,
+            "category": final_category,
+            "description": description
+        })
 
-        log.debug("Gating checks", is_agenda=is_agenda, is_future=is_future, is_not_chat=is_not_chat)
+        is_agenda = final_category == "AGENDA"
+        log.debug("Gating checks", 
+                  is_agenda=is_agenda, 
+                  is_future=is_future, 
+                  is_not_chat=is_not_chat,
+                  contains_keyword=contains_keyword,
+                  final_category=final_category)
 
         if is_agenda and is_future and is_not_chat:
             calendar_events.append({
                 "case_id": str(document.case_id),       
                 "owner_id": document.owner_id,
                 "document_id": document_id,
-                "title": item.get("title"),
+                "title": title,
                 "category": EventCategory.AGENDA,
-                "description": f"{item.get('description', '')}\n(Burimi: {document.file_name})", 
+                "description": f"{description}\n(Burimi: {document.file_name})", 
                 "start_date": parsed,         
                 "end_date": parsed,           
                 "is_all_day": True,
@@ -149,14 +177,16 @@ def extract_and_save_deadlines(db: Database, document_id: str, full_text: str, d
                 "priority": EventPriority.HIGH, 
                 "created_at": datetime.now(timezone.utc)
             })
-            log.info("Added to calendar", title=item.get("title"), date=parsed.isoformat())
+            log.info("Added to calendar", title=title, date=parsed.isoformat())
 
+    # Save chronology metadata
     db.documents.update_one(
         {"_id": doc_oid}, 
         {"$set": {"ai_metadata.case_chronology": metadata_chronology}}
     )
     log.info("Saved chronology items", count=len(metadata_chronology))
 
+    # Replace calendar events for this document
     db.calendar_events.delete_many({"document_id": document_id}) 
     if calendar_events:
         db.calendar_events.insert_many(calendar_events)
