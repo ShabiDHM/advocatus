@@ -1,8 +1,8 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V29.0 (TYPOGRAPHY HARMONIZATION)
-// 1. MODIFIED: Scaled down main title from 5xl to 3xl for better visual hierarchy.
-// 2. MODIFIED: Removed forced uppercase on header to align with application typography.
-// 3. UI: Maintained all Glassmorphism attributes and Guardian logic.
+// PHOENIX PROTOCOL - DASHBOARD V30.0 (READABILITY & CONTRAST FIX)
+// 1. MODIFIED: Enhanced input contrast by brightening placeholders and labels.
+// 2. MODIFIED: Adjusted modal typography to match the V29.0 harmonization standard.
+// 3. UI: Synchronized "Anulo" and "Krijo" button visibility for accessibility.
 // 4. STATUS: 100% Consistent with System Architectural Snapshot.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -128,7 +128,9 @@ const DashboardPage: React.FC = () => {
     }
   };
 
-  const inputClasses = "w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 outline-none focus:ring-2 ring-primary-start/20 focus:border-primary-start text-sm text-white transition-all placeholder:text-gray-600 shadow-inner";
+  // REFINED INPUT CLASSES FOR BETTER READABILITY
+  const inputClasses = "w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 outline-none focus:ring-2 ring-primary-start/40 focus:border-primary-start text-sm text-white transition-all placeholder:text-white/20 shadow-inner";
+  const labelClasses = "block text-[11px] font-bold text-primary-start/90 uppercase tracking-widest mb-2 ml-1";
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-8 h-full flex flex-col relative">
@@ -242,26 +244,31 @@ const DashboardPage: React.FC = () => {
 
       <AnimatePresence>
         {showCreateModal && (
-          <div className="fixed inset-0 bg-background-dark/40 backdrop-blur-xl flex items-center justify-center z-[100] p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white/10 border border-white/20 backdrop-blur-2xl w-full max-w-lg p-8 sm:p-10 rounded-[3rem] shadow-2xl shadow-black/60">
-              <h2 className="text-2xl font-black text-white mb-8 tracking-widest uppercase">{t('dashboard.createCaseTitle', 'Krijo Rast të Ri')}</h2>
+          <div className="fixed inset-0 bg-background-dark/60 backdrop-blur-xl flex items-center justify-center z-[100] p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.95 }} 
+              className="bg-white/10 border border-white/20 backdrop-blur-2xl w-full max-w-lg p-8 sm:p-10 rounded-[3rem] shadow-2xl shadow-black/60"
+            >
+              <h2 className="text-2xl font-bold text-white mb-8 tracking-tight uppercase">{t('dashboard.createCaseTitle', 'Krijo Rast të Ri')}</h2>
               <form onSubmit={handleCreateCase} className="space-y-6">
                 <div>
-                  <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Lënda</label>
+                  <label className={labelClasses}>Lënda</label>
                   <input required placeholder={t('dashboard.caseTitle', 'Titulli i Lëndës')} value={newCaseData.title} onChange={(e) => setNewCaseData(p => ({...p, title: e.target.value}))} className={inputClasses} />
                 </div>
                 <div className="pt-6 border-t border-white/10 space-y-5">
-                  <p className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] ml-1">Detajet e Klientit</p>
+                  <p className={labelClasses}>Detajet e Klientit</p>
                   <input required placeholder={t('dashboard.clientName', 'Emri i Klientit')} value={newCaseData.clientName} onChange={(e) => setNewCaseData(p => ({...p, clientName: e.target.value}))} className={inputClasses} />
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <input placeholder={t('dashboard.clientEmail', 'Email')} value={newCaseData.clientEmail} onChange={(e) => setNewCaseData(p => ({...p, clientEmail: e.target.value}))} className={inputClasses} />
                     <input placeholder={t('dashboard.clientPhone', 'Telefon')} value={newCaseData.clientPhone} onChange={(e) => setNewCaseData(p => ({...p, clientPhone: e.target.value}))} className={inputClasses} />
                   </div>
                 </div>
-                <div className="flex justify-end gap-5 mt-10">
-                  <button type="button" onClick={() => setShowCreateModal(false)} className="px-6 py-4 font-black text-gray-400 hover:text-white transition-all text-[10px] uppercase tracking-widest">{t('general.cancel', 'Anulo')}</button>
-                  <button type="submit" disabled={isCreating} className="flex-1 h-14 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-xl hover:shadow-primary-start/20 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 text-[10px] uppercase tracking-[0.2em]">
-                      {isCreating ? <Loader2 className="animate-spin h-5 w-5" /> : t('general.create', 'Krijo Rastin')}
+                <div className="flex justify-between items-center mt-10">
+                  <button type="button" onClick={() => setShowCreateModal(false)} className="px-6 py-4 font-bold text-gray-400 hover:text-white transition-all text-xs uppercase tracking-widest">{t('general.cancel', 'Anulo')}</button>
+                  <button type="submit" disabled={isCreating} className="px-10 h-14 bg-gradient-to-r from-primary-start to-primary-end hover:shadow-xl hover:shadow-primary-start/20 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 text-xs uppercase tracking-widest">
+                      {isCreating ? <Loader2 className="animate-spin h-5 w-5" /> : t('general.create', 'Krijo')}
                   </button>
                 </div>
               </form>
@@ -270,7 +277,7 @@ const DashboardPage: React.FC = () => {
         )}
 
         {caseToDeleteId && (
-          <div className="fixed inset-0 bg-background-dark/40 backdrop-blur-xl flex items-center justify-center z-[110] p-4">
+          <div className="fixed inset-0 bg-background-dark/60 backdrop-blur-xl flex items-center justify-center z-[110] p-4">
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="bg-white/10 border border-rose-500/30 backdrop-blur-2xl w-full max-w-md p-10 rounded-[3rem] shadow-2xl text-center">
               <div className="w-20 h-20 bg-rose-500/10 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-rose-500/20 shadow-inner">
                   <Trash2 className="h-10 w-10 text-rose-500" />
