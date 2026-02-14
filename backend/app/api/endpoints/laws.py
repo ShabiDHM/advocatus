@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - ADDED ARTICLE FETCH ENDPOINT V1.1
-# 1. ADDED: /article endpoint to retrieve all chunks of a specific article.
-# 2. RETAINED: Existing search and chunk-by-id endpoints.
-# 3. STATUS: Ready for frontend integration.
+# PHOENIX PROTOCOL - ADDED ARTICLE FETCH ENDPOINT V1.4
+# 1. FIXED: Type‑safe extraction of chunk_index for sorting.
+# 2. ENHANCED: search limit increased to 50 (max 200).
+# 3. RETAINED: Existing functionality.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.database import Database
@@ -11,10 +11,19 @@ from app.api.endpoints.dependencies import get_current_user, get_db
 
 router = APIRouter(tags=["Laws"])
 
+def _safe_int(value) -> int:
+    """Convert metadata value to int safely; return 0 if not possible."""
+    if value is None:
+        return 0
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return 0
+
 @router.get("/search")
 async def search_laws(
     q: str = Query(..., description="Search query"),
-    limit: int = Query(10, ge=1, le=50),
+    limit: int = Query(50, ge=1, le=200),
     current_user = Depends(get_current_user)
 ):
     """Semantic search for laws. Returns matching chunks with metadata."""
@@ -54,13 +63,13 @@ async def get_law_article(
     if not documents:
         raise HTTPException(status_code=404, detail="Article not found")
 
-    # Sort chunks by chunk_index if available, otherwise assume order is correct
-    # If chunk_index is stored in metadata, use it to sort.
-    # Since our ingestion script (V4.0) does not yet include chunk_index, we skip sorting.
-    # If you have chunk_index, you can uncomment the sorting block.
-    # sorted_data = sorted(zip(documents, metadatas), key=lambda x: x[1].get('chunk_index', 0))
-    # documents = [d for d, _ in sorted_data]
-    # metadatas = [m for _, m in sorted_data]
+    # Sort chunks by chunk_index if present, otherwise assume order.
+    if metadatas and all("chunk_index" in m for m in metadatas):
+        # Pair documents with metadatas and sort by chunk_index safely
+        pairs = list(zip(documents, metadatas))
+        pairs.sort(key=lambda x: _safe_int(x[1].get("chunk_index")))
+        documents = [d for d, _ in pairs]
+        metadatas = [m for _, m in pairs]
 
     # Combine all chunks with double newline as separator
     full_text = "\n\n".join(documents)
