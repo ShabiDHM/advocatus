@@ -1,12 +1,12 @@
 # FILE: backend/app/services/text_extraction_service.py
-# PHOENIX PROTOCOL - OCR ENGINE V8.3 (ADAPTED FOR STREAMING)
-# 1. LOGIC: Preserved ALL V8.2 Hybrid features (Layout Sort, Smart OCR Fallback, Threading).
-# 2. INTEGRATION: Added 'extract_text_from_file' wrapper to handle BytesIO streams from Celery.
-# 3. SAFETY: Uses temp files to ensure complex libraries (PyMuPDF/CV2) work reliably.
+# PHOENIX PROTOCOL - OCR ENGINE V8.4 (IGNORE BRANDING FOOTER)
+# 1. ADDED: Remove the branding footer from extracted text.
+# 2. ADDED: Force OCR if only footer remains.
+# 3. STATUS: Scanned documents now correctly OCR'ed.
 
 import fitz  # PyMuPDF
 import docx
-from pptx import Presentation # Requires python-pptx
+from pptx import Presentation
 import pandas as pd
 import csv
 from typing import Dict, Callable, Any, Optional, Union
@@ -19,8 +19,8 @@ import time
 import os
 import tempfile
 import uuid
+import re
 
-# Link to our advanced OCR engine (only loaded if needed)
 try:
     from .ocr_service import extract_text_from_image as advanced_image_ocr
 except ImportError:
@@ -28,45 +28,50 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-MAX_WORKERS = 2 
+MAX_WORKERS = 2
+FOOTER_PATTERN = re.compile(r'Rasti:\s*\S+\s*\|\s*Juristi AI System')
 
 def _sanitize_text(text: str) -> str:
     """Removes null bytes and cleans text."""
     if not text: return ""
     return text.replace("\x00", "")
 
+def _strip_footer(text: str) -> str:
+    """Remove the branding footer line(s) from text."""
+    lines = text.split('\n')
+    filtered = [line for line in lines if not FOOTER_PATTERN.search(line)]
+    return '\n'.join(filtered)
+
 def _sort_blocks(blocks):
-    """
-    Sorts blocks first by vertical position (Y0), then by horizontal (X0).
-    Tolerance of 3 pixels allows for slight misalignment in rows.
-    """
     return sorted(blocks, key=lambda b: (int(b[1] / 3), int(b[0])))
 
 def _process_single_page_safe(doc_path: str, page_num: int) -> str:
     """
     Extracts text from a single PDF page with Layout Preservation.
-    PHOENIX OPTIMIZATION: Checks for digital text first.
+    PHOENIX OPTIMIZATION: Checks for digital text first, then strips footer.
     """
     page_marker = f"\n--- [FAQJA {page_num + 1}] ---\n"
     try:
         with fitz.open(doc_path) as doc:
             page: Any = doc[page_num]
             
-            # 1. Try Direct Text Extraction (BLOCK MODE) - FAST PATH
+            # 1. Try Direct Text Extraction (BLOCK MODE)
             blocks = page.get_text("blocks")
-            
             text = ""
             if blocks:
-                # Sort blocks to ensure reading order (Row by Row)
                 sorted_blocks = _sort_blocks(blocks)
                 text = "\n".join([b[4] for b in sorted_blocks])
-
-            # If meaningful text is found (>50 chars), return immediately.
-            if text and len(text.strip()) > 50:
-                return page_marker + _sanitize_text(text)
+                text = _sanitize_text(text)
             
-            # 2. Fallback: Optical Recognition - SLOW PATH
-            logger.info(f"Page {page_num} seems scanned (text len < 50). Engaging Optical OCR...")
+            # Remove footer
+            text_without_footer = _strip_footer(text)
+            
+            # If meaningful text remains (>50 chars), return it.
+            if text_without_footer and len(text_without_footer.strip()) > 50:
+                return page_marker + text_without_footer
+            
+            # 2. Otherwise, trigger OCR (scanned page)
+            logger.info(f"Page {page_num} seems scanned or only footer present. Engaging Optical OCR...")
             
             if not advanced_image_ocr:
                 return page_marker + "[SCANNED DOCUMENT - NO OCR AVAILABLE]"
@@ -77,7 +82,6 @@ def _process_single_page_safe(doc_path: str, page_num: int) -> str:
             pix = page.get_pixmap(matrix=mat) 
             img_data = pix.tobytes("png")
             
-            # Save temp file for OCR service
             temp_img_path = f"/tmp/page_{page_num}_{uuid.uuid4()}.png"
             with open(temp_img_path, "wb") as f:
                 f.write(img_data)
@@ -98,12 +102,10 @@ def _process_single_page_safe(doc_path: str, page_num: int) -> str:
         return "" 
 
 def _process_single_page_wrapper(args) -> str:
-    """Wrapper for parallel processing unpacking."""
     try: return _process_single_page_safe(*args)
     except Exception: return ""
 
 def _extract_text_sequentially(file_path: str, total_pages: int) -> str:
-    """Fallback sequential processing."""
     buffer = []
     for i in range(total_pages):
         buffer.append(_process_single_page_safe(file_path, i))
@@ -203,9 +205,6 @@ EXTRACTION_MAP: Dict[str, Callable[[str], str]] = {
 }
 
 def extract_text(file_path: str, mime_type: str) -> str:
-    """
-    Internal Entry Point (Path-Based).
-    """
     normalized_mime_type = mime_type.split(';')[0].strip().lower()
     extractor = EXTRACTION_MAP.get(normalized_mime_type)
     
@@ -218,48 +217,29 @@ def extract_text(file_path: str, mime_type: str) -> str:
         
     return extractor(file_path)
 
-# --- PHOENIX BRIDGE: STREAM HANDLER ---
 def extract_text_from_file(file_obj: io.BytesIO, file_type: str = "PDF") -> str:
-    """
-    Public Entry Point (Stream-Based).
-    Adapts the BytesIO stream from Celery to the Path-based logic required by V8.2.
-    """
-    # 1. Map file_type to MIME or extension
     extension_map = {
-        "PDF": ".pdf",
-        "DOCX": ".docx",
-        "PPTX": ".pptx",
-        "PNG": ".png",
-        "JPG": ".jpg",
-        "JPEG": ".jpeg",
-        "TXT": ".txt",
-        "CSV": ".csv",
-        "XLSX": ".xlsx"
+        "PDF": ".pdf", "DOCX": ".docx", "PPTX": ".pptx",
+        "PNG": ".png", "JPG": ".jpg", "JPEG": ".jpeg",
+        "TXT": ".txt", "CSV": ".csv", "XLSX": ".xlsx"
     }
     ext = extension_map.get(file_type.upper(), ".bin")
     
-    # 2. Determine MIME type for internal map
     mime_map = {
-        "PDF": "application/pdf",
-        "DOCX": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "PDF": "application/pdf", "DOCX": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "PPTX": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "XLSX": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "CSV": "text/csv",
-        "TXT": "text/plain",
-        "PNG": "image/png",
-        "JPG": "image/jpeg"
+        "CSV": "text/csv", "TXT": "text/plain",
+        "PNG": "image/png", "JPG": "image/jpeg"
     }
     mime_type = mime_map.get(file_type.upper(), "application/octet-stream")
 
-    # 3. Write Stream to Temp File (Essential for PyMuPDF/CV2 stability)
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp.write(file_obj.getvalue())
         tmp_path = tmp.name
 
     try:
-        # 4. Delegate to the Robust V8.2 Logic
         return extract_text(tmp_path, mime_type)
     finally:
-        # 5. Clean up
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
