@@ -1,7 +1,7 @@
 # FILE: backend/requirements.txt (UNIFIED & PINNED - V5.6)
 # PHOENIX PROTOCOL - ENHANCED OCR VERSION
 # 1. FIXED: Invalid torch line – now just 'torch'.
-# 2. PINNED: Added versions for unpinned packages for reproducibility.
+# 2. REVERTED: langchain packages unpinned to avoid version conflicts.
 
 # --- Core Web Framework & Async ---
 fastapi==0.109.2
@@ -61,25 +61,22 @@ pandas==2.2.0
 openpyxl==3.1.2
 xlrd>=2.0.1
 opencv-python-headless==4.9.0.80
-# PHOENIX: Added for Professional PDF Reporting
 markdown2==2.4.1
 xhtml2pdf==0.2.11
-# PHOENIX: Added for Enhanced OCR Image Processing
 scikit-image==0.22.0
 
 # --- AI & ML Dependencies (UNIFIED) ---
 chromadb-client==1.1.0
-langchain==0.1.0
-langchain-community==0.1.0
-langchain-openai==0.1.0
-langchain-text-splitters==0.1.0
+langchain
+langchain-community
+langchain-openai
+langchain-text-splitters
 langdetect==1.0.9
 numpy<2,>=1.26.4
-# PHOENIX ADDITION: OpenAI SDK for DeepSeek/OpenRouter
 openai>=1.0.0
 
 # AI Service Specific Libraries
-torch==2.2.0
-transformers==4.36.0
-sentence-transformers==2.2.2
+torch
+transformers
+sentence-transformers
 spacy==3.7.2
