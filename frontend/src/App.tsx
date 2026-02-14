@@ -1,5 +1,5 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V4.2 (LAW VIEWER ADDED)
+// PHOENIX PROTOCOL - ROUTING V4.3 (LAW SEARCH ROUTE ADDED)
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -22,7 +22,8 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import FinanceWizardPage from './pages/FinanceWizardPage';
 import ClientPortalPage from './pages/ClientPortalPage';
 import MobileConnect from './pages/MobileConnect';
-import LawViewerPage from './pages/LawViewerPage'; // <-- NEW
+import LawViewerPage from './pages/LawViewerPage';
+import LawSearchPage from './pages/LawSearchPage'; // <-- NEW: import the search page
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -73,7 +74,9 @@ const AppRoutes: React.FC = () => {
         <Route path="/support" element={<SupportPage />} />
         <Route path="/business" element={<BusinessPage />} />
         <Route path="/account" element={<AccountPage />} />
-        <Route path="/laws/:chunkId" element={<LawViewerPage />} /> {/* NEW */}
+        {/* NEW: Law search route – must come before /laws/:chunkId */}
+        <Route path="/laws/search" element={<LawSearchPage />} />
+        <Route path="/laws/:chunkId" element={<LawViewerPage />} />
       </Route>
 
       <Route element={<AdminRoute><MainLayout /></AdminRoute>}>

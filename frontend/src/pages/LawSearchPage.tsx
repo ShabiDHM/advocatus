@@ -1,5 +1,5 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH PAGE (PLACEHOLDER)
+// PHOENIX PROTOCOL - LAW SEARCH PAGE
 
 import React, { useState } from 'react';
 import { apiService } from '../services/api';
