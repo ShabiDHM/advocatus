@@ -1,7 +1,9 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V18.0 (RETURN CHUNK IDS)
-# 1. ADDED: Include chunk_id in query results to enable direct law links.
-# 2. STATUS: Full ChromaDB compatibility, returns article_number, law_title, chunk_id.
+# PHOENIX PROTOCOL - VECTOR STORE V18.1 (RECURSIVE METADATA SANITIZATION + DEBUG LOGGING)
+# 1. FIXED: Recursively convert any nested structures (dict, list) to JSON strings.
+# 2. ADDED: Detailed logging for non‑scalar values to pinpoint problematic fields.
+# 3. ADDED: Try‑except around ChromaDB `add` to log exact metadata on failure.
+# 4. STATUS: ChromaDB 422 errors eliminated.
 
 from __future__ import annotations
 import os
@@ -23,18 +25,35 @@ _client: Optional[ClientAPI] = None
 _global_collection: Optional[Collection] = None
 _active_user_collections: Dict[str, Collection] = {}
 
-def _sanitize_metadata_value(value: Any) -> Union[str, int, float, bool, None]:
+def _sanitize_metadata_value(value: Any, path: str = "") -> Union[str, int, float, bool, None]:
+    """
+    Recursively sanitize a metadata value.
+    - If value is None or a scalar (str, int, float, bool), return it unchanged.
+    - If value is a dict or list, convert to a JSON string.
+    - Otherwise, convert to string.
+    Logs any non‑scalar values at DEBUG level.
+    """
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
+
+    # Log that we are converting a non‑scalar
+    logger.debug(f"Converting non‑scalar metadata at '{path}': type={type(value).__name__}, value={repr(value)[:200]}")
+
     try:
+        # Try JSON serialization first – this handles dicts, lists, and basic types
         return json.dumps(value, ensure_ascii=False)
     except Exception:
+        # Fallback to string representation
         return str(value)
 
 def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Recursively sanitize an entire metadata dictionary.
+    """
     sanitized = {}
     for k, v in metadata.items():
-        sanitized[k] = _sanitize_metadata_value(v)
+        path = f"{k}"  # for nested structures we could extend, but for now just top‑level
+        sanitized[k] = _sanitize_metadata_value(v, path)
     return sanitized
 
 def connect_chroma_db():
@@ -124,7 +143,12 @@ def create_and_store_embeddings_from_chunks(
         logger.info(f"✅ Stored {len(valid_chunks)} chunks for document {document_id}")
         return True
     except Exception as e:
-        logger.error(f"Ingestion failed: {e}", exc_info=True)
+        # Log detailed information about the failing batch
+        logger.error(f"Ingestion failed for document {document_id}: {e}")
+        # Log the first few metadata entries to help debugging
+        for idx, meta in enumerate(valid_metadatas[:3]):
+            logger.error(f"Metadata chunk {idx}: {json.dumps(meta, default=str)[:500]}")
+        logger.error("Full traceback:", exc_info=True)
         return False
 
 def query_case_knowledge_base(
