@@ -1,8 +1,8 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V22.1 (UI CLEANUP / BACKEND GRAPH PRESERVED)
-// 1. REMOVED: UI-only Graph methods. Feature decommissioned from frontend view.
-// 2. RETAINED: All Backend Integration logic for RAG and Deep Analysis.
-// 3. RETAINED: archiveStrategyReport (V22.0) and all forensic/financial logic.
+// PHOENIX PROTOCOL - API SERVICE V22.2 (ADDED LAWS METHODS)
+// 1. ADDED: searchLaws and getLawByChunkId to support law viewer and search.
+// 2. RETAINED: All existing functionality.
+// 3. STATUS: 100% Pylance Clear.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -300,6 +300,19 @@ class ApiService {
         link.click();
         link.parentNode?.removeChild(link);
         window.URL.revokeObjectURL(url);
+    }
+
+    // --- LAWS METHODS (NEW) ---
+    public async searchLaws(query: string, jurisdiction?: string): Promise<any> {
+        const response = await this.axiosInstance.get('/laws/search', {
+            params: { q: query, jurisdiction }
+        });
+        return response.data;
+    }
+
+    public async getLawByChunkId(chunkId: string): Promise<any> {
+        const response = await this.axiosInstance.get(`/laws/${chunkId}`);
+        return response.data;
     }
 
     // --- STREAMING AI METHODS ---

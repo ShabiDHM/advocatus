@@ -1,8 +1,9 @@
 // FILE: src/pages/LawViewerPage.tsx
-// PHOENIX PROTOCOL - LAW VIEWER PAGE
+// PHOENIX PROTOCOL - LAW VIEWER PAGE (FIXED 401)
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { apiService } from '../services/api'; // import the service
 
 interface LawData {
   law_title: string;
@@ -18,16 +19,7 @@ export default function LawViewerPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch(`/api/v1/laws/${chunkId}`, {
-      credentials: 'include', // sends session cookie
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(errText || res.statusText);
-        }
-        return res.json();
-      })
+    apiService.getLawByChunkId(chunkId!)
       .then(setLaw)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
