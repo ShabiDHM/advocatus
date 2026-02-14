@@ -1,7 +1,8 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V6.2 (ADMIN-ONLY LAW LIBRARY GATE)
-// 1. MODIFIED: Moved Law Library link into the dynamic Admin conditional block.
-// 2. STATUS: Resolves visibility conflict. Feature is now restricted to Admin role in UI.
+// PHOENIX PROTOCOL - HEADER V6.3 (LAW LIBRARY FOR ALL USERS)
+// 1. MODIFIED: Law Library link is now visible to all authenticated users.
+// 2. RETAINED: Admin Panel link remains restricted to admin role.
+// 3. STATUS: All users can access legal database.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen } from 'lucide-react';
@@ -28,22 +29,16 @@ const Header: React.FC = () => {
     { icon: Building2, label: t('sidebar.myOffice', 'Zyra'), path: '/business' },
     { icon: Scale, label: t('sidebar.juristiAi', 'Rastet'), path: '/dashboard' },
     { icon: FileText, label: t('sidebar.drafting', 'Hartimi'), path: '/drafting' },
+    // Law Library – now visible to everyone
+    { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
   
-  // DYNAMIC NAVIGATION (Visible only to Admin)
+  // ADMIN-ONLY: Insert Admin Panel link at index 1 (after Zyra)
   if (user?.role === 'ADMIN') {
-      // Insert Admin Panel Link
       navItems.splice(1, 0, {
           icon: Shield,
           label: t('sidebar.adminPanel', 'Admin'),
           path: '/admin',
-      });
-
-      // Add Law Library Link at the end for Admin only
-      navItems.push({ 
-          icon: BookOpen, 
-          label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), 
-          path: '/laws/search' 
       });
   }
 

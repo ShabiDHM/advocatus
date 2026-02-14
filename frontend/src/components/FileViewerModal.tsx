@@ -1,9 +1,8 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER V7.1 (TOTAL SYSTEM RESTORATION)
-// 1. TS FIX: Resolved TS6133 by utilizing AlertTriangle, Maximize, and error state.
-// 2. FEATURE RESTORATION: Full CSV, TEXT, IMAGE, and PDF rendering support.
-// 3. MIRROR FIX: Public Portal streaming fully enabled (No-Auth fetch).
-// 4. MOBILE: Responsive touch-optimized UI.
+// PHOENIX PROTOCOL - FILE VIEWER V7.2 (SCROLL FIX)
+// 1. FIXED: Changed PDF container from `min-h-full` to `h-full` to ensure proper height and scrolling.
+// 2. RETAINED: All existing functionality (PDF, TEXT, CSV, IMAGE support).
+// 3. STATUS: Document preview now scrolls correctly within the modal.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -194,7 +193,7 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
     switch (viewerMode) {
       case 'PDF':
         return (
-          <div className="flex flex-col items-center w-full min-h-full bg-black/20 overflow-auto pt-6 pb-24" ref={containerRef}>
+          <div className="flex flex-col items-center w-full h-full bg-black/20 overflow-auto pt-6 pb-24" ref={containerRef}>
              {isLoading && <div className="absolute inset-0 flex items-center justify-center bg-background-dark/50 z-10"><Loader className="animate-spin text-primary-start" size={32} /></div>}
              {fileSource && (
                  <PdfDocument file={fileSource} onLoadSuccess={({ numPages }) => { setNumPages(numPages); setIsLoading(false); }} onLoadError={() => { setError(t('pdfViewer.corruptFile')); setViewerMode('DOWNLOAD'); }}>
