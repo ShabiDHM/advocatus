@@ -1,9 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V56.0 (FILTER REMOVAL & HARDENING)
-# 1. FIXED: Removed the invalid "jurisdiction" filter causing zero results.
-# 2. FIXED: Hardened Regex to prevent UI-breaking "Mega-Links".
-# 3. FIXED: Corrected DB typing from 'Any' to 'Database'.
-# 4. STATUS: 100% Pylance Clear, RAG pipeline unblocked.
+# PHOENIX PROTOCOL - RAG SERVICE V56.1 (ADDED RETRIEVAL LOGGING)
+# 1. ADDED: INFO logs for case and global document counts.
+# 2. ADDED: Query text preview in logs for debugging.
+# 3. STATUS: 100% Pylance Clear, RAG pipeline unblocked.
 
 import os
 import sys
@@ -36,7 +35,7 @@ PROTOKOLLI_MANDATOR = """
 """
 
 class AlbanianRAGService:
-    def __init__(self, db: Database): # <-- FIXED TYPING
+    def __init__(self, db: Database):
         self.db = db
         self.citation_map: Dict[Tuple[str, str], str] = {}
         self.law_number_map: Dict[Tuple[str, str], str] = {}
@@ -76,7 +75,6 @@ class AlbanianRAGService:
                     self.law_number_map[num_key] = chunk_id
 
     def _format_citations(self, text: str) -> str:
-        # PHOENIX FIX: Hardened Regex to be less greedy. Captures up to 200 chars.
         pattern1 = r'(Ligj(i|it)?\s.{0,200}?Nr\.?\s*[\d/L\-]+.{0,200}?,\s*Neni\s+(\d+))'
         pattern2 = r'(Neni\s+(\d+)\s+i\s+Ligj(i|it)?\s.{0,200}?Nr\.?\s*[\d/L\-]+.{0,200}?)'
 
@@ -131,14 +129,19 @@ class AlbanianRAGService:
 
         from . import vector_store_service
 
+        # --- PHOENIX LOGGING: Log query and parameters ---
+        logger.info(f"🔍 Chat request: user={user_id}, case={case_id}, query='{query[:100]}...'")
+
         case_docs = vector_store_service.query_case_knowledge_base(
             user_id=user_id, query_text=query, case_context_id=case_id,
             document_ids=document_ids, n_results=15
         )
-        # PHOENIX FIX: Removed jurisdiction filter, as DB is KS-only.
+        logger.info(f"📄 Retrieved {len(case_docs)} case documents from knowledge base.")
+
         global_docs = vector_store_service.query_global_knowledge_base(
             query_text=query, n_results=10
         )
+        logger.info(f"⚖️ Retrieved {len(global_docs)} global law documents.")
 
         self._build_citation_map(global_docs)
         context_str = self._build_context(case_docs, global_docs)
