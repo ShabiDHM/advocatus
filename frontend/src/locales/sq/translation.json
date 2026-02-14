@@ -144,7 +144,8 @@
     "juristiAi": "Rastet",
     "calendar": "Kalendari",
     "drafting": "Hartimi",
-    "support": "Mbështetja"
+    "support": "Mbështetja",
+    "lawLibrary": "Biblioteka Ligjore"
   },
   "team": {
     "manage_team_title": "Menaxhimi i Ekipit",
@@ -182,6 +183,32 @@
     "errorToken": "Ftesa mungon ose është e pavlefshme.",
     "errorPassword": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.",
     "errorGeneric": "Aktivizimi dështoi. Tokeni mund të jetë i pavlefshëm ose i skaduar."
+  },
+  "auth": {
+    "loginTitle": "Identifikimi",
+    "loginSubtitle": "Hyni në llogarinë tuaj për të vazhduar",
+    "usernameOrEmail": "Përdoruesi ose Email",
+    "usernameOrEmailPlaceholder": "shaban.bala ose email@zyra.com",
+    "password": "Fjalëkalimi",
+    "loginFailed": "Identifikimi dështoi. Kontrolloni të dhënat.",
+    "loginButton": "Kyçuni",
+    "noAccount": "Nuk keni llogari?",
+    "registerLink": "Regjistrohuni tani",
+    "registerTitle": "Krijo Llogari",
+    "registerSubtitle": "Bashkohuni me platformën më të avancuar ligjore",
+    "usernamePlaceholder": "Zgjidhni një emër përdoruesi",
+    "emailPlaceholder": "email@zyra.com",
+    "passwordMinChars": "Minimumi 8 karaktere",
+    "usernameTooShort": "Emri i përdoruesit është shumë i shkurtër",
+    "passwordTooShort": "Fjalëkalimi është shumë i shkurtër",
+    "registerFailed": "Regjistrimi dështoi. Provoni përsëri.",
+    "welcomeTitle": "Mirë se erdhët në të ardhmen",
+    "welcomeMessage": "Llogaria juaj është krijuar. Ndërsa ekipi ynë verifikon të dhënat, ju jeni një hap më afër bashkimit të ekspertizës njerëzore me fuqinë e të dhënave për të transformuar praktikën tuaj ligjore.",
+    "backToLogin": "Kthehu te Kyçja",
+    "processing": "Duke u procesuar...",
+    "createAccount": "Krijo Llogarinë",
+    "hasAccount": "Keni një llogari?",
+    "signInLink": "Hyni këtu"
   },
   "admin": {
     "title": "Paneli i Administratorit",

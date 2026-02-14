@@ -1,14 +1,14 @@
 // FILE: src/pages/LandingPage.tsx
-// PHOENIX PROTOCOL - LANDING V7.0 (FULL I18N INTEGRATION)
-// 1. FIX: Replaced all hardcoded strings with i18n keys for full localization.
-// 2. LOGIC: All t() calls now reference the 'landing' and 'footer' namespaces.
-// 3. STATUS: 100% Internationalized. No truncation.
+// PHOENIX PROTOCOL - LANDING V8.0 (CLEAN HERO)
+// 1. MODIFIED: Removed the version badge pill (BrainCircuit + landing.versionBadge).
+// 2. CLEANUP: Removed unused BrainCircuit import from lucide-react.
+// 3. STATUS: Visual Alignment Complete.
 
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { 
-    BrainCircuit, ArrowRight, Lock, Globe, ChevronRight, 
+    ArrowRight, Lock, Globe, ChevronRight, 
     MessageSquare, Zap, TrendingUp, Database, FileText 
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -48,10 +48,7 @@ const LandingPage: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8 }}
             >
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-primary-300 mb-8 uppercase tracking-wider shadow-lg shadow-primary-start/5">
-                    <BrainCircuit size={14} /> 
-                    {t('landing.versionBadge')}
-                </div>
+                {/* Version Badge Removed */}
                 
                 <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 leading-tight">
                     {t('landing.heroTitle')} <br />
@@ -98,7 +95,7 @@ const LandingPage: React.FC = () => {
                  <div className="w-12 h-12 bg-success-start/20 rounded-xl flex items-center justify-center mb-4 text-success-300 border border-success-start/20">
                     <Lock className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-white">{t('landing.fullSecurityTitle')}</h3>
+                <h3 className="xl font-bold mb-2 text-white">{t('landing.fullSecurityTitle')}</h3>
                 <p className="text-text-secondary text-sm">
                     {t('landing.fullSecurityDescription')}
                 </p>

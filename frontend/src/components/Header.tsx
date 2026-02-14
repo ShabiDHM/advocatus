@@ -1,8 +1,10 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V6.1 (ADDED LAW LIBRARY LINK)
+// PHOENIX PROTOCOL - HEADER V6.2 (ADMIN-ONLY LAW LIBRARY GATE)
+// 1. MODIFIED: Moved Law Library link into the dynamic Admin conditional block.
+// 2. STATUS: Resolves visibility conflict. Feature is now restricted to Admin role in UI.
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen } from 'lucide-react'; // Added BookOpen icon
+import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, useLocation } from 'react-router-dom';
@@ -21,24 +23,30 @@ const Header: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
+  // BASE NAVIGATION (Visible to all authenticated users)
   const navItems = [
     { icon: Building2, label: t('sidebar.myOffice', 'Zyra'), path: '/business' },
-    // Admin link is inserted dynamically
     { icon: Scale, label: t('sidebar.juristiAi', 'Rastet'), path: '/dashboard' },
     { icon: FileText, label: t('sidebar.drafting', 'Hartimi'), path: '/drafting' },
-    // NEW: Law Library link
-    { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
   
+  // DYNAMIC NAVIGATION (Visible only to Admin)
   if (user?.role === 'ADMIN') {
+      // Insert Admin Panel Link
       navItems.splice(1, 0, {
           icon: Shield,
           label: t('sidebar.adminPanel', 'Admin'),
           path: '/admin',
       });
+
+      // Add Law Library Link at the end for Admin only
+      navItems.push({ 
+          icon: BookOpen, 
+          label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), 
+          path: '/laws/search' 
+      });
   }
 
-  // Effect to lock body scroll when mobile menu is open
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.style.overflow = 'hidden';
@@ -50,7 +58,6 @@ const Header: React.FC = () => {
     };
   }, [isMobileMenuOpen]);
 
-  // Poll for alerts
   useEffect(() => {
     const checkAlerts = async () => {
       if (!user) return;
@@ -66,7 +73,6 @@ const Header: React.FC = () => {
     return () => clearInterval(interval);
   }, [user]);
 
-  // Click Outside Event Listener for Profile Dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -94,9 +100,7 @@ const Header: React.FC = () => {
     <>
       <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 top-0 backdrop-blur-xl bg-background-dark/60 border-b border-white/5 transition-all duration-300">
         
-        {/* LEFT: Logo and Search (Combined) */}
         <div className="flex items-center h-full gap-4 lg:gap-8">
-          {/* --- MOBILE MENU TOGGLE --- */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="lg:hidden p-2 text-text-secondary hover:text-white transition-colors"
@@ -117,7 +121,6 @@ const Header: React.FC = () => {
           </div>
         </div>
 
-        {/* MIDDLE: Main Navigation Links (Desktop) */}
         <nav className="hidden lg:flex items-center h-full space-x-2">
           {navItems.map((item) => {
             const isCurrentActive = location.pathname.startsWith(item.path);
@@ -134,7 +137,6 @@ const Header: React.FC = () => {
           })}
         </nav>
 
-        {/* RIGHT: Actions & Profile */}
         <div className="flex items-center gap-2 sm:gap-3">
           <div className="hidden">
             <LanguageSwitcher />
@@ -192,7 +194,6 @@ const Header: React.FC = () => {
         </div>
       </header>
 
-      {/* --- MOBILE NAVIGATION OVERLAY --- */}
       {isMobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 top-0 bg-background-dark/95 backdrop-blur-xl z-50 animate-in fade-in">
           <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
