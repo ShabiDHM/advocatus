@@ -1,11 +1,11 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - ENHANCED LAW SEARCH (FIXED IMPORTS)
+// PHOENIX PROTOCOL - LAW SEARCH PAGE (FIXED NAVIGATION)
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, X, BookOpen, AlertCircle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { apiService } from '../services/api'; // <-- ADDED
+import { Link } from 'react-router-dom';
+import { apiService } from '../services/api';
 
 interface LawResult {
   law_title: string;
@@ -15,34 +15,18 @@ interface LawResult {
   chunk_id: string;
 }
 
-// Simple debounce hook
 function useDebounce<T extends (...args: any[]) => any>(callback: T, delay: number) {
   const timeoutRef = useRef<NodeJS.Timeout>();
-
   const debouncedCallback = useCallback((...args: Parameters<T>) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    timeoutRef.current = setTimeout(() => {
-      callback(...args);
-    }, delay);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => callback(...args), delay);
   }, [callback, delay]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
-  }, []);
-
+  useEffect(() => () => timeoutRef.current && clearTimeout(timeoutRef.current), []);
   return debouncedCallback;
 }
 
 export default function LawSearchPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<LawResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -81,13 +65,8 @@ export default function LawSearchPage() {
     setError('');
   };
 
-  const handleResultClick = (chunkId: string) => {
-    navigate(`/laws/${chunkId}`);
-  };
-
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
-      {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl sm:text-4xl font-black text-text-primary tracking-tight mb-2">
           {t('lawSearch.title', 'Biblioteka Ligjore')}
@@ -97,7 +76,6 @@ export default function LawSearchPage() {
         </p>
       </div>
 
-      {/* Search Input */}
       <div className="relative mb-8">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           <Search className="h-5 w-5 text-text-secondary" />
@@ -121,7 +99,6 @@ export default function LawSearchPage() {
         )}
       </div>
 
-      {/* Status Messages */}
       {loading && (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
@@ -154,17 +131,16 @@ export default function LawSearchPage() {
         </div>
       )}
 
-      {/* Results */}
       {!loading && results.length > 0 && (
         <div className="space-y-4">
           <p className="text-sm text-text-secondary font-medium">
             {results.length} {results.length === 1 ? t('lawSearch.result', 'rezultat') : t('lawSearch.results', 'rezultate')}
           </p>
           {results.map((item) => (
-            <div
+            <Link
               key={item.chunk_id}
-              className="glass-panel p-6 rounded-2xl hover:shadow-xl transition-all cursor-pointer group"
-              onClick={() => handleResultClick(item.chunk_id)}
+              to={`/laws/${item.chunk_id}`}
+              className="glass-panel p-6 rounded-2xl hover:shadow-xl transition-all cursor-pointer group block no-underline"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
@@ -189,12 +165,11 @@ export default function LawSearchPage() {
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
 
-      {/* Semantic search hint */}
       {!loading && !error && results.length === 0 && query.trim() === '' && (
         <div className="text-center text-text-secondary/40 text-sm mt-12">
           <Search className="h-8 w-8 mx-auto mb-3 opacity-30" />

@@ -1,18 +1,20 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V5.8 (SOKRATI THINKING LOGIC FIX)
-// 1. FIX: Resolved double-bubble by hiding Thinking state as soon as AI content arrives.
-// 2. BRANDING: Cleaned "Sokrati duke menduar..." with smoother motion dots.
-
+// PHOENIX PROTOCOL - CHAT PANEL V5.11 (FULLY INTERNATIONALIZED)
+// 1. FIXED: All hardcoded strings replaced with translation keys.
+// 2. ADDED: Keys for law preview loading/error, thinking state.
+// 3. STATUS: Ready for i18n.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    Send, BrainCircuit, Trash2, User, Copy, Check, Zap, GraduationCap, Scale, Globe, FileCheck, Lock 
+    Send, BrainCircuit, Trash2, User, Copy, Check, Zap, GraduationCap, Scale, Lock, Eye
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Link } from 'react-router-dom';
+import { apiService } from '../services/api';
 
 export type ChatMode = 'general' | 'document';
 export type ReasoningMode = 'FAST' | 'DEEP';
@@ -53,35 +55,86 @@ const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, 
     );
 };
 
-const MarkdownComponents = {
+// Tooltip component for law preview
+const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; t: TFunction }> = ({ chunkId, children, t }) => {
+    const [preview, setPreview] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [show, setShow] = useState(false);
+    const timeoutRef = useRef<NodeJS.Timeout>();
+
+    useEffect(() => {
+        if (show && !preview && !loading) {
+            setLoading(true);
+            apiService.getLawByChunkId(chunkId)
+                .then(data => setPreview(data.text.substring(0, 200) + '...'))
+                .catch(() => setPreview(t('lawPreview.error', 'Nuk u ngarkua')))
+                .finally(() => setLoading(false));
+        }
+    }, [show, chunkId, preview, loading, t]);
+
+    const handleMouseEnter = () => {
+        timeoutRef.current = setTimeout(() => setShow(true), 400);
+    };
+    const handleMouseLeave = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        setShow(false);
+    };
+
+    return (
+        <div className="relative inline-block" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+            {children}
+            <AnimatePresence>
+                {show && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 glass-high text-xs text-gray-300 rounded-xl border border-white/10 shadow-2xl z-50"
+                    >
+                        {loading ? t('lawPreview.loading', 'Duke ngarkuar...') : preview}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
+// Custom markdown components
+const MarkdownComponents = (t: TFunction) => ({
     h1: ({node, ...props}: any) => <h1 className="text-xl font-bold text-white mb-4 mt-6 border-b border-white/10 pb-2 uppercase tracking-wider" {...props} />,
     h2: ({node, ...props}: any) => <h2 className="text-lg font-bold text-primary-start mb-3 mt-5" {...props} />,
     h3: ({node, ...props}: any) => <h3 className="text-md font-bold text-accent-end mb-2 mt-4 flex items-center gap-2" {...props} />,
     p: ({node, ...props}: any) => <p className="mb-3 last:mb-0 leading-relaxed text-gray-200" {...props} />, 
     a: ({href, children}: any) => {
-        const getText = (child: any): string => {
-            if (!child) return '';
-            if (typeof child === 'string') return child;
-            if (Array.isArray(child)) return child.map(getText).join('');
-            return '';
-        };
-        const contentStr = getText(children);
-        if (href?.startsWith('doc://')) {
-            const isGlobal = ["UNCRC", "KEDNJ", "ECHR", "Konventa"].some(k => contentStr.includes(k));
-            const isEvidence = contentStr.includes("Burimi") || contentStr.includes("Dokument");
+        // For law links (/laws/...), render as a clickable badge with React Router Link
+        if (href?.startsWith('/laws/')) {
+            const chunkId = href.split('/').pop();
             return (
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold border mx-1 align-middle transition-all shadow-sm ${
-                    isEvidence ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' :
-                    isGlobal ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30' : 'bg-blue-500/10 text-blue-300 border-blue-500/30'
-                }`}>
-                    {isEvidence ? <FileCheck size={12} /> : isGlobal ? <Globe size={12} /> : <Scale size={12} />}
-                    {children}
-                </span>
+                <LawPreviewTooltip chunkId={chunkId} t={t}>
+                    <Link
+                        to={href}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all hover:shadow-lg hover:scale-105 bg-secondary-start/20 text-secondary-start border-secondary-start/30"
+                    >
+                        <Scale size={12} />
+                        {children}
+                        <Eye size={12} className="opacity-70" />
+                    </Link>
+                </LawPreviewTooltip>
             );
         }
-        return <a className="text-primary-start hover:underline cursor-pointer" target="_blank" rel="noopener noreferrer" href={href}>{children}</a>;
+        // For external links, use normal anchor
+        return (
+            <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-start hover:underline cursor-pointer"
+            >
+                {children}
+            </a>
+        );
     },
-};
+});
 
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
     messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, t, className, activeContextId, isPro = false 
@@ -103,8 +156,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
   
-  // PHOENIX: Determine if we should show the branded thinking state
-  // Only show if we are sending AND the last message is not yet an AI response with content
+  // Determine if we should show the branded thinking state
   const lastMessage = messages[messages.length - 1];
   const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content.trim());
 
@@ -138,7 +190,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' : 'glass-panel text-text-primary rounded-bl-none'}`}>
                         <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
                         <div className="markdown-content select-text">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{msg.content}</ReactMarkdown>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{msg.content}</ReactMarkdown>
                         </div>
                     </div>
                     {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/5 shrink-0"><User className="w-4 h-4 text-text-secondary" /></div>}
@@ -149,7 +201,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <motion.div key="thinking-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-start gap-3">
                     <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-white" /></div>
                     <div className="glass-panel text-blue-400 font-bold rounded-2xl px-5 py-3.5 text-sm flex items-center gap-1 border border-blue-500/20 shadow-blue-500/5">
-                        Sokrati duke menduar<ThinkingDots />
+                        {t('chat.thinking', 'Sokrati duke menduar')}<ThinkingDots />
                     </div>
                 </motion.div>
             )}

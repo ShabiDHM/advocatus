@@ -393,6 +393,9 @@
     "inputPlaceholder": "Shkruaj mesazhin tuaj këtu...",
     "inputPlaceholderDeep": "Shkruaj për hulumtim të thellë...",
     "thinking": "Duke menduar...",
+    "lawPreview.loading": "Duke ngarkuar...",
+  "lawPreview.error": "Nuk u ngarkua",
+  "chat.thinking": "Sokrati duke menduar",
     "confirmClear": "Pastro Historinë",
     "modeFast": "Shpejtë",
     "modeFastTooltip": "Bisedë e Shpejtë",
@@ -427,6 +430,14 @@
     "templateKunderpadi": "Kundërpadi",
     "templateKontrate": "Kontratë",
     "caseLabel": "Rasti",
+    "drafting.autofillPrompt": "Ju lutem përgatitni një draft ligjor për rastin \"{{caseTitle}}\".",
+  "drafting.clientLabel": "Klienti",
+  "drafting.saveFailed": "Ruajtja dështoi.",
+  "drafting.templateDesc.generic": "Krijon një dokument ligjor të përgjithshëm bazuar në udhëzimet tuaja. I përshtatshëm për kontrata, letra ose memorandume.",
+  "drafting.templateDesc.padi": "Hartoj një padi formale për të filluar procedurat gjyqësore. Përfshin paditësin, të paditurin dhe detajet e kërkesës.",
+  "drafting.templateDesc.pergjigje": "Përgatit një përgjigje ndaj një padie, duke adresuar çdo pretendim dhe duke paraqitur mbrojtje.",
+  "drafting.templateDesc.kunderpadi": "Hartoj një kundërpadi kundër paditësit origjinal, duke pohuar pretendimet e klientit tuaj.",
+  "drafting.templateDesc.kontrate": "Gjeneron një kontratë bazuar në termat dhe kushtet e dhëna.",
     "noCaseSelected": "Pa Kontekst (Gjenerik)",
     "noCasesFound": "Asnjë rast i gjetur",
     "confirmTemplateSwitch": "Ndryshimi i shabllonit do të zëvendësojë tekstin aktual. Vazhdo?",
@@ -688,6 +699,17 @@
     "deleteWarning": "Fshirja e llogarisë është e përhershme. Të gjitha të dhënat e rastit do të fshihen në mënyrë të pakthyeshme.",
     "deleteAccount": "Fshij Llogarinë",
     "confirmDelete": "A jeni i sigurt që dëshironi ta fshini llogarinë tuaj? Ky veprim është i pakthyeshëm."
-
+  },
+  "lawSearch": {
+    "result": "rezultat",
+    "results": "rezultate",
+    "viewDetails": "Shiko detajet",
+    "startTyping": "Fillo të shkruash për të kërkuar..."
+  },
+  "lawViewer": {
+    "missingId": "ID e fragmentit mungon.",
+    "fetchError": "Dështoi ngarkimi i ligjit.",
+    "backToSearch": "Kthehu te kërkimi",
+    "notFound": "Ligji nuk u gjet."
   }
 }
