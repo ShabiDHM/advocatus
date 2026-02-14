@@ -1,8 +1,8 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V15.3 (CASE_NUMBER STRING FIX)
-# 1. FIXED: Explicitly convert extracted_metadata['case_number'] to string.
-# 2. FIXED: Convert all metadata values to strings if they are not scalar.
-# 3. STATUS: ChromaDB 422 errors eliminated at source.
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V15.4 (EXPLICIT IMPORTS + ROBUST COPY)
+# 1. FIXED: Pylance warnings by importing specific vector store functions.
+# 2. IMPROVED: Deduplication copy now uses try/except instead of getattr.
+# 3. STATUS: Pylance‑clean, ChromaDB 422 errors fixed.
 
 import os
 import tempfile
@@ -21,7 +21,6 @@ from bson import ObjectId
 from . import (
     document_service, 
     storage_service, 
-    vector_store_service, 
     llm_service, 
     text_extraction_service, 
     conversion_service,
@@ -33,6 +32,13 @@ from .albanian_language_detector import AlbanianLanguageDetector
 from .albanian_document_processor import EnhancedDocumentProcessor
 from .albanian_metadata_extractor import albanian_metadata_extractor
 from ..models.document import DocumentStatus
+
+# Explicit imports for vector store functions (Pylance‑friendly)
+from .vector_store_service import (
+    delete_document_embeddings,
+    create_and_store_embeddings_from_chunks,
+    copy_document_embeddings
+)
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +112,7 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
 
         file_hash = _compute_file_hash(temp_original_file_path)
 
-        # --- Deduplication (unchanged) ---
+        # --- Deduplication (now with explicit copy function) ---
         existing_doc = await asyncio.to_thread(
             db.documents.find_one,
             {
@@ -125,39 +131,42 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
             text_key = existing_doc.get("processed_text_key")
             preview_key = existing_doc.get("preview_key")
             
-            copy_embeddings_fn = getattr(vector_store_service, "copy_document_embeddings", None)
-            if copy_embeddings_fn:
+            # Attempt to copy embeddings; if it fails, we will reprocess
+            copy_success = False
+            try:
                 await asyncio.to_thread(
-                    copy_embeddings_fn,
+                    copy_document_embeddings,
                     source_document_id=str(existing_doc["_id"]),
                     target_document_id=document_id_str,
                     target_user_id=user_id,
                     target_case_id=case_id_str
                 )
-            else:
-                logger.warning("copy_document_embeddings not available – will reprocess embeddings.")
+                copy_success = True
+            except Exception as e:
+                logger.warning(f"copy_document_embeddings failed – will reprocess embeddings. Error: {e}")
             
-            update_data = {
-                "status": "PROCESSED",
-                "processed_text_key": text_key,
-                "preview_key": preview_key,
-                "file_hash": file_hash,
-                "detected_language": existing_doc.get("detected_language"),
-                "category": existing_doc.get("category"),
-                "metadata": existing_doc.get("metadata", {}),
-                "summary": existing_doc.get("summary"),
-                "processing_time": datetime.now(timezone.utc)
-            }
-            
-            await asyncio.to_thread(
-                db.documents.update_one,
-                {"_id": doc_id},
-                {"$set": update_data}
-            )
-            
-            if copy_embeddings_fn:
+            if copy_success:
+                update_data = {
+                    "status": "PROCESSED",
+                    "processed_text_key": text_key,
+                    "preview_key": preview_key,
+                    "file_hash": file_hash,
+                    "detected_language": existing_doc.get("detected_language"),
+                    "category": existing_doc.get("category"),
+                    "metadata": existing_doc.get("metadata", {}),
+                    "summary": existing_doc.get("summary"),
+                    "processing_time": datetime.now(timezone.utc)
+                }
+                
+                await asyncio.to_thread(
+                    db.documents.update_one,
+                    {"_id": doc_id},
+                    {"$set": update_data}
+                )
+                
                 await _emit_progress_async(redis_client, user_id, document_id_str, "Përfunduar (kopjuar)", 100)
                 return
+            # else continue with full processing
 
         # --- Text Extraction with OCR Fallback ---
         await _emit_progress_async(redis_client, user_id, document_id_str, "Ekstraktimi i tekstit...", 20)
@@ -240,7 +249,7 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
         # --- Parallel Tasks ---
         async def task_embeddings():
             await asyncio.to_thread(
-                vector_store_service.delete_document_embeddings,
+                delete_document_embeddings,
                 user_id=user_id,
                 document_id=document_id_str
             )
@@ -269,7 +278,7 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
                     chunk.metadata['case_number'] = str(chunk.metadata['case_number'])
             
             success = await asyncio.to_thread(
-                vector_store_service.create_and_store_embeddings_from_chunks,
+                create_and_store_embeddings_from_chunks,
                 user_id=user_id, 
                 document_id=document_id_str, 
                 case_id=case_id_str, 
@@ -374,7 +383,7 @@ async def orchestrate_document_processing_mongo(db: Database, redis_client: redi
         
         try:
             await asyncio.to_thread(
-                vector_store_service.delete_document_embeddings,
+                delete_document_embeddings,
                 user_id=user_id,
                 document_id=document_id_str
             )

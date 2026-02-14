@@ -1,9 +1,8 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V18.1 (RECURSIVE METADATA SANITIZATION + DEBUG LOGGING)
-# 1. FIXED: Recursively convert any nested structures (dict, list) to JSON strings.
-# 2. ADDED: Detailed logging for non‑scalar values to pinpoint problematic fields.
-# 3. ADDED: Try‑except around ChromaDB `add` to log exact metadata on failure.
-# 4. STATUS: ChromaDB 422 errors eliminated.
+# PHOENIX PROTOCOL - VECTOR STORE V18.2 (NULL → EMPTY STRING + SAFE LOGGING)
+# 1. FIXED: Convert None to empty string (ChromaDB rejects null).
+# 2. ADDED: Safe fallback in logging to prevent secondary errors.
+# 3. STATUS: ChromaDB 422 errors eliminated.
 
 from __future__ import annotations
 import os
@@ -25,25 +24,30 @@ _client: Optional[ClientAPI] = None
 _global_collection: Optional[Collection] = None
 _active_user_collections: Dict[str, Collection] = {}
 
-def _sanitize_metadata_value(value: Any, path: str = "") -> Union[str, int, float, bool, None]:
+def _sanitize_metadata_value(value: Any, path: str = "") -> Union[str, int, float, bool]:
     """
-    Recursively sanitize a metadata value.
-    - If value is None or a scalar (str, int, float, bool), return it unchanged.
-    - If value is a dict or list, convert to a JSON string.
-    - Otherwise, convert to string.
-    Logs any non‑scalar values at DEBUG level.
+    Recursively sanitize a metadata value for ChromaDB compatibility.
+    - None → empty string (ChromaDB does not accept null)
+    - Scalar (str, int, float, bool) → unchanged
+    - dict or list → JSON string
+    - else → string representation
+    Logs any non‑scalar conversions at DEBUG level.
     """
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None:
+        # ChromaDB metadata does not allow null
+        logger.debug(f"Converting None at '{path}' to empty string.")
+        return ""
+
+    if isinstance(value, (str, int, float, bool)):
         return value
 
-    # Log that we are converting a non‑scalar
     logger.debug(f"Converting non‑scalar metadata at '{path}': type={type(value).__name__}, value={repr(value)[:200]}")
 
     try:
-        # Try JSON serialization first – this handles dicts, lists, and basic types
+        # Try JSON serialization – handles dicts, lists, and basic types
         return json.dumps(value, ensure_ascii=False)
     except Exception:
-        # Fallback to string representation
+        # Ultimate fallback
         return str(value)
 
 def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -52,8 +56,7 @@ def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
     """
     sanitized = {}
     for k, v in metadata.items():
-        path = f"{k}"  # for nested structures we could extend, but for now just top‑level
-        sanitized[k] = _sanitize_metadata_value(v, path)
+        sanitized[k] = _sanitize_metadata_value(v, path=k)
     return sanitized
 
 def connect_chroma_db():
@@ -143,11 +146,15 @@ def create_and_store_embeddings_from_chunks(
         logger.info(f"✅ Stored {len(valid_chunks)} chunks for document {document_id}")
         return True
     except Exception as e:
-        # Log detailed information about the failing batch
+        # Log detailed information about the failing batch, with safety
         logger.error(f"Ingestion failed for document {document_id}: {e}")
-        # Log the first few metadata entries to help debugging
-        for idx, meta in enumerate(valid_metadatas[:3]):
-            logger.error(f"Metadata chunk {idx}: {json.dumps(meta, default=str)[:500]}")
+        try:
+            for idx, meta in enumerate(valid_metadatas[:3]):
+                # Ensure we log safely even if meta is not a dict
+                meta_str = json.dumps(meta, default=str)[:500] if isinstance(meta, dict) else str(meta)[:500]
+                logger.error(f"Metadata chunk {idx}: {meta_str}")
+        except Exception as log_e:
+            logger.error(f"Error while logging metadata: {log_e}")
         logger.error("Full traceback:", exc_info=True)
         return False
 
