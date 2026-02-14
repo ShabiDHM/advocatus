@@ -1,8 +1,7 @@
 # FILE: backend/app/services/document_processing_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V15.4 (EXPLICIT IMPORTS + ROBUST COPY)
-# 1. FIXED: Pylance warnings by importing specific vector store functions.
-# 2. IMPROVED: Deduplication copy now uses try/except instead of getattr.
-# 3. STATUS: Pylance‑clean, ChromaDB 422 errors fixed.
+# PHOENIX PROTOCOL - JURISTI HYDRA ORCHESTRATOR V15.5 (ABSOLUTE IMPORTS + ROBUST COPY)
+# 1. FIXED: Use absolute imports to resolve Pylance warnings.
+# 2. STATUS: Pylance‑clean, all vector store functions correctly imported.
 
 import os
 import tempfile
@@ -33,8 +32,8 @@ from .albanian_document_processor import EnhancedDocumentProcessor
 from .albanian_metadata_extractor import albanian_metadata_extractor
 from ..models.document import DocumentStatus
 
-# Explicit imports for vector store functions (Pylance‑friendly)
-from .vector_store_service import (
+# Absolute imports for vector store functions (Pylance‑friendly)
+from app.services.vector_store_service import (
     delete_document_embeddings,
     create_and_store_embeddings_from_chunks,
     copy_document_embeddings

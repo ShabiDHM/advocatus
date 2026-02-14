@@ -1,8 +1,7 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V18.2 (NULL → EMPTY STRING + SAFE LOGGING)
-# 1. FIXED: Convert None to empty string (ChromaDB rejects null).
-# 2. ADDED: Safe fallback in logging to prevent secondary errors.
-# 3. STATUS: ChromaDB 422 errors eliminated.
+# PHOENIX PROTOCOL - VECTOR STORE V18.3 (LOG CHUNK CONTENT ON STORE)
+# 1. ADDED: Log first 200 chars of each chunk when storing embeddings.
+# 2. STATUS: Diagnostic logging enabled.
 
 from __future__ import annotations
 import os
@@ -25,35 +24,18 @@ _global_collection: Optional[Collection] = None
 _active_user_collections: Dict[str, Collection] = {}
 
 def _sanitize_metadata_value(value: Any, path: str = "") -> Union[str, int, float, bool]:
-    """
-    Recursively sanitize a metadata value for ChromaDB compatibility.
-    - None → empty string (ChromaDB does not accept null)
-    - Scalar (str, int, float, bool) → unchanged
-    - dict or list → JSON string
-    - else → string representation
-    Logs any non‑scalar conversions at DEBUG level.
-    """
     if value is None:
-        # ChromaDB metadata does not allow null
         logger.debug(f"Converting None at '{path}' to empty string.")
         return ""
-
     if isinstance(value, (str, int, float, bool)):
         return value
-
     logger.debug(f"Converting non‑scalar metadata at '{path}': type={type(value).__name__}, value={repr(value)[:200]}")
-
     try:
-        # Try JSON serialization – handles dicts, lists, and basic types
         return json.dumps(value, ensure_ascii=False)
     except Exception:
-        # Ultimate fallback
         return str(value)
 
 def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Recursively sanitize an entire metadata dictionary.
-    """
     sanitized = {}
     for k, v in metadata.items():
         sanitized[k] = _sanitize_metadata_value(v, path=k)
@@ -115,6 +97,9 @@ def create_and_store_embeddings_from_chunks(
     valid_metadatas = []
 
     for i, chunk in enumerate(chunks):
+        # --- PHOENIX: Log chunk content for debugging ---
+        logger.info(f"📄 Storing chunk {i} for doc {document_id}: {chunk[:200]}...")
+
         emb = embedding_service.generate_embedding(chunk, language=metadatas[i].get('language'))
         if emb:
             embeddings.append(emb)
@@ -146,11 +131,9 @@ def create_and_store_embeddings_from_chunks(
         logger.info(f"✅ Stored {len(valid_chunks)} chunks for document {document_id}")
         return True
     except Exception as e:
-        # Log detailed information about the failing batch, with safety
         logger.error(f"Ingestion failed for document {document_id}: {e}")
         try:
             for idx, meta in enumerate(valid_metadatas[:3]):
-                # Ensure we log safely even if meta is not a dict
                 meta_str = json.dumps(meta, default=str)[:500] if isinstance(meta, dict) else str(meta)[:500]
                 logger.error(f"Metadata chunk {idx}: {meta_str}")
         except Exception as log_e:
