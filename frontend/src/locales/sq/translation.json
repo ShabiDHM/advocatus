@@ -717,6 +717,10 @@
     "missingId": "ID e fragmentit mungon.",
     "fetchError": "Dështoi ngarkimi i ligjit.",
     "backToSearch": "Kthehu te kërkimi",
-    "notFound": "Ligji nuk u gjet."
+    "notFound": "Ligji nuk u gjet.",
+    "lawViewer.lawTitle": "LIGJI",
+"lawViewer.article": "Neni",
+"lawViewer.source": "Burimi",
+"general.top": "Lart"
   }
 }
