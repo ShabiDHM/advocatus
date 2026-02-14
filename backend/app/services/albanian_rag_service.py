@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V56.1 (ADDED RETRIEVAL LOGGING)
-# 1. ADDED: INFO logs for case and global document counts.
-# 2. ADDED: Query text preview in logs for debugging.
-# 3. STATUS: 100% Pylance Clear, RAG pipeline unblocked.
+# PHOENIX PROTOCOL - RAG SERVICE V56.2 (LOG DOCUMENT SNIPPETS + STRONGER PROMPT)
+# 1. ADDED: Log first 200 chars of each retrieved case document.
+# 2. ADDED: Prompt now explicitly tells LLM to base answer on case documents first.
+# 3. STATUS: Diagnostic logging enabled.
 
 import os
 import sys
@@ -110,7 +110,9 @@ class AlbanianRAGService:
 
     def _build_context(self, case_docs: List[Dict], global_docs: List[Dict]) -> str:
         context = "\n<<< MATERIALET E DOSJES >>>\n"
-        for d in case_docs:
+        for idx, d in enumerate(case_docs):
+            snippet = d.get('text', '')[:200]
+            logger.info(f"📄 Case doc {idx+1} snippet: {snippet}")
             context += f"[{d.get('source')}, FAQJA: {d.get('page')}]: {d.get('text')}\n\n"
 
         context += "\n<<< BAZA LIGJORE STATUTORE >>>\n"
@@ -129,7 +131,6 @@ class AlbanianRAGService:
 
         from . import vector_store_service
 
-        # --- PHOENIX LOGGING: Log query and parameters ---
         logger.info(f"🔍 Chat request: user={user_id}, case={case_id}, query='{query[:100]}...'")
 
         case_docs = vector_store_service.query_case_knowledge_base(
@@ -146,6 +147,7 @@ class AlbanianRAGService:
         self._build_citation_map(global_docs)
         context_str = self._build_context(case_docs, global_docs)
 
+        # --- Stronger instruction to use case documents ---
         prompt = f"""
         Ti je "Senior Legal Partner". Detyra jote është të japësh një opinion ligjor suprem.
         {PROTOKOLLI_MANDATOR}
@@ -154,6 +156,11 @@ class AlbanianRAGService:
         {context_str}
         
         **PYETJA:** "{query}"
+
+        **UDHËZIM I RËNDËSISHËM:**
+        - Nëse pyetja ka të bëjë me rastin konkret, përdor PARA SË GJITHASH materialet e dosjes (<<< MATERIALET E DOSJES >>>).
+        - Vetëm pas kësaj, shto referenca nga baza ligjore për të mbështetur analizën.
+        - Nëse materialet e dosjes përmbajnë informacion për rastin, përfshiji ato në përgjigje.
 
         **STRUKTURA (OBLIGATIVE):**
         ### 1. ANALIZA E FAKTEVE
