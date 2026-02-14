@@ -1,8 +1,8 @@
 # FILE: backend/scripts/ingest_laws.py
-# PHOENIX PROTOCOL - INGESTION SCRIPT V4.0 (ROBUST OCR + FULL TITLES)
-# 1. USES text_extraction_service.extract_text (with OCR fallback).
-# 2. EXTRACTS full law titles including descriptive part.
-# 3. LOGS per‑file progress and errors.
+# PHOENIX PROTOCOL - INGESTION SCRIPT V4.1 (ADDED CHUNK INDEX)
+# 1. ADDED: chunk_index and total_article_chunks to metadata for proper sorting.
+# 2. RETAINED: All previous improvements.
+# 3. NOTE: After this change, laws must be re‑ingested with --force to update metadata.
 
 import os
 import sys
@@ -224,6 +224,8 @@ def ingest_legal_docs(directory_path: str, force_reingest: bool = False, chunk_s
                         "jurisdiction": TARGET_JURISDICTION,
                         "file_hash": current_hash,
                         "page": 0,
+                        "chunk_index": i,                       # NEW: index within article
+                        "total_article_chunks": len(chunks)     # NEW: total chunks for this article
                     }
                     # Sanitize metadata (convert non‑scalars)
                     meta = {k: (v if v is not None else "") for k, v in meta.items()}

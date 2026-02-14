@@ -1,7 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V22.2 (ADDED LAWS METHODS)
-// 1. ADDED: searchLaws and getLawByChunkId to support law viewer and search.
-// 2. RETAINED: All existing functionality.
+// PHOENIX PROTOCOL - API SERVICE V22.4 (ADDED LIMIT TO SEARCHLAWS)
+// 1. ADDED: limit parameter to searchLaws (default 50).
+// 2. RETAINED: getLawArticle and all existing methods.
 // 3. STATUS: 100% Pylance Clear.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
@@ -302,16 +302,24 @@ class ApiService {
         window.URL.revokeObjectURL(url);
     }
 
-    // --- LAWS METHODS (NEW) ---
-    public async searchLaws(query: string, jurisdiction?: string): Promise<any> {
+    // --- LAWS METHODS ---
+    public async searchLaws(query: string, jurisdiction?: string, limit: number = 50): Promise<any> {
         const response = await this.axiosInstance.get('/laws/search', {
-            params: { q: query, jurisdiction }
+            params: { q: query, jurisdiction, limit }
         });
         return response.data;
     }
 
     public async getLawByChunkId(chunkId: string): Promise<any> {
         const response = await this.axiosInstance.get(`/laws/${chunkId}`);
+        return response.data;
+    }
+
+    // --- Fetch full article by law title and article number ---
+    public async getLawArticle(lawTitle: string, articleNumber: string): Promise<any> {
+        const response = await this.axiosInstance.get('/laws/article', {
+            params: { law_title: lawTitle, article_number: articleNumber }
+        });
         return response.data;
     }
 

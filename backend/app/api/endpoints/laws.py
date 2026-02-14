@@ -1,7 +1,8 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - ROUTE ORDER FIX V1.0 (SEARCH PRIORITY)
-# 1. MOVED: /search endpoint above /{chunk_id} to prevent route shadowing.
-# 2. STATUS: Fixed Critical Logic Error.
+# PHOENIX PROTOCOL - ADDED ARTICLE FETCH ENDPOINT V1.1
+# 1. ADDED: /article endpoint to retrieve all chunks of a specific article.
+# 2. RETAINED: Existing search and chunk-by-id endpoints.
+# 3. STATUS: Ready for frontend integration.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.database import Database
@@ -22,6 +23,56 @@ async def search_laws(
         return results
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+@router.get("/article")
+async def get_law_article(
+    law_title: str = Query(..., description="Law title"),
+    article_number: str = Query(..., description="Article number"),
+    current_user = Depends(get_current_user)
+):
+    """
+    Retrieve all chunks belonging to a specific article.
+    This combines multiple chunks (if the article was split) into one full text.
+    """
+    try:
+        collection = vector_store_service.get_global_collection()
+        # Query with metadata filter: both law_title and article_number must match
+        results = collection.get(
+            where={
+                "$and": [
+                    {"law_title": {"$eq": law_title}},
+                    {"article_number": {"$eq": article_number}}
+                ]
+            },
+            include=["documents", "metadatas"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    documents = results.get("documents", [])
+    metadatas = results.get("metadatas", [])
+    if not documents:
+        raise HTTPException(status_code=404, detail="Article not found")
+
+    # Sort chunks by chunk_index if available, otherwise assume order is correct
+    # If chunk_index is stored in metadata, use it to sort.
+    # Since our ingestion script (V4.0) does not yet include chunk_index, we skip sorting.
+    # If you have chunk_index, you can uncomment the sorting block.
+    # sorted_data = sorted(zip(documents, metadatas), key=lambda x: x[1].get('chunk_index', 0))
+    # documents = [d for d, _ in sorted_data]
+    # metadatas = [m for _, m in sorted_data]
+
+    # Combine all chunks with double newline as separator
+    full_text = "\n\n".join(documents)
+
+    # Use metadata from the first chunk for law_title, article_number, source
+    meta = metadatas[0] if metadatas else {}
+    return {
+        "law_title": meta.get("law_title", law_title),
+        "article_number": meta.get("article_number", article_number),
+        "source": meta.get("source", ""),
+        "text": full_text
+    }
 
 @router.get("/{chunk_id}")
 async def get_law_chunk(

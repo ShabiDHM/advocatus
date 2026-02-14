@@ -721,6 +721,14 @@
     "lawViewer.lawTitle": "LIGJI",
 "lawViewer.article": "Neni",
 "lawViewer.source": "Burimi",
-"general.top": "Lart"
+"general.top": "Lart",
+"lawArticle": {
+  "missingParams": "Parametrat e artikullit mungojnë.",
+  "fetchError": "Dështoi ngarkimi i artikullit.",
+  "backToSearch": "Kthehu te kërkimi",
+  "lawTitle": "LIGJI",
+  "article": "Neni",
+  "source": "Burimi"
+}
   }
 }

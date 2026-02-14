@@ -1,9 +1,9 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - LAW SEARCH PAGE (FIXED NAVIGATION)
+// PHOENIX PROTOCOL - GROUPED LAW SEARCH BY ARTICLE
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, X, BookOpen, AlertCircle } from 'lucide-react';
+import { Search, X, BookOpen, AlertCircle, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
 
@@ -13,6 +13,16 @@ interface LawResult {
   source: string;
   text: string;
   chunk_id: string;
+}
+
+// Grouped article representation
+interface ArticleGroup {
+  law_title: string;
+  article_number: string;
+  source: string;
+  preview: string; // first chunk text
+  chunkCount: number;
+  chunkIds: string[];
 }
 
 function useDebounce<T extends (...args: any[]) => any>(callback: T, delay: number) {
@@ -28,22 +38,47 @@ function useDebounce<T extends (...args: any[]) => any>(callback: T, delay: numb
 export default function LawSearchPage() {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<LawResult[]>([]);
+  const [rawResults, setRawResults] = useState<LawResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
 
+  // Group results by article (law_title + article_number)
+  const groupedResults = useMemo(() => {
+    const groups = new Map<string, ArticleGroup>();
+    rawResults.forEach(item => {
+      const articleNum = item.article_number || '0';
+      const key = `${item.law_title}|${articleNum}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          law_title: item.law_title,
+          article_number: articleNum,
+          source: item.source,
+          preview: item.text,
+          chunkCount: 1,
+          chunkIds: [item.chunk_id]
+        });
+      } else {
+        const group = groups.get(key)!;
+        group.chunkCount++;
+        group.chunkIds.push(item.chunk_id);
+      }
+    });
+    return Array.from(groups.values());
+  }, [rawResults]);
+
   const performSearch = useCallback(async (searchTerm: string) => {
     if (!searchTerm.trim()) {
-      setResults([]);
+      setRawResults([]);
       setHasSearched(false);
       return;
     }
     setLoading(true);
     setError('');
     try {
-      const data = await apiService.searchLaws(searchTerm);
-      setResults(data);
+      // Request up to 100 results to get more articles
+      const data = await apiService.searchLaws(searchTerm, undefined, 100);
+      setRawResults(data);
       setHasSearched(true);
     } catch (err: any) {
       setError(err.message || t('lawSearch.error', 'Kërkimi dështoi.'));
@@ -60,7 +95,7 @@ export default function LawSearchPage() {
 
   const handleClear = () => {
     setQuery('');
-    setResults([]);
+    setRawResults([]);
     setHasSearched(false);
     setError('');
   };
@@ -119,7 +154,7 @@ export default function LawSearchPage() {
         </div>
       )}
 
-      {!loading && hasSearched && results.length === 0 && query.trim() !== '' && (
+      {!loading && hasSearched && groupedResults.length === 0 && query.trim() !== '' && (
         <div className="glass-panel p-12 rounded-2xl text-center">
           <BookOpen className="h-12 w-12 mx-auto text-text-secondary mb-4" />
           <p className="text-text-secondary text-lg font-medium">
@@ -131,36 +166,40 @@ export default function LawSearchPage() {
         </div>
       )}
 
-      {!loading && results.length > 0 && (
+      {!loading && groupedResults.length > 0 && (
         <div className="space-y-4">
           <p className="text-sm text-text-secondary font-medium">
-            {results.length} {results.length === 1 ? t('lawSearch.result', 'rezultat') : t('lawSearch.results', 'rezultate')}
+            {groupedResults.length} {groupedResults.length === 1 ? 'nen' : 'nene'} të gjetur
           </p>
-          {results.map((item) => (
+          {groupedResults.map((article, idx) => (
             <Link
-              key={item.chunk_id}
-              to={`/laws/${item.chunk_id}`}
+              key={idx}
+              to={`/laws/article?lawTitle=${encodeURIComponent(article.law_title)}&articleNumber=${encodeURIComponent(article.article_number)}`}
               className="glass-panel p-6 rounded-2xl hover:shadow-xl transition-all cursor-pointer group block no-underline"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0 flex-1">
                   <h2 className="text-xl font-bold text-text-primary group-hover:text-primary-start transition-colors mb-1">
-                    {item.law_title}
-                    {item.article_number && (
-                      <span className="text-text-secondary ml-2 font-normal">
-                        – Neni {item.article_number}
-                      </span>
-                    )}
+                    {article.law_title}
+                    <span className="text-text-secondary ml-2 font-normal">
+                      – Neni {article.article_number}
+                    </span>
                   </h2>
                   <p className="text-sm text-text-secondary mb-3 line-clamp-3">
-                    {item.text}
+                    {article.preview}
                   </p>
                   <div className="flex items-center gap-3 text-xs">
                     <span className="px-2 py-1 bg-white/5 rounded-full text-text-secondary">
-                      {item.source}
+                      {article.source}
                     </span>
-                    <span className="text-primary-start group-hover:text-primary-end transition-colors font-medium">
-                      {t('lawSearch.viewDetails', 'Shiko detajet')} →
+                    {article.chunkCount > 1 && (
+                      <span className="px-2 py-1 bg-primary-start/10 text-primary-start rounded-full border border-primary-start/20">
+                        {article.chunkCount} pjesë
+                      </span>
+                    )}
+                    <span className="text-primary-start group-hover:text-primary-end transition-colors font-medium flex items-center gap-1">
+                      {t('lawSearch.viewDetails', 'Shiko detajet')}
+                      <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
                     </span>
                   </div>
                 </div>
@@ -170,7 +209,7 @@ export default function LawSearchPage() {
         </div>
       )}
 
-      {!loading && !error && results.length === 0 && query.trim() === '' && (
+      {!loading && !error && rawResults.length === 0 && query.trim() === '' && (
         <div className="text-center text-text-secondary/40 text-sm mt-12">
           <Search className="h-8 w-8 mx-auto mb-3 opacity-30" />
           <p>{t('lawSearch.startTyping', 'Fillo të shkruash për të kërkuar...')}</p>
