@@ -1,6 +1,6 @@
 // FILE: src/pages/LawSearchPage.tsx
 // PHOENIX PROTOCOL - ENHANCED SEARCH WITH LAW DROPDOWN
-// v3: Added detailed console logging to diagnose enrichment failure.
+// v4: Log full response JSON and attempt to use source field.
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -25,19 +25,24 @@ interface ArticleGroup {
   chunkIds: string[];
 }
 
-// Heuristic: a title is "bare" if it starts with "LIGJ" and contains a slash,
-// but does NOT contain a dash (—) or common Albanian words like "PËR", "E", "TË", etc.
+// Helper: extract descriptive title from source filename if possible
+function extractTitleFromSource(source: string): string | null {
+  // Example: "LIGJI_NR._04_L-139_PËR_PROCEDURËN_PËRMBARIMORE.pdf"
+  const match = source.match(/^(.+?)(?:_PËR_|\.pdf)/i);
+  if (match) {
+    // Convert underscores to spaces and ensure proper capitalization
+    return match[1].replace(/_/g, ' ');
+  }
+  return null;
+}
+
 function isBareLawNumber(title: string): boolean {
   const trimmed = title.trim();
-  // Check if it starts with LIGJ (case-insensitive)
   if (!/^LIGJ/i.test(trimmed)) return false;
-  // Check if it contains a slash (like /L-077)
   if (!/\//.test(trimmed)) return false;
-  // If it contains a long dash or certain words, it's probably descriptive
   if (/[—–-]/.test(trimmed) && !/^LIGJI?\s+NR\.?\s*\d+(?:\/[A-Za-z0-9-]+)*$/.test(trimmed)) {
     return false;
   }
-  // If it has more than one space, maybe it's descriptive
   const wordCount = trimmed.split(/\s+/).length;
   if (wordCount > 4) return false;
   return true;
@@ -67,7 +72,6 @@ export default function LawSearchPage() {
   const [enrichedTitles, setEnrichedTitles] = useState<Map<string, string>>(new Map());
   const [enrichingTitles, setEnrichingTitles] = useState<Set<string>>(new Set());
 
-  // Fetch law titles on mount
   useEffect(() => {
     console.log('[LawSearch] Fetching law titles...');
     apiService.getLawTitles()
@@ -75,7 +79,6 @@ export default function LawSearchPage() {
         console.log('[LawSearch] Raw titles from API:', titles);
         setLawTitles(titles);
         
-        // Identify bare titles
         const bareTitles = titles.filter(title => {
           const isBare = isBareLawNumber(title);
           console.log(`[LawSearch] "${title}" -> isBare: ${isBare}`);
@@ -90,21 +93,32 @@ export default function LawSearchPage() {
         console.log('[LawSearch] Enriching bare titles:', bareTitles);
         setEnrichingTitles(new Set(bareTitles));
         
-        // Fetch full law object for each bare title
         const enrichmentPromises = bareTitles.map(async (bareTitle) => {
           try {
             console.log(`[LawSearch] Fetching details for: "${bareTitle}"`);
             const lawData = await apiService.getLawArticlesByTitle(bareTitle);
-            console.log(`[LawSearch] Response for "${bareTitle}":`, lawData);
-            // The response should contain law_title (the full descriptive title)
-            const fullTitle = lawData?.law_title;
+            console.log(`[LawSearch] Full response for "${bareTitle}":`, JSON.stringify(lawData, null, 2));
+            
+            // Try to get full title from lawData.law_title
+            let fullTitle = lawData?.law_title;
             if (fullTitle && fullTitle !== bareTitle) {
-              console.log(`[LawSearch] Enriched "${bareTitle}" -> "${fullTitle}"`);
+              console.log(`[LawSearch] Enriched via law_title: "${bareTitle}" -> "${fullTitle}"`);
               return { bare: bareTitle, full: fullTitle };
-            } else {
-              console.warn(`[LawSearch] No law_title in response or same as bare:`, lawData);
-              return { bare: bareTitle, full: bareTitle };
             }
+            
+            // Fallback: try to extract from source field if present
+            if (lawData?.source) {
+              const extracted = extractTitleFromSource(lawData.source);
+              if (extracted) {
+                // Combine bare number with extracted descriptive part
+                fullTitle = `${bareTitle} – ${extracted}`;
+                console.log(`[LawSearch] Enriched via source: "${bareTitle}" -> "${fullTitle}"`);
+                return { bare: bareTitle, full: fullTitle };
+              }
+            }
+            
+            console.warn(`[LawSearch] No usable enrichment data for "${bareTitle}". Response:`, lawData);
+            return { bare: bareTitle, full: bareTitle };
           } catch (err) {
             console.error(`[LawSearch] Failed to enrich title "${bareTitle}":`, err);
             return { bare: bareTitle, full: bareTitle };
