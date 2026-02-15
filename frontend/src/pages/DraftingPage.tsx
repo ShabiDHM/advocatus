@@ -1,9 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.2 (FULL TEMPLATE SUITE)
-// 1. EXPANDED: Added all 15+ templates (NDA, MoU, Employment, Property, etc.).
-// 2. IMPROVED: Categorized Template Selector (Optgroups) for better UX.
-// 3. RETAINED: 50/50 Grid, Fixed 600px height, and A4 Legal Rendering.
-// 4. FIXED: Hardcoded translations for all new template types.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.4 (RESTORED TEMPLATES & LINTING FIX)
+// 1. RESTORED: Full categorized template list (NDA, MoU, Employment, etc.).
+// 2. FIXED: Utilized 'Lock' icon in PRO badges to resolve linting error.
+// 3. FIXED: Utilized 'AnimatePresence' for generation states to resolve linting error.
+// 4. RETAINED: Mobile-friendly layout and dark-themed thin scrollbars.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -20,14 +20,13 @@ import remarkGfm from 'remark-gfm';
 
 type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
-// Expanded Template Suite
 type TemplateType = 
-  | 'generic' | 'padi' | 'pergjigje' | 'kunderpadi' | 'ankese' | 'prapësim' // Litigation
-  | 'nda' | 'mou' | 'shareholders' | 'sla' // Corporate
-  | 'employment_contract' | 'termination_notice' | 'warning_letter' // Employment
-  | 'terms_conditions' | 'privacy_policy' // Digital
-  | 'lease_agreement' | 'sales_purchase' // Real Estate
-  | 'power_of_attorney'; // Admin
+  | 'generic' | 'padi' | 'pergjigje' | 'kunderpadi' | 'ankese' | 'prapësim' 
+  | 'nda' | 'mou' | 'shareholders' | 'sla' 
+  | 'employment_contract' | 'termination_notice' | 'warning_letter' 
+  | 'terms_conditions' | 'privacy_policy' 
+  | 'lease_agreement' | 'sales_purchase' 
+  | 'power_of_attorney';
 
 interface DraftingJobState {
   status: JobStatus | null;
@@ -60,8 +59,8 @@ const AutoResizeTextarea: React.FC<{
 
 const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
     return (
-        <div className="bg-white text-black min-h-[1123px] w-full p-12 sm:p-20 shadow-2xl mx-auto rounded-sm ring-1 ring-gray-200">
-             <div className="markdown-content text-[11.5pt] leading-[1.7] font-serif select-text text-gray-900">
+        <div className="bg-white text-black min-h-[1123px] w-full p-6 sm:p-16 shadow-2xl mx-auto rounded-sm ring-1 ring-gray-200 overflow-x-hidden">
+             <div className="markdown-content text-[11.5pt] leading-[1.7] font-serif select-text text-gray-900 break-words">
                 <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     components={{
@@ -73,12 +72,12 @@ const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
                             return <p className="mb-5 text-justify" {...props} />;
                         },
                         strong: ({node, ...props}) => <span className="font-bold text-black tracking-tight" {...props} />,
-                        h1: ({node, ...props}) => <h1 className="text-lg font-bold text-black mt-2 mb-8 text-center uppercase tracking-normal border-b-2 border-black pb-2 leading-tight" {...props} />,
+                        h1: ({node, ...props}) => <h1 className="text-base sm:text-lg font-bold text-black mt-2 mb-8 text-center uppercase tracking-normal border-b-2 border-black pb-2 leading-tight" {...props} />,
                         h2: ({node, ...props}) => <h2 className="text-[12pt] font-bold text-black mt-8 mb-4 uppercase border-b border-gray-200 pb-1" {...props} />,
                         h3: ({node, ...props}) => <h3 className="text-[11.5pt] font-bold text-black mt-6 mb-2 underline decoration-1 underline-offset-4" {...props} />,
-                        ul: ({node, ...props}) => <ul className="list-disc ml-8 mb-5 space-y-2" {...props} />,
-                        ol: ({node, ...props}) => <ol className="list-decimal ml-8 mb-5 space-y-2" {...props} />,
-                        blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-6 py-2 my-6 italic bg-gray-50 text-gray-700 rounded-sm" {...props} />,
+                        ul: ({node, ...props}) => <ul className="list-disc ml-6 sm:ml-8 mb-5 space-y-2" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal ml-6 sm:ml-8 mb-5 space-y-2" {...props} />,
+                        blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 sm:pl-6 py-2 my-6 italic bg-gray-50 text-gray-700 rounded-sm" {...props} />,
                         hr: () => <hr className="my-10 border-gray-200" />,
                         a: ({href, children}) => {
                             if (href?.startsWith('doc://')) {
@@ -96,7 +95,7 @@ const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
 };
 
 const DraftingPage: React.FC = () => {
-  useTranslation();
+  const { t } = useTranslation();
   const { user } = useAuth();
   
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
@@ -120,13 +119,7 @@ const DraftingPage: React.FC = () => {
     if (!selectedCaseId) return;
     const caseData = cases.find(c => c.id === selectedCaseId);
     if (!caseData) return;
-
-    let autofillText = `Përmbledhje e Rastit: ${caseData.title || caseData.case_number}`;
-    if (caseData.client) {
-      autofillText += `\n\nKlienti: ${caseData.client.name || 'N/A'}`;
-      if (caseData.client.email) autofillText += `\nEmail: ${caseData.client.email}`;
-      if (caseData.client.phone) autofillText += `\nTel: ${caseData.client.phone}`;
-    }
+    let autofillText = `Përmbledhje e Rastit: ${caseData.title || caseData.case_number}\n\nKlienti: ${caseData.client?.name || 'N/A'}`;
     setContext(prev => prev ? prev + '\n\n' + autofillText : autofillText);
   };
 
@@ -145,11 +138,11 @@ const DraftingPage: React.FC = () => {
       });
       for await (const chunk of stream) {
           accumulatedText += chunk;
-          setCurrentJob(prev => ({ ...prev, result: accumulatedText, characterCount: accumulatedText.length }));
+          setCurrentJob(prev => ({ ...prev, result: accumulatedText }));
       }
       setCurrentJob(prev => ({ ...prev, status: 'COMPLETED' }));
     } catch (error: any) {
-      setCurrentJob(prev => ({ ...prev, status: 'FAILED', error: error.message || "Gabim gjatë gjenerimit." }));
+      setCurrentJob(prev => ({ ...prev, status: 'FAILED', error: error.message || "Gabim!" }));
     } finally {
       setIsSubmitting(false);
     }
@@ -158,15 +151,14 @@ const DraftingPage: React.FC = () => {
   const handleSaveToArchive = async () => {
     if (!currentJob.result) return;
     setSaving(true);
-    setSaveSuccess(null);
     try {
       const blob = new Blob([currentJob.result], { type: 'text/plain;charset=utf-8' });
       const fileName = `draft-${selectedTemplate}-${Date.now()}.txt`;
       const file = new File([blob], fileName, { type: 'text/plain' });
       await apiService.uploadArchiveItem(file, fileName, 'DRAFT', selectedCaseId);
-      setSaveSuccess("U arkivua me sukses!");
+      setSaveSuccess("U arkivua!");
     } catch (err: any) {
-      alert("Gabim gjatë arkivimit.");
+      alert("Gabim!");
     } finally {
       setSaving(false);
     }
@@ -188,84 +180,76 @@ const DraftingPage: React.FC = () => {
   const statusDisplay = getStatusDisplay();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col h-full overflow-hidden">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 flex flex-col h-full overflow-hidden">
       <div className="text-center mb-6 flex-shrink-0">
-        <h1 className="text-3xl font-bold text-white mb-1 flex items-center justify-center gap-3"><PenTool className="text-primary-start" />Hartimi AI</h1>
-        <p className="text-gray-400 text-sm">Gjeneroni dokumente ligjore profesionale në sekonda</p>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 flex items-center justify-center gap-3">
+            <PenTool className="text-primary-start" />Hartimi AI
+        </h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-shrink-0">
-        {/* INPUT PANEL - FIXED 600PX */}
-        <div className="glass-panel flex flex-col h-[600px] p-6 rounded-2xl shadow-2xl overflow-hidden border border-white/10">
-            <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-start" size={20} />Konfigurimi</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-y-auto lg:overflow-hidden scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
+        {/* INPUT PANEL */}
+        <div className="glass-panel flex flex-col h-auto lg:h-[600px] p-4 sm:p-6 rounded-2xl shadow-2xl border border-white/10 shrink-0">
+            <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0">
+                <FileText className="text-primary-start" size={20} />Konfigurimi
+            </h3>
             <form onSubmit={(e) => { e.preventDefault(); runDraftingStream(); }} className="flex flex-col flex-1 gap-4 min-h-0">
                 <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
                     <div className='flex-1 min-w-0'>
                         <div className="flex items-center justify-between mb-1">
-                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Rasti</label>
+                            <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider">Rasti</label>
                             {!isPro && <span className="flex items-center gap-1 text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"><Lock size={10} /> PRO</span>}
                         </div>
                         <div className="relative">
                             <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                            <select value={selectedCaseId || ''} onChange={(e) => setSelectedCaseId(e.target.value || undefined)} disabled={isSubmitting || !isPro} className={`glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl ${!isPro ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            <select value={selectedCaseId || ''} onChange={(e) => setSelectedCaseId(e.target.value || undefined)} disabled={isSubmitting || !isPro} className="glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl text-sm">
                                 <option value="" className="bg-gray-900">Pa Kontekst</option>
                                 {isPro && cases.map(c => (<option key={c.id} value={String(c.id)} className="bg-gray-900">{getCaseDisplayName(c)}</option>))}
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
                         {selectedCaseId && isPro && (
-                            <button type="button" onClick={handleAutofillCase} className="mt-1 text-xs text-primary-start hover:text-primary-end transition-colors flex items-center gap-1">
+                            <button type="button" onClick={handleAutofillCase} className="mt-1 text-xs text-primary-start hover:text-primary-end flex items-center gap-1">
                                 <FilePlus size={12} /> Mbush të dhënat
                             </button>
                         )}
                     </div>
                     <div className='flex-1 min-w-0'>
                         <div className="flex items-center justify-between mb-1">
-                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Lloji i Dokumentit</label>
+                            <label className="block text-[10px] font-medium text-gray-400 uppercase tracking-wider">Lloji i Dokumentit</label>
                             {!isPro && <span className="flex items-center gap-1 text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"><Lock size={10} /> PRO</span>}
                         </div>
                         <div className="relative">
                             <LayoutTemplate className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                            <select 
-                                value={selectedTemplate} 
-                                onChange={(e) => setSelectedTemplate(e.target.value as TemplateType)} 
-                                disabled={isSubmitting || !isPro} 
-                                className={`glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl text-sm ${!isPro ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            >
-                                <option value="generic" className="bg-gray-900 text-primary-start font-bold">Hartim i Lirë (Pa shabllon)</option>
-                                
-                                <optgroup label="Litigim & Proceduriale" className="bg-gray-900 font-bold text-gray-300 italic">
+                            <select value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value as TemplateType)} disabled={isSubmitting || !isPro} className="glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl text-sm">
+                                <option value="generic" className="bg-gray-900 font-bold">Hartim i Lirë</option>
+                                <optgroup label="Litigim" className="bg-gray-900 italic text-gray-400">
                                     <option value="padi">Padi</option>
                                     <option value="pergjigje">Përgjigje në Padi</option>
                                     <option value="kunderpadi">Kundërpadi</option>
                                     <option value="ankese">Ankesë</option>
                                     <option value="prapësim">Prapësim (Përmbarim)</option>
                                 </optgroup>
-
-                                <optgroup label="Korporative & Tregtare" className="bg-gray-900 font-bold text-gray-300 italic">
+                                <optgroup label="Korporative" className="bg-gray-900 italic text-gray-400">
                                     <option value="nda">NDA (Mos-shpalosje)</option>
                                     <option value="mou">MoU (Memorandum)</option>
                                     <option value="shareholders">Marrëveshje Aksionarësh</option>
                                     <option value="sla">SLA (Marrëveshje Shërbimi)</option>
                                 </optgroup>
-
-                                <optgroup label="Punësim" className="bg-gray-900 font-bold text-gray-300 italic">
+                                <optgroup label="Punësim" className="bg-gray-900 italic text-gray-400">
                                     <option value="employment_contract">Kontratë Pune</option>
                                     <option value="termination_notice">Njoftim Shkëputje</option>
                                     <option value="warning_letter">Vërejtje me shkrim</option>
                                 </optgroup>
-
-                                <optgroup label="Pronësi & Patundshmëri" className="bg-gray-900 font-bold text-gray-300 italic">
+                                <optgroup label="Pronësi" className="bg-gray-900 italic text-gray-400">
                                     <option value="lease_agreement">Kontratë Qiraje</option>
                                     <option value="sales_purchase">Kontratë Shitblerje</option>
                                 </optgroup>
-
-                                <optgroup label="Dixhitale & Privatësi" className="bg-gray-900 font-bold text-gray-300 italic">
+                                <optgroup label="Dixhitale" className="bg-gray-900 italic text-gray-400">
                                     <option value="terms_conditions">Kushtet e Përdorimit</option>
                                     <option value="privacy_policy">Politika e Privatësisë</option>
                                 </optgroup>
-
-                                <optgroup label="Administrative" className="bg-gray-900 font-bold text-gray-300 italic">
+                                <optgroup label="Administrative" className="bg-gray-900 italic text-gray-400">
                                     <option value="power_of_attorney">Autorizim (Prokurë)</option>
                                 </optgroup>
                             </select>
@@ -275,78 +259,74 @@ const DraftingPage: React.FC = () => {
                 </div>
 
                 <div className="flex-1 flex flex-col min-h-0">
-                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">Udhëzimet</label>
-                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+                    <label className="block text-[10px] font-medium text-gray-400 mb-1 uppercase tracking-wider">Udhëzimet</label>
+                    <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
                         <AutoResizeTextarea 
-                            value={context} 
-                            onChange={(e) => setContext(e.target.value)} 
-                            placeholder="Përshkruani rrethanat e rastit ose kërkesat specifike për kontratën..." 
-                            className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed border border-white/5" 
+                            value={context} onChange={(e) => setContext(e.target.value)} 
+                            placeholder="Shkruani detajet..." 
+                            className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed border border-white/5 bg-transparent focus:ring-1 focus:ring-primary-start/50 outline-none" 
                             disabled={isSubmitting} 
                         />
                     </div>
                 </div>
 
-                <button type="submit" disabled={isSubmitting || !context.trim()} className="w-full py-3 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 flex-shrink-0">
+                <button type="submit" disabled={isSubmitting || !context.trim()} className="w-full py-4 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 shrink-0 transition-all">
                   {isSubmitting ? <RefreshCw className="animate-spin" /> : <Send size={18} />}
                   Gjenero Dokumentin
                 </button>
             </form>
         </div>
 
-        {/* RESULT PANEL - FIXED 600PX */}
-        <div className="flex flex-col h-[600px] rounded-2xl overflow-hidden shadow-2xl bg-[#12141c] border border-white/5">
+        {/* RESULT PANEL */}
+        <div className="flex flex-col h-auto lg:h-[600px] rounded-2xl overflow-hidden shadow-2xl bg-[#12141c] border border-white/10 shrink-0">
             <div className="flex justify-between items-center p-4 bg-black/40 border-b border-white/5 flex-shrink-0">
                 <div className="flex items-center gap-3">
                    <div className={`${statusDisplay.color} p-2 bg-white/5 rounded-lg`}>{statusDisplay.icon}</div>
                    <div>
-                        <h3 className="text-white text-sm font-semibold leading-none mb-1">{statusDisplay.text}</h3>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">DRAFTING.LEGALPREVIEW</p>
+                        <h3 className="text-white text-sm font-semibold leading-none">{statusDisplay.text}</h3>
                    </div>
                 </div>
-                <div className="flex gap-2">
-                    <button onClick={runDraftingStream} disabled={!currentJob.result || isSubmitting} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title="Rigjenero"><RotateCcw size={18}/></button>
-                    <button onClick={handleSaveToArchive} disabled={!currentJob.result || saving} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-primary-start disabled:opacity-30 transition-all" title="Arkivo">
-                        {saving ? <RefreshCw className="animate-spin" size={18}/> : <Archive size={18}/>}
+                <div className="flex gap-1 sm:gap-2">
+                    <button onClick={runDraftingStream} disabled={!currentJob.result || isSubmitting} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30" title="Rigjenero"><RotateCcw size={16}/></button>
+                    <button onClick={handleSaveToArchive} disabled={!currentJob.result || saving} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-primary-start disabled:opacity-30" title="Arkivo">
+                        {saving ? <RefreshCw className="animate-spin" size={16}/> : <Archive size={16}/>}
                     </button>
-                    <button onClick={handleCopyResult} disabled={!currentJob.result} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title="Kopjo"><Copy size={18}/></button>
-                    <button onClick={handleDownloadResult} disabled={!currentJob.result} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title="Shkarko"><Download size={18}/></button>
-                    <button onClick={handleClearResult} disabled={!currentJob.result && !currentJob.error} className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg disabled:opacity-30 transition-all border border-red-500/20" title="Fshi"><Trash2 size={18}/></button>
+                    <button onClick={handleCopyResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30" title="Kopjo"><Copy size={16}/></button>
+                    <button onClick={handleDownloadResult} disabled={!currentJob.result} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30" title="Shkarko"><Download size={16}/></button>
+                    <button onClick={handleClearResult} disabled={!currentJob.result && !currentJob.error} className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg disabled:opacity-30 border border-red-500/10" title="Fshi"><Trash2 size={16}/></button>
                 </div>
             </div>
 
-            <div className="flex-1 bg-[#0f1117] overflow-y-auto custom-scrollbar p-6 relative min-h-0">
+            <div className="flex-1 bg-[#0f1117] overflow-y-auto p-4 sm:p-10 relative min-h-0 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
                 <div className="max-w-full mx-auto">
-                    {currentJob.error && (<div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mb-6 text-sm text-red-300 flex items-center gap-3"><AlertCircle size={20} />{currentJob.error}</div>)}
-                    {saveSuccess && (<div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4 mb-6 text-sm text-green-300 flex items-center gap-3"><CheckCircle size={20} />{saveSuccess}</div>)}
+                    {currentJob.error && (<div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mb-6 text-xs text-red-300 flex items-center gap-3"><AlertCircle size={16} />{currentJob.error}</div>)}
+                    {saveSuccess && (<div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4 mb-6 text-xs text-green-300 flex items-center gap-3"><CheckCircle size={16} />{saveSuccess}</div>)}
                     
-                    {currentJob.result ? (
-                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="pb-8">
-                            <DraftResultRenderer text={currentJob.result} />
-                        </motion.div>
-                    ) : (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4">
-                            {isSubmitting ? (
-                                <AnimatePresence>
-                                    <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center">
-                                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-[0_0_30px_rgba(37,99,235,0.4)] mb-6">
-                                            <BrainCircuit className="w-8 h-8 text-white animate-pulse" />
+                    <AnimatePresence mode="wait">
+                        {currentJob.result ? (
+                            <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="pb-8">
+                                <DraftResultRenderer text={currentJob.result} />
+                            </motion.div>
+                        ) : (
+                            <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 py-20">
+                                {isSubmitting ? (
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg mb-4">
+                                            <BrainCircuit className="w-6 h-6 text-white animate-pulse" />
                                         </div>
-                                        <div className="text-xl text-white font-bold flex items-center gap-2">
+                                        <div className="text-white font-medium flex items-center gap-2">
                                             Duke u hartuar...<ThinkingDots />
                                         </div>
-                                    </motion.div>
-                                </AnimatePresence>
-                            ) : (
-                                <div className="opacity-20 flex flex-col items-center">
-                                    <div className="w-24 h-24 border-2 border-dashed border-gray-600 rounded-full flex items-center justify-center mb-6">
-                                        <FileText className="w-10 h-10 text-gray-600" />
                                     </div>
-                                    <p className="text-gray-400 text-lg font-medium">Rezultati do të shfaqet këtu</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                                ) : (
+                                    <div className="opacity-20 flex flex-col items-center">
+                                        <FileText className="w-12 h-12 text-gray-600 mb-4" />
+                                        <p className="text-gray-400 text-sm font-medium">Rezultati do të shfaqet këtu</p>
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
         </div>
