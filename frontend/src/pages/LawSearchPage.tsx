@@ -1,9 +1,9 @@
 // FILE: src/pages/LawSearchPage.tsx
-// PHOENIX PROTOCOL - GROUPED LAW SEARCH WITH OVERVIEW LINK
+// PHOENIX PROTOCOL - ENHANCED SEARCH WITH LAW DROPDOWN
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText } from 'lucide-react';
+import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
 
@@ -41,6 +41,18 @@ export default function LawSearchPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
+  const [lawTitles, setLawTitles] = useState<string[]>([]);
+  const [loadingTitles, setLoadingTitles] = useState(true);
+  const [selectedLaw, setSelectedLaw] = useState<string>('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Fetch law titles on mount
+  useEffect(() => {
+    apiService.getLawTitles()
+      .then(setLawTitles)
+      .catch(err => console.error('Failed to load law titles:', err))
+      .finally(() => setLoadingTitles(false));
+  }, []);
 
   const groupedResults = useMemo(() => {
     const groups = new Map<string, ArticleGroup>();
@@ -97,6 +109,13 @@ export default function LawSearchPage() {
     setError('');
   };
 
+  const handleLawSelect = (lawTitle: string) => {
+    setSelectedLaw(lawTitle);
+    setDropdownOpen(false);
+    // Navigate to overview page for that law
+    window.location.href = `/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`;
+  };
+
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
       <div className="mb-8">
@@ -108,6 +127,37 @@ export default function LawSearchPage() {
         </p>
       </div>
 
+      {/* Dropdown for law selection */}
+      <div className="relative mb-6">
+        <button
+          onClick={() => setDropdownOpen(!dropdownOpen)}
+          className="glass-button w-full flex items-center justify-between px-4 py-3 rounded-xl text-left"
+        >
+          <span className="text-text-secondary">
+            {selectedLaw || t('lawSearch.selectLaw', 'Zgjidh një ligj')}
+          </span>
+          <ChevronDown size={18} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {dropdownOpen && (
+          <div className="absolute z-10 mt-1 w-full bg-background-dark/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar">
+            {loadingTitles ? (
+              <div className="p-4 text-center text-text-secondary">{t('general.loading', 'Duke ngarkuar...')}</div>
+            ) : (
+              lawTitles.map(title => (
+                <button
+                  key={title}
+                  onClick={() => handleLawSelect(title)}
+                  className="w-full text-left px-4 py-2 hover:bg-white/5 text-text-secondary hover:text-white transition-colors"
+                >
+                  {title}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Search input (smaller) */}
       <div className="relative mb-8">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           <Search className="h-5 w-5 text-text-secondary" />
@@ -117,7 +167,7 @@ export default function LawSearchPage() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('lawSearch.placeholder', 'Kërko ligje, nene, koncepte juridike...')}
-          className="glass-input w-full pl-12 pr-12 py-4 text-base rounded-2xl transition-all"
+          className="glass-input w-full pl-12 pr-12 py-3 text-base rounded-xl transition-all"
           autoFocus
         />
         {query && (

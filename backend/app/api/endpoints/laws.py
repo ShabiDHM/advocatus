@@ -1,9 +1,8 @@
 # FILE: backend/app/api/endpoints/laws.py
-# PHOENIX PROTOCOL - LAWS ENDPOINTS V2.0 (ADDED TABLE OF CONTENTS)
-# 1. ADDED: /by-title endpoint to list all articles of a law.
+# PHOENIX PROTOCOL - LAWS ENDPOINTS V2.2 (FIXED OPTIONAL ITERABLE)
+# 1. FIXED: In get_law_titles, handle None metadatas by defaulting to empty list.
 # 2. ENHANCED: Search limit increased to 50 (max 200).
-# 3. FIXED: Type‑safe chunk sorting for article retrieval.
-# 4. RETAINED: All existing functionality.
+# 3. RETAINED: All existing functionality.
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pymongo.database import Database
@@ -38,6 +37,26 @@ async def search_laws(
         return results
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+@router.get("/titles")
+async def get_law_titles(
+    current_user = Depends(get_current_user)
+):
+    """Get all distinct law titles, sorted alphabetically."""
+    try:
+        collection = vector_store_service.get_global_collection()
+        # Fetch up to 10000 chunks (should cover all laws)
+        results = collection.get(include=["metadatas"], limit=10000)
+        metadatas = results.get("metadatas") or []  # ensure it's a list
+        titles = set()
+        for m in metadatas:
+            title = m.get("law_title")
+            if title:
+                titles.add(title)
+        sorted_titles = sorted(titles)
+        return sorted_titles
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching titles: {str(e)}")
 
 @router.get("/article")
 async def get_law_article(

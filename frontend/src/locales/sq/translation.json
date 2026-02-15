@@ -713,7 +713,8 @@
     "viewDetails": "Shiko detajet",
     "startTyping": "Fillo të shkruash për të kërkuar...",
     "viewAll": "Të gjitha",
-    "viewAllArticles": "Të gjitha nenet e këtij ligji"
+    "viewAllArticles": "Të gjitha nenet e këtij ligji",
+      "selectLaw": "Zgjidh një ligj"
   },
   "lawViewer": {
     "missingId": "ID e fragmentit mungon.",
