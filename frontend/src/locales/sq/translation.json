@@ -359,7 +359,8 @@
     "error_loading": "Gabim gjatë ngarkimit të të dhënave.",
     "retry": "Provo Përsëri",
     "analyzeButton": "Analizo Rastin",
-    "crossExamineButton": "Kryqëzo Dokumentin"
+    "crossExamineButton": "Kryqëzo Dokumentin",
+    "analyzing": "Duke analizuar..."
   },
   "documentsPanel": {
     "title": "Dokumentet",
@@ -660,8 +661,7 @@
   },
   "caseView": {
     "financialAnalyst": "Analisti Financiar",
-    "analyzeCase": "Analizo Rastin",
-    "allFiles": "E Gjithë Dosja"
+    "analyzeCase": "Analizo Rastin"
   },
   "support": {
     "title": "Qendra e Ndihmës",
@@ -741,6 +741,5 @@
     "source": "Burimi",
     "articles": "nene",
     "tableOfContents": "Përmbajtja"
-
   }
 }
