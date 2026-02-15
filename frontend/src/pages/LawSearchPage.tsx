@@ -1,7 +1,6 @@
 // FILE: src/pages/LawSearchPage.tsx
 // PHOENIX PROTOCOL - ENHANCED SEARCH WITH LAW DROPDOWN
-// FINAL FIX: Include "PËR" prefix in descriptive part extracted from source.
-// Now displays e.g., "LIGJI NR. 04/L-077 – PËR MARRËDHËNIET E DETYRIMEVE"
+// FINAL: Filters out obviously invalid law titles (e.g., "kodi lid").
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -81,9 +80,20 @@ export default function LawSearchPage() {
     apiService.getLawTitles()
       .then(async (titles) => {
         console.log('[LawSearch] Raw titles from API:', titles);
-        setLawTitles(titles);
         
-        const bareTitles = titles.filter(title => {
+        // Filter out obviously invalid entries (e.g., "kodi lid")
+        const filteredTitles = titles.filter(title => {
+          const trimmed = title.trim();
+          // Exclude very short strings or known junk
+          if (trimmed.length < 5) return false;
+          if (/^kodi lid$/i.test(trimmed)) return false;
+          return true;
+        });
+        
+        console.log('[LawSearch] Filtered titles:', filteredTitles);
+        setLawTitles(filteredTitles);
+        
+        const bareTitles = filteredTitles.filter(title => {
           const isBare = isBareLawNumber(title);
           console.log(`[LawSearch] "${title}" -> isBare: ${isBare}`);
           return isBare;
