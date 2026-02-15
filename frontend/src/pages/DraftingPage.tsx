@@ -1,9 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V9.7 (FIXED LOGIC & LINTING)
-// 1. FIXED: Property access 'characterCount' to '.length' on string.
-// 2. FIXED: Utilized 'showTemplateInfo' state to resolve linting error.
-// 3. RETAINED: 50/50 Grid layout and Professional A4 rendering.
-// 4. CLEANED: Removed unused variables and unauthorized buttons.
+// PHOENIX PROTOCOL - DRAFTING PAGE V9.8 (LAYOUT RESTORATION & HARDCODED I18N)
+// 1. RESTORED: Left column configuration panel to exact original V9.3 styling.
+// 2. FIXED: Case and Template selectors moved back to side-by-side row.
+// 3. HARDCODED: "Kopjo" and "Fshi" strings for tooltips.
+// 4. RETAINED: Professional A4 Legal Document rendering on the right.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -162,9 +162,9 @@ const DraftingPage: React.FC = () => {
     }
   };
 
-  const handleCopyResult = async () => { if (currentJob.result) { await navigator.clipboard.writeText(currentJob.result); alert(t('general.copied')); } };
+  const handleCopyResult = async () => { if (currentJob.result) { await navigator.clipboard.writeText(currentJob.result); alert("Kopjuar!"); } };
   const handleDownloadResult = () => { if (currentJob.result) { const blob = new Blob([currentJob.result], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `draft-${Date.now()}.txt`; a.click(); } };
-  const handleClearResult = () => { if (window.confirm(t('drafting.confirmClear'))) { setCurrentJob({ status: null, result: null, error: null }); setSaveSuccess(null); } };
+  const handleClearResult = () => { if (window.confirm("A jeni të sigurt?")) { setCurrentJob({ status: null, result: null, error: null }); setSaveSuccess(null); } };
 
   const getStatusDisplay = () => {
     switch(currentJob.status) {
@@ -185,12 +185,12 @@ const DraftingPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
-        {/* INPUT PANEL */}
-        <div className="glass-panel flex flex-col p-6 rounded-2xl shadow-2xl overflow-hidden border border-white/10">
+        {/* INPUT PANEL - RESTORED TO V9.3 */}
+        <div className="glass-panel flex flex-col h-[600px] lg:h-full p-6 rounded-2xl overflow-hidden shadow-2xl">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-start" size={20} />{t('drafting.configuration')}</h3>
             <form onSubmit={(e) => { e.preventDefault(); runDraftingStream(); }} className="flex flex-col flex-1 gap-4 min-h-0">
-                <div className="space-y-4 flex-shrink-0">
-                    <div>
+                <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
+                    <div className='flex-1 min-w-0'>
                         <div className="flex items-center justify-between mb-1">
                             <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">{t('drafting.caseLabel')}</label>
                             {!isPro && <span className="flex items-center gap-1 text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"><Lock size={10} /> PRO</span>}
@@ -209,7 +209,7 @@ const DraftingPage: React.FC = () => {
                             </button>
                         )}
                     </div>
-                    <div>
+                    <div className='flex-1 min-w-0'>
                         <div className="flex items-center justify-between mb-1">
                             <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">{t('drafting.templateLabel')}</label>
                             {!isPro && <span className="flex items-center gap-1 text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"><Lock size={10} /> PRO</span>}
@@ -241,9 +241,9 @@ const DraftingPage: React.FC = () => {
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
                         {showTemplateInfo && isPro && (
-                            <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mt-1 text-xs text-gray-400 italic p-2 bg-white/5 rounded border border-white/10">
+                            <div className="mt-1 text-xs text-gray-400 italic p-2 bg-white/5 rounded border border-white/10">
                                 {t(`drafting.templateDesc.${selectedTemplate}`)}
-                            </motion.div>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -254,12 +254,12 @@ const DraftingPage: React.FC = () => {
                         value={context} 
                         onChange={(e) => setContext(e.target.value)} 
                         placeholder={t('drafting.promptPlaceholder')} 
-                        className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed overflow-y-auto custom-scrollbar flex-1 border border-white/5" 
+                        className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed overflow-y-auto custom-scrollbar flex-1" 
                         disabled={isSubmitting} 
                     />
                 </div>
 
-                <button type="submit" disabled={isSubmitting || !context.trim()} className="w-full py-4 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] flex-shrink-0">
+                <button type="submit" disabled={isSubmitting || !context.trim()} className="w-full py-3 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95">
                   {isSubmitting ? <RefreshCw className="animate-spin" /> : <Send size={18} />}
                   {t('drafting.generateBtn')}
                 </button>
@@ -273,17 +273,17 @@ const DraftingPage: React.FC = () => {
                    <div className={`${statusDisplay.color} p-2 bg-white/5 rounded-lg`}>{statusDisplay.icon}</div>
                    <div>
                         <h3 className="text-white text-sm font-semibold leading-none mb-1">{statusDisplay.text}</h3>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">{t('drafting.legalPreview')}</p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">DRAFTING.LEGALPREVIEW</p>
                    </div>
                 </div>
                 <div className="flex gap-2">
-                    <button onClick={runDraftingStream} disabled={!currentJob.result || isSubmitting} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title={t('drafting.regenerate')}><RotateCcw size={18}/></button>
-                    <button onClick={handleSaveToArchive} disabled={!currentJob.result || saving} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-primary-start disabled:opacity-30 transition-all" title={t('drafting.saveToArchive')}>
+                    <button onClick={runDraftingStream} disabled={!currentJob.result || isSubmitting} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title="Rigjenero"><RotateCcw size={18}/></button>
+                    <button onClick={handleSaveToArchive} disabled={!currentJob.result || saving} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-primary-start disabled:opacity-30 transition-all" title="Arkivo">
                         {saving ? <RefreshCw className="animate-spin" size={18}/> : <Archive size={18}/>}
                     </button>
-                    <button onClick={handleCopyResult} disabled={!currentJob.result} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title={t('general.copy')}><Copy size={18}/></button>
-                    <button onClick={handleDownloadResult} disabled={!currentJob.result} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title={t('general.download')}><Download size={18}/></button>
-                    <button onClick={handleClearResult} disabled={!currentJob.result && !currentJob.error} className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg disabled:opacity-30 transition-all border border-red-500/20" title={t('general.clear')}><Trash2 size={18}/></button>
+                    <button onClick={handleCopyResult} disabled={!currentJob.result} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title="Kopjo"><Copy size={18}/></button>
+                    <button onClick={handleDownloadResult} disabled={!currentJob.result} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title="Shkarko"><Download size={18}/></button>
+                    <button onClick={handleClearResult} disabled={!currentJob.result && !currentJob.error} className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg disabled:opacity-30 transition-all border border-red-500/20" title="Fshi"><Trash2 size={18}/></button>
                 </div>
             </div>
 
@@ -305,7 +305,7 @@ const DraftingPage: React.FC = () => {
                                             <BrainCircuit className="w-8 h-8 text-white animate-pulse" />
                                         </div>
                                         <div className="text-xl text-white font-bold flex items-center gap-2">
-                                            {t('drafting.thinking')}<ThinkingDots />
+                                            Duke u hartuar...<ThinkingDots />
                                         </div>
                                     </motion.div>
                                 </AnimatePresence>
@@ -314,7 +314,7 @@ const DraftingPage: React.FC = () => {
                                     <div className="w-24 h-24 border-2 border-dashed border-gray-600 rounded-full flex items-center justify-center mb-6">
                                         <FileText className="w-10 h-10 text-gray-600" />
                                     </div>
-                                    <p className="text-gray-400 text-lg font-medium">{t('drafting.emptyState')}</p>
+                                    <p className="text-gray-400 text-lg font-medium">Rezultati do të shfaqet këtu</p>
                                 </div>
                             )}
                         </div>
