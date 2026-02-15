@@ -1,9 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.1 (LEGAL DESIGN POLISHING)
-// 1. IMPROVED: Legal Typography for headers, section titles, and justified text.
-// 2. FIXED: Signature and Footer styling for professional court appearance.
-// 3. RETAINED: 50/50 Grid and Fixed 600px height constraints.
-// 4. RETAINED: Hardcoded translations for Kopjo/Fshi.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.2 (FULL TEMPLATE SUITE)
+// 1. EXPANDED: Added all 15+ templates (NDA, MoU, Employment, Property, etc.).
+// 2. IMPROVED: Categorized Template Selector (Optgroups) for better UX.
+// 3. RETAINED: 50/50 Grid, Fixed 600px height, and A4 Legal Rendering.
+// 4. FIXED: Hardcoded translations for all new template types.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -19,7 +19,15 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-type TemplateType = 'generic' | 'padi' | 'pergjigje' | 'kunderpadi' | 'kontrate';
+
+// Expanded Template Suite
+type TemplateType = 
+  | 'generic' | 'padi' | 'pergjigje' | 'kunderpadi' | 'ankese' | 'prapësim' // Litigation
+  | 'nda' | 'mou' | 'shareholders' | 'sla' // Corporate
+  | 'employment_contract' | 'termination_notice' | 'warning_letter' // Employment
+  | 'terms_conditions' | 'privacy_policy' // Digital
+  | 'lease_agreement' | 'sales_purchase' // Real Estate
+  | 'power_of_attorney'; // Admin
 
 interface DraftingJobState {
   status: JobStatus | null;
@@ -27,8 +35,6 @@ interface DraftingJobState {
   error: string | null;
   characterCount?: number;
 }
-
-// --- SUB-COMPONENTS ---
 
 const ThinkingDots = () => (
     <span className="inline-flex items-center ml-1">
@@ -61,7 +67,6 @@ const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
                     components={{
                         p: ({node, ...props}) => {
                             const content = String(props.children);
-                            // Detect disclaimer footer to style it differently
                             if (content.includes('gjeneruar nga AI')) {
                                 return <p className="mt-12 pt-4 border-t border-gray-100 text-[9pt] italic text-gray-400 text-center" {...props} />;
                             }
@@ -91,7 +96,7 @@ const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
 };
 
 const DraftingPage: React.FC = () => {
-  const { t } = useTranslation();
+  useTranslation();
   const { user } = useAuth();
   
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
@@ -100,7 +105,6 @@ const DraftingPage: React.FC = () => {
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('generic');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [, setShowTemplateInfo] = useState(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
@@ -117,7 +121,7 @@ const DraftingPage: React.FC = () => {
     const caseData = cases.find(c => c.id === selectedCaseId);
     if (!caseData) return;
 
-    let autofillText = t('drafting.autofillPrompt', { caseTitle: caseData.title || caseData.case_number });
+    let autofillText = `Përmbledhje e Rastit: ${caseData.title || caseData.case_number}`;
     if (caseData.client) {
       autofillText += `\n\nKlienti: ${caseData.client.name || 'N/A'}`;
       if (caseData.client.email) autofillText += `\nEmail: ${caseData.client.email}`;
@@ -145,8 +149,7 @@ const DraftingPage: React.FC = () => {
       }
       setCurrentJob(prev => ({ ...prev, status: 'COMPLETED' }));
     } catch (error: any) {
-      console.error("Drafting stream failed:", error);
-      setCurrentJob(prev => ({ ...prev, status: 'FAILED', error: error.message || t('drafting.errorStartJob') }));
+      setCurrentJob(prev => ({ ...prev, status: 'FAILED', error: error.message || "Gabim gjatë gjenerimit." }));
     } finally {
       setIsSubmitting(false);
     }
@@ -163,7 +166,7 @@ const DraftingPage: React.FC = () => {
       await apiService.uploadArchiveItem(file, fileName, 'DRAFT', selectedCaseId);
       setSaveSuccess("U arkivua me sukses!");
     } catch (err: any) {
-      alert(err.message || "Gabim gjatë arkivimit.");
+      alert("Gabim gjatë arkivimit.");
     } finally {
       setSaving(false);
     }
@@ -187,8 +190,8 @@ const DraftingPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col h-full overflow-hidden">
       <div className="text-center mb-6 flex-shrink-0">
-        <h1 className="text-3xl font-bold text-white mb-1 flex items-center justify-center gap-3"><PenTool className="text-primary-start" />{t('drafting.title')}</h1>
-        <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
+        <h1 className="text-3xl font-bold text-white mb-1 flex items-center justify-center gap-3"><PenTool className="text-primary-start" />Hartimi AI</h1>
+        <p className="text-gray-400 text-sm">Gjeneroni dokumente ligjore profesionale në sekonda</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-shrink-0">
@@ -225,25 +228,46 @@ const DraftingPage: React.FC = () => {
                             <LayoutTemplate className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                             <select 
                                 value={selectedTemplate} 
-                                onChange={(e) => {
-                                    const val = e.target.value as TemplateType;
-                                    setSelectedTemplate(val);
-                                    setShowTemplateInfo(true);
-                                }} 
-                                onFocus={() => setShowTemplateInfo(true)}
-                                onBlur={() => setTimeout(() => setShowTemplateInfo(false), 200)}
+                                onChange={(e) => setSelectedTemplate(e.target.value as TemplateType)} 
                                 disabled={isSubmitting || !isPro} 
-                                className={`glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl ${!isPro ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                className={`glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl text-sm ${!isPro ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
-                                <option value="generic" className="bg-gray-900">I lirë</option>
-                                {isPro && (
-                                    <>
-                                        <option value="padi" className="bg-gray-900">Padi</option>
-                                        <option value="pergjigje" className="bg-gray-900">Përgjigje në Padi</option>
-                                        <option value="kunderpadi" className="bg-gray-900">Kundërpadi</option>
-                                        <option value="kontrate" className="bg-gray-900">Kontratë</option>
-                                    </>
-                                )}
+                                <option value="generic" className="bg-gray-900 text-primary-start font-bold">Hartim i Lirë (Pa shabllon)</option>
+                                
+                                <optgroup label="Litigim & Proceduriale" className="bg-gray-900 font-bold text-gray-300 italic">
+                                    <option value="padi">Padi</option>
+                                    <option value="pergjigje">Përgjigje në Padi</option>
+                                    <option value="kunderpadi">Kundërpadi</option>
+                                    <option value="ankese">Ankesë</option>
+                                    <option value="prapësim">Prapësim (Përmbarim)</option>
+                                </optgroup>
+
+                                <optgroup label="Korporative & Tregtare" className="bg-gray-900 font-bold text-gray-300 italic">
+                                    <option value="nda">NDA (Mos-shpalosje)</option>
+                                    <option value="mou">MoU (Memorandum)</option>
+                                    <option value="shareholders">Marrëveshje Aksionarësh</option>
+                                    <option value="sla">SLA (Marrëveshje Shërbimi)</option>
+                                </optgroup>
+
+                                <optgroup label="Punësim" className="bg-gray-900 font-bold text-gray-300 italic">
+                                    <option value="employment_contract">Kontratë Pune</option>
+                                    <option value="termination_notice">Njoftim Shkëputje</option>
+                                    <option value="warning_letter">Vërejtje me shkrim</option>
+                                </optgroup>
+
+                                <optgroup label="Pronësi & Patundshmëri" className="bg-gray-900 font-bold text-gray-300 italic">
+                                    <option value="lease_agreement">Kontratë Qiraje</option>
+                                    <option value="sales_purchase">Kontratë Shitblerje</option>
+                                </optgroup>
+
+                                <optgroup label="Dixhitale & Privatësi" className="bg-gray-900 font-bold text-gray-300 italic">
+                                    <option value="terms_conditions">Kushtet e Përdorimit</option>
+                                    <option value="privacy_policy">Politika e Privatësisë</option>
+                                </optgroup>
+
+                                <optgroup label="Administrative" className="bg-gray-900 font-bold text-gray-300 italic">
+                                    <option value="power_of_attorney">Autorizim (Prokurë)</option>
+                                </optgroup>
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
@@ -256,7 +280,7 @@ const DraftingPage: React.FC = () => {
                         <AutoResizeTextarea 
                             value={context} 
                             onChange={(e) => setContext(e.target.value)} 
-                            placeholder="Shkruani detajet e dokumentit këtu..." 
+                            placeholder="Përshkruani rrethanat e rastit ose kërkesat specifike për kontratën..." 
                             className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed border border-white/5" 
                             disabled={isSubmitting} 
                         />
