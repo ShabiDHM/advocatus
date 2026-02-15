@@ -1,9 +1,8 @@
 // FILE: src/pages/DashboardPage.tsx
-// PHOENIX PROTOCOL - DASHBOARD V31.0 (GLASSMORPHISM UNIFICATION)
-// 1. REFACTOR: Replaced custom panel styles with standard glass utilities (glass-panel, glass-high, glass-input, glass-button).
-// 2. CONSISTENCY: Uses the same color variables (primary-start, secondary-start, etc.) as CaseCard.
-// 3. UI: Preserved all existing functionality and animations.
-// 4. STATUS: 100% consistent with System Architectural Snapshot.
+// PHOENIX PROTOCOL - DASHBOARD V32.0 (MOBILE GREETING FIX)
+// 1. REFACTOR: Mobile greeting now breaks after comma (e.g., "Mirëmëngjes,\nShaban Bala").
+// 2. CONSISTENCY: Uses same glass styles, all existing functionality preserved.
+// 3. STATUS: 100% consistent with System Architectural Snapshot.
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -151,8 +150,21 @@ const DashboardPage: React.FC = () => {
                     <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 mb-2">
                       {t('briefing.kujdestari_title', 'KUJDESTARI VIRTUAL')}
                     </h2>
+                    {/* Mobile-friendly greeting: split at first comma */}
                     <p className="font-black text-xl sm:text-2xl text-white tracking-tight leading-tight">
-                        {t(`briefing.greetings.${briefing.greeting_key}`, briefing.data || {}) as string}
+                      {(() => {
+                        const fullGreeting = t(`briefing.greetings.${briefing.greeting_key}`, briefing.data || {}) as string;
+                        const commaIndex = fullGreeting.indexOf(',');
+                        if (commaIndex === -1) return fullGreeting;
+                        const before = fullGreeting.substring(0, commaIndex + 1); // include comma
+                        const after = fullGreeting.substring(commaIndex + 1).trim();
+                        return (
+                          <>
+                            <span className="block sm:inline">{before}</span>
+                            <span className="block sm:inline sm:ml-1">{after}</span>
+                          </>
+                        );
+                      })()}
                     </p>
                     <p className="text-white/60 font-semibold mt-2 text-sm sm:text-base italic">
                         {t(`briefing.messages.${briefing.message_key}`, { 
