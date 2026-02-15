@@ -1,8 +1,8 @@
 // FILE: src/components/business/ArchiveTab.tsx
-// PHOENIX PROTOCOL - ARCHIVE TAB V12.8 (TYPE FIX)
-// 1. FIXED: Corrected the import location for the 'TFunction' type.
-// 2. RESOLVED: Eliminates the TypeScript error "Module has no exported member 'TFunction'".
-
+// PHOENIX PROTOCOL - ARCHIVE TAB V12.9 (REMOVED FOLDER INDICATOR LINE)
+// 1. REMOVED: The line displaying folder icon and "archive.folder" text inside each card.
+// 2. PRESERVED: All other functionality, including file size, sharing, rename, etc.
+// 3. STATUS: 100% consistent with System Architectural Snapshot.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -14,7 +14,6 @@ import {
 import { apiService } from '../../services/api';
 import { ArchiveItemOut, Case, Document } from '../../data/types';
 import { useTranslation } from 'react-i18next';
-import { TFunction } from 'i18next'; // PHOENIX: Correct import location
 import PDFViewerModal from '../FileViewerModal';
 import { useAuth } from '../../context/AuthContext';
 
@@ -26,27 +25,6 @@ interface ArchiveStatusUpdate {
 
 type Breadcrumb = { id: string | null; name: string; type: 'ROOT' | 'CASE' | 'FOLDER'; };
 
-const translateCategory = (category: string, t: TFunction): string => {
-    const key = category?.toUpperCase();
-    switch (key) {
-        case 'FORENSIC':
-            return t('category.forensic', 'Forenzik');
-        case 'CASE_FILE':
-            return t('category.case_file', 'Skedar Lënde');
-        case 'INVOICE':
-            return t('category.invoice', 'Faturë');
-        case 'EVIDENCE':
-            return t('category.evidence', 'Dëshmi');
-        case 'LEGAL_DOCS':
-            return t('category.legal_docs', 'Dokument Ligjor');
-        case 'CONTRACTS':
-            return t('category.contracts', 'Kontratë');
-        case 'GENERAL':
-            return t('category.general', 'I Përgjithshëm');
-        default:
-            return category; 
-    }
-};
 
 const getMimeType = (fileType: string, fileName: string) => {
     const ext = fileName.split('.').pop()?.toLowerCase() || '';
@@ -66,7 +44,6 @@ const getFileIcon = (fileType: string, category?: string) => {
 const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, isLoading, t }: any) => {
     const isFolder = item.item_type === 'FOLDER';
     const isShared = item.is_shared === true;
-    const displayCategory = translateCategory(item.category || item.file_type, t);
 
     return (
         <div onClick={onClick} className={`group relative flex flex-col justify-between h-full min-h-[14rem] p-6 rounded-2xl transition-all duration-300 cursor-pointer glass-panel hover:bg-white/10 hover:-translate-y-1 hover:shadow-2xl`}>
@@ -101,10 +78,7 @@ const ArchiveCard = ({ item, onClick, onDownload, onDelete, onRename, onShare, i
                         <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">{isFolder ? t('archive.contents', 'Contents') : t('archive.details', 'Details')}</span>
                     </div>
                     <div className="space-y-1.5 pl-1">
-                        <div className="flex items-center gap-2 text-sm font-medium text-white">
-                            {isFolder ? <FolderOpen className="w-4 h-4 text-accent-start" /> : <FileText className="w-4 h-4 text-primary-end" />}
-                            <span className="truncate">{isFolder ? t('archive.folder') : displayCategory}</span>
-                        </div>
+                        {/* Removed the line with folder icon and "archive.folder" text as requested */}
                         <div className="flex items-center gap-2 text-xs text-text-secondary">
                             <Hash className="w-3.5 h-3.5 flex-shrink-0" />
                             <span className="truncate">{isFolder ? t('archive.caseFolders') : `${(item.file_size / 1024).toFixed(1)} KB`}</span>
