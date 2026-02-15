@@ -1,6 +1,6 @@
 // FILE: src/pages/LawSearchPage.tsx
 // PHOENIX PROTOCOL - ENHANCED SEARCH WITH LAW DROPDOWN
-// FINAL FIX: Extract descriptive title from source field correctly.
+// FINAL FIX: Include "PËR" prefix in descriptive part extracted from source.
 // Now displays e.g., "LIGJI NR. 04/L-077 – PËR MARRËDHËNIET E DETYRIMEVE"
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -26,12 +26,13 @@ interface ArticleGroup {
   chunkIds: string[];
 }
 
-// Extract the descriptive part from the source filename.
+// Extract the descriptive part from the source filename and prepend "PËR".
 // Example: "LIGJI_NR._04_L-077_PËR_MARRËDHËNIET_E_DETYRIMEVE.pdf" -> "PËR MARRËDHËNIET E DETYRIMEVE"
 function extractDescriptiveFromSource(source: string): string | null {
   const match = source.match(/_PËR_(.+)\.pdf$/i);
   if (match && match[1]) {
-    return match[1].replace(/_/g, ' ').trim();
+    const descriptive = match[1].replace(/_/g, ' ').trim();
+    return `PËR ${descriptive}`;
   }
   return null;
 }
