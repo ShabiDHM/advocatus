@@ -1,9 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.0 (FIXED 600PX COLUMN HEIGHT)
-// 1. FIXED: Forced both left and right columns to exactly 600px height.
-// 2. RESTORED: Internal scrolling for both panels.
-// 3. RETAINED: 50/50 Grid layout and original V9.3 left-column styling.
-// 4. RETAINED: Hardcoded translations and professional A4 rendering.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.1 (LEGAL DESIGN POLISHING)
+// 1. IMPROVED: Legal Typography for headers, section titles, and justified text.
+// 2. FIXED: Signature and Footer styling for professional court appearance.
+// 3. RETAINED: 50/50 Grid and Fixed 600px height constraints.
+// 4. RETAINED: Hardcoded translations for Kopjo/Fshi.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -54,23 +54,30 @@ const AutoResizeTextarea: React.FC<{
 
 const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
     return (
-        <div className="bg-white text-black min-h-[1123px] w-full p-10 sm:p-16 shadow-2xl mx-auto rounded-sm ring-1 ring-gray-200">
-             <div className="markdown-content text-[11pt] leading-[1.6] font-serif select-text text-gray-900">
+        <div className="bg-white text-black min-h-[1123px] w-full p-12 sm:p-20 shadow-2xl mx-auto rounded-sm ring-1 ring-gray-200">
+             <div className="markdown-content text-[11.5pt] leading-[1.7] font-serif select-text text-gray-900">
                 <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     components={{
-                        p: ({node, ...props}) => <p className="mb-4 text-justify" {...props} />,
-                        strong: ({node, ...props}) => <span className="font-bold text-black" {...props} />,
-                        h1: ({node, ...props}) => <h1 className="text-xl font-bold text-black mt-4 mb-6 pb-2 border-b border-black uppercase tracking-tight text-center" {...props} />,
-                        h2: ({node, ...props}) => <h2 className="text-lg font-bold text-black mt-6 mb-3 border-b border-gray-200 pb-1" {...props} />,
-                        h3: ({node, ...props}) => <h3 className="text-md font-bold text-black mt-4 mb-2 uppercase" {...props} />,
-                        ul: ({node, ...props}) => <ul className="list-disc ml-6 mb-4 space-y-1" {...props} />,
-                        ol: ({node, ...props}) => <ol className="list-decimal ml-6 mb-4 space-y-1" {...props} />,
-                        blockquote: ({node, ...props}) => <blockquote className="border-l-2 border-black pl-4 py-1 my-4 italic bg-gray-50 rounded-sm" {...props} />,
-                        hr: () => <hr className="my-8 border-gray-300" />,
+                        p: ({node, ...props}) => {
+                            const content = String(props.children);
+                            // Detect disclaimer footer to style it differently
+                            if (content.includes('gjeneruar nga AI')) {
+                                return <p className="mt-12 pt-4 border-t border-gray-100 text-[9pt] italic text-gray-400 text-center" {...props} />;
+                            }
+                            return <p className="mb-5 text-justify" {...props} />;
+                        },
+                        strong: ({node, ...props}) => <span className="font-bold text-black tracking-tight" {...props} />,
+                        h1: ({node, ...props}) => <h1 className="text-lg font-bold text-black mt-2 mb-8 text-center uppercase tracking-normal border-b-2 border-black pb-2 leading-tight" {...props} />,
+                        h2: ({node, ...props}) => <h2 className="text-[12pt] font-bold text-black mt-8 mb-4 uppercase border-b border-gray-200 pb-1" {...props} />,
+                        h3: ({node, ...props}) => <h3 className="text-[11.5pt] font-bold text-black mt-6 mb-2 underline decoration-1 underline-offset-4" {...props} />,
+                        ul: ({node, ...props}) => <ul className="list-disc ml-8 mb-5 space-y-2" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal ml-8 mb-5 space-y-2" {...props} />,
+                        blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-6 py-2 my-6 italic bg-gray-50 text-gray-700 rounded-sm" {...props} />,
+                        hr: () => <hr className="my-10 border-gray-200" />,
                         a: ({href, children}) => {
                             if (href?.startsWith('doc://')) {
-                                return (<span className="inline-flex items-center gap-1 bg-gray-100 text-black border border-gray-300 px-1.5 py-0.5 rounded-[2px] text-[10px] font-bold tracking-wide mx-0.5 no-underline font-sans align-middle"><FileCheck size={10} />{children}</span>);
+                                return (<span className="inline-flex items-center gap-1 bg-blue-50 text-blue-800 border border-blue-100 px-2 py-0.5 rounded-[2px] text-[10px] font-bold tracking-wide mx-0.5 no-underline font-sans align-middle uppercase"><FileCheck size={10} />{children}</span>);
                             }
                             return <span className="text-black underline font-bold">{children}</span>;
                         },
@@ -112,7 +119,7 @@ const DraftingPage: React.FC = () => {
 
     let autofillText = t('drafting.autofillPrompt', { caseTitle: caseData.title || caseData.case_number });
     if (caseData.client) {
-      autofillText += `\n\n${t('drafting.clientLabel', 'Klienti')}: ${caseData.client.name || 'N/A'}`;
+      autofillText += `\n\nKlienti: ${caseData.client.name || 'N/A'}`;
       if (caseData.client.email) autofillText += `\nEmail: ${caseData.client.email}`;
       if (caseData.client.phone) autofillText += `\nTel: ${caseData.client.phone}`;
     }
@@ -154,9 +161,9 @@ const DraftingPage: React.FC = () => {
       const fileName = `draft-${selectedTemplate}-${Date.now()}.txt`;
       const file = new File([blob], fileName, { type: 'text/plain' });
       await apiService.uploadArchiveItem(file, fileName, 'DRAFT', selectedCaseId);
-      setSaveSuccess(t('drafting.savedToArchive'));
+      setSaveSuccess("U arkivua me sukses!");
     } catch (err: any) {
-      alert(err.message || t('drafting.saveFailed'));
+      alert(err.message || "Gabim gjatë arkivimit.");
     } finally {
       setSaving(false);
     }
@@ -168,10 +175,10 @@ const DraftingPage: React.FC = () => {
 
   const getStatusDisplay = () => {
     switch(currentJob.status) {
-      case 'COMPLETED': return { text: t('drafting.statusCompleted'), color: 'text-green-400', icon: <CheckCircle className="h-5 w-5" /> };
-      case 'FAILED': return { text: t('drafting.statusFailed'), color: 'text-red-400', icon: <AlertCircle className="h-5 w-5" /> };
-      case 'PROCESSING': return { text: t('drafting.statusWorking'), color: 'text-yellow-400', icon: <Clock className="h-5 w-5 animate-pulse" /> };
-      default: return { text: t('drafting.statusResult'), color: 'text-white', icon: <Sparkles className="h-5 w-5 text-gray-500" /> };
+      case 'COMPLETED': return { text: "Përfunduar", color: 'text-green-400', icon: <CheckCircle className="h-5 w-5" /> };
+      case 'FAILED': return { text: "Dështoi", color: 'text-red-400', icon: <AlertCircle className="h-5 w-5" /> };
+      case 'PROCESSING': return { text: "Duke u hartuar", color: 'text-yellow-400', icon: <Clock className="h-5 w-5 animate-pulse" /> };
+      default: return { text: "Rezultati", color: 'text-white', icon: <Sparkles className="h-5 w-5 text-gray-500" /> };
     }
   };
 
@@ -187,31 +194,31 @@ const DraftingPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-shrink-0">
         {/* INPUT PANEL - FIXED 600PX */}
         <div className="glass-panel flex flex-col h-[600px] p-6 rounded-2xl shadow-2xl overflow-hidden border border-white/10">
-            <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-start" size={20} />{t('drafting.configuration')}</h3>
+            <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-start" size={20} />Konfigurimi</h3>
             <form onSubmit={(e) => { e.preventDefault(); runDraftingStream(); }} className="flex flex-col flex-1 gap-4 min-h-0">
                 <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
                     <div className='flex-1 min-w-0'>
                         <div className="flex items-center justify-between mb-1">
-                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">{t('drafting.caseLabel')}</label>
+                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Rasti</label>
                             {!isPro && <span className="flex items-center gap-1 text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"><Lock size={10} /> PRO</span>}
                         </div>
                         <div className="relative">
                             <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                             <select value={selectedCaseId || ''} onChange={(e) => setSelectedCaseId(e.target.value || undefined)} disabled={isSubmitting || !isPro} className={`glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl ${!isPro ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                <option value="" className="bg-gray-900">{t('drafting.noCaseSelected')}</option>
+                                <option value="" className="bg-gray-900">Pa Kontekst</option>
                                 {isPro && cases.map(c => (<option key={c.id} value={String(c.id)} className="bg-gray-900">{getCaseDisplayName(c)}</option>))}
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
                         {selectedCaseId && isPro && (
                             <button type="button" onClick={handleAutofillCase} className="mt-1 text-xs text-primary-start hover:text-primary-end transition-colors flex items-center gap-1">
-                                <FilePlus size={12} /> {t('drafting.autofill')}
+                                <FilePlus size={12} /> Mbush të dhënat
                             </button>
                         )}
                     </div>
                     <div className='flex-1 min-w-0'>
                         <div className="flex items-center justify-between mb-1">
-                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">{t('drafting.templateLabel')}</label>
+                            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider">Lloji i Dokumentit</label>
                             {!isPro && <span className="flex items-center gap-1 text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"><Lock size={10} /> PRO</span>}
                         </div>
                         <div className="relative">
@@ -228,13 +235,13 @@ const DraftingPage: React.FC = () => {
                                 disabled={isSubmitting || !isPro} 
                                 className={`glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl ${!isPro ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
-                                <option value="generic" className="bg-gray-900">{t('drafting.templateGeneric')}</option>
+                                <option value="generic" className="bg-gray-900">I lirë</option>
                                 {isPro && (
                                     <>
-                                        <option value="padi" className="bg-gray-900">{t('drafting.templatePadi')}</option>
-                                        <option value="pergjigje" className="bg-gray-900">{t('drafting.templatePergjigje')}</option>
-                                        <option value="kunderpadi" className="bg-gray-900">{t('drafting.templateKunderpadi')}</option>
-                                        <option value="kontrate" className="bg-gray-900">{t('drafting.templateKontrate')}</option>
+                                        <option value="padi" className="bg-gray-900">Padi</option>
+                                        <option value="pergjigje" className="bg-gray-900">Përgjigje në Padi</option>
+                                        <option value="kunderpadi" className="bg-gray-900">Kundërpadi</option>
+                                        <option value="kontrate" className="bg-gray-900">Kontratë</option>
                                     </>
                                 )}
                             </select>
@@ -244,12 +251,12 @@ const DraftingPage: React.FC = () => {
                 </div>
 
                 <div className="flex-1 flex flex-col min-h-0">
-                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.instructionsLabel')}</label>
+                    <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">Udhëzimet</label>
                     <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
                         <AutoResizeTextarea 
                             value={context} 
                             onChange={(e) => setContext(e.target.value)} 
-                            placeholder={t('drafting.promptPlaceholder')} 
+                            placeholder="Shkruani detajet e dokumentit këtu..." 
                             className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed border border-white/5" 
                             disabled={isSubmitting} 
                         />
@@ -258,7 +265,7 @@ const DraftingPage: React.FC = () => {
 
                 <button type="submit" disabled={isSubmitting || !context.trim()} className="w-full py-3 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 flex-shrink-0">
                   {isSubmitting ? <RefreshCw className="animate-spin" /> : <Send size={18} />}
-                  {t('drafting.generateBtn')}
+                  Gjenero Dokumentin
                 </button>
             </form>
         </div>
