@@ -1,9 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V9.8 (LAYOUT RESTORATION & HARDCODED I18N)
-// 1. RESTORED: Left column configuration panel to exact original V9.3 styling.
-// 2. FIXED: Case and Template selectors moved back to side-by-side row.
-// 3. HARDCODED: "Kopjo" and "Fshi" strings for tooltips.
-// 4. RETAINED: Professional A4 Legal Document rendering on the right.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.0 (FIXED 600PX COLUMN HEIGHT)
+// 1. FIXED: Forced both left and right columns to exactly 600px height.
+// 2. RESTORED: Internal scrolling for both panels.
+// 3. RETAINED: 50/50 Grid layout and original V9.3 left-column styling.
+// 4. RETAINED: Hardcoded translations and professional A4 rendering.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -41,7 +41,7 @@ const ThinkingDots = () => (
 const AutoResizeTextarea: React.FC<{ 
     value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void; 
     placeholder?: string; disabled?: boolean; className?: string; minHeight?: number; maxHeight?: number;
-}> = ({ value, onChange, placeholder, disabled, className, minHeight = 150, maxHeight = 500 }) => {
+}> = ({ value, onChange, placeholder, disabled, className, minHeight = 150, maxHeight = 800 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     useEffect(() => {
         if (textareaRef.current) {
@@ -93,7 +93,7 @@ const DraftingPage: React.FC = () => {
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('generic');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showTemplateInfo, setShowTemplateInfo] = useState(false);
+  const [, setShowTemplateInfo] = useState(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
@@ -184,9 +184,9 @@ const DraftingPage: React.FC = () => {
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
-        {/* INPUT PANEL - RESTORED TO V9.3 */}
-        <div className="glass-panel flex flex-col h-[600px] lg:h-full p-6 rounded-2xl overflow-hidden shadow-2xl">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-shrink-0">
+        {/* INPUT PANEL - FIXED 600PX */}
+        <div className="glass-panel flex flex-col h-[600px] p-6 rounded-2xl shadow-2xl overflow-hidden border border-white/10">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-start" size={20} />{t('drafting.configuration')}</h3>
             <form onSubmit={(e) => { e.preventDefault(); runDraftingStream(); }} className="flex flex-col flex-1 gap-4 min-h-0">
                 <div className="flex flex-col sm:flex-row gap-4 flex-shrink-0">
@@ -240,34 +240,31 @@ const DraftingPage: React.FC = () => {
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
-                        {showTemplateInfo && isPro && (
-                            <div className="mt-1 text-xs text-gray-400 italic p-2 bg-white/5 rounded border border-white/10">
-                                {t(`drafting.templateDesc.${selectedTemplate}`)}
-                            </div>
-                        )}
                     </div>
                 </div>
 
                 <div className="flex-1 flex flex-col min-h-0">
                     <label className="block text-xs font-medium text-gray-400 mb-1 uppercase tracking-wider">{t('drafting.instructionsLabel')}</label>
-                    <AutoResizeTextarea 
-                        value={context} 
-                        onChange={(e) => setContext(e.target.value)} 
-                        placeholder={t('drafting.promptPlaceholder')} 
-                        className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed overflow-y-auto custom-scrollbar flex-1" 
-                        disabled={isSubmitting} 
-                    />
+                    <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
+                        <AutoResizeTextarea 
+                            value={context} 
+                            onChange={(e) => setContext(e.target.value)} 
+                            placeholder={t('drafting.promptPlaceholder')} 
+                            className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed border border-white/5" 
+                            disabled={isSubmitting} 
+                        />
+                    </div>
                 </div>
 
-                <button type="submit" disabled={isSubmitting || !context.trim()} className="w-full py-3 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95">
+                <button type="submit" disabled={isSubmitting || !context.trim()} className="w-full py-3 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 flex-shrink-0">
                   {isSubmitting ? <RefreshCw className="animate-spin" /> : <Send size={18} />}
                   {t('drafting.generateBtn')}
                 </button>
             </form>
         </div>
 
-        {/* RESULT PANEL */}
-        <div className="flex flex-col h-full rounded-2xl overflow-hidden shadow-2xl bg-[#12141c] border border-white/5">
+        {/* RESULT PANEL - FIXED 600PX */}
+        <div className="flex flex-col h-[600px] rounded-2xl overflow-hidden shadow-2xl bg-[#12141c] border border-white/5">
             <div className="flex justify-between items-center p-4 bg-black/40 border-b border-white/5 flex-shrink-0">
                 <div className="flex items-center gap-3">
                    <div className={`${statusDisplay.color} p-2 bg-white/5 rounded-lg`}>{statusDisplay.icon}</div>
@@ -287,13 +284,13 @@ const DraftingPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex-1 bg-[#0f1117] overflow-y-auto custom-scrollbar p-6 sm:p-10 relative min-h-0">
-                <div className="max-w-full mx-auto overflow-x-auto">
+            <div className="flex-1 bg-[#0f1117] overflow-y-auto custom-scrollbar p-6 relative min-h-0">
+                <div className="max-w-full mx-auto">
                     {currentJob.error && (<div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mb-6 text-sm text-red-300 flex items-center gap-3"><AlertCircle size={20} />{currentJob.error}</div>)}
                     {saveSuccess && (<div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4 mb-6 text-sm text-green-300 flex items-center gap-3"><CheckCircle size={20} />{saveSuccess}</div>)}
                     
                     {currentJob.result ? (
-                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="pb-12">
+                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="pb-8">
                             <DraftResultRenderer text={currentJob.result} />
                         </motion.div>
                     ) : (
