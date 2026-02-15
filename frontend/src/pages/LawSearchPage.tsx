@@ -1,9 +1,11 @@
 // FILE: src/pages/LawSearchPage.tsx
 // PHOENIX PROTOCOL - ENHANCED SEARCH WITH LAW DROPDOWN
+// FIX: Law dropdown now shows full descriptive titles for all laws,
+//      even when the /laws/titles endpoint returns only the law number.
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown } from 'lucide-react';
+import { Search, X, BookOpen, AlertCircle, ChevronRight, FileText, ChevronDown, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
 
@@ -22,6 +24,14 @@ interface ArticleGroup {
   preview: string;
   chunkCount: number;
   chunkIds: string[];
+}
+
+// Helper: check if a law title looks like a bare number (no descriptive words)
+function isBareLawNumber(title: string): boolean {
+  // Pattern matches variations like:
+  // LIGJI NR. 04/L-077, LIGJ NR.08/L-123, LIGJI Nr. 04/L-139, etc.
+  const barePattern = /^LIGJ(?:\s+I)?\s+NR\.?\s*\d+(?:\/\w+)*$/i;
+  return barePattern.test(title.trim());
 }
 
 function useDebounce<T extends (...args: any[]) => any>(callback: T, delay: number) {
@@ -45,11 +55,42 @@ export default function LawSearchPage() {
   const [loadingTitles, setLoadingTitles] = useState(true);
   const [selectedLaw, setSelectedLaw] = useState<string>('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  // Map from original title to enriched full title
+  const [enrichedTitles, setEnrichedTitles] = useState<Map<string, string>>(new Map());
+  // Set of titles currently being enriched
+  const [enrichingTitles, setEnrichingTitles] = useState<Set<string>>(new Set());
 
   // Fetch law titles on mount
   useEffect(() => {
     apiService.getLawTitles()
-      .then(setLawTitles)
+      .then(async (titles) => {
+        setLawTitles(titles);
+        
+        // Immediately enrich any bare-number titles
+        const bareTitles = titles.filter(isBareLawNumber);
+        if (bareTitles.length === 0) return;
+
+        setEnrichingTitles(new Set(bareTitles));
+        
+        // Fetch full law object for each bare title
+        const enrichmentPromises = bareTitles.map(async (bareTitle) => {
+          try {
+            // Use existing endpoint that returns law metadata including full title
+            const lawData = await apiService.getLawArticlesByTitle(bareTitle);
+            // The response contains law_title (the full descriptive title)
+            return { bare: bareTitle, full: lawData.law_title };
+          } catch (err) {
+            console.error(`Failed to enrich title "${bareTitle}":`, err);
+            return { bare: bareTitle, full: bareTitle }; // fallback to original
+          }
+        });
+
+        const results = await Promise.all(enrichmentPromises);
+        const newMap = new Map<string, string>();
+        results.forEach(({ bare, full }) => newMap.set(bare, full));
+        setEnrichedTitles(newMap);
+        setEnrichingTitles(new Set());
+      })
       .catch(err => console.error('Failed to load law titles:', err))
       .finally(() => setLoadingTitles(false));
   }, []);
@@ -116,6 +157,14 @@ export default function LawSearchPage() {
     window.location.href = `/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`;
   };
 
+  // Determine display title for a law in the dropdown
+  const getDisplayTitle = (original: string): string => {
+    if (enrichedTitles.has(original)) {
+      return enrichedTitles.get(original)!;
+    }
+    return original;
+  };
+
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-6 lg:p-8">
       <div className="mb-8">
@@ -132,11 +181,16 @@ export default function LawSearchPage() {
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
           className="glass-button w-full flex items-center justify-between px-4 py-3 rounded-xl text-left"
+          disabled={loadingTitles || enrichingTitles.size > 0}
         >
           <span className="text-text-secondary">
             {selectedLaw || t('lawSearch.selectLaw', 'Zgjidh një ligj')}
           </span>
-          <ChevronDown size={18} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+          {loadingTitles || enrichingTitles.size > 0 ? (
+            <Loader2 className="h-4 w-4 animate-spin text-text-secondary" />
+          ) : (
+            <ChevronDown size={18} className={`transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+          )}
         </button>
         {dropdownOpen && (
           <div className="absolute z-10 mt-1 w-full bg-background-dark/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto custom-scrollbar">
@@ -149,7 +203,10 @@ export default function LawSearchPage() {
                   onClick={() => handleLawSelect(title)}
                   className="w-full text-left px-4 py-2 hover:bg-white/5 text-text-secondary hover:text-white transition-colors"
                 >
-                  {title}
+                  {getDisplayTitle(title)}
+                  {enrichingTitles.has(title) && (
+                    <Loader2 className="inline-block ml-2 h-3 w-3 animate-spin" />
+                  )}
                 </button>
               ))
             )}
