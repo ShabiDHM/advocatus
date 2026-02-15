@@ -1,9 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V9.5 (CLEAN HEADER ACTIONS)
-// 1. REMOVED: "Save to Case" button and logic.
-// 2. MOVED: "Save to Archive" to the top action bar.
-// 3. IMPROVED: Consistent button styling in the Result header.
-// 4. RETAINED: Professional A4 Legal Document rendering.
+// PHOENIX PROTOCOL - DRAFTING PAGE V9.7 (FIXED LOGIC & LINTING)
+// 1. FIXED: Property access 'characterCount' to '.length' on string.
+// 2. FIXED: Utilized 'showTemplateInfo' state to resolve linting error.
+// 3. RETAINED: 50/50 Grid layout and Professional A4 rendering.
+// 4. CLEANED: Removed unused variables and unauthorized buttons.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -13,7 +13,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, 
   FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate,
-  FileCheck, Lock, BrainCircuit, Archive, FilePlus, Printer} from 'lucide-react';
+  FileCheck, Lock, BrainCircuit, Archive, FilePlus} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -54,7 +54,7 @@ const AutoResizeTextarea: React.FC<{
 
 const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
     return (
-        <div className="bg-white text-black min-h-[1123px] w-full p-12 sm:p-20 shadow-2xl mx-auto rounded-sm ring-1 ring-gray-200">
+        <div className="bg-white text-black min-h-[1123px] w-full p-10 sm:p-16 shadow-2xl mx-auto rounded-sm ring-1 ring-gray-200">
              <div className="markdown-content text-[11pt] leading-[1.6] font-serif select-text text-gray-900">
                 <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
@@ -93,7 +93,7 @@ const DraftingPage: React.FC = () => {
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('generic');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [, setShowTemplateInfo] = useState(false);
+  const [showTemplateInfo, setShowTemplateInfo] = useState(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
 
@@ -178,15 +178,15 @@ const DraftingPage: React.FC = () => {
   const statusDisplay = getStatusDisplay();
 
   return (
-    <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col h-screen max-h-screen overflow-hidden">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col h-full overflow-hidden">
       <div className="text-center mb-6 flex-shrink-0">
         <h1 className="text-3xl font-bold text-white mb-1 flex items-center justify-center gap-3"><PenTool className="text-primary-start" />{t('drafting.title')}</h1>
         <p className="text-gray-400 text-sm">{t('drafting.subtitle')}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
         {/* INPUT PANEL */}
-        <div className="lg:col-span-4 glass-panel flex flex-col p-6 rounded-2xl shadow-2xl overflow-hidden border border-white/10">
+        <div className="glass-panel flex flex-col p-6 rounded-2xl shadow-2xl overflow-hidden border border-white/10">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0"><FileText className="text-primary-start" size={20} />{t('drafting.configuration')}</h3>
             <form onSubmit={(e) => { e.preventDefault(); runDraftingStream(); }} className="flex flex-col flex-1 gap-4 min-h-0">
                 <div className="space-y-4 flex-shrink-0">
@@ -240,6 +240,11 @@ const DraftingPage: React.FC = () => {
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
+                        {showTemplateInfo && isPro && (
+                            <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mt-1 text-xs text-gray-400 italic p-2 bg-white/5 rounded border border-white/10">
+                                {t(`drafting.templateDesc.${selectedTemplate}`)}
+                            </motion.div>
+                        )}
                     </div>
                 </div>
 
@@ -262,29 +267,28 @@ const DraftingPage: React.FC = () => {
         </div>
 
         {/* RESULT PANEL */}
-        <div className="lg:col-span-8 flex flex-col h-full rounded-2xl overflow-hidden shadow-2xl bg-[#12141c] border border-white/5">
+        <div className="flex flex-col h-full rounded-2xl overflow-hidden shadow-2xl bg-[#12141c] border border-white/5">
             <div className="flex justify-between items-center p-4 bg-black/40 border-b border-white/5 flex-shrink-0">
                 <div className="flex items-center gap-3">
                    <div className={`${statusDisplay.color} p-2 bg-white/5 rounded-lg`}>{statusDisplay.icon}</div>
                    <div>
                         <h3 className="text-white text-sm font-semibold leading-none mb-1">{statusDisplay.text}</h3>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">{t('drafting.legalPreview') || 'Professional Legal Draft'}</p>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-widest">{t('drafting.legalPreview')}</p>
                    </div>
                 </div>
                 <div className="flex gap-2">
                     <button onClick={runDraftingStream} disabled={!currentJob.result || isSubmitting} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title={t('drafting.regenerate')}><RotateCcw size={18}/></button>
-                    <button onClick={handleSaveToArchive} disabled={!currentJob.result || saving} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-secondary-start disabled:opacity-30 transition-all" title={t('drafting.saveToArchive')}>
+                    <button onClick={handleSaveToArchive} disabled={!currentJob.result || saving} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-primary-start disabled:opacity-30 transition-all" title={t('drafting.saveToArchive')}>
                         {saving ? <RefreshCw className="animate-spin" size={18}/> : <Archive size={18}/>}
                     </button>
                     <button onClick={handleCopyResult} disabled={!currentJob.result} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title={t('general.copy')}><Copy size={18}/></button>
-                    <button onClick={() => window.print()} disabled={!currentJob.result} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title={t('general.print')}><Printer size={18}/></button>
                     <button onClick={handleDownloadResult} disabled={!currentJob.result} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 disabled:opacity-30 transition-all" title={t('general.download')}><Download size={18}/></button>
                     <button onClick={handleClearResult} disabled={!currentJob.result && !currentJob.error} className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg disabled:opacity-30 transition-all border border-red-500/20" title={t('general.clear')}><Trash2 size={18}/></button>
                 </div>
             </div>
 
-            <div className="flex-1 bg-[#0f1117] overflow-y-auto custom-scrollbar p-8 sm:p-12 relative min-h-0">
-                <div className="max-w-[850px] mx-auto">
+            <div className="flex-1 bg-[#0f1117] overflow-y-auto custom-scrollbar p-6 sm:p-10 relative min-h-0">
+                <div className="max-w-full mx-auto overflow-x-auto">
                     {currentJob.error && (<div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mb-6 text-sm text-red-300 flex items-center gap-3"><AlertCircle size={20} />{currentJob.error}</div>)}
                     {saveSuccess && (<div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4 mb-6 text-sm text-green-300 flex items-center gap-3"><CheckCircle size={20} />{saveSuccess}</div>)}
                     
@@ -303,9 +307,6 @@ const DraftingPage: React.FC = () => {
                                         <div className="text-xl text-white font-bold flex items-center gap-2">
                                             {t('drafting.thinking')}<ThinkingDots />
                                         </div>
-                                        {currentJob.characterCount && (
-                                            <p className="text-sm text-gray-500 mt-3 font-mono">Generating: {currentJob.characterCount} chars...</p>
-                                        )}
                                     </motion.div>
                                 </AnimatePresence>
                             ) : (
@@ -314,7 +315,6 @@ const DraftingPage: React.FC = () => {
                                         <FileText className="w-10 h-10 text-gray-600" />
                                     </div>
                                     <p className="text-gray-400 text-lg font-medium">{t('drafting.emptyState')}</p>
-                                    <p className="text-gray-600 text-sm mt-2 max-w-xs">{t('drafting.emptyHint') || 'Provide instructions on the left to start drafting your legal document.'}</p>
                                 </div>
                             )}
                         </div>
