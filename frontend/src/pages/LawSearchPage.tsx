@@ -1,8 +1,6 @@
 // FILE: src/pages/LawSearchPage.tsx
 // PHOENIX PROTOCOL - ENHANCED SEARCH WITH LAW DROPDOWN
-// FIX: Law dropdown now shows full descriptive titles for all laws,
-//      even when the /laws/titles endpoint returns only the law number.
-// v2: Improved regex for bare numbers and added error logging.
+// v3: Added detailed console logging to diagnose enrichment failure.
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -27,10 +25,22 @@ interface ArticleGroup {
   chunkIds: string[];
 }
 
-// Improved regex to detect bare law numbers (e.g., "LIGJI NR. 04/L-077")
+// Heuristic: a title is "bare" if it starts with "LIGJ" and contains a slash,
+// but does NOT contain a dash (—) or common Albanian words like "PËR", "E", "TË", etc.
 function isBareLawNumber(title: string): boolean {
-  const barePattern = /^LIGJI?\s+NR\.?\s*\d+(?:\/[A-Za-z0-9-]+)*$/i;
-  return barePattern.test(title.trim());
+  const trimmed = title.trim();
+  // Check if it starts with LIGJ (case-insensitive)
+  if (!/^LIGJ/i.test(trimmed)) return false;
+  // Check if it contains a slash (like /L-077)
+  if (!/\//.test(trimmed)) return false;
+  // If it contains a long dash or certain words, it's probably descriptive
+  if (/[—–-]/.test(trimmed) && !/^LIGJI?\s+NR\.?\s*\d+(?:\/[A-Za-z0-9-]+)*$/.test(trimmed)) {
+    return false;
+  }
+  // If it has more than one space, maybe it's descriptive
+  const wordCount = trimmed.split(/\s+/).length;
+  if (wordCount > 4) return false;
+  return true;
 }
 
 function useDebounce<T extends (...args: any[]) => any>(callback: T, delay: number) {
@@ -54,20 +64,24 @@ export default function LawSearchPage() {
   const [loadingTitles, setLoadingTitles] = useState(true);
   const [selectedLaw, setSelectedLaw] = useState<string>('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  // Map from original title to enriched full title
   const [enrichedTitles, setEnrichedTitles] = useState<Map<string, string>>(new Map());
-  // Set of titles currently being enriched
   const [enrichingTitles, setEnrichingTitles] = useState<Set<string>>(new Set());
 
   // Fetch law titles on mount
   useEffect(() => {
+    console.log('[LawSearch] Fetching law titles...');
     apiService.getLawTitles()
       .then(async (titles) => {
         console.log('[LawSearch] Raw titles from API:', titles);
         setLawTitles(titles);
         
-        // Immediately enrich any bare-number titles
-        const bareTitles = titles.filter(isBareLawNumber);
+        // Identify bare titles
+        const bareTitles = titles.filter(title => {
+          const isBare = isBareLawNumber(title);
+          console.log(`[LawSearch] "${title}" -> isBare: ${isBare}`);
+          return isBare;
+        });
+        
         if (bareTitles.length === 0) {
           console.log('[LawSearch] No bare titles to enrich.');
           return;
@@ -81,13 +95,19 @@ export default function LawSearchPage() {
           try {
             console.log(`[LawSearch] Fetching details for: "${bareTitle}"`);
             const lawData = await apiService.getLawArticlesByTitle(bareTitle);
-            // The response contains law_title (the full descriptive title)
-            const fullTitle = lawData.law_title;
-            console.log(`[LawSearch] Enriched "${bareTitle}" -> "${fullTitle}"`);
-            return { bare: bareTitle, full: fullTitle };
+            console.log(`[LawSearch] Response for "${bareTitle}":`, lawData);
+            // The response should contain law_title (the full descriptive title)
+            const fullTitle = lawData?.law_title;
+            if (fullTitle && fullTitle !== bareTitle) {
+              console.log(`[LawSearch] Enriched "${bareTitle}" -> "${fullTitle}"`);
+              return { bare: bareTitle, full: fullTitle };
+            } else {
+              console.warn(`[LawSearch] No law_title in response or same as bare:`, lawData);
+              return { bare: bareTitle, full: bareTitle };
+            }
           } catch (err) {
             console.error(`[LawSearch] Failed to enrich title "${bareTitle}":`, err);
-            return { bare: bareTitle, full: bareTitle }; // fallback to original
+            return { bare: bareTitle, full: bareTitle };
           }
         });
 
@@ -98,7 +118,10 @@ export default function LawSearchPage() {
         console.log('[LawSearch] Enriched titles map:', Object.fromEntries(newMap));
         setEnrichingTitles(new Set());
       })
-      .catch(err => console.error('[LawSearch] Failed to load law titles:', err))
+      .catch(err => {
+        console.error('[LawSearch] Failed to load law titles:', err);
+        setLoadingTitles(false);
+      })
       .finally(() => setLoadingTitles(false));
   }, []);
 
@@ -160,11 +183,9 @@ export default function LawSearchPage() {
   const handleLawSelect = (lawTitle: string) => {
     setSelectedLaw(lawTitle);
     setDropdownOpen(false);
-    // Navigate to overview page for that law
     window.location.href = `/laws/overview?lawTitle=${encodeURIComponent(lawTitle)}`;
   };
 
-  // Determine display title for a law in the dropdown
   const getDisplayTitle = (original: string): string => {
     if (enrichedTitles.has(original)) {
       return enrichedTitles.get(original)!;
@@ -183,7 +204,6 @@ export default function LawSearchPage() {
         </p>
       </div>
 
-      {/* Dropdown for law selection */}
       <div className="relative mb-6">
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -221,7 +241,6 @@ export default function LawSearchPage() {
         )}
       </div>
 
-      {/* Search input */}
       <div className="relative mb-8">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           <Search className="h-5 w-5 text-text-secondary" />
