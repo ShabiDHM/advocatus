@@ -95,7 +95,7 @@ const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
 };
 
 const DraftingPage: React.FC = () => {
-  const { t } = useTranslation();
+  useTranslation();
   const { user } = useAuth();
   
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
