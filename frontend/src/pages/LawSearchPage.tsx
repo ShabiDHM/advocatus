@@ -1,6 +1,6 @@
 // FILE: src/pages/LawSearchPage.tsx
 // PHOENIX PROTOCOL - ENHANCED SEARCH WITH LAW DROPDOWN
-// FINAL: Includes all titles from API, including "kodi lid". No filtering except empty/very short strings.
+// FINAL: Includes all titles from API, maps "kodi lid" to its proper law name.
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -24,6 +24,11 @@ interface ArticleGroup {
   chunkCount: number;
   chunkIds: string[];
 }
+
+// Hardcoded mapping for known malformed titles.
+const KNOWN_JUNK_MAP: Record<string, string> = {
+  'kodi lid': 'LIGJI NR. 06/L-082 – PËR MBROJTJEN E TË DHËNAVE PERSONALE'
+};
 
 // Normalize a title for display: trim and replace any whitespace sequences with a single space.
 function normalizeForDisplay(title: string): string {
@@ -89,13 +94,28 @@ export default function LawSearchPage() {
         // Only filter out truly empty or very short strings (length < 2)
         const filteredTitles = titles.filter(title => {
           const normalized = normalizeForDisplay(title);
-          return normalized.length >= 2; // keep everything except empty/whitespace
+          return normalized.length >= 2;
         });
         
         console.log('[LawSearch] Filtered titles:', filteredTitles);
         setLawTitles(filteredTitles);
         
-        const bareTitles = filteredTitles.filter(title => {
+        // Pre‑populate enriched titles with known junk mappings
+        const initialEnriched = new Map<string, string>();
+        const remainingTitles: string[] = [];
+        
+        filteredTitles.forEach(title => {
+          const lower = title.toLowerCase().trim();
+          if (KNOWN_JUNK_MAP[lower]) {
+            initialEnriched.set(title, KNOWN_JUNK_MAP[lower]);
+          } else {
+            remainingTitles.push(title);
+          }
+        });
+        
+        setEnrichedTitles(initialEnriched);
+        
+        const bareTitles = remainingTitles.filter(title => {
           const isBare = isBareLawNumber(title);
           console.log(`[LawSearch] "${title}" -> isBare: ${isBare}`);
           return isBare;
@@ -140,7 +160,7 @@ export default function LawSearchPage() {
         });
 
         const results = await Promise.all(enrichmentPromises);
-        const newMap = new Map<string, string>();
+        const newMap = new Map(initialEnriched);
         results.forEach(({ bare, full }) => newMap.set(bare, full));
         setEnrichedTitles(newMap);
         console.log('[LawSearch] Enriched titles map:', Object.fromEntries(newMap));
