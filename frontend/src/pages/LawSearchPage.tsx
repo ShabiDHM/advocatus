@@ -1,6 +1,6 @@
 // FILE: src/pages/LawSearchPage.tsx
 // PHOENIX PROTOCOL - ENHANCED SEARCH WITH LAW DROPDOWN
-// FINAL: Filters out obviously invalid law titles (e.g., "kodi lid").
+// FINAL: Includes all titles from API, including "kodi lid". No filtering except empty/very short strings.
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,11 @@ interface ArticleGroup {
   preview: string;
   chunkCount: number;
   chunkIds: string[];
+}
+
+// Normalize a title for display: trim and replace any whitespace sequences with a single space.
+function normalizeForDisplay(title: string): string {
+  return title.trim().replace(/\s+/g, ' ');
 }
 
 // Extract the descriptive part from the source filename and prepend "PËR".
@@ -81,13 +86,10 @@ export default function LawSearchPage() {
       .then(async (titles) => {
         console.log('[LawSearch] Raw titles from API:', titles);
         
-        // Filter out obviously invalid entries (e.g., "kodi lid")
+        // Only filter out truly empty or very short strings (length < 2)
         const filteredTitles = titles.filter(title => {
-          const trimmed = title.trim();
-          // Exclude very short strings or known junk
-          if (trimmed.length < 5) return false;
-          if (/^kodi lid$/i.test(trimmed)) return false;
-          return true;
+          const normalized = normalizeForDisplay(title);
+          return normalized.length >= 2; // keep everything except empty/whitespace
         });
         
         console.log('[LawSearch] Filtered titles:', filteredTitles);
@@ -237,7 +239,7 @@ export default function LawSearchPage() {
           disabled={loadingTitles || enrichingTitles.size > 0}
         >
           <span className="text-text-secondary">
-            {selectedLaw || t('lawSearch.selectLaw', 'Zgjidh një ligj')}
+            {selectedLaw ? normalizeForDisplay(selectedLaw) : t('lawSearch.selectLaw', 'Zgjidh një ligj')}
           </span>
           {loadingTitles || enrichingTitles.size > 0 ? (
             <Loader2 className="h-4 w-4 animate-spin text-text-secondary" />
@@ -256,7 +258,7 @@ export default function LawSearchPage() {
                   onClick={() => handleLawSelect(title)}
                   className="w-full text-left px-4 py-2 hover:bg-white/5 text-text-secondary hover:text-white transition-colors"
                 >
-                  {getDisplayTitle(title)}
+                  {normalizeForDisplay(getDisplayTitle(title))}
                   {enrichingTitles.has(title) && (
                     <Loader2 className="inline-block ml-2 h-3 w-3 animate-spin" />
                   )}
