@@ -1,9 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.19 (PREMIUM BUILD: NO DEGRADATION)
-// 1. RESTORED: All premium iconography, Archive, and Download features.
-// 2. FIXED: Visibility - Guaranteed black text on white paper for all themes.
-// 3. MOBILE: Full responsive layout without losing Desktop features.
-// 4. LOGIC: Full 18+ Template library and Anti-Hallucination Smart Prompts.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.21 (LAWYER GRADE + TOOLTIPS)
+// 1. RESTORED: All tooltips (title attributes) for UI actions.
+// 2. ENHANCED: Lawyer Grade typography (Hyphenation, Centered H1, Underlined H3).
+// 3. FIXED: Forced Contrast black-on-white (!important) for all document elements.
+// 4. MOBILE: Dynamic margins (px-6 mobile, 2.5cm desktop) without feature loss.
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -18,8 +18,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-// --- PREMIUM LEGAL STYLES ---
-const premiumStyles = `
+// --- HIGH-FIDELITY LEGAL STYLES ---
+const lawyerGradeStyles = `
   @media print {
     body * { visibility: hidden; }
     .legal-document, .legal-document * { visibility: visible; }
@@ -30,7 +30,7 @@ const premiumStyles = `
     @page { size: A4; margin: 0; }
   }
 
-  /* FORCED CONTRAST ENGINE */
+  /* FORCED LEGAL CONTRAST */
   .legal-content, .legal-content * {
     color: #000000 !important;
     border-color: #000000 !important;
@@ -38,17 +38,19 @@ const premiumStyles = `
 
   .legal-content {
     font-family: 'Times New Roman', Times, serif;
-    line-height: 1.5;
+    line-height: 1.6;
     text-align: justify;
     text-justify: inter-word;
+    hyphens: auto;
   }
   
-  .legal-content h1 { text-align: center; text-transform: uppercase; font-weight: bold; margin-bottom: 24px; font-size: 14pt; }
-  .legal-content h2 { text-transform: uppercase; font-weight: bold; margin-top: 24px; margin-bottom: 12px; font-size: 12pt; border-bottom: 1px solid #000; padding-bottom: 4px; }
-  .legal-content h3 { font-weight: bold; margin-top: 18px; margin-bottom: 8px; font-size: 12pt; text-decoration: underline; }
-  .legal-content p { margin-bottom: 12px; }
-  .legal-content ul, .legal-content ol { margin-left: 36px; margin-bottom: 12px; }
-  .legal-content blockquote { margin-left: 36px; border-left: 3px solid #000; padding-left: 12px; font-style: italic; margin-bottom: 12px; }
+  /* HIGH-GRADE HEADERS */
+  .legal-content h1 { text-align: center; text-transform: uppercase; font-weight: bold; margin-bottom: 2rem; font-size: 14pt; letter-spacing: 0.05em; }
+  .legal-content h2 { text-transform: uppercase; font-weight: bold; margin-top: 1.5rem; margin-bottom: 1rem; font-size: 12pt; border-bottom: 1.5px solid #000; padding-bottom: 4px; }
+  .legal-content h3 { font-weight: bold; margin-top: 1.2rem; margin-bottom: 0.8rem; font-size: 12pt; text-decoration: underline; text-underline-offset: 3px; }
+  .legal-content p { margin-bottom: 1rem; }
+  .legal-content ul, .legal-content ol { margin-left: 2.5rem; margin-bottom: 1rem; }
+  .legal-content blockquote { margin-left: 2.5rem; border-left: 3px solid #000; padding-left: 1rem; font-style: italic; margin-bottom: 1rem; }
 `;
 
 type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
@@ -67,7 +69,6 @@ interface DraftingJobState {
   error: string | null;
 }
 
-// --- LOGIC: SMART PROMPT INJECTION ---
 const constructSmartPrompt = (userText: string, template: TemplateType): string => {
     let domainHint = "";
     const lowerText = userText.toLowerCase();
@@ -89,19 +90,22 @@ const ThinkingDots = () => (
 
 const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
     return (
-        <div className="legal-document bg-white w-full lg:max-w-[21cm] mx-auto px-6 py-8 sm:px-[2.5cm] sm:py-[2.5cm] shadow-2xl my-4 sm:my-8 border border-gray-200 ring-1 ring-black/5">
+        <div className="legal-document bg-white w-full lg:max-w-[21cm] mx-auto px-6 py-8 sm:px-[2.5cm] sm:py-[2.5cm] shadow-[0_20px_50px_rgba(0,0,0,0.2)] my-4 sm:my-8 border border-gray-300 ring-1 ring-black/5">
              <div className="legal-content text-[11pt] sm:text-[12pt]">
                 <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     components={{
+                        h1: ({node, ...props}) => <h1 {...props} />,
+                        h2: ({node, ...props}) => <h2 {...props} />,
+                        h3: ({node, ...props}) => <h3 {...props} />,
                         p: ({node, ...props}) => {
                             const content = String(props.children);
-                            if (content.includes('gjeneruar nga AI')) return <p className="text-center italic mt-16 pt-4 border-t border-black text-[10pt]" {...props} />;
+                            if (content.includes('gjeneruar nga AI')) return <p className="text-center italic mt-16 pt-4 border-t border-black text-[10pt] opacity-70" {...props} />;
                             return <p {...props} />;
                         },
                         strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
-                        hr: () => <hr className="my-6 border-black" />,
-                        a: ({children}) => <span className="underline">{children}</span>,
+                        hr: () => <hr className="my-8 border-black/30" />,
+                        a: ({children}) => <span className="font-bold underline cursor-default">{children}</span>,
                     }} 
                 >
                     {text}
@@ -190,7 +194,7 @@ const DraftingPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 flex flex-col h-full lg:overflow-hidden overflow-y-auto">
-      <style>{premiumStyles}</style>
+      <style>{lawyerGradeStyles}</style>
       
       <div className="text-center mb-6 flex-shrink-0">
         <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center justify-center gap-3">
@@ -201,7 +205,7 @@ const DraftingPage: React.FC = () => {
       <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 flex-1 lg:overflow-hidden">
         
         {/* CONFIG PANEL */}
-        <div className="glass-panel flex flex-col p-4 sm:p-6 rounded-2xl border border-white/10 lg:overflow-y-auto">
+        <div className="glass-panel flex flex-col p-4 sm:p-6 rounded-2xl border border-white/10 lg:overflow-y-auto shrink-0">
             <h3 className="text-white font-semibold mb-6 flex items-center gap-2">
                 <FileText className="text-primary-start" size={20} />Konfigurimi
             </h3>
@@ -259,7 +263,7 @@ const DraftingPage: React.FC = () => {
                         value={context} 
                         onChange={(e) => setContext(e.target.value)} 
                         placeholder="Përshkruani faktet e rastit..." 
-                        className="glass-input w-full p-4 rounded-xl text-sm min-h-[160px] lg:min-h-[220px] resize-none outline-none focus:ring-1 focus:ring-primary-start/40 transition-all"
+                        className="glass-input w-full p-4 rounded-xl text-sm min-h-[160px] lg:min-h-[200px] resize-none outline-none focus:ring-1 focus:ring-primary-start/40 transition-all"
                     />
                 </div>
 
@@ -278,12 +282,12 @@ const DraftingPage: React.FC = () => {
                    <h3 className="text-white text-xs sm:text-sm font-semibold uppercase tracking-widest leading-none">{statusDisplay.text}</h3>
                 </div>
                 <div className="flex gap-1 sm:gap-2">
-                    <button onClick={handleSaveToArchive} disabled={!currentJob.result || saving} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-primary-start transition-colors disabled:opacity-30">
+                    <button onClick={handleSaveToArchive} title="Arkivo në rast" disabled={!currentJob.result || saving} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-primary-start transition-colors disabled:opacity-30">
                         {saving ? <RefreshCw className="animate-spin" size={18}/> : <Archive size={18}/>}
                     </button>
-                    <button onClick={() => { if(currentJob.result) { navigator.clipboard.writeText(currentJob.result); alert("U kopjua!"); } }} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"><Copy size={18}/></button>
-                    <button onClick={() => { if(currentJob.result) { const blob = new Blob([currentJob.result], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `draft-${Date.now()}.txt`; a.click(); } }} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"><Download size={18}/></button>
-                    <button onClick={() => { if(window.confirm("A jeni të sigurt?")) setCurrentJob({ status: null, result: null, error: null }); }} className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"><Trash2 size={18}/></button>
+                    <button onClick={() => { if(currentJob.result) { navigator.clipboard.writeText(currentJob.result); alert("U kopjua!"); } }} title="Kopjo tekstin" className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"><Copy size={18}/></button>
+                    <button onClick={() => { if(currentJob.result) { const blob = new Blob([currentJob.result], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `draft-${Date.now()}.txt`; a.click(); } }} title="Shkarko si skedar" className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"><Download size={18}/></button>
+                    <button onClick={() => { if(window.confirm("A jeni të sigurt?")) setCurrentJob({ status: null, result: null, error: null }); }} title="Fshij rezultatin" className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"><Trash2 size={18}/></button>
                 </div>
             </div>
 
@@ -298,8 +302,8 @@ const DraftingPage: React.FC = () => {
                         <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
                             {isSubmitting ? (
                                 <div className="flex flex-col items-center">
-                                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shadow-primary-start/20 mb-6 animate-bounce">
-                                        <BrainCircuit className="w-8 h-8 text-white animate-pulse" />
+                                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shadow-primary-start/20 mb-6 animate-pulse">
+                                        <BrainCircuit className="w-8 h-8 text-white" />
                                     </div>
                                     <p className="text-white font-medium flex items-center">Duke u hartuar dokumenti<ThinkingDots /></p>
                                 </div>
