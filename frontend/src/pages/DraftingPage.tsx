@@ -1,7 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.11 (VISIBILITY FIX)
-// 1. FIXED: Enforced text-black on all Markdown headers and elements to prevent 'invisible' text in Dark Mode.
-// 2. RETAINED: All previous functionality (Lawyer Grade A4, AutoResize, etc).
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.13 (MOBILE RESPONSIVE & PERSISTENT)
+// 1. MOBILE: Converted layout to vertical scroll on mobile, split-pane on desktop.
+// 2. RESPONSIVE A4: Adjusted paper margins (px-6 on mobile vs 2.5cm on desktop).
+// 3. PERSISTENCE: Retained localStorage saving logic.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -82,14 +83,14 @@ const ThinkingDots = () => (
 // --- LAWYER GRADE RENDERER ---
 const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
     return (
-        // A4 Dimensions: 21cm width, standard margins (2.5cm ~ p-10)
-        // Font: Times New Roman, Justified Text
-        <div className="bg-white text-black min-h-[29.7cm] w-full max-w-[21cm] mx-auto px-[2.5cm] py-[2.5cm] shadow-2xl my-8 ring-1 ring-gray-300">
-             <div className="markdown-content text-[12pt] leading-[1.5] font-['Times_New_Roman',_Times,_serif] select-text text-black text-justify break-words">
+        // RESPONSIVE A4: 
+        // Mobile: w-full, px-6 py-8
+        // Desktop: max-w-[21cm], px-[2.5cm] py-[2.5cm]
+        <div className="bg-white text-black min-h-[29.7cm] w-full lg:max-w-[21cm] mx-auto px-6 py-8 sm:px-[2.5cm] sm:py-[2.5cm] shadow-2xl my-4 sm:my-8 ring-1 ring-gray-300 transition-all duration-300">
+             <div className="markdown-content text-[11pt] sm:text-[12pt] leading-[1.5] font-['Times_New_Roman',_Times,_serif] select-text text-black text-justify break-words">
                 <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     components={{
-                        // Paragraphs: Justified, standard legal spacing. Enforcing text-black.
                         p: ({node, ...props}) => {
                             const content = String(props.children);
                             if (content.includes('gjeneruar nga AI')) {
@@ -98,26 +99,13 @@ const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
                             return <p className="mb-4 text-black" {...props} />;
                         },
                         strong: ({node, ...props}) => <span className="font-bold text-black" {...props} />,
-                        
-                        // H1: Document Title - Centered, Uppercase, Bold. Enforcing text-black.
                         h1: ({node, ...props}) => <h1 className="text-[14pt] font-bold text-center uppercase mb-8 mt-2 tracking-wide text-black" {...props} />,
-                        
-                        // H2: Section Headers - Left, Uppercase, Bold. Enforcing text-black.
                         h2: ({node, ...props}) => <h2 className="text-[12pt] font-bold uppercase mt-6 mb-3 border-b-2 border-transparent text-black" {...props} />,
-                        
-                        // H3: Subheaders - Bold, Standard Case. Enforcing text-black.
                         h3: ({node, ...props}) => <h3 className="text-[12pt] font-bold mt-4 mb-2 underline decoration-1 underline-offset-2 text-black" {...props} />,
-                        
-                        // Lists: Indented standard bullet points. Enforcing text-black.
-                        ul: ({node, ...props}) => <ul className="list-disc ml-8 mb-4 space-y-1 text-black" {...props} />,
-                        ol: ({node, ...props}) => <ol className="list-decimal ml-8 mb-4 space-y-1 text-black" {...props} />,
-                        
-                        // Citations/Blockquotes: Indented. Enforcing text-black.
-                        blockquote: ({node, ...props}) => <blockquote className="ml-8 italic border-l-2 border-black pl-4 my-4 text-black" {...props} />,
-                        
+                        ul: ({node, ...props}) => <ul className="list-disc ml-6 sm:ml-8 mb-4 space-y-1 text-black" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal ml-6 sm:ml-8 mb-4 space-y-1 text-black" {...props} />,
+                        blockquote: ({node, ...props}) => <blockquote className="ml-4 sm:ml-8 italic border-l-2 border-black pl-4 my-4 text-black" {...props} />,
                         hr: () => <hr className="my-6 border-black" />,
-                        
-                        // Links (Doc references): Bold, no underline to look like print. Enforcing text-black.
                         a: ({href, children}) => {
                             if (href?.startsWith('doc://')) {
                                 return (<span className="font-bold text-black">{children}</span>);
@@ -138,7 +126,28 @@ const DraftingPage: React.FC = () => {
   const { user } = useAuth();
   
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
-  const [currentJob, setCurrentJob] = useState<DraftingJobState>({ status: null, result: null, error: null });
+  
+  const [currentJob, setCurrentJob] = useState<DraftingJobState>(() => {
+    const saved = localStorage.getItem('drafting_job');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.status === 'PROCESSING') {
+           if (parsed.result && parsed.result.length > 0) {
+             parsed.status = 'COMPLETED';
+           } else {
+             parsed.status = 'FAILED';
+             parsed.error = 'Procesi u ndërpre nga rifreskimi i faqes.';
+           }
+        }
+        return parsed;
+      } catch (e) {
+        return { status: null, result: null, error: null };
+      }
+    }
+    return { status: null, result: null, error: null };
+  });
+
   const [cases, setCases] = useState<Case[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string | undefined>(undefined);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('generic');
@@ -150,6 +159,8 @@ const DraftingPage: React.FC = () => {
 
   useEffect(() => { if (!isPro) { setSelectedCaseId(undefined); setSelectedTemplate('generic'); } }, [isPro]);
   useEffect(() => { localStorage.setItem('drafting_context', context); }, [context]);
+  useEffect(() => { localStorage.setItem('drafting_job', JSON.stringify(currentJob)); }, [currentJob]);
+
   useEffect(() => { const fetchCases = async () => { try { const res = await apiService.getCases(); setCases(res || []); } catch (e) { console.error(e); } }; fetchCases(); }, []);
 
   const getCaseDisplayName = (c: Case) => c.title || c.case_name || `Rasti #${c.id.substring(0, 8)}`;
@@ -204,7 +215,13 @@ const DraftingPage: React.FC = () => {
 
   const handleCopyResult = async () => { if (currentJob.result) { await navigator.clipboard.writeText(currentJob.result); alert("Kopjuar!"); } };
   const handleDownloadResult = () => { if (currentJob.result) { const blob = new Blob([currentJob.result], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `draft-${Date.now()}.txt`; a.click(); } };
-  const handleClearResult = () => { if (window.confirm("A jeni të sigurt?")) { setCurrentJob({ status: null, result: null, error: null }); setSaveSuccess(null); } };
+  
+  const handleClearResult = () => { 
+      if (window.confirm("A jeni të sigurt?")) { 
+          setCurrentJob({ status: null, result: null, error: null }); 
+          setSaveSuccess(null); 
+      } 
+  };
 
   const getStatusDisplay = () => {
     switch(currentJob.status) {
@@ -218,7 +235,9 @@ const DraftingPage: React.FC = () => {
   const statusDisplay = getStatusDisplay();
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 flex flex-col h-full overflow-hidden">
+    // MOBILE STRATEGY: h-full allows scrolling on mobile (no overflow-hidden). 
+    // DESKTOP STRATEGY: lg:overflow-hidden locks the viewport for split-pane.
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 flex flex-col h-full lg:overflow-hidden overflow-y-auto">
       <style>{scrollbarStyles}</style>
       
       {/* HEADER */}
@@ -228,9 +247,17 @@ const DraftingPage: React.FC = () => {
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-y-auto lg:overflow-hidden custom-scrollbar">
-        {/* INPUT PANEL */}
-        <div className="glass-panel flex flex-col h-auto lg:h-[600px] p-4 sm:p-6 rounded-2xl shadow-2xl border border-white/10 shrink-0">
+      {/* GRID CONTAINER 
+          Mobile: Default block/flex behavior (scrollable page).
+          Desktop: flex-1 overflow-hidden (content scrolls inside panels).
+      */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 lg:overflow-hidden">
+        
+        {/* INPUT PANEL 
+            Mobile: h-auto (grows with content).
+            Desktop: h-full (fills grid cell), scrollable inside.
+        */}
+        <div className="glass-panel flex flex-col h-auto lg:h-full p-4 sm:p-6 rounded-2xl shadow-2xl border border-white/10 shrink-0 lg:overflow-y-auto custom-scrollbar">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0">
                 <FileText className="text-primary-start" size={20} />Konfigurimi
             </h3>
@@ -303,7 +330,8 @@ const DraftingPage: React.FC = () => {
 
                 <div className="flex-1 flex flex-col min-h-0">
                     <label className="block text-[10px] font-medium text-gray-400 mb-1 uppercase tracking-wider">Udhëzimet</label>
-                    <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                    {/* On mobile, this textarea grows naturally. On desktop, it takes available space */}
+                    <div className="flex-1 lg:overflow-y-auto pr-1 custom-scrollbar">
                         <AutoResizeTextarea 
                             value={context} 
                             onChange={(e) => setContext(e.target.value)} 
@@ -321,8 +349,11 @@ const DraftingPage: React.FC = () => {
             </form>
         </div>
 
-        {/* RESULT PANEL - LAWYER GRADE */}
-        <div className="flex flex-col h-auto lg:h-[600px] rounded-2xl overflow-hidden shadow-2xl bg-[#12141c] border border-white/10 shrink-0">
+        {/* RESULT PANEL 
+            Mobile: min-h-[500px] (ensure visibility), auto height.
+            Desktop: h-full (fills grid cell), scrollable inside.
+        */}
+        <div className="flex flex-col h-auto min-h-[500px] lg:h-full rounded-2xl overflow-hidden shadow-2xl bg-[#12141c] border border-white/10 shrink-0">
             <div className="flex justify-between items-center p-4 bg-black/40 border-b border-white/5 flex-shrink-0">
                 <div className="flex items-center gap-3">
                    <div className={`${statusDisplay.color} p-2 bg-white/5 rounded-lg`}>{statusDisplay.icon}</div>
