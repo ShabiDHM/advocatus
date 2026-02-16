@@ -1,9 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.4 (RESTORED TEMPLATES & LINTING FIX)
-// 1. RESTORED: Full categorized template list (NDA, MoU, Employment, etc.).
-// 2. FIXED: Utilized 'Lock' icon in PRO badges to resolve linting error.
-// 3. FIXED: Utilized 'AnimatePresence' for generation states to resolve linting error.
-// 4. RETAINED: Mobile-friendly layout and dark-themed thin scrollbars.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.7 (RESTORED AUTO-RESIZE)
+// 1. RESTORED: AutoResizeTextarea component for better typing UX.
+// 2. FIXED: Double scrollbar issue by constraining max-height.
+// 3. RETAINED: Custom scrollbar styling and mobile responsiveness.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -13,10 +12,34 @@ import { useAuth } from '../context/AuthContext';
 import { 
   PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, 
   FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate,
-  FileCheck, Lock, BrainCircuit, Archive, FilePlus} from 'lucide-react';
+  FileCheck, Lock, BrainCircuit, Archive } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+// --- CUSTOM SCROLLBAR STYLES ---
+const scrollbarStyles = `
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(17, 24, 39, 0.5); /* Dark background */
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(59, 130, 246, 0.5); /* Primary Blue transparent */
+    border-radius: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(59, 130, 246, 0.8); /* Primary Blue solid on hover */
+  }
+  /* For Firefox */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.5) rgba(17, 24, 39, 0.5);
+  }
+`;
 
 type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
@@ -35,18 +58,11 @@ interface DraftingJobState {
   characterCount?: number;
 }
 
-const ThinkingDots = () => (
-    <span className="inline-flex items-center ml-1">
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
-    </span>
-);
-
+// --- RESTORED COMPONENT ---
 const AutoResizeTextarea: React.FC<{ 
     value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void; 
     placeholder?: string; disabled?: boolean; className?: string; minHeight?: number; maxHeight?: number;
-}> = ({ value, onChange, placeholder, disabled, className, minHeight = 150, maxHeight = 800 }) => {
+}> = ({ value, onChange, placeholder, disabled, className, minHeight = 150, maxHeight = 400 }) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     useEffect(() => {
         if (textareaRef.current) {
@@ -56,6 +72,14 @@ const AutoResizeTextarea: React.FC<{
     }, [value, minHeight, maxHeight]);
     return <textarea ref={textareaRef} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} className={className} />;
 };
+
+const ThinkingDots = () => (
+    <span className="inline-flex items-center ml-1">
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+    </span>
+);
 
 const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
     return (
@@ -95,7 +119,7 @@ const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
 };
 
 const DraftingPage: React.FC = () => {
-  useTranslation();
+  useTranslation(); 
   const { user } = useAuth();
   
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
@@ -115,9 +139,8 @@ const DraftingPage: React.FC = () => {
 
   const getCaseDisplayName = (c: Case) => c.title || c.case_name || `Rasti #${c.id.substring(0, 8)}`;
 
-  const handleAutofillCase = async () => {
-    if (!selectedCaseId) return;
-    const caseData = cases.find(c => c.id === selectedCaseId);
+  const handleAutofillCase = async (caseId: string) => {
+    const caseData = cases.find(c => c.id === caseId);
     if (!caseData) return;
     let autofillText = `Përmbledhje e Rastit: ${caseData.title || caseData.case_number}\n\nKlienti: ${caseData.client?.name || 'N/A'}`;
     setContext(prev => prev ? prev + '\n\n' + autofillText : autofillText);
@@ -181,13 +204,16 @@ const DraftingPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 flex flex-col h-full overflow-hidden">
+      <style>{scrollbarStyles}</style>
+      
+      {/* HEADER */}
       <div className="text-center mb-6 flex-shrink-0">
         <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 flex items-center justify-center gap-3">
             <PenTool className="text-primary-start" />Hartimi AI
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-y-auto lg:overflow-hidden scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-y-auto lg:overflow-hidden custom-scrollbar">
         {/* INPUT PANEL */}
         <div className="glass-panel flex flex-col h-auto lg:h-[600px] p-4 sm:p-6 rounded-2xl shadow-2xl border border-white/10 shrink-0">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0">
@@ -202,17 +228,21 @@ const DraftingPage: React.FC = () => {
                         </div>
                         <div className="relative">
                             <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
-                            <select value={selectedCaseId || ''} onChange={(e) => setSelectedCaseId(e.target.value || undefined)} disabled={isSubmitting || !isPro} className="glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl text-sm">
+                            <select 
+                                value={selectedCaseId || ''} 
+                                onChange={(e) => {
+                                    const val = e.target.value || undefined;
+                                    setSelectedCaseId(val);
+                                    if(val) handleAutofillCase(val); 
+                                }} 
+                                disabled={isSubmitting || !isPro} 
+                                className="glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl text-sm"
+                            >
                                 <option value="" className="bg-gray-900">Pa Kontekst</option>
                                 {isPro && cases.map(c => (<option key={c.id} value={String(c.id)} className="bg-gray-900">{getCaseDisplayName(c)}</option>))}
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
                         </div>
-                        {selectedCaseId && isPro && (
-                            <button type="button" onClick={handleAutofillCase} className="mt-1 text-xs text-primary-start hover:text-primary-end flex items-center gap-1">
-                                <FilePlus size={12} /> Mbush të dhënat
-                            </button>
-                        )}
                     </div>
                     <div className='flex-1 min-w-0'>
                         <div className="flex items-center justify-between mb-1">
@@ -225,16 +255,14 @@ const DraftingPage: React.FC = () => {
                                 <option value="generic" className="bg-gray-900 font-bold">Hartim i Lirë</option>
                                 <optgroup label="Litigim" className="bg-gray-900 italic text-gray-400">
                                     <option value="padi">Padi</option>
-                                    <option value="pergjigje">Përgjigje në Padi</option>
+                                    <option value="pergjigje">Përgjigje</option>
                                     <option value="kunderpadi">Kundërpadi</option>
                                     <option value="ankese">Ankesë</option>
-                                    <option value="prapësim">Prapësim (Përmbarim)</option>
                                 </optgroup>
                                 <optgroup label="Korporative" className="bg-gray-900 italic text-gray-400">
-                                    <option value="nda">NDA (Mos-shpalosje)</option>
-                                    <option value="mou">MoU (Memorandum)</option>
-                                    <option value="shareholders">Marrëveshje Aksionarësh</option>
-                                    <option value="sla">SLA (Marrëveshje Shërbimi)</option>
+                                    <option value="nda">NDA</option>
+                                    <option value="mou">MoU</option>
+                                    <option value="employment_contract">Kontratë Pune</option>
                                 </optgroup>
                                 <optgroup label="Punësim" className="bg-gray-900 italic text-gray-400">
                                     <option value="employment_contract">Kontratë Pune</option>
@@ -260,9 +288,10 @@ const DraftingPage: React.FC = () => {
 
                 <div className="flex-1 flex flex-col min-h-0">
                     <label className="block text-[10px] font-medium text-gray-400 mb-1 uppercase tracking-wider">Udhëzimet</label>
-                    <div className="flex-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
+                    <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
                         <AutoResizeTextarea 
-                            value={context} onChange={(e) => setContext(e.target.value)} 
+                            value={context} 
+                            onChange={(e) => setContext(e.target.value)} 
                             placeholder="Shkruani detajet..." 
                             className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed border border-white/5 bg-transparent focus:ring-1 focus:ring-primary-start/50 outline-none" 
                             disabled={isSubmitting} 
@@ -297,7 +326,7 @@ const DraftingPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex-1 bg-[#0f1117] overflow-y-auto p-4 sm:p-10 relative min-h-0 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
+            <div className="flex-1 bg-[#0f1117] overflow-y-auto p-4 sm:p-10 relative min-h-0 custom-scrollbar">
                 <div className="max-w-full mx-auto">
                     {currentJob.error && (<div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 mb-6 text-xs text-red-300 flex items-center gap-3"><AlertCircle size={16} />{currentJob.error}</div>)}
                     {saveSuccess && (<div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4 mb-6 text-xs text-green-300 flex items-center gap-3"><CheckCircle size={16} />{saveSuccess}</div>)}
