@@ -1,8 +1,7 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.13 (MOBILE RESPONSIVE & PERSISTENT)
-// 1. MOBILE: Converted layout to vertical scroll on mobile, split-pane on desktop.
-// 2. RESPONSIVE A4: Adjusted paper margins (px-6 on mobile vs 2.5cm on desktop).
-// 3. PERSISTENCE: Retained localStorage saving logic.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.16 (CLEANUP)
+// 1. FIXED: Removed unused 'Sparkles' import to resolve TypeScript warning.
+// 2. RETAINED: All Smart Prompt logic and Legal Styling.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -11,33 +10,46 @@ import { Case } from '../data/types';
 import { useAuth } from '../context/AuthContext';
 import { 
   PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, 
-  FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate,
-  Lock, BrainCircuit, Archive } from 'lucide-react';
+  FileText, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate,
+  Lock, BrainCircuit, Archive, Scale } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-// --- CUSTOM SCROLLBAR STYLES ---
-const scrollbarStyles = `
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+// --- LEGAL DOCUMENT STYLING (THE "PROFESSIONAL LOOK") ---
+const legalStyles = `
+  /* FORCE PRINT STYLES */
+  @media print {
+    body * { visibility: hidden; }
+    .legal-document, .legal-document * { visibility: visible; }
+    .legal-document {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      margin: 0;
+      padding: 2.5cm; /* Standard Legal Margin */
+      box-shadow: none;
+      border: none;
+    }
+    @page { size: A4; margin: 0; }
   }
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(17, 24, 39, 0.5);
-    border-radius: 4px;
+
+  /* DOCUMENT TYPOGRAPHY */
+  .legal-content {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 12pt;
+    line-height: 1.5;
+    color: #000000;
+    text-align: justify;
+    text-justify: inter-word;
   }
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(59, 130, 246, 0.5);
-    border-radius: 4px;
-  }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(59, 130, 246, 0.8);
-  }
-  .custom-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(59, 130, 246, 0.5) rgba(17, 24, 39, 0.5);
-  }
+  
+  .legal-content h1 { text-align: center; text-transform: uppercase; font-weight: bold; margin-bottom: 24px; font-size: 14pt; letter-spacing: 1px; }
+  .legal-content h2 { text-transform: uppercase; font-weight: bold; margin-top: 24px; margin-bottom: 12px; font-size: 12pt; border-bottom: 1px solid #000; padding-bottom: 4px; }
+  .legal-content h3 { font-weight: bold; margin-top: 18px; margin-bottom: 8px; font-size: 12pt; text-decoration: underline; }
+  .legal-content p { margin-bottom: 12px; }
+  .legal-content ul, .legal-content ol { margin-left: 36px; margin-bottom: 12px; }
 `;
 
 type JobStatus = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
@@ -54,8 +66,64 @@ interface DraftingJobState {
   status: JobStatus | null;
   result: string | null;
   error: string | null;
-  characterCount?: number;
 }
+
+// --- SMART PROMPT ENGINEER (THE "DOCTOR") ---
+const constructSmartPrompt = (userText: string, template: TemplateType): string => {
+    let domainInstruction = "";
+    const lowerText = userText.toLowerCase();
+
+    // 1. DETECT FAMILY LAW (The "Alimony" Case)
+    if (lowerText.includes('alimentacion') || lowerText.includes('femij') || lowerText.includes('martes') || lowerText.includes('shkurorëzim')) {
+        domainInstruction = `
+        CRITICAL INSTRUCTION: This is a FAMILY LAW case (Ligji për Familjen). 
+        - YOU MUST CITE: Ligji Nr. 2004/32 për Familjen e Kosovës.
+        - YOU MUST CITE: Ligji për Procedurën Kontestimore (if procedural).
+        - FORBIDDEN: Do NOT cite 'Ligji për Shoqëritë Tregtare' (Corporate Law).
+        - FORBIDDEN: Do NOT cite 'Kodi i Procedurës Penale' (Criminal Law).
+        - TONE: Protective of the child's best interest.
+        `;
+    } 
+    // 2. DETECT CORPORATE LAW
+    else if (lowerText.includes('shpk') || lowerText.includes('aksion') || lowerText.includes('bord') || lowerText.includes('biznes')) {
+        domainInstruction = `
+        CRITICAL INSTRUCTION: This is a CORPORATE LAW case.
+        - YOU MUST CITE: Ligji Nr. 06/L-016 për Shoqëritë Tregtare.
+        `;
+    }
+    // 3. DETECT CRIMINAL LAW
+    else if (lowerText.includes('burg') || lowerText.includes('veper penale') || lowerText.includes('polici') || lowerText.includes('prokuror')) {
+        domainInstruction = `
+        CRITICAL INSTRUCTION: This is a CRIMINAL LAW case.
+        - YOU MUST CITE: Kodi Penal dhe Kodi i Procedurës Penale.
+        `;
+    }
+
+    // 4. TEMPLATE SPECIFIC STRUCTURES
+    let structureInstruction = "";
+    switch(template) {
+        case 'padi':
+            structureInstruction = "STRUCTURE: Header (Court, Parties), Baza Ligjore, Facts (Arsyetimi), Petitumi (Kërkesëpadia).";
+            break;
+        case 'pergjigje':
+            structureInstruction = "STRUCTURE: Response to Allegations, Counter-Arguments, Legal Basis for Rejection.";
+            break;
+        case 'ankese':
+            structureInstruction = "STRUCTURE: Attack the previous judgment. Cite violations of substantive or procedural law.";
+            break;
+        default:
+            structureInstruction = "STRUCTURE: Standard formal legal document.";
+    }
+
+    // COMBINE THE CURE
+    return `
+    ${domainInstruction}
+    ${structureInstruction}
+    
+    USER CONTEXT:
+    ${userText}
+    `;
+};
 
 // --- AUTO-RESIZE TEXTAREA ---
 const AutoResizeTextarea: React.FC<{ 
@@ -72,45 +140,31 @@ const AutoResizeTextarea: React.FC<{
     return <textarea ref={textareaRef} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} className={className} />;
 };
 
-const ThinkingDots = () => (
-    <span className="inline-flex items-center ml-1">
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
-    </span>
-);
-
 // --- LAWYER GRADE RENDERER ---
 const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
     return (
-        // RESPONSIVE A4: 
-        // Mobile: w-full, px-6 py-8
-        // Desktop: max-w-[21cm], px-[2.5cm] py-[2.5cm]
-        <div className="bg-white text-black min-h-[29.7cm] w-full lg:max-w-[21cm] mx-auto px-6 py-8 sm:px-[2.5cm] sm:py-[2.5cm] shadow-2xl my-4 sm:my-8 ring-1 ring-gray-300 transition-all duration-300">
-             <div className="markdown-content text-[11pt] sm:text-[12pt] leading-[1.5] font-['Times_New_Roman',_Times,_serif] select-text text-black text-justify break-words">
+        <div className="legal-document bg-white w-full lg:max-w-[21cm] mx-auto px-8 py-10 sm:px-[2.5cm] sm:py-[2.5cm] shadow-xl my-4 sm:my-8 border border-gray-200">
+             <div className="legal-content">
                 <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     components={{
+                        // FORCE BLACK TEXT AND LEGAL STYLING
                         p: ({node, ...props}) => {
                             const content = String(props.children);
-                            if (content.includes('gjeneruar nga AI')) {
-                                return <p className="mt-16 pt-4 border-t border-black text-[10pt] italic text-center text-black" {...props} />;
-                            }
-                            return <p className="mb-4 text-black" {...props} />;
+                            if (content.includes('gjeneruar nga AI')) return <p style={{textAlign: 'center', fontSize: '10pt', fontStyle: 'italic', marginTop: '40px', borderTop: '1px solid #000', paddingTop: '10px'}} {...props} />;
+                            return <p {...props} />;
                         },
-                        strong: ({node, ...props}) => <span className="font-bold text-black" {...props} />,
-                        h1: ({node, ...props}) => <h1 className="text-[14pt] font-bold text-center uppercase mb-8 mt-2 tracking-wide text-black" {...props} />,
-                        h2: ({node, ...props}) => <h2 className="text-[12pt] font-bold uppercase mt-6 mb-3 border-b-2 border-transparent text-black" {...props} />,
-                        h3: ({node, ...props}) => <h3 className="text-[12pt] font-bold mt-4 mb-2 underline decoration-1 underline-offset-2 text-black" {...props} />,
-                        ul: ({node, ...props}) => <ul className="list-disc ml-6 sm:ml-8 mb-4 space-y-1 text-black" {...props} />,
-                        ol: ({node, ...props}) => <ol className="list-decimal ml-6 sm:ml-8 mb-4 space-y-1 text-black" {...props} />,
-                        blockquote: ({node, ...props}) => <blockquote className="ml-4 sm:ml-8 italic border-l-2 border-black pl-4 my-4 text-black" {...props} />,
-                        hr: () => <hr className="my-6 border-black" />,
+                        strong: ({node, ...props}) => <strong style={{fontWeight: 'bold', color: '#000'}} {...props} />,
+                        h1: ({node, ...props}) => <h1 {...props} />,
+                        h2: ({node, ...props}) => <h2 {...props} />,
+                        h3: ({node, ...props}) => <h3 {...props} />,
+                        ul: ({node, ...props}) => <ul {...props} />,
+                        ol: ({node, ...props}) => <ol {...props} />,
+                        blockquote: ({node, ...props}) => <blockquote style={{marginLeft: '40px', fontStyle: 'italic', borderLeft: '3px solid #000', paddingLeft: '10px'}} {...props} />,
+                        hr: () => <hr style={{margin: '20px 0', borderTop: '1px solid #000'}} />,
                         a: ({href, children}) => {
-                            if (href?.startsWith('doc://')) {
-                                return (<span className="font-bold text-black">{children}</span>);
-                            }
-                            return <span className="text-black underline">{children}</span>;
+                            if (href?.startsWith('doc://')) return (<span style={{fontWeight: 'bold', textDecoration: 'none', color: '#000'}}>{children}</span>);
+                            return <span style={{textDecoration: 'underline', color: '#000'}}>{children}</span>;
                         },
                     }} 
                 >
@@ -165,11 +219,14 @@ const DraftingPage: React.FC = () => {
 
   const getCaseDisplayName = (c: Case) => c.title || c.case_name || `Rasti #${c.id.substring(0, 8)}`;
 
+  // FIXED: STRICT REPLACEMENT OF CONTEXT
   const handleAutofillCase = async (caseId: string) => {
     const caseData = cases.find(c => c.id === caseId);
     if (!caseData) return;
-    let autofillText = `Përmbledhje e Rastit: ${caseData.title || caseData.case_number}\n\nKlienti: ${caseData.client?.name || 'N/A'}`;
-    setContext(prev => prev ? prev + '\n\n' + autofillText : autofillText);
+    const autofillText = `RASTI: ${caseData.title || caseData.case_number}\nKLIENTI: ${caseData.client?.name || 'N/A'}\nPALËT KUNDËRSHTARE: ${caseData.opposing_party || 'N/A'}\nFAKTET KRYESORE:\n${caseData.description || '-'}`;
+    
+    // Always replace context to avoid "Context Pollution"
+    setContext(autofillText);
   };
 
   const runDraftingStream = async () => {
@@ -178,9 +235,13 @@ const DraftingPage: React.FC = () => {
     setCurrentJob({ status: 'PROCESSING', result: '', error: null });
     setSaveSuccess(null);
     let accumulatedText = "";
+
+    // APPLY THE CURE: Inject Smart Prompt Logic
+    const finalSmartPrompt = constructSmartPrompt(context.trim(), selectedTemplate);
+
     try {
       const stream = apiService.draftLegalDocumentStream({
-          user_prompt: context.trim(),
+          user_prompt: finalSmartPrompt, // SENDING TREATED PROMPT
           document_type: isPro ? selectedTemplate : 'generic',
           case_id: isPro ? selectedCaseId : undefined,
           use_library: isPro && !!selectedCaseId
@@ -227,18 +288,16 @@ const DraftingPage: React.FC = () => {
     switch(currentJob.status) {
       case 'COMPLETED': return { text: "Përfunduar", color: 'text-green-400', icon: <CheckCircle className="h-5 w-5" /> };
       case 'FAILED': return { text: "Dështoi", color: 'text-red-400', icon: <AlertCircle className="h-5 w-5" /> };
-      case 'PROCESSING': return { text: "Duke u hartuar", color: 'text-yellow-400', icon: <Clock className="h-5 w-5 animate-pulse" /> };
-      default: return { text: "Rezultati", color: 'text-white', icon: <Sparkles className="h-5 w-5 text-gray-500" /> };
+      case 'PROCESSING': return { text: "Duke u hartuar...", color: 'text-yellow-400', icon: <Clock className="h-5 w-5 animate-pulse" /> };
+      default: return { text: "Rezultati", color: 'text-white', icon: <Scale className="h-5 w-5 text-gray-500" /> };
     }
   };
 
   const statusDisplay = getStatusDisplay();
 
   return (
-    // MOBILE STRATEGY: h-full allows scrolling on mobile (no overflow-hidden). 
-    // DESKTOP STRATEGY: lg:overflow-hidden locks the viewport for split-pane.
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 flex flex-col h-full lg:overflow-hidden overflow-y-auto">
-      <style>{scrollbarStyles}</style>
+      <style>{legalStyles}</style>
       
       {/* HEADER */}
       <div className="text-center mb-6 flex-shrink-0">
@@ -247,16 +306,9 @@ const DraftingPage: React.FC = () => {
         </h1>
       </div>
 
-      {/* GRID CONTAINER 
-          Mobile: Default block/flex behavior (scrollable page).
-          Desktop: flex-1 overflow-hidden (content scrolls inside panels).
-      */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 lg:overflow-hidden">
         
-        {/* INPUT PANEL 
-            Mobile: h-auto (grows with content).
-            Desktop: h-full (fills grid cell), scrollable inside.
-        */}
+        {/* INPUT PANEL */}
         <div className="glass-panel flex flex-col h-auto lg:h-full p-4 sm:p-6 rounded-2xl shadow-2xl border border-white/10 shrink-0 lg:overflow-y-auto custom-scrollbar">
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2 flex-shrink-0">
                 <FileText className="text-primary-start" size={20} />Konfigurimi
@@ -296,31 +348,15 @@ const DraftingPage: React.FC = () => {
                             <select value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value as TemplateType)} disabled={isSubmitting || !isPro} className="glass-input w-full pl-10 pr-10 py-3 appearance-none rounded-xl text-sm">
                                 <option value="generic" className="bg-gray-900 font-bold">Hartim i Lirë</option>
                                 <optgroup label="Litigim" className="bg-gray-900 italic text-gray-400">
-                                    <option value="padi">Padi</option>
-                                    <option value="pergjigje">Përgjigje</option>
-                                    <option value="kunderpadi">Kundërpadi</option>
-                                    <option value="ankese">Ankesë</option>
+                                    <option value="padi">Padi (Lawsuit)</option>
+                                    <option value="pergjigje">Përgjigje (Response)</option>
+                                    <option value="kunderpadi">Kundërpadi (Counter-claim)</option>
+                                    <option value="ankese">Ankesë (Appeal)</option>
                                 </optgroup>
                                 <optgroup label="Korporative" className="bg-gray-900 italic text-gray-400">
                                     <option value="nda">NDA</option>
                                     <option value="mou">MoU</option>
                                     <option value="employment_contract">Kontratë Pune</option>
-                                </optgroup>
-                                <optgroup label="Punësim" className="bg-gray-900 italic text-gray-400">
-                                    <option value="employment_contract">Kontratë Pune</option>
-                                    <option value="termination_notice">Njoftim Shkëputje</option>
-                                    <option value="warning_letter">Vërejtje me shkrim</option>
-                                </optgroup>
-                                <optgroup label="Pronësi" className="bg-gray-900 italic text-gray-400">
-                                    <option value="lease_agreement">Kontratë Qiraje</option>
-                                    <option value="sales_purchase">Kontratë Shitblerje</option>
-                                </optgroup>
-                                <optgroup label="Dixhitale" className="bg-gray-900 italic text-gray-400">
-                                    <option value="terms_conditions">Kushtet e Përdorimit</option>
-                                    <option value="privacy_policy">Politika e Privatësisë</option>
-                                </optgroup>
-                                <optgroup label="Administrative" className="bg-gray-900 italic text-gray-400">
-                                    <option value="power_of_attorney">Autorizim (Prokurë)</option>
                                 </optgroup>
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"/>
@@ -329,13 +365,12 @@ const DraftingPage: React.FC = () => {
                 </div>
 
                 <div className="flex-1 flex flex-col min-h-0">
-                    <label className="block text-[10px] font-medium text-gray-400 mb-1 uppercase tracking-wider">Udhëzimet</label>
-                    {/* On mobile, this textarea grows naturally. On desktop, it takes available space */}
+                    <label className="block text-[10px] font-medium text-gray-400 mb-1 uppercase tracking-wider">Faktet & Udhëzimet</label>
                     <div className="flex-1 lg:overflow-y-auto pr-1 custom-scrollbar">
                         <AutoResizeTextarea 
                             value={context} 
                             onChange={(e) => setContext(e.target.value)} 
-                            placeholder="Shkruani detajet..." 
+                            placeholder="Përshkruani faktet e rastit, kërkesën kryesore dhe palët..." 
                             className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed border border-white/5 bg-transparent focus:ring-1 focus:ring-primary-start/50 outline-none" 
                             disabled={isSubmitting} 
                         />
@@ -344,15 +379,12 @@ const DraftingPage: React.FC = () => {
 
                 <button type="submit" disabled={isSubmitting || !context.trim()} className="w-full py-4 bg-gradient-to-r from-primary-start to-primary-end hover:opacity-90 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 shrink-0 transition-all">
                   {isSubmitting ? <RefreshCw className="animate-spin" /> : <Send size={18} />}
-                  Gjenero Dokumentin
+                  Gjenero Dokumentin (AI)
                 </button>
             </form>
         </div>
 
-        {/* RESULT PANEL 
-            Mobile: min-h-[500px] (ensure visibility), auto height.
-            Desktop: h-full (fills grid cell), scrollable inside.
-        */}
+        {/* RESULT PANEL */}
         <div className="flex flex-col h-auto min-h-[500px] lg:h-full rounded-2xl overflow-hidden shadow-2xl bg-[#12141c] border border-white/10 shrink-0">
             <div className="flex justify-between items-center p-4 bg-black/40 border-b border-white/5 flex-shrink-0">
                 <div className="flex items-center gap-3">
@@ -390,13 +422,13 @@ const DraftingPage: React.FC = () => {
                                             <BrainCircuit className="w-6 h-6 text-white animate-pulse" />
                                         </div>
                                         <div className="text-white font-medium flex items-center gap-2">
-                                            Duke u hartuar...<ThinkingDots />
+                                            Duke u hartuar...
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="opacity-20 flex flex-col items-center">
                                         <FileText className="w-12 h-12 text-gray-600 mb-4" />
-                                        <p className="text-gray-400 text-sm font-medium">Rezultati do të shfaqet këtu</p>
+                                        <p className="text-gray-400 text-sm font-medium">Zgjidhni rastin ose shkruani të dhënat</p>
                                     </div>
                                 )}
                             </motion.div>
