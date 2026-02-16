@@ -2,7 +2,6 @@
 # PHOENIX PROTOCOL - JURISTI HYDRA DRAFTING V33.0 (MULTI-DOMAIN INTELLIGENCE)
 # 1. REMOVED: Hardcoded 'Template -> Law' mapping.
 # 2. ADDED: Dynamic Domain Detection. The system scans the prompt for keywords (e.g., 'borxh', 'prone', 'femije') to select the right Law context.
-# 3. STATUS: Smart, flexible, and citation-focused.
 
 import os
 import io
