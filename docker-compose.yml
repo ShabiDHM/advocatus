@@ -1,161 +1,33 @@
-# FILE: docker-compose.yml
-# PHOENIX PROTOCOL - INFRASTRUCTURE V10.8 (BACKEND PORT EXPOSED)
-# 1. ADDED: ports: - "8000:8000" to backend service for host access.
-# 2. PRESERVED: All existing fixes and configurations.
-
+# FILE: juristi/docker-compose.yml (LEAN CLIENT)
+version: '3.8'
 services:
-  ai-core-service:
-    build: 
-      context: ./ai-core-service
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "8011:8000"
-    networks:
-      - juristi_net
-    deploy:
-      resources:
-        limits:
-          memory: 10G
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 300s
-
-  local-llm:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - juristi_net
-    deploy:
-      resources:
-        limits:
-          memory: 3G
-
   backend:
     build: { context: ./backend }
-    restart: unless-stopped
     container_name: juristi-backend
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --log-level info --proxy-headers
-    env_file: ./.env
-    ports:
-      - "8000:8000"                       # <-- ADDED
-    volumes:
-      - ./data:/app/data
-    networks: 
-      - juristi_net
-      - shared_gateway_net
-    depends_on: 
-      mongo: { condition: service_healthy }
-      redis: { condition: service_healthy }
-      ai-core-service: { condition: service_started }
-      local-llm: { condition: service_started }
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
-  celery:
-    build: { context: ./backend }
     restart: unless-stopped
-    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=4 --prefetch-multiplier=1
     env_file: ./.env
-    volumes:
-      - ./data:/app/data
-    networks: [juristi_net]
-    depends_on: 
-      redis: { condition: service_healthy } 
-      mongo: { condition: service_healthy }
-      backend: { condition: service_started }
-    deploy:
-      resources:
-        limits:
-          memory: 2G
+    ports: ["8000:8000"]
+    networks: [juristi_net, shared_gateway_net] # Joined shared net to reach AI
+    depends_on: { mongo: { condition: service_healthy } }
 
   mongo:
     image: mongo:6.0
-    restart: unless-stopped
-    env_file: ./.env
+    container_name: juristi-mongo
     networks: [juristi_net]
     volumes: [mongo_data:/data/db]
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-    healthcheck: { test: echo 'db.runCommand("ping").ok' | mongosh --quiet, interval: 15s, timeout: 10s, retries: 5 }
-    stop_grace_period: 20s
-
-  redis:
-    image: redis:7
-    restart: unless-stopped
-    volumes: [redis_data:/data]
-    networks: [juristi_net]
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-    healthcheck: { test: ["CMD", "redis-cli", "ping"], interval: 15s, timeout: 10s, retries: 5 }
-    stop_grace_period: 20s
+    healthcheck: { test: echo 'db.runCommand("ping").ok' | mongosh --quiet, interval: 15s }
 
   chroma:
     image: chromadb/chroma:latest
-    restart: unless-stopped
+    container_name: juristi-chroma
     ports: ["8003:8000"]
     networks: [juristi_net]
-    environment:
-      - IS_PERSISTENT=TRUE
-      - CHROMA_SERVER_HOST=0.0.0.0 
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-    volumes:
-      - chroma_data:/data 
-
-  neo4j:
-    image: neo4j:5
-    restart: unless-stopped
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    environment:
-      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD} 
-      - NEO4J_PLUGINS=["apoc"]
-      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
-      - NEO4J_dbms_memory_heap_initial__size=512M
-      - NEO4J_dbms_memory_heap_max__size=1G
-      - NEO4J_dbms_memory_pagecache_size=512M
-    volumes:
-      - neo4j_data:/data
-      - neo4j_logs:/logs
-    networks:
-      - juristi_net
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider localhost:7474 || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-
-volumes:
-  mongo_data: {}
-  chroma_data: {}
-  redis_data: {}
-  ollama_data: {}
-  neo4j_data: {}
-  neo4j_logs: {}
+    volumes: [chroma_data:/data]
 
 networks:
   juristi_net:
-    driver: bridge
   shared_gateway_net:
     external: true
+volumes:
+  mongo_data: {}
+  chroma_data: {}
