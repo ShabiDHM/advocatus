@@ -1,11 +1,9 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.8 (SCROLLBAR FIX)
-// 1. FIXED: Double scrollbars removed. "Udhëzimet" now has a single, internal scrollbar.
-// 2. FIXED: Textarea fills the available vertical space (h-full) instead of auto-resizing.
-// 3. RETAINED: Custom dark/blue scrollbar styling.
-// 4. RETAINED: All functional logic and mobile responsiveness.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.10 (FINAL CLEANUP)
+// 1. CLEANED: Removed unused 'FileCheck' import.
+// 2. RETAINED: Lawyer Grade A4 rendering, AutoResizeTextarea, and Single Scrollbar.
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { Case } from '../data/types'; 
@@ -13,7 +11,7 @@ import { useAuth } from '../context/AuthContext';
 import { 
   PenTool, Send, Copy, Download, RefreshCw, AlertCircle, CheckCircle, Clock, 
   FileText, Sparkles, RotateCcw, Trash2, Briefcase, ChevronDown, LayoutTemplate,
-  FileCheck, Lock, BrainCircuit, Archive } from 'lucide-react';
+  Lock, BrainCircuit, Archive } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -25,17 +23,16 @@ const scrollbarStyles = `
     height: 6px;
   }
   .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(17, 24, 39, 0.5); /* Dark background */
+    background: rgba(17, 24, 39, 0.5);
     border-radius: 4px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(59, 130, 246, 0.5); /* Primary Blue transparent */
+    background: rgba(59, 130, 246, 0.5);
     border-radius: 4px;
   }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(59, 130, 246, 0.8); /* Primary Blue solid on hover */
+    background: rgba(59, 130, 246, 0.8);
   }
-  /* For Firefox */
   .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: rgba(59, 130, 246, 0.5) rgba(17, 24, 39, 0.5);
@@ -59,6 +56,21 @@ interface DraftingJobState {
   characterCount?: number;
 }
 
+// --- AUTO-RESIZE TEXTAREA ---
+const AutoResizeTextarea: React.FC<{ 
+    value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void; 
+    placeholder?: string; disabled?: boolean; className?: string; minHeight?: number; maxHeight?: number;
+}> = ({ value, onChange, placeholder, disabled, className, minHeight = 150, maxHeight = 400 }) => {
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto'; 
+            textareaRef.current.style.height = `${Math.min(Math.max(textareaRef.current.scrollHeight, minHeight), maxHeight)}px`;
+        }
+    }, [value, minHeight, maxHeight]);
+    return <textarea ref={textareaRef} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} className={className} />;
+};
+
 const ThinkingDots = () => (
     <span className="inline-flex items-center ml-1">
         <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
@@ -67,33 +79,50 @@ const ThinkingDots = () => (
     </span>
 );
 
+// --- LAWYER GRADE RENDERER ---
 const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
     return (
-        <div className="bg-white text-black min-h-[1123px] w-full p-6 sm:p-16 shadow-2xl mx-auto rounded-sm ring-1 ring-gray-200 overflow-x-hidden">
-             <div className="markdown-content text-[11.5pt] leading-[1.7] font-serif select-text text-gray-900 break-words">
+        // A4 Dimensions: 21cm width, standard margins (2.5cm ~ p-10)
+        // Font: Times New Roman, Justified Text
+        <div className="bg-white text-black min-h-[29.7cm] w-full max-w-[21cm] mx-auto px-[2.5cm] py-[2.5cm] shadow-2xl my-8 ring-1 ring-gray-300">
+             <div className="markdown-content text-[12pt] leading-[1.5] font-['Times_New_Roman',_Times,_serif] select-text text-black text-justify break-words">
                 <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     components={{
+                        // Paragraphs: Justified, standard legal spacing
                         p: ({node, ...props}) => {
                             const content = String(props.children);
                             if (content.includes('gjeneruar nga AI')) {
-                                return <p className="mt-12 pt-4 border-t border-gray-100 text-[9pt] italic text-gray-400 text-center" {...props} />;
+                                return <p className="mt-16 pt-4 border-t border-black text-[10pt] italic text-center" {...props} />;
                             }
-                            return <p className="mb-5 text-justify" {...props} />;
+                            return <p className="mb-4" {...props} />;
                         },
-                        strong: ({node, ...props}) => <span className="font-bold text-black tracking-tight" {...props} />,
-                        h1: ({node, ...props}) => <h1 className="text-base sm:text-lg font-bold text-black mt-2 mb-8 text-center uppercase tracking-normal border-b-2 border-black pb-2 leading-tight" {...props} />,
-                        h2: ({node, ...props}) => <h2 className="text-[12pt] font-bold text-black mt-8 mb-4 uppercase border-b border-gray-200 pb-1" {...props} />,
-                        h3: ({node, ...props}) => <h3 className="text-[11.5pt] font-bold text-black mt-6 mb-2 underline decoration-1 underline-offset-4" {...props} />,
-                        ul: ({node, ...props}) => <ul className="list-disc ml-6 sm:ml-8 mb-5 space-y-2" {...props} />,
-                        ol: ({node, ...props}) => <ol className="list-decimal ml-6 sm:ml-8 mb-5 space-y-2" {...props} />,
-                        blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-gray-300 pl-4 sm:pl-6 py-2 my-6 italic bg-gray-50 text-gray-700 rounded-sm" {...props} />,
-                        hr: () => <hr className="my-10 border-gray-200" />,
+                        strong: ({node, ...props}) => <span className="font-bold text-black" {...props} />,
+                        
+                        // H1: Document Title - Centered, Uppercase, Bold
+                        h1: ({node, ...props}) => <h1 className="text-[14pt] font-bold text-center uppercase mb-8 mt-2 tracking-wide" {...props} />,
+                        
+                        // H2: Section Headers - Left, Uppercase, Bold
+                        h2: ({node, ...props}) => <h2 className="text-[12pt] font-bold uppercase mt-6 mb-3 border-b-2 border-transparent" {...props} />,
+                        
+                        // H3: Subheaders - Bold, Standard Case
+                        h3: ({node, ...props}) => <h3 className="text-[12pt] font-bold mt-4 mb-2 underline decoration-1 underline-offset-2" {...props} />,
+                        
+                        // Lists: Indented standard bullet points
+                        ul: ({node, ...props}) => <ul className="list-disc ml-8 mb-4 space-y-1" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal ml-8 mb-4 space-y-1" {...props} />,
+                        
+                        // Citations/Blockquotes: Indented
+                        blockquote: ({node, ...props}) => <blockquote className="ml-8 italic border-l-2 border-black pl-4 my-4" {...props} />,
+                        
+                        hr: () => <hr className="my-6 border-black" />,
+                        
+                        // Links (Doc references): Bold, no underline to look like print
                         a: ({href, children}) => {
                             if (href?.startsWith('doc://')) {
-                                return (<span className="inline-flex items-center gap-1 bg-blue-50 text-blue-800 border border-blue-100 px-2 py-0.5 rounded-[2px] text-[10px] font-bold tracking-wide mx-0.5 no-underline font-sans align-middle uppercase"><FileCheck size={10} />{children}</span>);
+                                return (<span className="font-bold text-black">{children}</span>);
                             }
-                            return <span className="text-black underline font-bold">{children}</span>;
+                            return <span className="text-black underline">{children}</span>;
                         },
                     }} 
                 >
@@ -274,12 +303,12 @@ const DraftingPage: React.FC = () => {
 
                 <div className="flex-1 flex flex-col min-h-0">
                     <label className="block text-[10px] font-medium text-gray-400 mb-1 uppercase tracking-wider">Udhëzimet</label>
-                    <div className="flex-1 h-full relative">
-                        <textarea 
+                    <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                        <AutoResizeTextarea 
                             value={context} 
                             onChange={(e) => setContext(e.target.value)} 
                             placeholder="Shkruani detajet..." 
-                            className="glass-input w-full h-full p-4 rounded-xl resize-none text-sm leading-relaxed border border-white/5 bg-transparent focus:ring-1 focus:ring-primary-start/50 outline-none custom-scrollbar absolute inset-0" 
+                            className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed border border-white/5 bg-transparent focus:ring-1 focus:ring-primary-start/50 outline-none" 
                             disabled={isSubmitting} 
                         />
                     </div>
@@ -292,7 +321,7 @@ const DraftingPage: React.FC = () => {
             </form>
         </div>
 
-        {/* RESULT PANEL */}
+        {/* RESULT PANEL - LAWYER GRADE */}
         <div className="flex flex-col h-auto lg:h-[600px] rounded-2xl overflow-hidden shadow-2xl bg-[#12141c] border border-white/10 shrink-0">
             <div className="flex justify-between items-center p-4 bg-black/40 border-b border-white/5 flex-shrink-0">
                 <div className="flex items-center gap-3">

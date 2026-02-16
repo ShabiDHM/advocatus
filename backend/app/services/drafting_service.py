@@ -1,9 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - JURISTI HYDRA DRAFTING V30.0 (MULTI-TEMPLATE INTELLIGENCE)
-# 1. ADDED: Legal Persona Mapper for all 15+ new templates.
-# 2. FIXED: Structural hints for Corporate vs. Litigation documents.
-# 3. RETAINED: Strict Deterministic Citation Protocol (No placeholders).
-# 4. RETAINED: V16.3 High-density RAG (n=15).
+# PHOENIX PROTOCOL - JURISTI HYDRA DRAFTING V33.0 (MULTI-DOMAIN INTELLIGENCE)
+# 1. REMOVED: Hardcoded 'Template -> Law' mapping.
+# 2. ADDED: Dynamic Domain Detection. The system scans the prompt for keywords (e.g., 'borxh', 'prone', 'femije') to select the right Law context.
+# 3. STATUS: Smart, flexible, and citation-focused.
 
 import os
 import io
@@ -16,67 +15,116 @@ from . import llm_service, vector_store_service
 
 logger = structlog.get_logger(__name__)
 
-# Template context mapper for Kosovo Jurisdiction
-TEMPLATE_MAPPER = {
-    "padi": "Padi (Paditëse) - Fokusohu në qartësinë e kërkesëpadisë dhe bazën ligjore procedurale.",
-    "pergjigje": "Përgjigje në Padi - Fokusohu në kundërshtimin e fakteve dhe prapësimet ligjore.",
-    "kunderpadi": "Kundërpadi - Fokusohu në kërkesat e reja që rrjedhin nga e njëjta marrëdhënie juridike.",
-    "ankese": "Ankesë Gjyqësore - Fokusohu në shkeljet procedurale dhe zbatimin e gabuar të së drejtës materiale.",
-    "prapësim": "Prapësim ndaj Urdhrit Përmbarimor - Fokusohu në Ligjin për Procedurën Përmbarimore.",
-    "nda": "Marrëveshje për Mos-shpalosje (NDA) - Fokusohu në konfidencialitetin, penalitetet dhe kohëzgjatjen.",
-    "mou": "Memorandum Mirëkuptimi (MoU) - Fokusohu në qëllimet e përbashkëta dhe natyrën jo-detyruese (ose pjesërisht detyruese).",
-    "shareholders": "Marrëveshje e Aksionarëve - Fokusohu në qeverisjen korporative, vendimmarrjen dhe transferimin e aksioneve.",
-    "sla": "Marrëveshje mbi Nivelin e Shërbimit (SLA) - Fokusohu në KPI-të, përgjegjësitë dhe zgjidhjen e kontesteve.",
-    "employment_contract": "Kontratë Pune - Fokusohu në Ligjin e Punës, orarin, pushimet dhe detyrat specifike.",
-    "termination_notice": "Njoftim për Shkëputje të Kontratës - Fokusohu në arsyetimin ligjor dhe afatet e njoftimit.",
-    "warning_letter": "Vërejtje me shkrim - Fokusohu në procedurën disiplinore dhe pasojat ligjore.",
-    "terms_conditions": "Kushtet e Përdorimit (T&C) - Fokusohu në mbrojtjen e pronësisë intelektuale dhe kufizimin e përgjegjësisë.",
-    "privacy_policy": "Politika e Privatësisë - Fokusohu në Ligjin për Mbrojtjen e Të Dhënave Personale (GDPR compliant).",
-    "lease_agreement": "Kontratë Qiraje - Fokusohu në objektin, çmimin, mirëmbajtjen dhe kushtet e lirimit.",
-    "sales_purchase": "Kontratë Shitblerje - Fokusohu në bartjen e pronësisë, çmimin dhe garancitë për të metat.",
-    "power_of_attorney": "Autorizim (Prokurë) - Fokusohu në fushëveprimin e autorizimeve dhe vlefshmërinë kohore."
+# --- TIER 1: DYNAMIC DOMAIN DETECTION ---
+# Instead of hardcoding "Padi" -> "Family Law", we look at the CONTENT.
+# This allows a "Padi" to be about Family, Property, or Contracts depending on the user's text.
+DOMAIN_KEYWORDS = {
+    # Family Law
+    "familj": "Ligji për Familjen",
+    "alimentacion": "Ligji për Familjen Neni 330",
+    "shkuror": "Ligji për Familjen",
+    "fëmij": "Ligji për Familjen",
+    "martes": "Ligji për Familjen",
+    "kujdestari": "Ligji për Familjen",
+    
+    # Contract/Obligations (LMD)
+    "borxh": "Ligji për Marrëdhëniet e Detyrimeve (LMD)",
+    "kontrat": "Ligji për Marrëdhëniet e Detyrimeve (LMD)",
+    "dëmi": "Ligji për Marrëdhëniet e Detyrimeve",
+    "fatur": "Ligji për Marrëdhëniet e Detyrimeve",
+    "qira": "Ligji për Marrëdhëniet e Detyrimeve",
+    "shitblerj": "Ligji për Marrëdhëniet e Detyrimeve",
+    
+    # Property Law
+    "pron": "Ligji për Pronësinë dhe të Drejtat Tjera Sendore",
+    "banes": "Ligji për Pronësinë",
+    "paluajtshmëri": "Ligji për Pronësinë",
+    
+    # Labor Law
+    "punë": "Ligji i Punës Nr. 03/L-212",
+    "rrog": "Ligji i Punës",
+    "pagë": "Ligji i Punës",
+    "pushim": "Ligji i Punës",
+    "largim": "Ligji i Punës",
+    
+    # Procedure (Always relevant)
+    "përmbarim": "Ligji për Procedurën Përmbarimore",
+    "prapësim": "Ligji për Procedurën Përmbarimore",
+    "ankes": "Ligji i Procedurës Kontestimore"
 }
 
+def get_smart_search_query(user_prompt: str, draft_type: str) -> str:
+    """
+    Analyzes the user input to construct a targeted legal search query.
+    Example: Input "Dua padi për borxh" -> Query "Ligji për Marrëdhëniet e Detyrimeve (LMD) borxh"
+    """
+    detected_laws = []
+    prompt_lower = user_prompt.lower()
+    
+    # Scan prompt for domain keywords
+    for keyword, law in DOMAIN_KEYWORDS.items():
+        if keyword in prompt_lower:
+            detected_laws.append(law)
+    
+    # De-duplicate
+    detected_laws = list(set(detected_laws))
+    
+    if detected_laws:
+        # Smart Mode: We found specific domains
+        smart_query = f"{' '.join(detected_laws)} {draft_type} Neni"
+        return smart_query
+    else:
+        # Fallback Mode: Broad search
+        return f"{draft_type} baza ligjore Neni dispozitat"
+
 async def stream_draft_generator(db: Database, user_id: str, case_id: Optional[str], draft_type: str, user_prompt: str) -> AsyncGenerator[str, None]:
-    logger.info(f"Hydra Drafting V30.0 initiated", user=user_id, type=draft_type)
+    logger.info(f"Hydra Drafting V33.0 initiated", user=user_id, type=draft_type)
     
-    # 1. Categorize instructions based on template
-    legal_focus = TEMPLATE_MAPPER.get(draft_type, "Hartim Ligjor i Përgjithshëm.")
-    
-    # 2. High-Density Retrieval
+    # 1. Smart Query Construction
+    targeted_law_query = get_smart_search_query(user_prompt, draft_type)
+    logger.info(f"Context Strategy: {targeted_law_query}")
+
+    # 2. High-Density Retrieval (Parallel)
     tasks = [
-        asyncio.to_thread(vector_store_service.query_case_knowledge_base, user_id=user_id, query_text=user_prompt, n_results=15, case_context_id=case_id),
-        asyncio.to_thread(vector_store_service.query_global_knowledge_base, query_text=user_prompt, n_results=15)
+        # Search Case Files (Facts)
+        asyncio.to_thread(vector_store_service.query_case_knowledge_base, user_id=user_id, query_text=user_prompt, n_results=10, case_context_id=case_id),
+        # Search Law Database (Legal Basis) using the SMART QUERY
+        asyncio.to_thread(vector_store_service.query_global_knowledge_base, query_text=targeted_law_query, n_results=12)
     ]
     results = await asyncio.gather(*tasks)
     
-    facts_block = "\n".join([f"- **DOKUMENTI: {f.get('source')} (Fq. {f.get('page')}):** {f.get('text')}" for f in results[0]])
-    laws_block = "\n".join([f"- **LIGJI: {l.get('source')}:** {l.get('text')}" for l in results[1]])
-    
-    # 3. Enhanced System Mandate
+    case_facts = results[0]
+    legal_articles = results[1]
+
+    facts_block = "\n".join([f"- {f.get('text')}" for f in case_facts]) if case_facts else "Nuk u gjetën fakte specifike."
+    laws_block = "\n".join([f"- {l.get('text')} (Burimi: {l.get('source')})" for l in legal_articles]) if legal_articles else "Nuk u gjetën nene specifike."
+
+    # 3. System Mandate
     system_prompt = f"""
-    MISIONI: Ti je një Kryeavokat Senior në Republikën e Kosovës. 
-    OBJEKTIVI: {legal_focus.upper()}
-
-    PROTOKOLLI I PANEGOCIUESHËM:
-    1. NDALOHET përdorimi i placeholder-ave si "Neni përkatës" ose kllapa [ ]. Gjej nenin ekzakt në materialin e ofruar.
-    2. Formatimi i detyrueshëm i citimit: [Emri i Ligjit, Neni X](doc://ligji).
-    3. STRUKTURA: Përdor # për titullin kryesor dhe ## për seksionet.
-    4. GJUHA: Shqipe profesionale juridike (Gjuha standarde).
-
-    KONTEKSTI I RASTIT:
-    {facts_block}
+    ROLI: Avokat Ekspert.
+    DETYRA: Hartimi i "{draft_type.upper()}".
     
-    LIGJET E DISPONUESHME:
+    [MATERIALI LIGJOR I GJETUR - PËRDOR KËTO NENE]:
     {laws_block}
     
-    UDHËZIMI SPECIFIK I OPERATORIT: {user_prompt}
+    [FAKTET E RASTIT]:
+    {facts_block}
     
-    MANDATI FINAL: Prodhoni vetëm dokumentin. Pa hyrje, pa komente.
+    UDHËZIME STRUKTURORE:
+    1. Fillo me: # [TITULLI]
+    2. Seksioni: ## BAZA LIGJORE
+       - Këtu LISTO nenet konkrete që i gjete më lart. Mos shpik.
+       - Nëse sheh Nenin 330, 10, ose ndonjë numër tjetër në tekstin e mësipërm, përdore.
+    3. Seksioni: ## ARSYETIMI
+       - Lidh faktet me ligjin. Cito ligjin në formatin: **[Ligji, Neni X]**.
+    
+    MANDATI: Mos bëj "parroting" (përsëritje të thatë). Argumento juridikisht duke përdorur nenet e gjetura.
+    
+    INPUTI I PËRDORUESIT: {user_prompt}
     """
     
     full_content = ""
-    async for token in llm_service.stream_text_async(system_prompt, "Filloni hartimin tani.", temp=0.0):
+    async for token in llm_service.stream_text_async(system_prompt, "Fillo hartimin.", temp=0.1):
         full_content += token
         yield token
     
