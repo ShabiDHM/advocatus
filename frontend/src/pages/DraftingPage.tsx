@@ -1,7 +1,7 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.10 (FINAL CLEANUP)
-// 1. CLEANED: Removed unused 'FileCheck' import.
-// 2. RETAINED: Lawyer Grade A4 rendering, AutoResizeTextarea, and Single Scrollbar.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.11 (VISIBILITY FIX)
+// 1. FIXED: Enforced text-black on all Markdown headers and elements to prevent 'invisible' text in Dark Mode.
+// 2. RETAINED: All previous functionality (Lawyer Grade A4, AutoResize, etc).
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -89,35 +89,35 @@ const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
                 <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
                     components={{
-                        // Paragraphs: Justified, standard legal spacing
+                        // Paragraphs: Justified, standard legal spacing. Enforcing text-black.
                         p: ({node, ...props}) => {
                             const content = String(props.children);
                             if (content.includes('gjeneruar nga AI')) {
-                                return <p className="mt-16 pt-4 border-t border-black text-[10pt] italic text-center" {...props} />;
+                                return <p className="mt-16 pt-4 border-t border-black text-[10pt] italic text-center text-black" {...props} />;
                             }
-                            return <p className="mb-4" {...props} />;
+                            return <p className="mb-4 text-black" {...props} />;
                         },
                         strong: ({node, ...props}) => <span className="font-bold text-black" {...props} />,
                         
-                        // H1: Document Title - Centered, Uppercase, Bold
-                        h1: ({node, ...props}) => <h1 className="text-[14pt] font-bold text-center uppercase mb-8 mt-2 tracking-wide" {...props} />,
+                        // H1: Document Title - Centered, Uppercase, Bold. Enforcing text-black.
+                        h1: ({node, ...props}) => <h1 className="text-[14pt] font-bold text-center uppercase mb-8 mt-2 tracking-wide text-black" {...props} />,
                         
-                        // H2: Section Headers - Left, Uppercase, Bold
-                        h2: ({node, ...props}) => <h2 className="text-[12pt] font-bold uppercase mt-6 mb-3 border-b-2 border-transparent" {...props} />,
+                        // H2: Section Headers - Left, Uppercase, Bold. Enforcing text-black.
+                        h2: ({node, ...props}) => <h2 className="text-[12pt] font-bold uppercase mt-6 mb-3 border-b-2 border-transparent text-black" {...props} />,
                         
-                        // H3: Subheaders - Bold, Standard Case
-                        h3: ({node, ...props}) => <h3 className="text-[12pt] font-bold mt-4 mb-2 underline decoration-1 underline-offset-2" {...props} />,
+                        // H3: Subheaders - Bold, Standard Case. Enforcing text-black.
+                        h3: ({node, ...props}) => <h3 className="text-[12pt] font-bold mt-4 mb-2 underline decoration-1 underline-offset-2 text-black" {...props} />,
                         
-                        // Lists: Indented standard bullet points
-                        ul: ({node, ...props}) => <ul className="list-disc ml-8 mb-4 space-y-1" {...props} />,
-                        ol: ({node, ...props}) => <ol className="list-decimal ml-8 mb-4 space-y-1" {...props} />,
+                        // Lists: Indented standard bullet points. Enforcing text-black.
+                        ul: ({node, ...props}) => <ul className="list-disc ml-8 mb-4 space-y-1 text-black" {...props} />,
+                        ol: ({node, ...props}) => <ol className="list-decimal ml-8 mb-4 space-y-1 text-black" {...props} />,
                         
-                        // Citations/Blockquotes: Indented
-                        blockquote: ({node, ...props}) => <blockquote className="ml-8 italic border-l-2 border-black pl-4 my-4" {...props} />,
+                        // Citations/Blockquotes: Indented. Enforcing text-black.
+                        blockquote: ({node, ...props}) => <blockquote className="ml-8 italic border-l-2 border-black pl-4 my-4 text-black" {...props} />,
                         
                         hr: () => <hr className="my-6 border-black" />,
                         
-                        // Links (Doc references): Bold, no underline to look like print
+                        // Links (Doc references): Bold, no underline to look like print. Enforcing text-black.
                         a: ({href, children}) => {
                             if (href?.startsWith('doc://')) {
                                 return (<span className="font-bold text-black">{children}</span>);
