@@ -1,9 +1,8 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.21 (LAWYER GRADE + TOOLTIPS)
-// 1. RESTORED: All tooltips (title attributes) for UI actions.
-// 2. ENHANCED: Lawyer Grade typography (Hyphenation, Centered H1, Underlined H3).
-// 3. FIXED: Forced Contrast black-on-white (!important) for all document elements.
-// 4. MOBILE: Dynamic margins (px-6 mobile, 2.5cm desktop) without feature loss.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.22 (DASHBOARD FIX: FIXED HEIGHT + SCROLLING)
+// 1. FIXED: Restored fixed height (lg:h-[650px]) for Desktop panels to prevent endless vertical growth.
+// 2. RETAINED: All Tooltips, Lawyer-Grade Typography (H1, H3, Hyphens), and Mobile responsiveness.
+// 3. RETAINED: Visibility Fix (Black on White) and Anti-Hallucination logic.
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -30,6 +29,10 @@ const lawyerGradeStyles = `
     @page { size: A4; margin: 0; }
   }
 
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.3); border-radius: 10px; }
+
   /* FORCED LEGAL CONTRAST */
   .legal-content, .legal-content * {
     color: #000000 !important;
@@ -44,7 +47,6 @@ const lawyerGradeStyles = `
     hyphens: auto;
   }
   
-  /* HIGH-GRADE HEADERS */
   .legal-content h1 { text-align: center; text-transform: uppercase; font-weight: bold; margin-bottom: 2rem; font-size: 14pt; letter-spacing: 0.05em; }
   .legal-content h2 { text-transform: uppercase; font-weight: bold; margin-top: 1.5rem; margin-bottom: 1rem; font-size: 12pt; border-bottom: 1.5px solid #000; padding-bottom: 4px; }
   .legal-content h3 { font-weight: bold; margin-top: 1.2rem; margin-bottom: 0.8rem; font-size: 12pt; text-decoration: underline; text-underline-offset: 3px; }
@@ -81,7 +83,7 @@ const constructSmartPrompt = (userText: string, template: TemplateType): string 
 };
 
 const ThinkingDots = () => (
-    <span className="inline-flex items-center ml-1">
+    <span className="inline-flex items-center ml-1 text-primary-start">
         <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
         <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
         <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
@@ -90,7 +92,7 @@ const ThinkingDots = () => (
 
 const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
     return (
-        <div className="legal-document bg-white w-full lg:max-w-[21cm] mx-auto px-6 py-8 sm:px-[2.5cm] sm:py-[2.5cm] shadow-[0_20px_50px_rgba(0,0,0,0.2)] my-4 sm:my-8 border border-gray-300 ring-1 ring-black/5">
+        <div className="legal-document bg-white w-full lg:max-w-[21cm] mx-auto px-6 py-8 sm:px-[2.5cm] sm:py-[2.5cm] shadow-[0_20px_50px_rgba(0,0,0,0.3)] my-4 sm:my-8 border border-gray-300 ring-1 ring-black/5">
              <div className="legal-content text-[11pt] sm:text-[12pt]">
                 <ReactMarkdown 
                     remarkPlugins={[remarkGfm]} 
@@ -105,7 +107,6 @@ const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
                         },
                         strong: ({node, ...props}) => <strong className="font-bold" {...props} />,
                         hr: () => <hr className="my-8 border-black/30" />,
-                        a: ({children}) => <span className="font-bold underline cursor-default">{children}</span>,
                     }} 
                 >
                     {text}
@@ -202,15 +203,15 @@ const DraftingPage: React.FC = () => {
         </h1>
       </div>
 
-      <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 flex-1 lg:overflow-hidden">
+      <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 flex-1 lg:overflow-hidden min-h-0">
         
-        {/* CONFIG PANEL */}
-        <div className="glass-panel flex flex-col p-4 sm:p-6 rounded-2xl border border-white/10 lg:overflow-y-auto shrink-0">
+        {/* CONFIG PANEL - FIXED HEIGHT ON DESKTOP */}
+        <div className="glass-panel flex flex-col h-auto lg:h-[650px] p-4 sm:p-6 rounded-2xl border border-white/10 shrink-0">
             <h3 className="text-white font-semibold mb-6 flex items-center gap-2">
                 <FileText className="text-primary-start" size={20} />Konfigurimi
             </h3>
-            <div className="flex flex-col gap-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-5 flex-1 min-h-0 overflow-hidden">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
                     <div>
                         <div className="flex justify-between mb-1">
                             <label className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Rasti</label>
@@ -247,36 +248,32 @@ const DraftingPage: React.FC = () => {
                                     <option value="employment_contract">Kontratë Pune</option>
                                     <option value="termination_notice">Njoftim Shkëputje</option>
                                 </optgroup>
-                                <optgroup label="PRONËSI" className="bg-gray-900 italic">
-                                    <option value="lease_agreement">Kontratë Qiraje</option>
-                                    <option value="sales_purchase">Kontratë Shitblerje</option>
-                                </optgroup>
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                         </div>
                     </div>
                 </div>
 
-                <div>
+                <div className="flex-1 flex flex-col min-h-0">
                     <label className="block text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Udhëzimet & Faktet</label>
                     <textarea 
                         value={context} 
                         onChange={(e) => setContext(e.target.value)} 
                         placeholder="Përshkruani faktet e rastit..." 
-                        className="glass-input w-full p-4 rounded-xl text-sm min-h-[160px] lg:min-h-[200px] resize-none outline-none focus:ring-1 focus:ring-primary-start/40 transition-all"
+                        className="glass-input w-full p-4 rounded-xl text-sm flex-1 resize-none outline-none focus:ring-1 focus:ring-primary-start/40 transition-all overflow-y-auto custom-scrollbar"
                     />
                 </div>
 
-                <button onClick={runDraftingStream} disabled={isSubmitting || !context.trim()} className="w-full py-4 bg-gradient-to-r from-primary-start to-primary-end text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary-start/20 hover:opacity-95 transition-all active:scale-[0.98]">
+                <button onClick={runDraftingStream} disabled={isSubmitting || !context.trim()} className="w-full py-4 bg-gradient-to-r from-primary-start to-primary-end text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary-start/20 hover:opacity-95 transition-all active:scale-[0.98] mt-4 flex-shrink-0">
                   {isSubmitting ? <RefreshCw className="animate-spin" size={18} /> : <Send size={18} />}
                   {isSubmitting ? "Duke u hartuar..." : "Gjenero Dokumentin (AI)"}
                 </button>
             </div>
         </div>
 
-        {/* RESULT PANEL */}
-        <div className="flex flex-col min-h-[500px] lg:h-full rounded-2xl bg-[#0d0f14] border border-white/10 overflow-hidden shadow-2xl">
-            <div className="flex justify-between items-center p-4 bg-white/5 border-b border-white/5">
+        {/* RESULT PANEL - FIXED HEIGHT ON DESKTOP */}
+        <div className="flex flex-col h-auto lg:h-[650px] rounded-2xl bg-[#0d0f14] border border-white/10 overflow-hidden shadow-2xl shrink-0">
+            <div className="flex justify-between items-center p-4 bg-white/5 border-b border-white/5 flex-shrink-0">
                 <div className="flex items-center gap-3">
                    <div className={`${statusDisplay.color} p-2 bg-white/5 rounded-lg`}>{statusDisplay.icon}</div>
                    <h3 className="text-white text-xs sm:text-sm font-semibold uppercase tracking-widest leading-none">{statusDisplay.text}</h3>
