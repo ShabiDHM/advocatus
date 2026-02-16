@@ -403,17 +403,17 @@
     "modeDeep": "Thellë",
     "modeDeepTooltip": "Hulumtim i Thellë"
   },
-  "drafting": {
+ "drafting": {
   "title": "Hartimi Inteligjent",
   "subtitle": "Krijoni dokumente ligjore automatikisht.",
   "configuration": "Konfigurimi",
   "caseLabel": "Rasti",
   "noCaseSelected": "Pa Kontekst",
-   "copy": "Kopjo",
-    "download": "Shkarko",
-    "clear": "Pastro",
-    "copied": "U kopjua!",
-    "back": "Mbrapa",
+  "copy": "Kopjo",
+  "download": "Shkarko",
+  "clear": "Pastro",
+  "copied": "U kopjua!",
+  "back": "Mbrapa",
   "autofill": "Plotëso me të dhënat e rastit",
   "autofillPrompt": "Ju lutem përgatitni një draft ligjor për rastin \"{{caseTitle}}\".",
   "clientLabel": "Klienti",

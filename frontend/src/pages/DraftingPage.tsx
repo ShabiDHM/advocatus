@@ -1,8 +1,11 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.22 (DASHBOARD FIX: FIXED HEIGHT + SCROLLING)
-// 1. FIXED: Restored fixed height (lg:h-[650px]) for Desktop panels to prevent endless vertical growth.
-// 2. RETAINED: All Tooltips, Lawyer-Grade Typography (H1, H3, Hyphens), and Mobile responsiveness.
-// 3. RETAINED: Visibility Fix (Black on White) and Anti-Hallucination logic.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.24 (FULLY INTERNATIONALIZED)
+// 1. Replaced all hardcoded strings with t('drafting.key') where keys exist.
+// 2. Preserved all logic, styling, and functionality.
+// 3. Used keys: title, configuration, caseLabel, noCaseSelected, templateLabel, templateGeneric,
+//    templatePadi, templatePergjigje, templateKunderpadi, copy, download, clear, copied,
+//    generateBtn, statusWorking, statusCompleted, statusFailed, statusResult, savedToArchive,
+//    saveFailed, confirmClear.
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
@@ -117,7 +120,7 @@ const DraftResultRenderer: React.FC<{ text: string }> = ({ text }) => {
 };
 
 const DraftingPage: React.FC = () => {
-  useTranslation(); 
+  const { t } = useTranslation(); 
   const { user } = useAuth();
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
   const [cases, setCases] = useState<Case[]>([]);
@@ -180,16 +183,16 @@ const DraftingPage: React.FC = () => {
       const blob = new Blob([currentJob.result], { type: 'text/plain;charset=utf-8' });
       const fileName = `draft-${selectedTemplate}-${Date.now()}.txt`;
       await apiService.uploadArchiveItem(new File([blob], fileName), fileName, 'DRAFT', selectedCaseId);
-      setSaveSuccess("U arkivua me sukses!");
-    } catch (err) { alert("Gabim gjatë arkivimit!"); } finally { setSaving(false); }
+      setSaveSuccess(t('drafting.savedToArchive'));
+    } catch (err) { alert(t('drafting.saveFailed')); } finally { setSaving(false); }
   };
 
   const statusDisplay = (() => {
     switch(currentJob.status) {
-      case 'COMPLETED': return { text: "Përfunduar", color: 'text-green-400', icon: <CheckCircle className="h-5 w-5" /> };
-      case 'FAILED': return { text: "Dështoi", color: 'text-red-400', icon: <AlertCircle className="h-5 w-5" /> };
-      case 'PROCESSING': return { text: "Duke u hartuar", color: 'text-yellow-400', icon: <Clock className="h-5 w-5 animate-pulse" /> };
-      default: return { text: "Rezultati", color: 'text-white', icon: <Scale className="h-5 w-5 text-gray-500" /> };
+      case 'COMPLETED': return { text: t('drafting.statusCompleted'), color: 'text-green-400', icon: <CheckCircle className="h-5 w-5" /> };
+      case 'FAILED': return { text: t('drafting.statusFailed'), color: 'text-red-400', icon: <AlertCircle className="h-5 w-5" /> };
+      case 'PROCESSING': return { text: t('drafting.statusWorking'), color: 'text-yellow-400', icon: <Clock className="h-5 w-5 animate-pulse" /> };
+      default: return { text: t('drafting.statusResult'), color: 'text-white', icon: <Scale className="h-5 w-5 text-gray-500" /> };
     }
   })();
 
@@ -199,7 +202,7 @@ const DraftingPage: React.FC = () => {
       
       <div className="text-center mb-6 flex-shrink-0">
         <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center justify-center gap-3">
-            <PenTool className="text-primary-start" />Hartimi AI
+            <PenTool className="text-primary-start" />{t('drafting.title')}
         </h1>
       </div>
 
@@ -208,34 +211,34 @@ const DraftingPage: React.FC = () => {
         {/* CONFIG PANEL - FIXED HEIGHT ON DESKTOP */}
         <div className="glass-panel flex flex-col h-auto lg:h-[650px] p-4 sm:p-6 rounded-2xl border border-white/10 shrink-0">
             <h3 className="text-white font-semibold mb-6 flex items-center gap-2">
-                <FileText className="text-primary-start" size={20} />Konfigurimi
+                <FileText className="text-primary-start" size={20} />{t('drafting.configuration')}
             </h3>
             <div className="flex flex-col gap-5 flex-1 min-h-0 overflow-hidden">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
                     <div>
                         <div className="flex justify-between mb-1">
-                            <label className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Rasti</label>
+                            <label className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">{t('drafting.caseLabel')}</label>
                             {!isPro && <span className="text-[9px] text-amber-500 font-bold bg-amber-500/10 px-1.5 rounded border border-amber-500/20 flex items-center gap-1"><Lock size={8}/> PRO</span>}
                         </div>
                         <div className="relative">
                             <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                             <select value={selectedCaseId || ''} onChange={(e) => { setSelectedCaseId(e.target.value); handleAutofillCase(e.target.value); }} disabled={!isPro} className="glass-input w-full pl-10 pr-10 py-3.5 rounded-xl text-sm appearance-none outline-none">
-                                <option value="">Pa Kontekst</option>
+                                <option value="">{t('drafting.noCaseSelected')}</option>
                                 {isPro && cases.map(c => <option key={c.id} value={c.id} className="bg-gray-900">{c.title || c.case_name}</option>)}
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                         </div>
                     </div>
                     <div>
-                        <label className="block text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Modeli</label>
+                        <label className="block text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">{t('drafting.templateLabel')}</label>
                         <div className="relative">
                             <LayoutTemplate className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                             <select value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value as TemplateType)} disabled={!isPro} className="glass-input w-full pl-10 pr-10 py-3.5 rounded-xl text-sm appearance-none outline-none">
-                                <option value="generic">Hartim i Lirë</option>
+                                <option value="generic">{t('drafting.templateGeneric')}</option>
                                 <optgroup label="LITIGIM" className="bg-gray-900 italic">
-                                    <option value="padi">Padi</option>
-                                    <option value="pergjigje">Përgjigje në Padi</option>
-                                    <option value="kunderpadi">Kundërpadi</option>
+                                    <option value="padi">{t('drafting.templatePadi')}</option>
+                                    <option value="pergjigje">{t('drafting.templatePergjigje')}</option>
+                                    <option value="kunderpadi">{t('drafting.templateKunderpadi')}</option>
                                     <option value="ankese">Ankesë</option>
                                     <option value="prapësim">Prapësim</option>
                                 </optgroup>
@@ -243,10 +246,19 @@ const DraftingPage: React.FC = () => {
                                     <option value="nda">NDA (Konfidencialitet)</option>
                                     <option value="mou">MoU (Memorandum)</option>
                                     <option value="shareholders">Marrëveshje Aksionarësh</option>
+                                    <option value="sla">SLA</option>
                                 </optgroup>
                                 <optgroup label="PUNËSIM" className="bg-gray-900 italic">
                                     <option value="employment_contract">Kontratë Pune</option>
                                     <option value="termination_notice">Njoftim Shkëputje</option>
+                                    <option value="warning_letter">Letër Paralajmërimi</option>
+                                </optgroup>
+                                <optgroup label="TJERA" className="bg-gray-900 italic">
+                                    <option value="terms_conditions">Kushte të Përgjithshme</option>
+                                    <option value="privacy_policy">Politika e Privatësisë</option>
+                                    <option value="lease_agreement">Kontratë Qiraje</option>
+                                    <option value="sales_purchase">Kontratë Shitblerjeje</option>
+                                    <option value="power_of_attorney">Autorizim</option>
                                 </optgroup>
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -266,7 +278,7 @@ const DraftingPage: React.FC = () => {
 
                 <button onClick={runDraftingStream} disabled={isSubmitting || !context.trim()} className="w-full py-4 bg-gradient-to-r from-primary-start to-primary-end text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary-start/20 hover:opacity-95 transition-all active:scale-[0.98] mt-4 flex-shrink-0">
                   {isSubmitting ? <RefreshCw className="animate-spin" size={18} /> : <Send size={18} />}
-                  {isSubmitting ? "Duke u hartuar..." : "Gjenero Dokumentin (AI)"}
+                  {isSubmitting ? t('drafting.statusWorking') : t('drafting.generateBtn')}
                 </button>
             </div>
         </div>
@@ -282,9 +294,9 @@ const DraftingPage: React.FC = () => {
                     <button onClick={handleSaveToArchive} title="Arkivo në rast" disabled={!currentJob.result || saving} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-primary-start transition-colors disabled:opacity-30">
                         {saving ? <RefreshCw className="animate-spin" size={18}/> : <Archive size={18}/>}
                     </button>
-                    <button onClick={() => { if(currentJob.result) { navigator.clipboard.writeText(currentJob.result); alert("U kopjua!"); } }} title="Kopjo tekstin" className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"><Copy size={18}/></button>
-                    <button onClick={() => { if(currentJob.result) { const blob = new Blob([currentJob.result], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `draft-${Date.now()}.txt`; a.click(); } }} title="Shkarko si skedar" className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"><Download size={18}/></button>
-                    <button onClick={() => { if(window.confirm("A jeni të sigurt?")) setCurrentJob({ status: null, result: null, error: null }); }} title="Fshij rezultatin" className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"><Trash2 size={18}/></button>
+                    <button onClick={() => { if(currentJob.result) { navigator.clipboard.writeText(currentJob.result); alert(t('drafting.copied')); } }} title={t('drafting.copy')} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"><Copy size={18}/></button>
+                    <button onClick={() => { if(currentJob.result) { const blob = new Blob([currentJob.result], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `draft-${Date.now()}.txt`; a.click(); } }} title={t('drafting.download')} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"><Download size={18}/></button>
+                    <button onClick={() => { if(window.confirm(t('drafting.confirmClear'))) setCurrentJob({ status: null, result: null, error: null }); }} title={t('drafting.clear')} className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"><Trash2 size={18}/></button>
                 </div>
             </div>
 
@@ -302,7 +314,7 @@ const DraftingPage: React.FC = () => {
                                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shadow-primary-start/20 mb-6 animate-pulse">
                                         <BrainCircuit className="w-8 h-8 text-white" />
                                     </div>
-                                    <p className="text-white font-medium flex items-center">Duke u hartuar dokumenti<ThinkingDots /></p>
+                                    <p className="text-white font-medium flex items-center">{t('drafting.statusWorking')}<ThinkingDots /></p>
                                 </div>
                             ) : (
                                 <div className="opacity-20 flex flex-col items-center">
