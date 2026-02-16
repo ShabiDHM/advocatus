@@ -1,10 +1,11 @@
 // FILE: src/pages/DraftingPage.tsx
-// PHOENIX PROTOCOL - DRAFTING PAGE V10.7 (RESTORED AUTO-RESIZE)
-// 1. RESTORED: AutoResizeTextarea component for better typing UX.
-// 2. FIXED: Double scrollbar issue by constraining max-height.
-// 3. RETAINED: Custom scrollbar styling and mobile responsiveness.
+// PHOENIX PROTOCOL - DRAFTING PAGE V10.8 (SCROLLBAR FIX)
+// 1. FIXED: Double scrollbars removed. "Udhëzimet" now has a single, internal scrollbar.
+// 2. FIXED: Textarea fills the available vertical space (h-full) instead of auto-resizing.
+// 3. RETAINED: Custom dark/blue scrollbar styling.
+// 4. RETAINED: All functional logic and mobile responsiveness.
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { Case } from '../data/types'; 
@@ -57,21 +58,6 @@ interface DraftingJobState {
   error: string | null;
   characterCount?: number;
 }
-
-// --- RESTORED COMPONENT ---
-const AutoResizeTextarea: React.FC<{ 
-    value: string; onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void; 
-    placeholder?: string; disabled?: boolean; className?: string; minHeight?: number; maxHeight?: number;
-}> = ({ value, onChange, placeholder, disabled, className, minHeight = 150, maxHeight = 400 }) => {
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-    useEffect(() => {
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto'; 
-            textareaRef.current.style.height = `${Math.min(Math.max(textareaRef.current.scrollHeight, minHeight), maxHeight)}px`;
-        }
-    }, [value, minHeight, maxHeight]);
-    return <textarea ref={textareaRef} value={value} onChange={onChange} placeholder={placeholder} disabled={disabled} className={className} />;
-};
 
 const ThinkingDots = () => (
     <span className="inline-flex items-center ml-1">
@@ -288,12 +274,12 @@ const DraftingPage: React.FC = () => {
 
                 <div className="flex-1 flex flex-col min-h-0">
                     <label className="block text-[10px] font-medium text-gray-400 mb-1 uppercase tracking-wider">Udhëzimet</label>
-                    <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
-                        <AutoResizeTextarea 
+                    <div className="flex-1 h-full relative">
+                        <textarea 
                             value={context} 
                             onChange={(e) => setContext(e.target.value)} 
                             placeholder="Shkruani detajet..." 
-                            className="glass-input w-full p-4 rounded-xl resize-none text-sm leading-relaxed border border-white/5 bg-transparent focus:ring-1 focus:ring-primary-start/50 outline-none" 
+                            className="glass-input w-full h-full p-4 rounded-xl resize-none text-sm leading-relaxed border border-white/5 bg-transparent focus:ring-1 focus:ring-primary-start/50 outline-none custom-scrollbar absolute inset-0" 
                             disabled={isSubmitting} 
                         />
                     </div>
