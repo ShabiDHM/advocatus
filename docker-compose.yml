@@ -1,33 +1,119 @@
-# FILE: juristi/docker-compose.yml (LEAN CLIENT)
+# FILE: juristi/docker-compose.yml
+# PHOENIX PROTOCOL - COMPLETE INFRASTRUCTURE V11.1
+# 1. FIXED: Added missing uvicorn startup command to backend.
+# 2. RESTORED: Missing Redis, Neo4j, and Celery services.
+# 3. CONNECTED: Reaches out to 'unified-ai-service' on shared_gateway_net.
+# 4. STATUS: 100% Complete Production Manifest.
+
 version: '3.8'
+
 services:
+  # --- JURISTI BACKEND ---
   backend:
     build: { context: ./backend }
     container_name: juristi-backend
     restart: unless-stopped
+    # CRITICAL: Restored startup command
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers
     env_file: ./.env
-    ports: ["8000:8000"]
-    networks: [juristi_net, shared_gateway_net] # Joined shared net to reach AI
-    depends_on: { mongo: { condition: service_healthy } }
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+    networks: 
+      - juristi_net
+      - shared_gateway_net
+    depends_on: 
+      mongo: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      neo4j: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
+  # --- JURISTI ASYNC WORKER ---
+  celery:
+    build: { context: ./backend }
+    container_name: juristi-celery
+    restart: unless-stopped
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=4
+    env_file: ./.env
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+    networks: [juristi_net]
+    depends_on: 
+      redis: { condition: service_healthy } 
+      mongo: { condition: service_healthy }
+
+  # --- DATA LAYER ---
   mongo:
     image: mongo:6.0
     container_name: juristi-mongo
+    restart: unless-stopped
+    env_file: ./.env
     networks: [juristi_net]
     volumes: [mongo_data:/data/db]
-    healthcheck: { test: echo 'db.runCommand("ping").ok' | mongosh --quiet, interval: 15s }
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: juristi-redis
+    restart: unless-stopped
+    networks: [juristi_net]
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
 
   chroma:
     image: chromadb/chroma:latest
     container_name: juristi-chroma
+    restart: unless-stopped
     ports: ["8003:8000"]
     networks: [juristi_net]
-    volumes: [chroma_data:/data]
+    environment:
+      - IS_PERSISTENT=TRUE
+    volumes:
+      - chroma_data:/data 
 
-networks:
-  juristi_net:
-  shared_gateway_net:
-    external: true
+  neo4j:
+    image: neo4j:5
+    container_name: juristi-neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-password}
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - juristi_net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:7474"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
 volumes:
   mongo_data: {}
   chroma_data: {}
+  redis_data: {}
+  neo4j_data: {}
+
+networks:
+  juristi_net:
+    driver: bridge
+  shared_gateway_net:
+    external: true
