@@ -35,7 +35,6 @@ interface NotificationState {
     type: 'success' | 'error';
 }
 
-// --- PROPS INTERFACES ---
 interface ConfigPanelProps {
     t: TFunction;
     isPro: boolean;
@@ -96,67 +95,52 @@ const lawyerGradeStyles = `
   .legal-content p { margin-bottom: 12pt; }
   .legal-content strong, .legal-content b { font-weight: 700 !important; }
   .legal-content blockquote { border: none; margin: 3cm 0 0 50%; padding: 0; text-align: center; font-style: normal; font-weight: 700; }
-  
-  .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-  .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
-  .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.3); border-radius: 10px; }
 `;
 
-// --- AI PROMPT ENGINEERING ---
+// --- AI PROMPT ENGINEERING (LITIGATION GRADE UPGRADE) ---
 const constructSmartPrompt = (userText: string, template: TemplateType): string => {
-    let domainInstruction = "GENERAL LEGAL PRACTICE.";
+    let domainInstruction = "STATUTORY LAW OF KOSOVO.";
     const lowerText = userText.toLowerCase();
     
-    if (['alimentacion', 'femij', 'martes', 'shkurorëzim'].some(k => lowerText.includes(k))) {
-        domainInstruction = "DOMAIN: FAMILY LAW (Kosovo). CITE: 'Ligji për Familjen'.";
+    if (['alimentacion', 'femij', 'martes', 'shkurorëzim', 'alimentacionin'].some(k => lowerText.includes(k))) {
+        domainInstruction = "DOMAIN: FAMILY LAW (Kosovo). MANDATORY CITATION: 'Ligji për Familjen i Kosovës'. FOCUS: Article 330 (Alimony) & Article 145 (Visitation).";
     } else if (['shpk', 'aksion', 'biznes'].some(k => lowerText.includes(k))) {
-        domainInstruction = "DOMAIN: CORPORATE LAW (Kosovo). CITE: 'Ligji për Shoqëritë Tregtare'.";
+        domainInstruction = "DOMAIN: CORPORATE LAW (Kosovo). MANDATORY CITATION: 'Ligji për Shoqëritë Tregtare'.";
     }
 
-    let roleInstruction = "ADAPTABLE SENIOR LAWYER.";
-    let goalInstruction = "Draft a high-quality legal document based on user input.";
+    let roleInstruction = "SENIOR LITIGATION ATTORNEY (Avokat i Specializuar).";
+    let goalInstruction = "Draft an aggressive, professional legal document. Do NOT summarize. ARGUE.";
 
-    if (template === 'generic') {
-        goalInstruction = "AUTO-DETECT DOCUMENT TYPE. If 'Reply/Defense' act as DEFENSE; if 'Sue/Claim' act as PLAINTIFF; if 'Contract' act as TRANSACTIONAL.";
-    } else {
-        switch (template) {
-            case 'padi':
-                roleInstruction = "PLAINTIFF'S LAWYER.";
-                goalInstruction = "Draft a formal LAWSUIT (PADI). Support the plaintiff's claims.";
-                break;
-            case 'pergjigje':
-                roleInstruction = "DEFENDANT'S LAWYER.";
-                goalInstruction = "Draft a RESPONSE TO LAWSUIT. Reject claims using user arguments.";
-                break;
-            case 'kunderpadi':
-                roleInstruction = "DEFENDANT'S LAWYER filing COUNTER-CLAIM.";
-                goalInstruction = "Draft a KUNDËRPADI.";
-                break;
-            case 'ankese':
-                roleInstruction = "APPELLANT'S LAWYER.";
-                goalInstruction = "Draft an APPEAL (ANKESË).";
-                break;
-            default:
-                goalInstruction = `Draft a formal ${template.toUpperCase()} document.`;
-        }
+    if (template === 'pergjigje') {
+        roleInstruction = "DEFENSE ATTORNEY (Avokati i të Paditurit).";
+        goalInstruction = `
+        MANDATE: PËRGJIGJE NË PADI. 
+        - CHALLENGE the Plaintiff's claims as "të pabazuara" (unfounded). 
+        - Use professional litigation rhetoric. 
+        - Instead of "He is poor", use "Kushtet ekonomike-sociale të të paditurit e bëjnë objektivisht të pamundur rritjen e lartësisë së kontributit".
+        - Focus on "Interesi më i lartë i fëmijës".
+        `;
+    } else if (template === 'padi') {
+        roleInstruction = "PLAINTIFF'S ATTORNEY (Avokati i Paditësit).";
+        goalInstruction = "MANDATE: Draft a formal PADITË. Establish the legal basis and claim relief clearly.";
     }
 
     const formatInstruction = `
-    FORMAT: KOSOVO COURT STYLE. 
-    STYLING: Use **BOLD** for SECTION TITLES and names. Use ">" for signatures.
-    TONE: Professional Statutory Legal Albanian. Elevate simple language into formal legal terms.
+    FORMAT: PROFESSIONAL KOSOVO COURT STYLE. 
+    STYLING: Use **BOLD MARKDOWN** for SECTION TITLES (e.g. **PETITUMI:**, **ARSYETIMI:**). 
+    TONE: Direct, Statutory, Professional. Absolute avoidance of layperson language.
     `;
 
     return `
     [SYSTEM MANDATE]
     ROLE: ${roleInstruction}
     GOAL: ${goalInstruction}
-    DOMAIN: ${domainInstruction}
+    LEGAL SCOPE: ${domainInstruction}
     [/SYSTEM MANDATE]
 
     ${formatInstruction}
 
-    [INPUT DATA STREAM]
+    [USER INPUT DATA]
     ${userText}
     `;
 };
