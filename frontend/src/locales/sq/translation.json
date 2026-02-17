@@ -456,6 +456,8 @@
   "templateLease": "Kontratë Qiraje",
   "templateSales": "Kontratë Shitblerjeje",
   "templatePoA": "Autorizim",
+  "drafting.factsLabel": "FAKTET",
+  "drafting.caseRef": "REFERENCA E RASTIT",
   "templateTerms": "Kushte të Përgjithshme",
   "templatePrivacy": "Politika e Privatësisë",
   "systemDisclaimer": "Ky dokument është gjeneruar nga AI për qëllime referimi. Rishikimi ligjor profesional rekomandohet."

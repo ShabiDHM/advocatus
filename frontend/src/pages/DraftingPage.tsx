@@ -97,7 +97,7 @@ const lawyerGradeStyles = `
   .legal-content blockquote { border: none; margin: 3cm 0 0 50%; padding: 0; text-align: center; font-style: normal; font-weight: 700; }
 `;
 
-// --- AI PROMPT ENGINEERING (LITIGATION GRADE UPGRADE) ---
+// --- AI PROMPT ENGINEERING ---
 const constructSmartPrompt = (userText: string, template: TemplateType): string => {
     let domainInstruction = "STATUTORY LAW OF KOSOVO.";
     const lowerText = userText.toLowerCase();
@@ -113,13 +113,7 @@ const constructSmartPrompt = (userText: string, template: TemplateType): string 
 
     if (template === 'pergjigje') {
         roleInstruction = "DEFENSE ATTORNEY (Avokati i të Paditurit).";
-        goalInstruction = `
-        MANDATE: PËRGJIGJE NË PADI. 
-        - CHALLENGE the Plaintiff's claims as "të pabazuara" (unfounded). 
-        - Use professional litigation rhetoric. 
-        - Instead of "He is poor", use "Kushtet ekonomike-sociale të të paditurit e bëjnë objektivisht të pamundur rritjen e lartësisë së kontributit".
-        - Focus on "Interesi më i lartë i fëmijës".
-        `;
+        goalInstruction = `MANDATE: PËRGJIGJE NË PADI. Challenge Plaintiff's claims as "të pabazuara". Use professional litigation rhetoric.`;
     } else if (template === 'padi') {
         roleInstruction = "PLAINTIFF'S ATTORNEY (Avokati i Paditësit).";
         goalInstruction = "MANDATE: Draft a formal PADITË. Establish the legal basis and claim relief clearly.";
@@ -127,8 +121,8 @@ const constructSmartPrompt = (userText: string, template: TemplateType): string 
 
     const formatInstruction = `
     FORMAT: PROFESSIONAL KOSOVO COURT STYLE. 
-    STYLING: Use **BOLD MARKDOWN** for SECTION TITLES (e.g. **PETITUMI:**, **ARSYETIMI:**). 
-    TONE: Direct, Statutory, Professional. Absolute avoidance of layperson language.
+    STYLING: Use **BOLD MARKDOWN** for SECTION TITLES. 
+    TONE: Professional Statutory Legal Albanian.
     `;
 
     return `
@@ -175,7 +169,7 @@ const preprocessHeadings = (text: string): string => {
 
 const DraftResultRenderer: React.FC<{ text: string, t: TFunction }> = React.memo(({ text, t }) => {
     const processedText = preprocessHeadings(text);
-    const disclaimer = t('drafting.systemDisclaimer', 'Gjeneruar nga AI, vetëm për referencë.');
+    const disclaimer = t('drafting.subtitle');
     
     return (
         <div className="legal-document">
@@ -378,12 +372,12 @@ const DraftingPage: React.FC = () => {
     const c = cases.find(item => item.id === caseId);
     if (c) {
         setContext(prev => {
-            const caseBlock = `[[CASE_CONTEXT]]\nCASE REF: ${c.title || c.case_number}\nCLIENT: ${c.client?.name || 'N/A'}\nFACTS: ${c.description || '-'}\n[[END_CASE_CONTEXT]]\n\n`;
+            const caseBlock = `[[CASE_CONTEXT]]\n${t('drafting.caseRef', 'REFERENCA E RASTIT')}: ${c.title || c.case_number}\n${t('drafting.clientLabel', 'KLIENTI')}: ${c.client?.name || 'N/A'}\n${t('drafting.factsLabel', 'FAKTET')}: ${c.description || '-'}\n[[END_CASE_CONTEXT]]\n\n`;
             if (prev.includes('[[CASE_CONTEXT]]')) return prev.replace(/\[\[CASE_CONTEXT\]\][\s\S]*?\[\[END_CASE_CONTEXT\]\]\s*/, caseBlock);
             return caseBlock + prev;
         });
     }
-  }, [cases]);
+  }, [cases, t]);
 
   const runDraftingStream = async () => {
     if (!context.trim() || isSubmitting) return;
@@ -396,7 +390,7 @@ const DraftingPage: React.FC = () => {
       if (isPro && selectedCaseId) {
           const selectedCase = cases.find(c => c.id === selectedCaseId);
           if (selectedCase && !finalPromptText.includes('[[CASE_CONTEXT]]')) {
-             const hiddenContext = `\n\n[DATABASE DATA]\nCASE: ${selectedCase.title || selectedCase.case_number}\nCLIENT: ${selectedCase.client?.name || 'N/A'}\nFACTS: ${selectedCase.description || 'N/A'}\n[END DATABASE DATA]\n`;
+             const hiddenContext = `\n\n[DATABASE DATA]\n${t('drafting.caseRef')}: ${selectedCase.title || selectedCase.case_number}\n${t('drafting.clientLabel')}: ${selectedCase.client?.name || 'N/A'}\n${t('drafting.factsLabel')}: ${selectedCase.description || 'N/A'}\n[END DATABASE DATA]\n`;
              finalPromptText = hiddenContext + finalPromptText;
           }
       }
