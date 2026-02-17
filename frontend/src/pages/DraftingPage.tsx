@@ -59,7 +59,7 @@ interface ResultPanelProps {
     onClear: () => void;
 }
 
-// --- KOSOVO COURT STYLING ENGINE ---
+// --- KOSOVO COURT STYLING ENGINE (A4 FORMAT, CENTERED, JUSTIFIED) ---
 const lawyerGradeStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&display=swap');
 
@@ -73,7 +73,9 @@ const lawyerGradeStyles = `
     text-align: justify;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     margin: 0 auto;
-    max-width: 21cm;
+    width: 21cm;
+    max-width: 100%;
+    box-sizing: border-box;
     min-height: 29.7cm; /* A4 Height */
   }
 
@@ -114,12 +116,13 @@ const lawyerGradeStyles = `
     font-size: 12pt; 
     margin-top: 12pt; 
     margin-bottom: 6pt; 
-    text-decoration: underline;
+    text-transform: uppercase;
+    text-decoration: none;
+    text-align: left;
   }
 
   .legal-content p { 
     margin-bottom: 12pt; 
-    text-indent: 1cm; /* Indent paragraphs like legal docs */
   }
 
   .legal-content ul, .legal-content ol { 
@@ -167,9 +170,9 @@ const constructSmartPrompt = (userText: string, template: TemplateType): string 
     STRUCTURE:
     1. Header: COURT NAME (Centered, Uppercase).
     2. Parties: Paditës vs I Paditur (Left aligned).
-    3. Subject (Lënda): Short summary (Right aligned or Centered).
+    3. Subject (Lënda): Short summary (Left aligned).
     4. TITLE: (e.g. PADIT, KUNDËRPADI) - Centered, Bold, Uppercase.
-    5. SECTIONS: BAZA LIGJORE (Legal Basis), ARSYETIMI (Reasoning), PETITUMI/KONKLUZIONI (Petition).
+    5. SECTIONS: BAZA LIGJORE (Legal Basis), ARSYETIMI (Reasoning), PETITUMI/KONKLUZIONI (Petition). Write these headings in uppercase followed by a colon, left‑aligned.
     6. SIGNATURE BLOCK: Place at bottom right.
     
     TONE: Formal, Direct, Legal Albanian.
@@ -193,7 +196,37 @@ const ThinkingDots = () => (
     </span>
 );
 
+// Preprocess text: convert uppercase lines to markdown headings.
+// - If a line matches a known section heading (with or without colon), ensure it ends with a colon and becomes H3.
+// - Other uppercase lines become H2 (centered titles).
+const preprocessHeadings = (text: string): string => {
+    const lines = text.split('\n');
+    const knownSections = ['BAZA LIGJORE', 'ARSYETIMI', 'PETITUMI', 'KONKLUZIONI'];
+    
+    return lines.map(line => {
+        const trimmed = line.trim();
+        // Skip empty lines
+        if (trimmed.length === 0) return line;
+        
+        // Check if line is uppercase (allowing punctuation)
+        const isUppercase = /^[A-ZËÇÜÖÄ\s\d\.,\-–—:]+$/.test(trimmed);
+        if (!isUppercase) return line;
+        
+        // Check if it's a known section heading (with or without colon)
+        const withoutColon = trimmed.replace(/:$/, '');
+        if (knownSections.includes(withoutColon)) {
+            // Ensure it ends with a colon
+            const fixed = trimmed.endsWith(':') ? trimmed : `${trimmed}:`;
+            return `### ${fixed}`;
+        }
+        
+        // Other uppercase lines become H2 (centered titles)
+        return `## ${line}`;
+    }).join('\n');
+};
+
 const DraftResultRenderer: React.FC<{ text: string }> = React.memo(({ text }) => {
+    const processedText = preprocessHeadings(text);
     return (
         <div className="legal-document">
              <div className="legal-content">
@@ -202,9 +235,11 @@ const DraftResultRenderer: React.FC<{ text: string }> = React.memo(({ text }) =>
                     components={{
                         h1: ({node, ...props}) => <h1 {...props} />,
                         h2: ({node, ...props}) => <h2 {...props} />,
+                        h3: ({node, ...props}) => <h3 {...props} />,
                         blockquote: ({node, ...props}) => <blockquote {...props} />, // Used for signature block
                         p: ({node, ...props}) => {
                             const content = String(props.children);
+                            // Special handling for AI-generated disclaimer
                             if (content.includes('gjeneruar nga AI')) {
                                 return <p className="text-center italic mt-12 pt-4 border-t border-black text-[9pt] opacity-60" {...props} />;
                             }
@@ -212,7 +247,7 @@ const DraftResultRenderer: React.FC<{ text: string }> = React.memo(({ text }) =>
                         }
                     }} 
                 >
-                    {text}
+                    {processedText}
                 </ReactMarkdown>
              </div>
         </div>
@@ -380,7 +415,7 @@ const ResultPanel: React.FC<ResultPanelProps> = ({ t, currentJob, saving, notifi
             <div className="flex-1 bg-gray-900/40 overflow-y-auto p-4 sm:p-8 relative custom-scrollbar flex justify-center">
                 <AnimatePresence mode="wait">
                     {currentJob.result ? (
-                        <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="w-full">
+                        <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="w-full flex justify-center">
                             {notification && (
                                 <div className={`mb-4 p-3 text-xs rounded-lg flex items-center gap-2 border w-full max-w-[21cm] mx-auto ${notification.type === 'success' ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
                                     {notification.type === 'success' ? <CheckCircle size={14}/> : <AlertCircle size={14}/>} 
