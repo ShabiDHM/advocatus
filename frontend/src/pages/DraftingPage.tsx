@@ -156,7 +156,7 @@ const lawyerGradeStyles = `
 
 // --- AI PROMPT ENGINEERING ---
 const constructSmartPrompt = (userText: string, template: TemplateType): string => {
-    // Determine Domain & Restrictions
+    // 1. Determine Domain
     let domainInstruction = "";
     const lowerText = userText.toLowerCase();
     
@@ -166,28 +166,52 @@ const constructSmartPrompt = (userText: string, template: TemplateType): string 
         domainInstruction = "DOMAIN: CORPORATE LAW (Kosovo). CITE: 'Ligji për Shoqëritë Tregtare'.";
     }
 
-    // Strict Formatting Instructions for Kosovo Courts
+    // 2. Determine Role & Strategy (The "Adversarial Engine")
+    let roleInstruction = "";
+    let goalInstruction = "";
+
+    switch (template) {
+        case 'padi': // Lawsuit
+            roleInstruction = "ROLE: PLAINTIFF'S LAWYER (Avokati i Paditësit).";
+            goalInstruction = "GOAL: Draft a LAWSUIT (PADI). ARGUMENT: Argue why the plaintiff is right. PETITUMI: Request approval of claims (Të aprovohet padia).";
+            break;
+        case 'pergjigje': // Response (Defense)
+            roleInstruction = "ROLE: DEFENDANT'S LAWYER (Avokati i të Paditurit).";
+            goalInstruction = "GOAL: Draft a RESPONSE TO LAWSUIT (PËRGJIGJE NË PADI). CRITICAL: You are DEFENDING the user. You must OPPPOSE the plaintiff. ARGUMENT: Explain why the plaintiff is wrong based on the input facts (e.g. lack of funds, good behavior). PETITUMI: 'Të refuzohet kërkesë-padia e paditësit si e pabazuar'.";
+            break;
+        case 'kunderpadi': // Counter-claim
+            roleInstruction = "ROLE: DEFENDANT'S LAWYER filing a COUNTER-CLAIM.";
+            goalInstruction = "GOAL: Draft a COUNTER-CLAIM (KUNDËRPADI). ARGUMENT: Not only deny the claim but attack back.";
+            break;
+        case 'ankese': // Appeal
+            roleInstruction = "ROLE: APPELLANT'S LAWYER.";
+            goalInstruction = "GOAL: Draft an APPEAL (ANKESË) to overturn a judgment.";
+            break;
+        default:
+            roleInstruction = "ROLE: PROFESSIONAL LAWYER.";
+            goalInstruction = "GOAL: Draft a formal legal document based on input.";
+            break;
+    }
+
+    // 3. Strict Formatting Instructions
     const formatInstruction = `
     FORMAT REQUIREMENT: KOSOVO COURT STYLE (Gjykata Themelore Standard).
-    
     STYLING RULES:
     - Use **BOLD MARKDOWN** for all SECTION TITLES (e.g. **PETITUMI:**, **ARSYETIM:**).
-    - Use **BOLD MARKDOWN** for Names of Parties (e.g. **Paditës: John Doe**).
-    - Use **BOLD MARKDOWN** for Key Dates and Sums of Money.
-    - For the SIGNATURE BLOCK at the end, start the line with a ">" character to create a block alignment.
+    - Use **BOLD MARKDOWN** for Names of Parties.
+    - Start the SIGNATURE BLOCK with a ">" character.
 
     STRUCTURE:
     1. Header: COURT NAME (Centered, Uppercase, Bold).
-    2. Parties: Paditës vs I Paditur (Left aligned).
-    3. Subject (Lënda): Short summary (Left aligned).
-    4. TITLE: (e.g. PADIT, KUNDËRPADI) - Centered, Bold, Uppercase.
-    5. SECTIONS: BAZA LIGJORE, ARSYETIMI, PETITUMI/KONKLUZIONI.
-    6. SIGNATURE BLOCK: > NENSHKRIMI: [Name] (Bottom right).
+    2. Parties: Paditës vs I Paditur.
+    3. Subject (Lënda): Short summary.
+    4. TITLE: (e.g. ${template.toUpperCase()}) - Centered, Bold.
+    5. SECTIONS: BAZA LIGJORE, ARSYETIMI (Expand on input facts legally), PETITUMI.
     
     TONE: Formal, Direct, Legal Albanian.
     `;
 
-    return `[INSTRUCTION: ${domainInstruction}] [TEMPLATE: ${template}] \n${formatInstruction}\n\n CONTENT INPUT:\n${userText}`;
+    return `[INSTRUCTION: ${domainInstruction}] \n[${roleInstruction}] \n[${goalInstruction}] \n${formatInstruction}\n\n CONTENT INPUT (FACTS):\n${userText}`;
 };
 
 // --- SUB-COMPONENTS ---
@@ -428,7 +452,7 @@ const ResultPanel: React.FC<ResultPanelProps> = ({ t, currentJob, saving, notifi
                 </div>
             </div>
 
-            {/* Content Area - Layout Fix Applied */}
+            {/* Content Area */}
             <div className="flex-1 bg-gray-900/40 overflow-y-auto relative custom-scrollbar">
                 <div className="min-h-full w-full flex justify-center p-4 sm:p-8">
                     <AnimatePresence mode="wait">
