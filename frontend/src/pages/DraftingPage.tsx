@@ -61,7 +61,7 @@ interface ResultPanelProps {
 
 // --- KOSOVO COURT STYLING ENGINE (A4 FORMAT, CENTERED, JUSTIFIED) ---
 const lawyerGradeStyles = `
-  @import url('https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
   .legal-document {
     font-family: 'Tinos', 'Times New Roman', serif;
@@ -73,10 +73,11 @@ const lawyerGradeStyles = `
     text-align: justify;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     margin: 0 auto;
-    width: 21cm;
+    width: 21cm; /* A4 Width */
     max-width: 100%;
     box-sizing: border-box;
     min-height: 29.7cm; /* A4 Height */
+    position: relative;
   }
 
   /* Print Optimization */
@@ -134,8 +135,8 @@ const lawyerGradeStyles = `
     padding-left: 0.5cm;
   }
 
-  .legal-content strong {
-    font-weight: 700;
+  .legal-content strong, .legal-content b {
+    font-weight: 700 !important;
   }
 
   /* Signature Block Simulation */
@@ -145,6 +146,7 @@ const lawyerGradeStyles = `
     padding: 0;
     text-align: center;
     font-style: normal;
+    font-weight: 700;
   }
   
   .custom-scrollbar::-webkit-scrollbar { width: 6px; }
@@ -167,13 +169,20 @@ const constructSmartPrompt = (userText: string, template: TemplateType): string 
     // Strict Formatting Instructions for Kosovo Courts
     const formatInstruction = `
     FORMAT REQUIREMENT: KOSOVO COURT STYLE (Gjykata Themelore Standard).
+    
+    STYLING RULES:
+    - Use **BOLD MARKDOWN** for all SECTION TITLES (e.g. **PETITUMI:**, **ARSYETIM:**).
+    - Use **BOLD MARKDOWN** for Names of Parties (e.g. **Paditës: John Doe**).
+    - Use **BOLD MARKDOWN** for Key Dates and Sums of Money.
+    - For the SIGNATURE BLOCK at the end, start the line with a ">" character to create a block alignment.
+
     STRUCTURE:
-    1. Header: COURT NAME (Centered, Uppercase).
+    1. Header: COURT NAME (Centered, Uppercase, Bold).
     2. Parties: Paditës vs I Paditur (Left aligned).
     3. Subject (Lënda): Short summary (Left aligned).
     4. TITLE: (e.g. PADIT, KUNDËRPADI) - Centered, Bold, Uppercase.
-    5. SECTIONS: BAZA LIGJORE (Legal Basis), ARSYETIMI (Reasoning), PETITUMI/KONKLUZIONI (Petition). Write these headings in uppercase followed by a colon, left‑aligned.
-    6. SIGNATURE BLOCK: Place at bottom right.
+    5. SECTIONS: BAZA LIGJORE, ARSYETIMI, PETITUMI/KONKLUZIONI.
+    6. SIGNATURE BLOCK: > NENSHKRIMI: [Name] (Bottom right).
     
     TONE: Formal, Direct, Legal Albanian.
     `;
@@ -196,32 +205,39 @@ const ThinkingDots = () => (
     </span>
 );
 
-// Preprocess text: convert uppercase lines to markdown headings.
-// - If a line matches a known section heading (with or without colon), ensure it ends with a colon and becomes H3.
-// - Other uppercase lines become H2 (centered titles).
+// Preprocess text: 
+// 1. Convert uppercase lines to markdown headings.
+// 2. Ensure NENSHKRIMI is treated as a blockquote if not already.
 const preprocessHeadings = (text: string): string => {
     const lines = text.split('\n');
-    const knownSections = ['BAZA LIGJORE', 'ARSYETIMI', 'PETITUMI', 'KONKLUZIONI'];
+    const knownSections = ['BAZA LIGJORE', 'ARSYETIMI', 'PETITUMI', 'KONKLUZIONI', 'VENDIM'];
     
     return lines.map(line => {
         const trimmed = line.trim();
-        // Skip empty lines
         if (trimmed.length === 0) return line;
+        
+        // Fix Signature Block if AI forgot '>'
+        if (trimmed.toUpperCase().startsWith('NËNSHKRIMI') || trimmed.toUpperCase().startsWith('NENSHKRIMI')) {
+            return `> ${trimmed}`;
+        }
         
         // Check if line is uppercase (allowing punctuation)
         const isUppercase = /^[A-ZËÇÜÖÄ\s\d\.,\-–—:]+$/.test(trimmed);
         if (!isUppercase) return line;
         
-        // Check if it's a known section heading (with or without colon)
-        const withoutColon = trimmed.replace(/:$/, '');
-        if (knownSections.includes(withoutColon)) {
-            // Ensure it ends with a colon
+        // Check if it's a known section heading
+        const withoutColon = trimmed.replace(/:$/, '').toUpperCase();
+        if (knownSections.some(s => withoutColon.includes(s))) {
             const fixed = trimmed.endsWith(':') ? trimmed : `${trimmed}:`;
             return `### ${fixed}`;
         }
         
-        // Other uppercase lines become H2 (centered titles)
-        return `## ${line}`;
+        // Other uppercase lines become H2 (centered titles) if they are short enough to be titles
+        if (trimmed.length < 100) {
+            return `## ${line}`;
+        }
+        
+        return line;
     }).join('\n');
 };
 
@@ -237,6 +253,7 @@ const DraftResultRenderer: React.FC<{ text: string }> = React.memo(({ text }) =>
                         h2: ({node, ...props}) => <h2 {...props} />,
                         h3: ({node, ...props}) => <h3 {...props} />,
                         blockquote: ({node, ...props}) => <blockquote {...props} />, // Used for signature block
+                        strong: ({node, ...props}) => <strong {...props} />,
                         p: ({node, ...props}) => {
                             const content = String(props.children);
                             // Special handling for AI-generated disclaimer
@@ -375,7 +392,7 @@ const ResultPanel: React.FC<ResultPanelProps> = ({ t, currentJob, saving, notifi
     return (
         <div className="flex flex-col h-auto lg:h-[700px] rounded-2xl bg-[#0d0f14] border border-white/10 overflow-hidden shadow-2xl shrink-0">
             {/* Header */}
-            <div className="flex justify-between items-center p-4 bg-white/5 border-b border-white/5 flex-shrink-0">
+            <div className="flex justify-between items-center p-4 bg-white/5 border-b border-white/5 flex-shrink-0 z-10">
                 <div className="flex items-center gap-3">
                    <div className={`${statusUI.color} p-2 bg-white/5 rounded-lg`}>{statusUI.icon}</div>
                    <h3 className="text-white text-xs sm:text-sm font-semibold uppercase tracking-widest leading-none">{statusUI.text}</h3>
@@ -411,37 +428,39 @@ const ResultPanel: React.FC<ResultPanelProps> = ({ t, currentJob, saving, notifi
                 </div>
             </div>
 
-            {/* Content Area */}
-            <div className="flex-1 bg-gray-900/40 overflow-y-auto p-4 sm:p-8 relative custom-scrollbar flex justify-center">
-                <AnimatePresence mode="wait">
-                    {currentJob.result ? (
-                        <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="w-full flex justify-center">
-                            {notification && (
-                                <div className={`mb-4 p-3 text-xs rounded-lg flex items-center gap-2 border w-full max-w-[21cm] mx-auto ${notification.type === 'success' ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
-                                    {notification.type === 'success' ? <CheckCircle size={14}/> : <AlertCircle size={14}/>} 
-                                    {notification.msg}
-                                </div>
-                            )}
-                            <DraftResultRenderer text={currentJob.result} />
-                        </motion.div>
-                    ) : (
-                        <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 pointer-events-none">
-                            {currentJob.status === 'PROCESSING' ? (
-                                <div className="flex flex-col items-center">
-                                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shadow-primary-start/20 mb-6 animate-pulse">
-                                        <BrainCircuit className="w-8 h-8 text-white" />
+            {/* Content Area - Layout Fix Applied */}
+            <div className="flex-1 bg-gray-900/40 overflow-y-auto relative custom-scrollbar">
+                <div className="min-h-full w-full flex justify-center p-4 sm:p-8">
+                    <AnimatePresence mode="wait">
+                        {currentJob.result ? (
+                            <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="w-full max-w-[21cm]">
+                                {notification && (
+                                    <div className={`mb-4 p-3 text-xs rounded-lg flex items-center gap-2 border w-full ${notification.type === 'success' ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
+                                        {notification.type === 'success' ? <CheckCircle size={14}/> : <AlertCircle size={14}/>} 
+                                        {notification.msg}
                                     </div>
-                                    <p className="text-white font-medium flex items-center">{t('drafting.statusWorking')}<ThinkingDots /></p>
-                                </div>
-                            ) : (
-                                <div className="opacity-20 flex flex-col items-center">
-                                    <FileText size={56} className="text-gray-600 mb-4" />
-                                    <p className="text-gray-400 text-sm">{t('drafting.emptyState')}</p>
-                                </div>
-                            )}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                                )}
+                                <DraftResultRenderer text={currentJob.result} />
+                            </motion.div>
+                        ) : (
+                            <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center text-center mt-20 pointer-events-none">
+                                {currentJob.status === 'PROCESSING' ? (
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shadow-primary-start/20 mb-6 animate-pulse">
+                                            <BrainCircuit className="w-8 h-8 text-white" />
+                                        </div>
+                                        <p className="text-white font-medium flex items-center">{t('drafting.statusWorking')}<ThinkingDots /></p>
+                                    </div>
+                                ) : (
+                                    <div className="opacity-20 flex flex-col items-center">
+                                        <FileText size={56} className="text-gray-600 mb-4" />
+                                        <p className="text-gray-400 text-sm">{t('drafting.emptyState')}</p>
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
         </div>
     );
