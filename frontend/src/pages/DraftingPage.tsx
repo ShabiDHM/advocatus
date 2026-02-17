@@ -372,8 +372,8 @@ const DraftingPage: React.FC = () => {
     const c = cases.find(item => item.id === caseId);
     if (c) {
         setContext(prev => {
-            const caseBlock = `[[CASE_CONTEXT]]\n${t('drafting.caseRef', 'REFERENCA E RASTIT')}: ${c.title || c.case_number}\n${t('drafting.clientLabel', 'KLIENTI')}: ${c.client?.name || 'N/A'}\n${t('drafting.factsLabel', 'FAKTET')}: ${c.description || '-'}\n[[END_CASE_CONTEXT]]\n\n`;
-            if (prev.includes('[[CASE_CONTEXT]]')) return prev.replace(/\[\[CASE_CONTEXT\]\][\s\S]*?\[\[END_CASE_CONTEXT\]\]\s*/, caseBlock);
+            const caseBlock = `[[TË_DHËNAT_E_RASTIT]]\n${t('drafting.caseRef', 'REFERENCA E RASTIT')}: ${c.title || c.case_number}\n${t('drafting.clientLabel', 'KLIENTI')}: ${c.client?.name || 'N/A'}\n${t('drafting.factsLabel', 'FAKTET')}: ${c.description || '-'}\n[[FUND_TË_DHËNAVE]]\n\n`;
+            if (prev.includes('[[TË_DHËNAT_E_RASTIT]]')) return prev.replace(/\[\[TË_DHËNAT_E_RASTIT\]\][\s\S]*?\[\[FUND_TË_DHËNAVE\]\]\s*/, caseBlock);
             return caseBlock + prev;
         });
     }
@@ -389,7 +389,7 @@ const DraftingPage: React.FC = () => {
       let finalPromptText = context.trim();
       if (isPro && selectedCaseId) {
           const selectedCase = cases.find(c => c.id === selectedCaseId);
-          if (selectedCase && !finalPromptText.includes('[[CASE_CONTEXT]]')) {
+          if (selectedCase && !finalPromptText.includes('[[TË_DHËNAT_E_RASTIT]]')) {
              const hiddenContext = `\n\n[DATABASE DATA]\n${t('drafting.caseRef')}: ${selectedCase.title || selectedCase.case_number}\n${t('drafting.clientLabel')}: ${selectedCase.client?.name || 'N/A'}\n${t('drafting.factsLabel')}: ${selectedCase.description || 'N/A'}\n[END DATABASE DATA]\n`;
              finalPromptText = hiddenContext + finalPromptText;
           }
