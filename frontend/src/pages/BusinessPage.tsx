@@ -2,7 +2,7 @@
 // PHOENIX PROTOCOL - BUSINESS PAGE V11.2 (i18n FIX)
 // 1. FIXED: Corrected 'welcome' translation key to use 'general.welcome_name'.
 // 2. FIXED: Removed hardcoded English fallbacks in tab buttons.
-// 3. STATUS: 100% Internationalized.
+
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen, Users } from 'lucide-react';
