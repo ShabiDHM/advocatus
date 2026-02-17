@@ -59,7 +59,7 @@ interface ResultPanelProps {
     onClear: () => void;
 }
 
-// --- KOSOVO COURT STYLING ENGINE (A4 FORMAT, CENTERED, JUSTIFIED) ---
+// --- KOSOVO COURT STYLING ENGINE ---
 const lawyerGradeStyles = `
   @import url('https://fonts.googleapis.com/css2?family=Tinos:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
@@ -73,14 +73,13 @@ const lawyerGradeStyles = `
     text-align: justify;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     margin: 0 auto;
-    width: 21cm; /* A4 Width */
+    width: 21cm;
     max-width: 100%;
     box-sizing: border-box;
-    min-height: 29.7cm; /* A4 Height */
+    min-height: 29.7cm;
     position: relative;
   }
 
-  /* Print Optimization */
   @media print {
     @page { margin: 2cm; size: A4; }
     body * { visibility: hidden; }
@@ -91,63 +90,12 @@ const lawyerGradeStyles = `
     }
   }
 
-  /* Typographic Hierarchy for Kosovo Courts */
-  .legal-content h1 { 
-    text-align: center; 
-    text-transform: uppercase; 
-    font-weight: 700; 
-    font-size: 14pt; 
-    margin-bottom: 24pt;
-    letter-spacing: 1px;
-    border-bottom: 2px solid #000;
-    padding-bottom: 4pt;
-  }
-  
-  .legal-content h2 { 
-    text-transform: uppercase; 
-    font-weight: 700; 
-    font-size: 12pt; 
-    margin-top: 18pt; 
-    margin-bottom: 12pt; 
-    text-align: center;
-  }
-
-  .legal-content h3 { 
-    font-weight: 700; 
-    font-size: 12pt; 
-    margin-top: 12pt; 
-    margin-bottom: 6pt; 
-    text-transform: uppercase;
-    text-decoration: none;
-    text-align: left;
-  }
-
-  .legal-content p { 
-    margin-bottom: 12pt; 
-  }
-
-  .legal-content ul, .legal-content ol { 
-    margin-left: 1.5cm; 
-    margin-bottom: 12pt; 
-  }
-  
-  .legal-content li {
-    padding-left: 0.5cm;
-  }
-
-  .legal-content strong, .legal-content b {
-    font-weight: 700 !important;
-  }
-
-  /* Signature Block Simulation */
-  .legal-content blockquote {
-    border: none;
-    margin: 3cm 0 0 50%;
-    padding: 0;
-    text-align: center;
-    font-style: normal;
-    font-weight: 700;
-  }
+  .legal-content h1 { text-align: center; text-transform: uppercase; font-weight: 700; font-size: 14pt; margin-bottom: 24pt; border-bottom: 2px solid #000; padding-bottom: 4pt; }
+  .legal-content h2 { text-transform: uppercase; font-weight: 700; font-size: 12pt; margin-top: 18pt; margin-bottom: 12pt; text-align: center; }
+  .legal-content h3 { font-weight: 700; font-size: 12pt; margin-top: 12pt; margin-bottom: 6pt; text-transform: uppercase; text-align: left; }
+  .legal-content p { margin-bottom: 12pt; }
+  .legal-content strong, .legal-content b { font-weight: 700 !important; }
+  .legal-content blockquote { border: none; margin: 3cm 0 0 50%; padding: 0; text-align: center; font-style: normal; font-weight: 700; }
   
   .custom-scrollbar::-webkit-scrollbar { width: 6px; }
   .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); }
@@ -156,8 +104,7 @@ const lawyerGradeStyles = `
 
 // --- AI PROMPT ENGINEERING ---
 const constructSmartPrompt = (userText: string, template: TemplateType): string => {
-    // 1. Determine Domain
-    let domainInstruction = "";
+    let domainInstruction = "GENERAL LEGAL PRACTICE.";
     const lowerText = userText.toLowerCase();
     
     if (['alimentacion', 'femij', 'martes', 'shkurorëzim'].some(k => lowerText.includes(k))) {
@@ -166,52 +113,52 @@ const constructSmartPrompt = (userText: string, template: TemplateType): string 
         domainInstruction = "DOMAIN: CORPORATE LAW (Kosovo). CITE: 'Ligji për Shoqëritë Tregtare'.";
     }
 
-    // 2. Determine Role & Strategy (The "Adversarial Engine")
-    let roleInstruction = "";
-    let goalInstruction = "";
+    let roleInstruction = "ADAPTABLE SENIOR LAWYER.";
+    let goalInstruction = "Draft a high-quality legal document based on user input.";
 
-    switch (template) {
-        case 'padi': // Lawsuit
-            roleInstruction = "ROLE: PLAINTIFF'S LAWYER (Avokati i Paditësit).";
-            goalInstruction = "GOAL: Draft a LAWSUIT (PADI). ARGUMENT: Argue why the plaintiff is right. PETITUMI: Request approval of claims (Të aprovohet padia).";
-            break;
-        case 'pergjigje': // Response (Defense)
-            roleInstruction = "ROLE: DEFENDANT'S LAWYER (Avokati i të Paditurit).";
-            goalInstruction = "GOAL: Draft a RESPONSE TO LAWSUIT (PËRGJIGJE NË PADI). CRITICAL: You are DEFENDING the user. You must OPPPOSE the plaintiff. ARGUMENT: Explain why the plaintiff is wrong based on the input facts (e.g. lack of funds, good behavior). PETITUMI: 'Të refuzohet kërkesë-padia e paditësit si e pabazuar'.";
-            break;
-        case 'kunderpadi': // Counter-claim
-            roleInstruction = "ROLE: DEFENDANT'S LAWYER filing a COUNTER-CLAIM.";
-            goalInstruction = "GOAL: Draft a COUNTER-CLAIM (KUNDËRPADI). ARGUMENT: Not only deny the claim but attack back.";
-            break;
-        case 'ankese': // Appeal
-            roleInstruction = "ROLE: APPELLANT'S LAWYER.";
-            goalInstruction = "GOAL: Draft an APPEAL (ANKESË) to overturn a judgment.";
-            break;
-        default:
-            roleInstruction = "ROLE: PROFESSIONAL LAWYER.";
-            goalInstruction = "GOAL: Draft a formal legal document based on input.";
-            break;
+    if (template === 'generic') {
+        goalInstruction = "AUTO-DETECT DOCUMENT TYPE. If 'Reply/Defense' act as DEFENSE; if 'Sue/Claim' act as PLAINTIFF; if 'Contract' act as TRANSACTIONAL.";
+    } else {
+        switch (template) {
+            case 'padi':
+                roleInstruction = "PLAINTIFF'S LAWYER.";
+                goalInstruction = "Draft a formal LAWSUIT (PADI). Support the plaintiff's claims.";
+                break;
+            case 'pergjigje':
+                roleInstruction = "DEFENDANT'S LAWYER.";
+                goalInstruction = "Draft a RESPONSE TO LAWSUIT. Reject claims using user arguments.";
+                break;
+            case 'kunderpadi':
+                roleInstruction = "DEFENDANT'S LAWYER filing COUNTER-CLAIM.";
+                goalInstruction = "Draft a KUNDËRPADI.";
+                break;
+            case 'ankese':
+                roleInstruction = "APPELLANT'S LAWYER.";
+                goalInstruction = "Draft an APPEAL (ANKESË).";
+                break;
+            default:
+                goalInstruction = `Draft a formal ${template.toUpperCase()} document.`;
+        }
     }
 
-    // 3. Strict Formatting Instructions
     const formatInstruction = `
-    FORMAT REQUIREMENT: KOSOVO COURT STYLE (Gjykata Themelore Standard).
-    STYLING RULES:
-    - Use **BOLD MARKDOWN** for all SECTION TITLES (e.g. **PETITUMI:**, **ARSYETIM:**).
-    - Use **BOLD MARKDOWN** for Names of Parties.
-    - Start the SIGNATURE BLOCK with a ">" character.
-
-    STRUCTURE:
-    1. Header: COURT NAME (Centered, Uppercase, Bold).
-    2. Parties: Paditës vs I Paditur.
-    3. Subject (Lënda): Short summary.
-    4. TITLE: (e.g. ${template.toUpperCase()}) - Centered, Bold.
-    5. SECTIONS: BAZA LIGJORE, ARSYETIMI (Expand on input facts legally), PETITUMI.
-    
-    TONE: Formal, Direct, Legal Albanian.
+    FORMAT: KOSOVO COURT STYLE. 
+    STYLING: Use **BOLD** for SECTION TITLES and names. Use ">" for signatures.
+    TONE: Professional Statutory Legal Albanian. Elevate simple language into formal legal terms.
     `;
 
-    return `[INSTRUCTION: ${domainInstruction}] \n[${roleInstruction}] \n[${goalInstruction}] \n${formatInstruction}\n\n CONTENT INPUT (FACTS):\n${userText}`;
+    return `
+    [SYSTEM MANDATE]
+    ROLE: ${roleInstruction}
+    GOAL: ${goalInstruction}
+    DOMAIN: ${domainInstruction}
+    [/SYSTEM MANDATE]
+
+    ${formatInstruction}
+
+    [INPUT DATA STREAM]
+    ${userText}
+    `;
 };
 
 // --- SUB-COMPONENTS ---
@@ -219,54 +166,33 @@ const constructSmartPrompt = (userText: string, template: TemplateType): string 
 const ThinkingDots = () => (
     <span className="inline-flex items-center ml-1 text-primary-start">
         {[0, 0.2, 0.4].map((delay, i) => (
-            <motion.span 
-                key={i}
-                animate={{ opacity: [0.3, 1, 0.3] }} 
-                transition={{ duration: 1.2, repeat: Infinity, delay }} 
-                className="w-1 h-1 bg-current rounded-full mx-0.5" 
-            />
+            <motion.span key={i} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
         ))}
     </span>
 );
 
-// Preprocess text: 
-// 1. Convert uppercase lines to markdown headings.
-// 2. Ensure NENSHKRIMI is treated as a blockquote if not already.
 const preprocessHeadings = (text: string): string => {
     const lines = text.split('\n');
-    const knownSections = ['BAZA LIGJORE', 'ARSYETIMI', 'PETITUMI', 'KONKLUZIONI', 'VENDIM'];
-    
+    const knownSections = ['BAZA LIGJORE', 'ARSYETIMI', 'PETITUMI', 'KONKLUZIONI', 'VENDIM', 'NENET'];
     return lines.map(line => {
         const trimmed = line.trim();
         if (trimmed.length === 0) return line;
-        
-        // Fix Signature Block if AI forgot '>'
-        if (trimmed.toUpperCase().startsWith('NËNSHKRIMI') || trimmed.toUpperCase().startsWith('NENSHKRIMI')) {
-            return `> ${trimmed}`;
-        }
-        
-        // Check if line is uppercase (allowing punctuation)
+        if (trimmed.toUpperCase().startsWith('NËNSHKRIMI') || trimmed.toUpperCase().startsWith('NENSHKRIMI')) return `> ${trimmed}`;
         const isUppercase = /^[A-ZËÇÜÖÄ\s\d\.,\-–—:]+$/.test(trimmed);
         if (!isUppercase) return line;
-        
-        // Check if it's a known section heading
         const withoutColon = trimmed.replace(/:$/, '').toUpperCase();
         if (knownSections.some(s => withoutColon.includes(s))) {
-            const fixed = trimmed.endsWith(':') ? trimmed : `${trimmed}:`;
-            return `### ${fixed}`;
+            return `### ${trimmed.endsWith(':') ? trimmed : `${trimmed}:`}`;
         }
-        
-        // Other uppercase lines become H2 (centered titles) if they are short enough to be titles
-        if (trimmed.length < 100) {
-            return `## ${line}`;
-        }
-        
+        if (trimmed.length < 100) return `## ${line}`;
         return line;
     }).join('\n');
 };
 
-const DraftResultRenderer: React.FC<{ text: string }> = React.memo(({ text }) => {
+const DraftResultRenderer: React.FC<{ text: string, t: TFunction }> = React.memo(({ text, t }) => {
     const processedText = preprocessHeadings(text);
+    const disclaimer = t('drafting.systemDisclaimer', 'Gjeneruar nga AI, vetëm për referencë.');
+    
     return (
         <div className="legal-document">
              <div className="legal-content">
@@ -276,13 +202,12 @@ const DraftResultRenderer: React.FC<{ text: string }> = React.memo(({ text }) =>
                         h1: ({node, ...props}) => <h1 {...props} />,
                         h2: ({node, ...props}) => <h2 {...props} />,
                         h3: ({node, ...props}) => <h3 {...props} />,
-                        blockquote: ({node, ...props}) => <blockquote {...props} />, // Used for signature block
+                        blockquote: ({node, ...props}) => <blockquote {...props} />, 
                         strong: ({node, ...props}) => <strong {...props} />,
                         p: ({node, ...props}) => {
                             const content = String(props.children);
-                            // Special handling for AI-generated disclaimer
-                            if (content.includes('gjeneruar nga AI')) {
-                                return <p className="text-center italic mt-12 pt-4 border-t border-black text-[9pt] opacity-60" {...props} />;
+                            if (content.includes('AI') || content.includes('referencë')) {
+                                return <p className="text-center italic mt-12 pt-4 border-t border-black text-[9pt] opacity-60">{disclaimer}</p>;
                             }
                             return <p {...props} />;
                         }
@@ -295,8 +220,6 @@ const DraftResultRenderer: React.FC<{ text: string }> = React.memo(({ text }) =>
     );
 });
 
-// --- SUB COMPONENTS (Internal for Single-File Requirement) ---
-
 const ConfigPanel: React.FC<ConfigPanelProps> = ({ 
     t, isPro, cases, selectedCaseId, selectedTemplate, context, isSubmitting, 
     onSelectCase, onSelectTemplate, onChangeContext, onSubmit 
@@ -307,7 +230,6 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
         </h3>
         <div className="flex flex-col gap-5 flex-1 min-h-0 overflow-hidden">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
-                {/* Case Selector */}
                 <div>
                     <div className="flex justify-between mb-1">
                         <label className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">{t('drafting.caseLabel')}</label>
@@ -315,32 +237,19 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
                     </div>
                     <div className="relative">
                         <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <select 
-                            value={selectedCaseId} 
-                            onChange={(e) => onSelectCase(e.target.value)} 
-                            disabled={!isPro} 
-                            className="glass-input w-full pl-10 pr-10 py-3.5 rounded-xl text-sm appearance-none outline-none"
-                        >
+                        <select value={selectedCaseId} onChange={(e) => onSelectCase(e.target.value)} disabled={!isPro} className="glass-input w-full pl-10 pr-10 py-3.5 rounded-xl text-sm appearance-none outline-none">
                             <option value="">{t('drafting.noCaseSelected')}</option>
                             {cases.map((c: any) => <option key={c.id} value={c.id} className="bg-gray-900">{c.title || c.case_name}</option>)}
                         </select>
                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                     </div>
                 </div>
-                
-                {/* Template Selector */}
                 <div>
                     <label className="block text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">{t('drafting.templateLabel')}</label>
                     <div className="relative">
                         <LayoutTemplate className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <select 
-                            value={selectedTemplate} 
-                            onChange={(e) => onSelectTemplate(e.target.value)} 
-                            disabled={!isPro} 
-                            className="glass-input w-full pl-10 pr-10 py-3.5 rounded-xl text-sm appearance-none outline-none"
-                        >
+                        <select value={selectedTemplate} onChange={(e) => onSelectTemplate(e.target.value)} disabled={!isPro} className="glass-input w-full pl-10 pr-10 py-3.5 rounded-xl text-sm appearance-none outline-none">
                             <option value="generic">{t('drafting.templateGeneric')}</option>
-                            
                             <optgroup label={t('drafting.groupLitigation')} className="bg-gray-900 italic">
                                 <option value="padi">{t('drafting.templatePadi')}</option>
                                 <option value="pergjigje">{t('drafting.templatePergjigje')}</option>
@@ -348,26 +257,22 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
                                 <option value="ankese">{t('drafting.templateAnkese')}</option>
                                 <option value="prapësim">{t('drafting.templatePrapesim')}</option>
                             </optgroup>
-                            
                             <optgroup label={t('drafting.groupCorporate')} className="bg-gray-900 italic">
                                 <option value="nda">{t('drafting.templateNDA')}</option>
                                 <option value="mou">{t('drafting.templateMoU')}</option>
                                 <option value="shareholders">{t('drafting.templateShareholders')}</option>
                                 <option value="sla">{t('drafting.templateSLA')}</option>
                             </optgroup>
-                            
                              <optgroup label={t('drafting.groupEmployment')} className="bg-gray-900 italic">
                                 <option value="employment_contract">{t('drafting.templateKontrate')}</option>
                                 <option value="termination_notice">{t('drafting.templateTermination')}</option>
                                 <option value="warning_letter">{t('drafting.templateWarning')}</option>
                             </optgroup>
-
                             <optgroup label={t('drafting.groupRealEstate')} className="bg-gray-900 italic">
                                 <option value="lease_agreement">{t('drafting.templateLease')}</option>
                                 <option value="sales_purchase">{t('drafting.templateSales')}</option>
                                 <option value="power_of_attorney">{t('drafting.templatePoA')}</option>
                             </optgroup>
-
                             <optgroup label={t('drafting.groupCompliance')} className="bg-gray-900 italic">
                                 <option value="terms_conditions">{t('drafting.templateTerms')}</option>
                                 <option value="privacy_policy">{t('drafting.templatePrivacy')}</option>
@@ -377,23 +282,11 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
                     </div>
                 </div>
             </div>
-
-            {/* Context Input */}
             <div className="flex-1 flex flex-col min-h-0">
                 <label className="block text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">{t('drafting.instructionsLabel')}</label>
-                <textarea 
-                    value={context} 
-                    onChange={(e) => onChangeContext(e.target.value)} 
-                    placeholder={t('drafting.promptPlaceholder')} 
-                    className="glass-input w-full p-4 rounded-xl text-sm flex-1 resize-none outline-none focus:ring-1 focus:ring-primary-start/40 transition-all overflow-y-auto custom-scrollbar"
-                />
+                <textarea value={context} onChange={(e) => onChangeContext(e.target.value)} placeholder={t('drafting.promptPlaceholder')} className="glass-input w-full p-4 rounded-xl text-sm flex-1 resize-none outline-none focus:ring-1 focus:ring-primary-start/40 transition-all overflow-y-auto custom-scrollbar font-mono placeholder:text-gray-600" />
             </div>
-
-            <button 
-                onClick={onSubmit} 
-                disabled={isSubmitting || !context.trim()} 
-                className="w-full py-4 bg-gradient-to-r from-primary-start to-primary-end text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary-start/20 hover:opacity-95 transition-all active:scale-[0.98] mt-4 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
+            <button onClick={onSubmit} disabled={isSubmitting || !context.trim()} className="w-full py-4 bg-gradient-to-r from-primary-start to-primary-end text-white font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-primary-start/20 hover:opacity-95 transition-all active:scale-[0.98] mt-4 flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed">
               {isSubmitting ? <RefreshCw className="animate-spin" size={18} /> : <Send size={18} />}
               {isSubmitting ? t('drafting.statusWorking') : t('drafting.generateBtn')}
             </button>
@@ -402,8 +295,6 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
 );
 
 const ResultPanel: React.FC<ResultPanelProps> = ({ t, currentJob, saving, notification, onSave, onClear }) => {
-    
-    // Derived Status UI
     const statusUI = useMemo(() => {
         switch(currentJob.status) {
             case 'COMPLETED': return { text: t('drafting.statusCompleted'), color: 'text-green-400', icon: <CheckCircle className="h-5 w-5" /> };
@@ -415,7 +306,6 @@ const ResultPanel: React.FC<ResultPanelProps> = ({ t, currentJob, saving, notifi
 
     return (
         <div className="flex flex-col h-auto lg:h-[700px] rounded-2xl bg-[#0d0f14] border border-white/10 overflow-hidden shadow-2xl shrink-0">
-            {/* Header */}
             <div className="flex justify-between items-center p-4 bg-white/5 border-b border-white/5 flex-shrink-0 z-10">
                 <div className="flex items-center gap-3">
                    <div className={`${statusUI.color} p-2 bg-white/5 rounded-lg`}>{statusUI.icon}</div>
@@ -425,34 +315,15 @@ const ResultPanel: React.FC<ResultPanelProps> = ({ t, currentJob, saving, notifi
                     <button onClick={onSave} title={t('drafting.saveToArchive')} disabled={!currentJob.result || saving} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-primary-start transition-colors disabled:opacity-30">
                         {saving ? <RefreshCw className="animate-spin" size={18}/> : <Archive size={18}/>}
                     </button>
-                    <button 
-                        onClick={() => { if(currentJob.result) { navigator.clipboard.writeText(currentJob.result); } }} 
-                        title={t('drafting.copy')} 
-                        className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"
-                    >
+                    <button onClick={() => { if(currentJob.result) { navigator.clipboard.writeText(currentJob.result); } }} title={t('drafting.copy')} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors">
                         <Copy size={18}/>
                     </button>
-                    <button 
-                        onClick={() => { 
-                            if(currentJob.result) { 
-                                const blob = new Blob([currentJob.result], { type: 'text/plain' }); 
-                                const url = URL.createObjectURL(blob); 
-                                const a = document.createElement('a'); 
-                                a.href = url; 
-                                a.download = `draft-${Date.now()}.txt`; 
-                                a.click(); 
-                            } 
-                        }} 
-                        title={t('drafting.download')} 
-                        className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"
-                    >
+                    <button onClick={() => { if(currentJob.result) { const blob = new Blob([currentJob.result], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `draft-${Date.now()}.txt`; a.click(); } }} title={t('drafting.download')} className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors">
                         <Download size={18}/>
                     </button>
                     <button onClick={onClear} title={t('drafting.clear')} className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"><Trash2 size={18}/></button>
                 </div>
             </div>
-
-            {/* Content Area */}
             <div className="flex-1 bg-gray-900/40 overflow-y-auto relative custom-scrollbar">
                 <div className="min-h-full w-full flex justify-center p-4 sm:p-8">
                     <AnimatePresence mode="wait">
@@ -460,11 +331,10 @@ const ResultPanel: React.FC<ResultPanelProps> = ({ t, currentJob, saving, notifi
                             <motion.div key="result" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="w-full max-w-[21cm]">
                                 {notification && (
                                     <div className={`mb-4 p-3 text-xs rounded-lg flex items-center gap-2 border w-full ${notification.type === 'success' ? 'bg-green-500/20 text-green-400 border-green-500/20' : 'bg-red-500/20 text-red-400 border-red-500/20'}`}>
-                                        {notification.type === 'success' ? <CheckCircle size={14}/> : <AlertCircle size={14}/>} 
-                                        {notification.msg}
+                                        {notification.type === 'success' ? <CheckCircle size={14}/> : <AlertCircle size={14}/>} {notification.msg}
                                     </div>
                                 )}
-                                <DraftResultRenderer text={currentJob.result} />
+                                <DraftResultRenderer text={currentJob.result} t={t} />
                             </motion.div>
                         ) : (
                             <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center text-center mt-20 pointer-events-none">
@@ -490,13 +360,9 @@ const ResultPanel: React.FC<ResultPanelProps> = ({ t, currentJob, saving, notifi
     );
 };
 
-// --- MAIN COMPONENT ---
-
 const DraftingPage: React.FC = () => {
   const { t } = useTranslation(); 
   const { user } = useAuth();
-  
-  // State
   const [context, setContext] = useState(() => localStorage.getItem('drafting_context') || '');
   const [cases, setCases] = useState<Case[]>([]);
   const [selectedCaseId, setSelectedCaseId] = useState<string>('');
@@ -510,9 +376,7 @@ const DraftingPage: React.FC = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.status === 'PROCESSING') {
-            return parsed.result ? { ...parsed, status: 'COMPLETED' } : { ...parsed, status: 'FAILED', error: 'Interrupted' };
-        }
+        if (parsed.status === 'PROCESSING') return parsed.result ? { ...parsed, status: 'COMPLETED' } : { ...parsed, status: 'FAILED', error: 'Interrupted' };
         return parsed;
       } catch { return { status: null, result: null, error: null }; }
     }
@@ -521,28 +385,18 @@ const DraftingPage: React.FC = () => {
 
   const isPro = useMemo(() => user?.subscription_tier === 'PRO' || user?.role === 'ADMIN', [user]);
 
-  // Effects
   useEffect(() => { localStorage.setItem('drafting_context', context); }, [context]);
   useEffect(() => { localStorage.setItem('drafting_job', JSON.stringify(currentJob)); }, [currentJob]);
-  useEffect(() => { 
-      if(isPro) apiService.getCases().then(res => setCases(res || [])).catch(console.error); 
-  }, [isPro]);
-  
-  // Notification Timer
-  useEffect(() => {
-      if (notification) {
-          const timer = setTimeout(() => setNotification(null), 3000);
-          return () => clearTimeout(timer);
-      }
-  }, [notification]);
+  useEffect(() => { if(isPro) apiService.getCases().then(res => setCases(res || [])).catch(console.error); }, [isPro]);
+  useEffect(() => { if (notification) { const timer = setTimeout(() => setNotification(null), 3000); return () => clearTimeout(timer); } }, [notification]);
 
-  // Handlers
   const handleAutofillCase = useCallback((caseId: string) => {
     const c = cases.find(item => item.id === caseId);
     if (c) {
         setContext(prev => {
-            const newContext = `RASTI: ${c.title || c.case_number}\nKLIENTI: ${c.client?.name || 'N/A'}\nFAKTET:\n${c.description || '-'}`;
-            return prev ? `${prev}\n\n${newContext}` : newContext;
+            const caseBlock = `[[CASE_CONTEXT]]\nCASE REF: ${c.title || c.case_number}\nCLIENT: ${c.client?.name || 'N/A'}\nFACTS: ${c.description || '-'}\n[[END_CASE_CONTEXT]]\n\n`;
+            if (prev.includes('[[CASE_CONTEXT]]')) return prev.replace(/\[\[CASE_CONTEXT\]\][\s\S]*?\[\[END_CASE_CONTEXT\]\]\s*/, caseBlock);
+            return caseBlock + prev;
         });
     }
   }, [cases]);
@@ -552,27 +406,28 @@ const DraftingPage: React.FC = () => {
     setIsSubmitting(true);
     setCurrentJob({ status: 'PROCESSING', result: '', error: null });
     setNotification(null);
-    
     let acc = "";
     try {
+      let finalPromptText = context.trim();
+      if (isPro && selectedCaseId) {
+          const selectedCase = cases.find(c => c.id === selectedCaseId);
+          if (selectedCase && !finalPromptText.includes('[[CASE_CONTEXT]]')) {
+             const hiddenContext = `\n\n[DATABASE DATA]\nCASE: ${selectedCase.title || selectedCase.case_number}\nCLIENT: ${selectedCase.client?.name || 'N/A'}\nFACTS: ${selectedCase.description || 'N/A'}\n[END DATABASE DATA]\n`;
+             finalPromptText = hiddenContext + finalPromptText;
+          }
+      }
       const stream = apiService.draftLegalDocumentStream({
-          user_prompt: constructSmartPrompt(context.trim(), selectedTemplate),
+          user_prompt: constructSmartPrompt(finalPromptText, selectedTemplate),
           document_type: isPro ? selectedTemplate : 'generic',
           case_id: isPro && selectedCaseId ? selectedCaseId : undefined,
           use_library: isPro && !!selectedCaseId
       });
-      
-      for await (const chunk of stream) {
-          acc += chunk;
-          setCurrentJob(prev => ({ ...prev, result: acc }));
-      }
+      for await (const chunk of stream) { acc += chunk; setCurrentJob(prev => ({ ...prev, result: acc })); }
       setCurrentJob(prev => ({ ...prev, status: 'COMPLETED' }));
     } catch (e: any) {
       setCurrentJob(prev => ({ ...prev, status: 'FAILED', error: e.message || t('common.error') }));
       setNotification({ msg: t('drafting.statusFailed'), type: 'error' });
-    } finally { 
-        setIsSubmitting(false); 
-    }
+    } finally { setIsSubmitting(false); }
   };
 
   const handleSaveToArchive = async () => {
@@ -583,9 +438,7 @@ const DraftingPage: React.FC = () => {
       const fileName = `draft-${selectedTemplate}-${Date.now()}.txt`;
       await apiService.uploadArchiveItem(new File([blob], fileName), fileName, 'DRAFT', selectedCaseId || undefined);
       setNotification({ msg: t('drafting.savedToArchive'), type: 'success' });
-    } catch (err) { 
-        setNotification({ msg: t('drafting.saveFailed'), type: 'error' });
-    } finally { setSaving(false); }
+    } catch (err) { setNotification({ msg: t('drafting.saveFailed'), type: 'error' }); } finally { setSaving(false); }
   };
 
   const clearJob = () => {
@@ -597,39 +450,14 @@ const DraftingPage: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 flex flex-col h-full lg:overflow-hidden overflow-y-auto">
       <style>{lawyerGradeStyles}</style>
-      
       <div className="text-center mb-6 flex-shrink-0">
         <h1 className="text-2xl sm:text-3xl font-bold text-white flex items-center justify-center gap-3">
             <PenTool className="text-primary-start" />{t('drafting.title')}
         </h1>
       </div>
-
       <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 flex-1 lg:overflow-hidden min-h-0">
-        
-        {/* === CONFIGURATION PANEL === */}
-        <ConfigPanel 
-            t={t}
-            isPro={isPro}
-            cases={cases}
-            selectedCaseId={selectedCaseId}
-            selectedTemplate={selectedTemplate}
-            context={context}
-            isSubmitting={isSubmitting}
-            onSelectCase={(id: string) => { setSelectedCaseId(id); handleAutofillCase(id); }}
-            onSelectTemplate={(val: string) => setSelectedTemplate(val as TemplateType)}
-            onChangeContext={setContext}
-            onSubmit={runDraftingStream}
-        />
-
-        {/* === RESULT PANEL === */}
-        <ResultPanel 
-            t={t}
-            currentJob={currentJob}
-            saving={saving}
-            notification={notification}
-            onSave={handleSaveToArchive}
-            onClear={clearJob}
-        />
+        <ConfigPanel t={t} isPro={isPro} cases={cases} selectedCaseId={selectedCaseId} selectedTemplate={selectedTemplate} context={context} isSubmitting={isSubmitting} onSelectCase={(id: string) => { setSelectedCaseId(id); handleAutofillCase(id); }} onSelectTemplate={(val: string) => setSelectedTemplate(val as TemplateType)} onChangeContext={setContext} onSubmit={runDraftingStream} />
+        <ResultPanel t={t} currentJob={currentJob} saving={saving} notification={notification} onSave={handleSaveToArchive} onClear={clearJob} />
       </div>
     </div>
   );
