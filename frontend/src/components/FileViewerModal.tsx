@@ -1,8 +1,8 @@
 // FILE: src/components/FileViewerModal.tsx
-// PHOENIX PROTOCOL - FILE VIEWER V7.2 (SCROLL FIX)
-// 1. FIXED: Changed PDF container from `min-h-full` to `h-full` to ensure proper height and scrolling.
-// 2. RETAINED: All existing functionality (PDF, TEXT, CSV, IMAGE support).
-// 3. STATUS: Document preview now scrolls correctly within the modal.
+// PHOENIX PROTOCOL - FILE VIEWER V7.3 (STREAMING OPTIMIZATION)
+// 1. PERF: Removed unnecessary Blob download for PDF URLs. Passed direct URL to PDF.js for streaming.
+// 2. FIXED: Proper handling of 'isAuth' vs 'directUrl' to prevent double-fetching.
+// 3. STATUS: Instant rendering for large PDFs via backend streaming.
 
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -141,6 +141,14 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
     const loadContent = async () => {
         try {
+            // OPTIMIZATION: If it's a PDF and we have a Direct URL, use it directly!
+            // Do NOT download it as a Blob first. This allows PDF.js to stream it.
+            if (targetMode === 'PDF' && directUrl && !isAuth) {
+                setFileSource(directUrl);
+                // We don't set isLoading(false) here because PDF.js has its own onLoadSuccess
+                return; 
+            }
+
             if (directUrl) {
                 if (isAuth) {
                     const response = await apiService.axiosInstance.get(directUrl, { responseType: 'blob' });
@@ -173,9 +181,6 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
 
   // --- RENDER HELPERS ---
   const renderContent = () => {
-    if (isLoading && viewerMode !== 'PDF') {
-        return <div className="flex items-center justify-center h-full"><Loader className="animate-spin h-10 w-10 text-primary-start" /></div>;
-    }
     
     if (viewerMode === 'DOWNLOAD' || error) {
         return (
@@ -190,24 +195,42 @@ const FileViewerModal: React.FC<FileViewerModalProps> = ({
         );
     }
 
-    switch (viewerMode) {
-      case 'PDF':
+    // Special handling for PDF to allow PDF.js loading state
+    if (viewerMode === 'PDF') {
         return (
-          <div className="flex flex-col items-center w-full h-full bg-black/20 overflow-auto pt-6 pb-24" ref={containerRef}>
-             {isLoading && <div className="absolute inset-0 flex items-center justify-center bg-background-dark/50 z-10"><Loader className="animate-spin text-primary-start" size={32} /></div>}
-             {fileSource && (
-                 <PdfDocument file={fileSource} onLoadSuccess={({ numPages }) => { setNumPages(numPages); setIsLoading(false); }} onLoadError={() => { setError(t('pdfViewer.corruptFile')); setViewerMode('DOWNLOAD'); }}>
-                     <Page 
-                        pageNumber={pageNumber} 
-                        width={containerWidth > 0 ? containerWidth : undefined} 
-                        scale={scale}
-                        renderTextLayer={false} renderAnnotationLayer={false}
-                        className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-white/5" 
-                     />
-                 </PdfDocument>
-             )}
-          </div>
+            <div className="flex flex-col items-center w-full h-full bg-black/20 overflow-auto pt-6 pb-24" ref={containerRef}>
+                {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-background-dark/50 z-10">
+                        <Loader className="animate-spin text-primary-start" size={32} />
+                    </div>
+                )}
+                {fileSource && (
+                    <PdfDocument 
+                        file={fileSource} 
+                        onLoadSuccess={({ numPages }) => { setNumPages(numPages); setIsLoading(false); }} 
+                        onLoadError={() => { setError(t('pdfViewer.corruptFile')); setViewerMode('DOWNLOAD'); setIsLoading(false); }}
+                        loading={""} // Suppress default loading text since we have our own spinner
+                    >
+                        <Page 
+                            pageNumber={pageNumber} 
+                            width={containerWidth > 0 ? containerWidth : undefined} 
+                            scale={scale}
+                            renderTextLayer={false} 
+                            renderAnnotationLayer={false}
+                            className="shadow-2xl mb-4 rounded-lg overflow-hidden border border-white/5" 
+                        />
+                    </PdfDocument>
+                )}
+            </div>
         );
+    }
+
+    // Default Loading for non-PDF
+    if (isLoading) {
+        return <div className="flex items-center justify-center h-full"><Loader className="animate-spin h-10 w-10 text-primary-start" /></div>;
+    }
+
+    switch (viewerMode) {
       case 'TEXT':
         return (
           <div className="p-6 sm:p-10 h-full overflow-auto bg-black/40">
