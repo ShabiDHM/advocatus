@@ -1,8 +1,8 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE V2.9 (RACE CONDITION FIX)
-# 1. FIXED: Moved 'head_object' to the Source Key to prevent 404 race conditions on Copy.
-# 2. FIXED: Centralized ID mapping for Pydantic V2/MongoDB compatibility.
-# 3. STATUS: 100% Runtime Stable for S3-Compatible Storage.
+# PHOENIX PROTOCOL - ARCHIVE V3.0 (SYNCED & FIXED)
+# 1. FIXED: Added missing 'get_file_stream' to resolve 500 Error on Download.
+# 2. FIXED: Added missing 'share_item' and 'share_case_items' for Portal Support.
+# 3. PRESERVED: Race Condition Fix (HeadObject check) for S3 Copy operations.
 
 import os
 import logging
@@ -136,6 +136,33 @@ class ArchiveService:
         oid_item = self._to_oid(item_id)
         self.db.archives.update_one({"_id": oid_item, "user_id": oid_user}, {"$set": {"title": new_title}})
 
+    def share_item(self, user_id: str, item_id: str, is_shared: bool) -> ArchiveItemInDB:
+        """Toggles sharing status for a single item."""
+        oid_user = self._to_oid(user_id)
+        oid_item = self._to_oid(item_id)
+        
+        result = self.db.archives.find_one_and_update(
+            {"_id": oid_item, "user_id": oid_user},
+            {"$set": {"is_shared": is_shared}},
+            return_document=True
+        )
+        if not result:
+             raise HTTPException(status_code=404, detail="Item not found")
+        
+        result["id"] = result["_id"]
+        return ArchiveItemInDB.model_validate(result)
+
+    def share_case_items(self, user_id: str, case_id: str, is_shared: bool) -> int:
+        """Toggles sharing status for all items in a case."""
+        oid_user = self._to_oid(user_id)
+        oid_case = self._to_oid(case_id)
+        
+        result = self.db.archives.update_many(
+            {"case_id": oid_case, "user_id": oid_user},
+            {"$set": {"is_shared": is_shared}}
+        )
+        return result.modified_count
+
     async def save_generated_file(self, user_id: str, filename: str, content: bytes, category: str, title: str, case_id: Optional[str] = None) -> ArchiveItemInDB:
         s3_client = get_s3_client()
         timestamp = int(datetime.now().timestamp())
@@ -178,7 +205,6 @@ class ArchiveService:
         
         try:
             # 1. Check if source exists and get its size BEFORE copying
-            # This prevents 404 errors during eventual consistency lookups
             source_meta = s3_client.head_object(Bucket=self.bucket, Key=source_key)
             file_size = source_meta.get('ContentLength', 0)
             
@@ -213,3 +239,33 @@ class ArchiveService:
         doc_data["id"] = result.inserted_id
         
         return ArchiveItemInDB.model_validate(doc_data)
+
+    def get_file_stream(self, user_id: str, item_id: str) -> Tuple[Any, str]:
+        """
+        Retrieves the file stream from S3 for a given archive item.
+        Returns: (file_stream, filename)
+        """
+        oid_user = self._to_oid(user_id)
+        oid_item = self._to_oid(item_id)
+
+        # 1. Fetch metadata
+        item = self.db.archives.find_one({"_id": oid_item, "user_id": oid_user})
+        
+        if not item:
+            raise HTTPException(status_code=404, detail="Archive item not found or access denied")
+        
+        if item.get("item_type") == "FOLDER":
+            raise HTTPException(status_code=400, detail="Cannot download a folder directly")
+            
+        storage_key = item.get("storage_key")
+        if not storage_key:
+             raise HTTPException(status_code=404, detail="File storage key missing")
+
+        # 2. Fetch from S3
+        s3_client = get_s3_client()
+        try:
+            response = s3_client.get_object(Bucket=self.bucket, Key=storage_key)
+            return response['Body'], item.get("title", "download")
+        except Exception as e:
+            logger.error(f"S3 Download Error for {storage_key}: {e}")
+            raise HTTPException(status_code=500, detail="Failed to retrieve file content")
