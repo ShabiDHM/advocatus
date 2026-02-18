@@ -1,7 +1,7 @@
 # FILE: backend/app/api/endpoints/archive.py
-# PHOENIX PROTOCOL - ARCHIVE API V2.2 (SHARING ENABLED)
-# 1. NEW: Added 'share_archive_item' for single item toggling.
-# 2. NEW: Added 'share_archive_case' for bulk case sharing.
+# PHOENIX PROTOCOL - ARCHIVE API V2.3 (STREAM OPTIMIZATION)
+# 1. FIXED: Unpacks 3 values (stream, name, size) from service to fix crash.
+# 2. FIXED: Injects 'Content-Length' header for fast PDF rendering.
 # 3. STATUS: API Support for Client Portal Library.
 
 from fastapi import APIRouter, Depends, status, UploadFile, Form, Query, HTTPException, Body
@@ -123,7 +123,8 @@ def download_archive_item(
     preview: bool = Query(False) 
 ):
     service = ArchiveService(db)
-    stream, filename = service.get_file_stream(str(current_user.id), item_id)
+    # Unpack 3 values: stream, filename, AND file_size
+    stream, filename, file_size = service.get_file_stream(str(current_user.id), item_id)
     
     safe_filename = urllib.parse.quote(filename)
     content_type, _ = mimetypes.guess_type(filename)
@@ -131,8 +132,14 @@ def download_archive_item(
         
     disposition_type = "inline" if preview else "attachment"
     
+    # Inject Content-Length to enable browser progress bars and fast PDF rendering
+    headers = {
+        "Content-Disposition": f"{disposition_type}; filename*=UTF-8''{safe_filename}",
+        "Content-Length": str(file_size)
+    }
+    
     return StreamingResponse(
         stream, 
         media_type=content_type, 
-        headers={"Content-Disposition": f"{disposition_type}; filename*=UTF-8''{safe_filename}"}
+        headers=headers
     )

@@ -1,8 +1,7 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE V3.0 (SYNCED & FIXED)
-# 1. FIXED: Added missing 'get_file_stream' to resolve 500 Error on Download.
-# 2. FIXED: Added missing 'share_item' and 'share_case_items' for Portal Support.
-# 3. PRESERVED: Race Condition Fix (HeadObject check) for S3 Copy operations.
+# PHOENIX PROTOCOL - ARCHIVE V3.1 (STREAM OPTIMIZATION)
+# 1. FIXED: 'get_file_stream' now returns file_size to enable Content-Length headers.
+# 2. PRESERVED: All Sharing and Race Condition fixes from V3.0.
 
 import os
 import logging
@@ -240,10 +239,10 @@ class ArchiveService:
         
         return ArchiveItemInDB.model_validate(doc_data)
 
-    def get_file_stream(self, user_id: str, item_id: str) -> Tuple[Any, str]:
+    def get_file_stream(self, user_id: str, item_id: str) -> Tuple[Any, str, int]:
         """
         Retrieves the file stream from S3 for a given archive item.
-        Returns: (file_stream, filename)
+        Returns: (file_stream, filename, file_size)
         """
         oid_user = self._to_oid(user_id)
         oid_item = self._to_oid(item_id)
@@ -265,7 +264,9 @@ class ArchiveService:
         s3_client = get_s3_client()
         try:
             response = s3_client.get_object(Bucket=self.bucket, Key=storage_key)
-            return response['Body'], item.get("title", "download")
+            # Use ContentLength from S3 if available, otherwise DB
+            file_size = response.get('ContentLength', item.get("file_size", 0))
+            return response['Body'], item.get("title", "download"), file_size
         except Exception as e:
             logger.error(f"S3 Download Error for {storage_key}: {e}")
             raise HTTPException(status_code=500, detail="Failed to retrieve file content")
