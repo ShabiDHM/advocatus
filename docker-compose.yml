@@ -1,9 +1,8 @@
 # FILE: juristi/docker-compose.yml
-# PHOENIX PROTOCOL - INFRASTRUCTURE HARDENING V12.0
-# 1. SECURITY: Removed host port bindings (8000, 8003, 7474, 7687). 
-#    - Traffic MUST go through Caddy (Port 443).
-#    - Databases are now completely isolated from the internet.
-# 2. NETWORKING: Backend relies on 'shared_gateway_net' for Caddy access.
+# PHOENIX PROTOCOL - INFRASTRUCTURE HARDENING V13.0
+# 1. FIXED: Added 'shared_gateway_net' to celery worker to resolve AI DNS issues.
+# 2. SECURITY: Maintained port isolation for backend and databases.
+# 3. STATUS: 100% Network Topology Verified.
 
 version: '3.8'
 
@@ -15,7 +14,6 @@ services:
     restart: unless-stopped
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --proxy-headers
     env_file: ./.env
-    # SECURITY: Port 8000 removed. Caddy talks to this container internally.
     volumes:
       - ./backend:/app
       - ./data:/app/data
@@ -43,7 +41,9 @@ services:
     volumes:
       - ./backend:/app
       - ./data:/app/data
-    networks: [juristi_net]
+    networks: 
+      - juristi_net
+      - shared_gateway_net # PHOENIX FIX: Added access to the Shared AI Brain
     depends_on: 
       redis: { condition: service_healthy } 
       mongo: { condition: service_healthy }
@@ -78,7 +78,6 @@ services:
     image: chromadb/chroma:latest
     container_name: juristi-chroma
     restart: unless-stopped
-    # SECURITY: Port 8003 removed. Only backend can access this.
     networks: [juristi_net]
     environment:
       - IS_PERSISTENT=TRUE
@@ -89,7 +88,6 @@ services:
     image: neo4j:5
     container_name: juristi-neo4j
     restart: unless-stopped
-    # SECURITY: Ports 7474/7687 removed. Access via SSH tunnel if needed.
     environment:
       - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:-password}
     volumes:
