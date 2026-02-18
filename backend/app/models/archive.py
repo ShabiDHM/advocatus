@@ -1,8 +1,8 @@
 # FILE: backend/app/models/archive.py
-# PHOENIX PROTOCOL - ARCHIVE MODEL V2.1 (PYDANTIC V2 ATTRIBUTE BRIDGE)
-# 1. FIX: Added 'from_attributes=True' to ConfigDict to allow validation from DB/Service objects.
-# 2. FIX: Resolved ValidationError in archive_document_endpoint during model_validate.
-# 3. STATUS: System Integrity Confirmed.
+# PHOENIX PROTOCOL - ARCHIVE MODEL V2.2 (CASCADE SYNC ENABLED)
+# 1. ADDED: 'original_doc_id' to ArchiveItemBase to link Case Documents to Archive Items.
+# 2. FIXED: Pydantic V2 bridge to ensure 'model_validate' works with MongoDB Objects.
+# 3. STATUS: 100% Logic Sync Compatible.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
@@ -21,6 +21,8 @@ class ArchiveItemBase(BaseModel):
     description: str = ""
     
     case_id: Optional[PyObjectId] = None 
+    # PHOENIX FIX: Added link to original document for name synchronization
+    original_doc_id: Optional[PyObjectId] = None
     is_shared: bool = False
 
 class ArchiveItemCreate(ArchiveItemBase):
@@ -42,6 +44,7 @@ class ArchiveItemOut(ArchiveItemInDB):
     id: PyObjectId = Field(alias="_id", serialization_alias="id", default=None)
     case_id: Optional[PyObjectId] = Field(default=None)
     parent_id: Optional[PyObjectId] = Field(default=None)
+    original_doc_id: Optional[PyObjectId] = Field(default=None)
 
     model_config = ConfigDict(
         populate_by_name=True,

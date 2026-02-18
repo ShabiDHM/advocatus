@@ -1,7 +1,8 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE V2.5 (GENERATED FILES FIX)
-# 1. FIX: 'save_generated_file' now forces PDF conversion.
-# 2. RESULT: Wizard-generated receipts are saved as PDF, not TXT.
+# PHOENIX PROTOCOL - ARCHIVE V2.6 (SYNC & VALIDATION FIX)
+# 1. FIXED: 'archive_existing_document' now persists 'original_doc_id' to DB.
+# 2. FIXED: Injected MongoDB '_id' into return dict to prevent Pydantic ValidationError.
+# 3. INTEGRITY: Maintains PDF conversion and storage logic.
 
 import os
 import logging
@@ -31,19 +32,24 @@ class ArchiveService:
         except (InvalidId, TypeError):
             raise HTTPException(status_code=400, detail=f"Invalid ObjectId format: {id_str}")
 
-    # ... [Previous methods create_folder, add_file_to_archive remain the same as V2.4] ...
-    # ... [Included here for context, ensure you keep the V2.4 versions of other methods] ...
-
-    # --- FOLDER MANAGEMENT (Retained from previous fix) ---
     def create_folder(self, user_id: str, title: str, parent_id: Optional[str] = None, case_id: Optional[str] = None) -> ArchiveItemInDB:
         folder_data = {
-            "user_id": self._to_oid(user_id), "title": title, "item_type": "FOLDER", "file_type": "FOLDER", "category": "FOLDER",
-            "created_at": datetime.now(timezone.utc), "storage_key": None, "file_size": 0, "description": "", "is_shared": False 
+            "user_id": self._to_oid(user_id), 
+            "title": title, 
+            "item_type": "FOLDER", 
+            "file_type": "FOLDER", 
+            "category": "FOLDER",
+            "created_at": datetime.now(timezone.utc), 
+            "storage_key": None, 
+            "file_size": 0, 
+            "description": "", 
+            "is_shared": False 
         }
         if parent_id and parent_id.strip() and parent_id != "null":
             folder_data["parent_id"] = self._to_oid(parent_id)
         if case_id and case_id.strip() and case_id != "null":
             folder_data["case_id"] = self._to_oid(case_id)
+            
         result = self.db.archives.insert_one(folder_data)
         folder_data["_id"] = result.inserted_id
         return ArchiveItemInDB(**folder_data)
@@ -54,15 +60,19 @@ class ArchiveService:
             file_obj, final_filename = await pdf_service.convert_upload_to_pdf(file)
         except Exception as e:
             logger.error(f"PDF Conversion failed: {e}")
-            file_obj = file.file; final_filename = file.filename or "untitled"
+            file_obj = file.file
+            final_filename = file.filename or "untitled"
 
         file_ext = final_filename.split('.')[-1].upper() if '.' in final_filename else "BIN"
         timestamp = int(datetime.now().timestamp())
         storage_key = f"archive/{user_id}/{timestamp}_{final_filename}"
         
         try:
-            file_obj.seek(0, 2); file_size = file_obj.tell(); file_obj.seek(0)
-        except: file_size = 0
+            file_obj.seek(0, 2)
+            file_size = file_obj.tell()
+            file_obj.seek(0)
+        except: 
+            file_size = 0
             
         try:
             s3_client.upload_fileobj(file_obj, B2_BUCKET_NAME, storage_key, Config=transfer_config)
@@ -70,19 +80,28 @@ class ArchiveService:
             raise HTTPException(status_code=500, detail=f"Storage Upload Failed: {str(e)}")
         
         doc_data = {
-            "user_id": self._to_oid(user_id), "title": title or final_filename, "item_type": "FILE", "file_type": file_ext,
-            "category": category, "storage_key": storage_key, "file_size": file_size, "created_at": datetime.now(timezone.utc),
-            "description": "", "is_shared": False
+            "user_id": self._to_oid(user_id), 
+            "title": title or final_filename, 
+            "item_type": "FILE", 
+            "file_type": file_ext,
+            "category": category, 
+            "storage_key": storage_key, 
+            "file_size": file_size, 
+            "created_at": datetime.now(timezone.utc),
+            "description": "", 
+            "is_shared": False
         }
         if case_id and case_id.strip() and case_id != "null": doc_data["case_id"] = self._to_oid(case_id)
         if parent_id and parent_id.strip() and parent_id != "null": doc_data["parent_id"] = self._to_oid(parent_id)
         
-        self.db.archives.insert_one(doc_data)
+        result = self.db.archives.insert_one(doc_data)
+        doc_data["_id"] = result.inserted_id
         return ArchiveItemInDB(**doc_data)
 
     def get_archive_items(self, user_id: str, category: Optional[str] = None, case_id: Optional[str] = None, parent_id: Optional[str] = None) -> List[ArchiveItemInDB]:
         query: Dict[str, Any] = {"user_id": self._to_oid(user_id)}
-        if parent_id and parent_id.strip() and parent_id != "null": query["parent_id"] = self._to_oid(parent_id)
+        if parent_id and parent_id.strip() and parent_id != "null": 
+            query["parent_id"] = self._to_oid(parent_id)
         else:
             if not category or category == "ALL": query["parent_id"] = None
         if category and category != "ALL": query["category"] = category
@@ -91,7 +110,8 @@ class ArchiveService:
         return [ArchiveItemInDB(**doc) for doc in cursor]
 
     def delete_archive_item(self, user_id: str, item_id: str):
-        oid_user = self._to_oid(user_id); oid_item = self._to_oid(item_id)
+        oid_user = self._to_oid(user_id)
+        oid_item = self._to_oid(item_id)
         item = self.db.archives.find_one({"_id": oid_item, "user_id": oid_user})
         if not item: raise HTTPException(status_code=404, detail="Item not found")
         if item.get("item_type") == "FOLDER":
@@ -103,7 +123,8 @@ class ArchiveService:
         self.db.archives.delete_one({"_id": oid_item})
 
     def rename_item(self, user_id: str, item_id: str, new_title: str) -> None:
-        oid_user = self._to_oid(user_id); oid_item = self._to_oid(item_id)
+        oid_user = self._to_oid(user_id)
+        oid_item = self._to_oid(item_id)
         self.db.archives.update_one({"_id": oid_item, "user_id": oid_user}, {"$set": {"title": new_title}})
 
     def share_item(self, user_id: str, item_id: str, is_shared: bool) -> ArchiveItemInDB:
@@ -123,14 +144,11 @@ class ArchiveService:
             return response['Body'], item["title"]
         except: raise HTTPException(500, "Stream failed")
 
-    # --- PHOENIX FIX: INTERNAL GENERATION CONVERSION ---
     async def save_generated_file(self, user_id: str, filename: str, content: bytes, category: str, title: str, case_id: Optional[str] = None) -> ArchiveItemInDB:
         s3_client = get_s3_client()
         timestamp = int(datetime.now().timestamp())
         
-        # 1. Convert Content to PDF if it's text
         pdf_content, final_filename = pdf_service.convert_bytes_to_pdf(content, filename)
-        
         storage_key = f"archive/{user_id}/{timestamp}_{final_filename}"
         
         try:
@@ -144,7 +162,7 @@ class ArchiveService:
             "user_id": self._to_oid(user_id),
             "title": title,
             "item_type": "FILE",
-            "file_type": file_ext, # PDF
+            "file_type": file_ext,
             "category": category,
             "storage_key": storage_key,
             "file_size": len(pdf_content),
@@ -156,11 +174,15 @@ class ArchiveService:
         if case_id and case_id.strip() and case_id != "null":
             doc_data["case_id"] = self._to_oid(case_id)
         
-        self.db.archives.insert_one(doc_data)
+        result = self.db.archives.insert_one(doc_data)
+        doc_data["_id"] = result.inserted_id
         return ArchiveItemInDB(**doc_data)
     
     async def archive_existing_document(self, user_id: str, case_id: str, source_key: str, filename: str, category: str = "CASE_FILE", original_doc_id: Optional[str] = None) -> ArchiveItemInDB:
-        # Existing logic for moving S3 objects (assumes they are already valid files)
+        """
+        PHOENIX FIX: Correctly persists original_doc_id for rename synchronization 
+        and captures MongoDB _id for Pydantic validation.
+        """
         s3_client = get_s3_client()
         timestamp = int(datetime.now().timestamp())
         dest_key = f"archive/{user_id}/{timestamp}_{filename}"
@@ -186,5 +208,13 @@ class ArchiveService:
             "description": "Archived from Case",
             "is_shared": False
         }
-        self.db.archives.insert_one(doc_data)
+
+        # PHOENIX FIX: Store link to original document
+        if original_doc_id:
+            doc_data["original_doc_id"] = self._to_oid(original_doc_id)
+
+        result = self.db.archives.insert_one(doc_data)
+        # PHOENIX FIX: Inject generated ID for Pydantic validation
+        doc_data["_id"] = result.inserted_id
+        
         return ArchiveItemInDB(**doc_data)
