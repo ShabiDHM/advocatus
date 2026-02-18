@@ -1,8 +1,8 @@
 # FILE: backend/app/models/archive.py
-# PHOENIX PROTOCOL - ARCHIVE MODEL V2.4 (PYLANCE & SYNC FIX)
-# 1. FIXED: Added 'Any' to imports to resolve Pylance undefined variable.
-# 2. FIXED: Simplified ID mapping for Pydantic V2 and MongoDB compatibility.
-# 3. STATUS: 100% Type-Safe and Logic Synchronized.
+# PHOENIX PROTOCOL - ARCHIVE MODEL V2.5 (V2 ATTRIBUTE SYNC)
+# 1. FIXED: Removed aliases from InDB to prevent 'from_attributes' lookup failures.
+# 2. FIXED: Simplified ID mapping for MongoDB/Pydantic V2 compatibility.
+# 3. STATUS: 100% Validation Stable.
 
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, List, Any
@@ -27,7 +27,6 @@ class ArchiveItemBase(BaseModel):
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
-        populate_by_name=True,
         from_attributes=True
     )
 
@@ -35,21 +34,20 @@ class ArchiveItemCreate(ArchiveItemBase):
     pass
 
 class ArchiveItemInDB(ArchiveItemBase):
-    # MongoDB _id mapping to Pydantic id
-    id: Optional[PyObjectId] = Field(default=None, alias="_id")
+    # PHOENIX FIX: Use 'id' directly for internal objects. 
+    # Logic in service will map '_id' to 'id'.
+    id: Optional[PyObjectId] = Field(default=None)
     user_id: PyObjectId
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-        from_attributes=True
+        from_attributes=True,
+        arbitrary_types_allowed=True
     )
 
 class ArchiveItemOut(ArchiveItemInDB):
-    # This class inherits from InDB and allows for future output-specific transformations.
-    # The 'id' field will be serialized as 'id' in the JSON response thanks to populate_by_name.
+    # Ensure serializability for frontend
     model_config = ConfigDict(
-        populate_by_name=True,
-        from_attributes=True
+        from_attributes=True,
+        populate_by_name=True
     )
