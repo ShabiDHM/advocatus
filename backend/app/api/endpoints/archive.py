@@ -1,11 +1,11 @@
 # FILE: backend/app/api/endpoints/archive.py
-# PHOENIX PROTOCOL - ARCHIVE API V2.4 (DIRECT STORAGE ACCESS)
-# 1. FIXED: Switched to 'RedirectResponse' (HTTP 307) for instant file access.
-# 2. PERF: Bypasses Python Proxy to allow direct Browser-to-Storage streaming.
-# 3. STATUS: Maximum Performance for PDF/Image Previews.
+# PHOENIX PROTOCOL - ARCHIVE API V2.5 (TURBO STREAM RESTORATION)
+# 1. FIXED: Reverted Redirect (307) to StreamingResponse (200) to fix Frontend Viewer compatibility.
+# 2. PERF: Implemented 64KB chunking (iter_chunks) for faster download speeds.
+# 3. FIXED: Preserved 'Content-Length' to allow browser progress bars.
 
 from fastapi import APIRouter, Depends, status, UploadFile, Form, Query, HTTPException, Body
-from fastapi.responses import StreamingResponse, RedirectResponse
+from fastapi.responses import StreamingResponse
 from typing import List, Annotated, Optional, Dict, Any
 from pymongo.database import Database
 from pydantic import BaseModel
@@ -122,17 +122,26 @@ def download_archive_item(
     db: Database = Depends(get_db),
     preview: bool = Query(False) 
 ):
-    """
-    Generates a secure, temporary direct download link (Presigned URL)
-    and redirects the browser to it. This enables maximum download speed
-    and supports PDF Range Requests (instant page rendering).
-    """
     service = ArchiveService(db)
-    disposition = "inline" if preview else "attachment"
     
-    # 1. Generate Secure Direct Link (Expires in 1 hour)
-    presigned_url = service.get_presigned_url(str(current_user.id), item_id, disposition)
+    # Unpack tuple from service (stream body, filename, file_size)
+    stream_body, filename, file_size = service.get_file_stream(str(current_user.id), item_id)
     
-    # 2. Redirect Browser directly to Storage Provider
-    # Status 307 preserves the HTTP method and ensures the browser follows.
-    return RedirectResponse(url=presigned_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+    safe_filename = urllib.parse.quote(filename)
+    content_type, _ = mimetypes.guess_type(filename)
+    if not content_type: content_type = "application/octet-stream"
+        
+    disposition_type = "inline" if preview else "attachment"
+    
+    headers = {
+        "Content-Disposition": f"{disposition_type}; filename*=UTF-8''{safe_filename}",
+        "Content-Length": str(file_size)
+    }
+    
+    # TURBO MODE: Iterate in 64KB chunks (65536 bytes) instead of default small chunks.
+    # This reduces overhead and speeds up the transfer significantly.
+    return StreamingResponse(
+        stream_body.iter_chunks(chunk_size=65536), 
+        media_type=content_type, 
+        headers=headers
+    )
