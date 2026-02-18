@@ -1,10 +1,12 @@
 # FILE: backend/app/services/archive_service.py
-# PHOENIX PROTOCOL - ARCHIVE V3.1 (STREAM OPTIMIZATION)
-# 1. FIXED: 'get_file_stream' now returns file_size to enable Content-Length headers.
-# 2. PRESERVED: All Sharing and Race Condition fixes from V3.0.
+# PHOENIX PROTOCOL - ARCHIVE V3.2 (PRESIGNED URLS)
+# 1. NEW: Added 'get_presigned_url' for Direct Storage Access (Instant Loading).
+# 2. PRESERVED: 'get_file_stream' kept for backward compatibility/internal use.
+# 3. FIXED: Filename encoding in S3 signatures.
 
 import os
 import logging
+import urllib.parse
 from typing import List, Optional, Tuple, Any, Dict
 from datetime import datetime, timezone
 from bson import ObjectId
@@ -270,3 +272,43 @@ class ArchiveService:
         except Exception as e:
             logger.error(f"S3 Download Error for {storage_key}: {e}")
             raise HTTPException(status_code=500, detail="Failed to retrieve file content")
+
+    def get_presigned_url(self, user_id: str, item_id: str, disposition: str = "inline") -> str:
+        """
+        Generates a direct S3 Presigned URL for instant client-side rendering.
+        Supports Range Requests automatically.
+        """
+        oid_user = self._to_oid(user_id)
+        oid_item = self._to_oid(item_id)
+        
+        item = self.db.archives.find_one({"_id": oid_item, "user_id": oid_user})
+        if not item: raise HTTPException(status_code=404, detail="Item not found")
+        
+        storage_key = item.get("storage_key")
+        if not storage_key: raise HTTPException(status_code=404, detail="File storage key missing")
+        
+        filename = item.get("title", "download")
+        safe_filename = urllib.parse.quote(filename)
+        
+        s3_client = get_s3_client()
+        
+        params = {
+            'Bucket': self.bucket,
+            'Key': storage_key,
+            'ResponseContentDisposition': f"{disposition}; filename*=UTF-8''{safe_filename}"
+        }
+        
+        # Determine content type for header (helps browser render PDF instead of download)
+        if filename.lower().endswith(".pdf"):
+            params['ResponseContentType'] = "application/pdf"
+            
+        try:
+            url = s3_client.generate_presigned_url(
+                'get_object',
+                Params=params,
+                ExpiresIn=3600 # 1 hour link
+            )
+            return url
+        except Exception as e:
+            logger.error(f"Presigned URL generation failed: {e}")
+            raise HTTPException(status_code=500, detail="Could not generate download link")
