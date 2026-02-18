@@ -1,8 +1,8 @@
 // FILE: src/components/business/ProfileTab.tsx
-// PHOENIX PROTOCOL - PROFILE TAB V3.1 (SIMPLIFIED)
-// 1. VISUALS: Removed the "Branding" color picker section entirely.
-// 2. UX: Simplified the left column to focus solely on Logo/Identity.
-// 3. LOGIC: Preserved all data fetching and submission flows for the remaining fields.
+// PHOENIX PROTOCOL - PROFILE TAB V4.0 (UNIFIED DESIGN)
+// 1. LAYOUT: Unified into a single card design as per Image 2.
+// 2. UI: Logo moved to top-right header position.
+// 3. STYLING: Inputs and buttons matched to target design.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
@@ -25,28 +25,49 @@ export const ProfileTab: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [formData, setFormData] = useState<BusinessProfileUpdate>({
-        firm_name: '', email_public: '', phone: '', address: '', city: '', website: '', tax_id: '', branding_color: DEFAULT_COLOR
+        firm_name: '', 
+        email_public: '', 
+        phone: '', 
+        address: '', 
+        city: '', 
+        website: '', 
+        tax_id: '', 
+        branding_color: DEFAULT_COLOR
     });
 
+    // --- DATA FETCHING (Preserved) ---
     useEffect(() => {
         const fetchProfile = async () => {
             try {
                 const data = await apiService.getBusinessProfile();
                 setProfile(data);
                 setFormData({
-                    firm_name: data.firm_name || '', email_public: data.email_public || '', phone: data.phone || '',
-                    address: data.address || '', city: data.city || '', website: data.website || '',
-                    tax_id: data.tax_id || '', branding_color: data.branding_color || DEFAULT_COLOR
+                    firm_name: data.firm_name || '', 
+                    email_public: data.email_public || '', 
+                    phone: data.phone || '',
+                    address: data.address || '', 
+                    city: data.city || '', 
+                    website: data.website || '',
+                    tax_id: data.tax_id || '', 
+                    branding_color: data.branding_color || DEFAULT_COLOR
                 });
-            } catch (error) { console.error(error); } finally { setLoading(false); }
+            } catch (error) { 
+                console.error(error); 
+            } finally { 
+                setLoading(false); 
+            }
         };
         fetchProfile();
     }, []);
 
+    // --- LOGO HANDLING (Preserved) ---
     useEffect(() => {
         const url = profile?.logo_url;
         if (url) {
-            if (url.startsWith('blob:') || url.startsWith('data:')) { setLogoSrc(url); return; }
+            if (url.startsWith('blob:') || url.startsWith('data:')) { 
+                setLogoSrc(url); 
+                return; 
+            }
             setLogoLoading(true);
             apiService.fetchImageBlob(url)
                 .then((blob: Blob) => setLogoSrc(URL.createObjectURL(blob)))
@@ -67,8 +88,13 @@ export const ProfileTab: React.FC = () => {
             const clean: any = { ...formData };
             Object.keys(clean).forEach(k => clean[k] === '' && (clean[k] = null));
             await apiService.updateBusinessProfile(clean);
-            alert(t('settings.successMessage'));
-        } catch { alert(t('error.generic')); } finally { setSaving(false); }
+            // Optional: You can replace this alert with a toast notification if available
+            // alert(t('settings.successMessage')); 
+        } catch { 
+            alert(t('error.generic')); 
+        } finally { 
+            setSaving(false); 
+        }
     };
 
     const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,64 +104,191 @@ export const ProfileTab: React.FC = () => {
         try {
             const p = await apiService.uploadBusinessLogo(f);
             setProfile(p);
-        } catch { alert(t('business.logoUploadFailed')); } finally { setSaving(false); }
+        } catch { 
+            alert(t('business.logoUploadFailed')); 
+        } finally { 
+            setSaving(false); 
+        }
     };
 
-    if (loading) return <div className="flex justify-center h-64 items-center"><Loader2 className="animate-spin text-primary-start" /></div>;
+    if (loading) return (
+        <div className="flex justify-center h-64 items-center">
+            <Loader2 className="animate-spin text-primary-start w-8 h-8" />
+        </div>
+    );
 
     return (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* --- LEFT COLUMN --- */}
-            <div className="space-y-8">
-                {/* Logo Section - Glass Panel */}
-                <div className="glass-panel rounded-3xl p-8 flex flex-col items-center shadow-xl relative overflow-hidden group">
-                    <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
-                    <h3 className="text-white font-bold mb-8 self-start text-lg">{t('business.logoIdentity')}</h3>
-                    <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                        <div className={`w-40 h-40 rounded-full overflow-hidden flex items-center justify-center border-4 transition-all shadow-2xl ${logoSrc ? 'border-white/20' : 'border-dashed border-white/10 hover:border-primary-start'}`}>
-                            {logoLoading ? <Loader2 className="w-10 h-10 animate-spin text-primary-start" /> : logoSrc ? <img src={logoSrc} alt="Logo" className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" onError={() => setLogoSrc(null)} /> : <div className="text-center group-hover:scale-110 transition-transform"><Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" /><span className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('business.upload')}</span></div>}
-                        </div>
-                        <div className="absolute inset-0 rounded-full bg-black/60 backdrop-blur-[2px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"><Camera className="w-10 h-10 text-white drop-shadow-lg" /></div>
+        <motion.div 
+            initial={{ opacity: 0, y: 10 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            className="w-full"
+        >
+            <form onSubmit={handleProfileSubmit} className="glass-panel rounded-2xl p-6 sm:p-8 relative overflow-hidden border border-white/5 bg-[#0A0F1C]/80 backdrop-blur-md">
+                
+                {/* Top Border Accent */}
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-success-start to-success-end" />
+
+                {/* --- HEADER SECTION: Title + Logo --- */}
+                <div className="flex justify-between items-start mb-10">
+                    <div className="mt-2">
+                        <h3 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-3">
+                            <Building2 className="w-6 h-6 sm:w-7 sm:h-7 text-success-start" />
+                            {t('business.firmData')}
+                        </h3>
                     </div>
-                    <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" />
+
+                    {/* Logo Circle (Top Right) */}
+                    <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-white flex items-center justify-center overflow-hidden border-2 border-white/20 shadow-lg transition-transform group-hover:scale-105">
+                            {logoLoading ? (
+                                <Loader2 className="w-6 h-6 animate-spin text-primary-start" />
+                            ) : logoSrc ? (
+                                <img src={logoSrc} alt="Logo" className="w-full h-full object-contain p-1" onError={() => setLogoSrc(null)} />
+                            ) : (
+                                <Upload className="w-6 h-6 text-gray-400" />
+                            )}
+                        </div>
+                        {/* Hover Overlay */}
+                        <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <Camera className="w-5 h-5 text-white" />
+                        </div>
+                        <input type="file" ref={fileInputRef} onChange={handleLogoUpload} className="hidden" accept="image/*" />
+                    </div>
                 </div>
 
-                {/* --- PHOENIX FIX: Branding Section Removed --- */}
-
-            </div>
-
-            {/* --- RIGHT COLUMN: Profile Form --- */}
-            <div className="md:col-span-2">
-                <form onSubmit={handleProfileSubmit} className="glass-panel rounded-3xl p-8 space-y-8 shadow-xl h-full relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-success-start to-success-end" />
-                    <h3 className="text-xl font-bold text-white flex items-center gap-3"><Building2 className="w-6 h-6 text-success-start" />{t('business.firmData')}</h3>
+                {/* --- FORM FIELDS --- */}
+                <div className="space-y-6">
                     
-                    <div className="grid grid-cols-1 gap-6">
+                    {/* Firm Name (Full Width) */}
+                    <div className="group">
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                            {t('business.firmNameLabel')}
+                        </label>
+                        <div className="relative">
+                            <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" />
+                            <input 
+                                type="text" 
+                                name="firm_name" 
+                                value={formData.firm_name} 
+                                onChange={(e) => setFormData({ ...formData, firm_name: e.target.value })} 
+                                className="w-full bg-[#111827] border border-gray-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-success-start/50 focus:ring-1 focus:ring-success-start/50 transition-all" 
+                                placeholder={t('business.firmNamePlaceholder')} 
+                            />
+                        </div>
+                    </div>
+
+                    {/* Email & Phone (Two Columns) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div className="group">
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.firmNameLabel')}</label>
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                                {t('business.publicEmail')}
+                            </label>
                             <div className="relative">
-                                <Building2 className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" />
-                                <input type="text" name="firm_name" value={formData.firm_name} onChange={(e) => setFormData({ ...formData, firm_name: e.target.value })} className="glass-input w-full pl-12 pr-4 py-3 rounded-xl text-white" placeholder={t('business.firmNamePlaceholder')} />
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" />
+                                <input 
+                                    type="email" 
+                                    name="email_public" 
+                                    value={formData.email_public} 
+                                    onChange={(e) => setFormData({ ...formData, email_public: e.target.value })} 
+                                    className="w-full bg-[#111827] border border-gray-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-success-start/50 focus:ring-1 focus:ring-success-start/50 transition-all" 
+                                />
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.publicEmail')}</label><div className="relative"><Mail className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" /><input type="email" name="email_public" value={formData.email_public} onChange={(e) => setFormData({ ...formData, email_public: e.target.value })} className="glass-input w-full pl-12 pr-4 py-3 rounded-xl text-white" /></div></div>
-                            <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.phone')}</label><div className="relative"><Phone className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" /><input type="text" name="phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="glass-input w-full pl-12 pr-4 py-3 rounded-xl text-white" /></div></div>
+                        <div className="group">
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                                {t('business.phone')}
+                            </label>
+                            <div className="relative">
+                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" />
+                                <input 
+                                    type="text" 
+                                    name="phone" 
+                                    value={formData.phone} 
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })} 
+                                    className="w-full bg-[#111827] border border-gray-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-success-start/50 focus:ring-1 focus:ring-success-start/50 transition-all" 
+                                />
+                            </div>
                         </div>
                     </div>
                     
-                    <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.address')}</label><div className="relative"><MapPin className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" /><input type="text" name="address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="glass-input w-full pl-12 pr-4 py-3 rounded-xl text-white" /></div></div>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                        <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.city')}</label><input type="text" name="city" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="glass-input w-full px-4 py-3 rounded-xl text-white" /></div>
-                        <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.website')}</label><div className="relative"><Globe className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" /><input type="text" name="website" value={formData.website} onChange={(e) => setFormData({ ...formData, website: e.target.value })} className="glass-input w-full pl-12 pr-4 py-3 rounded-xl text-white" /></div></div>
+                    {/* Address (Full Width) */}
+                    <div className="group">
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                            {t('business.address')}
+                        </label>
+                        <div className="relative">
+                            <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" />
+                            <input 
+                                type="text" 
+                                name="address" 
+                                value={formData.address} 
+                                onChange={(e) => setFormData({ ...formData, address: e.target.value })} 
+                                className="w-full bg-[#111827] border border-gray-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-success-start/50 focus:ring-1 focus:ring-success-start/50 transition-all" 
+                            />
+                        </div>
                     </div>
                     
-                    <div className="group"><label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('business.taxId')}</label><div className="relative"><CreditCard className="absolute left-4 top-3.5 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" /><input type="text" name="tax_id" value={formData.tax_id} onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })} className="glass-input w-full pl-12 pr-4 py-3 rounded-xl text-white" /></div></div>
+                    {/* City & Website (Two Columns) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <div className="group">
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                                {t('business.city')}
+                            </label>
+                            <input 
+                                type="text" 
+                                name="city" 
+                                value={formData.city} 
+                                onChange={(e) => setFormData({ ...formData, city: e.target.value })} 
+                                className="w-full bg-[#111827] border border-gray-800 rounded-xl py-3 px-4 text-white placeholder-gray-600 focus:outline-none focus:border-success-start/50 focus:ring-1 focus:ring-success-start/50 transition-all" 
+                            />
+                        </div>
+                        <div className="group">
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                                {t('business.website')}
+                            </label>
+                            <div className="relative">
+                                <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" />
+                                <input 
+                                    type="text" 
+                                    name="website" 
+                                    value={formData.website} 
+                                    onChange={(e) => setFormData({ ...formData, website: e.target.value })} 
+                                    className="w-full bg-[#111827] border border-gray-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-success-start/50 focus:ring-1 focus:ring-success-start/50 transition-all" 
+                                />
+                            </div>
+                        </div>
+                    </div>
                     
-                    <div className="pt-8 flex justify-end mt-auto"><button type="submit" disabled={saving} className="flex items-center gap-2 px-10 py-3.5 bg-gradient-to-r from-success-start to-success-end text-white rounded-xl font-bold hover:shadow-lg hover:shadow-success-start/20 transition-all disabled:opacity-50 hover:scale-[1.02] active:scale-95">{saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}{t('general.save')}</button></div>
-                </form>
-            </div>
+                    {/* Tax ID (Full Width) */}
+                    <div className="group">
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                            {t('business.taxId')}
+                        </label>
+                        <div className="relative">
+                            <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-success-start transition-colors" />
+                            <input 
+                                type="text" 
+                                name="tax_id" 
+                                value={formData.tax_id} 
+                                onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })} 
+                                className="w-full bg-[#111827] border border-gray-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-600 focus:outline-none focus:border-success-start/50 focus:ring-1 focus:ring-success-start/50 transition-all" 
+                            />
+                        </div>
+                    </div>
+                </div>
+                
+                {/* --- FOOTER: Save Button --- */}
+                <div className="pt-8 flex justify-end mt-4">
+                    <button 
+                        type="submit" 
+                        disabled={saving} 
+                        className="flex items-center gap-2 px-10 py-3 bg-success-start hover:bg-success-end text-white rounded-lg font-bold shadow-lg shadow-success-start/20 transition-all disabled:opacity-50 hover:scale-[1.02] active:scale-95"
+                    >
+                        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                        {t('general.save')}
+                    </button>
+                </div>
+            </form>
         </motion.div>
     );
 };
