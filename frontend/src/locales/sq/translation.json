@@ -430,7 +430,7 @@
   "generateBtn": "Gjenero Dokumentin",
   "statusCompleted": "Përfunduar",
   "statusFailed": "Dështoi",
-  "statusWorking": "Duke punuar...",
+  "statusWorking": "Duke hartuar...",
   "statusResult": "Rezultati",
   "regenerate": "Rigjenero",
   "saveToCase": "Ruaj në rast",
