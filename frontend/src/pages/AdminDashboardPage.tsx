@@ -1,15 +1,16 @@
 // FILE: src/pages/AdminDashboardPage.tsx
-// PHOENIX PROTOCOL - ADMIN DASHBOARD V14.0 (i18n INTEGRATION)
+// PHOENIX PROTOCOL - ADMIN DASHBOARD V14.1 (ADDED ROLE MANAGEMENT)
 // 1. FIXED: Removed all hardcoded English strings to support multi-language support.
 // 2. MAINTAINED: Full Feature Tier (BASIC/PRO) and Capacity (1/10 Seats) logic.
-// 3. STATUS: Production Ready & Fully Internationalized.
+// 3. ADDED: Role dropdown in user edit form to promote/demote users.
+// 4. STATUS: Production Ready & Fully Internationalized.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { 
     Search, Edit2, Trash2, CheckCircle, Loader2, Clock, 
     Briefcase, Calendar as CalendarIcon, 
-    AlertTriangle, Building2, User as UserIcon, Star, Shield, Mail, Zap
+    AlertTriangle, Building2, User as UserIcon, Star, Shield, Mail, Zap, Key
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DatePicker from 'react-datepicker';
@@ -24,6 +25,9 @@ type UnifiedAdminUser = User & {
     plan_tier?: 'DEFAULT' | 'GROWTH';
     user_limit?: number;
 };
+
+// Type alias for allowed role values (matches User interface)
+type UserRole = 'ADMIN' | 'LAWYER' | 'CLIENT' | 'STANDARD';
 
 const AdminDashboardPage: React.FC = () => {
     const { t } = useTranslation();
@@ -225,6 +229,25 @@ const AdminDashboardPage: React.FC = () => {
                         <h3 className="text-xl font-bold text-white mb-6 border-b border-white/10 pb-4">{t('admin.manage_saas_profile', 'Menaxho Profilin SaaS')}: {editingUser.username}</h3>
                         <form onSubmit={handleUpdateUser} className="space-y-6">
                             
+                            {/* Role Management Section */}
+                            <div className="p-4 bg-indigo-500/5 rounded-xl border border-indigo-500/20 space-y-4">
+                                <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-2"><Key size={14}/> {t('admin.section_role', 'Roli i Përdoruesit')}</h4>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">{t('admin.label_role', 'Roli')}</label>
+                                    <select 
+                                        value={editForm.role || 'STANDARD'} 
+                                        onChange={e => setEditForm({ 
+                                            ...editForm, 
+                                            role: e.target.value as UserRole
+                                        })} 
+                                        className="w-full bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white outline-none dark-select"
+                                    >
+                                        <option value="STANDARD">{t('admin.option_role_standard', 'STANDARD (Përdorues i zakonshëm)')}</option>
+                                        <option value="ADMIN">{t('admin.option_role_admin', 'ADMIN (Administrator)')}</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <div className="p-4 bg-yellow-500/5 rounded-xl border border-yellow-500/20 space-y-4">
                                 <h4 className="text-xs font-bold text-yellow-400 uppercase tracking-widest flex items-center gap-2"><Zap size={14}/> {t('admin.section_features_ai', 'Funksionet & Aksesi AI')}</h4>
                                 <div>
