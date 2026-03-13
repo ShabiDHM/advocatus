@@ -6,7 +6,7 @@
 
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Phone, MapPin, Send, Loader2, Lock } from 'lucide-react';
+import { Phone, MapPin, Send, Loader2, Lock, Mail } from 'lucide-react';
 import { apiService } from '../services/api';
 import PrivacyModal from '../components/PrivacyModal';
 
@@ -51,6 +51,12 @@ const SupportPage: React.FC = () => {
                     <Phone size={20} />
                   </div> 
                   <span className="font-medium">+383 44 987 898</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-secondary-start/10 text-secondary-start">
+                    <Mail size={20} />
+                  </div> 
+                  <span className="font-medium">info@juristi.tech</span>
                 </div>
                 <div className="flex items-center gap-3">
                    <div className="p-2 rounded-lg bg-secondary-start/10 text-secondary-start">
