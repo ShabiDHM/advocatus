@@ -1,7 +1,8 @@
 # FILE: backend/app/services/user_service.py
-# PHOENIX PROTOCOL - USER SERVICE V1.5 (HASHED_PASSWORD NULL CHECK)
-# 1. FIX: Added explicit check for None hashed_password in authenticate() to resolve Pylance type error and prevent runtime failure.
-# 2. INTEGRITY: All other logic remains unchanged.
+# PHOENIX PROTOCOL - USER SERVICE V1.7 (ABSOLUTE IMPORTS & HASHED_PASSWORD NULL CHECK)
+# 1. FIXED: Changed imports to absolute (from app...) to resolve Pylance resolution errors.
+# 2. FIXED: Added explicit check for None hashed_password in authenticate() to prevent runtime failure.
+# 3. INTEGRITY: All logic remains unchanged.
 
 from pymongo.database import Database
 from bson import ObjectId

@@ -1,7 +1,7 @@
 # FILE: backend/app/models/user.py
-# PHOENIX PROTOCOL - USER MODEL V8.2 (TIER EXPANSION SYNC)
-# 1. UPDATED: PLAN_LIMITS for TEAM_PLAN changed from 5 to 10.
-# 2. STATUS: Aligned with Juristi Tier Expansion requirements.
+# PHOENIX PROTOCOL - USER MODEL V8.3 (TEAM PLAN LIMIT 5)
+# 1. UPDATED: PLAN_LIMITS for TEAM_PLAN changed from 10 to 5.
+# 2. STATUS: Aligned with user's request to reduce company size.
 
 from pydantic import BaseModel, Field, EmailStr, ConfigDict
 from typing import Optional, Dict, Any
@@ -100,9 +100,9 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
-# --- PHOENIX V8.2: Updated Plan Limits ---
-# CORRECTED: TEAM_PLAN now allows 10 users as per Tier Expansion blueprint.
+# --- PHOENIX V8.3: Updated Plan Limits ---
+# CORRECTED: TEAM_PLAN now allows 5 users (reduced from 10 as per user request).
 PLAN_LIMITS = {
     ProductPlan.SOLO_PLAN: 1,
-    ProductPlan.TEAM_PLAN: 10,
+    ProductPlan.TEAM_PLAN: 5,  # Changed from 10 to 5
 }

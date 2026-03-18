@@ -1,8 +1,8 @@
 # FILE: backend/app/api/endpoints/cases.py
-# PHOENIX PROTOCOL - CASES ROUTER V28.0 (TIER GATE REMOVAL)
-# 1. REMOVED: SubscriptionTier checks (require_pro_tier dependency) to grant all approved users access to all features.
-# 2. INTEGRITY: Maintains all protected document, analysis, and portal logic, with ownership checks intact.
-# 3. STATUS: All users now have uniform access to deep analysis, forensic, and strategy features.
+# PHOENIX PROTOCOL - CASES ROUTER V27.0 (REINSTATED TIER GATES + LIMIT ADJUST)
+# 1. RESTORED: SubscriptionTier checks (require_pro_tier) for premium features.
+# 2. ADJUSTED: No changes to logic; gates are back as originally designed.
+# 3. STATUS: 100% Pylance clean.
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Body
 from typing import List, Annotated, Dict, Any
@@ -33,7 +33,7 @@ from ...services.graph_service import graph_service
 
 # --- MODEL IMPORTS (3 dots to reach app/models) ---
 from ...models.case import CaseCreate, CaseOut
-from ...models.user import UserInDB  # SubscriptionTier removed
+from ...models.user import UserInDB, SubscriptionTier  # RESTORED SubscriptionTier
 from ...models.drafting import DraftRequest
 from ...models.archive import ArchiveItemOut
 from ...models.document import DocumentOut
@@ -64,7 +64,13 @@ def json_serializable(data):
         return str(data)
     return data
 
-# (Removed require_pro_tier function – all users now have access to all features)
+# RESTORED: require_pro_tier dependency
+def require_pro_tier(current_user: Annotated[UserInDB, Depends(get_current_user)]):
+    if current_user.subscription_tier != SubscriptionTier.PRO and current_user.role != 'ADMIN':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This is a PRO feature."
+        )
 
 # --- PYDANTIC MODELS ---
 
@@ -390,7 +396,7 @@ async def trigger_map_extraction(
     return {"status": "success"}
 
 # --- ANALYSIS & STRATEGY ---
-# All endpoints now accessible to any authenticated user (ownership checks still apply)
+# RESTORED: require_pro_tier on premium endpoints
 
 @router.post("/{case_id}/analyze")
 async def run_textual_case_analysis(
@@ -403,7 +409,7 @@ async def run_textual_case_analysis(
         await analysis_service.cross_examine_case(db, case_id, str(current_user.id))
     )
 
-@router.post("/{case_id}/deep-analysis")
+@router.post("/{case_id}/deep-analysis", dependencies=[Depends(require_pro_tier)])
 async def run_deep_case_analysis(
     case_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
@@ -415,7 +421,7 @@ async def run_deep_case_analysis(
         raise HTTPException(status_code=400, detail=result["error"])
     return JSONResponse(result)
 
-@router.post("/{case_id}/deep-analysis/simulation")
+@router.post("/{case_id}/deep-analysis/simulation", dependencies=[Depends(require_pro_tier)])
 async def run_deep_simulation_only(
     case_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
@@ -429,7 +435,7 @@ async def run_deep_simulation_only(
     res = await llm_service.generate_adversarial_simulation(context)
     return JSONResponse(res)
 
-@router.post("/{case_id}/deep-analysis/chronology")
+@router.post("/{case_id}/deep-analysis/chronology", dependencies=[Depends(require_pro_tier)])
 async def run_deep_chronology_only(
     case_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
@@ -443,7 +449,7 @@ async def run_deep_chronology_only(
     res = await llm_service.build_case_chronology(context)
     return JSONResponse(res.get("timeline", []))
 
-@router.post("/{case_id}/deep-analysis/contradictions")
+@router.post("/{case_id}/deep-analysis/contradictions", dependencies=[Depends(require_pro_tier)])
 async def run_deep_contradictions_only(
     case_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
@@ -457,7 +463,7 @@ async def run_deep_contradictions_only(
     res = await llm_service.detect_contradictions(context)
     return JSONResponse(res.get("contradictions", []))
 
-@router.post("/{case_id}/archive-strategy")
+@router.post("/{case_id}/archive-strategy", dependencies=[Depends(require_pro_tier)])
 async def archive_case_strategy_endpoint(
     case_id: str,
     body: ArchiveStrategyRequest,
@@ -474,7 +480,7 @@ async def archive_case_strategy_endpoint(
 
 # --- FORENSIC & DRAFTS ---
 
-@router.post("/{case_id}/analyze/spreadsheet/forensic")
+@router.post("/{case_id}/analyze/spreadsheet/forensic", dependencies=[Depends(require_pro_tier)])
 async def analyze_forensic_spreadsheet_endpoint(
     case_id: str,
     current_user: Annotated[UserInDB, Depends(get_current_user)],
@@ -487,7 +493,7 @@ async def analyze_forensic_spreadsheet_endpoint(
     )
     return JSONResponse(result)
 
-@router.post("/{case_id}/interrogate-finances/forensic")
+@router.post("/{case_id}/interrogate-finances/forensic", dependencies=[Depends(require_pro_tier)])
 async def interrogate_forensic_finances_endpoint(
     case_id: str,
     body: FinanceInterrogationRequest,
