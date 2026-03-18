@@ -1,7 +1,8 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V2.3 (LIMIT CORRECTION TO 5)
-# 1. UPDATED: TIER_LIMITS["GROWTH"] changed from 10 to 5 to reflect TEAM_PLAN limit.
-# 2. STATUS: Now aligns with PLAN_LIMITS in user model (TEAM_PLAN: 5).
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V2.4 (FORCE LIMIT SYNC)
+# 1. UPDATED: TIER_LIMITS["GROWTH"] = 5 (team plan limit).
+# 2. FIXED: Sync now updates user_limit even if tier matches but limit differs.
+# 3. STATUS: Ensures all organizations reflect the correct seat limit.
 
 from typing import List, Optional, Dict
 from bson import ObjectId
@@ -52,8 +53,8 @@ class OrganizationService:
             db.organizations.update_one({"_id": owner_id}, {"$set": org_data}, upsert=True)
             return org_data
         
-        # PHOENIX FIX: If Org doc exists but Tier is outdated compared to User Plan, AUTO-UPGRADE
-        if org_doc.get("plan_tier") != intended_tier:
+        # PHOENIX FIX V2.4: Update if tier OR limit is outdated (ensures constant changes propagate)
+        if org_doc.get("plan_tier") != intended_tier or org_doc.get("user_limit") != intended_limit:
             db.organizations.update_one(
                 {"_id": owner_id},
                 {"$set": {"plan_tier": intended_tier, "user_limit": intended_limit}}
