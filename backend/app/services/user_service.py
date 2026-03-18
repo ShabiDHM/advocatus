@@ -1,8 +1,7 @@
 # FILE: backend/app/services/user_service.py
-# PHOENIX PROTOCOL - USER SERVICE V1.4 (GATEKEEPER FIX)
-# 1. FIX: 'authenticate' now correctly allows login for users based on password verification alone, delegating the status check to the router.
-# 2. FIX: 'create' method now explicitly sets the default status to 'INACTIVE' for the gatekeeper.
-# 3. STATUS: Aligns login logic with the Admin Gatekeeper workflow.
+# PHOENIX PROTOCOL - USER SERVICE V1.5 (HASHED_PASSWORD NULL CHECK)
+# 1. FIX: Added explicit check for None hashed_password in authenticate() to resolve Pylance type error and prevent runtime failure.
+# 2. INTEGRITY: All other logic remains unchanged.
 
 from pymongo.database import Database
 from bson import ObjectId
@@ -46,9 +45,10 @@ def authenticate(db: Database, username: str, password: str) -> Optional[UserInD
     if not user:
         return None
         
-    # PHOENIX FIX: The original check was too strict. 
-    # This service should ONLY verify identity (password).
-    # The ROUTER is responsible for checking permissions (like subscription status).
+    # PHOENIX FIX V1.5: Check if hashed_password is None before attempting verification.
+    if user.hashed_password is None:
+        return None
+        
     if not verify_password(password, user.hashed_password):
         return None
         
