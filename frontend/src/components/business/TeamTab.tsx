@@ -1,8 +1,7 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V2.3 (i18n & SYNC FIX)
-// 1. FIXED: Removed all hardcoded English strings to support multi-language.
-// 2. FIXED: Logic now utilizes backend 'current_active_users' for accurate progress.
-// 3. STATUS: Production Ready & Fully Internationalized.
+// PHOENIX PROTOCOL - TEAM TAB V2.4 (PLAN NAME TRANSLATION)
+// 1. FIXED: Plan name now uses translation keys (plan.default, plan.growth).
+// 2. INTEGRITY: All existing i18n and logic preserved.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -127,7 +126,7 @@ export const TeamTab: React.FC = () => {
                         <div className="flex items-center gap-2">
                             <span className="text-gray-400 font-bold text-xs uppercase tracking-wider">{t('team.plan_usage_label')}</span>
                             <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold">
-                                {planName}
+                                {t(`plan.${planName.toLowerCase()}`)}
                             </span>
                         </div>
                         <span className={`px-2 py-1 rounded text-xs font-bold ${availableSeats <= 0 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>

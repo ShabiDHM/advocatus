@@ -419,6 +419,8 @@
   },
   "pdfViewer": {
     "downloadOriginal": "Download Original Document",
-    "close": "Close"
+    "close": "Close",
+     "default": "Single",
+    "growth": "GROWTH"
   }
 }

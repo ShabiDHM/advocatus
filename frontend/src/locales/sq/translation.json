@@ -188,7 +188,7 @@
     "loginTitle": "Identifikimi",
     "loginSubtitle": "Hyni në llogarinë tuaj për të vazhduar",
     "usernameOrEmail": "Përdoruesi ose Email",
-    "usernameOrEmailPlaceholder": "shaban.bala ose email@zyra.com",
+    "usernameOrEmailPlaceholder": "andi@email.com ose andi@zyra.com",
     "password": "Fjalëkalimi",
     "loginFailed": "Identifikimi dështoi. Kontrolloni të dhënat.",
     "loginButton": "Kyçuni",
@@ -751,5 +751,6 @@
     "source": "Burimi",
     "articles": "nene",
     "tableOfContents": "Përmbajtja"
+    
   }
 }
