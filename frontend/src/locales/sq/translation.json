@@ -184,6 +184,10 @@
     "errorPassword": "Fjalëkalimi duhet të ketë të paktën 8 karaktere.",
     "errorGeneric": "Aktivizimi dështoi. Tokeni mund të jetë i pavlefshëm ose i skaduar."
   },
+  "plan": {
+    "default": "BAZË",
+    "growth": "RRITJE"
+  },
   "auth": {
     "loginTitle": "Identifikimi",
     "loginSubtitle": "Hyni në llogarinë tuaj për të vazhduar",

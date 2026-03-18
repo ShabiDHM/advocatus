@@ -1,7 +1,7 @@
 # FILE: backend/app/services/organization_service.py
-# PHOENIX PROTOCOL - ORGANIZATION SERVICE V2.2 (AUTO-SYNC PATCH)
-# 1. FIXED: Added auto-sync in 'get_organization_for_user' to align Org Tier with Owner Plan.
-
+# PHOENIX PROTOCOL - ORGANIZATION SERVICE V2.3 (LIMIT CORRECTION TO 5)
+# 1. UPDATED: TIER_LIMITS["GROWTH"] changed from 10 to 5 to reflect TEAM_PLAN limit.
+# 2. STATUS: Now aligns with PLAN_LIMITS in user model (TEAM_PLAN: 5).
 
 from typing import List, Optional, Dict
 from bson import ObjectId
@@ -16,9 +16,11 @@ from app.models.organization import OrganizationInDB
 from app.models.user import UserInDB, UserOut, ProductPlan, PLAN_LIMITS
 from app.services import email_service
 
+# TIER_LIMITS maps organization plan tiers to user seat limits.
+# GROWTH now allows 5 users (reduced from 10).
 TIER_LIMITS = {
     "DEFAULT": 1,
-    "GROWTH": 10
+    "GROWTH": 5
 }
 
 class OrganizationService:
