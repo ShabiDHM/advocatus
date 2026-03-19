@@ -1,8 +1,7 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.4 (ENHANCED STRATEGIC ANALYSIS)
-# 1. IMPROVED: System prompt for legal analysis now forces detailed strategic breakdown.
-# 2. ADDED: Instructions to include strengths, weaknesses, key arguments, and concrete article citations.
-# 3. RETAINED: All existing functionality and parallel deep analysis.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.5 (DEBUG LOGGING ADDED)
+# 1. ADDED: Detailed logging of context and raw LLM response.
+# 2. RETAINED: All previous improvements.
 
 import asyncio
 import structlog
@@ -18,6 +17,16 @@ from . import vector_store_service, report_service, archive_service
 from .report_service import _get_text 
 
 logger = structlog.get_logger(__name__)
+
+# Add a standard logger for debug output
+import logging
+debug_logger = logging.getLogger("analysis_debug")
+debug_logger.setLevel(logging.DEBUG)
+# Ensure it outputs to console (or file, depending on your setup)
+if not debug_logger.handlers:
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    debug_logger.addHandler(ch)
 
 async def _fetch_rag_context_async(db: Database, case_id: str, user_id: str, include_laws: bool = True) -> str:
     """PHOENIX: Parallelized and filtered RAG retrieval."""
@@ -91,7 +100,9 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     context = await _fetch_rag_context_async(db, case_id, user_id, include_laws=True)
     
-    # ENHANCED SYSTEM PROMPT – forces detailed strategic analysis
+    # Log the context (first 1000 chars) to debug
+    debug_logger.debug(f"=== CONTEXT PASSED TO LLM (first 1000 chars) ===\n{context[:1000]}\n... (truncated)")
+
     system_prompt = """
     DETYRA: Analizë e thellë strategjike dhe ligjore e këtij rasti. Jep një vlerësim profesional për avokatin.
     
@@ -133,6 +144,10 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
     
     try:
         raw_res = await asyncio.to_thread(llm_service.analyze_case_integrity, context, custom_prompt=system_prompt)
+        
+        # Log the raw response to debug
+        debug_logger.debug(f"=== RAW LLM RESPONSE ===\n{raw_res}\n")
+
         audit = raw_res.get("legal_audit", {})
         rec = raw_res.get("strategic_recommendation", {})
         return {
