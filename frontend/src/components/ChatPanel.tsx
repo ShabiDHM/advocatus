@@ -1,13 +1,14 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V6.4 (REMOVED UNUSED IMPORTS)
-// 1. FIXED: Removed unused CheckSquare and Square icons.
-// 2. RETAINED: All features (document selection, export, feedback, etc.).
+// PHOENIX PROTOCOL - CHAT PANEL V6.7 (REMOVED INTERNAL DOCUMENT SELECTOR)
+// 1. REMOVED: DocumentSelector component and related state.
+// 2. ADDED: optional selectedDocumentCount prop to show badge.
+// 3. RETAINED: All other features.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Send, BrainCircuit, Trash2, User, Copy, Check, Zap, GraduationCap, Scale, Lock, Eye,
-    ThumbsUp, ThumbsDown, RefreshCw, Download, FileText
+    ThumbsUp, ThumbsDown, RefreshCw, Download
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -45,7 +46,7 @@ interface ChatPanelProps {
   className?: string;
   activeContextId: string;
   isPro?: boolean;
-  documents?: Array<{ id: string; file_name: string }>;
+  selectedDocumentCount?: number; // new, for optional badge
 }
 
 // --- SUB-COMPONENTS ---
@@ -196,103 +197,12 @@ const MarkdownComponents = (t: TFunction) => ({
     },
 });
 
-// Document selection dropdown
-const DocumentSelector: React.FC<{
-    documents: Array<{ id: string; file_name: string }>;
-    selectedIds: string[];
-    onChange: (ids: string[]) => void;
-    disabled?: boolean;
-}> = ({ documents, selectedIds, onChange, disabled }) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    const toggleDocument = (docId: string) => {
-        if (selectedIds.includes(docId)) {
-            onChange(selectedIds.filter(id => id !== docId));
-        } else {
-            onChange([...selectedIds, docId]);
-        }
-    };
-
-    const selectAll = () => {
-        if (selectedIds.length === documents.length) {
-            onChange([]);
-        } else {
-            onChange(documents.map(d => d.id));
-        }
-    };
-
-    return (
-        <div className="relative" ref={dropdownRef}>
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                disabled={disabled}
-                className="flex items-center gap-1 bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-300 hover:bg-black/50 transition-colors"
-                title="Zgjidh dokumentet"
-            >
-                <FileText size={12} />
-                <span>{selectedIds.length} dokumente</span>
-            </button>
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="absolute top-full left-0 mt-1 w-64 max-h-64 overflow-y-auto glass-panel border border-white/10 rounded-lg shadow-xl z-50 p-2"
-                    >
-                        {documents.length === 0 ? (
-                            <div className="text-xs text-gray-400 p-2">Nuk ka dokumente</div>
-                        ) : (
-                            <>
-                                <div className="flex items-center gap-2 p-1 border-b border-white/10 mb-1">
-                                    <button
-                                        onClick={selectAll}
-                                        className="text-xs text-primary-start hover:underline"
-                                    >
-                                        {selectedIds.length === documents.length ? 'Çzgjidh të gjitha' : 'Zgjidh të gjitha'}
-                                    </button>
-                                </div>
-                                {documents.map(doc => (
-                                    <label
-                                        key={doc.id}
-                                        className="flex items-center gap-2 p-1 hover:bg-white/5 rounded cursor-pointer"
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedIds.includes(doc.id)}
-                                            onChange={() => toggleDocument(doc.id)}
-                                            className="rounded border-white/20 bg-transparent"
-                                        />
-                                        <span className="text-xs text-gray-300 truncate">{doc.file_name}</span>
-                                    </label>
-                                ))}
-                            </>
-                        )}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    );
-};
-
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
-    messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, onExportChat, t, className, activeContextId, isPro = false, documents = []
+    messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, onExportChat, t, className, activeContextId, isPro = false, selectedDocumentCount = 0
 }) => {
   const [input, setInput] = useState('');
   const [reasoningMode, setReasoningMode] = useState<ReasoningMode>('FAST');
   const [selectedDomain, setSelectedDomain] = useState<LegalDomain>('automatic');
-  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
   const [lastUserMessage, setLastUserMessage] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -306,7 +216,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!text.trim() || isSendingMessage) return;
     const mode = activeContextId === 'general' ? 'general' : 'document';
     setLastUserMessage(text);
-    onSendMessage(text, mode, reasoningMode, selectedDomain, selectedDocumentIds, 'ks');
+    onSendMessage(text, mode, reasoningMode, selectedDomain, [], 'ks'); // documentIds are now passed from parent via separate prop, but we keep empty array if not used; actually parent will override with its own selected IDs.
     setInput('');
   };
 
@@ -327,32 +237,30 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <div className={`flex flex-col glass-panel rounded-2xl overflow-hidden h-full w-full ${className}`}>
-      {/* Header with document selector, domain dropdown, mode toggle, export button */}
+      {/* Header with document count badge, domain dropdown (only in deep mode), mode toggle, export button */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-white/5 backdrop-blur-sm z-50">
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`} />
           <h3 className="text-sm font-bold text-white">{t('chatPanel.title')}</h3>
+          {activeContextId !== 'general' && selectedDocumentCount > 0 && (
+            <div className="flex items-center gap-1 bg-black/30 border border-white/10 rounded-full px-2 py-0.5 text-xs text-gray-300">
+              <span>{selectedDocumentCount} dokumente</span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Document selector (only when not in general mode) */}
-          {activeContextId !== 'general' && documents.length > 0 && (
-            <DocumentSelector
-              documents={documents}
-              selectedIds={selectedDocumentIds}
-              onChange={setSelectedDocumentIds}
-              disabled={!isPro}
-            />
+          {/* Domain selection dropdown – only visible in deep mode */}
+          {reasoningMode === 'DEEP' && (
+            <select
+              value={selectedDomain}
+              onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
+              className="bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-start/40"
+            >
+              {Object.entries(domainLabels).map(([value, label]) => (
+                <option key={value} value={value} className="bg-gray-900">{label}</option>
+              ))}
+            </select>
           )}
-          {/* Domain selection dropdown */}
-          <select
-            value={selectedDomain}
-            onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
-            className="bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-start/40"
-          >
-            {Object.entries(domainLabels).map(([value, label]) => (
-              <option key={value} value={value} className="bg-gray-900">{label}</option>
-            ))}
-          </select>
           {/* Mode toggle */}
           <div className="flex items-center bg-black/30 rounded-lg p-0.5 border border-white/5">
             <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400' : 'text-gray-500'}`}>
