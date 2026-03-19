@@ -1,7 +1,8 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V6.5 (THEME VARIABLES)
-// 1. REPLACED: hardcoded dark colors with theme variables.
-// 2. RETAINED: Theme toggle button and all existing functionality.
+// PHOENIX PROTOCOL - HEADER V7.0 (DEFINITIVE FULL VERSION)
+// 1. REPLACED: Generic glassmorphism with solid "Lawyer-Grade" surface architecture.
+// 2. RETAINED: 100% of original logic, auth checks, admin routing, and alert intervals.
+// 3. ENHANCED: Professional spacing, typography hierarchy, and theme-toggle animation.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
@@ -25,7 +26,7 @@ const Header: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // BASE NAVIGATION (Visible to all authenticated users)
+  // BASE NAVIGATION (Exactly as original)
   const navItems = [
     { icon: Building2, label: t('sidebar.myOffice', 'Zyra'), path: '/business' },
     { icon: Scale, label: t('sidebar.juristiAi', 'Rastet'), path: '/dashboard' },
@@ -33,7 +34,7 @@ const Header: React.FC = () => {
     { icon: BookOpen, label: t('sidebar.lawLibrary', 'Biblioteka Ligjore'), path: '/laws/search' },
   ];
   
-  // ADMIN-ONLY: Insert Admin Panel link at index 1 (after Zyra)
+  // ADMIN-ONLY: Insert Admin Panel link (Exactly as original)
   if (user?.role === 'ADMIN') {
       navItems.splice(1, 0, {
           icon: Shield,
@@ -42,6 +43,7 @@ const Header: React.FC = () => {
       });
   }
 
+  // Effect: Body Overflow (Exactly as original)
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.style.overflow = 'hidden';
@@ -53,6 +55,7 @@ const Header: React.FC = () => {
     };
   }, [isMobileMenuOpen]);
 
+  // Effect: Alerts Count (Exactly as original)
   useEffect(() => {
     const checkAlerts = async () => {
       if (!user) return;
@@ -68,6 +71,7 @@ const Header: React.FC = () => {
     return () => clearInterval(interval);
   }, [user]);
 
+  // Effect: Outside Click (Exactly as original)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -93,12 +97,13 @@ const Header: React.FC = () => {
 
   return (
     <>
-      <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 top-0 backdrop-blur-xl bg-background-dark/60 border-b border-glass-edge transition-all duration-300">
+      {/* Container: Fixed position to allow full page scroll while maintaining accessibility */}
+      <header className="fixed top-0 left-0 right-0 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-50 bg-surface border-b border-surface-border shadow-lawyer-light transition-all duration-300">
         
-        <div className="flex items-center h-full gap-4 lg:gap-8">
+        <div className="flex items-center h-full gap-4 lg:gap-10">
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden p-2 text-text-secondary hover:text-text-primary transition-colors"
+            className="lg:hidden p-2 text-text-secondary hover:text-text-primary hover:bg-canvas rounded-lg transition-colors"
             aria-label="Toggle navigation menu"
           >
             <Menu size={24} />
@@ -106,66 +111,86 @@ const Header: React.FC = () => {
           
           <BrandLogo />
           
-          <div className="relative hidden sm:block">
+          <div className="relative hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary h-4 w-4" />
             <input 
               type="text" 
               placeholder={t('general.search', 'Kërko...')} 
-              className="glass-input w-64 pl-10 pr-4 py-2 text-sm focus:w-80 transition-all"
+              className="glass-input w-64 pl-10 pr-4 py-2 text-sm focus:w-80 border-surface-border bg-canvas/40 font-medium transition-all"
             />
           </div>
         </div>
 
-        <nav className="hidden lg:flex items-center h-full space-x-2">
+        <nav className="hidden lg:flex items-center h-full space-x-1">
           {navItems.map((item) => {
             const isCurrentActive = location.pathname.startsWith(item.path);
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={`flex items-center px-4 h-full text-sm font-medium transition-all duration-200 relative ${isCurrentActive ? 'text-text-primary border-b-2 border-primary-start' : 'text-text-secondary hover:text-text-primary hover:bg-background-light/5'}`}
+                className={`flex items-center px-4 h-full text-sm font-bold transition-all duration-200 relative group ${
+                  isCurrentActive 
+                    ? 'text-text-primary' 
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
               >
-                <item.icon className="h-4 w-4 mr-2" />
+                <item.icon className={`h-4 w-4 mr-2.5 transition-colors ${isCurrentActive ? 'text-primary-start' : 'group-hover:text-primary-start'}`} />
                 {item.label}
+                {isCurrentActive && (
+                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary-start rounded-t-full shadow-[0_-2px_4px_rgba(var(--color-primary-start-rgb),0.3)]" />
+                )}
               </NavLink>
             );
           })}
         </nav>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Theme Toggle Button */}
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* Theme Toggle Button - Animated and Polished */}
           <button
             onClick={toggleTheme}
-            className="p-2 text-text-secondary hover:text-text-primary hover:bg-background-light/10 rounded-lg transition-colors"
+            className="p-2.5 text-text-secondary hover:text-primary-start border border-surface-border bg-canvas/30 hover:bg-canvas rounded-xl transition-all shadow-lawyer-light"
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+            {theme === 'dark' ? (
+              <Sun size={19} className="animate-in spin-in-90 duration-300" />
+            ) : (
+              <Moon size={19} className="animate-in spin-in-45 duration-300" />
+            )}
           </button>
 
+          {/* Preserving hidden div exactly as original */}
           <div className="hidden">
             <LanguageSwitcher />
           </div>
 
-          <Link to="/calendar" className="p-2 text-text-secondary hover:text-text-primary hover:bg-background-light/10 rounded-lg transition-colors relative" title="Kalendari">
-            <Bell size={20} />
+          <Link 
+            to="/calendar" 
+            className="p-2.5 text-text-secondary hover:text-primary-start border border-surface-border bg-canvas/30 hover:bg-canvas rounded-xl transition-all relative shadow-lawyer-light" 
+            title="Kalendari"
+          >
+            <Bell size={19} />
             {alertCount > 0 && (
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+              <span className="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-surface animate-pulse"></span>
             )}
           </Link>
           
-          <div className="h-6 w-px bg-glass-edge"></div>
+          <div className="h-8 w-px bg-surface-border mx-1"></div>
 
           <div className="relative">
             <button 
               ref={buttonRef}
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className={`flex items-center gap-3 p-1.5 rounded-xl transition-all border ${isProfileOpen ? 'bg-background-light/10 border-glass-edge' : 'border-transparent hover:bg-background-light/5 hover:border-glass-edge'}`}
+              className={`flex items-center gap-3 p-1 rounded-full transition-all border ${
+                isProfileOpen 
+                ? 'bg-canvas border-primary-start/30 ring-4 ring-primary-start/5' 
+                : 'border-surface-border hover:border-primary-start/20 hover:bg-canvas/50'
+              }`}
             >
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-text-primary">{user?.username || 'User'}</p>
-                <p className="text-xs text-text-secondary uppercase tracking-wider">{user?.role || 'LAWYER'}</p>
+              <div className="text-right hidden lg:block pl-3">
+                <p className="text-sm font-bold text-text-primary leading-tight">{user?.username || 'User'}</p>
+                <p className="text-[10px] text-text-secondary font-bold uppercase tracking-widest">{user?.role || 'LAWYER'}</p>
               </div>
-              <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-secondary-start to-secondary-end flex items-center justify-center text-white font-bold shadow-lg shadow-secondary-start/20">
+              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center text-white font-black text-sm shadow-md ring-2 ring-surface">
                 {user?.username ? user.username.charAt(0).toUpperCase() : 'U'}
               </div>
             </button>
@@ -173,23 +198,30 @@ const Header: React.FC = () => {
             {isProfileOpen && (
               <div 
                 ref={dropdownRef}
-                className="absolute right-0 mt-2 w-60 bg-background-dark/90 backdrop-blur-xl border border-glass-edge rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2"
+                className="absolute right-0 mt-3 w-64 bg-surface border border-surface-border rounded-2xl shadow-lawyer-dark py-2 z-[60] animate-in fade-in slide-in-from-top-3 duration-200"
               >
-                <div className="px-4 py-3 border-b border-glass-edge mb-1 bg-background-light/5">
-                  <p className="text-sm text-text-primary font-medium truncate">{user?.username}</p>
-                  <p className="text-xs text-text-secondary truncate">{user?.email}</p>
+                <div className="px-5 py-4 border-b border-surface-border mb-2 bg-canvas/30">
+                  <p className="text-sm text-text-primary font-bold truncate leading-tight">{user?.username}</p>
+                  <p className="text-xs text-text-secondary truncate mt-0.5">{user?.email}</p>
                 </div>
-                <Link to="/account" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:bg-background-light/5 transition-colors" onClick={() => setIsProfileOpen(false)}>
-                  <UserIcon size={16} className="mr-3 text-primary-start" />
+                
+                <Link to="/account" className="flex items-center px-5 py-3 text-sm text-text-secondary font-medium hover:text-text-primary hover:bg-canvas transition-colors" onClick={() => setIsProfileOpen(false)}>
+                  <UserIcon size={16} className="mr-3.5 text-primary-start" />
                   {t('sidebar.account', 'Llogaria Ime')}
                 </Link>
-                <Link to="/support" className="flex items-center px-4 py-2.5 text-sm text-text-secondary hover:text-text-primary hover:bg-background-light/5 transition-colors" onClick={() => setIsProfileOpen(false)}>
-                  <MessageSquare size={16} className="mr-3 text-primary-start" />
+                
+                <Link to="/support" className="flex items-center px-5 py-3 text-sm text-text-secondary font-medium hover:text-text-primary hover:bg-canvas transition-colors" onClick={() => setIsProfileOpen(false)}>
+                  <MessageSquare size={16} className="mr-3.5 text-primary-start" />
                   {t('sidebar.support', 'Mbështetja')}
                 </Link>
-                <div className="h-px bg-glass-edge my-1"></div>
-                <button onClick={() => { setIsProfileOpen(false); logout(); }} className="w-full flex items-center px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors">
-                  <LogOut size={16} className="mr-3" />
+                
+                <div className="h-px bg-surface-border my-2 mx-4"></div>
+                
+                <button 
+                  onClick={() => { setIsProfileOpen(false); logout(); }} 
+                  className="w-full flex items-center px-5 py-3 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  <LogOut size={16} className="mr-3.5" />
                   {t('general.logout', 'Dilni')}
                 </button>
               </div>
@@ -198,19 +230,20 @@ const Header: React.FC = () => {
         </div>
       </header>
 
+      {/* MOBILE MENU: Preserved 100% logic with upgraded visuals */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 top-0 bg-background-dark/95 backdrop-blur-xl z-50 animate-in fade-in">
-          <div className="flex items-center justify-between h-16 px-4 border-b border-glass-edge">
+        <div className="lg:hidden fixed inset-0 bg-canvas z-[70] animate-in fade-in duration-300">
+          <div className="flex items-center justify-between h-16 px-6 border-b border-surface-border bg-surface">
             <BrandLogo />
             <button
               onClick={() => setIsMobileMenuOpen(false)}
-              className="p-2 text-text-secondary hover:text-text-primary transition-colors"
+              className="p-2 text-text-secondary hover:text-text-primary bg-canvas rounded-lg transition-colors"
               aria-label="Close navigation menu"
             >
-              <X size={24} />
+              <X size={28} />
             </button>
           </div>
-          <nav className="flex flex-col p-4 space-y-2 mt-4">
+          <nav className="flex flex-col p-6 space-y-3 mt-6">
             {navItems.map((item) => {
               const isCurrentActive = location.pathname.startsWith(item.path);
               return (
@@ -218,9 +251,13 @@ const Header: React.FC = () => {
                   key={item.path}
                   to={item.path}
                   onClick={handleMobileLinkClick}
-                  className={`flex items-center px-4 py-3 text-base font-medium rounded-lg transition-all duration-200 ${isCurrentActive ? 'text-text-primary bg-background-light/10' : 'text-text-secondary hover:text-text-primary hover:bg-background-light/5'}`}
+                  className={`flex items-center px-5 py-4 text-lg font-bold rounded-2xl transition-all ${
+                    isCurrentActive 
+                      ? 'text-primary-start bg-primary-start/10 shadow-sm' 
+                      : 'text-text-secondary hover:text-text-primary hover:bg-canvas'
+                  }`}
                 >
-                  <item.icon className="h-5 w-5 mr-4" />
+                  <item.icon className={`h-6 w-6 mr-5 ${isCurrentActive ? 'text-primary-start' : 'text-text-secondary'}`} />
                   {item.label}
                 </NavLink>
               );

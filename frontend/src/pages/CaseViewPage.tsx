@@ -1,6 +1,6 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V10.13 (THEME VARIABLES)
-// 1. REPLACED: hardcoded dark colors with theme variables.
+// PHOENIX PROTOCOL - CASE VIEW V10.14 (SEMANTIC THEME VARIABLES)
+// 1. REPLACED: background-dark/light, glass-edge with canvas, surface, surface-border.
 // 2. RETAINED: All features (document selection, analysis, chat, etc.).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -53,7 +53,7 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
             <div className="glass-high w-full max-w-md p-6 rounded-2xl animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold text-text-primary">{t('documentsPanel.renameTitle')}</h3>
-                    <button onClick={onClose} className="text-text-secondary hover:text-text-primary p-1 rounded-lg hover:bg-background-light/10 transition-colors"><X size={24} /></button>
+                    <button onClick={onClose} className="text-text-secondary hover:text-text-primary p-1 rounded-lg hover:bg-surface/10 transition-colors"><X size={24} /></button>
                 </div>
                 <form onSubmit={handleSubmit}>
                     <div className="mb-6"><label className="block text-sm text-text-secondary mb-2">{t('documentsPanel.newName')}</label><input autoFocus type="text" value={name} onChange={(e) => setName(e.target.value)} className="glass-input w-full rounded-xl px-4 py-3" /></div>
@@ -84,8 +84,8 @@ const CaseHeader: React.FC<{
 
     return (
         <motion.div className="relative mb-6 group" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          <div className="absolute inset-0 rounded-2xl overflow-hidden border border-glass-edge shadow-2xl">
-              <div className="absolute inset-0 bg-background-light/40 backdrop-blur-md" />
+          <div className="absolute inset-0 rounded-2xl overflow-hidden border border-surface-border shadow-2xl">
+              <div className="absolute inset-0 bg-surface/40 backdrop-blur-md" />
               <div className="absolute top-0 right-0 p-32 bg-primary-start/10 blur-[100px] rounded-full pointer-events-none" />
           </div>
 
@@ -95,11 +95,11 @@ const CaseHeader: React.FC<{
                   <div className="flex items-center gap-2 text-text-secondary mt-1"><User className="h-4 w-4 text-primary-start" /><span className="text-sm sm:text-base font-medium">{caseDetails.client?.name || t('caseCard.unknownClient', 'Klient i Panjohur')}</span></div>
               </div>
 
-              <div className="h-px w-full bg-gradient-to-r from-transparent via-glass-edge to-transparent" />
+              <div className="h-px w-full bg-gradient-to-r from-transparent via-surface-border to-transparent" />
 
               <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-4'}`}>
                     {/* Date badge */}
-                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-background-light/5 border border-glass-edge text-text-secondary text-sm font-medium whitespace-nowrap">
+                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-surface/10 border surface-border text-text-secondary text-sm font-medium whitespace-nowrap">
                         <Calendar className="h-4 w-4 text-blue-400" />
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
@@ -120,7 +120,7 @@ const CaseHeader: React.FC<{
                     <button
                         onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                         disabled={!isPro}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-background-light/5 border-glass-edge text-text-secondary cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-primary-start' : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-background-light/5'}`}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-surface/10 border surface-border text-text-secondary cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-primary-start' : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-surface/10'}`}
                         title={!isPro ? "Available on Pro Plan" : ""}
                     >
                         {!isPro ? <Lock size={16} className="text-text-secondary" /> : <Activity size={16} className="text-primary-start" />}
