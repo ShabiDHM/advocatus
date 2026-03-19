@@ -1,8 +1,7 @@
 // FILE: src/components/DocumentsPanel.tsx
-// PHOENIX PROTOCOL - DOCUMENTS PANEL V8.1 (SMOOTH TRANSITION)
-// 1. FIX: Removed window.location.reload() on import.
-// 2. LOGIC: Updates the document list optimistically via 'onDocumentUploaded' callback.
-// 3. UX: Provides instant feedback without layout shifts.
+// PHOENIX PROTOCOL - DOCUMENTS PANEL V8.2 (THEME VARIABLES)
+// 1. REPLACED: hardcoded dark colors with theme variables.
+// 2. RETAINED: All features (upload, delete, archive, import, bulk selection).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Document, ConnectionStatus, DeletedDocumentResponse } from '../data/types';
@@ -152,27 +151,14 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
       }
   };
 
-  // PHOENIX FIX: Replaced window.location.reload() with manual fetch logic
   const handleArchiveImportComplete = async (_count: number) => {
       try {
-          // Fetch the latest list of documents for this case
           const updatedDocuments = await apiService.getDocuments(caseId);
-          
-          // We identify which documents are new by comparing IDs
-          // Or simpler: We iterate through the new list and if it's not in the current list, we call onDocumentUploaded
-          // HOWEVER, since 'onDocumentUploaded' usually appends to the top, doing it for 10 files might be weird.
-          // BUT: 'CaseViewPage' handles duplicates gracefully usually.
-          
-          // Cleaner Approach: Since DocumentsPanel doesn't own the state, we can't "setDocuments".
-          // But we can iterate the NEW files (finding the difference) and push them up.
-          
           const currentIds = new Set(documents.map(d => d.id));
           const newDocs = updatedDocuments.filter(d => !currentIds.has(d.id));
-          
           newDocs.forEach(doc => {
               onDocumentUploaded(sanitizeDocument(doc));
           });
-          
       } catch (error) {
           console.error("Failed to refresh documents after import", error);
       }
@@ -205,15 +191,15 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
     <div className={`glass-panel p-4 rounded-2xl flex flex-col h-full overflow-hidden ${className}`}>
       
       {/* Header Bar */}
-      <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${isSelectionMode ? 'border-red-500/30 bg-red-900/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-2xl' : 'border-white/5'}`}>
+      <div className={`flex flex-row justify-between items-center border-b pb-3 mb-4 flex-shrink-0 gap-2 transition-colors duration-300 ${isSelectionMode ? 'border-red-500/30 bg-red-900/10 -mx-4 px-4 py-2 mt-[-1rem] rounded-t-2xl' : 'border-glass-edge'}`}>
         
         {isSelectionMode ? (
             <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => setSelectedIds(new Set())} className="text-gray-400 hover:text-white transition-colors">
+                    <button onClick={() => setSelectedIds(new Set())} className="text-text-secondary hover:text-text-primary transition-colors">
                         <XCircle size={20} />
                     </button>
-                    <span className="text-white font-bold">{selectedIds.size} të zgjedhura</span>
+                    <span className="text-text-primary font-bold">{selectedIds.size} të zgjedhura</span>
                 </div>
                 <button 
                     onClick={handleBulkDelete} 
@@ -227,10 +213,10 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
         ) : (
             <>
                 <div className="flex items-center gap-3 min-w-0">
-                    <button onClick={toggleSelectAll} className="text-text-secondary hover:text-white transition-colors" title="Select All">
+                    <button onClick={toggleSelectAll} className="text-text-secondary hover:text-text-primary transition-colors" title="Select All">
                         {displayDocuments.length > 0 && selectedIds.size === displayDocuments.length ? <CheckSquare size={20} className="text-primary-start" /> : <Square size={20} />}
                     </button>
-                    <h2 className="text-lg font-bold text-white truncate">{t('documentsPanel.title')}</h2>
+                    <h2 className="text-lg font-bold text-text-primary truncate">{t('documentsPanel.title')}</h2>
                     <div className="flex items-center justify-center h-full pt-1" title={connectionStatus}>
                         <span className={`w-2 h-2 rounded-full ${statusDotColor(connectionStatus)} transition-colors duration-500`}></span>
                     </div>
@@ -241,7 +227,7 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                         onClick={() => !isSystemBusy && setShowAddMenu(!showAddMenu)}
                         disabled={isSystemBusy}
                         whileTap={{ scale: 0.95 }}
-                        className={`h-9 w-9 flex items-center justify-center rounded-xl shadow-lg transition-all ${isSystemBusy ? 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5' : 'bg-gradient-to-br from-primary-start to-primary-end text-white shadow-primary-start/20 hover:shadow-primary-start/40'}`}
+                        className={`h-9 w-9 flex items-center justify-center rounded-xl shadow-lg transition-all ${isSystemBusy ? 'bg-background-light/5 text-text-secondary cursor-not-allowed border border-glass-edge' : 'bg-gradient-to-br from-primary-start to-primary-end text-white shadow-primary-start/20 hover:shadow-primary-start/40'}`}
                         title={isSystemBusy ? "Prisni që dokumenti aktual të procesohet..." : "Shto Dokument"}
                     >
                         {isSystemBusy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
@@ -253,12 +239,12 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                 animate={{ opacity: 1, y: 0, scale: 1 }}
                                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                className="absolute right-0 top-12 w-56 glass-high border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden"
+                                className="absolute right-0 top-12 w-56 glass-high border border-glass-edge rounded-xl shadow-2xl z-50 overflow-hidden"
                             >
-                                <button onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} className="w-full text-left px-4 py-3 hover:bg-white/10 flex items-center gap-3 text-sm text-gray-200 transition-colors">
+                                <button onClick={() => { setShowAddMenu(false); fileInputRef.current?.click(); }} className="w-full text-left px-4 py-3 hover:bg-background-light/10 flex items-center gap-3 text-sm text-text-secondary transition-colors">
                                     <FilePlus size={16} className="text-primary-start" /> Ngarko Dokument
                                 </button>
-                                <button onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} className="w-full text-left px-4 py-3 hover:bg-white/10 flex items-center gap-3 text-sm text-gray-200 border-t border-white/5 transition-colors">
+                                <button onClick={() => { setShowAddMenu(false); setShowArchiveImport(true); }} className="w-full text-left px-4 py-3 hover:bg-background-light/10 flex items-center gap-3 text-sm text-text-secondary border-t border-glass-edge transition-colors">
                                     <HardDrive size={16} className="text-success-start" /> Importo nga Arkiva
                                 </button>
                             </motion.div>
@@ -273,10 +259,10 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
 
       {uploadError && (<div className="p-3 text-xs text-red-200 bg-red-500/20 border border-red-500/30 rounded-xl mb-4 font-medium">{uploadError}</div>)}
       
-      <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar min-h-0 bg-black/20 rounded-xl p-2">
+      <div className="space-y-3 flex-1 overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar min-h-0 bg-background-dark/20 rounded-xl p-2">
         {displayDocuments.length === 0 && (
           <div className="text-text-secondary text-center py-12 flex flex-col items-center opacity-60">
-            <FolderOpen className="w-12 h-12 mb-3 text-white/20" />
+            <FolderOpen className="w-12 h-12 mb-3 text-text-secondary/20" />
             <p className="text-sm font-medium">{t('documentsPanel.noDocuments')}</p>
           </div>
         )}
@@ -296,38 +282,38 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
                 key={doc.id} 
                 layout="position" 
                 onClick={() => !isUploadingState && toggleSelect(doc.id)} 
-                className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer ${isSelected ? 'bg-primary-start/20 border-primary-start/50' : 'bg-white/5 hover:bg-white/10 border-white/5 hover:border-white/10'}`}
+                className={`group flex items-center justify-between p-3 border rounded-xl transition-all cursor-pointer ${isSelected ? 'bg-primary-start/20 border-primary-start/50' : 'bg-background-light/5 hover:bg-background-light/10 border-glass-edge hover:border-glass-edge'}`}
                 initial={{ opacity: 0, y: -10 }} 
                 animate={{ opacity: 1, y: 0 }}
             >
               
               <div className="min-w-0 flex-1 pr-3">
-                <div className="flex items-center gap-2"><p className={`text-sm font-medium truncate ${isSelected ? 'text-white' : 'text-gray-200'}`}>{doc.file_name}</p></div>
+                <div className="flex items-center gap-2"><p className={`text-sm font-medium truncate ${isSelected ? 'text-text-primary' : 'text-text-primary'}`}>{doc.file_name}</p></div>
                 {(isUploadingState || isProcessingState) ? (
                     <div className="flex items-center gap-3 mt-1.5">
                         <span className={`text-[10px] ${statusTextColor} font-bold w-20 uppercase tracking-wide`}>{statusText}</span>
-                        <div className="w-24 h-1 bg-white/10 rounded-full overflow-hidden"><motion.div className={`h-full ${barColor}`} initial={isUploadingState ? { width: 0 } : false} animate={{ width: `${progressPercent}%` }} transition={{ ease: "linear", duration: 0.3 }} /></div>
-                        <span className="text-[9px] text-gray-400 font-mono">{progressPercent}%</span>
+                        <div className="w-24 h-1 bg-background-light/10 rounded-full overflow-hidden"><motion.div className={`h-full ${barColor}`} initial={isUploadingState ? { width: 0 } : false} animate={{ width: `${progressPercent}%` }} transition={{ ease: "linear", duration: 0.3 }} /></div>
+                        <span className="text-[9px] text-text-secondary/50 font-mono">{progressPercent}%</span>
                     </div>
                 ) : (<p className="text-[10px] text-text-secondary truncate mt-0.5 font-medium">{moment(doc.created_at).format('DD MMM YYYY, HH:mm')}</p>)}
               </div>
               
               <div className={`flex items-center gap-1 sm:gap-2 flex-shrink-0 transition-opacity ${isSelectionMode ? 'opacity-30 pointer-events-none' : 'opacity-60 group-hover:opacity-100'}`}>
                 {canInteract && (
-                    <button onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} className="p-1.5 hover:bg-white/10 rounded-lg text-text-secondary hover:text-white transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); onRename && onRename(doc); }} className="p-1.5 hover:bg-background-light/10 rounded-lg text-text-secondary hover:text-text-primary transition-colors" title={t('documentsPanel.rename')}><Pencil size={14} /></button>
                 )}
                 
                 {canInteract && (
-                    <button onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} className="p-1.5 hover:bg-white/10 rounded-lg text-primary-start transition-colors" title={t('documentsPanel.viewOriginal')}><Eye size={14} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); onViewOriginal(doc); }} className="p-1.5 hover:bg-background-light/10 rounded-lg text-primary-start transition-colors" title={t('documentsPanel.viewOriginal')}><Eye size={14} /></button>
                 )}
                 {canInteract && (
-                    <button onClick={(e) => { e.stopPropagation(); handleArchiveDocument(doc.id); }} className="p-1.5 hover:bg-white/10 rounded-lg text-text-secondary hover:text-white transition-colors" title={t('documentsPanel.archive', 'Arkivo')}>{archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}</button>
+                    <button onClick={(e) => { e.stopPropagation(); handleArchiveDocument(doc.id); }} className="p-1.5 hover:bg-background-light/10 rounded-lg text-text-secondary hover:text-text-primary transition-colors" title={t('documentsPanel.archive', 'Arkivo')}>{archivingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}</button>
                 )}
                 {canInteract && (
                     <button onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} className="p-1.5 hover:bg-red-500/20 rounded-lg text-red-400 hover:text-red-300 transition-colors" title={t('documentsPanel.delete')}><Trash size={14} /></button>
                 )}
                 {!canInteract && (
-                    <Lock size={14} className="text-gray-600" />
+                    <Lock size={14} className="text-text-secondary/30" />
                 )}
               </div>
             </motion.div>

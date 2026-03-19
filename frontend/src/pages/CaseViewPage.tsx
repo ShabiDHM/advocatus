@@ -1,8 +1,7 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V10.12 (SERVER‑SYNCED CHAT HISTORY)
-// 1. FIXED: Chat history now loads from server on page load, ensuring cross‑device sync.
-// 2. Server is the source of truth; localStorage is only used as a temporary cache while loading.
-// 3. All other features unchanged.
+// PHOENIX PROTOCOL - CASE VIEW V10.13 (THEME VARIABLES)
+// 1. REPLACED: hardcoded dark colors with theme variables.
+// 2. RETAINED: All features (document selection, analysis, chat, etc.).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -53,12 +52,12 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
             <div className="glass-high w-full max-w-md p-6 rounded-2xl animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-bold text-white">{t('documentsPanel.renameTitle')}</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"><X size={24} /></button>
+                    <h3 className="text-xl font-bold text-text-primary">{t('documentsPanel.renameTitle')}</h3>
+                    <button onClick={onClose} className="text-text-secondary hover:text-text-primary p-1 rounded-lg hover:bg-background-light/10 transition-colors"><X size={24} /></button>
                 </div>
                 <form onSubmit={handleSubmit}>
-                    <div className="mb-6"><label className="block text-sm text-gray-400 mb-2">{t('documentsPanel.newName')}</label><input autoFocus type="text" value={name} onChange={(e) => setName(e.target.value)} className="glass-input w-full rounded-xl px-4 py-3" /></div>
-                    <div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-gray-400 hover:text-white font-medium transition-colors">{t('general.cancel')}</button><button type="submit" disabled={isSaving} className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary-start/20 transition-all active:scale-95">{isSaving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save size={16} />}{t('general.save')}</button></div>
+                    <div className="mb-6"><label className="block text-sm text-text-secondary mb-2">{t('documentsPanel.newName')}</label><input autoFocus type="text" value={name} onChange={(e) => setName(e.target.value)} className="glass-input w-full rounded-xl px-4 py-3" /></div>
+                    <div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-text-secondary hover:text-text-primary font-medium transition-colors">{t('general.cancel')}</button><button type="submit" disabled={isSaving} className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary-start/20 transition-all active:scale-95">{isSaving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save size={16} />}{t('general.save')}</button></div>
                 </form>
             </div>
         </div>
@@ -85,22 +84,22 @@ const CaseHeader: React.FC<{
 
     return (
         <motion.div className="relative mb-6 group" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          <div className="absolute inset-0 rounded-2xl overflow-hidden border border-white/5 shadow-2xl">
+          <div className="absolute inset-0 rounded-2xl overflow-hidden border border-glass-edge shadow-2xl">
               <div className="absolute inset-0 bg-background-light/40 backdrop-blur-md" />
               <div className="absolute top-0 right-0 p-32 bg-primary-start/10 blur-[100px] rounded-full pointer-events-none" />
           </div>
 
           <div className="relative p-5 sm:p-6 flex flex-col gap-5 z-10">
               <div className="flex flex-col gap-1">
-                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight leading-snug break-words">{caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase', 'Rast pa Emër')}</h1>
-                  <div className="flex items-center gap-2 text-gray-400 mt-1"><User className="h-4 w-4 text-primary-start" /><span className="text-sm sm:text-base font-medium">{caseDetails.client?.name || t('caseCard.unknownClient', 'Klient i Panjohur')}</span></div>
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-text-primary tracking-tight leading-snug break-words">{caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase', 'Rast pa Emër')}</h1>
+                  <div className="flex items-center gap-2 text-text-secondary mt-1"><User className="h-4 w-4 text-primary-start" /><span className="text-sm sm:text-base font-medium">{caseDetails.client?.name || t('caseCard.unknownClient', 'Klient i Panjohur')}</span></div>
               </div>
 
-              <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+              <div className="h-px w-full bg-gradient-to-r from-transparent via-glass-edge to-transparent" />
 
               <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-4'}`}>
                     {/* Date badge */}
-                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap">
+                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-background-light/5 border border-glass-edge text-text-secondary text-sm font-medium whitespace-nowrap">
                         <Calendar className="h-4 w-4 text-blue-400" />
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
@@ -121,10 +120,10 @@ const CaseHeader: React.FC<{
                     <button
                         onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                         disabled={!isPro}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-white/5 border-white/10 text-gray-500 cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-white' : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'}`}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-background-light/5 border-glass-edge text-text-secondary cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-primary-start' : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-background-light/5'}`}
                         title={!isPro ? "Available on Pro Plan" : ""}
                     >
-                        {!isPro ? <Lock className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
+                        {!isPro ? <Lock size={16} className="text-text-secondary" /> : <Activity size={16} className="text-primary-start" />}
                         <span>{t('caseView.financialAnalyst', 'Analisti Financiar')}</span>
                     </button>
 
@@ -132,16 +131,16 @@ const CaseHeader: React.FC<{
                     <button
                         onClick={onAnalyze}
                         disabled={!isPro || isAnalyzing || viewMode !== 'workspace'}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent ${!isPro ? 'bg-gray-700/50 cursor-not-allowed text-gray-400 shadow-none' : 'bg-primary-start hover:bg-primary-end shadow-primary-start/20'} disabled:opacity-70`}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent ${!isPro ? 'bg-gray-700/50 cursor-not-allowed text-text-secondary shadow-none' : 'bg-primary-start hover:bg-primary-end shadow-primary-start/20'} disabled:opacity-70`}
                         type="button"
                         title={!isPro ? "Available on Pro Plan" : ""}
                     >
                         {isAnalyzing ? (
                             <><Loader2 className="h-4 w-4 animate-spin text-white/70" /> <span className="text-white/70">{t('analysis.analyzing', 'Duke analizuar...')}</span></>
                         ) : !isPro ? (
-                            <><Lock className="h-4 w-4" /> <span>{analyzeButtonText}</span></>
+                            <><Lock size={16} className="text-text-secondary" /> <span>{analyzeButtonText}</span></>
                         ) : (
-                            <><ShieldCheck className="h-4 w-4" /> <span>{analyzeButtonText}</span></>
+                            <><ShieldCheck size={16} className="text-white" /> <span>{analyzeButtonText}</span></>
                         )}
                     </button>
               </div>
@@ -220,8 +219,7 @@ const CaseViewPage: React.FC = () => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
 
-  // Save chat history to localStorage as a backup (still useful for offline/performance)
-  // but server remains the source of truth.
+  // Save chat history to localStorage as a backup
   useEffect(() => {
     if (!currentCaseId) return;
     if (chatMessages.length > 0) {
