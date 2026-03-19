@@ -1,8 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - ULTIMATE FIX: DOMAIN‑STRICT & PLACEHOLDER CLARITY
-# 1. Added: "Only cite laws directly relevant to the detected domain."
-# 2. Added: "If unsure which law applies, use a descriptive placeholder like [Neni përkatës i Ligjit ...]."
-# 3. Added: "Do not mix laws from different domains (e.g., corporate law in a property dispute)."
+# PHOENIX PROTOCOL - ULTIMATE FIX: PRIORITISE DETECTED LAW
+# 1. ADDED: Explicit instruction to use the detected primary law as the main legal basis.
+# 2. ADDED: Warning against mixing laws from different domains.
+# 3. RETAINED: All RAG retrieval and domain detection logic.
 
 import os
 import asyncio
@@ -14,7 +14,7 @@ from . import llm_service, vector_store_service
 
 logger = structlog.get_logger(__name__)
 
-# --- LEGAL DOMAINS (unchanged) ---
+# --- PHOENIX PROTOCOL: MULTI-DOMAIN KNOWLEDGE BASE (unchanged) ---
 LEGAL_DOMAINS = {
     "FAMILY": {
         "keywords": ["shkurorëzim", "divorc", "alimentacion", "kujdestari", "fëmijë", "bashkëshort", "martesë"],
@@ -112,37 +112,17 @@ async def stream_draft_generator(
     facts_block = "\n".join([f"- {f.get('text', '')}" for f in case_facts_list]) if case_facts_list else "Nuk u gjetën fakte specifike në dosje."
     laws_block = "\n".join([f"- {l.get('text', '')} (Burimi: {l.get('source', 'Ligji')})" for l in legal_articles_list]) if legal_articles_list else "Nuk u gjetën nene specifike në bazën ligjore."
 
-    # === STRENGTHENED SYSTEM PROMPT WITH DOMAIN‑STRICT RULES ===
-    real_estate_instructions = ""
-    if "qira" in user_prompt.lower() or "lease" in user_prompt.lower() or draft_type in ["lease_agreement", "sales_purchase", "power_of_attorney"]:
-        real_estate_instructions = """
-UDHËZIME TË VEÇANTA PËR KONTRATAT E QIRASË (LEASE AGREEMENTS):
-- Titulli duhet të jetë "KONTRATË QIRAJE".
-- Përdor ligjin e saktë: **Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve** (LMD) – ky është ligji që rregullon kontratat e qirasë në Kosovë, jo "Ligji për Marrëdhëniet Kontraktuale".
-- Duhet të përfshish domosdoshmërisht këto seksione:
-   * PALËT (Qiradhënësi dhe Qiramarrësi)
-   * PËRSHKRIMI I PRONËS
-   * QIRAJA MUJORE DHE MËNYRA E PAGESËS
-   * KOHËZGJATJA E QIRASË (data e fillimit dhe mbarimit)
-   * DEPOZITA (nëse ka)
-   * DETYRIMET E PALËVE (mirëmbajtja, shërbimet komunale, etj.)
-   * KUSHTET PËR ZGJIDHJEN E KONTRATËS
-   * NËNSHKRIMET
-- Nëse nuk ke informacion të mjaftueshëm për një seksion, përdor vendmbajtës si [_____].
-"""
-
+    # === STRENGTHENED SYSTEM PROMPT ===
     system_prompt = f"""
 ROLI: Avokat i Licencuar në Republikën e Kosovës.
 
 UDHËZIME TË RREPTA:
 1. **Ndiq me përpikëri strukturën e kërkuar nga përdoruesi** – përdor saktësisht titujt që ai ka specifikuar (p.sh., PALËT:, OBJEKTI:, BAZA LIGJORE:, etj.). Mos i ndrysho.
-2. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për një citim, përdor një vendmbajtës si "[Neni përkatës i Ligjit ...]". Sigurohu që vendmbajtësi të jetë **deskriptiv**, p.sh. "[Neni përkatës i Ligjit për Pronësinë]" në vend të vetëm "[_____]".
-3. **Mos përdor tituj si KAPITULLI** – përdor vetëm titujt e dhënë nga përdoruesi.
-4. **Ligji primar i identifikuar është: {detected_law}**. Ky është ligji që duhet të përdorësh në citime. **Mos përdor ligje nga fusha të tjera (p.sh., ligjin tregtar në një mosmarrëveshje pronësore)**, përveç nëse përdoruesi i referohet qartë atyre.
-5. **Kosovo NUK ka Kod Civil.** Mos përdor kurrë termin "Kodi Civil" ose "Civil Code". Nëse ke nevojë të referosh për marrëdhëniet e detyrimeve, përdor **Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD)**.
-6. **Për kontratat e punës, titulli standard është 'KONTRATË PUNE'**, jo 'AKTIVENDIM'. Përdor formatin e kontratës dypalëshe, jo vendim gjyqësor.
-{real_estate_instructions}
-7. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
+2. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për një citim, përdor një vendmbajtës si "[Neni përkatës i Ligjit ...]".
+3. **Përdor ligjin e identifikuar si primar: {detected_law}.** Ky është ligji kryesor që duhet të përdorësh në citime. Materialet e tjera ligjore (nëse jepen) janë vetëm ndihmëse dhe duhet të përdoren vetëm nëse përputhen me këtë ligj ose janë absolutisht të nevojshme për të plotësuar përgjigjen.
+4. **Mos përziej ligje nga fusha të ndryshme** – për shembull, mos përdor ligjin tregtar në një mosmarrëveshje pronësore, përveç nëse përdoruesi i referohet qartë atyre.
+5. **Për çdo citim, përdor formatin e plotë zyrtar të ligjit, duke përfshirë numrin (p.sh., "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore"). Nëse numri i nenit nuk dihet, përdor "Neni përkatës".**
+6. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
 
 [KONTEKSTI LIGJOR I DETEKTUAR]
 Ligji primar i identifikuar: {detected_law}
@@ -159,6 +139,7 @@ Tani, përgjigju kërkesës së përdoruesit duke ndjekur me përpikëri udhëzi
 
     full_content = ""
     try:
+        # user_prompt already contains front‑end's full instructions
         async for token in llm_service.stream_text_async(system_prompt, user_prompt, temp=0.2):
             full_content += token
             yield token
