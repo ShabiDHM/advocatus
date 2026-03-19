@@ -1,8 +1,8 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V56.2 (LOG DOCUMENT SNIPPETS + STRONGER PROMPT)
-# 1. ADDED: Log first 200 chars of each retrieved case document.
-# 2. ADDED: Prompt now explicitly tells LLM to base answer on case documents first.
-# 3. STATUS: Diagnostic logging enabled.
+# PHOENIX PROTOCOL - RAG SERVICE V57.0 (STRENGTHENED ANTI‑HALLUCINATION)
+# 1. ADDED: Explicit anti‑hallucination and placeholder rules to the system prompt.
+# 2. ADDED: Instruction to base answers primarily on provided case documents.
+# 3. PRESERVED: All existing RAG and citation logic.
 
 import os
 import sys
@@ -147,28 +147,30 @@ class AlbanianRAGService:
         self._build_citation_map(global_docs)
         context_str = self._build_context(case_docs, global_docs)
 
-        # --- Stronger instruction to use case documents ---
+        # === STRENGTHENED SYSTEM PROMPT ===
         prompt = f"""
         Ti je "Senior Legal Partner". Detyra jote është të japësh një opinion ligjor suprem.
         {PROTOKOLLI_MANDATOR}
-        
-        **KONTEKSTI:**
-        {context_str}
-        
-        **PYETJA:** "{query}"
 
-        **UDHËZIM I RËNDËSISHËM:**
-        - Nëse pyetja ka të bëjë me rastin konkret, përdor PARA SË GJITHASH materialet e dosjes (<<< MATERIALET E DOSJES >>>).
+        **KRITERE TË RREPTA:**
+        - **MOS SHPIK KURRË LIGJE OSE NENE** – nëse nuk je i sigurt për një citim, përdor vendmbajtës si "[Neni përkatës i Ligjit ...]".
+        - Përdor PARA SË GJITHASH materialet e dosjes (<<< MATERIALET E DOSJES >>>).
         - Vetëm pas kësaj, shto referenca nga baza ligjore për të mbështetur analizën.
         - Nëse materialet e dosjes përmbajnë informacion për rastin, përfshiji ato në përgjigje.
+        - Nëse nuk ke informacion të mjaftueshëm për të dhënë një përgjigje, thuaj këtë hapur.
+
+        **KONTEKSTI:**
+        {context_str}
+
+        **PYETJA:** "{query}"
 
         **STRUKTURA (OBLIGATIVE):**
         ### 1. ANALIZA E FAKTEVE
-        
+
         ### 2. BAZA LIGJORE DHE RELEVANCA
-        
+
         ### 3. KONKLUZIONI STRATEGJIK
-        
+
         Fillo hartimin tani:
         """
 

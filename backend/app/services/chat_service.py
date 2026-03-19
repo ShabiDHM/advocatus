@@ -1,8 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V25.4 (MODE DIFFERENTIATION)
-# 1. FIX: Enforced strict brevity for FAST mode to distinguish from DEEP mode.
-# 2. FIX: Synchronized parameters with RAG Service V47.0.
-# 3. STATUS: Unabridged. Mode-specific behavior verified.
+# PHOENIX PROTOCOL - CHAT SERVICE V26.0 (ENHANCED FAST MODE WITH ANTI-HALLUCINATION)
+# 1. IMPROVED: Fast mode prompt now includes anti-hallucination rules, placeholder instructions, and relevance requirement.
+# 2. PRESERVED: Deep mode uses AlbanianRAGService (which will be enhanced separately).
+# 3. ADDED: Consistency with drafting page's anti-hallucination approach.
 
 from __future__ import annotations
 import logging
@@ -25,32 +25,45 @@ async def stream_chat_response(
     try:
         oid, user_oid = ObjectId(case_id), ObjectId(user_id)
         case = db.cases.find_one({"_id": oid, "owner_id": user_oid})
-        if not case: yield "Gabim: Qasja u refuzua."; return
+        if not case:
+            yield "Gabim: Qasja u refuzua."
+            return
 
         # Sync User Message to History
         db.cases.update_one({"_id": oid}, {"$push": {"chat_history": ChatMessage(role="user", content=user_query, timestamp=datetime.now(timezone.utc)).model_dump()}})
         
         full_response = ""
-        yield " " # Keep-alive
+        yield " "  # Keep-alive
 
         if not mode or mode.upper() == 'FAST':
-            # --- FAST MODE: Direct, Concise Summary ---
+            # --- FAST MODE: Direct, Concise Summary with Anti-Hallucination ---
             snippets = vector_store_service.query_case_knowledge_base(user_id=user_id, query_text=user_query, n_results=10, case_context_id=case_id)
-            context = "\n".join([f"- {s['text']} (Burimi: {s['source']})" for s in snippets])
-            
-            # Mandate brevity for FAST mode
+            context = "\n".join([f"- {s['text']} (Burimi: {s['source']})" for s in snippets]) if snippets else "Nuk u gjetën dokumente për këtë rast."
+
+            # Enhanced system prompt with anti-hallucination and placeholder instructions
             system_prompt = f"""
-            Ti je 'Juristi AI'. 
-            DETYRA: Jep një përgjigje të shpejtë dhe të shkurtër (MAX 2 PARAGRAFE).
-            CITIMI: Përdor formatin [Emri i Ligjit](doc://ligji).
-            KONTEKSTI I RASTIT:
-            {context}
-            """
+ROLI: Avokat i Licencuar në Republikën e Kosovës.
+
+DETYRA: Jep një përgjigje të shpejtë dhe të shkurtër (MAX 2 PARAGRAFE) për pyetjen e përdoruesit, duke u bazuar në kontekstin e ofruar dhe njohuritë e tua për ligjet e Kosovës.
+
+UDHËZIME TË RREPTA:
+1. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për një citim, përdor një vendmbajtës si "[Neni përkatës i Ligjit ...]".
+2. **Nëse nuk ke informacion të mjaftueshëm, thuaj qartë se nuk di** në vend që të hamendësosh.
+3. **Për çdo ligj të cituar, shto një rresht "RELEVANCA:" që shpjegon pse ai ligj është i rëndësishëm për pyetjen.
+4. **Përdor formatin e citimit:** [Emri i Ligjit, Neni XX](doc://ligji). Nëse numri i nenit nuk dihet, përdor "Neni përkatës".
+5. **Bazo përgjigjen kryesisht në kontekstin e ofruar**, por mund të shtosh njohuri të përgjithshme nëse është e nevojshme.
+
+KONTEKSTI I RASTIT:
+{context}
+
+Pyetja: {user_query}
+"""
             async for token in llm_service.stream_text_async(system_prompt, user_query, temp=0.1):
                 full_response += token
                 yield token
         else:
-            # --- DEEP MODE: Comprehensive Legal Analysis ---
+            # --- DEEP MODE: Comprehensive Legal Analysis (via AlbanianRAGService) ---
+            # Note: AlbanianRAGService will be enhanced separately
             agent_service = AlbanianRAGService(db=db)
             async for token in agent_service.chat(
                 query=user_query, 
