@@ -1,10 +1,5 @@
 /* /home/user/advocatus-frontend/src/index.css */
-/* PHOENIX PROTOCOL - INDEX CSS V4.0 (PROFESSIONAL LIGHT THEME) */
-/* 1. ADDED: Complete light theme palette from the design system.
-/* 2. UPDATED: glass-panel, glass-input, primary-button, badges, document-reader.
-/* 3. ADDED: Subtle background texture for glass effects in light mode.
-/* 4. RETAINED: Dark theme as .dark.
-
+/* PHOENIX PROTOCOL - INDEX CSS V4.1 (FIXED SYNTAX) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -13,24 +8,24 @@
   /* LIGHT THEME (default) – Professional Slate & Pure White */
   :root {
     /* Background hierarchy */
-    --color-canvas: #F4F6F9;           /* Page background – cool off-white */
-    --color-surface: #FFFFFF;           /* Cards, panels – pure white */
-    --color-surface-secondary: #ECEEF3; /* Sidebars, secondary surfaces */
-    --color-glass: rgba(255,255,255,0.65); /* Glass overlay */
-    --color-input: #EDF0F5;             /* Input field background */
-    --color-hover: rgba(99,115,255,0.07); /* Row hover */
+    --color-canvas: #F4F6F9;
+    --color-surface: #FFFFFF;
+    --color-surface-secondary: #ECEEF3;
+    --color-glass: rgba(255,255,255,0.65);
+    --color-input: #EDF0F5;
+    --color-hover: rgba(99,115,255,0.07);
     
     /* Borders */
-    --color-surface-border: #E2E8F0;    /* Slate-200 */
+    --color-surface-border: #E2E8F0;
     --border-light: rgba(15,22,35,0.10);
     
-    /* Accent palette (unchanged across themes) */
-    --color-primary-start: #6366F1;      /* Indigo – authoritative */
+    /* Accent palette */
+    --color-primary-start: #6366F1;
     --color-primary-start-rgb: 99, 102, 241;
     --color-primary-end: #4F46E5;
     --color-primary-hover: #4F52D9;
     --color-primary-subtle: rgba(99,102,241,0.10);
-    --color-primary-text: #4345B5;       /* Hyperlinks, inline accent */
+    --color-primary-text: #4345B5;
     
     --color-secondary-start: #6366F1;
     --color-secondary-end: #4F46E5;
@@ -45,13 +40,13 @@
     --color-neutral: #475569;
     
     /* Text colors */
-    --color-text-primary: #0F1623;       /* Deep navy – maximum legibility */
-    --color-text-secondary: #3D4A5C;      /* Slate-600 */
-    --color-text-muted: #6B7A90;          /* Slate-500 */
-    --color-text-disabled: #A3AFBF;       /* For disabled elements */
-    --color-text-inverse: #FFFFFF;        /* On accent backgrounds */
+    --color-text-primary: #0F1623;
+    --color-text-secondary: #3D4A5C;
+    --color-text-muted: #6B7A90;
+    --color-text-disabled: #A3AFBF;
+    --color-text-inverse: #FFFFFF;
     
-    /* Shadow system – directional, layered */
+    /* Shadow system */
     --shadow-xs: 0 1px 2px rgba(15,22,35,0.04),
                  0 1px 3px rgba(15,22,35,0.06);
     --shadow-sm: 0 2px 4px rgba(15,22,35,0.04),
@@ -72,16 +67,16 @@
     --shadow-accent-sm: 0 4px 16px rgba(99,102,241,0.30),
                         0 2px 6px rgba(99,102,241,0.18);
     
-    /* Background texture for glass effect */
+    /* Background texture */
     background-color: var(--color-canvas);
     background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366F1' fill-opacity='0.025'%3E%3Ccircle cx='7' cy='7' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
 
-  /* DARK THEME – Premium Midnight */
+  /* DARK THEME */
   .dark {
-    --color-canvas: #020617;            /* Deepest navy */
-    --color-surface: #0F172A;            /* Slate-900 cards */
-    --color-surface-secondary: #141626;  /* Sidebars */
+    --color-canvas: #020617;
+    --color-surface: #0F172A;
+    --color-surface-secondary: #141626;
     --color-glass: rgba(20,22,38,0.7);
     --color-input: #1E293B;
     --color-hover: rgba(99,115,255,0.15);
@@ -89,7 +84,6 @@
     --color-surface-border: rgba(255,255,255,0.06);
     --border-light: rgba(255,255,255,0.08);
     
-    /* Accent (brighter for dark mode) */
     --color-primary-start: #3B82F6;
     --color-primary-start-rgb: 59, 130, 246;
     --color-primary-end: #2563EB;
@@ -97,7 +91,6 @@
     --color-primary-subtle: rgba(59,130,246,0.15);
     --color-primary-text: #90B4FF;
     
-    /* Status colors remain similar, adjust if needed */
     --color-success-start: #10B981;
     --color-success-end: #059669;
     --color-warning-start: #D97706;
@@ -112,7 +105,6 @@
     --color-text-disabled: #475569;
     --color-text-inverse: #FFFFFF;
     
-    /* Shadows in dark mode become glows – we keep directional but adjust opacity */
     --shadow-xs: 0 1px 2px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.6);
     --shadow-sm: 0 2px 4px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.6);
     --shadow-md: 0 4px 8px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.7), 0 0 0 1px rgba(59,130,246,0.2);
@@ -122,7 +114,6 @@
     --shadow-accent-xs: 0 2px 8px rgba(59,130,246,0.4), 0 1px 3px rgba(59,130,246,0.3);
     --shadow-accent-sm: 0 4px 16px rgba(59,130,246,0.5), 0 2px 6px rgba(59,130,246,0.4);
     
-    /* Remove background texture in dark mode */
     background-image: none;
   }
 
@@ -142,7 +133,7 @@
 }
 
 @layer components {
-  /* --- GLASS PANEL – adapts to theme --- */
+  /* --- GLASS PANEL --- */
   .glass-panel {
     transition: all 0.3s ease;
     background-color: var(--color-surface);
@@ -289,9 +280,9 @@
     border-color: rgba(220,38,38,0.3);
   }
 
-  /* --- DOCUMENT READER (special legal panel) --- */
+  /* --- DOCUMENT READER --- */
   .document-reader {
-    background: #FFFEF7; /* warm paper */
+    background: #FFFEF7;
     border: 1px solid rgba(203,213,225,0.6);
     border-radius: 8px;
     box-shadow: var(--shadow-md), inset 0 0 0 1px rgba(255,255,255,0.8);
