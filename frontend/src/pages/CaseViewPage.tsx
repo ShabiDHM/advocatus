@@ -1,7 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V10.14 (SEMANTIC THEME VARIABLES)
-// 1. REPLACED: background-dark/light, glass-edge with canvas, surface, surface-border.
-// 2. RETAINED: All features (document selection, analysis, chat, etc.).
+// PHOENIX PROTOCOL - CASE VIEW V10.15 (EXECUTIVE REFINEMENT)
+// 1. UPDATED: Use `btn-primary` for primary buttons.
+// 2. ADDED: `hover-lift` effect on panels.
+// 3. RETAINED: All features (document selection, analysis, chat, export).
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -50,14 +51,14 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-            <div className="glass-high w-full max-w-md p-6 rounded-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="glass-panel w-full max-w-md p-6 rounded-2xl">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-xl font-bold text-text-primary">{t('documentsPanel.renameTitle')}</h3>
                     <button onClick={onClose} className="text-text-secondary hover:text-text-primary p-1 rounded-lg hover:bg-surface/10 transition-colors"><X size={24} /></button>
                 </div>
                 <form onSubmit={handleSubmit}>
                     <div className="mb-6"><label className="block text-sm text-text-secondary mb-2">{t('documentsPanel.newName')}</label><input autoFocus type="text" value={name} onChange={(e) => setName(e.target.value)} className="glass-input w-full rounded-xl px-4 py-3" /></div>
-                    <div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-text-secondary hover:text-text-primary font-medium transition-colors">{t('general.cancel')}</button><button type="submit" disabled={isSaving} className="px-6 py-2 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-primary-start/20 transition-all active:scale-95">{isSaving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save size={16} />}{t('general.save')}</button></div>
+                    <div className="flex justify-end gap-3"><button type="button" onClick={onClose} className="px-4 py-2 text-text-secondary hover:text-text-primary font-medium transition-colors">{t('general.cancel')}</button><button type="submit" disabled={isSaving} className="btn-primary flex items-center gap-2">{isSaving ? <Loader2 className="animate-spin h-4 w-4" /> : <Save size={16} />}{t('general.save')}</button></div>
                 </form>
             </div>
         </div>
@@ -84,27 +85,27 @@ const CaseHeader: React.FC<{
 
     return (
         <motion.div className="relative mb-6 group" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-          <div className="absolute inset-0 rounded-2xl overflow-hidden border border-surface-border shadow-2xl">
+          <div className="absolute inset-0 rounded-3xl overflow-hidden border border-surface-border shadow-xl">
               <div className="absolute inset-0 bg-surface/40 backdrop-blur-md" />
-              <div className="absolute top-0 right-0 p-32 bg-primary-start/10 blur-[100px] rounded-full pointer-events-none" />
+              <div className="absolute top-0 right-0 p-32 bg-accent-primary/5 blur-[100px] rounded-full pointer-events-none" />
           </div>
 
           <div className="relative p-5 sm:p-6 flex flex-col gap-5 z-10">
               <div className="flex flex-col gap-1">
-                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-text-primary tracking-tight leading-snug break-words">{caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase', 'Rast pa Emër')}</h1>
-                  <div className="flex items-center gap-2 text-text-secondary mt-1"><User className="h-4 w-4 text-primary-start" /><span className="text-sm sm:text-base font-medium">{caseDetails.client?.name || t('caseCard.unknownClient', 'Klient i Panjohur')}</span></div>
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-text-primary tracking-tight leading-snug break-words">{caseDetails.case_name || caseDetails.title || t('caseView.unnamedCase', 'Rast pa Emër')}</h1>
+                  <div className="flex items-center gap-2 text-text-secondary mt-1"><User className="h-4 w-4 text-accent-primary" /><span className="text-sm sm:text-base font-medium">{caseDetails.client?.name || t('caseCard.unknownClient', 'Klient i Panjohur')}</span></div>
               </div>
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-surface-border to-transparent" />
 
               <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-4'}`}>
                     {/* Date badge */}
-                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-surface/10 border surface-border text-text-secondary text-sm font-medium whitespace-nowrap">
+                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-surface/10 border border-surface-border text-text-secondary text-sm font-medium whitespace-nowrap">
                         <Calendar className="h-4 w-4 text-blue-400" />
                         {new Date(caseDetails.created_at).toLocaleDateString()}
                     </div>
                     
-                    {/* Document selector – same height as other buttons */}
+                    {/* Document selector */}
                     {viewMode === 'workspace' && (
                         <div className="md:col-span-1 h-12 md:h-11 min-w-0">
                             <DocumentSelector
@@ -120,27 +121,27 @@ const CaseHeader: React.FC<{
                     <button
                         onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
                         disabled={!isPro}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-surface/10 border surface-border text-text-secondary cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-primary-start' : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-surface/10'}`}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-surface/10 border border-surface-border text-text-secondary cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-accent-subtle border-accent-primary text-accent-primary' : 'text-text-secondary border-transparent hover:text-text-primary hover:bg-surface/10'}`}
                         title={!isPro ? "Available on Pro Plan" : ""}
                     >
-                        {!isPro ? <Lock size={16} className="text-text-secondary" /> : <Activity size={16} className="text-primary-start" />}
+                        {!isPro ? <Lock size={16} className="text-text-secondary" /> : <Activity size={16} className="text-accent-primary" />}
                         <span>{t('caseView.financialAnalyst', 'Analisti Financiar')}</span>
                     </button>
 
-                    {/* Analyze button */}
+                    {/* Analyze button – now using btn-primary */}
                     <button
                         onClick={onAnalyze}
                         disabled={!isPro || isAnalyzing || viewMode !== 'workspace'}
-                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent ${!isPro ? 'bg-gray-700/50 cursor-not-allowed text-text-secondary shadow-none' : 'bg-primary-start hover:bg-primary-end shadow-primary-start/20'} disabled:opacity-70`}
+                        className="md:col-span-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         type="button"
                         title={!isPro ? "Available on Pro Plan" : ""}
                     >
                         {isAnalyzing ? (
-                            <><Loader2 className="h-4 w-4 animate-spin text-white/70" /> <span className="text-white/70">{t('analysis.analyzing', 'Duke analizuar...')}</span></>
+                            <><Loader2 className="h-4 w-4 animate-spin" /> <span>{t('analysis.analyzing', 'Duke analizuar...')}</span></>
                         ) : !isPro ? (
-                            <><Lock size={16} className="text-text-secondary" /> <span>{analyzeButtonText}</span></>
+                            <><Lock size={16} /> <span>{analyzeButtonText}</span></>
                         ) : (
-                            <><ShieldCheck size={16} className="text-white" /> <span>{analyzeButtonText}</span></>
+                            <><ShieldCheck size={16} /> <span>{analyzeButtonText}</span></>
                         )}
                     </button>
               </div>
@@ -181,11 +182,9 @@ const CaseViewPage: React.FC = () => {
   }, [user]);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
-  // Socket provides live documents and methods for document operations only
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // Load case data and chat history from server (source of truth)
   const fetchCaseData = useCallback(async (isInitialLoad = false) => {
     if (!caseId) return;
     if(isInitialLoad) setIsLoading(true);
@@ -198,11 +197,9 @@ const CaseViewPage: React.FC = () => {
       setCaseData({ details });
       setLiveDocuments((initialDocs || []).map(sanitizeDocument));
       
-      // Server chat history is the source of truth – always use it
       const serverHistory = extractAndNormalizeHistory(details);
       setChatMessages(serverHistory);
       
-      // Optionally update localStorage for offline backup (but server is primary)
       if (serverHistory.length > 0) {
         localStorage.setItem(`chat_history_${caseId}`, JSON.stringify(serverHistory));
       } else {
@@ -219,7 +216,6 @@ const CaseViewPage: React.FC = () => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
 
-  // Save chat history to localStorage as a backup
   useEffect(() => {
     if (!currentCaseId) return;
     if (chatMessages.length > 0) {
@@ -266,7 +262,6 @@ const CaseViewPage: React.FC = () => {
     }
   };
 
-  // Chat submission using HTTP stream (supports multiple document IDs)
   const handleChatSubmit = async (
     text: string,
     _mode: ChatMode,
@@ -345,7 +340,7 @@ const CaseViewPage: React.FC = () => {
   const handleExpandViewer = () => { if (minimizedDocument) { handleViewOriginal(minimizedDocument); } };
   const handleRename = async (newName: string) => { if (!caseId || !documentToRename) return; try { await apiService.renameDocument(caseId, documentToRename.id, newName); setLiveDocuments(prev => prev.map(d => d.id === documentToRename.id ? { ...d, file_name: newName } : d)); } catch (error) { alert(t('error.generic')); } };
 
-  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-start"></div></div>;
+  if (isAuthLoading || isLoading) return <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-accent-primary"></div></div>;
   if (error || !caseData.details) return <div className="p-8 text-center text-red-400 border border-red-600 rounded-md bg-red-900/50 mt-10 mx-4"><AlertCircle className="mx-auto h-12 w-12 mb-4" /><p>{error}</p></div>;
 
   return (
@@ -379,7 +374,7 @@ const CaseViewPage: React.FC = () => {
                         onDocumentDeleted={handleDocumentDeleted} 
                         onViewOriginal={handleViewOriginal} 
                         onRename={(doc) => setDocumentToRename(doc)} 
-                        className="h-[500px] lg:h-full shadow-xl" 
+                        className="h-[500px] lg:h-full shadow-xl hover-lift" 
                     />
                     <ChatPanel 
                         messages={chatMessages}
@@ -390,7 +385,7 @@ const CaseViewPage: React.FC = () => {
                         onClearChat={handleClearChat}
                         onExportChat={handleExportChat}
                         t={t}
-                        className="!h-[600px] lg!h-full w-full shadow-xl"
+                        className="!h-[600px] lg!h-full w-full shadow-xl hover-lift"
                         activeContextId={caseId || 'general'}
                         isPro={isPro}
                         selectedDocumentCount={selectedDocumentIds.length}
