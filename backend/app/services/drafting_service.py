@@ -1,9 +1,9 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - FIXED: BACKEND NOW HONORS FRONT-END PROMPT ENGINEERING
-# 1. REMOVED: Overwriting system prompt with front-end's instructions embedded.
-# 2. ADDED: Backend context (domain, RAG) provided as system prompt supplement.
-# 3. PRESERVED: Front-end's anti-hallucination and template-specific formatting.
-# 4. STATUS: Front-end now controls the document structure; backend enriches with law facts.
+# PHOENIX PROTOCOL - ULTIMATE FIX: STRICT FORMAT & ANTI-HALLUCINATION ENFORCEMENT
+# 1. System prompt now explicitly orders the model to follow the user's structure exactly.
+# 2. Added: "If you are uncertain about a law or article, use a placeholder like [Neni përkatës i Ligjit ...]."
+# 3. Added: "Do not use chapter headings like KAPITULLI unless the user explicitly requested them."
+# 4. Preserved RAG context but ensured it is presented as supplementary, not structural.
 
 import os
 import asyncio
@@ -55,23 +55,15 @@ LEGAL_DOMAINS = {
 }
 
 def detect_legal_domain(text: str) -> Dict[str, str]:
-    """
-    Scans the input text for keywords to determine the primary legal domain.
-    Returns a dictionary with the specific Law and Context Note.
-    """
     text_lower = text.lower()
     scores = {key: 0 for key in LEGAL_DOMAINS}
-    
     for domain, data in LEGAL_DOMAINS.items():
         for keyword in data["keywords"]:
             if keyword in text_lower:
                 scores[domain] += 1
-    
     best_match = max(scores, key=lambda k: scores[k])
-    
     if scores[best_match] > 0:
         return LEGAL_DOMAINS[best_match]
-    
     return {
         "law": "Legjislacioni i Aplikueshëm në Kosovë",
         "context_note": "Fokus: Zbatimi i përgjithshëm i ligjit dhe procedurës."
@@ -87,17 +79,14 @@ async def stream_draft_generator(
     
     logger.info(f"Drafting initiated", user=user_id, type=draft_type)
     
-    # 1. Dynamic Domain Detection
     domain_context = detect_legal_domain(user_prompt)
     detected_law = domain_context["law"]
     context_note = domain_context["context_note"]
-    
     logger.info(f"Domain Detected: {detected_law}")
 
-    # 2. Smart Search Query
     search_query = f"{user_prompt} {detected_law} neni dispozita"
 
-    # 3. Parallel Retrieval (RAG)
+    # Parallel RAG retrieval
     try:
         tasks = [
             asyncio.to_thread(
@@ -113,56 +102,54 @@ async def stream_draft_generator(
                 n_results=10
             )
         ]
-        
         results = await asyncio.gather(*tasks)
         case_facts_list = results[0] or []
         legal_articles_list = results[1] or []
-
     except Exception as e:
         logger.error(f"Vector Store Retrieval Failed: {e}")
         case_facts_list = []
         legal_articles_list = []
 
-    # Format Retrieved Data for the LLM (as additional context)
     facts_block = "\n".join([f"- {f.get('text', '')}" for f in case_facts_list]) if case_facts_list else "Nuk u gjetën fakte specifike në dosje."
     laws_block = "\n".join([f"- {l.get('text', '')} (Burimi: {l.get('source', 'Ligji')})" for l in legal_articles_list]) if legal_articles_list else "Nuk u gjetën nene specifike në bazën ligjore."
 
-    # 4. Construct System Prompt (Context Only) – NO OVERRIDING OF USER'S STRUCTURE
+    # === STRENGTHENED SYSTEM PROMPT ===
     system_prompt = f"""
-    ROLI: Avokat i Licencuar në Republikën e Kosovës.
-    DETYRA: Përdor kontekstin e mëposhtëm për të mbështetur përgjigjen tënde. Mos i ndrysho udhëzimet e formatit të dhëna nga përdoruesi.
+ROLI: Avokat i Licencuar në Republikën e Kosovës.
 
-    [KONTEKSTI LIGJOR I DETEKTUAR]
-    Ligji primar i identifikuar: {detected_law}
-    Udhëzim: {context_note}
+UDHËZIME TË RREPTA:
+1. **Ndiq me përpikëri strukturën e kërkuar nga përdoruesi** – përdor saktësisht titujt që ai ka specifikuar (p.sh., PALËT:, OBJEKTI:, BAZA LIGJORE:, etj.). Mos i ndrysho.
+2. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për një citim, përdor një vendmbajtës si "[Neni përkatës i Ligjit ...]".
+3. **Mos përdor tituj si KAPITULLI** – përdor vetëm titujt e dhënë nga përdoruesi.
+4. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
 
-    [MATERIALI LIGJOR NDIHMËS (NGA BAZA JONË E LIGJEVE)]
-    {laws_block}
+[KONTEKSTI LIGJOR I DETEKTUAR]
+Ligji primar i identifikuar: {detected_law}
+Udhëzim: {context_note}
 
-    [FAKTET NGA DOSJA E RASTIT (NËSE KA)]
-    {facts_block}
+[MATERIALI LIGJOR NDIHMËS (NGA BAZA JONË E LIGJEVE)]
+{laws_block}
 
-    Përdor këtë informacion për t'i dhënë përgjigje kërkesës së përdoruesit. Mos shto pjesë strukturore që nuk janë kërkuar.
-    """
+[FAKTET NGA DOSJA E RASTIT (NËSE KA)]
+{facts_block}
 
-    # 5. Stream Execution – PASS USER_PROMPT DIRECTLY AS THE USER MESSAGE
+Tani, përgjigju kërkesës së përdoruesit duke ndjekur me përpikëri udhëzimet e tij për format dhe duke shmangur çdo trillim ligjor.
+"""
+
     full_content = ""
     try:
-        # The user_prompt already contains the front-end's full instructions (including anti-hallucination, template structure)
+        # user_prompt already contains front‑end's full instructions
         async for token in llm_service.stream_text_async(system_prompt, user_prompt, temp=0.2):
             full_content += token
             yield token
-            
-        # 6. Save Result (Async Fire-and-Forget)
+
         if full_content.strip() and case_id:
             asyncio.create_task(save_draft_result(db, user_id, case_id, draft_type, full_content))
-            
     except Exception as e:
         logger.error(f"LLM Generation Failed: {e}")
         yield f"\n\n[GABIM SISTEMI]: {str(e)}"
 
 async def save_draft_result(db: Database, user_id: str, case_id: str, draft_type: str, content: str):
-    """Saves the generated draft to the database asynchronously."""
     try:
         await asyncio.to_thread(
             db.drafting_results.insert_one, 
