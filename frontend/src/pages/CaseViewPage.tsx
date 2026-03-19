@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V10.8 (DUAL SELECTORS: ANALYSIS + CHAT)
-// 1. RETAINED: GlobalContextSwitcher for analysis (sets activeContextId).
-// 2. ADDED: DocumentSelector for multi‑document chat selection (sets selectedDocumentIds).
-// 3. PASSES both to ChatPanel via onSendMessage and selectedDocumentCount badge.
+// PHOENIX PROTOCOL - CASE VIEW V10.7 (INTEGRATED DOCUMENT SELECTOR)
+// 1. ADDED: DocumentSelector component for multi‑document selection.
+// 2. REMOVED: Old GlobalContextSwitcher.
+// 3. PASSES selectedDocumentIds to ChatPanel via onSendMessage.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -12,7 +12,6 @@ import DocumentsPanel from '../components/DocumentsPanel';
 import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode, LegalDomain } from '../components/ChatPanel';
 import PDFViewerModal from '../components/FileViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
-import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
 import SpreadsheetAnalyst from '../components/SpreadsheetAnalyst';
 import { DocumentSelector } from '../components/DocumentSelector';
 import { useDocumentSocket } from '../hooks/useDocumentSocket';
@@ -80,7 +79,7 @@ const CaseHeader: React.FC<{
     isAdmin: boolean;
     selectedDocumentIds: string[];
     onDocumentSelectionChange: (ids: string[]) => void;
-}> = ({ caseDetails, documents, activeContextId, onContextChange, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, isAdmin, selectedDocumentIds, onDocumentSelectionChange }) => {
+}> = ({ caseDetails, documents, activeContextId, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, isAdmin, selectedDocumentIds, onDocumentSelectionChange }) => {
     
     const analyzeButtonText = activeContextId === 'general' 
         ? t('analysis.analyzeButton', 'Analizo Rastin')
@@ -101,22 +100,10 @@ const CaseHeader: React.FC<{
 
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-5' : 'md:grid-cols-5'}`}>
+              <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-4'}`}>
                     <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap"><Calendar className="h-4 w-4 text-blue-400" />{new Date(caseDetails.created_at).toLocaleDateString()}</div>
                     
-                    {/* Single‑document selector for analysis */}
-                    {viewMode === 'workspace' && (
-                        <div className="md:col-span-1 h-12 md:h-11 min-w-0">
-                            <GlobalContextSwitcher
-                                documents={documents}
-                                activeContextId={activeContextId}
-                                onContextChange={onContextChange}
-                                className="w-full h-full"
-                            />
-                        </div>
-                    )}
-
-                    {/* Multi‑document selector for chat */}
+                    {/* Document selector replaces old GlobalContextSwitcher */}
                     {viewMode === 'workspace' && (
                         <div className="md:col-span-1 h-12 md:h-11 min-w-0">
                             <DocumentSelector
@@ -386,7 +373,7 @@ const CaseViewPage: React.FC = () => {
                         className="!h-[600px] lg!h-full w-full shadow-xl"
                         activeContextId={activeContextId}
                         isPro={isPro}
-                        selectedDocumentCount={selectedDocumentIds.length}
+                        selectedDocumentCount={selectedDocumentIds.length} // pass count for optional badge
                     />
                 </motion.div>
             )}
