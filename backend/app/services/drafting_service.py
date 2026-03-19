@@ -3,7 +3,8 @@
 # 1. System prompt now explicitly orders the model to follow the user's structure exactly.
 # 2. Added: "If you are uncertain about a law or article, use a placeholder like [Neni përkatës i Ligjit ...]."
 # 3. Added: "Do not use chapter headings like KAPITULLI unless the user explicitly requested them."
-# 4. Preserved RAG context but ensured it is presented as supplementary, not structural.
+# 4. For real estate templates, requires inclusion of duration, deposit, termination, and maintenance.
+# 5. Preserved RAG context but ensured it is presented as supplementary, not structural.
 
 import os
 import asyncio
@@ -114,6 +115,25 @@ async def stream_draft_generator(
     laws_block = "\n".join([f"- {l.get('text', '')} (Burimi: {l.get('source', 'Ligji')})" for l in legal_articles_list]) if legal_articles_list else "Nuk u gjetën nene specifike në bazën ligjore."
 
     # === STRENGTHENED SYSTEM PROMPT ===
+    # Add special instructions for real estate templates
+    real_estate_instructions = ""
+    if "qira" in user_prompt.lower() or "lease" in user_prompt.lower() or draft_type in ["lease_agreement", "sales_purchase", "power_of_attorney"]:
+        real_estate_instructions = """
+UDHËZIME TË VEÇANTA PËR KONTRATAT E QIRASË (LEASE AGREEMENTS):
+- Titulli duhet të jetë "KONTRATË QIRAJE".
+- Përdor ligjin e saktë: **Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve** (LMD) – ky është ligji që rregullon kontratat e qirasë në Kosovë, jo "Ligji për Marrëdhëniet Kontraktuale".
+- Duhet të përfshish domosdoshmërisht këto seksione:
+   * PALËT (Qiradhënësi dhe Qiramarrësi)
+   * PËRSHKRIMI I PRONËS
+   * QIRAJA MUJORE DHE MËNYRA E PAGESËS
+   * KOHËZGJATJA E QIRASË (data e fillimit dhe mbarimit)
+   * DEPOZITA (nëse ka)
+   * DETYRIMET E PALËVE (mirëmbajtja, shërbimet komunale, etj.)
+   * KUSHTET PËR ZGJIDHJEN E KONTRATËS
+   * NËNSHKRIMET
+- Nëse nuk ke informacion të mjaftueshëm për një seksion, përdor vendmbajtës si [_____].
+"""
+
     system_prompt = f"""
 ROLI: Avokat i Licencuar në Republikën e Kosovës.
 
@@ -123,6 +143,7 @@ UDHËZIME TË RREPTA:
 3. **Mos përdor tituj si KAPITULLI** – përdor vetëm titujt e dhënë nga përdoruesi.
 4. **Ligji primar i identifikuar është: {detected_law}**. Ky është ligji që duhet të përdorësh në citime. Nëse materiali ndihmës përmban ligje të tjera, përdori ato vetëm nëse përputhen me këtë ligj ose je absolutisht i sigurt se janë të sakta. Përndryshe, përdor vendmbajtës.
 5. **Për kontratat e punës, titulli standard është 'KONTRATË PUNE'**, jo 'AKTIVENDIM'. Përdor formatin e kontratës dypalëshe, jo vendim gjyqësor.
+{real_estate_instructions}
 6. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
 
 [KONTEKSTI LIGJOR I DETEKTUAR]
