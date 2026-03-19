@@ -1,40 +1,129 @@
+/* /home/user/advocatus-frontend/src/index.css */
+/* PHOENIX PROTOCOL - INDEX CSS V4.0 (PROFESSIONAL LIGHT THEME) */
+/* 1. ADDED: Complete light theme palette from the design system.
+/* 2. UPDATED: glass-panel, glass-input, primary-button, badges, document-reader.
+/* 3. ADDED: Subtle background texture for glass effects in light mode.
+/* 4. RETAINED: Dark theme as .dark.
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* LIGHT THEME (default) – Professional Slate & Pure White */
   :root {
-    /* LAWYER GRADE LIGHT THEME - Professional Slate & Pure White */
-    --color-canvas: #F8FAFC;         /* Slate-50: The background canvas */
-    --color-surface: #FFFFFF;        /* Solid white cards */
-    --color-surface-border: #E2E8F0; /* Slate-200: Razor sharp lines */
+    /* Background hierarchy */
+    --color-canvas: #F4F6F9;           /* Page background – cool off-white */
+    --color-surface: #FFFFFF;           /* Cards, panels – pure white */
+    --color-surface-secondary: #ECEEF3; /* Sidebars, secondary surfaces */
+    --color-glass: rgba(255,255,255,0.65); /* Glass overlay */
+    --color-input: #EDF0F5;             /* Input field background */
+    --color-hover: rgba(99,115,255,0.07); /* Row hover */
     
-    --color-primary-start: #0F172A;  /* Oxford Blue: Authoritative primary */
-    --color-primary-start-rgb: 15, 23, 42;
-    --color-primary-end: #1E293B;    /* Slate-800 */
+    /* Borders */
+    --color-surface-border: #E2E8F0;    /* Slate-200 */
+    --border-light: rgba(15,22,35,0.10);
+    
+    /* Accent palette (unchanged across themes) */
+    --color-primary-start: #6366F1;      /* Indigo – authoritative */
+    --color-primary-start-rgb: 99, 102, 241;
+    --color-primary-end: #4F46E5;
+    --color-primary-hover: #4F52D9;
+    --color-primary-subtle: rgba(99,102,241,0.10);
+    --color-primary-text: #4345B5;       /* Hyperlinks, inline accent */
     
     --color-secondary-start: #6366F1;
     --color-secondary-end: #4F46E5;
     
-    --color-text-primary: #0F172A;   /* Deepest Navy for maximum legibility */
-    --color-text-secondary: #64748B; /* Slate-500 */
-    
+    /* Status colors */
     --color-success-start: #10B981;
     --color-success-end: #059669;
+    --color-warning-start: #D97706;
+    --color-warning-end: #B45309;
+    --color-danger-start: #DC2626;
+    --color-danger-end: #B91C1C;
+    --color-neutral: #475569;
+    
+    /* Text colors */
+    --color-text-primary: #0F1623;       /* Deep navy – maximum legibility */
+    --color-text-secondary: #3D4A5C;      /* Slate-600 */
+    --color-text-muted: #6B7A90;          /* Slate-500 */
+    --color-text-disabled: #A3AFBF;       /* For disabled elements */
+    --color-text-inverse: #FFFFFF;        /* On accent backgrounds */
+    
+    /* Shadow system – directional, layered */
+    --shadow-xs: 0 1px 2px rgba(15,22,35,0.04),
+                 0 1px 3px rgba(15,22,35,0.06);
+    --shadow-sm: 0 2px 4px rgba(15,22,35,0.04),
+                 0 4px 12px rgba(15,22,35,0.06);
+    --shadow-md: 0 4px 8px rgba(15,22,35,0.05),
+                 0 8px 24px rgba(15,22,35,0.08),
+                 0 0 0 1px rgba(99,102,241,0.06);
+    --shadow-lg: 0 8px 16px rgba(15,22,35,0.06),
+                 0 20px 48px rgba(15,22,35,0.10),
+                 0 0 0 1px rgba(15,22,35,0.04);
+    --shadow-xl: 0 16px 32px rgba(15,22,35,0.08),
+                 0 40px 80px rgba(15,22,35,0.14),
+                 0 0 0 1px rgba(15,22,35,0.06);
+    
+    /* Accent shadow for primary elements */
+    --shadow-accent-xs: 0 2px 8px rgba(99,102,241,0.20),
+                        0 1px 3px rgba(99,102,241,0.12);
+    --shadow-accent-sm: 0 4px 16px rgba(99,102,241,0.30),
+                        0 2px 6px rgba(99,102,241,0.18);
+    
+    /* Background texture for glass effect */
+    background-color: var(--color-canvas);
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366F1' fill-opacity='0.025'%3E%3Ccircle cx='7' cy='7' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
 
+  /* DARK THEME – Premium Midnight */
   .dark {
-    /* PREMIUM DARK THEME - Deep Midnight */
-    --color-canvas: #020617;         /* Deepest Navy */
-    --color-surface: #0F172A;        /* Slate-900 cards */
-    --color-surface-border: rgba(255, 255, 255, 0.06);
+    --color-canvas: #020617;            /* Deepest navy */
+    --color-surface: #0F172A;            /* Slate-900 cards */
+    --color-surface-secondary: #141626;  /* Sidebars */
+    --color-glass: rgba(20,22,38,0.7);
+    --color-input: #1E293B;
+    --color-hover: rgba(99,115,255,0.15);
     
-    --color-primary-start: #3B82F6;  /* Brighter Blue for Dark Mode */
+    --color-surface-border: rgba(255,255,255,0.06);
+    --border-light: rgba(255,255,255,0.08);
+    
+    /* Accent (brighter for dark mode) */
+    --color-primary-start: #3B82F6;
     --color-primary-start-rgb: 59, 130, 246;
     --color-primary-end: #2563EB;
+    --color-primary-hover: #5290ff;
+    --color-primary-subtle: rgba(59,130,246,0.15);
+    --color-primary-text: #90B4FF;
+    
+    /* Status colors remain similar, adjust if needed */
+    --color-success-start: #10B981;
+    --color-success-end: #059669;
+    --color-warning-start: #D97706;
+    --color-warning-end: #B45309;
+    --color-danger-start: #DC2626;
+    --color-danger-end: #B91C1C;
+    --color-neutral: #475569;
     
     --color-text-primary: #F8FAFC;
     --color-text-secondary: #94A3B8;
+    --color-text-muted: #64748B;
+    --color-text-disabled: #475569;
+    --color-text-inverse: #FFFFFF;
+    
+    /* Shadows in dark mode become glows – we keep directional but adjust opacity */
+    --shadow-xs: 0 1px 2px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.6);
+    --shadow-sm: 0 2px 4px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.6);
+    --shadow-md: 0 4px 8px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.7), 0 0 0 1px rgba(59,130,246,0.2);
+    --shadow-lg: 0 8px 16px rgba(0,0,0,0.7), 0 20px 48px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05);
+    --shadow-xl: 0 16px 32px rgba(0,0,0,0.8), 0 40px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.08);
+    
+    --shadow-accent-xs: 0 2px 8px rgba(59,130,246,0.4), 0 1px 3px rgba(59,130,246,0.3);
+    --shadow-accent-sm: 0 4px 16px rgba(59,130,246,0.5), 0 2px 6px rgba(59,130,246,0.4);
+    
+    /* Remove background texture in dark mode */
+    background-image: none;
   }
 
   body {
@@ -53,36 +142,181 @@
 }
 
 @layer components {
-  /* THE LAWYER PANEL: Solid in light mode, Glass in dark mode */
+  /* --- GLASS PANEL – adapts to theme --- */
   .glass-panel {
-    @apply transition-all duration-300;
+    transition: all 0.3s ease;
     background-color: var(--color-surface);
     border: 1px solid var(--color-surface-border);
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-sm);
   }
-
   .dark .glass-panel {
-    background-color: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(16px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+    background-color: var(--color-glass);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-surface-border);
   }
 
+  /* --- GLASS INPUT --- */
   .glass-input {
-    background-color: var(--color-surface);
-    border: 1px solid var(--color-surface-border);
+    background-color: var(--color-input);
+    border: 1.5px solid var(--color-surface-border);
     color: var(--color-text-primary);
-    @apply transition-all duration-200 outline-none rounded-lg;
-  }
-  
-  .glass-input:focus {
-    border-color: var(--color-primary-start);
-    box-shadow: 0 0 0 2px rgba(var(--color-primary-start-rgb), 0.1);
+    box-shadow: inset 0 1px 3px rgba(15,22,35,0.06);
+    transition: all 0.15s ease;
     outline: none;
+    border-radius: 0.5rem;
+  }
+  .glass-input::placeholder {
+    color: var(--color-text-disabled);
+  }
+  .glass-input:hover {
+    border-color: rgba(var(--color-primary-start-rgb), 0.35);
+    background-color: #F0F2F7;
+  }
+  .glass-input:focus {
+    background-color: var(--color-surface);
+    border-color: var(--color-primary-start);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-start-rgb), 0.15),
+                inset 0 1px 2px rgba(15,22,35,0.04);
+  }
+  .dark .glass-input {
+    background-color: var(--color-input);
+    border-color: var(--color-surface-border);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+  }
+  .dark .glass-input:hover {
+    border-color: var(--color-primary-start);
+    background-color: #2D3748;
+  }
+  .dark .glass-input:focus {
+    background-color: var(--color-surface);
+    border-color: var(--color-primary-start);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-start-rgb), 0.3);
   }
 
-  /* Professional Buttons */
-  .primary-button {
-    @apply px-4 py-2 bg-primary-start text-white font-semibold rounded-lg shadow-sm hover:brightness-110 active:scale-95 transition-all;
+  /* --- PRIMARY BUTTON --- */
+  .btn-primary {
+    background: linear-gradient(135deg, var(--color-primary-start) 0%, var(--color-primary-end) 100%);
+    color: var(--color-text-inverse);
+    border: none;
+    box-shadow: var(--shadow-accent-xs);
+    transition: all 0.15s ease;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, var(--color-primary-hover) 0%, var(--color-primary-end) 100%);
+    box-shadow: var(--shadow-accent-sm);
+    transform: translateY(-1px);
+  }
+  .btn-primary:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-accent-xs);
+  }
+
+  /* --- SECONDARY BUTTON --- */
+  .btn-secondary {
+    background: var(--color-surface);
+    color: var(--color-primary-text);
+    border: 1.5px solid rgba(var(--color-primary-start-rgb), 0.3);
+    box-shadow: var(--shadow-xs);
+    transition: all 0.15s ease;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+  }
+  .btn-secondary:hover {
+    background: rgba(var(--color-primary-start-rgb), 0.05);
+    border-color: rgba(var(--color-primary-start-rgb), 0.55);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* --- DANGER BUTTON --- */
+  .btn-danger {
+    background: linear-gradient(135deg, var(--color-danger-start) 0%, var(--color-danger-end) 100%);
+    color: var(--color-text-inverse);
+    border: none;
+    box-shadow: 0 2px 8px rgba(220,38,38,0.25);
+    transition: all 0.15s ease;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+  }
+  .btn-danger:hover {
+    filter: brightness(110%);
+    box-shadow: 0 4px 16px rgba(220,38,38,0.35);
+  }
+
+  /* --- STATUS BADGES --- */
+  .badge {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .badge-success {
+    background: rgba(5,150,105,0.10);
+    color: #065F46;
+    border: 1px solid rgba(5,150,105,0.20);
+  }
+  .badge-warning {
+    background: rgba(217,119,6,0.10);
+    color: #92400E;
+    border: 1px solid rgba(217,119,6,0.20);
+  }
+  .badge-danger {
+    background: rgba(220,38,38,0.08);
+    color: #991B1B;
+    border: 1px solid rgba(220,38,38,0.18);
+  }
+  .dark .badge-success {
+    background: rgba(16,185,129,0.15);
+    color: #A7F3D0;
+    border-color: rgba(16,185,129,0.3);
+  }
+  .dark .badge-warning {
+    background: rgba(217,119,6,0.15);
+    color: #FDE68A;
+    border-color: rgba(217,119,6,0.3);
+  }
+  .dark .badge-danger {
+    background: rgba(220,38,38,0.15);
+    color: #FECACA;
+    border-color: rgba(220,38,38,0.3);
+  }
+
+  /* --- DOCUMENT READER (special legal panel) --- */
+  .document-reader {
+    background: #FFFEF7; /* warm paper */
+    border: 1px solid rgba(203,213,225,0.6);
+    border-radius: 8px;
+    box-shadow: var(--shadow-md), inset 0 0 0 1px rgba(255,255,255,0.8);
+    padding: 48px 56px;
+    max-width: 780px;
+    font-family: 'Georgia', 'Palatino', serif;
+    line-height: 1.75;
+    color: #1A2332;
+  }
+  .dark .document-reader {
+    background: #1E293B;
+    border-color: rgba(255,255,255,0.1);
+    color: #E2E8F0;
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* AI highlight annotations */
+  .doc-highlight-primary {
+    background: rgba(var(--color-primary-start-rgb), 0.12);
+    border-bottom: 2px solid rgba(var(--color-primary-start-rgb), 0.5);
+    border-radius: 2px;
+  }
+  .doc-highlight-risk {
+    background: rgba(220,38,38,0.08);
+    border-bottom: 2px solid rgba(220,38,38,0.45);
   }
 }
 
