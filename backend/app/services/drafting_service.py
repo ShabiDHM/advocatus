@@ -1,4 +1,10 @@
 # FILE: backend/app/services/drafting_service.py
+# PHOENIX PROTOCOL - FIXED: BACKEND NOW HONORS FRONT-END PROMPT ENGINEERING
+# 1. REMOVED: Overwriting system prompt with front-end's instructions embedded.
+# 2. ADDED: Backend context (domain, RAG) provided as system prompt supplement.
+# 3. PRESERVED: Front-end's anti-hallucination and template-specific formatting.
+# 4. STATUS: Front-end now controls the document structure; backend enriches with law facts.
+
 import os
 import asyncio
 import structlog
@@ -9,8 +15,7 @@ from . import llm_service, vector_store_service
 
 logger = structlog.get_logger(__name__)
 
-# --- PHOENIX PROTOCOL: MULTI-DOMAIN KNOWLEDGE BASE ---
-# Maps specific keywords to Kosovo Legal Frameworks.
+# --- PHOENIX PROTOCOL: MULTI-DOMAIN KNOWLEDGE BASE (unchanged) ---
 LEGAL_DOMAINS = {
     "FAMILY": {
         "keywords": ["shkurorëzim", "divorc", "alimentacion", "kujdestari", "fëmijë", "bashkëshort", "martesë"],
@@ -18,7 +23,7 @@ LEGAL_DOMAINS = {
         "context_note": "Fokus: Interesi më i mirë i fëmijës, barazia bashkëshortore."
     },
     "CORPORATE": {
-        "keywords": ["shpk", "aksion", "biznes", "bord", "divident", "falimentim", "statut", "marrëveshje themelimi"],
+        "keywords": ["shpk", "aksion", "biznes", "bord", "divident", "falimentim", "statut", "marrëveshje themelimi", "ortak", "partneritet"],
         "law": "Ligji Nr. 06/L-016 për Shoqëritë Tregtare",
         "context_note": "Fokus: Përgjegjësia e kufizuar, qeverisja korporative."
     },
@@ -57,19 +62,16 @@ def detect_legal_domain(text: str) -> Dict[str, str]:
     text_lower = text.lower()
     scores = {key: 0 for key in LEGAL_DOMAINS}
     
-    # Calculate scores based on keyword frequency
     for domain, data in LEGAL_DOMAINS.items():
         for keyword in data["keywords"]:
             if keyword in text_lower:
                 scores[domain] += 1
     
-    # Find the domain with the highest score
-    best_match = max(scores, key=lambda k: scores[k])  # FIXED: lambda ensures int return
+    best_match = max(scores, key=lambda k: scores[k])
     
     if scores[best_match] > 0:
         return LEGAL_DOMAINS[best_match]
     
-    # Default fallback if no specific keywords are found
     return {
         "law": "Legjislacioni i Aplikueshëm në Kosovë",
         "context_note": "Fokus: Zbatimi i përgjithshëm i ligjit dhe procedurës."
@@ -93,13 +95,11 @@ async def stream_draft_generator(
     logger.info(f"Domain Detected: {detected_law}")
 
     # 2. Smart Search Query
-    # We combine the user's specific request with the detected law to get the most relevant articles.
     search_query = f"{user_prompt} {detected_law} neni dispozita"
 
     # 3. Parallel Retrieval (RAG)
     try:
         tasks = [
-            # Retrieve Case Facts (if a case is selected)
             asyncio.to_thread(
                 vector_store_service.query_case_knowledge_base, 
                 user_id=user_id, 
@@ -107,7 +107,6 @@ async def stream_draft_generator(
                 n_results=8, 
                 case_context_id=case_id
             ),
-            # Retrieve Legal Articles (Global Knowledge)
             asyncio.to_thread(
                 vector_store_service.query_global_knowledge_base, 
                 query_text=search_query, 
@@ -121,52 +120,36 @@ async def stream_draft_generator(
 
     except Exception as e:
         logger.error(f"Vector Store Retrieval Failed: {e}")
-        # Graceful degradation: Proceed without RAG data rather than crashing
         case_facts_list = []
         legal_articles_list = []
 
-    # Format Retrieved Data for the LLM
-    facts_block = "\n".join([f"- {f.get('text', '')}" for f in case_facts_list]) if case_facts_list else "Përdor vetëm informacionin nga prompti i përdoruesit."
-    laws_block = "\n".join([f"- {l.get('text', '')} (Burimi: {l.get('source', 'Ligji')})" for l in legal_articles_list]) if legal_articles_list else "Referoju njohurive të tua të përgjithshme për ligjet e Kosovës."
+    # Format Retrieved Data for the LLM (as additional context)
+    facts_block = "\n".join([f"- {f.get('text', '')}" for f in case_facts_list]) if case_facts_list else "Nuk u gjetën fakte specifike në dosje."
+    laws_block = "\n".join([f"- {l.get('text', '')} (Burimi: {l.get('source', 'Ligji')})" for l in legal_articles_list]) if legal_articles_list else "Nuk u gjetën nene specifike në bazën ligjore."
 
-    # 4. Construct System Mandate (Aligned with Frontend 'Kosovo Style')
+    # 4. Construct System Prompt (Context Only) – NO OVERRIDING OF USER'S STRUCTURE
     system_prompt = f"""
     ROLI: Avokat i Licencuar në Republikën e Kosovës.
-    DETYRA: Hartimi i dokumentit "{draft_type.upper()}" sipas standardeve të Gjykatës.
-    
-    KONTEKSTI LIGJOR I DETEKTUAR:
-    - Ligji Primar: {detected_law}
-    - Udhëzim: {context_note}
-    
-    [MATERIALI LIGJOR NDITMËS - RAG]:
-    {laws_block}
-    
-    [FAKTET NGA DOSJA E RASTIT]:
-    {facts_block}
-    
-    UDHËZIME PËR STRUKTURËN (E DETYRUESHME):
-    1. HEADER: [GJYKATA THEMELORE...] (Në qendër, me shkronja të mëdha).
-    2. PALËT: Paditës/Propozues vs I Paditur/Kundërshtar.
-    3. OBJEKTI: Përshkrim i shkurtër (psh. Padi për...).
-    4. TITULLI: "{draft_type.upper()}" (Në qendër, Bold).
-    5. BAZA LIGJORE: Cito saktë nenet nga "{detected_law}" ose materialet e gjetura.
-    6. ARSYETIMI: Lidh faktet me ligjin. Përdor ton bindës dhe profesional.
-    7. PETITUMI / PËRFUNDIMI: Kërkesa konkrete ndaj gjykatës.
-    8. NËNSHKRIMI: Vendi, Data, Avokati.
+    DETYRA: Përdor kontekstin e mëposhtëm për të mbështetur përgjigjen tënde. Mos i ndrysho udhëzimet e formatit të dhëna nga përdoruesi.
 
-    RREGULLA:
-    - Përdor gjuhën standarde shqipe (ligjore).
-    - Mos shpik nene ligjore in-ekzistente.
-    - Nëse nuk ka fakte të mjaftueshme, lëre hapësirë [________] për t'u plotësuar.
-    
-    INPUTI I PËRDORUESIT:
-    {user_prompt}
+    [KONTEKSTI LIGJOR I DETEKTUAR]
+    Ligji primar i identifikuar: {detected_law}
+    Udhëzim: {context_note}
+
+    [MATERIALI LIGJOR NDIHMËS (NGA BAZA JONË E LIGJEVE)]
+    {laws_block}
+
+    [FAKTET NGA DOSJA E RASTIT (NËSE KA)]
+    {facts_block}
+
+    Përdor këtë informacion për t'i dhënë përgjigje kërkesës së përdoruesit. Mos shto pjesë strukturore që nuk janë kërkuar.
     """
 
-    # 5. Stream Execution
+    # 5. Stream Execution – PASS USER_PROMPT DIRECTLY AS THE USER MESSAGE
     full_content = ""
     try:
-        async for token in llm_service.stream_text_async(system_prompt, "Fillo hartimin e dokumentit tani.", temp=0.2):
+        # The user_prompt already contains the front-end's full instructions (including anti-hallucination, template structure)
+        async for token in llm_service.stream_text_async(system_prompt, user_prompt, temp=0.2):
             full_content += token
             yield token
             
