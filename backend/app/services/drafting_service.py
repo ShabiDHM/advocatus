@@ -1,10 +1,5 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - ULTIMATE FIX: STRICT FORMAT & ANTI-HALLUCINATION ENFORCEMENT
-# 1. System prompt now explicitly orders the model to follow the user's structure exactly.
-# 2. Added: "If you are uncertain about a law or article, use a placeholder like [Neni përkatës i Ligjit ...]."
-# 3. Added: "Do not use chapter headings like KAPITULLI unless the user explicitly requested them."
-# 4. For real estate templates, requires inclusion of duration, deposit, termination, and maintenance.
-# 5. Preserved RAG context but ensured it is presented as supplementary, not structural.
+# PHOENIX PROTOCOL - ADDED: Explicit ban on "Kodi Civil" and correct obligations law
 
 import os
 import asyncio
@@ -16,7 +11,7 @@ from . import llm_service, vector_store_service
 
 logger = structlog.get_logger(__name__)
 
-# --- PHOENIX PROTOCOL: MULTI-DOMAIN KNOWLEDGE BASE (unchanged) ---
+# --- LEGAL DOMAINS (unchanged) ---
 LEGAL_DOMAINS = {
     "FAMILY": {
         "keywords": ["shkurorëzim", "divorc", "alimentacion", "kujdestari", "fëmijë", "bashkëshort", "martesë"],
@@ -114,8 +109,7 @@ async def stream_draft_generator(
     facts_block = "\n".join([f"- {f.get('text', '')}" for f in case_facts_list]) if case_facts_list else "Nuk u gjetën fakte specifike në dosje."
     laws_block = "\n".join([f"- {l.get('text', '')} (Burimi: {l.get('source', 'Ligji')})" for l in legal_articles_list]) if legal_articles_list else "Nuk u gjetën nene specifike në bazën ligjore."
 
-    # === STRENGTHENED SYSTEM PROMPT ===
-    # Add special instructions for real estate templates
+    # === STRENGTHENED SYSTEM PROMPT WITH EXPLICIT BAN ON CIVIL CODE ===
     real_estate_instructions = ""
     if "qira" in user_prompt.lower() or "lease" in user_prompt.lower() or draft_type in ["lease_agreement", "sales_purchase", "power_of_attorney"]:
         real_estate_instructions = """
@@ -142,9 +136,10 @@ UDHËZIME TË RREPTA:
 2. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për një citim, përdor një vendmbajtës si "[Neni përkatës i Ligjit ...]".
 3. **Mos përdor tituj si KAPITULLI** – përdor vetëm titujt e dhënë nga përdoruesi.
 4. **Ligji primar i identifikuar është: {detected_law}**. Ky është ligji që duhet të përdorësh në citime. Nëse materiali ndihmës përmban ligje të tjera, përdori ato vetëm nëse përputhen me këtë ligj ose je absolutisht i sigurt se janë të sakta. Përndryshe, përdor vendmbajtës.
-5. **Për kontratat e punës, titulli standard është 'KONTRATË PUNE'**, jo 'AKTIVENDIM'. Përdor formatin e kontratës dypalëshe, jo vendim gjyqësor.
+5. **Kosovo NUK ka Kod Civil.** Mos përdor kurrë termin "Kodi Civil" ose "Civil Code". Nëse ke nevojë të referosh për marrëdhëniet e detyrimeve, përdor **Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD)**.
+6. **Për kontratat e punës, titulli standard është 'KONTRATË PUNE'**, jo 'AKTIVENDIM'. Përdor formatin e kontratës dypalëshe, jo vendim gjyqësor.
 {real_estate_instructions}
-6. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
+7. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
 
 [KONTEKSTI LIGJOR I DETEKTUAR]
 Ligji primar i identifikuar: {detected_law}
@@ -161,7 +156,6 @@ Tani, përgjigju kërkesës së përdoruesit duke ndjekur me përpikëri udhëzi
 
     full_content = ""
     try:
-        # user_prompt already contains front‑end's full instructions
         async for token in llm_service.stream_text_async(system_prompt, user_prompt, temp=0.2):
             full_content += token
             yield token
