@@ -1,8 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - ULTIMATE FIX: INCLUDE FULL LAW TITLE IN CONTEXT
-# 1. ADDED: Law title and article number to the laws_block.
-# 2. STRENGTHENED: Instruction to use the exact title from context.
-# 3. RETAINED: All previous improvements.
+# PHOENIX PROTOCOL - ULTIMATE FIX: ENFORCE CLEAN CITATIONS
+# 1. ADDED: Strict rule: NEVER use the placeholder "[Neni i aplikueshëm i Ligjit ...]". Instead use "Neni përkatës" after the full law title.
+# 2. CLEANED: laws_block formatting to avoid confusing metadata.
+# 3. RETAINED: All domain detection and retrieval.
 
 import os
 import asyncio
@@ -110,29 +110,37 @@ async def stream_draft_generator(
 
     facts_block = "\n".join([f"- {f.get('text', '')}" for f in case_facts_list]) if case_facts_list else "Nuk u gjetën fakte specifike në dosje."
     
-    # Format laws block with full metadata
+    # Format laws block: include full law title and article if available, without extra metadata
     if legal_articles_list:
         laws_lines = []
         for l in legal_articles_list:
             law_title = l.get('law_title', 'Ligji i panjohur')
-            article_num = l.get('article_number', 'neni i panjohur')
+            article_num = l.get('article_number')
             text = l.get('text', '')
-            source = l.get('source', 'Ligji')
-            laws_lines.append(f"- Ligji: {law_title}, Neni {article_num}\n  {text}\n  (Burimi: {source})")
+            if article_num:
+                line = f"- {law_title}, Neni {article_num}:\n  {text}"
+            else:
+                line = f"- {law_title}:\n  {text}"
+            laws_lines.append(line)
         laws_block = "\n".join(laws_lines)
     else:
         laws_block = "Nuk u gjetën nene specifike në bazën ligjore."
 
-    # === STRENGTHENED SYSTEM PROMPT ===
+    # === ULTRA-STRICT SYSTEM PROMPT ===
     system_prompt = f"""
 ROLI: Avokat i Licencuar në Republikën e Kosovës.
 
-UDHËZIME TË RREPTA:
-1. **Ndiq me përpikëri strukturën e kërkuar nga përdoruesi** – përdor saktësisht titujt që ai ka specifikuar (p.sh., PALËT:, OBJEKTI:, BAZA LIGJORE:, etj.). Mos i ndrysho.
-2. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për një citim, përdor një vendmbajtës si "[Neni përkatës i Ligjit ...]".
-3. **Përdor ligjin e identifikuar si primar: {detected_law}.** Ky është ligji kryesor që duhet të përdorësh në citime. Materialet e tjera ligjore (nëse jepen) janë vetëm ndihmëse dhe duhet të përdoren vetëm nëse përputhen me këtë ligj ose janë absolutisht të nevojshme për të plotësuar përgjigjen.
-4. **Mos përziej ligje nga fusha të ndryshme** – për shembull, mos përdor ligjin tregtar në një mosmarrëveshje pronësore, përveç nëse përdoruesi i referohet qartë atyre.
-5. **Për çdo citim, përdor formatin e plotë zyrtar të ligjit, duke përfshirë numrin, saktësisht siç shfaqet në kontekstin më poshtë (p.sh., "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore").** Nëse numri i nenit nuk dihet, përdor "Neni përkatës".
+UDHËZIME TË RREPTA (NDIQINI ME PRECIZION):
+1. **Ndiq strukturën e kërkuar nga përdoruesi** – përdor saktësisht titujt e specifikuar (PALËT:, OBJEKTI:, BAZA LIGJORE:, ARSYETIMI:, PETITUMI / PËRFUNDIMI:, NËNSHKRIMI:). Mos i ndrysho dhe mos shto tituj të tjerë.
+
+2. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për numrin e nenit, përdor formulimin e saktë: pas titullit të ligjit, shto ", Neni përkatës". **NË ASNJË RAST mos përdor formulimin "[Neni i aplikueshëm i Ligjit ...]" që vjen nga hyrja e përdoruesit.** Shembull i saktë: "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore, Neni përkatës".
+
+3. **Përdor gjithmonë titullin e plotë zyrtar të ligjit, duke përfshirë numrin**, pikërisht siç shfaqet në kontekstin më poshtë. Shembull: "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore".
+
+4. **Ligji primar i identifikuar është: {detected_law}.** Ky është ligji kryesor që duhet të përdorësh në citime. Materialet e tjera ligjore (nëse jepen) janë ndihmëse dhe duhet të përdoren vetëm nëse janë absolutisht relevante.
+
+5. **Mos përziej ligje nga fusha të ndryshme** – për shembull, mos përdor ligjin tregtar në një mosmarrëveshje pronësore, përveç nëse përdoruesi i referohet qartë atyre.
+
 6. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
 
 [KONTEKSTI LIGJOR I DETEKTUAR]
@@ -145,7 +153,7 @@ Udhëzim: {context_note}
 [FAKTET NGA DOSJA E RASTIT (NËSE KA)]
 {facts_block}
 
-Tani, përgjigju kërkesës së përdoruesit duke ndjekur me përpikëri udhëzimet e tij për format dhe duke shmangur çdo trillim ligjor.
+Tani, përgjigju kërkesës së përdoruesit duke ndjekur me përpikëri udhëzimet e mësipërme. Mos përfshij asnjë koment jashtë dokumentit.
 """
 
     full_content = ""
