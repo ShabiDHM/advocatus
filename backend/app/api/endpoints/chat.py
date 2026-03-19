@@ -1,11 +1,12 @@
 # FILE: backend/app/api/endpoints/chat.py
-# PHOENIX PROTOCOL - CHAT ROUTER V7.6 (ADDED DOMAIN PARAMETER)
-# 1. ADDED: domain field to ChatMessageRequest for deep mode customisation.
-# 2. RETAINED: All previous functionality.
+# PHOENIX PROTOCOL - CHAT ROUTER V7.7 (MULTI-DOCUMENT SUPPORT)
+# 1. ADDED: document_ids field to ChatMessageRequest (list of strings).
+# 2. PASSED list to chat_service.stream_chat_response.
+# 3. RETAINED: All previous functionality.
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
-from typing import Annotated, Optional, Literal
+from typing import Annotated, Optional, List, Literal
 from pydantic import BaseModel
 import logging
 from datetime import datetime
@@ -20,10 +21,10 @@ logger = logging.getLogger(__name__)
 
 class ChatMessageRequest(BaseModel):
     message: str
-    document_id: Optional[str] = None
+    document_ids: Optional[List[str]] = None
     jurisdiction: Optional[str] = 'ks'
     mode: Optional[str] = "FAST"
-    domain: Optional[str] = 'automatic'  # NEW: legal domain for deep mode
+    domain: Optional[str] = 'automatic'
 
 class ChatFeedbackRequest(BaseModel):
     message_index: int
@@ -38,21 +39,21 @@ async def handle_chat_message(
 ):
     """
     Sends a message to the AI Case Chat and returns a real-time stream.
+    Supports optional list of document IDs to focus the analysis.
     """
     if not chat_request.message: 
         raise HTTPException(status_code=400, detail="Mesazhi është i zbrazët.")
         
     try:
-        # Generate the stream via the Chat Service
         generator = chat_service.stream_chat_response(
             db=db, 
             case_id=case_id, 
             user_query=chat_request.message, 
             user_id=str(current_user.id),
-            document_id=chat_request.document_id,
+            document_ids=chat_request.document_ids,
             jurisdiction=chat_request.jurisdiction,
             mode=chat_request.mode,
-            domain=chat_request.domain  # NEW: pass domain to service
+            domain=chat_request.domain
         )
         
         headers = {
@@ -100,17 +101,14 @@ async def submit_chat_feedback(
     """Submit feedback for a specific chat message."""
     from bson import ObjectId
     try:
-        # Verify case exists and belongs to user
         case = db.cases.find_one({"_id": ObjectId(case_id), "owner_id": current_user.id})
         if not case:
             raise HTTPException(status_code=404, detail="Case not found")
         
-        # Ensure the message index is within range
         chat_history = case.get("chat_history", [])
         if feedback_request.message_index < 0 or feedback_request.message_index >= len(chat_history):
             raise HTTPException(status_code=400, detail="Invalid message index")
         
-        # Store feedback in a separate collection
         message = chat_history[feedback_request.message_index]
         feedback_doc = {
             "case_id": case_id,

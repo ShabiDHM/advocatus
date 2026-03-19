@@ -1,8 +1,8 @@
 # FILE: backend/app/services/chat_service.py
-# PHOENIX PROTOCOL - CHAT SERVICE V25.7 (ADDED DOMAIN PARAMETER)
-# 1. ADDED: domain parameter to stream_chat_response for deep mode customisation.
-# 2. PASSED domain to AlbanianRAGService.chat().
-# 3. RETAINED: All fast/deep mode improvements and conversation memory.
+# PHOENIX PROTOCOL - CHAT SERVICE V25.8 (MULTI-DOCUMENT SUPPORT)
+# 1. ADDED: document_ids parameter (list) passed to both fast and deep mode.
+# 2. UPDATED: vector_store_service.query_case_knowledge_base now receives list.
+# 3. RETAINED: All previous improvements.
 
 from __future__ import annotations
 import logging
@@ -20,8 +20,10 @@ logger = structlog.get_logger(__name__)
 
 async def stream_chat_response(
     db: Database, case_id: str, user_query: str, user_id: str,
-    document_id: Optional[str] = None, jurisdiction: Optional[str] = 'ks',
-    mode: Optional[str] = 'FAST', domain: Optional[str] = 'automatic'
+    document_ids: Optional[List[str]] = None,
+    jurisdiction: Optional[str] = 'ks',
+    mode: Optional[str] = 'FAST', 
+    domain: Optional[str] = 'automatic'
 ) -> AsyncGenerator[str, None]:
     try:
         oid, user_oid = ObjectId(case_id), ObjectId(user_id)
@@ -36,7 +38,13 @@ async def stream_chat_response(
 
         if not mode or mode.upper() == 'FAST':
             # --- FAST MODE: Direct, Concise Summary (stateless) ---
-            snippets = vector_store_service.query_case_knowledge_base(user_id=user_id, query_text=user_query, n_results=10, case_context_id=case_id)
+            snippets = vector_store_service.query_case_knowledge_base(
+                user_id=user_id, 
+                query_text=user_query, 
+                n_results=10, 
+                case_context_id=case_id,
+                document_ids=document_ids
+            )
             context = "\n".join([f"- {s['text']} (Burimi: {s['source']})" for s in snippets])
             
             system_prompt = f"""
@@ -54,19 +62,17 @@ async def stream_chat_response(
                 yield token
         else:
             # --- DEEP MODE: Comprehensive Legal Analysis with Memory ---
-            # Fetch recent chat history (last 5 messages) to provide context
             chat_history = case.get("chat_history", [])
-            # Limit to last 5 exchanges (user + ai messages)
-            recent_history = chat_history[-10:]  # 5 exchanges * 2 = 10 messages
+            recent_history = chat_history[-10:]  # last 5 exchanges
             agent_service = AlbanianRAGService(db=db)
             async for token in agent_service.chat(
                 query=user_query, 
                 user_id=user_id, 
                 case_id=case_id, 
-                document_ids=[document_id] if document_id else None,
+                document_ids=document_ids,
                 jurisdiction=jurisdiction or 'ks',
                 history=recent_history,
-                domain=domain  # NEW: pass domain to RAG service
+                domain=domain
             ):
                 full_response += token
                 yield token

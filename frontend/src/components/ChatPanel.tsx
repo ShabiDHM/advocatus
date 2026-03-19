@@ -1,14 +1,13 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V6.2 (FIXED TRANSLATION PATHS)
-// 1. FIXED: Changed t('chat.thinking') to t('chatPanel.chat.thinking')
-// 2. FIXED: Changed t('chat.retry') to t('chatPanel.chat.retry')
-// 3. RETAINED: All features (domain selection, retry, feedback, tooltips, follow‑up suggestions).
+// PHOENIX PROTOCOL - CHAT PANEL V6.4 (REMOVED UNUSED IMPORTS)
+// 1. FIXED: Removed unused CheckSquare and Square icons.
+// 2. RETAINED: All features (document selection, export, feedback, etc.).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Send, BrainCircuit, Trash2, User, Copy, Check, Zap, GraduationCap, Scale, Lock, Eye,
-    ThumbsUp, ThumbsDown, RefreshCw
+    ThumbsUp, ThumbsDown, RefreshCw, Download, FileText
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -38,13 +37,15 @@ interface ChatPanelProps {
   messages: ChatMessage[];
   connectionStatus: string;
   reconnect: () => void;
-  onSendMessage: (text: string, mode: ChatMode, reasoning: ReasoningMode, domain: LegalDomain, documentId?: string, jurisdiction?: Jurisdiction) => void;
+  onSendMessage: (text: string, mode: ChatMode, reasoning: ReasoningMode, domain: LegalDomain, documentIds?: string[], jurisdiction?: Jurisdiction) => void;
   isSendingMessage: boolean;
   onClearChat: () => void;
+  onExportChat?: () => void;
   t: TFunction;
   className?: string;
   activeContextId: string;
   isPro?: boolean;
+  documents?: Array<{ id: string; file_name: string }>;
 }
 
 // --- SUB-COMPONENTS ---
@@ -167,7 +168,6 @@ const MarkdownComponents = (t: TFunction) => ({
     h3: ({node, ...props}: any) => <h3 className="text-md font-bold text-accent-end mb-2 mt-4 flex items-center gap-2" {...props} />,
     p: ({node, ...props}: any) => <p className="mb-3 last:mb-0 leading-relaxed text-gray-200" {...props} />, 
     a: ({href, children}: any) => {
-        // For law links (/laws/...), render as a clickable badge with React Router Link
         if (href?.startsWith('/laws/')) {
             const chunkId = href.split('/').pop();
             return (
@@ -183,7 +183,6 @@ const MarkdownComponents = (t: TFunction) => ({
                 </LawPreviewTooltip>
             );
         }
-        // For external links, use normal anchor
         return (
             <a
                 href={href}
@@ -197,12 +196,103 @@ const MarkdownComponents = (t: TFunction) => ({
     },
 });
 
+// Document selection dropdown
+const DocumentSelector: React.FC<{
+    documents: Array<{ id: string; file_name: string }>;
+    selectedIds: string[];
+    onChange: (ids: string[]) => void;
+    disabled?: boolean;
+}> = ({ documents, selectedIds, onChange, disabled }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const toggleDocument = (docId: string) => {
+        if (selectedIds.includes(docId)) {
+            onChange(selectedIds.filter(id => id !== docId));
+        } else {
+            onChange([...selectedIds, docId]);
+        }
+    };
+
+    const selectAll = () => {
+        if (selectedIds.length === documents.length) {
+            onChange([]);
+        } else {
+            onChange(documents.map(d => d.id));
+        }
+    };
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                disabled={disabled}
+                className="flex items-center gap-1 bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-300 hover:bg-black/50 transition-colors"
+                title="Zgjidh dokumentet"
+            >
+                <FileText size={12} />
+                <span>{selectedIds.length} dokumente</span>
+            </button>
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute top-full left-0 mt-1 w-64 max-h-64 overflow-y-auto glass-panel border border-white/10 rounded-lg shadow-xl z-50 p-2"
+                    >
+                        {documents.length === 0 ? (
+                            <div className="text-xs text-gray-400 p-2">Nuk ka dokumente</div>
+                        ) : (
+                            <>
+                                <div className="flex items-center gap-2 p-1 border-b border-white/10 mb-1">
+                                    <button
+                                        onClick={selectAll}
+                                        className="text-xs text-primary-start hover:underline"
+                                    >
+                                        {selectedIds.length === documents.length ? 'Çzgjidh të gjitha' : 'Zgjidh të gjitha'}
+                                    </button>
+                                </div>
+                                {documents.map(doc => (
+                                    <label
+                                        key={doc.id}
+                                        className="flex items-center gap-2 p-1 hover:bg-white/5 rounded cursor-pointer"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.includes(doc.id)}
+                                            onChange={() => toggleDocument(doc.id)}
+                                            className="rounded border-white/20 bg-transparent"
+                                        />
+                                        <span className="text-xs text-gray-300 truncate">{doc.file_name}</span>
+                                    </label>
+                                ))}
+                            </>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};
+
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
-    messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, t, className, activeContextId, isPro = false 
+    messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, onExportChat, t, className, activeContextId, isPro = false, documents = []
 }) => {
   const [input, setInput] = useState('');
   const [reasoningMode, setReasoningMode] = useState<ReasoningMode>('FAST');
   const [selectedDomain, setSelectedDomain] = useState<LegalDomain>('automatic');
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
   const [lastUserMessage, setLastUserMessage] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -216,7 +306,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!text.trim() || isSendingMessage) return;
     const mode = activeContextId === 'general' ? 'general' : 'document';
     setLastUserMessage(text);
-    onSendMessage(text, mode, reasoningMode, selectedDomain, activeContextId === 'general' ? undefined : activeContextId, 'ks');
+    onSendMessage(text, mode, reasoningMode, selectedDomain, selectedDocumentIds, 'ks');
     setInput('');
   };
 
@@ -237,13 +327,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <div className={`flex flex-col glass-panel rounded-2xl overflow-hidden h-full w-full ${className}`}>
-      {/* Header with domain dropdown and mode toggle */}
+      {/* Header with document selector, domain dropdown, mode toggle, export button */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-white/5 backdrop-blur-sm z-50">
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`} />
           <h3 className="text-sm font-bold text-white">{t('chatPanel.title')}</h3>
         </div>
         <div className="flex items-center gap-2">
+          {/* Document selector (only when not in general mode) */}
+          {activeContextId !== 'general' && documents.length > 0 && (
+            <DocumentSelector
+              documents={documents}
+              selectedIds={selectedDocumentIds}
+              onChange={setSelectedDocumentIds}
+              disabled={!isPro}
+            />
+          )}
           {/* Domain selection dropdown */}
           <select
             value={selectedDomain}
@@ -264,6 +363,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               {t('chatPanel.modeDeep')}
             </button>
           </div>
+          {/* Export button */}
+          {onExportChat && (
+            <button onClick={onExportChat} className="p-2 text-text-secondary hover:text-primary-start transition-colors" title="Shkarko bisedën">
+              <Download size={16} />
+            </button>
+          )}
           <button onClick={onClearChat} className="p-2 text-text-secondary hover:text-red-400 transition-colors"><Trash2 size={16} /></button>
         </div>
       </div>
@@ -293,7 +398,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       className="px-3 py-1 bg-primary-start/20 hover:bg-primary-start/30 text-primary-start rounded-lg text-xs font-medium transition-all flex items-center gap-1"
                     >
                       <RefreshCw size={12} />
-                      {t('chatPanel.chat.retry', 'Provo përsëri')}
+                      {t('chat.retry', 'Provo përsëri')}
                     </button>
                   </div>
                 )}
@@ -306,7 +411,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <motion.div key="thinking-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-white" /></div>
               <div className="glass-panel text-blue-400 font-bold rounded-2xl px-5 py-3.5 text-sm flex items-center gap-1 border border-blue-500/20 shadow-blue-500/5">
-                {t('chatPanel.chat.thinking', 'Sokrati duke menduar')}<ThinkingDots />
+                {t('chat.thinking', 'Sokrati duke menduar')}<ThinkingDots />
               </div>
             </motion.div>
           )}

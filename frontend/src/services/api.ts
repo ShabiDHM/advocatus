@@ -1,6 +1,6 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V22.8 (ADDED DOMAIN TO CHAT STREAM)
-// 1. ADDED: domain parameter to sendChatMessageStream for deep mode customisation.
+// PHOENIX PROTOCOL - API SERVICE V22.9 (MULTI-DOCUMENT CHAT SUPPORT)
+// 1. ADDED: sendChatMessageStream now accepts documentIds array.
 // 2. RETAINED: All existing functionality.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
@@ -328,7 +328,6 @@ class ApiService {
         return response.data;
     }
 
-    // --- NEW: Get all law titles for dropdown ---
     public async getLawTitles(): Promise<string[]> {
         const response = await this.axiosInstance.get('/laws/titles');
         return response.data;
@@ -346,7 +345,7 @@ class ApiService {
     public async *sendChatMessageStream(
         caseId: string, 
         message: string, 
-        documentId?: string, 
+        documentIds?: string[], 
         jurisdiction?: string, 
         mode: 'FAST' | 'DEEP' = 'FAST',
         domain: string = 'automatic'
@@ -362,7 +361,7 @@ class ApiService {
             }, 
             body: JSON.stringify({ 
                 message, 
-                document_id: documentId || null, 
+                document_ids: documentIds || null, 
                 jurisdiction: jurisdiction || 'ks', 
                 mode,
                 domain 
@@ -396,7 +395,6 @@ class ApiService {
     }
 
     // --- CALENDAR & BRIEFING ---
-
     public async getCalendarEvents(): Promise<CalendarEvent[]> { 
         const response = await this.axiosInstance.get<CalendarEvent[]>('/calendar/events'); 
         return response.data; 

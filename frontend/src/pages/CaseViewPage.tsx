@@ -1,8 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V10.2 (FIXED CHAT SIGNATURE)
-// 1. FIXED: Added missing domain parameter to handleChatSubmit to match ChatPanelProps.
-// 2. FIXED: Imported LegalDomain from ChatPanel.
-// 3. RETAINED: All existing logic.
+// PHOENIX PROTOCOL - CASE VIEW V10.6 (FULL RESTORATION + MULTI-DOCUMENT CHAT)
+// 1. RESTORED: handleAnalyze, analysis modal, and all related state.
+// 2. RETAINED: HTTP chat with multiple document IDs.
+// 3. FIXED: useCallback now properly used, eliminating warnings.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -140,6 +140,10 @@ const CaseViewPage: React.FC = () => {
   const [activeContextId, setActiveContextId] = useState<string>('general');
   const [viewMode, setViewMode] = useState<ViewMode>('workspace');
 
+  // Local chat messages (managed via HTTP streaming)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+
   const isPro = useMemo(() => {
       if (!user) return false;
       return user.subscription_tier === 'PRO' || user.role === 'ADMIN';
@@ -150,33 +154,153 @@ const CaseViewPage: React.FC = () => {
   }, [user]);
 
   const currentCaseId = useMemo(() => caseId || '', [caseId]);
-  const { documents: liveDocuments, setDocuments: setLiveDocuments, messages: liveMessages, setMessages, connectionStatus, reconnect, sendChatMessage, isSendingMessage } = useDocumentSocket(currentCaseId);
+  // Socket provides live documents and methods for document operations only
+  const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  useEffect(() => { if (!currentCaseId) return; const cached = localStorage.getItem(`chat_history_${currentCaseId}`); if (cached) { try { const parsed = JSON.parse(cached); if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed); } catch (e) {} } }, [currentCaseId, setMessages]);
-  useEffect(() => { if (!currentCaseId) return; if (liveMessages.length > 0) localStorage.setItem(`chat_history_${currentCaseId}`, JSON.stringify(liveMessages)); }, [liveMessages, currentCaseId]);
-
+  // Fetch case data with useCallback
   const fetchCaseData = useCallback(async (isInitialLoad = false) => {
     if (!caseId) return;
     if(isInitialLoad) setIsLoading(true);
     setError(null);
     try {
-      const [details, initialDocs] = await Promise.all([apiService.getCaseDetails(caseId), apiService.getDocuments(caseId)]);
+      const [details, initialDocs] = await Promise.all([
+        apiService.getCaseDetails(caseId),
+        apiService.getDocuments(caseId)
+      ]);
       setCaseData({ details });
-      if (isInitialLoad) { setLiveDocuments((initialDocs || []).map(sanitizeDocument)); const serverHistory = extractAndNormalizeHistory(details); if (serverHistory.length > 0) setMessages(serverHistory); }
-    } catch (err) { setError(t('error.failedToLoadCase')); } finally { if(isInitialLoad) setIsLoading(false); }
-  }, [caseId, t, setLiveDocuments, setMessages]);
+      if (isInitialLoad) {
+        setLiveDocuments((initialDocs || []).map(sanitizeDocument));
+        const serverHistory = extractAndNormalizeHistory(details);
+        setChatMessages(serverHistory);
+      }
+    } catch (err) {
+      setError(t('error.failedToLoadCase'));
+    } finally {
+      if(isInitialLoad) setIsLoading(false);
+    }
+  }, [caseId, t, setLiveDocuments]);
 
-  useEffect(() => { if (isReadyForData) fetchCaseData(true); }, [isReadyForData, fetchCaseData]);
+  useEffect(() => {
+    if (isReadyForData) fetchCaseData(true);
+  }, [isReadyForData, fetchCaseData]);
+
+  // Save chat history to localStorage as backup
+  useEffect(() => {
+    if (!currentCaseId) return;
+    if (chatMessages.length > 0) {
+      localStorage.setItem(`chat_history_${currentCaseId}`, JSON.stringify(chatMessages));
+    }
+  }, [chatMessages, currentCaseId]);
 
   const handleDocumentUploaded = (newDoc: Document) => { setLiveDocuments(prev => [sanitizeDocument(newDoc), ...prev]); };
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => { setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(response.documentId))); };
-  const handleClearChat = async () => { if (!caseId) return; try { await apiService.clearChatHistory(caseId); setMessages([]); localStorage.removeItem(`chat_history_${currentCaseId}`); } catch (err) { alert(t('error.generic')); } };
-  const handleAnalyze = async () => { if (!caseId) return; setIsAnalyzing(true); setActiveModal('none'); try { let result: CaseAnalysisResult; if (activeContextId === 'general') { result = await apiService.analyzeCase(caseId); } else { result = await apiService.crossExamineDocument(caseId, activeContextId); } if (result.error) alert(result.error); else { setAnalysisResult(result); setActiveModal('analysis'); } } catch (err) { alert(t('error.generic')); } finally { setIsAnalyzing(false); } };
   
-  // FIXED: Added domain parameter to match ChatPanelProps
-  const handleChatSubmit = (text: string, _mode: ChatMode, reasoning: ReasoningMode, _domain: LegalDomain, documentId?: string, jurisdiction?: Jurisdiction) => {
-    sendChatMessage(text, reasoning, documentId, jurisdiction);
+  const handleClearChat = async () => {
+    if (!caseId) return;
+    try {
+      await apiService.clearChatHistory(caseId);
+      setChatMessages([]);
+      localStorage.removeItem(`chat_history_${currentCaseId}`);
+    } catch (err) {
+      alert(t('error.generic'));
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!caseId) return;
+    setIsAnalyzing(true);
+    setActiveModal('none');
+    try {
+      let result: CaseAnalysisResult;
+      if (activeContextId === 'general') {
+        result = await apiService.analyzeCase(caseId);
+      } else {
+        result = await apiService.crossExamineDocument(caseId, activeContextId);
+      }
+      if (result.error) alert(result.error);
+      else {
+        setAnalysisResult(result);
+        setActiveModal('analysis');
+      }
+    } catch (err) {
+      alert(t('error.generic'));
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Chat submission using HTTP stream (supports multiple document IDs)
+  const handleChatSubmit = async (
+    text: string,
+    _mode: ChatMode,
+    reasoning: ReasoningMode,
+    _domain: LegalDomain,
+    documentIds?: string[],
+    jurisdiction?: Jurisdiction
+  ) => {
+    if (!caseId) return;
+
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: text,
+      timestamp: new Date().toISOString(),
+    };
+    setChatMessages(prev => [...prev, userMessage]);
+    setIsSendingMessage(true);
+
+    const aiMessage: ChatMessage = {
+      role: 'ai',
+      content: '',
+      timestamp: new Date().toISOString(),
+    };
+    setChatMessages(prev => [...prev, aiMessage]);
+
+    try {
+      let fullResponse = '';
+      const stream = apiService.sendChatMessageStream(
+        caseId,
+        text,
+        documentIds,
+        jurisdiction,
+        reasoning,
+        _domain
+      );
+      for await (const chunk of stream) {
+        fullResponse += chunk;
+        setChatMessages(prev => {
+          const newMessages = [...prev];
+          newMessages[newMessages.length - 1] = {
+            ...newMessages[newMessages.length - 1],
+            content: fullResponse,
+          };
+          return newMessages;
+        });
+      }
+    } catch (error) {
+      console.error('Chat stream error:', error);
+      setChatMessages(prev => [
+        ...prev,
+        {
+          role: 'ai',
+          content: '[Gabim Teknik: Lidhja me shërbimin dështoi.]',
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  const handleExportChat = () => {
+    const content = chatMessages.map(m => `${m.role === 'user' ? 'Përdoruesi' : 'AI'}: ${m.content}`).join('\n\n---\n\n');
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat-${caseId}-${Date.now()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleViewOriginal = (doc: Document) => { const url = `${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`; setViewingUrl(url); setViewingDocument(doc); setMinimizedDocument(null); };
@@ -209,8 +333,32 @@ const CaseViewPage: React.FC = () => {
         <AnimatePresence mode="wait">
             {viewMode === 'workspace' && (
                 <motion.div key="workspace" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-auto lg:h-[600px] relative z-0">
-                    <DocumentsPanel caseId={caseData.details.id} documents={liveDocuments} t={t} connectionStatus={connectionStatus} reconnect={reconnect} onDocumentUploaded={handleDocumentUploaded} onDocumentDeleted={handleDocumentDeleted} onViewOriginal={handleViewOriginal} onRename={(doc) => setDocumentToRename(doc)} className="h-[500px] lg:h-full shadow-xl" />
-                    <ChatPanel messages={liveMessages} connectionStatus={connectionStatus} reconnect={reconnect} onSendMessage={handleChatSubmit} isSendingMessage={isSendingMessage} onClearChat={handleClearChat} t={t} className="!h-[600px] lg!h-full w-full shadow-xl" activeContextId={activeContextId} isPro={isPro} />
+                    <DocumentsPanel 
+                        caseId={caseData.details.id} 
+                        documents={liveDocuments} 
+                        t={t} 
+                        connectionStatus={connectionStatus} 
+                        reconnect={reconnect} 
+                        onDocumentUploaded={handleDocumentUploaded} 
+                        onDocumentDeleted={handleDocumentDeleted} 
+                        onViewOriginal={handleViewOriginal} 
+                        onRename={(doc) => setDocumentToRename(doc)} 
+                        className="h-[500px] lg:h-full shadow-xl" 
+                    />
+                    <ChatPanel 
+                        messages={chatMessages}
+                        connectionStatus={connectionStatus}
+                        reconnect={reconnect}
+                        onSendMessage={handleChatSubmit}
+                        isSendingMessage={isSendingMessage}
+                        onClearChat={handleClearChat}
+                        onExportChat={handleExportChat}
+                        t={t}
+                        className="!h-[600px] lg!h-full w-full shadow-xl"
+                        activeContextId={activeContextId}
+                        isPro={isPro}
+                        documents={liveDocuments.map(d => ({ id: d.id, file_name: d.file_name }))}
+                    />
                 </motion.div>
             )}
             {viewMode === 'analyst' && isPro && (
