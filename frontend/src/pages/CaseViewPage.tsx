@@ -1,9 +1,8 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V10.10 (SINGLE SELECTOR, CONSISTENT STYLING)
-// 1. REMOVED: GlobalContextSwitcher.
-// 2. ADDED: DocumentSelector for multi‑document selection (same height as other buttons).
-// 3. UPDATED: handleAnalyze uses first selected document (if any) for cross‑examination.
-// 4. RETAINED: All other features.
+// PHOENIX PROTOCOL - CASE VIEW V10.12 (SERVER‑SYNCED CHAT HISTORY)
+// 1. FIXED: Chat history now loads from server on page load, ensuring cross‑device sync.
+// 2. Server is the source of truth; localStorage is only used as a temporary cache while loading.
+// 3. All other features unchanged.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -187,7 +186,7 @@ const CaseViewPage: React.FC = () => {
   const { documents: liveDocuments, setDocuments: setLiveDocuments, connectionStatus, reconnect } = useDocumentSocket(currentCaseId);
   const isReadyForData = isAuthenticated && !isAuthLoading && !!caseId;
 
-  // Load case data and initial chat history from backend
+  // Load case data and chat history from server (source of truth)
   const fetchCaseData = useCallback(async (isInitialLoad = false) => {
     if (!caseId) return;
     if(isInitialLoad) setIsLoading(true);
@@ -198,10 +197,17 @@ const CaseViewPage: React.FC = () => {
         apiService.getDocuments(caseId)
       ]);
       setCaseData({ details });
-      if (isInitialLoad) {
-        setLiveDocuments((initialDocs || []).map(sanitizeDocument));
-        const serverHistory = extractAndNormalizeHistory(details);
-        setChatMessages(serverHistory);
+      setLiveDocuments((initialDocs || []).map(sanitizeDocument));
+      
+      // Server chat history is the source of truth – always use it
+      const serverHistory = extractAndNormalizeHistory(details);
+      setChatMessages(serverHistory);
+      
+      // Optionally update localStorage for offline backup (but server is primary)
+      if (serverHistory.length > 0) {
+        localStorage.setItem(`chat_history_${caseId}`, JSON.stringify(serverHistory));
+      } else {
+        localStorage.removeItem(`chat_history_${caseId}`);
       }
     } catch (err) {
       setError(t('error.failedToLoadCase'));
@@ -214,11 +220,14 @@ const CaseViewPage: React.FC = () => {
     if (isReadyForData) fetchCaseData(true);
   }, [isReadyForData, fetchCaseData]);
 
-  // Save chat history to localStorage as backup
+  // Save chat history to localStorage as a backup (still useful for offline/performance)
+  // but server remains the source of truth.
   useEffect(() => {
     if (!currentCaseId) return;
     if (chatMessages.length > 0) {
       localStorage.setItem(`chat_history_${currentCaseId}`, JSON.stringify(chatMessages));
+    } else {
+      localStorage.removeItem(`chat_history_${currentCaseId}`);
     }
   }, [chatMessages, currentCaseId]);
 
@@ -243,10 +252,8 @@ const CaseViewPage: React.FC = () => {
     try {
       let result: CaseAnalysisResult;
       if (selectedDocumentIds.length === 0) {
-        // Analyze whole case
         result = await apiService.analyzeCase(caseId);
       } else {
-        // Cross‑examine the first selected document
         result = await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
       }
       if (result.error) alert(result.error);
