@@ -1,8 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - ULTIMATE FIX: PRIORITISE DETECTED LAW
-# 1. ADDED: Explicit instruction to use the detected primary law as the main legal basis.
-# 2. ADDED: Warning against mixing laws from different domains.
-# 3. RETAINED: All RAG retrieval and domain detection logic.
+# PHOENIX PROTOCOL - ULTIMATE FIX: INCLUDE FULL LAW TITLE IN CONTEXT
+# 1. ADDED: Law title and article number to the laws_block.
+# 2. STRENGTHENED: Instruction to use the exact title from context.
+# 3. RETAINED: All previous improvements.
 
 import os
 import asyncio
@@ -14,7 +14,6 @@ from . import llm_service, vector_store_service
 
 logger = structlog.get_logger(__name__)
 
-# --- PHOENIX PROTOCOL: MULTI-DOMAIN KNOWLEDGE BASE (unchanged) ---
 LEGAL_DOMAINS = {
     "FAMILY": {
         "keywords": ["shkurorëzim", "divorc", "alimentacion", "kujdestari", "fëmijë", "bashkëshort", "martesë"],
@@ -110,7 +109,19 @@ async def stream_draft_generator(
         legal_articles_list = []
 
     facts_block = "\n".join([f"- {f.get('text', '')}" for f in case_facts_list]) if case_facts_list else "Nuk u gjetën fakte specifike në dosje."
-    laws_block = "\n".join([f"- {l.get('text', '')} (Burimi: {l.get('source', 'Ligji')})" for l in legal_articles_list]) if legal_articles_list else "Nuk u gjetën nene specifike në bazën ligjore."
+    
+    # Format laws block with full metadata
+    if legal_articles_list:
+        laws_lines = []
+        for l in legal_articles_list:
+            law_title = l.get('law_title', 'Ligji i panjohur')
+            article_num = l.get('article_number', 'neni i panjohur')
+            text = l.get('text', '')
+            source = l.get('source', 'Ligji')
+            laws_lines.append(f"- Ligji: {law_title}, Neni {article_num}\n  {text}\n  (Burimi: {source})")
+        laws_block = "\n".join(laws_lines)
+    else:
+        laws_block = "Nuk u gjetën nene specifike në bazën ligjore."
 
     # === STRENGTHENED SYSTEM PROMPT ===
     system_prompt = f"""
@@ -121,7 +132,7 @@ UDHËZIME TË RREPTA:
 2. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për një citim, përdor një vendmbajtës si "[Neni përkatës i Ligjit ...]".
 3. **Përdor ligjin e identifikuar si primar: {detected_law}.** Ky është ligji kryesor që duhet të përdorësh në citime. Materialet e tjera ligjore (nëse jepen) janë vetëm ndihmëse dhe duhet të përdoren vetëm nëse përputhen me këtë ligj ose janë absolutisht të nevojshme për të plotësuar përgjigjen.
 4. **Mos përziej ligje nga fusha të ndryshme** – për shembull, mos përdor ligjin tregtar në një mosmarrëveshje pronësore, përveç nëse përdoruesi i referohet qartë atyre.
-5. **Për çdo citim, përdor formatin e plotë zyrtar të ligjit, duke përfshirë numrin (p.sh., "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore"). Nëse numri i nenit nuk dihet, përdor "Neni përkatës".**
+5. **Për çdo citim, përdor formatin e plotë zyrtar të ligjit, duke përfshirë numrin, saktësisht siç shfaqet në kontekstin më poshtë (p.sh., "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore").** Nëse numri i nenit nuk dihet, përdor "Neni përkatës".
 6. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
 
 [KONTEKSTI LIGJOR I DETEKTUAR]
@@ -139,7 +150,6 @@ Tani, përgjigju kërkesës së përdoruesit duke ndjekur me përpikëri udhëzi
 
     full_content = ""
     try:
-        # user_prompt already contains front‑end's full instructions
         async for token in llm_service.stream_text_async(system_prompt, user_prompt, temp=0.2):
             full_content += token
             yield token
