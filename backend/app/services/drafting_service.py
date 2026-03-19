@@ -1,5 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - ADDED: Explicit ban on "Kodi Civil" and correct obligations law
+# PHOENIX PROTOCOL - ULTIMATE FIX: DOMAIN‑STRICT & PLACEHOLDER CLARITY
+# 1. Added: "Only cite laws directly relevant to the detected domain."
+# 2. Added: "If unsure which law applies, use a descriptive placeholder like [Neni përkatës i Ligjit ...]."
+# 3. Added: "Do not mix laws from different domains (e.g., corporate law in a property dispute)."
 
 import os
 import asyncio
@@ -109,7 +112,7 @@ async def stream_draft_generator(
     facts_block = "\n".join([f"- {f.get('text', '')}" for f in case_facts_list]) if case_facts_list else "Nuk u gjetën fakte specifike në dosje."
     laws_block = "\n".join([f"- {l.get('text', '')} (Burimi: {l.get('source', 'Ligji')})" for l in legal_articles_list]) if legal_articles_list else "Nuk u gjetën nene specifike në bazën ligjore."
 
-    # === STRENGTHENED SYSTEM PROMPT WITH EXPLICIT BAN ON CIVIL CODE ===
+    # === STRENGTHENED SYSTEM PROMPT WITH DOMAIN‑STRICT RULES ===
     real_estate_instructions = ""
     if "qira" in user_prompt.lower() or "lease" in user_prompt.lower() or draft_type in ["lease_agreement", "sales_purchase", "power_of_attorney"]:
         real_estate_instructions = """
@@ -133,9 +136,9 @@ ROLI: Avokat i Licencuar në Republikën e Kosovës.
 
 UDHËZIME TË RREPTA:
 1. **Ndiq me përpikëri strukturën e kërkuar nga përdoruesi** – përdor saktësisht titujt që ai ka specifikuar (p.sh., PALËT:, OBJEKTI:, BAZA LIGJORE:, etj.). Mos i ndrysho.
-2. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për një citim, përdor një vendmbajtës si "[Neni përkatës i Ligjit ...]".
+2. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për një citim, përdor një vendmbajtës si "[Neni përkatës i Ligjit ...]". Sigurohu që vendmbajtësi të jetë **deskriptiv**, p.sh. "[Neni përkatës i Ligjit për Pronësinë]" në vend të vetëm "[_____]".
 3. **Mos përdor tituj si KAPITULLI** – përdor vetëm titujt e dhënë nga përdoruesi.
-4. **Ligji primar i identifikuar është: {detected_law}**. Ky është ligji që duhet të përdorësh në citime. Nëse materiali ndihmës përmban ligje të tjera, përdori ato vetëm nëse përputhen me këtë ligj ose je absolutisht i sigurt se janë të sakta. Përndryshe, përdor vendmbajtës.
+4. **Ligji primar i identifikuar është: {detected_law}**. Ky është ligji që duhet të përdorësh në citime. **Mos përdor ligje nga fusha të tjera (p.sh., ligjin tregtar në një mosmarrëveshje pronësore)**, përveç nëse përdoruesi i referohet qartë atyre.
 5. **Kosovo NUK ka Kod Civil.** Mos përdor kurrë termin "Kodi Civil" ose "Civil Code". Nëse ke nevojë të referosh për marrëdhëniet e detyrimeve, përdor **Ligji Nr. 04/L-077 për Marrëdhëniet e Detyrimeve (LMD)**.
 6. **Për kontratat e punës, titulli standard është 'KONTRATË PUNE'**, jo 'AKTIVENDIM'. Përdor formatin e kontratës dypalëshe, jo vendim gjyqësor.
 {real_estate_instructions}
