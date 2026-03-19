@@ -1,117 +1,323 @@
 /* /home/user/advocatus-frontend/src/index.css */
-/* PHOENIX PROTOCOL - EXECUTIVE SYMMETRY V6.0 */
+/* PHOENIX PROTOCOL - INDEX CSS V5.1 (FIXED GLASS-INPUT FOCUS) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* LIGHT THEME (default) – Professional Slate & Pure White */
   :root {
-    /* --- WORLD CLASS LIGHT: "The Modern Courtroom" --- */
-    --bg-base: #F8FAFC;         /* Slate 50 */
-    --bg-surface: #FFFFFF;      /* Pure White Card */
-    --bg-surface-secondary: #F1F5F9;
-    --bg-input: #F1F5F9;
-    --bg-glass: rgba(255, 255, 255, 0.7);
+    /* Background hierarchy */
+    --color-canvas: #F4F6F9;           /* Page background – cool off-white */
+    --color-surface: #FFFFFF;           /* Cards, panels – pure white */
+    --color-surface-secondary: #ECEEF3; /* Sidebars, secondary surfaces */
+    --color-glass: rgba(255,255,255,0.65); /* Glass overlay */
+    --color-input: #EDF0F5;             /* Input field background */
+    --color-hover: rgba(99,115,255,0.07); /* Row hover */
     
-    --accent-primary: #0F172A;  /* Oxford Blue (Authority) */
-    --accent-hover: #1E293B;
-    --accent-primary-rgb: 15, 23, 42;
+    /* Borders */
+    --color-surface-border: #E2E8F0;    /* Slate-200 */
+    --border-light: rgba(15,22,35,0.10);
     
-    --text-primary: #0F172A;
-    --text-secondary: #475569;
-    --text-muted: #94A3B8;
+    /* Accent palette */
+    --color-primary-start: #6366F1;
+    --color-primary-start-rgb: 99, 102, 241;
+    --color-primary-end: #4F46E5;
+    --color-primary-hover: #4F52D9;
+    --color-primary-subtle: rgba(99,102,241,0.10);
+    --color-primary-text: #4345B5;
     
-    --border-main: #E2E8F0;
+    --color-secondary-start: #6366F1;
+    --color-secondary-end: #4F46E5;
     
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
-    --shadow-accent: 0 4px 14px 0 rgba(15, 23, 42, 0.15);
+    /* Status colors */
+    --color-success-start: #10B981;
+    --color-success-end: #059669;
+    --color-warning-start: #D97706;
+    --color-warning-end: #B45309;
+    --color-danger-start: #DC2626;
+    --color-danger-end: #B91C1C;
+    --color-neutral: #475569;
+    
+    /* Text colors */
+    --color-text-primary: #0F1623;
+    --color-text-secondary: #3D4A5C;
+    --color-text-muted: #6B7A90;
+    --color-text-disabled: #A3AFBF;
+    --color-text-inverse: #FFFFFF;
+    
+    /* Shadow system – directional, layered */
+    --shadow-xs: 0 1px 2px rgba(15,22,35,0.04),
+                 0 1px 3px rgba(15,22,35,0.06);
+    --shadow-sm: 0 2px 4px rgba(15,22,35,0.04),
+                 0 4px 12px rgba(15,22,35,0.06);
+    --shadow-md: 0 4px 8px rgba(15,22,35,0.05),
+                 0 8px 24px rgba(15,22,35,0.08),
+                 0 0 0 1px rgba(99,102,241,0.06);
+    --shadow-lg: 0 8px 16px rgba(15,22,35,0.06),
+                 0 20px 48px rgba(15,22,35,0.10),
+                 0 0 0 1px rgba(15,22,35,0.04);
+    --shadow-xl: 0 16px 32px rgba(15,22,35,0.08),
+                 0 40px 80px rgba(15,22,35,0.14),
+                 0 0 0 1px rgba(15,22,35,0.06);
+    
+    /* Accent shadow for primary elements */
+    --shadow-accent-xs: 0 2px 8px rgba(99,102,241,0.20),
+                        0 1px 3px rgba(99,102,241,0.12);
+    --shadow-accent-sm: 0 4px 16px rgba(99,102,241,0.30),
+                        0 2px 6px rgba(99,102,241,0.18);
+    
+    /* Background texture for glass effect */
+    background-color: var(--color-canvas);
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366F1' fill-opacity='0.025'%3E%3Ccircle cx='7' cy='7' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
 
+  /* DARK THEME */
   .dark {
-    /* --- WORLD CLASS DARK: "The Executive Suite" --- */
-    --bg-base: #020617;         /* Deepest Midnight */
-    --bg-surface: #0B1120;      /* Midnight Blue Card */
-    --bg-surface-secondary: #1E293B;
-    --bg-input: #1E293B;
-    --bg-glass: rgba(11, 17, 32, 0.8);
+    --color-canvas: #020617;
+    --color-surface: #0F172A;
+    --color-surface-secondary: #141626;
+    --color-glass: rgba(20,22,38,0.7);
+    --color-input: #1E293B;
+    --color-hover: rgba(99,115,255,0.15);
     
-    --accent-primary: #6366F1;  /* Indigo Glow (Prestige) */
-    --accent-hover: #818CF8;
-    --accent-primary-rgb: 99, 102, 241;
+    --color-surface-border: rgba(255,255,255,0.06);
+    --border-light: rgba(255,255,255,0.08);
     
-    --text-primary: #F8FAFC;
-    --text-secondary: #94A3B8;
-    --text-muted: #64748B;
+    --color-primary-start: #3B82F6;
+    --color-primary-start-rgb: 59, 130, 246;
+    --color-primary-end: #2563EB;
+    --color-primary-hover: #5290ff;
+    --color-primary-subtle: rgba(59,130,246,0.15);
+    --color-primary-text: #90B4FF;
     
-    --border-main: rgba(255, 255, 255, 0.06);
+    --color-success-start: #10B981;
+    --color-success-end: #059669;
+    --color-warning-start: #D97706;
+    --color-warning-end: #B45309;
+    --color-danger-start: #DC2626;
+    --color-danger-end: #B91C1C;
+    --color-neutral: #475569;
     
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-    --shadow-xl: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    --shadow-accent: 0 0 20px 0 rgba(99, 102, 241, 0.3);
+    --color-text-primary: #F8FAFC;
+    --color-text-secondary: #94A3B8;
+    --color-text-muted: #64748B;
+    --color-text-disabled: #475569;
+    --color-text-inverse: #FFFFFF;
+    
+    --shadow-xs: 0 1px 2px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.6);
+    --shadow-sm: 0 2px 4px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.6);
+    --shadow-md: 0 4px 8px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.7), 0 0 0 1px rgba(59,130,246,0.2);
+    --shadow-lg: 0 8px 16px rgba(0,0,0,0.7), 0 20px 48px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05);
+    --shadow-xl: 0 16px 32px rgba(0,0,0,0.8), 0 40px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.08);
+    
+    --shadow-accent-xs: 0 2px 8px rgba(59,130,246,0.4), 0 1px 3px rgba(59,130,246,0.3);
+    --shadow-accent-sm: 0 4px 16px rgba(59,130,246,0.5), 0 2px 6px rgba(59,130,246,0.4);
+    
+    background-image: none;
   }
 
   body {
-    background-color: var(--bg-base);
-    color: var(--text-secondary);
+    background-color: var(--color-canvas);
+    color: var(--color-text-secondary);
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
-    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background-color 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  /* Architectural Grid only for Light Mode */
-  :root body {
-    background-image: radial-gradient(circle at 2px 2px, rgba(15, 23, 42, 0.02) 1px, transparent 0);
-    background-size: 32px 32px;
-  }
-  
-  /* Deep Radial Glow for Dark Mode */
-  .dark body {
-    background-image: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.05) 0%, transparent 70%);
-  }
-
-  h1, h2, h3 {
-    color: var(--text-primary);
-    font-weight: 800;
-    letter-spacing: -0.03em;
+  h1, h2, h3, h4, h5, h6 {
+    color: var(--color-text-primary);
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 }
 
 @layer components {
-  /* THE EXECUTIVE PANEL */
+  /* --- GLASS PANEL – adapts to theme --- */
   .glass-panel {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-main);
-    box-shadow: var(--shadow-md);
-    @apply rounded-[1.5rem] transition-all duration-300;
+    transition: all 0.3s ease;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-surface-border);
+    box-shadow: var(--shadow-sm);
   }
-
   .dark .glass-panel {
-    background-color: var(--bg-glass);
+    background-color: var(--color-glass);
     backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--color-surface-border);
   }
 
-  /* THE HIGH-PRESTIGE INPUT */
+  /* --- GLASS INPUT --- */
   .glass-input {
-    background-color: var(--bg-input);
-    border: 1px solid var(--border-main);
-    color: var(--text-primary);
-    @apply rounded-xl px-4 py-2.5 outline-none transition-all duration-200;
+    background-color: var(--color-input);
+    border: 1.5px solid var(--color-surface-border);
+    color: var(--color-text-primary);
+    box-shadow: inset 0 1px 3px rgba(15,22,35,0.06);
+    transition: all 0.15s ease;
+    outline: none;
+    border-radius: 0.5rem;
   }
-  
+  .glass-input::placeholder {
+    color: var(--color-text-disabled);
+  }
+  .glass-input:hover {
+    border-color: rgba(var(--color-primary-start-rgb), 0.35);
+    background-color: #F0F2F7;
+  }
   .glass-input:focus {
-    @apply ring-4 ring-primary-start/10 border-primary-start;
+    background-color: var(--color-surface);
+    border-color: var(--color-primary-start);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-start-rgb), 0.15),
+                inset 0 1px 2px rgba(15,22,35,0.04);
+  }
+  .dark .glass-input {
+    background-color: var(--color-input);
+    border-color: var(--color-surface-border);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);
+  }
+  .dark .glass-input:hover {
+    border-color: var(--color-primary-start);
+    background-color: #2D3748;
+  }
+  .dark .glass-input:focus {
+    background-color: var(--color-surface);
+    border-color: var(--color-primary-start);
+    box-shadow: 0 0 0 3px rgba(var(--color-primary-start-rgb), 0.3);
   }
 
-  /* THE COMMAND BUTTON */
+  /* --- PRIMARY BUTTON --- */
   .btn-primary {
-    background: var(--accent-primary);
-    color: white;
-    @apply px-6 py-3 rounded-xl font-bold text-sm tracking-tight shadow-accent-glow hover:brightness-110 active:scale-95 transition-all;
+    background: linear-gradient(135deg, var(--color-primary-start) 0%, var(--color-primary-end) 100%);
+    color: var(--color-text-inverse);
+    border: none;
+    box-shadow: var(--shadow-accent-xs);
+    transition: all 0.15s ease;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, var(--color-primary-hover) 0%, var(--color-primary-end) 100%);
+    box-shadow: var(--shadow-accent-sm);
+    transform: translateY(-1px);
+  }
+  .btn-primary:active {
+    transform: translateY(0);
+    box-shadow: var(--shadow-accent-xs);
   }
 
-  .dark .btn-primary {
-    background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+  /* --- SECONDARY BUTTON --- */
+  .btn-secondary {
+    background: var(--color-surface);
+    color: var(--color-primary-text);
+    border: 1.5px solid rgba(var(--color-primary-start-rgb), 0.3);
+    box-shadow: var(--shadow-xs);
+    transition: all 0.15s ease;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+  }
+  .btn-secondary:hover {
+    background: rgba(var(--color-primary-start-rgb), 0.05);
+    border-color: rgba(var(--color-primary-start-rgb), 0.55);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* --- DANGER BUTTON --- */
+  .btn-danger {
+    background: linear-gradient(135deg, var(--color-danger-start) 0%, var(--color-danger-end) 100%);
+    color: var(--color-text-inverse);
+    border: none;
+    box-shadow: 0 2px 8px rgba(220,38,38,0.25);
+    transition: all 0.15s ease;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+  }
+  .btn-danger:hover {
+    filter: brightness(110%);
+    box-shadow: 0 4px 16px rgba(220,38,38,0.35);
+  }
+
+  /* --- STATUS BADGES --- */
+  .badge {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .badge-success {
+    background: rgba(5,150,105,0.10);
+    color: #065F46;
+    border: 1px solid rgba(5,150,105,0.20);
+  }
+  .badge-warning {
+    background: rgba(217,119,6,0.10);
+    color: #92400E;
+    border: 1px solid rgba(217,119,6,0.20);
+  }
+  .badge-danger {
+    background: rgba(220,38,38,0.08);
+    color: #991B1B;
+    border: 1px solid rgba(220,38,38,0.18);
+  }
+  .dark .badge-success {
+    background: rgba(16,185,129,0.15);
+    color: #A7F3D0;
+    border-color: rgba(16,185,129,0.3);
+  }
+  .dark .badge-warning {
+    background: rgba(217,119,6,0.15);
+    color: #FDE68A;
+    border-color: rgba(217,119,6,0.3);
+  }
+  .dark .badge-danger {
+    background: rgba(220,38,38,0.15);
+    color: #FECACA;
+    border-color: rgba(220,38,38,0.3);
+  }
+
+  /* --- DOCUMENT READER (special legal panel) --- */
+  .document-reader {
+    background: #FFFEF7;
+    border: 1px solid rgba(203,213,225,0.6);
+    border-radius: 8px;
+    box-shadow: var(--shadow-md), inset 0 0 0 1px rgba(255,255,255,0.8);
+    padding: 48px 56px;
+    max-width: 780px;
+    font-family: 'Georgia', 'Palatino', serif;
+    line-height: 1.75;
+    color: #1A2332;
+  }
+  .dark .document-reader {
+    background: #1E293B;
+    border-color: rgba(255,255,255,0.1);
+    color: #E2E8F0;
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* AI highlight annotations */
+  .doc-highlight-primary {
+    background: rgba(var(--color-primary-start-rgb), 0.12);
+    border-bottom: 2px solid rgba(var(--color-primary-start-rgb), 0.5);
+    border-radius: 2px;
+  }
+  .doc-highlight-risk {
+    background: rgba(220,38,38,0.08);
+    border-bottom: 2px solid rgba(220,38,38,0.45);
+  }
+
+  /* --- HOVER LIFT EFFECT --- */
+  .hover-lift {
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(15,23,42,0.08);
+    border-color: var(--color-primary-start);
   }
 }
 
