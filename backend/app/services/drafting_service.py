@@ -1,8 +1,8 @@
 # FILE: backend/app/services/drafting_service.py
-# PHOENIX PROTOCOL - ULTIMATE FIX: ENFORCE CLEAN CITATIONS
-# 1. ADDED: Strict rule: NEVER use the placeholder "[Neni i aplikueshëm i Ligjit ...]". Instead use "Neni përkatës" after the full law title.
-# 2. CLEANED: laws_block formatting to avoid confusing metadata.
-# 3. RETAINED: All domain detection and retrieval.
+# PHOENIX PROTOCOL - ULTIMATE FIX: EXACT CITATIONS ONLY FROM CONTEXT
+# 1. ADDED: Rule: ONLY cite laws listed in [MATERIALI LIGJOR NDIHMËS]. Do not invent or use external knowledge.
+# 2. ADDED: Instruction to copy law titles verbatim from the provided list, including numbers.
+# 3. STRENGTHENED: Ban on hallucinating non‑existent laws (e.g., defamation law).
 
 import os
 import asyncio
@@ -133,15 +133,17 @@ ROLI: Avokat i Licencuar në Republikën e Kosovës.
 UDHËZIME TË RREPTA (NDIQINI ME PRECIZION):
 1. **Ndiq strukturën e kërkuar nga përdoruesi** – përdor saktësisht titujt e specifikuar (PALËT:, OBJEKTI:, BAZA LIGJORE:, ARSYETIMI:, PETITUMI / PËRFUNDIMI:, NËNSHKRIMI:). Mos i ndrysho dhe mos shto tituj të tjerë.
 
-2. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për numrin e nenit, përdor formulimin e saktë: pas titullit të ligjit, shto ", Neni përkatës". **NË ASNJË RAST mos përdor formulimin "[Neni i aplikueshëm i Ligjit ...]" që vjen nga hyrja e përdoruesit.** Shembull i saktë: "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore, Neni përkatës".
+2. **CITO VETËM LIGJET E LISTUARA NË [MATERIALI LIGJOR NDIHMËS]**. Mos përdor asnjë ligj që nuk shfaqet aty. Nëse në listë nuk ka ligje të përshtatshme, shkruaj "Nuk u gjetën dispozita ligjore specifike." Në asnjë rast mos shpik ligje.
 
-3. **Përdor gjithmonë titullin e plotë zyrtar të ligjit, duke përfshirë numrin**, pikërisht siç shfaqet në kontekstin më poshtë. Shembull: "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore".
+3. **Për çdo ligj të cituar, kopjo fjalë për fjalë titullin e plotë zyrtar duke përfshirë numrin** (p.sh., "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore"). Nëse numri i nenit dihet, përdor "Neni XX". Nëse nuk dihet, përdor "Neni përkatës". Mos përdor formulime si "[Neni i aplikueshëm ...]" që vijnë nga përdoruesi.
 
-4. **Ligji primar i identifikuar është: {detected_law}.** Ky është ligji kryesor që duhet të përdorësh në citime. Materialet e tjera ligjore (nëse jepen) janë ndihmëse dhe duhet të përdoren vetëm nëse janë absolutisht relevante.
+4. **Ligji primar i identifikuar është: {detected_law}.** Ky ligji duhet të jetë baza kryesore e përgjigjes suaj.
 
-5. **Mos përziej ligje nga fusha të ndryshme** – për shembull, mos përdor ligjin tregtar në një mosmarrëveshje pronësore, përveç nëse përdoruesi i referohet qartë atyre.
+5. **Mos përziej ligje nga fusha të ndryshme** – p.sh., mos përdor ligjin tregtar në një mosmarrëveshje pronësore.
 
-6. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
+6. **Kosovo NUK ka një ligj të veçantë për mbrojtjen nga shpifja.** Shpifja rregullohet nga Kodi Penal (nëse është vepër penale) ose Ligji për Marrëdhëniet e Detyrimeve (për dëmshpërblim civil). Mos e përmend një ligj të tillë.
+
+7. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
 
 [KONTEKSTI LIGJOR I DETEKTUAR]
 Ligji primar i identifikuar: {detected_law}
