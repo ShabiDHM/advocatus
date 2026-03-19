@@ -1,10 +1,7 @@
 // FILE: src/hooks/useDocumentSocket.ts
-// PHOENIX PROTOCOL - SOCKET HOOK V8.4 (UNIFIED LOGIC INTEGRITY)
-// 1. RESTORED: Full SSE (EventSource) logic for real-time document status and progress tracking.
-// 2. RESTORED: Reconnection counter and manual 'reconnect' function.
-// 3. INTEGRATED: True HTTP Streaming consumer (for await) for high-IQ legal chat.
-// 4. FIX: Synchronized 'isSendingMessage' to prevent state race conditions during streaming.
-// 5. STATUS: 100% Logic Preserved. Zero Degradation.
+// PHOENIX PROTOCOL - SOCKET HOOK V8.5 (MULTI‑DOCUMENT CHAT SUPPORT)
+// 1. UPDATED: sendChatMessage now accepts documentIds array to match apiService.
+// 2. RETAINED: All SSE and document update logic.
 
 import { useState, useEffect, useRef, useCallback, Dispatch, SetStateAction } from 'react';
 import { Document, ChatMessage, ConnectionStatus } from '../data/types';
@@ -18,7 +15,7 @@ interface UseDocumentSocketReturn {
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   connectionStatus: ConnectionStatus;
   reconnect: () => void;
-  sendChatMessage: (content: string, mode: ReasoningMode, documentId?: string, jurisdiction?: Jurisdiction) => void;
+  sendChatMessage: (content: string, mode: ReasoningMode, documentIds?: string[], jurisdiction?: Jurisdiction) => void;
   isSendingMessage: boolean;
 }
 
@@ -90,8 +87,8 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
     setReconnectCounter(prev => prev + 1); 
   }, []);
   
-  // CHAT: High-IQ HTTP Streaming Implementation
-  const sendChatMessage = useCallback(async (content: string, mode: ReasoningMode, documentId?: string, jurisdiction?: Jurisdiction) => {
+  // CHAT: High-IQ HTTP Streaming Implementation (supports multiple document IDs)
+  const sendChatMessage = useCallback(async (content: string, mode: ReasoningMode, documentIds?: string[], jurisdiction?: Jurisdiction) => {
     if (!content.trim() || !caseId) return;
     
     setIsSendingMessage(true);
@@ -104,7 +101,7 @@ export const useDocumentSocket = (caseId: string | undefined): UseDocumentSocket
     let streamContent = "";
 
     try {
-        const stream = apiService.sendChatMessageStream(caseId, content, documentId, jurisdiction, mode);
+        const stream = apiService.sendChatMessageStream(caseId, content, documentIds, jurisdiction, mode);
         
         for await (const chunk of stream) {
             streamContent += chunk;
