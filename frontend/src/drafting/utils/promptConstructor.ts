@@ -27,10 +27,11 @@ export const constructSmartPrompt = (userText: string, template: TemplateType, _
   const antiHallucination = `
 CRITICAL INSTRUCTION:
 - **DO NOT HALLUCINATE.** Never invent Kosovo laws, article numbers, or legal provisions.
-- If you are uncertain about a specific citation, use a placeholder like "[Neni i aplikueshëm i Ligjit ...]" or omit the citation entirely.
+- If you are uncertain about a specific citation, use a clean placeholder like "Neni përkatës" after the full law title, e.g., "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore, Neni përkatës". Do not use brackets like "[Neni i aplikueshëm ...]".
 - If any required information is missing from the user input, insert clear placeholders like [_____] or [Emri i palës] to indicate missing data. Do not assume or invent facts.
 - Only use your knowledge of actual Kosovo legislation. If the user input lacks sufficient detail, state that certain clauses may need further specification.
 - Base your response strictly on the user input and your training data regarding Kosovo law.
+- When law titles are provided in the context (e.g., from the knowledge base), copy them exactly, including their official numbers. Do not abbreviate.
   `;
 
   const structureInstructions = getDocumentStructureInstructions(template);

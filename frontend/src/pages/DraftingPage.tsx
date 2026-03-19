@@ -1,4 +1,5 @@
-// src/pages/DraftingPage.tsx
+// FILE: src/pages/DraftingPage.tsx
+// PHOENIX PROTOCOL - DRAFTING PAGE V3.2 (CLEAN, NO PYTHON)
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiService } from '../services/api';
