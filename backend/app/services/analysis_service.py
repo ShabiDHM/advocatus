@@ -1,8 +1,8 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.3 (STRATEGY REPORT CASE META-INFO REMOVAL)
-# 1. FIXED: Removed the "Rasti: [Case Name]" line completely from the PDF header, as requested.
-# 2. RETAINED: All other previous fixes and markdown content generation remain unchanged.
-# 3. STATUS: 100% System Integrity Verified. 0 Syntax Errors.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.4 (ENHANCED STRATEGIC ANALYSIS)
+# 1. IMPROVED: System prompt for legal analysis now forces detailed strategic breakdown.
+# 2. ADDED: Instructions to include strengths, weaknesses, key arguments, and concrete article citations.
+# 3. RETAINED: All existing functionality and parallel deep analysis.
 
 import asyncio
 import structlog
@@ -91,20 +91,46 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
     if not authorize_case_access(db, case_id, user_id): return {"error": "Pa autorizim."}
     context = await _fetch_rag_context_async(db, case_id, user_id, include_laws=True)
     
+    # ENHANCED SYSTEM PROMPT – forces detailed strategic analysis
     system_prompt = """
-    DETYRA: Analizë Gjyqësore e Integritetit.
-    MANDATI: Mos jep vetëm emrin e ligjit. Duhet të shpjegosh 'RELEVANCËN' për këtë rast specifik.
-    JSON SCHEMA (STRIKT):
+    DETYRA: Analizë e thellë strategjike dhe ligjore e këtij rasti. Jep një vlerësim profesional për avokatin.
+    
+    MANDATI:
+    - MOS jep vetëm emrin e ligjit. Për çdo nen të cituar, shpjego 'RELEVANCËN' për këtë rast specifik.
+    - Përdor faktet nga dosja për të ndërtuar argumente konkrete.
+    - Nëse nuk ke informacion të mjaftueshëm, thuaj qartë se cilat prova mungojnë.
+    
+    STRUKTURA E PËRGJIGJES (JSON):
     {
-      "executive_summary": "...",
-      "legal_audit": { 
-          "burden_of_proof": "...", 
-          "legal_basis": [{"title": "[Emri, Neni](doc://ligji)", "article": "...", "relevance": "..."}] 
+      "executive_summary": "Përmbledhje e shkurtër e rastit dhe strategjisë së rekomanduar (2-3 paragrafe).",
+      "legal_audit": {
+          "burden_of_proof": "Kush e mban barrën e provës dhe pse?",
+          "legal_basis": [
+            {
+              "title": "[Emri i Ligjit, Neni XX](doc://ligji)",
+              "article": "Teksti i nenit (ose përmbledhje)",
+              "relevance": "Pse ky nen është vendimtar për këtë rast? Lidhja me faktet."
+            }
+          ]
       },
-      "strategic_recommendation": { "recommendation_text": "...", "weaknesses": [], "action_plan": [], "success_probability": "XX%", "risk_level": "LOW/MEDIUM/HIGH" },
-      "missing_evidence": []
+      "strategic_recommendation": {
+          "recommendation_text": "Analiza strategjike – çfarë duhet të bëjë avokati?",
+          "strengths": ["Lista e pikave të forta të rastit tonë"],
+          "weaknesses": ["Lista e dobësive që duhen adresuar"],
+          "key_arguments": ["Argumentet kryesore që do të përdoren në gjykatë"],
+          "action_plan": ["Hapat konkretë për të ecur përpara"],
+          "success_probability": "XX% (vlerësim real)",
+          "risk_level": "LOW/MEDIUM/HIGH"
+      },
+      "missing_evidence": ["Çfarë provash duhen siguruar?"]
     }
+    
+    UDHËZIME SHTESË:
+    - Titulli i ligjit duhet të jetë i plotë me numër (p.sh., "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore").
+    - Për nenet pa numër të saktë, përdor "Neni përkatës".
+    - Vlerëso realisht probabilitetin e suksesit.
     """
+    
     try:
         raw_res = await asyncio.to_thread(llm_service.analyze_case_integrity, context, custom_prompt=system_prompt)
         audit = raw_res.get("legal_audit", {})
@@ -114,7 +140,9 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
             "burden_of_proof": audit.get("burden_of_proof"),
             "legal_basis": audit.get("legal_basis", []), 
             "strategic_analysis": rec.get("recommendation_text"),
+            "strengths": rec.get("strengths", []),
             "weaknesses": rec.get("weaknesses", []),
+            "key_arguments": rec.get("key_arguments", []),
             "action_plan": rec.get("action_plan", []),
             "missing_evidence": raw_res.get("missing_evidence", []),
             "success_probability": rec.get("success_probability"),
@@ -166,11 +194,9 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     case_name = case.get("case_name", "Pa Titull")
     
     # Markdown content generation starts here.
-    # The header title and meta-info are now entirely managed by report_service.
-    md = "---\n\n" # Start markdown directly with the separator
+    md = "---\n\n"
 
     # Section: Legal Analysis
-    # Note: Subsequent section headers remain hardcoded in markdown as per instruction
     md += f"## 1. PËRMBLEDHJA LIGJORE\n{legal_data.get('summary', '')}\n\n"
     if legal_data.get('burden_of_proof'):
         md += f"**BARRA E PROVËS:**\n{legal_data.get('burden_of_proof', '')}\n\n"
@@ -184,11 +210,30 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
             md += f"**Baza:** {lb.get('article', '')}\n\n"
             md += f"**Arsyetimi Strategjik:** {lb.get('relevance', '')}\n\n"
         
-    # Section: Strategic Action Plan
-    md += "## 3. ANALIZA E THELLË & PLANI I VEPRIMIT\n"
+    # Section: Strategic Analysis
+    md += "## 3. ANALIZA STRATEGJIKE\n"
     md += f"{legal_data.get('strategic_analysis', '')}\n\n"
+    
+    if legal_data.get('strengths'):
+        md += "### Pikat e forta\n"
+        for s in legal_data.get('strengths', []):
+            md += f"* {s}\n"
+        md += "\n"
+    
+    if legal_data.get('weaknesses'):
+        md += "### Pikat e dobëta\n"
+        for w in legal_data.get('weaknesses', []):
+            md += f"* {w}\n"
+        md += "\n"
+    
+    if legal_data.get('key_arguments'):
+        md += "### Argumentet kryesore\n"
+        for a in legal_data.get('key_arguments', []):
+            md += f"* {a}\n"
+        md += "\n"
+    
     if legal_data.get('action_plan'):
-        md += "### HAPAT E REKOMANDUAR:\n"
+        md += "### Hapat e rekomanduar\n"
         for step in legal_data.get('action_plan', []):
             md += f"* {step}\n"
     
@@ -221,7 +266,6 @@ async def archive_full_strategy_report(db: Database, case_id: str, user_id: str,
     try:
         main_report_title = _get_text('analysis_title', lang)
         
-        # PHOENIX FIX: Set header_meta_content_html to None to completely remove the "Rasti: [Case Name]" line.
         pdf_buffer = report_service.create_pdf_from_text(
             text=md,
             document_title=main_report_title,
