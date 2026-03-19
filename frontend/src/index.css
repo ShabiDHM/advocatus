@@ -1,7 +1,8 @@
 /* /home/user/advocatus-frontend/src/index.css */
-/* PHOENIX PROTOCOL - INDEX CSS V3.3 (FIXED SELECTION STYLING) */
-/* 1. FIXED: Replaced `selection:bg-primary-start/30` with arbitrary variant `[&::selection]:bg-primary-start/30` to avoid Tailwind build error. */
-/* 2. RETAINED: All theme variables and classes. */
+/* PHOENIX PROTOCOL - INDEX CSS V3.4 (FIXED SELECTION STYLING) */
+/* 1. FIXED: Replaced arbitrary variant with plain CSS ::selection rule using RGB variables. */
+/* 2. ADDED: RGB counterparts for primary-start to allow opacity. */
+/* 3. RETAINED: All theme variables and classes. */
 
 @tailwind base;
 @tailwind components;
@@ -11,6 +12,7 @@
   /* Light theme (default) */
   :root {
     --color-primary-start: #2563eb;
+    --color-primary-start-rgb: 37, 99, 235;
     --color-primary-end: #3b82f6;
     --color-secondary-start: #7c3aed;
     --color-secondary-end: #9333ea;
@@ -28,6 +30,7 @@
   /* Dark theme */
   .dark {
     --color-primary-start: #2563eb;
+    --color-primary-start-rgb: 37, 99, 235;
     --color-primary-end: #3b82f6;
     --color-secondary-start: #7c3aed;
     --color-secondary-end: #9333ea;
@@ -43,9 +46,14 @@
   }
 
   body {
-    /* PHOENIX FIX: Use arbitrary variant for selection styling */
-    @apply bg-background-dark text-text-secondary font-sans antialiased [&::selection]:bg-primary-start/30 [&::selection]:text-white;
+    @apply bg-background-dark text-text-secondary font-sans antialiased;
     transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Selection styling using RGB variable */
+  body::selection {
+    background-color: rgba(var(--color-primary-start-rgb), 0.3);
+    color: white;
   }
   
   h1, h2, h3, h4, h5, h6 {
