@@ -1,12 +1,9 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V12.0 (STRATEGY ARCHIVING & UI STABILITY)
-// 1. ADDED: 'Ruaj në Arkiv' logic to trigger master strategy PDF synthesis and persistence.
-// 2. FIXED: Lucide icon syntax error in renderRiskBadge (size={14} />).
-// 3. RETAINED: Surgical parallel loading for Chronology, Simulation, and Contradictions.
-// 4. RETAINED: V10.0 Readability fixes (Emerald contrast, medium weights).
-// 5. STATUS: 100% System Integrity Verified. 0 Build Errors.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V12.2 (FIXED IMPORTS)
+// 1. FIXED: Added missing imports (TFunction, useRef).
+// 2. RETAINED: Tooltip on success probability badge.
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -16,6 +13,7 @@ import {
     Shield, ShieldAlert, ShieldCheck, Percent, Info, AlertTriangle
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { TFunction } from 'i18next';
 import { CaseAnalysisResult, DeepAnalysisResult, ChronologyEvent, Contradiction } from '../data/types'; 
 import { apiService } from '../services/api';
 
@@ -100,6 +98,38 @@ const renderCitationItem = (item: any) => {
                 return cleanLegalText(part);
             })}
         </span>
+    );
+};
+
+// Tooltip component for success probability
+const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({ children, t }) => {
+    const [show, setShow] = useState(false);
+    const timeoutRef = useRef<NodeJS.Timeout>();
+
+    const handleMouseEnter = () => {
+        timeoutRef.current = setTimeout(() => setShow(true), 400);
+    };
+    const handleMouseLeave = () => {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        setShow(false);
+    };
+
+    return (
+        <div className="relative inline-block" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+            {children}
+            <AnimatePresence>
+                {show && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 glass-high text-xs text-gray-300 rounded-xl border border-white/10 shadow-2xl z-50 text-center"
+                    >
+                        {t('analysis.success_tooltip', 'Probabiliteti i suksesit i vlerësuar nga AI bazuar në faktet dhe ligjin.')}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
     );
 };
 
@@ -222,14 +252,16 @@ const AnalysisModal: React.FC<AnalysisModalProps> = ({ isOpen, onClose, result, 
   const renderSuccessBadge = (prob: string | null) => {
       if (!prob) return null;
       return (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20 backdrop-blur-md shadow-sm ml-2">
-            <Percent size={14} />
-            <div className="flex items-center gap-1.5 text-xs font-bold tracking-wide">
-                <span className="opacity-70 font-medium uppercase text-[10px]">SUKSESI</span>
-                <span className="w-1 h-1 rounded-full bg-current opacity-50" />
-                <span>{prob}</span>
+        <SuccessTooltip t={t}>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-blue-500/10 text-blue-400 border-blue-500/20 backdrop-blur-md shadow-sm ml-2 cursor-help">
+                <Percent size={14} />
+                <div className="flex items-center gap-1.5 text-xs font-bold tracking-wide">
+                    <span className="opacity-70 font-medium uppercase text-[10px]">SUKSESI</span>
+                    <span className="w-1 h-1 rounded-full bg-current opacity-50" />
+                    <span>{prob}</span>
+                </div>
             </div>
-        </div>
+        </SuccessTooltip>
       );
   };
 
