@@ -1,15 +1,15 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V10.1 (I18N FIX)
-// 1. FIX: Removed hardcoded "Analyzing......" string.
-// 2. I18N: Button state now uses t('analysis.analyzing') for translation.
-// 3. INTEGRITY: Retained all Modal, Analyst, and Workspace logic.
+// PHOENIX PROTOCOL - CASE VIEW V10.2 (FIXED CHAT SIGNATURE)
+// 1. FIXED: Added missing domain parameter to handleChatSubmit to match ChatPanelProps.
+// 2. FIXED: Imported LegalDomain from ChatPanel.
+// 3. RETAINED: All existing logic.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Case, Document, DeletedDocumentResponse, CaseAnalysisResult, ChatMessage } from '../data/types';
 import { apiService, API_V1_URL } from '../services/api';
 import DocumentsPanel from '../components/DocumentsPanel';
-import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode } from '../components/ChatPanel';
+import ChatPanel, { ChatMode, Jurisdiction, ReasoningMode, LegalDomain } from '../components/ChatPanel';
 import PDFViewerModal from '../components/FileViewerModal';
 import AnalysisModal from '../components/AnalysisModal';
 import GlobalContextSwitcher from '../components/GlobalContextSwitcher';
@@ -173,7 +173,12 @@ const CaseViewPage: React.FC = () => {
   const handleDocumentDeleted = (response: DeletedDocumentResponse) => { setLiveDocuments(prev => prev.filter(d => String(d.id) !== String(response.documentId))); };
   const handleClearChat = async () => { if (!caseId) return; try { await apiService.clearChatHistory(caseId); setMessages([]); localStorage.removeItem(`chat_history_${currentCaseId}`); } catch (err) { alert(t('error.generic')); } };
   const handleAnalyze = async () => { if (!caseId) return; setIsAnalyzing(true); setActiveModal('none'); try { let result: CaseAnalysisResult; if (activeContextId === 'general') { result = await apiService.analyzeCase(caseId); } else { result = await apiService.crossExamineDocument(caseId, activeContextId); } if (result.error) alert(result.error); else { setAnalysisResult(result); setActiveModal('analysis'); } } catch (err) { alert(t('error.generic')); } finally { setIsAnalyzing(false); } };
-  const handleChatSubmit = (text: string, _mode: ChatMode, reasoning: ReasoningMode, documentId?: string, jurisdiction?: Jurisdiction) => { sendChatMessage(text, reasoning, documentId, jurisdiction); };
+  
+  // FIXED: Added domain parameter to match ChatPanelProps
+  const handleChatSubmit = (text: string, _mode: ChatMode, reasoning: ReasoningMode, _domain: LegalDomain, documentId?: string, jurisdiction?: Jurisdiction) => {
+    sendChatMessage(text, reasoning, documentId, jurisdiction);
+  };
+
   const handleViewOriginal = (doc: Document) => { const url = `${API_V1_URL}/cases/${caseId}/documents/${doc.id}/preview`; setViewingUrl(url); setViewingDocument(doc); setMinimizedDocument(null); };
   const handleCloseViewer = () => { setViewingDocument(null); setViewingUrl(null); };
   const handleMinimizeViewer = () => { if (viewingDocument) { setMinimizedDocument(viewingDocument); handleCloseViewer(); } };
