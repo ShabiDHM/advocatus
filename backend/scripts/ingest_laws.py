@@ -1,8 +1,9 @@
 # FILE: backend/scripts/ingest_laws.py
-# PHOENIX PROTOCOL - INGESTION SCRIPT V4.1 (ADDED CHUNK INDEX)
-# 1. ADDED: chunk_index and total_article_chunks to metadata for proper sorting.
-# 2. RETAINED: All previous improvements.
-# 3. NOTE: After this change, laws must be re‑ingested with --force to update metadata.
+# PHOENIX PROTOCOL - INGESTION SCRIPT V4.2 (IMPROVED LAW TITLE EXTRACTION)
+# 1. ADDED: Better regex to capture full law title including number.
+# 2. ADDED: Fallback to filename if no title is found.
+# 3. ENFORCED: law_title stored with full official name and number.
+# 4. RETAINED: All previous improvements (chunking, metadata).
 
 import os
 import sys
@@ -57,40 +58,60 @@ def clean_text(text: str) -> str:
     text = re.sub(r'\n\s*\n', '\n\n', text)
     return text.strip()
 
-def extract_law_title(text: str, filename: str) -> str:
-    """Extract full law title from document start."""
+def extract_full_law_title(text: str, filename: str) -> str:
+    """
+    Extract the full official law title including number.
+    Returns a string like "Ligji Nr. 04/L-121 për Familjen".
+    """
     sample = text[:5000]
 
-    # LIGJI with number and full description
-    match = re.search(r'(LIGJI\s+(?:[Nn]r\.?\s*[\d/]+)\s+[^\n.]+)', sample, re.IGNORECASE)
+    # Pattern 1: LIGJI with number and description
+    match = re.search(
+        r'(LIGJI\s+(?:[Nn]r\.?\s*[\d/]+(?:/[A-Z]-[\d]+)?)\s+[^\n.]+)',
+        sample,
+        re.IGNORECASE
+    )
     if match:
         return match.group(1).strip()
-    # LIGJI without number
+
+    # Pattern 2: LIGJI without number but with description
     match = re.search(r'(LIGJI\s+PËR\s+[^\n.]+)', sample, re.IGNORECASE)
     if match:
         return match.group(1).strip()
-    # KODI
-    match = re.search(r'(KODI\s+(?:[Nn]r\.?\s*[\d/]+)?\s*[^\n.]+)', sample, re.IGNORECASE)
+
+    # Pattern 3: KODI with number
+    match = re.search(
+        r'(KODI\s+(?:[Nn]r\.?\s*[\d/]+)?\s*[^\n.]+)',
+        sample,
+        re.IGNORECASE
+    )
     if match:
         return match.group(1).strip()
-    # KUSHTETUTA
+
+    # Pattern 4: KUSHTETUTA
     match = re.search(r'(KUSHTETUTA\s+E\s+REPUBLIKËS\s+SË\s+KOSOVËS)', sample, re.IGNORECASE)
     if match:
         return match.group(1).strip()
-    # GAZETA ZYRTARE
+
+    # Pattern 5: GAZETA ZYRTARE
     match = re.search(r'(GAZETA\s+ZYRTARE[^.\n]*)', sample, re.IGNORECASE)
     if match:
         return match.group(1).strip()
-    # Any all-caps line with law keyword
+
+    # Pattern 6: Any all-caps line containing "LIGJ" or "KOD"
     lines = sample.split('\n')
     for line in lines[:30]:
         if line.isupper() and ('LIGJ' in line or 'KOD' in line or 'KUSHTETUTA' in line):
             return line.strip()
+
     # Fallback: clean filename
     name = os.path.splitext(filename)[0]
     name = re.sub(r'[_-]', ' ', name)
     name = ' '.join(name.split())
-    return name
+    # Try to reconstruct a reasonable title
+    if 'ligji' in name.lower():
+        return name.title()
+    return f"Ligji: {name}"
 
 def split_by_article(text: str) -> List[Tuple[str, str]]:
     """Split into articles based on 'Neni' or 'Art.' markers."""
@@ -185,7 +206,6 @@ def ingest_legal_docs(directory_path: str, force_reingest: bool = False, chunk_s
             full_text = extract_text(file_path, "application/pdf")
             if not full_text or len(full_text.strip()) < 50:
                 print("⚠️  Extracted text too short, may be scanned or empty.")
-                # The file may need OCR. Since pytesseract is installed, it should work.
                 stats["failed"] += 1
                 continue
 
@@ -196,9 +216,9 @@ def ingest_legal_docs(directory_path: str, force_reingest: bool = False, chunk_s
                 stats["failed"] += 1
                 continue
 
-            # Extract title
-            law_title = extract_law_title(full_text, filename)
-            print(f"🏷️  Title: {law_title}")
+            # Extract full law title
+            law_title = extract_full_law_title(full_text, filename)
+            print(f"🏷️  Law title: {law_title}")
 
             # Split articles
             articles = split_by_article(full_text)
@@ -218,14 +238,14 @@ def ingest_legal_docs(directory_path: str, force_reingest: bool = False, chunk_s
                     batch_texts.append(chunk)
                     meta = {
                         "source": filename,
-                        "law_title": law_title,
+                        "law_title": law_title,                 # full title with number
                         "article_number": str(article_num),
                         "type": "LAW",
                         "jurisdiction": TARGET_JURISDICTION,
                         "file_hash": current_hash,
                         "page": 0,
-                        "chunk_index": i,                       # NEW: index within article
-                        "total_article_chunks": len(chunks)     # NEW: total chunks for this article
+                        "chunk_index": i,
+                        "total_article_chunks": len(chunks)
                     }
                     # Sanitize metadata (convert non‑scalars)
                     meta = {k: (v if v is not None else "") for k, v in meta.items()}
