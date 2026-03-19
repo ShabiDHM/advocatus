@@ -1,8 +1,7 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V12.2 (FIXED IMPORTS & TOOLTIP)
-// 1. FIXED: Added missing imports (TFunction, useRef).
-// 2. ADDED: Success probability tooltip on hover.
-// 3. RETAINED: All previous features.
+// PHOENIX PROTOCOL - ANALYSIS MODAL V12.3 (TOOLTIP BELOW BADGE)
+// 1. FIXED: Tooltip now appears below the success percentage badge to avoid clipping.
+// 2. RETAINED: All previous features.
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
@@ -102,7 +101,7 @@ const renderCitationItem = (item: any) => {
     );
 };
 
-// Tooltip component for success probability
+// Tooltip component for success probability – now appears below the badge
 const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({ children, t }) => {
     const [show, setShow] = useState(false);
     const timeoutRef = useRef<NodeJS.Timeout>();
@@ -121,10 +120,10 @@ const SuccessTooltip: React.FC<{ children: React.ReactNode; t: TFunction }> = ({
             <AnimatePresence>
                 {show && (
                     <motion.div
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-48 p-2 glass-high text-xs text-gray-300 rounded-xl border border-white/10 shadow-2xl z-50 text-center"
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-48 p-2 glass-high text-xs text-gray-300 rounded-xl border border-white/10 shadow-2xl z-[100] text-center"
                     >
                         {t('analysis.success_tooltip', 'Probabiliteti i suksesit i vlerësuar nga AI bazuar në faktet dhe ligjin.')}
                     </motion.div>
