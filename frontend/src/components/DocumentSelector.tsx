@@ -1,7 +1,7 @@
 // FILE: src/components/DocumentSelector.tsx
-// PHOENIX PROTOCOL - DOCUMENT SELECTOR V1.0 (MULTI‑SELECT WITH CHECKBOXES)
-// 1. Replaces old GlobalContextSwitcher.
-// 2. Allows selecting multiple documents via checkboxes.
+// PHOENIX PROTOCOL - DOCUMENT SELECTOR V1.1 (CONSISTENT HEADER STYLING)
+// 1. UPDATED: Button now uses same classes as other header buttons (glass-input, h-12 md:h-11, rounded-xl).
+// 2. RETAINED: Multi‑select checkbox functionality.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -62,13 +62,13 @@ export const DocumentSelector: React.FC<DocumentSelectorProps> = ({
       <button
         onClick={() => setIsOpen(!isOpen)}
         disabled={disabled}
-        className="glass-input w-full flex items-center justify-between gap-2 px-4 py-2 rounded-xl text-sm font-medium text-white hover:bg-white/5 transition-colors disabled:opacity-50"
+        className="glass-input w-full h-12 md:h-11 rounded-xl flex items-center justify-between gap-2 px-4 py-2 text-sm font-medium text-white hover:bg-white/5 transition-colors disabled:opacity-50"
       >
-        <span className="flex items-center gap-2">
-          <FileText size={16} className="text-primary-start" />
-          {buttonLabel}
+        <span className="flex items-center gap-2 truncate">
+          <FileText size={16} className="text-primary-start shrink-0" />
+          <span className="truncate">{buttonLabel}</span>
         </span>
-        <ChevronDown size={16} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={16} className={`shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       <AnimatePresence>

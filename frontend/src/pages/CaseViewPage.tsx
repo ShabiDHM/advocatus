@@ -1,8 +1,9 @@
 // FILE: src/pages/CaseViewPage.tsx
-// PHOENIX PROTOCOL - CASE VIEW V10.7 (INTEGRATED DOCUMENT SELECTOR)
-// 1. ADDED: DocumentSelector component for multi‑document selection.
-// 2. REMOVED: Old GlobalContextSwitcher.
-// 3. PASSES selectedDocumentIds to ChatPanel via onSendMessage.
+// PHOENIX PROTOCOL - CASE VIEW V10.10 (SINGLE SELECTOR, CONSISTENT STYLING)
+// 1. REMOVED: GlobalContextSwitcher.
+// 2. ADDED: DocumentSelector for multi‑document selection (same height as other buttons).
+// 3. UPDATED: handleAnalyze uses first selected document (if any) for cross‑examination.
+// 4. RETAINED: All other features.
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
@@ -68,8 +69,6 @@ const RenameDocumentModal: React.FC<{ isOpen: boolean; onClose: () => void; onRe
 const CaseHeader: React.FC<{ 
     caseDetails: Case;
     documents: Document[];
-    activeContextId: string;
-    onContextChange: (id: string) => void;
     t: TFunction; 
     onAnalyze: () => void;
     isAnalyzing: boolean; 
@@ -79,9 +78,9 @@ const CaseHeader: React.FC<{
     isAdmin: boolean;
     selectedDocumentIds: string[];
     onDocumentSelectionChange: (ids: string[]) => void;
-}> = ({ caseDetails, documents, activeContextId, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, isAdmin, selectedDocumentIds, onDocumentSelectionChange }) => {
+}> = ({ caseDetails, documents, t, onAnalyze, isAnalyzing, viewMode, setViewMode, isPro, isAdmin, selectedDocumentIds, onDocumentSelectionChange }) => {
     
-    const analyzeButtonText = activeContextId === 'general' 
+    const analyzeButtonText = selectedDocumentIds.length === 0
         ? t('analysis.analyzeButton', 'Analizo Rastin')
         : t('analysis.crossExamineButton', 'Kryqëzo Dokumentin');
 
@@ -101,9 +100,13 @@ const CaseHeader: React.FC<{
               <div className="h-px w-full bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
               <div className={`grid grid-cols-1 gap-3 w-full animate-in fade-in slide-in-from-top-2 ${isAdmin ? 'md:grid-cols-4' : 'md:grid-cols-4'}`}>
-                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap"><Calendar className="h-4 w-4 text-blue-400" />{new Date(caseDetails.created_at).toLocaleDateString()}</div>
+                    {/* Date badge */}
+                    <div className="md:col-span-1 flex items-center justify-center gap-2 px-4 h-12 md:h-11 rounded-xl bg-white/5 border border-white/10 text-gray-300 text-sm font-medium whitespace-nowrap">
+                        <Calendar className="h-4 w-4 text-blue-400" />
+                        {new Date(caseDetails.created_at).toLocaleDateString()}
+                    </div>
                     
-                    {/* Document selector replaces old GlobalContextSwitcher */}
+                    {/* Document selector – same height as other buttons */}
                     {viewMode === 'workspace' && (
                         <div className="md:col-span-1 h-12 md:h-11 min-w-0">
                             <DocumentSelector
@@ -115,12 +118,25 @@ const CaseHeader: React.FC<{
                         </div>
                     )}
                     
-                    <button onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')} disabled={!isPro} className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-white/5 border-white/10 text-gray-500 cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-white' : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'}`} title={!isPro ? "Available on Pro Plan" : ""}>
+                    {/* Analyst toggle */}
+                    <button
+                        onClick={() => isPro && setViewMode(viewMode === 'workspace' ? 'analyst' : 'workspace')}
+                        disabled={!isPro}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold transition-all duration-300 whitespace-nowrap border ${!isPro ? 'bg-white/5 border-white/10 text-gray-500 cursor-not-allowed opacity-70' : viewMode === 'analyst' ? 'bg-primary-start/20 border-primary-start text-white' : 'text-gray-400 border-transparent hover:text-white hover:bg-white/5'}`}
+                        title={!isPro ? "Available on Pro Plan" : ""}
+                    >
                         {!isPro ? <Lock className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
                         <span>{t('caseView.financialAnalyst', 'Analisti Financiar')}</span>
                     </button>
 
-                    <button onClick={onAnalyze} disabled={!isPro || isAnalyzing || viewMode !== 'workspace'} className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent ${!isPro ? 'bg-gray-700/50 cursor-not-allowed text-gray-400 shadow-none' : 'bg-primary-start hover:bg-primary-end shadow-primary-start/20'} disabled:opacity-70`} type="button" title={!isPro ? "Available on Pro Plan" : ""}>
+                    {/* Analyze button */}
+                    <button
+                        onClick={onAnalyze}
+                        disabled={!isPro || isAnalyzing || viewMode !== 'workspace'}
+                        className={`md:col-span-1 h-12 md:h-11 rounded-xl flex items-center justify-center gap-2.5 text-sm font-bold text-white shadow-lg transition-all duration-300 whitespace-nowrap border border-transparent ${!isPro ? 'bg-gray-700/50 cursor-not-allowed text-gray-400 shadow-none' : 'bg-primary-start hover:bg-primary-end shadow-primary-start/20'} disabled:opacity-70`}
+                        type="button"
+                        title={!isPro ? "Available on Pro Plan" : ""}
+                    >
                         {isAnalyzing ? (
                             <><Loader2 className="h-4 w-4 animate-spin text-white/70" /> <span className="text-white/70">{t('analysis.analyzing', 'Duke analizuar...')}</span></>
                         ) : !isPro ? (
@@ -150,7 +166,6 @@ const CaseViewPage: React.FC = () => {
   const [analysisResult, setAnalysisResult] = useState<CaseAnalysisResult | null>(null);
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [documentToRename, setDocumentToRename] = useState<Document | null>(null);
-  const [activeContextId, setActiveContextId] = useState<string>('general');
   const [viewMode, setViewMode] = useState<ViewMode>('workspace');
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
 
@@ -227,10 +242,12 @@ const CaseViewPage: React.FC = () => {
     setActiveModal('none');
     try {
       let result: CaseAnalysisResult;
-      if (activeContextId === 'general') {
+      if (selectedDocumentIds.length === 0) {
+        // Analyze whole case
         result = await apiService.analyzeCase(caseId);
       } else {
-        result = await apiService.crossExamineDocument(caseId, activeContextId);
+        // Cross‑examine the first selected document
+        result = await apiService.crossExamineDocument(caseId, selectedDocumentIds[0]);
       }
       if (result.error) alert(result.error);
       else {
@@ -333,8 +350,6 @@ const CaseViewPage: React.FC = () => {
             <CaseHeader 
                 caseDetails={caseData.details} 
                 documents={liveDocuments}
-                activeContextId={activeContextId} 
-                onContextChange={setActiveContextId}
                 t={t} 
                 onAnalyze={handleAnalyze} 
                 isAnalyzing={isAnalyzing} 
@@ -371,9 +386,9 @@ const CaseViewPage: React.FC = () => {
                         onExportChat={handleExportChat}
                         t={t}
                         className="!h-[600px] lg!h-full w-full shadow-xl"
-                        activeContextId={activeContextId}
+                        activeContextId={caseId || 'general'}
                         isPro={isPro}
-                        selectedDocumentCount={selectedDocumentIds.length} // pass count for optional badge
+                        selectedDocumentCount={selectedDocumentIds.length}
                     />
                 </motion.div>
             )}
