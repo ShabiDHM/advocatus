@@ -1,8 +1,7 @@
 # FILE: backend/app/services/albanian_rag_service.py
-# PHOENIX PROTOCOL - RAG SERVICE V57.0 (STRENGTHENED ANTI‑HALLUCINATION)
-# 1. ADDED: Explicit anti‑hallucination and placeholder rules to the system prompt.
-# 2. ADDED: Instruction to base answers primarily on provided case documents.
-# 3. PRESERVED: All existing RAG and citation logic.
+# PHOENIX PROTOCOL - RAG SERVICE V57.5 (ADDED DOMAIN PARAMETER)
+# 1. ADDED: domain parameter to chat() and incorporated into prompt.
+# 2. RETAINED: All previous features (conversation memory, source attribution, follow‑up suggestions).
 
 import os
 import sys
@@ -123,7 +122,9 @@ class AlbanianRAGService:
         return context
 
     async def chat(self, query: str, user_id: str, case_id: Optional[str] = None,
-                   document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks') -> AsyncGenerator[str, None]:
+                   document_ids: Optional[List[str]] = None, jurisdiction: str = 'ks',
+                   history: Optional[List[Dict[str, Any]]] = None,
+                   domain: Optional[str] = 'automatic') -> AsyncGenerator[str, None]:
         if not self.llm:
             yield "Sistemi AI nuk është aktiv."
             yield AI_DISCLAIMER
@@ -131,7 +132,7 @@ class AlbanianRAGService:
 
         from . import vector_store_service
 
-        logger.info(f"🔍 Chat request: user={user_id}, case={case_id}, query='{query[:100]}...'")
+        logger.info(f"🔍 Chat request: user={user_id}, case={case_id}, query='{query[:100]}...', domain={domain}")
 
         case_docs = vector_store_service.query_case_knowledge_base(
             user_id=user_id, query_text=query, case_context_id=case_id,
@@ -147,7 +148,35 @@ class AlbanianRAGService:
         self._build_citation_map(global_docs)
         context_str = self._build_context(case_docs, global_docs)
 
-        # === STRENGTHENED SYSTEM PROMPT ===
+        # Format conversation history
+        history_str = ""
+        if history:
+            history_lines = []
+            for msg in history:
+                role = "Përdoruesi" if msg.get("role") == "user" else "Avokati"
+                content = msg.get("content", "")
+                if content:
+                    history_lines.append(f"{role}: {content}")
+            if history_lines:
+                history_str = "\n".join(history_lines[-10:])  # last 5 exchanges
+                history_str = f"\n\n**HISTORIA E BISEDËS (vetëm për kontekst):**\n{history_str}\n"
+
+        # Create domain instruction
+        domain_instruction = ""
+        if domain and domain != 'automatic':
+            domain_names = {
+                'family': 'Familjar',
+                'corporate': 'Tregtar (Korporativ)',
+                'property': 'Pronësor',
+                'labor': 'Punës',
+                'obligations': 'Detyrimeve',
+                'administrative': 'Administrativ',
+                'criminal': 'Penal'
+            }
+            domain_label = domain_names.get(domain, domain)
+            domain_instruction = f"\n**FOKUS I VEÇANTË:** Përqendrohu në aspektet e ligjit **{domain_label}**. Kur je i pasigurt, jep përgjigje të përgjithshme por prioritizo këtë fushë.\n"
+
+        # === STRENGTHENED SYSTEM PROMPT WITH HISTORY, DOMAIN, SOURCES, AND FOLLOW‑UP SUGGESTIONS ===
         prompt = f"""
         Ti je "Senior Legal Partner". Detyra jote është të japësh një opinion ligjor suprem.
         {PROTOKOLLI_MANDATOR}
@@ -158,11 +187,13 @@ class AlbanianRAGService:
         - Vetëm pas kësaj, shto referenca nga baza ligjore për të mbështetur analizën.
         - Nëse materialet e dosjes përmbajnë informacion për rastin, përfshiji ato në përgjigje.
         - Nëse nuk ke informacion të mjaftueshëm për të dhënë një përgjigje, thuaj këtë hapur.
-
+        - **Në fund të përgjigjes, pas seksionit 'Burimet:', shto një seksion '**Pyetje të sugjeruara:**' me 2-3 pyetje që përdoruesi mund të bëjë më tej, të lidhura me temën. Secila pyetje të jetë në një rresht të ri, duke filluar me një vizë.**
+        {domain_instruction}
+        {history_str}
         **KONTEKSTI:**
         {context_str}
 
-        **PYETJA:** "{query}"
+        **PYETJA AKTUALE:** "{query}"
 
         **STRUKTURA (OBLIGATIVE):**
         ### 1. ANALIZA E FAKTEVE

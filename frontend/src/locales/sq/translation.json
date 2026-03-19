@@ -392,15 +392,16 @@
     "archiveSuccess": "Dokumenti u arkivua me sukses!",
     "archiveFailed": "Arkivimi dështoi."
   },
-  "chatPanel": {
+    "chatPanel": {
     "title": "Asistenti Sokratik",
     "welcomeMessage": "Përshëndetje! Unë jam asistenti juaj ligjor.",
     "inputPlaceholder": "Shkruaj mesazhin tuaj këtu...",
     "inputPlaceholderDeep": "Shkruaj për hulumtim të thellë...",
     "thinking": "Duke menduar...",
     "lawPreview.loading": "Duke ngarkuar...",
-  "lawPreview.error": "Nuk u ngarkua",
-  "chat.thinking": "Sokrati duke menduar",
+    "lawPreview.error": "Nuk u ngarkua",
+    "chat.thinking": "Sokrati duke menduar",
+    "chat.retry": "Provo përsëri",
     "confirmClear": "Pastro Historinë",
     "modeFast": "Shpejtë",
     "modeFastTooltip": "Bisedë e Shpejtë",

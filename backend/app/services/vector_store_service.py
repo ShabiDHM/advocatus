@@ -1,8 +1,7 @@
 # FILE: backend/app/services/vector_store_service.py
-# PHOENIX PROTOCOL - VECTOR STORE V19.1 (PYLANCE FIX)
-# 1. FIXED: Added safety checks for Optional iterables in metadata updates.
-# 2. FIXED: Ensures 'metadatas' is never None during iteration.
-# 3. STATUS: 100% Pylance/Type-Safe.
+# PHOENIX PROTOCOL - VECTOR STORE V19.2 (ADDED CHUNK_ID TO GLOBAL QUERY)
+# 1. FIXED: query_global_knowledge_base now returns chunk_id along with metadata.
+# 2. RETAINED: All previous functionality.
 
 from __future__ import annotations
 import os
@@ -230,13 +229,15 @@ def query_global_knowledge_base(
         if kb_res and (doc_lists := kb_res.get('documents')) and doc_lists and (docs := doc_lists[0]):
             meta_lists = kb_res.get('metadatas', [[]])
             metas = meta_lists[0] if meta_lists and meta_lists[0] else [{} for _ in docs]
-            for d, m in zip(docs, metas):
+            ids_list = kb_res.get('ids', [[]])[0]  # get the ids for the first query (single query)
+            for i, (d, m) in enumerate(zip(docs, metas)):
                 results.append({
                     "text": d,
                     "source": m.get("source", "Ligji përkatës") if m else "Ligji përkatës",
                     "law_title": m.get("law_title") if m else None,
                     "article_number": m.get("article_number") if m else None,
-                    "type": "GLOBAL_LAW"
+                    "type": "GLOBAL_LAW",
+                    "chunk_id": ids_list[i] if i < len(ids_list) else None
                 })
         return results
     except Exception as e:

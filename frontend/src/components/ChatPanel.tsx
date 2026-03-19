@@ -1,13 +1,14 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V5.11 (FULLY INTERNATIONALIZED)
-// 1. FIXED: All hardcoded strings replaced with translation keys.
-// 2. ADDED: Keys for law preview loading/error, thinking state.
-// 3. STATUS: Ready for i18n.
+// PHOENIX PROTOCOL - CHAT PANEL V6.2 (FIXED TRANSLATION PATHS)
+// 1. FIXED: Changed t('chat.thinking') to t('chatPanel.chat.thinking')
+// 2. FIXED: Changed t('chat.retry') to t('chatPanel.chat.retry')
+// 3. RETAINED: All features (domain selection, retry, feedback, tooltips, follow‑up suggestions).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-    Send, BrainCircuit, Trash2, User, Copy, Check, Zap, GraduationCap, Scale, Lock, Eye
+    Send, BrainCircuit, Trash2, User, Copy, Check, Zap, GraduationCap, Scale, Lock, Eye,
+    ThumbsUp, ThumbsDown, RefreshCw
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -19,12 +20,25 @@ import { apiService } from '../services/api';
 export type ChatMode = 'general' | 'document';
 export type ReasoningMode = 'FAST' | 'DEEP';
 export type Jurisdiction = 'ks' | 'al';
+export type LegalDomain = 'automatic' | 'family' | 'corporate' | 'property' | 'labor' | 'obligations' | 'administrative' | 'criminal';
+
+// Map for display labels
+const domainLabels: Record<LegalDomain, string> = {
+  automatic: 'Automatik',
+  family: 'Familjar',
+  corporate: 'Tregtar',
+  property: 'Pronësor',
+  labor: 'Punës',
+  obligations: 'Detyrimeve',
+  administrative: 'Administrativ',
+  criminal: 'Penal'
+};
 
 interface ChatPanelProps {
   messages: ChatMessage[];
   connectionStatus: string;
   reconnect: () => void;
-  onSendMessage: (text: string, mode: ChatMode, reasoning: ReasoningMode, documentId?: string, jurisdiction?: Jurisdiction) => void;
+  onSendMessage: (text: string, mode: ChatMode, reasoning: ReasoningMode, domain: LegalDomain, documentId?: string, jurisdiction?: Jurisdiction) => void;
   isSendingMessage: boolean;
   onClearChat: () => void;
   t: TFunction;
@@ -52,6 +66,53 @@ const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, 
         <button onClick={handleCopy} className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100 ${copied ? 'bg-emerald-500/20 text-emerald-400' : isUser ? 'bg-white/10 text-white/70' : 'bg-white/5 text-gray-400 hover:text-white'}`}>
             {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
+    );
+};
+
+// Feedback buttons component
+const FeedbackButtons: React.FC<{
+    messageIndex: number;
+    caseId: string;
+    onFeedback: (index: number, feedback: 'up' | 'down') => void;
+    disabled?: boolean;
+}> = ({ messageIndex, caseId, onFeedback, disabled }) => {
+    const [submitting, setSubmitting] = useState<'up' | 'down' | null>(null);
+    const [success, setSuccess] = useState(false);
+
+    const handleFeedback = async (feedback: 'up' | 'down') => {
+        if (submitting || disabled) return;
+        setSubmitting(feedback);
+        try {
+            await apiService.submitChatFeedback(caseId, messageIndex, feedback);
+            setSuccess(true);
+            onFeedback(messageIndex, feedback);
+            setTimeout(() => setSuccess(false), 2000);
+        } catch (error) {
+            console.error('Feedback failed:', error);
+        } finally {
+            setSubmitting(null);
+        }
+    };
+
+    return (
+        <div className="flex items-center gap-1 mt-2">
+            <button
+                onClick={() => handleFeedback('up')}
+                disabled={!!submitting || disabled || success}
+                className={`p-1.5 rounded-lg transition-all ${success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'}`}
+                title="Përgjigje e dobishme"
+            >
+                {submitting === 'up' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin" /> : <ThumbsUp size={14} />}
+            </button>
+            <button
+                onClick={() => handleFeedback('down')}
+                disabled={!!submitting || disabled || success}
+                className={`p-1.5 rounded-lg transition-all ${success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'}`}
+                title="Përgjigje e padobishme"
+            >
+                {submitting === 'down' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin" /> : <ThumbsDown size={14} />}
+            </button>
+        </div>
     );
 };
 
@@ -141,6 +202,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 }) => {
   const [input, setInput] = useState('');
   const [reasoningMode, setReasoningMode] = useState<ReasoningMode>('FAST');
+  const [selectedDomain, setSelectedDomain] = useState<LegalDomain>('automatic');
+  const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
+  const [lastUserMessage, setLastUserMessage] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -148,72 +212,113 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isSendingMessage]);
   useEffect(() => { if (textareaRef.current) { textareaRef.current.style.height = 'auto'; textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`; } }, [input]);
 
-  const sendMessage = () => {
-    if (!input.trim() || isSendingMessage) return;
-    onSendMessage(input, activeContextId === 'general' ? 'general' : 'document', reasoningMode, activeContextId === 'general' ? undefined : activeContextId, 'ks');
+  const sendMessage = (text: string) => {
+    if (!text.trim() || isSendingMessage) return;
+    const mode = activeContextId === 'general' ? 'general' : 'document';
+    setLastUserMessage(text);
+    onSendMessage(text, mode, reasoningMode, selectedDomain, activeContextId === 'general' ? undefined : activeContextId, 'ks');
     setInput('');
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } };
   
-  // Determine if we should show the branded thinking state
+  const handleFeedback = (index: number, _feedback: 'up' | 'down') => {
+    setFeedbackGiven(prev => new Set(prev).add(index));
+  };
+
+  const handleRetry = () => {
+    if (lastUserMessage) {
+      sendMessage(lastUserMessage);
+    }
+  };
+
   const lastMessage = messages[messages.length - 1];
   const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content.trim());
 
   return (
     <div className={`flex flex-col glass-panel rounded-2xl overflow-hidden h-full w-full ${className}`}>
-      {/* Header */}
+      {/* Header with domain dropdown and mode toggle */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-white/5 backdrop-blur-sm z-50">
         <div className="flex items-center gap-3">
-            <div className={`w-2.5 h-2.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`} />
-            <h3 className="text-sm font-bold text-white">{t('chatPanel.title')}</h3>
+          <div className={`w-2.5 h-2.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`} />
+          <h3 className="text-sm font-bold text-white">{t('chatPanel.title')}</h3>
         </div>
         <div className="flex items-center gap-2">
-            <div className="flex items-center bg-black/30 rounded-lg p-0.5 border border-white/5">
-                <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400' : 'text-gray-500'}`}>
-                    <Zap size={12} /> {t('chatPanel.modeFast')}
-                </button>
-                <button onClick={() => isPro && setReasoningMode('DEEP')} disabled={!isPro} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'DEEP' ? 'bg-purple-500/20 text-purple-400' : 'text-gray-600'}`}>
-                    {!isPro ? <Lock size={10} className="mr-1" /> : <GraduationCap size={12} className="mr-1" />}
-                    {t('chatPanel.modeDeep')}
-                </button>
-            </div>
-            <button onClick={onClearChat} className="p-2 text-text-secondary hover:text-red-400 transition-colors"><Trash2 size={16} /></button>
+          {/* Domain selection dropdown */}
+          <select
+            value={selectedDomain}
+            onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
+            className="bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-start/40"
+          >
+            {Object.entries(domainLabels).map(([value, label]) => (
+              <option key={value} value={value} className="bg-gray-900">{label}</option>
+            ))}
+          </select>
+          {/* Mode toggle */}
+          <div className="flex items-center bg-black/30 rounded-lg p-0.5 border border-white/5">
+            <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400' : 'text-gray-500'}`}>
+              <Zap size={12} /> {t('chatPanel.modeFast')}
+            </button>
+            <button onClick={() => isPro && setReasoningMode('DEEP')} disabled={!isPro} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'DEEP' ? 'bg-purple-500/20 text-purple-400' : 'text-gray-600'}`}>
+              {!isPro ? <Lock size={10} className="mr-1" /> : <GraduationCap size={12} className="mr-1" />}
+              {t('chatPanel.modeDeep')}
+            </button>
+          </div>
+          <button onClick={onClearChat} className="p-2 text-text-secondary hover:text-red-400 transition-colors"><Trash2 size={16} /></button>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-black/20 custom-scrollbar relative">
         <AnimatePresence initial={false}>
-            {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
-                <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shrink-0"><BrainCircuit className="w-4 h-4 text-white" /></div>}
-                    <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' : 'glass-panel text-text-primary rounded-bl-none'}`}>
-                        <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
-                        <div className="markdown-content select-text">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{msg.content}</ReactMarkdown>
-                        </div>
-                    </div>
-                    {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/5 shrink-0"><User className="w-4 h-4 text-text-secondary" /></div>}
-                </motion.div>
-            ))}
+          {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
+            <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shrink-0"><BrainCircuit className="w-4 h-4 text-white" /></div>}
+              <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' : 'glass-panel text-text-primary rounded-bl-none'}`}>
+                <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
+                <div className="markdown-content select-text">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{msg.content}</ReactMarkdown>
+                </div>
+                {msg.role === 'ai' && activeContextId !== 'general' && !msg.content.startsWith('[Gabim Teknik') && (
+                  <FeedbackButtons
+                    messageIndex={idx}
+                    caseId={activeContextId}
+                    onFeedback={handleFeedback}
+                    disabled={feedbackGiven.has(idx)}
+                  />
+                )}
+                {msg.role === 'ai' && msg.content.startsWith('[Gabim Teknik') && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={handleRetry}
+                      className="px-3 py-1 bg-primary-start/20 hover:bg-primary-start/30 text-primary-start rounded-lg text-xs font-medium transition-all flex items-center gap-1"
+                    >
+                      <RefreshCw size={12} />
+                      {t('chatPanel.chat.retry', 'Provo përsëri')}
+                    </button>
+                  </div>
+                )}
+              </div>
+              {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center border border-white/5 shrink-0"><User className="w-4 h-4 text-text-secondary" /></div>}
+            </motion.div>
+          ))}
 
-            {showThinking && (
-                <motion.div key="thinking-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-white" /></div>
-                    <div className="glass-panel text-blue-400 font-bold rounded-2xl px-5 py-3.5 text-sm flex items-center gap-1 border border-blue-500/20 shadow-blue-500/5">
-                        {t('chat.thinking', 'Sokrati duke menduar')}<ThinkingDots />
-                    </div>
-                </motion.div>
-            )}
+          {showThinking && (
+            <motion.div key="thinking-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-white" /></div>
+              <div className="glass-panel text-blue-400 font-bold rounded-2xl px-5 py-3.5 text-sm flex items-center gap-1 border border-blue-500/20 shadow-blue-500/5">
+                {t('chatPanel.chat.thinking', 'Sokrati duke menduar')}<ThinkingDots />
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
         
         <div ref={messagesEndRef} />
       </div>
 
       <div className="p-4 border-t border-white/5 bg-white/5 backdrop-blur-md">
-        <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="relative flex items-end gap-2">
-            <textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={t('chatPanel.inputPlaceholder')} className="glass-input w-full p-4 rounded-xl text-sm resize-none custom-scrollbar" rows={1} />
-            <button type="submit" disabled={!input.trim() || isSendingMessage} className="p-3 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl shadow-lg shadow-primary-start/20 active:scale-95 transition-all"><Send size={18} /></button>
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex items-end gap-2">
+          <textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={t('chatPanel.inputPlaceholder')} className="glass-input w-full p-4 rounded-xl text-sm resize-none custom-scrollbar" rows={1} />
+          <button type="submit" disabled={!input.trim() || isSendingMessage} className="p-3 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl shadow-lg shadow-primary-start/20 active:scale-95 transition-all"><Send size={18} /></button>
         </form>
       </div>
     </div>

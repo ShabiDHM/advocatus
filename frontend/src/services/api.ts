@@ -1,8 +1,7 @@
 // FILE: src/services/api.ts
-// PHOENIX PROTOCOL - API SERVICE V22.6 (ADDED GET LAW TITLES)
-// 1. ADDED: getLawTitles to fetch all distinct law titles for dropdown.
+// PHOENIX PROTOCOL - API SERVICE V22.8 (ADDED DOMAIN TO CHAT STREAM)
+// 1. ADDED: domain parameter to sendChatMessageStream for deep mode customisation.
 // 2. RETAINED: All existing functionality.
-// 3. STATUS: 100% Pylance Clear.
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosError, AxiosHeaders } from 'axios';
 import type {
@@ -335,18 +334,53 @@ class ApiService {
         return response.data;
     }
 
-    // --- STREAMING AI METHODS ---
+    // --- CHAT FEEDBACK ---
+    public async submitChatFeedback(caseId: string, messageIndex: number, feedback: 'up' | 'down'): Promise<void> {
+        await this.axiosInstance.post(`/chat/case/${caseId}/feedback`, {
+            message_index: messageIndex,
+            feedback: feedback
+        });
+    }
 
-    public async *sendChatMessageStream(caseId: string, message: string, documentId?: string, jurisdiction?: string, mode: 'FAST' | 'DEEP' = 'FAST'): AsyncGenerator<string, void, unknown> {
+    // --- STREAMING AI METHODS ---
+    public async *sendChatMessageStream(
+        caseId: string, 
+        message: string, 
+        documentId?: string, 
+        jurisdiction?: string, 
+        mode: 'FAST' | 'DEEP' = 'FAST',
+        domain: string = 'automatic'
+    ): AsyncGenerator<string, void, unknown> {
         let token = tokenManager.get();
         if (!token) { await this.refreshToken(); token = tokenManager.get(); }
         const url = `${API_V1_URL}/chat/case/${caseId}`;
-        const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }, body: JSON.stringify({ message, document_id: documentId || null, jurisdiction: jurisdiction || 'ks', mode }) });
+        const response = await fetch(url, { 
+            method: 'POST', 
+            headers: { 
+                'Content-Type': 'application/json', 
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}) 
+            }, 
+            body: JSON.stringify({ 
+                message, 
+                document_id: documentId || null, 
+                jurisdiction: jurisdiction || 'ks', 
+                mode,
+                domain 
+            }) 
+        });
         if (!response.ok) throw new Error("Chat request failed.");
         if (!response.body) return;
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
-        try { while (true) { const { done, value } = await reader.read(); if (done) break; yield decoder.decode(value, { stream: true }); } } finally { reader.releaseLock(); }
+        try { 
+            while (true) { 
+                const { done, value } = await reader.read(); 
+                if (done) break; 
+                yield decoder.decode(value, { stream: true }); 
+            } 
+        } finally { 
+            reader.releaseLock(); 
+        }
     }
 
     public async *draftLegalDocumentStream(data: CreateDraftingJobRequest): AsyncGenerator<string, void, unknown> {

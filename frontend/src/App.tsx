@@ -1,5 +1,5 @@
 // FILE: src/App.tsx
-// PHOENIX PROTOCOL - ROUTING V4.5 (ADDED LAW OVERVIEW PAGE)
+// PHOENIX PROTOCOL - ROUTING V4.6 (ADDED CHAT PAGE ROUTE)
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -26,6 +26,7 @@ import LawViewerPage from './pages/LawViewerPage';
 import LawSearchPage from './pages/LawSearchPage';
 import LawArticlePage from './pages/LawArticlePage';
 import LawOverviewPage from './pages/LawOverviewPage';
+import ChatPage from './pages/ChatPage'; // <-- Import the new ChatPage
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -71,6 +72,8 @@ const AppRoutes: React.FC = () => {
       <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/cases/:caseId" element={<CaseViewPage />} />
+        {/* New chat route under case */}
+        <Route path="/cases/:caseId/chat" element={<ChatPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/drafting" element={<DraftingPage />} />
         <Route path="/support" element={<SupportPage />} />
