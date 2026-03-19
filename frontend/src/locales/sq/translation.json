@@ -336,6 +336,7 @@
     "risk_medium": "I MESËM",
     "risk_low": "I ULËT",
     "risk_format": "RREZIK {{level}}",
+      "success_tooltip": "Probabiliteti i suksesit i vlerësuar nga AI bazuar në faktet dhe ligjin.",
     "loading_title": "Duke Analizuar Ligjet & Faktet...",
     "loading_desc": "Sokrati po verifikon bazën ligjore.",
     "loading_deep_title": "Duke Simuluar Rastin...",
