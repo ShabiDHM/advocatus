@@ -1,7 +1,9 @@
 # FILE: backend/app/services/analysis_service.py
-# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.5 (DEBUG LOGGING ADDED)
-# 1. ADDED: Detailed logging of context and raw LLM response.
-# 2. RETAINED: All previous improvements.
+# PHOENIX PROTOCOL - ANALYSIS SERVICE V24.6 (FIXED LAW RETRIEVAL & PROMPT)
+# 1. ADDED: Logging of number of global law documents retrieved.
+# 2. IMPROVED: Search query now includes general legal terms.
+# 3. STRENGTHENED: Prompt instructs to use only laws from context; if none, state "Nuk u gjetën dispozita ligjore specifike."
+# 4. RETAINED: All previous features.
 
 import asyncio
 import structlog
@@ -22,7 +24,6 @@ logger = structlog.get_logger(__name__)
 import logging
 debug_logger = logging.getLogger("analysis_debug")
 debug_logger.setLevel(logging.DEBUG)
-# Ensure it outputs to console (or file, depending on your setup)
 if not debug_logger.handlers:
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
@@ -38,20 +39,32 @@ async def _fetch_rag_context_async(db: Database, case_id: str, user_id: str, inc
         asyncio.to_thread(vector_store_service.query_case_knowledge_base, user_id=user_id, query_text=q, case_context_id=case_id, n_results=15)
     ]
     if include_laws:
-        tasks.append(asyncio.to_thread(vector_store_service.query_global_knowledge_base, query_text=q, n_results=15))
+        # Use a broader search query for laws
+        law_query = f"{q} ligj neni dispozita"
+        tasks.append(asyncio.to_thread(vector_store_service.query_global_knowledge_base, query_text=law_query, n_results=15))
     
     results = await asyncio.gather(*tasks)
     case_facts = results[0]
     global_laws = results[1] if include_laws else []
+
+    debug_logger.debug(f"Retrieved {len(case_facts)} case documents, {len(global_laws)} global law documents.")
 
     blocks = ["=== FAKTE NGA DOSJA ==="]
     for f in case_facts:
         blocks.append(f"DOKUMENTI: {f['source']} (Faqja {f['page']})\nTEKSTI: {f['text']}\n")
     
     if include_laws:
-        blocks.append("=== BAZA LIGJORE STATUTORE ===")
-        for l in global_laws:
-            blocks.append(f"BURIMI LIGJOR: '{l['source']}'\nNENI/TEKSTI: {l['text']}\n")
+        if global_laws:
+            blocks.append("=== BAZA LIGJORE STATUTORE ===")
+            for l in global_laws:
+                law_title = l.get('law_title', 'Ligji i panjohur')
+                article_num = l.get('article_number', '')
+                if article_num:
+                    blocks.append(f"LIGJI: {law_title}, Neni {article_num}\nTEKSTI: {l['text']}\n")
+                else:
+                    blocks.append(f"LIGJI: {law_title}\nTEKSTI: {l['text']}\n")
+        else:
+            blocks.append("=== BAZA LIGJORE STATUTORE ===\nNuk u gjetën dispozita ligjore specifike.")
             
     return "\n".join(blocks)
 
@@ -107,7 +120,9 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
     DETYRA: Analizë e thellë strategjike dhe ligjore e këtij rasti. Jep një vlerësim profesional për avokatin.
     
     MANDATI:
-    - MOS jep vetëm emrin e ligjit. Për çdo nen të cituar, shpjego 'RELEVANCËN' për këtë rast specifik.
+    - MOS përdor asnjë ligj që nuk shfaqet në kontekstin e dhënë në seksionin "BAZA LIGJORE STATUTORE".
+    - Nëse seksioni "BAZA LIGJORE STATUTORE" thotë se nuk u gjetën dispozita, shkruaj "Nuk u gjetën dispozita ligjore specifike." në vend të citimeve të trilluara.
+    - Për çdo nen të cituar, shpjego 'RELEVANCËN' për këtë rast specifik, duke lidhur ligjin me faktet nga dosja.
     - Përdor faktet nga dosja për të ndërtuar argumente konkrete.
     - Nëse nuk ke informacion të mjaftueshëm, thuaj qartë se cilat prova mungojnë.
     
@@ -137,7 +152,7 @@ async def cross_examine_case(db: Database, case_id: str, user_id: str) -> Dict[s
     }
     
     UDHËZIME SHTESË:
-    - Titulli i ligjit duhet të jetë i plotë me numër (p.sh., "Ligji Nr. 03/L-154 për Pronësinë dhe të Drejtat Tjera Sendore").
+    - Titulli i ligjit duhet të jetë i plotë me numër, saktësisht siç shfaqet në kontekst (p.sh., "Ligji Nr. 2004/32 për Familjen e Kosovës").
     - Për nenet pa numër të saktë, përdor "Neni përkatës".
     - Vlerëso realisht probabilitetin e suksesit.
     """
