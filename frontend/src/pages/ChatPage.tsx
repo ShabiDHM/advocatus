@@ -1,7 +1,8 @@
 // FILE: src/pages/ChatPage.tsx
-// PHOENIX PROTOCOL - CHAT PAGE V1.1 (FIXED UNUSED PARAMETER WARNING)
-// 1. FIXED: Renamed 'mode' to '_mode' in handleSendMessage to indicate intentional non-use.
-// 2. RETAINED: All functionality.
+// PHOENIX PROTOCOL - CHAT PAGE V1.2 (HTTP STREAMING, MULTI‑DOCUMENT SUPPORT)
+// 1. UPDATED: Now uses apiService.sendChatMessageStream instead of WebSocket for chat.
+// 2. FIXED: Signature matches ChatPanelProps (documentIds array).
+// 3. RETAINED: All other functionality.
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,26 +20,38 @@ const ChatPage: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('CONNECTED');
 
-  // Load chat history from the case (optional – you can fetch from API)
+  // Load chat history from localStorage if available
   useEffect(() => {
-    if (caseId) {
-      // You might want to fetch existing chat history from the backend
-      // For now, we'll start with an empty array or a welcome message
-      setMessages([]);
+    if (!caseId) return;
+    const cached = localStorage.getItem(`chat_history_${caseId}`);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+        }
+      } catch (e) {}
     }
   }, [caseId]);
 
+  // Save chat history to localStorage
+  useEffect(() => {
+    if (!caseId) return;
+    if (messages.length > 0) {
+      localStorage.setItem(`chat_history_${caseId}`, JSON.stringify(messages));
+    }
+  }, [messages, caseId]);
+
   const handleSendMessage = async (
     text: string,
-    _mode: ChatMode,  // renamed to silence warning – not needed in logic
+    _mode: ChatMode,
     reasoning: ReasoningMode,
     domain: LegalDomain,
-    documentId?: string,
+    documentIds?: string[],
     jurisdiction?: Jurisdiction
   ) => {
     if (!caseId) return;
 
-    // Add user message to UI
     const userMessage: ChatMessage = {
       role: 'user',
       content: text,
@@ -47,7 +60,6 @@ const ChatPage: React.FC = () => {
     setMessages(prev => [...prev, userMessage]);
     setIsSending(true);
 
-    // Placeholder AI message for streaming
     const aiMessage: ChatMessage = {
       role: 'ai',
       content: '',
@@ -60,14 +72,13 @@ const ChatPage: React.FC = () => {
       const stream = apiService.sendChatMessageStream(
         caseId,
         text,
-        documentId,
+        documentIds,
         jurisdiction,
         reasoning,
         domain
       );
       for await (const chunk of stream) {
         fullResponse += chunk;
-        // Update the last AI message (streaming)
         setMessages(prev => {
           const newMessages = [...prev];
           newMessages[newMessages.length - 1] = {
@@ -79,7 +90,6 @@ const ChatPage: React.FC = () => {
       }
     } catch (error) {
       console.error('Chat stream error:', error);
-      // Append error message (will trigger retry button)
       setMessages(prev => [
         ...prev,
         {
@@ -98,6 +108,7 @@ const ChatPage: React.FC = () => {
     if (caseId) {
       try {
         await apiService.clearChatHistory(caseId);
+        localStorage.removeItem(`chat_history_${caseId}`);
       } catch (error) {
         console.error('Failed to clear chat history:', error);
       }
@@ -105,7 +116,6 @@ const ChatPage: React.FC = () => {
   };
 
   const reconnect = () => {
-    // Optional: implement reconnection logic if WebSocket is used
     setConnectionStatus('CONNECTED');
   };
 
@@ -121,6 +131,7 @@ const ChatPage: React.FC = () => {
         t={t}
         activeContextId={caseId || 'general'}
         isPro={user?.subscription_tier === 'PRO' || user?.role === 'ADMIN'}
+        // documents not needed for general chat, but could be added later
       />
     </div>
   );
