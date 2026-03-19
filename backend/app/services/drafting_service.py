@@ -121,7 +121,9 @@ UDHËZIME TË RREPTA:
 1. **Ndiq me përpikëri strukturën e kërkuar nga përdoruesi** – përdor saktësisht titujt që ai ka specifikuar (p.sh., PALËT:, OBJEKTI:, BAZA LIGJORE:, etj.). Mos i ndrysho.
 2. **Mos shpik kurrë ligje ose nene** – nëse nuk je i sigurt për një citim, përdor një vendmbajtës si "[Neni përkatës i Ligjit ...]".
 3. **Mos përdor tituj si KAPITULLI** – përdor vetëm titujt e dhënë nga përdoruesi.
-4. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
+4. **Ligji primar i identifikuar është: {detected_law}**. Ky është ligji që duhet të përdorësh në citime. Nëse materiali ndihmës përmban ligje të tjera, përdori ato vetëm nëse përputhen me këtë ligj ose je absolutisht i sigurt se janë të sakta. Përndryshe, përdor vendmbajtës.
+5. **Për kontratat e punës, titulli standard është 'KONTRATË PUNE'**, jo 'AKTIVENDIM'. Përdor formatin e kontratës dypalëshe, jo vendim gjyqësor.
+6. Përdor kontekstin e mëposhtëm VETËM për të pasuruar përgjigjen, jo për të ndryshuar format.
 
 [KONTEKSTI LIGJOR I DETEKTUAR]
 Ligji primar i identifikuar: {detected_law}
