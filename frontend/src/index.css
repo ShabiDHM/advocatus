@@ -1,20 +1,53 @@
 /* /home/user/advocatus-frontend/src/index.css */
-/* DEFINITIVE VERSION 3.1: MOBILE SCROLL FIX */
-/* 1. FIX: Removed 'overflow-hidden' from body. This restores native mobile scrolling and Pull-to-Refresh. */
-/* 2. LAYOUT: Desktop scrolling is now handled exclusively by MainLayout. */
+/* PHOENIX PROTOCOL - INDEX CSS V3.2 (THEME VARIABLES) */
+/* 1. ADDED: CSS custom properties for light/dark themes. */
+/* 2. Light theme is default, dark theme applied via .dark class. */
+/* 3. RETAINED: All existing classes and animations. */
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* Light theme (default) */
+  :root {
+    --color-primary-start: #2563eb;
+    --color-primary-end: #3b82f6;
+    --color-secondary-start: #7c3aed;
+    --color-secondary-end: #9333ea;
+    --color-accent-start: #f59e0b;
+    --color-accent-end: #fbbf24;
+    --color-success-start: #10b981;
+    --color-success-end: #22c55e;
+    --color-text-primary: #111827;
+    --color-text-secondary: #4b5563;
+    --color-glass-edge: rgba(0, 0, 0, 0.1);
+    --color-background-dark: #f9fafb;      /* light background */
+    --color-background-light: #ffffff;     /* even lighter */
+  }
+
+  /* Dark theme */
+  .dark {
+    --color-primary-start: #2563eb;
+    --color-primary-end: #3b82f6;
+    --color-secondary-start: #7c3aed;
+    --color-secondary-end: #9333ea;
+    --color-accent-start: #f59e0b;
+    --color-accent-end: #fbbf24;
+    --color-success-start: #10b981;
+    --color-success-end: #22c55e;
+    --color-text-primary: #f9fafb;
+    --color-text-secondary: #d1d5db;
+    --color-glass-edge: rgba(255, 255, 255, 0.1);
+    --color-background-dark: #030712;
+    --color-background-light: #1f2937;
+  }
+
   body {
-    /* PHOENIX FIX: Removed 'overflow-hidden'. 
-       We only want to lock scrolling on Desktop apps, which is now handled in MainLayout. */
     @apply bg-background-dark text-text-secondary font-sans antialiased selection:bg-primary-start/30 selection:text-white;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
   
-  /* Heading Styles */
   h1, h2, h3, h4, h5, h6 {
     @apply text-text-primary font-bold tracking-tight;
   }
@@ -25,22 +58,22 @@
   
   /* Standard Glass Panel (Cards, Sidebar, etc.) */
   .glass-panel {
-    @apply bg-background-light/30 backdrop-blur-md border border-white/10 shadow-xl;
+    @apply bg-background-light/30 backdrop-blur-md border border-glass-edge shadow-xl;
   }
   
   /* High Intensity Glass (Modals, Popovers) */
   .glass-high {
-    @apply bg-background-light/60 backdrop-blur-xl border border-white/10 shadow-2xl;
+    @apply bg-background-light/60 backdrop-blur-xl border border-glass-edge shadow-2xl;
   }
 
   /* Glass Inputs */
   .glass-input {
-    @apply bg-background-dark/50 border border-white/10 text-text-primary placeholder-text-secondary/50 focus:border-primary-start/50 focus:ring-2 focus:ring-primary-start/20 transition-all duration-200 backdrop-blur-sm outline-none;
+    @apply bg-background-dark/50 border border-glass-edge text-text-primary placeholder-text-secondary/50 focus:border-primary-start/50 focus:ring-2 focus:ring-primary-start/20 transition-all duration-200 backdrop-blur-sm outline-none;
   }
 
   /* Glass Buttons */
   .glass-button {
-    @apply bg-white/5 hover:bg-white/10 border border-white/5 text-white transition-all active:scale-95 backdrop-blur-sm;
+    @apply bg-white/5 hover:bg-white/10 border border-white/5 text-text-primary transition-all active:scale-95 backdrop-blur-sm;
   }
 }
 

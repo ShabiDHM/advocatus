@@ -1,8 +1,7 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V6.7 (REMOVED INTERNAL DOCUMENT SELECTOR)
-// 1. REMOVED: DocumentSelector component and related state.
-// 2. ADDED: optional selectedDocumentCount prop to show badge.
-// 3. RETAINED: All other features.
+// PHOENIX PROTOCOL - CHAT PANEL V6.8 (THEME VARIABLES)
+// 1. REPLACED: hardcoded dark colors with CSS variable‑based classes.
+// 2. RETAINED: All features (document selection badge, domain selector, export, retry, feedback, etc.).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,6 +15,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Link } from 'react-router-dom';
 import { apiService } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
 
 export type ChatMode = 'general' | 'document';
 export type ReasoningMode = 'FAST' | 'DEEP';
@@ -46,7 +46,7 @@ interface ChatPanelProps {
   className?: string;
   activeContextId: string;
   isPro?: boolean;
-  selectedDocumentCount?: number; // new, for optional badge
+  selectedDocumentCount?: number;
 }
 
 // --- SUB-COMPONENTS ---
@@ -65,7 +65,7 @@ const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, 
         try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (err) { console.error(err); }
     };
     return (
-        <button onClick={handleCopy} className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100 ${copied ? 'bg-emerald-500/20 text-emerald-400' : isUser ? 'bg-white/10 text-white/70' : 'bg-white/5 text-gray-400 hover:text-white'}`}>
+        <button onClick={handleCopy} className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100 ${copied ? 'bg-emerald-500/20 text-emerald-400' : isUser ? 'bg-white/10 text-white/70' : 'bg-white/5 text-text-secondary hover:text-text-primary'}`}>
             {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
     );
@@ -101,7 +101,7 @@ const FeedbackButtons: React.FC<{
             <button
                 onClick={() => handleFeedback('up')}
                 disabled={!!submitting || disabled || success}
-                className={`p-1.5 rounded-lg transition-all ${success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'}`}
+                className={`p-1.5 rounded-lg transition-all ${success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-text-secondary hover:text-text-primary hover:bg-white/10'}`}
                 title="Përgjigje e dobishme"
             >
                 {submitting === 'up' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin" /> : <ThumbsUp size={14} />}
@@ -109,7 +109,7 @@ const FeedbackButtons: React.FC<{
             <button
                 onClick={() => handleFeedback('down')}
                 disabled={!!submitting || disabled || success}
-                className={`p-1.5 rounded-lg transition-all ${success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-400 hover:text-white hover:bg-white/10'}`}
+                className={`p-1.5 rounded-lg transition-all ${success ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-text-secondary hover:text-text-primary hover:bg-white/10'}`}
                 title="Përgjigje e padobishme"
             >
                 {submitting === 'down' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin" /> : <ThumbsDown size={14} />}
@@ -152,7 +152,7 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}
-                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 glass-high text-xs text-gray-300 rounded-xl border border-white/10 shadow-2xl z-50"
+                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 glass-high text-xs text-text-secondary rounded-xl border border-glass-edge shadow-2xl z-50"
                     >
                         {loading ? t('lawPreview.loading', 'Duke ngarkuar...') : preview}
                     </motion.div>
@@ -164,10 +164,10 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
 
 // Custom markdown components
 const MarkdownComponents = (t: TFunction) => ({
-    h1: ({node, ...props}: any) => <h1 className="text-xl font-bold text-white mb-4 mt-6 border-b border-white/10 pb-2 uppercase tracking-wider" {...props} />,
+    h1: ({node, ...props}: any) => <h1 className="text-xl font-bold text-text-primary mb-4 mt-6 border-b border-glass-edge pb-2 uppercase tracking-wider" {...props} />,
     h2: ({node, ...props}: any) => <h2 className="text-lg font-bold text-primary-start mb-3 mt-5" {...props} />,
     h3: ({node, ...props}: any) => <h3 className="text-md font-bold text-accent-end mb-2 mt-4 flex items-center gap-2" {...props} />,
-    p: ({node, ...props}: any) => <p className="mb-3 last:mb-0 leading-relaxed text-gray-200" {...props} />, 
+    p: ({node, ...props}: any) => <p className="mb-3 last:mb-0 leading-relaxed text-text-secondary" {...props} />, 
     a: ({href, children}: any) => {
         if (href?.startsWith('/laws/')) {
             const chunkId = href.split('/').pop();
@@ -200,6 +200,7 @@ const MarkdownComponents = (t: TFunction) => ({
 const ChatPanel: React.FC<ChatPanelProps> = ({ 
     messages, connectionStatus, onSendMessage, isSendingMessage, onClearChat, onExportChat, t, className, activeContextId, isPro = false, selectedDocumentCount = 0
 }) => {
+  useTheme();
   const [input, setInput] = useState('');
   const [reasoningMode, setReasoningMode] = useState<ReasoningMode>('FAST');
   const [selectedDomain, setSelectedDomain] = useState<LegalDomain>('automatic');
@@ -216,7 +217,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     if (!text.trim() || isSendingMessage) return;
     const mode = activeContextId === 'general' ? 'general' : 'document';
     setLastUserMessage(text);
-    onSendMessage(text, mode, reasoningMode, selectedDomain, [], 'ks'); // documentIds are now passed from parent via separate prop, but we keep empty array if not used; actually parent will override with its own selected IDs.
+    onSendMessage(text, mode, reasoningMode, selectedDomain, [], 'ks');
     setInput('');
   };
 
@@ -238,12 +239,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className={`flex flex-col glass-panel rounded-2xl overflow-hidden h-full w-full ${className}`}>
       {/* Header with document count badge, domain dropdown (only in deep mode), mode toggle, export button */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-white/5 backdrop-blur-sm z-50">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-glass-edge bg-background-light/5 backdrop-blur-sm z-50">
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 'bg-red-500'}`} />
-          <h3 className="text-sm font-bold text-white">{t('chatPanel.title')}</h3>
+          <h3 className="text-sm font-bold text-text-primary">{t('chatPanel.title')}</h3>
           {activeContextId !== 'general' && selectedDocumentCount > 0 && (
-            <div className="flex items-center gap-1 bg-black/30 border border-white/10 rounded-full px-2 py-0.5 text-xs text-gray-300">
+            <div className="flex items-center gap-1 bg-background-dark/30 border border-glass-edge rounded-full px-2 py-0.5 text-xs text-text-secondary">
               <span>{selectedDocumentCount} dokumente</span>
             </div>
           )}
@@ -254,19 +255,19 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <select
               value={selectedDomain}
               onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
-              className="bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-start/40"
+              className="bg-background-dark/30 border border-glass-edge rounded-lg px-2 py-1 text-xs text-text-secondary focus:outline-none focus:ring-1 focus:ring-primary-start/40"
             >
               {Object.entries(domainLabels).map(([value, label]) => (
-                <option key={value} value={value} className="bg-gray-900">{label}</option>
+                <option key={value} value={value} className="bg-background-dark">{label}</option>
               ))}
             </select>
           )}
           {/* Mode toggle */}
-          <div className="flex items-center bg-black/30 rounded-lg p-0.5 border border-white/5">
-            <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400' : 'text-gray-500'}`}>
+          <div className="flex items-center bg-background-dark/30 rounded-lg p-0.5 border border-glass-edge">
+            <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400' : 'text-text-secondary'}`}>
               <Zap size={12} /> {t('chatPanel.modeFast')}
             </button>
-            <button onClick={() => isPro && setReasoningMode('DEEP')} disabled={!isPro} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'DEEP' ? 'bg-purple-500/20 text-purple-400' : 'text-gray-600'}`}>
+            <button onClick={() => isPro && setReasoningMode('DEEP')} disabled={!isPro} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${reasoningMode === 'DEEP' ? 'bg-purple-500/20 text-purple-400' : 'text-text-secondary'}`}>
               {!isPro ? <Lock size={10} className="mr-1" /> : <GraduationCap size={12} className="mr-1" />}
               {t('chatPanel.modeDeep')}
             </button>
@@ -281,12 +282,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-black/20 custom-scrollbar relative">
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-background-dark/20 custom-scrollbar relative">
         <AnimatePresence initial={false}>
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
             <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shrink-0"><BrainCircuit className="w-4 h-4 text-white" /></div>}
-              <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' : 'glass-panel text-text-primary rounded-bl-none'}`}>
+              {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shrink-0"><BrainCircuit className="w-4 h-4 text-text-primary" /></div>}
+              <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${msg.role === 'user' ? 'bg-gradient-to-br from-primary-start to-primary-end text-text-primary rounded-br-none' : 'glass-panel text-text-primary rounded-bl-none'}`}>
                 <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
                 <div className="markdown-content select-text">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{msg.content}</ReactMarkdown>
@@ -317,7 +318,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
           {showThinking && (
             <motion.div key="thinking-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-white" /></div>
+              <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-text-primary" /></div>
               <div className="glass-panel text-blue-400 font-bold rounded-2xl px-5 py-3.5 text-sm flex items-center gap-1 border border-blue-500/20 shadow-blue-500/5">
                 {t('chat.thinking', 'Sokrati duke menduar')}<ThinkingDots />
               </div>
@@ -328,10 +329,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t border-white/5 bg-white/5 backdrop-blur-md">
+      <div className="p-4 border-t border-glass-edge bg-background-light/5 backdrop-blur-md">
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex items-end gap-2">
           <textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={t('chatPanel.inputPlaceholder')} className="glass-input w-full p-4 rounded-xl text-sm resize-none custom-scrollbar" rows={1} />
-          <button type="submit" disabled={!input.trim() || isSendingMessage} className="p-3 bg-gradient-to-r from-primary-start to-primary-end text-white rounded-xl shadow-lg shadow-primary-start/20 active:scale-95 transition-all"><Send size={18} /></button>
+          <button type="submit" disabled={!input.trim() || isSendingMessage} className="p-3 bg-gradient-to-r from-primary-start to-primary-end text-text-primary rounded-xl shadow-lg shadow-primary-start/20 active:scale-95 transition-all"><Send size={18} /></button>
         </form>
       </div>
     </div>

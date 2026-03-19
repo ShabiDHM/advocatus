@@ -1,12 +1,13 @@
 // FILE: src/components/Header.tsx
-// PHOENIX PROTOCOL - HEADER V6.3 (LAW LIBRARY FOR ALL USERS)
-// 1. MODIFIED: Law Library link is now visible to all authenticated users.
-// 2. RETAINED: Admin Panel link remains restricted to admin role.
-// 3. STATUS: All users can access legal database.
+// PHOENIX PROTOCOL - HEADER V6.4 (ADDED THEME TOGGLE BUTTON)
+// 1. ADDED: Theme toggle button with Sun/Moon icons.
+// 2. ADDED: Import useTheme hook.
+// 3. RETAINED: All existing functionality.
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen } from 'lucide-react';
+import { Bell, Search, LogOut, User as UserIcon, MessageSquare, Shield, Scale, FileText, Building2, Menu, X, BookOpen, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext'; // <-- Import useTheme
 import { useTranslation } from 'react-i18next';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { apiService } from '../services/api';
@@ -15,6 +16,7 @@ import BrandLogo from './BrandLogo';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme(); // <-- Use theme context
   const { t } = useTranslation();
   const location = useLocation();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -133,6 +135,15 @@ const Header: React.FC = () => {
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 text-text-secondary hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+
           <div className="hidden">
             <LanguageSwitcher />
           </div>
@@ -216,6 +227,7 @@ const Header: React.FC = () => {
                 </NavLink>
               );
             })}
+            {/* Add theme toggle to mobile menu if desired? Optional, but we'll skip for brevity */}
           </nav>
         </div>
       )}
