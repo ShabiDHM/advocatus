@@ -75,7 +75,9 @@
   }
   
   .glass-input:focus {
-    @apply border-primary-start ring-2 ring-primary-start/10;
+    border-color: var(--color-primary-start);
+    box-shadow: 0 0 0 2px rgba(var(--color-primary-start-rgb), 0.1);
+    outline: none;
   }
 
   /* Professional Buttons */
