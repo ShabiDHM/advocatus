@@ -1,3 +1,4 @@
+// /home/user/advocatus-frontend/tailwind.config.js
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
@@ -8,27 +9,40 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Professional Legal Palette
-        'primary-start': 'var(--color-primary-start)',
-        'primary-end': 'var(--color-primary-end)',
-        'secondary-start': 'var(--color-secondary-start)',
-        'secondary-end': 'var(--color-secondary-end)',
-        'accent-start': 'var(--color-accent-start)',
-        'accent-end': 'var(--color-accent-end)',
-        'success-start': 'var(--color-success-start)',
-        'success-end': 'var(--color-success-end)',
-        
-        // Semantic Surfaces
-        'text-primary': 'var(--color-text-primary)',
-        'text-secondary': 'var(--color-text-secondary)',
-        'surface-border': 'var(--color-surface-border)',
+        // Blueprint: Backgrounds
         'canvas': 'var(--color-canvas)',
         'surface': 'var(--color-surface)',
+        'surface-secondary': 'var(--color-surface-secondary)',
+        'input-bg': 'var(--color-input)',
+        
+        // Blueprint: Text
+        'text-primary': 'var(--color-text-primary)',
+        'text-secondary': 'var(--color-text-secondary)',
+        'text-muted': 'var(--color-text-muted)',
+        'text-disabled': 'var(--color-text-disabled)',
+        'text-inverse': 'var(--color-text-inverse)',
+        
+        // Blueprint: Accents
+        'primary-start': 'var(--color-primary-start)',
+        'primary-end': 'var(--color-primary-end)',
+        'primary-hover': 'var(--color-primary-hover)',
+        'primary-subtle': 'var(--color-primary-subtle)',
+        'primary-text': 'var(--color-primary-text)',
+        
+        // Blueprint: Status
+        'success-start': 'var(--color-success-start)',
+        'warning-start': 'var(--color-warning-start)',
+        'danger-start': 'var(--color-danger-start)',
       },
       boxShadow: {
-        'lawyer-light': '0 1px 3px 0 rgba(0, 0, 0, 0.02), 0 1px 2px -1px rgba(0, 0, 0, 0.02)',
-        'lawyer-elevated': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)',
-        'lawyer-dark': '0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2)',
+        // Blueprint: Multi-layer Shadow Scale
+        'xs': 'var(--shadow-xs)',
+        'sm': 'var(--shadow-sm)',
+        'md': 'var(--shadow-md)',
+        'lg': 'var(--shadow-lg)',
+        'xl': 'var(--shadow-xl)',
+        'primary-glow': 'var(--shadow-accent-xs)',
+        'primary-elevated': 'var(--shadow-accent-sm)',
       },
       animation: {
         'gradient-shift': 'gradient-shift 15s ease infinite',
