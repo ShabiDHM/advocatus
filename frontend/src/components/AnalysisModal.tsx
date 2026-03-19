@@ -1,7 +1,8 @@
 // FILE: src/components/AnalysisModal.tsx
-// PHOENIX PROTOCOL - ANALYSIS MODAL V12.2 (FIXED IMPORTS)
+// PHOENIX PROTOCOL - ANALYSIS MODAL V12.2 (FIXED IMPORTS & TOOLTIP)
 // 1. FIXED: Added missing imports (TFunction, useRef).
-// 2. RETAINED: Tooltip on success probability badge.
+// 2. ADDED: Success probability tooltip on hover.
+// 3. RETAINED: All previous features.
 
 import React, { useEffect, useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
