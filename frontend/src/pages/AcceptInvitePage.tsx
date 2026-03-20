@@ -1,7 +1,8 @@
 // FILE: src/pages/AcceptInvitePage.tsx
-// PHOENIX PROTOCOL - INVITATION ACCEPTANCE V1.2 (I18N)
-// 1. I18N: Replaced all hardcoded English strings with 't()' calls.
-// 2. STATUS: Fully translated.
+// PHOENIX PROTOCOL - ACCEPT INVITE V6.0 (EXECUTIVE DESIGN SYSTEM)
+// 1. Converted to semantic classes: bg-canvas, glass-panel, btn-primary, text-text-primary, text-text-secondary, border-main.
+// 2. Consistent with LoginPage and RegisterPage.
+// 3. Preserved all logic and i18n.
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
@@ -56,7 +57,7 @@ const AcceptInvitePage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-background-dark flex flex-col justify-center items-center p-4">
+        <div className="min-h-screen bg-canvas flex flex-col justify-center items-center p-4">
             <div className="absolute top-8">
                 <BrandLogo />
             </div>
@@ -65,43 +66,43 @@ const AcceptInvitePage: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="w-full max-w-md"
             >
-                <div className="glass-high p-8 rounded-2xl shadow-2xl border border-white/10">
+                <div className="glass-panel p-8 rounded-2xl shadow-2xl border border-main">
                     {!success ? (
                         <>
-                            <h2 className="text-2xl font-bold text-white text-center mb-2">{t('invite.title')}</h2>
+                            <h2 className="text-2xl font-bold text-text-primary text-center mb-2">{t('invite.title')}</h2>
                             <p className="text-text-secondary text-center mb-8">{t('invite.subtitle')}</p>
 
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 {error && (
-                                    <div className="bg-red-500/10 text-red-300 text-sm p-3 rounded-lg flex items-center gap-2">
+                                    <div className="bg-danger-start/10 text-danger-start text-sm p-3 rounded-lg flex items-center gap-2 border border-danger-start/20">
                                         <AlertTriangle size={16} />
                                         <span>{error}</span>
                                     </div>
                                 )}
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase">{t('invite.username')}</label>
+                                    <label className="text-xs font-bold uppercase tracking-wider text-text-secondary">{t('invite.username')}</label>
                                     <div className="relative mt-2">
-                                        <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                                        <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                                         <input
                                             type="text"
                                             value={username}
                                             onChange={(e) => setUsername(e.target.value)}
                                             required
-                                            className="glass-input w-full pl-10 pr-3 py-2.5 rounded-lg"
+                                            className="glass-input w-full pl-10 pr-3 py-2.5 rounded-lg border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40"
                                             placeholder={t('invite.usernamePlaceholder')}
                                         />
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-gray-400 uppercase">{t('invite.password')}</label>
+                                    <label className="text-xs font-bold uppercase tracking-wider text-text-secondary">{t('invite.password')}</label>
                                     <div className="relative mt-2">
-                                        <KeyRound size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                                        <KeyRound size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                                         <input
                                             type="password"
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
                                             required
-                                            className="glass-input w-full pl-10 pr-3 py-2.5 rounded-lg"
+                                            className="glass-input w-full pl-10 pr-3 py-2.5 rounded-lg border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40"
                                             placeholder={t('invite.passwordPlaceholder')}
                                         />
                                     </div>
@@ -109,7 +110,7 @@ const AcceptInvitePage: React.FC = () => {
                                 <button
                                     type="submit"
                                     disabled={isLoading || !token}
-                                    className="w-full bg-gradient-to-r from-primary-start to-primary-end text-white font-bold py-3 rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                                    className="btn-primary w-full py-3 rounded-lg font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     {isLoading ? <Loader2 className="animate-spin" /> : t('invite.submitButton')}
                                 </button>
@@ -117,10 +118,10 @@ const AcceptInvitePage: React.FC = () => {
                         </>
                     ) : (
                         <div className="text-center">
-                            <CheckCircle size={48} className="mx-auto text-emerald-400 mb-4" />
-                            <h2 className="text-2xl font-bold text-white mb-2">{t('invite.successTitle')}</h2>
+                            <CheckCircle size={48} className="mx-auto text-success-start mb-4" />
+                            <h2 className="text-2xl font-bold text-text-primary mb-2">{t('invite.successTitle')}</h2>
                             <p className="text-text-secondary mb-6">{t('invite.successMessage')}</p>
-                            <p className="text-sm text-gray-500">{t('invite.redirecting')}</p>
+                            <p className="text-sm text-text-secondary/70">{t('invite.redirecting')}</p>
                         </div>
                     )}
                 </div>

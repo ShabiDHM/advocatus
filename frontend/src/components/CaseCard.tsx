@@ -1,8 +1,8 @@
 // FILE: src/components/CaseCard.tsx
-// PHOENIX PROTOCOL - CASE CARD V6.0 (SEMANTIC FIX)
-// 1. FIX: Removed invalid <button> inside <a> nesting. The card is now a <div>.
-// 2. LOGIC: Navigation is handled via onClick on the container, ignored if the delete button is clicked.
-// 3. UI: Preserved all hover effects and animations while fixing the interaction model.
+// PHOENIX PROTOCOL - CASE CARD V6.0 (EXECUTIVE DESIGN SYSTEM)
+// 1. All colors converted to semantic classes (text-text-primary, text-text-secondary, border-main, etc.)
+// 2. Fixed invalid nesting (<a> removed, onClick on container handles navigation).
+// 3. Preserved all interactions and animations.
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -25,7 +25,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
   };
 
   const handleDeleteClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Stop event from triggering the card navigation
+    e.stopPropagation();
     onDelete(caseData.id);
   };
 
@@ -46,7 +46,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
   return (
     <motion.div 
       onClick={handleCardClick}
-      className="glass-panel group relative flex flex-col justify-between h-full p-6 rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer"
+      className="glass-panel group relative flex flex-col justify-between h-full p-6 rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl cursor-pointer border border-main"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
@@ -59,7 +59,7 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
         <div className="flex flex-col mb-4 relative z-10">
           <div className="flex justify-between items-start gap-2">
             <div className="flex flex-col">
-                <h2 className={`text-xl font-bold line-clamp-2 leading-tight tracking-tight ${!hasTitle ? 'text-text-secondary italic' : 'text-white group-hover:text-primary-start transition-colors'}`}>
+                <h2 className={`text-xl font-bold line-clamp-2 leading-tight tracking-tight ${!hasTitle ? 'text-text-secondary italic' : 'text-text-primary group-hover:text-primary-start transition-colors'}`}>
                     {displayTitle}
                 </h2>
             </div>
@@ -67,20 +67,20 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
           
           <div className="flex items-center gap-2 mt-3">
             <p className="text-sm text-text-secondary font-medium">
-                Krijuar më: <span className="text-gray-300">{formattedDate}</span>
+                Krijuar më: <span className="text-text-primary">{formattedDate}</span>
             </p>
           </div>
         </div>
         
         {/* Client Details Section */}
         <div className="flex flex-col mb-6 relative z-10">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/5">
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-main">
              <User className="w-3.5 h-3.5 text-primary-start" />
              <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">{t('caseCard.clientLabel', 'Klienti')}</span>
           </div>
           
           <div className="space-y-1.5 pl-1">
-              <p className="text-base font-medium text-white truncate">
+              <p className="text-base font-medium text-text-primary truncate">
                 {caseData.client?.name || t('general.notAvailable', 'N/A')}
               </p>
               
@@ -102,46 +102,46 @@ const CaseCard: React.FC<CaseCardProps> = ({ caseData, onDelete }) => {
       
       <div className="relative z-10">
         {/* Statistics Section */}
-        <div className="pt-4 border-t border-white/5 flex items-center justify-between gap-2">
+        <div className="pt-4 border-t border-main flex items-center justify-between gap-2">
           
           <div className="flex items-center gap-4">
               {/* Documents */}
               <div className="flex items-center gap-1.5" title={`${caseData.document_count || 0} Dokumente`}>
-                <FileText className="h-4 w-4 text-blue-400" />
+                <FileText className="h-4 w-4 text-primary-start" />
                 <span className="text-sm font-medium text-text-secondary">{caseData.document_count || 0}</span>
               </div>
 
               {/* Alerts */}
               <button 
                 onClick={handleCalendarNav}
-                className="flex items-center gap-1.5 group/icon hover:bg-white/5 px-1.5 py-0.5 rounded transition-colors" 
+                className="flex items-center gap-1.5 group/icon hover:bg-surface/30 px-1.5 py-0.5 rounded transition-colors" 
                 title={`${caseData.alert_count || 0} Afate`}
               >
-                <AlertTriangle className="h-4 w-4 text-accent-start group-hover/icon:text-accent-end transition-colors" />
-                <span className="text-sm font-medium text-text-secondary group-hover/icon:text-white">{caseData.alert_count || 0}</span>
+                <AlertTriangle className="h-4 w-4 text-accent-start group-hover/icon:text-accent-start/80 transition-colors" />
+                <span className="text-sm font-medium text-text-secondary group-hover/icon:text-text-primary">{caseData.alert_count || 0}</span>
               </button>
 
               {/* Events */}
               <button 
                 onClick={handleCalendarNav}
-                className="flex items-center gap-1.5 group/icon hover:bg-white/5 px-1.5 py-0.5 rounded transition-colors" 
+                className="flex items-center gap-1.5 group/icon hover:bg-surface/30 px-1.5 py-0.5 rounded transition-colors" 
                 title={`${caseData.event_count || 0} Ngjarje`}
               >
-                <CalendarDays className="h-4 w-4 text-secondary-start group-hover/icon:text-secondary-end transition-colors" />
-                <span className="text-sm font-medium text-text-secondary group-hover/icon:text-white">{caseData.event_count || 0}</span>
+                <CalendarDays className="h-4 w-4 text-secondary-start group-hover/icon:text-secondary-start/80 transition-colors" />
+                <span className="text-sm font-medium text-text-secondary group-hover/icon:text-text-primary">{caseData.event_count || 0}</span>
               </button>
           </div>
         </div>
 
         {/* Footer: Actions */}
-        <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
+        <div className="mt-4 pt-4 border-t border-main flex items-center justify-between">
           <span className="text-sm font-bold text-primary-start group-hover:text-primary-end transition-colors flex items-center gap-1">
             {t('general.view', 'Shiko')} {t('archive.details', 'Detajet')} 
           </span>
           
           <motion.button
             onClick={handleDeleteClick}
-            className="p-2 -mr-2 rounded-lg text-text-secondary hover:text-red-400 hover:bg-red-500/10 transition-colors z-20 relative"
+            className="p-2 -mr-2 rounded-lg text-text-secondary hover:text-danger-start hover:bg-danger-start/10 transition-colors z-20 relative"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             title={t('general.delete', 'Fshij')}

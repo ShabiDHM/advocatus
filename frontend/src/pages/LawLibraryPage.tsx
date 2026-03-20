@@ -1,14 +1,16 @@
 // FILE: src/pages/LawLibraryPage.tsx
-// PHOENIX PROTOCOL - AUTHENTICATED SEARCH V1.2 (SESSION VALIDATION)
-// 1. ADDED: useAuth check to ensure search only proceeds if isAuthenticated is true.
-// 2. FIXED: Improved error handling for 401 Unauthorized cases.
-// 3. STATUS: Protocol Compliant.
+// PHOENIX PROTOCOL - LAW LIBRARY V3.0 (WORLD CLASS EXECUTIVE REFINEMENT)
+// 1. FIXED: Eradicated hardcoded white/gray/indigo colors. Now uses semantic tokens.
+// 2. FIXED: Page dynamically adapts to Light (Courtroom) and Dark (Executive Suite) modes perfectly.
+// 3. ENHANCED: Applied 'hover-lift' and 'glass-panel' architecture to search results.
+// 4. RETAINED: 100% of authentication protection and API logic.
 
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Search, AlertCircle, Loader2 } from 'lucide-react';
+import { Search, AlertCircle, Loader2, BookOpen, Scale, ArrowRight, Link as LinkIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface LawResult {
   law_title: string;
@@ -27,7 +29,6 @@ export default function LawLibraryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Protect the route: If not loading and not authenticated, redirect
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       console.warn("[LawLibrary] Unauthorized access attempt. Redirecting to login.");
@@ -63,84 +64,138 @@ export default function LawLibraryPage() {
 
   if (isLoading) {
     return (
-        <div className="flex items-center justify-center min-h-[400px]">
-            <Loader2 className="animate-spin text-indigo-600 w-8 h-8" />
+        <div className="flex flex-col items-center justify-center min-h-screen pt-20">
+            <div className="w-16 h-16 border-4 border-primary-start border-t-transparent rounded-full animate-spin mb-6 shadow-accent-glow"></div>
+            <p className="text-text-primary font-black uppercase tracking-widest text-sm">Duke ngarkuar...</p>
         </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
-          <Search className="text-indigo-600" />
-          Biblioteka Ligjore
-        </h1>
-        <p className="text-gray-600 mt-2">
-          Kërkoni në bazën tonë të të dhënave ligjore për nene, rregullore dhe vendime.
-        </p>
-      </header>
-      
-      {!isAuthenticated && (
-          <div className="mb-6 p-4 bg-amber-50 border-l-4 border-amber-400 text-amber-800 flex items-center gap-3">
-              <AlertCircle size={20} />
-              <p>Ju duhet të <strong>hyni në llogari</strong> për të kryer kërkime në bibliotekë.</p>
-              <Link to="/login" className="ml-auto font-bold underline hover:text-amber-900">Hyni këtu</Link>
-          </div>
-      )}
-
-      <div className="flex gap-2 mb-8">
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder="p.sh. Kodi Civil, Neni 45, Ligji për punën..."
-          disabled={!isAuthenticated}
-          className="flex-1 p-3 border rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 disabled:bg-gray-100 disabled:cursor-not-allowed"
-        />
-        <button
-          onClick={handleSearch}
-          disabled={loading || !isAuthenticated}
-          className="px-6 py-3 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-all shadow-md disabled:opacity-50"
-        >
-          {loading ? 'Duke kërkuar...' : 'Kërko'}
-        </button>
-      </div>
-
-      {error && (
-        <div className="p-4 mb-6 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center gap-2">
-          <AlertCircle size={18} />
-          {error}
-        </div>
-      )}
-
-      <div className="grid gap-4">
-        {results.map((r) => (
-          <Link
-            key={r.chunk_id}
-            to={`/laws/${r.chunk_id}`}
-            className="block p-5 border border-gray-200 rounded-xl hover:shadow-lg hover:border-indigo-300 transition-all bg-white group"
-          >
-            <h2 className="text-xl font-bold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                {r.law_title}
-            </h2>
-            {r.article_number && (
-              <p className="text-indigo-700 font-medium mt-1">Neni {r.article_number}</p>
-            )}
-            <p className="text-sm text-gray-500 mt-3 flex items-center gap-1">
-                <span className="font-semibold uppercase text-xs bg-gray-100 px-2 py-0.5 rounded">Burimi</span>
-                {r.source || 'i panjohur'}
-            </p>
-          </Link>
-        ))}
+    <motion.div 
+      className="w-full min-h-screen pb-16"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+    >
+      <div className="max-w-4xl mx-auto px-6 sm:px-8 pt-32">
         
-        {results.length === 0 && query && !loading && !error && (
-            <div className="text-center py-12 text-gray-500">
-                Nuk u gjet asnjë rezultat për "{query}".
+        {/* Executive Page Header */}
+        <header className="mb-12 flex flex-col gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-primary-start/10 flex items-center justify-center text-primary-start shadow-lawyer-light">
+              <BookOpen size={24} />
+            </div>
+            <h1 className="text-4xl font-black text-text-primary tracking-tighter leading-none">
+              Biblioteka Ligjore
+            </h1>
+          </div>
+          <p className="text-text-secondary text-lg ml-1 font-medium max-w-2xl leading-relaxed">
+            Kërkoni në bazën e të dhënave ligjore për nene, rregullore dhe vendime me saktësi AI.
+          </p>
+        </header>
+        
+        {/* Authentication Warning State */}
+        {!isAuthenticated && (
+            <div className="mb-8 p-5 bg-warning-start/10 border border-warning-start/30 text-warning-start rounded-2xl flex items-center gap-4 shadow-sm">
+                <AlertCircle size={24} className="shrink-0" />
+                <div className="flex flex-col gap-1">
+                    <p className="text-sm font-bold uppercase tracking-widest">Qasje e Kufizuar</p>
+                    <p className="text-text-primary font-medium">Ju duhet të hyni në llogari për të kryer kërkime në bibliotekë.</p>
+                </div>
+                <Link to="/login" className="ml-auto btn-primary px-6 py-2.5 bg-warning-start shadow-none">Hyni Këtu</Link>
             </div>
         )}
+
+        {/* High-Fidelity Search Bar */}
+        <div className="relative mb-12 group">
+          <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+            <Search className={`h-6 w-6 transition-colors ${loading ? 'text-primary-start animate-pulse' : 'text-primary-start/50 group-focus-within:text-primary-start'}`} />
+          </div>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            placeholder="Kërkoni (p.sh. Kodi Civil, Neni 45)..."
+            disabled={!isAuthenticated}
+            className="w-full pl-14 pr-32 py-5 bg-surface border-2 border-border-main rounded-[1.5rem] shadow-lawyer-light text-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:border-primary-start focus:ring-4 focus:ring-primary-start/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          <div className="absolute inset-y-0 right-3 flex items-center">
+            <button
+              onClick={handleSearch}
+              disabled={loading || !isAuthenticated || !query.trim()}
+              className="btn-primary h-10 px-8 disabled:opacity-30 disabled:hover:brightness-100"
+            >
+              {loading ? <Loader2 size={18} className="animate-spin" /> : 'KËRKO'}
+            </button>
+          </div>
+        </div>
+
+        {/* Error State */}
+        <AnimatePresence>
+          {error && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="p-5 mb-8 bg-danger-start/10 border border-danger-start/30 text-danger-start rounded-2xl flex items-center gap-3 shadow-sm">
+              <AlertCircle size={20} className="shrink-0" />
+              <span className="font-bold text-sm tracking-wide">{error}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Search Results Grid */}
+        <div className="space-y-6">
+          {results.map((r, index) => (
+            <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+                key={r.chunk_id}
+            >
+                <Link
+                to={`/laws/${r.chunk_id}`}
+                className="glass-panel p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 group hover-lift border-border-main hover:border-primary-start/50"
+                >
+                <div className="flex flex-col gap-3 flex-1 min-w-0">
+                    
+                    <div className="flex flex-wrap items-center gap-3">
+                        <span className="bg-primary-start/10 text-primary-start border border-primary-start/20 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                            <Scale size={12} /> Referencë Ligjore
+                        </span>
+                        {r.article_number && (
+                            <span className="bg-surface-secondary text-text-primary border border-border-main px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest">
+                                Neni {r.article_number}
+                            </span>
+                        )}
+                    </div>
+
+                    <h2 className="text-xl sm:text-2xl font-black text-text-primary group-hover:text-primary-start transition-colors truncate">
+                        {r.law_title}
+                    </h2>
+                    
+                    <div className="flex items-center gap-2 mt-1">
+                        <LinkIcon size={14} className="text-text-muted" />
+                        <span className="text-xs font-bold text-text-muted uppercase tracking-widest truncate max-w-md">
+                            {r.source || 'Burim i panjohur'}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-canvas border border-border-main items-center justify-center text-text-muted group-hover:text-white group-hover:bg-primary-start group-hover:border-primary-start group-hover:shadow-accent-glow transition-all shrink-0">
+                    <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                </div>
+                </Link>
+            </motion.div>
+          ))}
+          
+          {/* Empty State */}
+          {results.length === 0 && query && !loading && !error && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-20 opacity-40">
+                  <Search size={64} className="text-text-muted mb-6" strokeWidth={1.5} />
+                  <p className="text-text-primary font-black text-lg uppercase tracking-widest text-center">Nuk u gjetën të dhëna</p>
+                  <p className="text-text-muted text-sm mt-2 font-medium">Nuk ka asnjë rezultat për termat "{query}". Provoni fjalë kyçe të tjera.</p>
+              </motion.div>
+          )}
+        </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

@@ -1,7 +1,8 @@
 // FILE: src/components/business/TeamTab.tsx
-// PHOENIX PROTOCOL - TEAM TAB V2.4 (PLAN NAME TRANSLATION)
-// 1. FIXED: Plan name now uses translation keys (plan.default, plan.growth).
-// 2. INTEGRITY: All existing i18n and logic preserved.
+// PHOENIX PROTOCOL - TEAM TAB V6.0 (EXECUTIVE DESIGN SYSTEM)
+// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
+// 2. Buttons use btn-primary / btn-secondary where appropriate.
+// 3. Preserved all functionality and i18n.
 
 import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -101,18 +102,18 @@ export const TeamTab: React.FC = () => {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-20">
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden">
+                <div className="md:col-span-2 glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden border border-main">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-primary-start to-primary-end" />
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
                         <div>
-                            <h2 className="text-2xl font-bold text-white mb-2">{t('team.manage_team_title')}</h2>
+                            <h2 className="text-2xl font-bold text-text-primary mb-2">{t('team.manage_team_title')}</h2>
                             <p className="text-text-secondary text-sm max-w-lg">{t('team.manage_team_subtitle')}</p>
                         </div>
                         {isCurrentUserOwner && (
                             <button 
                                 onClick={() => setShowInviteModal(true)}
                                 disabled={availableSeats <= 0}
-                                className="bg-primary-start/20 hover:bg-primary-start/30 text-primary-300 border border-primary-start/50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 w-full sm:w-auto justify-center"
+                                className="btn-secondary border border-primary-start/50 px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed shrink-0 w-full sm:w-auto justify-center"
                             >
                                 <UserPlus size={18} /> {t('team.invite_member_button')}
                             </button>
@@ -120,33 +121,33 @@ export const TeamTab: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="glass-panel rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden">
+                <div className="glass-panel rounded-3xl p-8 flex flex-col justify-center relative overflow-hidden border border-main">
                     <div className="absolute top-0 w-full h-1.5 bg-gradient-to-r from-accent-start to-accent-end" />
                     <div className="flex justify-between items-center mb-4">
                         <div className="flex items-center gap-2">
-                            <span className="text-gray-400 font-bold text-xs uppercase tracking-wider">{t('team.plan_usage_label')}</span>
-                            <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[10px] font-bold">
+                            <span className="text-text-secondary font-bold text-xs uppercase tracking-wider">{t('team.plan_usage_label')}</span>
+                            <span className="px-2 py-0.5 rounded-full bg-primary-start/10 border border-primary-start/20 text-primary-start text-[10px] font-bold">
                                 {t(`plan.${planName.toLowerCase()}`)}
                             </span>
                         </div>
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${availableSeats <= 0 ? 'bg-red-500/20 text-red-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${availableSeats <= 0 ? 'bg-danger-start/20 text-danger-start' : 'bg-success-start/20 text-success-start'}`}>
                             {availableSeats > 0 ? t('team.status_active') : t('team.status_limit_reached')}
                         </span>
                     </div>
                     <div className="flex items-end gap-2 mb-2">
-                        <span className="text-4xl font-bold text-white">{usedSeats}</span>
-                        <span className="text-lg text-gray-500 mb-1">/ {seatLimit}</span>
+                        <span className="text-4xl font-bold text-text-primary">{usedSeats}</span>
+                        <span className="text-lg text-text-muted mb-1">/ {seatLimit}</span>
                     </div>
-                    <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-surface/20 rounded-full overflow-hidden">
                         <div className="h-full bg-gradient-to-r from-primary-start to-accent-start transition-all duration-1000" style={{ width: `${progressPercent}%` }} />
                     </div>
                 </div>
             </div>
 
-            <div className="glass-panel rounded-3xl overflow-hidden min-h-[300px]">
+            <div className="glass-panel rounded-3xl overflow-hidden min-h-[300px] border border-main">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left min-w-[600px]">
-                        <thead className="bg-white/5 text-gray-400 text-xs uppercase tracking-wider">
+                        <thead className="bg-surface/30 text-text-muted text-xs uppercase tracking-wider">
                             <tr>
                                 <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.table_user')}</th>
                                 <th className="px-6 py-4 font-bold whitespace-nowrap">{t('team.table_role')}</th>
@@ -154,52 +155,52 @@ export const TeamTab: React.FC = () => {
                                 <th className="px-6 py-4 font-bold text-right whitespace-nowrap">{t('team.table_actions')}</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5 text-sm">
+                        <tbody className="divide-y divide-main text-sm">
                             {members.map((member) => {
                                 const memberRole = member.organization_role || member.role;
                                 const isMemberOwner = memberRole === 'OWNER';
                                 const isSelf = currentUser?.id === member.id;
 
                                 return (
-                                    <tr key={member.id} className="hover:bg-white/5 transition-colors group relative">
+                                    <tr key={member.id} className="hover:bg-surface/20 transition-colors group relative">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white font-bold border border-white/10">
+                                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-surface/50 to-surface/70 flex items-center justify-center text-text-primary font-bold border border-main">
                                                     {member.username.substring(0, 2).toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <div className="font-bold text-white">{member.username}</div>
-                                                    <div className="text-xs text-gray-500">{member.email}</div>
+                                                    <div className="font-bold text-text-primary">{member.username}</div>
+                                                    <div className="text-xs text-text-muted">{member.email}</div>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
-                                                {isMemberOwner ? <Crown size={14} className="text-yellow-500" /> : <Briefcase size={14} className="text-gray-500" />}
-                                                <span className={isMemberOwner ? 'text-yellow-500 font-bold' : 'text-gray-300'}>{memberRole}</span>
+                                                {isMemberOwner ? <Crown size={14} className="text-warning-start" /> : <Briefcase size={14} className="text-text-muted" />}
+                                                <span className={isMemberOwner ? 'text-warning-start font-bold' : 'text-text-secondary'}>{memberRole}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold ${member.status === 'pending_invite' ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
-                                                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${member.status === 'pending_invite' ? 'bg-yellow-400' : 'bg-emerald-400'}`} /> 
+                                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold ${member.status === 'pending_invite' ? 'bg-warning-start/10 text-warning-start border-warning-start/20' : 'bg-success-start/10 text-success-start border-success-start/20'}`}>
+                                                <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${member.status === 'pending_invite' ? 'bg-warning-start' : 'bg-success-start'}`} /> 
                                                 {member.status === 'pending_invite' ? t('team.status_pending') : t('team.status_active')}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right whitespace-nowrap">
                                             <div className="relative inline-block text-left">
-                                                <button onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)} className="p-2 text-gray-500 hover:text-white transition-colors">
+                                                <button onClick={() => setOpenMenuId(openMenuId === member.id ? null : member.id)} className="p-2 text-text-muted hover:text-text-primary transition-colors">
                                                     <MoreHorizontal size={20} />
                                                 </button>
                                                 <AnimatePresence>
                                                     {openMenuId === member.id && (
-                                                        <motion.div initial={{ opacity: 0, scale: 0.95, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -10 }} className="absolute right-0 mt-2 w-48 bg-[#1a1f2e] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden" ref={menuRef}>
+                                                        <motion.div initial={{ opacity: 0, scale: 0.95, y: -10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -10 }} className="absolute right-0 mt-2 w-48 glass-panel border border-main rounded-xl shadow-2xl z-50 overflow-hidden" ref={menuRef}>
                                                             <div className="py-1">
                                                                 {isCurrentUserOwner && !isSelf ? (
-                                                                    <button onClick={() => handleRemoveMember(member.id)} className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors">
+                                                                    <button onClick={() => handleRemoveMember(member.id)} className="w-full text-left px-4 py-3 text-sm text-danger-start hover:bg-danger-start/10 flex items-center gap-2 transition-colors">
                                                                         <Trash2 size={16} /> {t('team.action_remove')}
                                                                     </button>
                                                                 ) : (
-                                                                    <div className="px-4 py-3 text-sm text-gray-500 italic text-center">{isSelf ? t('team.label_current_user') : t('team.label_no_actions')}</div>
+                                                                    <div className="px-4 py-3 text-sm text-text-muted italic text-center">{isSelf ? t('team.label_current_user') : t('team.label_no_actions')}</div>
                                                                 )}
                                                             </div>
                                                         </motion.div>
@@ -218,45 +219,45 @@ export const TeamTab: React.FC = () => {
             {/* Invite Modal */}
             <AnimatePresence>
                 {showInviteModal && (
-                    <div className="fixed inset-0 bg-background-dark/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="glass-high w-full max-w-md p-8 rounded-3xl shadow-2xl relative">
-                            <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="absolute top-6 right-6 text-gray-500 hover:text-white"><X size={24} /></button>
+                    <div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="glass-panel border border-main w-full max-w-md p-8 rounded-3xl shadow-2xl relative">
+                            <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="absolute top-6 right-6 text-text-muted hover:text-text-primary transition-colors"><X size={24} /></button>
                             
                             <div className="mb-6">
                                 <div className="w-12 h-12 rounded-2xl bg-primary-start/20 flex items-center justify-center mb-4 text-primary-start">
                                     <UserPlus size={24} />
                                 </div>
-                                <h3 className="text-2xl font-bold text-white">{t('team.invite_modal_title')}</h3>
-                                <p className="text-gray-400 text-sm mt-1">{t('team.invite_modal_subtitle')}</p>
+                                <h3 className="text-2xl font-bold text-text-primary">{t('team.invite_modal_title')}</h3>
+                                <p className="text-text-secondary text-sm mt-1">{t('team.invite_modal_subtitle')}</p>
                             </div>
 
                             {!inviteResult ? (
                                 <form onSubmit={handleInvite} className="space-y-6">
                                     {errorMsg && (
-                                        <div className="p-4 rounded-xl bg-red-500/20 border border-red-500/30 text-red-200 flex items-start gap-3">
+                                        <div className="p-4 rounded-xl bg-danger-start/20 border border-danger-start/30 text-danger-start flex items-start gap-3">
                                             <AlertTriangle className="flex-shrink-0 mt-0.5" size={18} />
                                             <span className="text-sm">{errorMsg}</span>
                                         </div>
                                     )}
                                     <div className="space-y-2">
-                                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">{t('general.email_label')}</label>
+                                        <label className="text-xs font-bold text-text-muted uppercase tracking-wider">{t('general.email_label')}</label>
                                         <div className="relative">
-                                            <Mail className="absolute left-4 top-3.5 w-5 h-5 text-gray-500" />
-                                            <input autoFocus type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-white" placeholder={t('general.email_placeholder')} />
+                                            <Mail className="absolute left-4 top-3.5 w-5 h-5 text-text-muted" />
+                                            <input autoFocus type="email" required value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="glass-input w-full pl-12 pr-4 py-3.5 rounded-xl text-text-primary" placeholder={t('general.email_placeholder')} />
                                         </div>
                                     </div>
-                                    <button type="submit" disabled={inviting} className="w-full py-3.5 bg-primary-start text-white rounded-xl font-bold shadow-lg shadow-primary-start/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
+                                    <button type="submit" disabled={inviting} className="btn-primary w-full py-3.5 rounded-xl font-bold shadow-lg hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2">
                                         {inviting ? <Loader2 className="animate-spin w-5 h-5" /> : <UserPlus size={18} />}
                                         {t('team.button_send_invite')}
                                     </button>
                                 </form>
                             ) : (
                                 <div className="space-y-6 text-center">
-                                    <div className="p-4 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-200 flex items-center justify-center gap-3">
+                                    <div className="p-4 rounded-xl bg-success-start/20 border border-success-start/30 text-success-start flex items-center justify-center gap-3">
                                         <CheckCircle className="flex-shrink-0" size={20} />
                                         <span className="font-medium">{inviteResult}</span>
                                     </div>
-                                    <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="w-full py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-bold transition-colors">
+                                    <button onClick={() => { setShowInviteModal(false); setInviteResult(null); }} className="btn-secondary w-full py-3.5 rounded-xl font-bold transition-colors">
                                         {t('general.button_close')}
                                     </button>
                                 </div>

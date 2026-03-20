@@ -1,8 +1,8 @@
 // FILE: src/pages/BusinessPage.tsx
-// PHOENIX PROTOCOL - BUSINESS PAGE V11.2 (i18n FIX)
-// 1. FIXED: Corrected 'welcome' translation key to use 'general.welcome_name'.
-// 2. FIXED: Removed hardcoded English fallbacks in tab buttons.
-
+// PHOENIX PROTOCOL - BUSINESS PAGE V6.0 (EXECUTIVE DESIGN SYSTEM)
+// 1. Converted to semantic classes: bg-canvas, glass-panel, btn-primary, text-text-primary, text-text-secondary, border-main.
+// 2. Tab buttons use consistent styling with other pages.
+// 3. Preserved all sub-tab components and logic.
 
 import React, { useState } from 'react';
 import { Building2, FileText, FolderOpen, Users } from 'lucide-react';
@@ -44,7 +44,7 @@ const BusinessPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 h-full">
+    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 h-full bg-canvas">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 sm:mb-10 gap-4 sm:gap-6">
         <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-text-primary mb-2 tracking-tight">
@@ -55,10 +55,14 @@ const BusinessPage: React.FC = () => {
             </p>
         </div>
         
-        <div className="w-full sm:w-auto grid grid-cols-4 sm:flex glass-panel p-1.5 rounded-xl gap-1 sm:gap-0">
+        <div className="w-full sm:w-auto grid grid-cols-4 sm:flex glass-panel p-1.5 rounded-xl gap-1 sm:gap-0 border border-main">
             <button 
                 onClick={() => setActiveTab('profile')} 
-                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${activeTab === 'profile' ? 'bg-gradient-to-r from-primary-start to-primary-end text-white shadow-lg shadow-primary-start/20' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${
+                    activeTab === 'profile' 
+                      ? 'btn-primary shadow-lg' 
+                      : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
+                }`}
                 title={t('business.profile')}
             >
                 <Building2 size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -66,7 +70,11 @@ const BusinessPage: React.FC = () => {
             </button>
             <button 
                 onClick={() => setActiveTab('team')} 
-                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${activeTab === 'team' ? 'bg-gradient-to-r from-primary-start to-primary-end text-white shadow-lg shadow-primary-start/20' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${
+                    activeTab === 'team' 
+                      ? 'btn-primary shadow-lg' 
+                      : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
+                }`}
                 title={t('business.team')}
             >
                 <Users size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -74,7 +82,11 @@ const BusinessPage: React.FC = () => {
             </button>
             <button 
                 onClick={() => setActiveTab('finance')} 
-                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${activeTab === 'finance' ? 'bg-gradient-to-r from-primary-start to-primary-end text-white shadow-lg shadow-primary-start/20' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${
+                    activeTab === 'finance' 
+                      ? 'btn-primary shadow-lg' 
+                      : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
+                }`}
                 title={t('business.finance')}
             >
                 <FileText size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -82,7 +94,11 @@ const BusinessPage: React.FC = () => {
             </button>
             <button 
                 onClick={() => setActiveTab('archive')} 
-                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${activeTab === 'archive' ? 'bg-gradient-to-r from-primary-start to-primary-end text-white shadow-lg shadow-primary-start/20' : 'text-text-secondary hover:text-white hover:bg-white/5'}`}
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-1 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all duration-300 w-full sm:w-auto ${
+                    activeTab === 'archive' 
+                      ? 'btn-primary shadow-lg' 
+                      : 'text-text-secondary hover:text-text-primary hover:bg-surface/50'
+                }`}
                 title={t('business.archive')}
             >
                 <FolderOpen size={16} className="sm:w-[18px] sm:h-[18px]" />

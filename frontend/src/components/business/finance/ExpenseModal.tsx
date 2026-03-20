@@ -1,8 +1,8 @@
 // FILE: src/components/business/finance/ExpenseModal.tsx
-// PHOENIX PROTOCOL - EXPENSE MODAL V3.0 (OCR GATEKEEPER)
-// 1. FEAT: Implemented 'isPro' check to lock AI OCR scanning for Basic users.
-// 2. UI: Added visual Lock indicator and disabled state for the Scan button.
-// 3. UX: Manual attachment remains fully accessible for all tiers.
+// PHOENIX PROTOCOL - EXPENSE MODAL V6.0 (EXECUTIVE DESIGN SYSTEM)
+// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
+// 2. Buttons use semantic variants (danger-start for expense actions, btn-secondary for others).
+// 3. Preserved all functionality and gatekeeper logic for PRO users.
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { X, MinusCircle, ChevronLeft, Loader2, CheckCircle, Paperclip, Sparkles, ScanLine, AlertCircle, Lock } from 'lucide-react';
@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Expense, Case } from '../../../data/types';
 import { apiService } from '../../../services/api';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../../context/AuthContext'; // PHOENIX: Imported Auth Hook
+import { useAuth } from '../../../context/AuthContext';
 import * as ReactDatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { sq, enUS } from 'date-fns/locale';
@@ -98,7 +98,7 @@ const compressImage = async (file: File): Promise<File> => {
 
 export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onSuccess, cases, editingExpense }) => {
     const { t, i18n } = useTranslation();
-    const { user } = useAuth(); // PHOENIX: Access user context
+    const { user } = useAuth();
     const [isDirectUpload, setIsDirectUpload] = useState(false);
     const [isScanningReceipt, setIsScanningReceipt] = useState(false);
     const [scanError, setScanError] = useState<string | null>(null);
@@ -195,7 +195,6 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
         uploadIntent.current = mode;
         setScanError(null);
         if (mode === 'scan') {
-            // PHOENIX: Prevent trigger if not Pro
             if (!isPro) return;
             scanInputRef.current?.click();
         } else {
@@ -237,13 +236,13 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="glass-high w-full max-w-md max-h-[90vh] overflow-y-auto custom-finance-scroll p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="glass-panel border border-main w-full max-w-md max-h-[90vh] overflow-y-auto custom-finance-scroll p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        <MinusCircle size={20} className="text-rose-500" /> {editingExpense ? t('finance.editExpense') : t('finance.addExpense')}
+                    <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
+                        <MinusCircle size={20} className="text-danger-start" /> {editingExpense ? t('finance.editExpense') : t('finance.addExpense')}
                     </h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={24} /></button>
+                    <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors"><X size={24} /></button>
                 </div>
 
                 <input type="file" ref={scanInputRef} className="hidden" accept="image/*" capture="environment" onChange={handleFileSelection} />
@@ -253,7 +252,7 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                     <AnimatePresence mode="wait">
                         {!isDirectUpload && !expenseReceipt ? (
                             <motion.div key="initial" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
-                                <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.receipt', 'Fatura')}</label>
+                                <label className="block text-xs text-text-secondary mb-1 font-bold uppercase">{t('finance.receipt', 'Fatura')}</label>
                                 
                                 <div className="grid grid-cols-2 gap-3">
                                     {/* Option 1: AI Scan (LOCKED IF NOT PRO) */}
@@ -263,20 +262,20 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                         disabled={!isPro}
                                         className={`py-6 border border-dashed rounded-xl flex flex-col items-center justify-center gap-3 transition-all group relative overflow-hidden
                                         ${!isPro 
-                                            ? 'border-gray-700 bg-gray-800/50 cursor-not-allowed opacity-70' 
-                                            : 'border-rose-500/30 bg-rose-500/5 text-rose-300 hover:bg-rose-500/10 hover:border-rose-500/50'
+                                            ? 'border-main bg-surface/30 cursor-not-allowed opacity-70' 
+                                            : 'border-danger-start/30 bg-danger-start/5 text-danger-start hover:bg-danger-start/10 hover:border-danger-start/50'
                                         }`}
                                     >
                                         {!isPro && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10">
-                                                <Lock size={24} className="text-white/80" />
+                                            <div className="absolute inset-0 flex items-center justify-center bg-canvas/40 z-10">
+                                                <Lock size={24} className="text-text-primary/80" />
                                             </div>
                                         )}
-                                        <div className={`p-3 rounded-full transition-transform ${isPro ? 'bg-rose-500/10 group-hover:scale-110' : 'bg-gray-700'}`}>
-                                            <ScanLine size={24} className={isPro ? "" : "text-gray-500"} />
+                                        <div className={`p-3 rounded-full transition-transform ${isPro ? 'bg-danger-start/10 group-hover:scale-110' : 'bg-surface/30'}`}>
+                                            <ScanLine size={24} className={isPro ? "text-danger-start" : "text-text-muted"} />
                                         </div>
                                         <div className="text-center px-2">
-                                            <span className={`block text-sm font-bold ${isPro ? "" : "text-gray-400"}`}>{t('finance.scanAI', 'Skano me AI')}</span>
+                                            <span className={`block text-sm font-bold ${isPro ? "" : "text-text-secondary"}`}>{t('finance.scanAI', 'Skano me AI')}</span>
                                             <span className="text-[9px] opacity-60 block mt-1">OCR & Auto-Fill</span>
                                         </div>
                                     </button>
@@ -285,9 +284,9 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                     <button 
                                         type="button" 
                                         onClick={() => triggerUpload('attach')} 
-                                        className="py-6 border border-dashed border-white/20 rounded-xl flex flex-col items-center justify-center gap-3 text-gray-400 hover:bg-white/5 hover:text-white hover:border-white/40 transition-all group"
+                                        className="py-6 border border-dashed border-main rounded-xl flex flex-col items-center justify-center gap-3 text-text-secondary hover:bg-surface/20 hover:text-text-primary hover:border-primary-start/30 transition-all group"
                                     >
-                                        <div className="p-3 bg-white/5 rounded-full group-hover:scale-110 transition-transform">
+                                        <div className="p-3 bg-surface/20 rounded-full group-hover:scale-110 transition-transform">
                                             <Paperclip size={24} />
                                         </div>
                                         <div className="text-center px-2">
@@ -300,15 +299,15 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                         ) : (
                             <motion.div key="direct" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
                                 <div className="flex justify-between items-center mb-2">
-                                    <label className="block text-xs text-gray-400 font-bold uppercase">{t('finance.uploadDirectly', 'Ngarko Skedar')}</label>
-                                    <button type="button" onClick={() => { setIsDirectUpload(false); setExpenseReceipt(null); setScanError(null); }} className="text-xs flex items-center gap-1 text-gray-400 hover:text-white"> <ChevronLeft size={14} /> {t('general.back', 'Kthehu')} </button>
+                                    <label className="block text-xs text-text-secondary font-bold uppercase">{t('finance.uploadDirectly', 'Ngarko Skedar')}</label>
+                                    <button type="button" onClick={() => { setIsDirectUpload(false); setExpenseReceipt(null); setScanError(null); }} className="text-xs flex items-center gap-1 text-text-muted hover:text-text-primary"> <ChevronLeft size={14} /> {t('general.back', 'Kthehu')} </button>
                                 </div>
 
                                 <button
                                     onClick={() => triggerUpload(uploadIntent.current)}
                                     disabled={isScanningReceipt}
                                     className={`w-full py-4 border border-dashed rounded-xl flex items-center justify-center gap-2 transition-all 
-                                    ${expenseReceipt ? 'bg-primary-start/10 border-primary-start text-primary-300' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10'}
+                                    ${expenseReceipt ? 'bg-primary-start/10 border-primary-start text-primary-start' : 'bg-surface/20 border-main text-text-secondary hover:bg-surface/30'}
                                     ${isScanningReceipt ? 'cursor-wait opacity-80' : ''}`}
                                 >
                                     {isScanningReceipt ? (
@@ -324,10 +323,10 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
                                     )}
                                 </button>
                                 
-                                {isScanningReceipt && <p className="text-center text-[10px] text-gray-500 mt-2 flex items-center justify-center gap-1"><Sparkles size={10} className="text-primary-start" /> {t('finance.extractingData', 'Duke nxjerrë të dhënat...')}</p>}
+                                {isScanningReceipt && <p className="text-center text-[10px] text-text-muted mt-2 flex items-center justify-center gap-1"><Sparkles size={10} className="text-primary-start" /> {t('finance.extractingData', 'Duke nxjerrë të dhënat...')}</p>}
                                 
                                 {scanError && (
-                                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mt-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-2 text-red-200 text-xs">
+                                    <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="mt-2 p-3 bg-danger-start/10 border border-danger-start/20 rounded-lg flex items-center gap-2 text-danger-start text-xs">
                                         <AlertCircle size={14} className="shrink-0" />
                                         <span>{scanError}</span>
                                     </motion.div>
@@ -339,37 +338,37 @@ export const ExpenseModal: React.FC<ExpenseModalProps> = ({ isOpen, onClose, onS
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel', "Lënda e Lidhur")}</label>
+                        <label className="block text-xs text-text-secondary mb-1 font-bold uppercase">{t('drafting.selectCaseLabel', "Lënda e Lidhur")}</label>
                         <select
                             value={formData.related_case_id}
                             onChange={(e) => setFormData({ ...formData, related_case_id: e.target.value })}
                             className="glass-input w-full px-4 py-2.5 rounded-xl truncate"
                             style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                         >
-                            <option value="" className="bg-gray-900 truncate">-- {t('finance.noCase', 'Pa Lëndë')} --</option>
-                            {cases.map(c => (<option key={c.id} value={c.id} className="bg-gray-900 truncate" title={c.title}>{truncateText(c.title)}</option>))}
+                            <option value="" className="bg-canvas text-text-primary truncate">-- {t('finance.noCase', 'Pa Lëndë')} --</option>
+                            {cases.map(c => (<option key={c.id} value={c.id} className="bg-canvas text-text-primary truncate" title={c.title}>{truncateText(c.title)}</option>))}
                         </select>
-                        {!formData.related_case_id && (<p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1">{t('finance.generalUpload', 'Pa lëndë: Do të regjistrohet si shpenzim i përgjithshëm.')}</p>)}
+                        {!formData.related_case_id && (<p className="text-[10px] text-text-muted mt-1 flex items-center gap-1">{t('finance.generalUpload', 'Pa lëndë: Do të regjistrohet si shpenzim i përgjithshëm.')}</p>)}
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.expenseCategory')}</label>
+                        <label className="block text-xs text-text-secondary mb-1 font-bold uppercase">{t('finance.expenseCategory')}</label>
                         <input required type="text" className="glass-input w-full px-4 py-2.5 rounded-xl truncate" maxLength={50} value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.amount')}</label>
+                        <label className="block text-xs text-text-secondary mb-1 font-bold uppercase">{t('finance.amount')}</label>
                         <input required type="number" step="0.01" className="glass-input w-full px-4 py-2.5 rounded-xl" value={formData.amount} onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) })} />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.date')}</label>
+                        <label className="block text-xs text-text-secondary mb-1 font-bold uppercase">{t('finance.date')}</label>
                         <DatePicker selected={expenseDate} onChange={(date: Date | null) => setExpenseDate(date)} locale={currentLocale} dateFormat="dd/MM/yyyy" className="glass-input w-full px-4 py-2.5 rounded-xl" required />
                     </div>
                     <div>
-                        <label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('finance.description')}</label>
+                        <label className="block text-xs text-text-secondary mb-1 font-bold uppercase">{t('finance.description')}</label>
                         <textarea rows={2} className="glass-input w-full px-4 py-2.5 rounded-xl resize-none" maxLength={200} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
                     </div>
                     <div className="flex justify-end gap-3 pt-4">
-                        <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10 transition-colors">{t('general.cancel')}</button>
-                        <button type="submit" disabled={loading} className="px-8 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow-lg shadow-rose-500/20 flex items-center gap-2">{loading && <Loader2 size={18} className="animate-spin" />}{t('general.save')}</button>
+                        <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-text-primary hover:bg-surface/30 transition-colors">{t('general.cancel')}</button>
+                        <button type="submit" disabled={loading} className="px-8 py-2.5 bg-danger-start hover:bg-danger-start/80 text-text-primary rounded-xl font-bold shadow-lg shadow-danger-start/20 flex items-center gap-2">{loading && <Loader2 size={18} className="animate-spin" />}{t('general.save')}</button>
                     </div>
                 </form>
             </div>

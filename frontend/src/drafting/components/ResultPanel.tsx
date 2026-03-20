@@ -1,4 +1,10 @@
-// src/drafting/components/ResultPanel.tsx
+// FILE: src/drafting/components/ResultPanel.tsx
+// PHOENIX PROTOCOL - RESULT PANEL V5.0 (WORLD CLASS SYMMETRY)
+// 1. FIXED: Removed hardcoded dark hex colors (#0d0f14). Replaced with 'glass-panel' and 'bg-paper'.
+// 2. FIXED: 'text-white' converted to 'text-text-primary' for perfect Light/Dark visibility.
+// 3. ENHANCED: Button hover states upgraded to the "Executive" border-revealing standard.
+// 4. RETAINED: 100% of saving, printing, downloading, and rendering logic.
+
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -24,32 +30,44 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
   saveModalOpen,
   setSaveModalOpen,
 }) => {
+  
+  // Adjusted status colors to use the new semantic design system variables
   const statusUI = useMemo(() => {
     switch (currentJob.status) {
       case 'COMPLETED':
-        return { text: t('drafting.statusCompleted'), color: 'text-green-400', icon: <CheckCircle className="h-5 w-5" /> };
+        return { text: t('drafting.statusCompleted'), color: 'text-success-start', icon: <CheckCircle className="h-5 w-5" /> };
       case 'FAILED':
-        return { text: t('drafting.statusFailed'), color: 'text-red-400', icon: <AlertCircle className="h-5 w-5" /> };
+        return { text: t('drafting.statusFailed'), color: 'text-danger-start', icon: <AlertCircle className="h-5 w-5" /> };
       case 'PROCESSING':
-        return { text: t('drafting.statusWorking'), color: 'text-yellow-400', icon: <Clock className="h-5 w-5 animate-pulse" /> };
+        return { text: t('drafting.statusWorking'), color: 'text-warning-start', icon: <Clock className="h-5 w-5 animate-pulse" /> };
       default:
-        return { text: t('drafting.statusResult'), color: 'text-white', icon: <Scale className="h-5 w-5 text-gray-500" /> };
+        return { text: t('drafting.statusResult', 'Rezultati'), color: 'text-primary-start', icon: <Scale className="h-5 w-5" /> };
     }
   }, [currentJob.status, t]);
 
+  const actionButtonBase = "p-2.5 text-text-muted hover:text-primary-start hover:bg-surface-secondary rounded-xl transition-all border border-transparent hover:border-border-main disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:border-transparent";
+
   return (
-    <div className="flex flex-col h-auto lg:h-[700px] rounded-2xl bg-[#0d0f14] border border-white/10 overflow-hidden shadow-2xl shrink-0">
-      <div className="flex justify-between items-center p-4 bg-white/5 border-b border-white/5 flex-shrink-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className={`${statusUI.color} p-2 bg-white/5 rounded-lg`}>{statusUI.icon}</div>
-          <h3 className="text-white text-xs sm:text-sm font-semibold uppercase tracking-widest leading-none">{statusUI.text}</h3>
+    <div className="glass-panel p-0 flex flex-col h-auto lg:h-[700px] overflow-hidden shadow-lawyer-light shrink-0">
+      
+      {/* Executive Header Toolbar */}
+      <div className="flex justify-between items-center px-6 py-4 bg-canvas/30 border-b border-border-main flex-shrink-0 z-10">
+        <div className="flex items-center gap-4">
+          <div className={`${statusUI.color} p-2.5 bg-surface border border-border-main rounded-xl shadow-sm`}>
+            {statusUI.icon}
+          </div>
+          <h3 className="text-text-primary text-xs font-black uppercase tracking-widest leading-none">
+            {statusUI.text}
+          </h3>
         </div>
-        <div className="flex gap-1 sm:gap-2">
+        
+        {/* Action Button Cluster */}
+        <div className="flex items-center gap-1 sm:gap-2">
           {currentJob.status === 'COMPLETED' && selectedCaseId && (
             <button
               onClick={() => setSaveModalOpen(true)}
               title="Ruaj në lëndë"
-              className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-primary-start transition-colors"
+              className={actionButtonBase}
             >
               <Save size={18} />
             </button>
@@ -58,7 +76,7 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
             onClick={onSave}
             title={t('drafting.saveToArchive')}
             disabled={!currentJob.result || saving}
-            className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-primary-start transition-colors disabled:opacity-30"
+            className={actionButtonBase}
           >
             {saving ? <RefreshCw className="animate-spin" size={18} /> : <Archive size={18} />}
           </button>
@@ -69,7 +87,8 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
               }
             }}
             title={t('drafting.copy')}
-            className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"
+            disabled={!currentJob.result}
+            className={actionButtonBase}
           >
             <Copy size={18} />
           </button>
@@ -85,29 +104,37 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
               }
             }}
             title={t('drafting.download')}
-            className="p-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-gray-300 transition-colors"
+            disabled={!currentJob.result}
+            className={actionButtonBase}
           >
             <Download size={18} />
           </button>
+          
           {currentJob.status === 'FAILED' && (
             <button
               onClick={onRetry}
               title="Riprovo"
-              className="p-2.5 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 rounded-lg transition-colors"
+              className="p-2.5 text-warning-start hover:bg-warning-start/10 rounded-xl transition-all border border-transparent hover:border-warning-start/30"
             >
               <RefreshCw size={18} />
             </button>
           )}
+          
+          <div className="h-6 w-px bg-border-main mx-1" />
+          
           <button
             onClick={onClear}
             title={t('drafting.clear')}
-            className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors"
+            disabled={!currentJob.result && currentJob.status !== 'FAILED'}
+            className="p-2.5 text-danger-start hover:bg-danger-start/10 rounded-xl transition-all border border-transparent hover:border-danger-start/30 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:border-transparent"
           >
             <Trash2 size={18} />
           </button>
         </div>
       </div>
-      <div className="flex-1 bg-gray-900/40 overflow-y-auto relative custom-scrollbar">
+
+      {/* The Paper Reading Surface */}
+      <div className="flex-1 bg-paper overflow-y-auto relative custom-scrollbar shadow-[inset_0_2px_8px_rgba(0,0,0,0.02)]">
         <div className="min-h-full w-full flex justify-center p-4 sm:p-8">
           <AnimatePresence mode="wait">
             {currentJob.result ? (
@@ -120,13 +147,13 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
               >
                 {notification && (
                   <div
-                    className={`mb-4 p-3 text-xs rounded-lg flex items-center gap-2 border w-full ${
+                    className={`mb-6 p-4 text-xs font-bold rounded-xl flex items-center gap-3 border shadow-sm w-full ${
                       notification.type === 'success'
-                        ? 'bg-green-500/20 text-green-400 border-green-500/20'
-                        : 'bg-red-500/20 text-red-400 border-red-500/20'
+                        ? 'bg-success-start/10 text-success-start border-success-start/20'
+                        : 'bg-danger-start/10 text-danger-start border-danger-start/20'
                     }`}
                   >
-                    {notification.type === 'success' ? <CheckCircle size={14} /> : <AlertCircle size={14} />}{' '}
+                    {notification.type === 'success' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
                     {notification.msg}
                   </div>
                 )}
@@ -137,22 +164,24 @@ export const ResultPanel: React.FC<ResultPanelProps> = ({
                 key="empty"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex flex-col items-center justify-center text-center mt-20 pointer-events-none"
+                className="flex flex-col items-center justify-center text-center mt-32 pointer-events-none"
               >
                 {currentJob.status === 'PROCESSING' ? (
                   <div className="flex flex-col items-center">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shadow-primary-start/20 mb-6 animate-pulse">
-                      <BrainCircuit className="w-8 h-8 text-white" />
+                    <div className="w-20 h-20 rounded-[1.5rem] bg-primary-start flex items-center justify-center shadow-accent-glow mb-8 animate-pulse">
+                      <BrainCircuit className="w-10 h-10 text-white" />
                     </div>
-                    <p className="text-white font-medium flex items-center">
-                      {t('drafting.statusWorking')}
-                      <ThinkingDots />
+                    <p className="text-text-primary font-black uppercase tracking-widest text-sm flex items-center">
+                      {t('drafting.statusWorking', 'Duke Gjeneruar')}
+                      <span className="ml-2 text-primary-start"><ThinkingDots /></span>
                     </p>
                   </div>
                 ) : (
-                  <div className="opacity-20 flex flex-col items-center">
-                    <FileText size={56} className="text-gray-600 mb-4" />
-                    <p className="text-gray-400 text-sm">{t('drafting.emptyState')}</p>
+                  <div className="flex flex-col items-center opacity-40">
+                    <FileText size={64} className="text-text-muted mb-6" strokeWidth={1.5} />
+                    <p className="text-text-muted font-black text-xs uppercase tracking-widest">
+                      {t('drafting.emptyState', 'Rezultati do të shfaqet këtu')}
+                    </p>
                   </div>
                 )}
               </motion.div>

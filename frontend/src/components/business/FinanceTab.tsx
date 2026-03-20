@@ -1,8 +1,8 @@
 // FILE: src/components/business/FinanceTab.tsx
-// PHOENIX PROTOCOL - FINANCE TAB V13.0 (GATEKEEPER ENFORCEMENT)
-// 1. FEAT: Implemented 'isPro' check to lock 'Mbyllja Mujore' for Basic users.
-// 2. UI: Added Lock icon and visual feedback for restricted actions.
-// 3. SEC: Prevented navigation to the Wizard if user is not Pro/Admin.
+// PHOENIX PROTOCOL - FINANCE TAB V6.0 (EXECUTIVE DESIGN SYSTEM)
+// 1. Converted to semantic classes: bg-canvas, glass-panel, border-main, text-text-primary, text-text-secondary, text-text-muted.
+// 2. Buttons use btn-primary / btn-secondary where appropriate.
+// 3. Preserved all functionality and gatekeeper logic for PRO users.
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
@@ -10,7 +10,7 @@ import {
     TrendingUp, TrendingDown, Wallet, Calculator, MinusCircle, Plus, FileText, 
     Edit2, Eye, Download, Archive, Trash2, Activity, Loader2, BarChart2, History, 
     Search, Briefcase, ChevronRight, ChevronDown, Car, Coffee, Building, Users, 
-    Landmark, Zap, Wifi, Receipt, Utensils, Lock // PHOENIX: Added Lock Icon
+    Landmark, Zap, Wifi, Receipt, Utensils, Lock
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/api';
@@ -20,60 +20,59 @@ import FileViewerModal from '../FileViewerModal';
 import { InvoiceModal } from './finance/InvoiceModal';
 import { ExpenseModal } from './finance/ExpenseModal';
 import { FinanceAnalytics } from './finance/FinanceAnalytics';
-import { useAuth } from '../../context/AuthContext'; // PHOENIX: Imported Auth Hook
+import { useAuth } from '../../context/AuthContext';
 
 // --- UI SUB-COMPONENTS ---
 const SmartStatCard = ({ title, amount, icon, color }: { title: string, amount: string, icon: React.ReactNode, color: string }) => (
-    <div className="group relative overflow-hidden rounded-2xl glass-panel p-5 hover:bg-white/10 transition-all duration-300">
+    <div className="group relative overflow-hidden rounded-2xl glass-panel border border-main p-5 hover:bg-surface/20 transition-all duration-300">
         <div className="flex items-center gap-4 relative z-10">
             <div className={`p-3 rounded-xl ${color.replace('text-', 'bg-')}/10 ${color} shadow-inner`}>{icon}</div>
             <div>
                 <p className="text-xs text-text-secondary font-bold uppercase tracking-wider">{title}</p>
-                <p className="text-2xl font-bold text-white tracking-tight">{amount}</p>
+                <p className="text-2xl font-bold text-text-primary tracking-tight">{amount}</p>
             </div>
         </div>
         <div className={`absolute top-0 right-0 p-8 rounded-full blur-2xl opacity-10 ${color.replace('text-', 'bg-')}`} />
     </div>
 );
 
-// PHOENIX: Extended QuickActionButton to support 'locked' state
 const QuickActionButton = ({ icon, label, onClick, color, locked = false }: { icon: React.ReactNode, label: string, onClick: () => void, color: string, locked?: boolean }) => (
     <button 
         onClick={onClick} 
         disabled={locked}
         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-transparent transition-all duration-200 text-sm font-semibold group relative overflow-hidden
         ${locked 
-            ? 'bg-white/5 opacity-60 cursor-not-allowed hover:bg-white/5' 
-            : 'bg-white/5 hover:bg-white/10 hover:border-white/10'
+            ? 'bg-surface/30 opacity-60 cursor-not-allowed hover:bg-surface/30' 
+            : 'bg-surface/20 hover:bg-surface/40 hover:border-main'
         }`}
     >
-        <div className={`p-2 rounded-lg transition-transform ${locked ? 'bg-gray-700 text-gray-400' : `${color.replace('text-', 'bg-')}/10 ${color} group-hover:scale-110`}`}>
+        <div className={`p-2 rounded-lg transition-transform ${locked ? 'bg-surface/50 text-text-muted' : `${color.replace('text-', 'bg-')}/10 ${color} group-hover:scale-110`}`}>
             {locked ? <Lock size={18} /> : icon}
         </div>
-        <span className={`text-gray-200 ${locked ? '' : 'group-hover:text-white'}`}>{label}</span>
+        <span className={`text-text-secondary ${locked ? '' : 'group-hover:text-text-primary'}`}>{label}</span>
     </button>
 );
 
 const TabButton = ({ label, icon, isActive, onClick }: { label: string, icon: React.ReactNode, isActive: boolean, onClick: () => void }) => (
-    <button onClick={onClick} className={`w-full sm:w-auto flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2.5 rounded-xl text-[10px] sm:text-xs md:text-sm font-bold transition-all duration-300 ${isActive ? 'bg-gradient-to-r from-primary-start to-primary-end text-white shadow-lg shadow-primary-start/20' : 'text-text-secondary hover:bg-white/5 hover:text-white'}`}>
+    <button onClick={onClick} className={`w-full sm:w-auto flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2.5 rounded-xl text-[10px] sm:text-xs md:text-sm font-bold transition-all duration-300 ${isActive ? 'btn-primary shadow-lg' : 'text-text-secondary hover:bg-surface/30 hover:text-text-primary'}`}>
         <span className="shrink-0">{icon}</span>
         <span className="whitespace-nowrap">{label}</span>
     </button>
 );
 
 const SkeletonChart = () => (
-    <div className="glass-panel rounded-2xl p-4 animate-pulse"><div className="h-6 bg-white/5 rounded w-1/3 mb-4"></div><div className="h-64 bg-white/5 rounded"></div></div>
+    <div className="glass-panel border border-main rounded-2xl p-4 animate-pulse"><div className="h-6 bg-surface/30 rounded w-1/3 mb-4"></div><div className="h-64 bg-surface/20 rounded"></div></div>
 );
 
 const SkeletonGrid = () => (
-     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-pulse"><div className="glass-panel rounded-2xl p-4"><div className="h-6 bg-white/5 rounded w-1/2 mb-4"></div><div className="h-64 bg-white/5 rounded"></div></div><div className="glass-panel rounded-2xl p-4"><div className="h-6 bg-white/5 rounded w-1/2 mb-4"></div><div className="space-y-2 mt-4"><div className="h-8 bg-white/5 rounded"></div><div className="h-8 bg-white/5 rounded"></div><div className="h-8 bg-white/5 rounded"></div><div className="h-8 bg-white/5 rounded"></div><div className="h-8 bg-white/5 rounded"></div></div></div></div>
+     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-pulse"><div className="glass-panel border border-main rounded-2xl p-4"><div className="h-6 bg-surface/30 rounded w-1/2 mb-4"></div><div className="h-64 bg-surface/20 rounded"></div></div><div className="glass-panel border border-main rounded-2xl p-4"><div className="h-6 bg-surface/30 rounded w-1/2 mb-4"></div><div className="space-y-2 mt-4"><div className="h-8 bg-surface/20 rounded"></div><div className="h-8 bg-surface/20 rounded"></div><div className="h-8 bg-surface/20 rounded"></div><div className="h-8 bg-surface/20 rounded"></div><div className="h-8 bg-surface/20 rounded"></div></div></div></div>
 );
 
 export const FinanceTab: React.FC = () => {
     type ActiveTab = 'transactions' | 'reports' | 'history';
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
-    const { user } = useAuth(); // PHOENIX: Access user context
+    const { user } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -103,7 +102,6 @@ export const FinanceTab: React.FC = () => {
     const [viewingUrl, setViewingUrl] = useState<string | null>(null);
     const [expandedCaseId, setExpandedCaseId] = useState<string | null>(null);
 
-    // PHOENIX GATEKEEPER LOGIC
     const isPro = useMemo(() => {
         if (!user) return false;
         return user.subscription_tier === 'PRO' || user.role === 'ADMIN';
@@ -247,27 +245,27 @@ export const FinanceTab: React.FC = () => {
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 lg:h-[600px]">
                 <div className="lg:col-span-1 flex flex-col gap-6 h-full">
-                    <div className="glass-panel rounded-3xl p-6 space-y-4 flex-none">
+                    <div className="glass-panel border border-main rounded-3xl p-6 space-y-4 flex-none">
                         <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">{t('finance.overview')}</h3>
-                        <SmartStatCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp size={20} />} color="text-emerald-400" />
-                        <SmartStatCard title={t('finance.expense')} amount={`€${totalExpenses.toFixed(2)}`} icon={<TrendingDown size={20} />} color="text-rose-400" />
-                        <SmartStatCard title={t('finance.balance')} amount={`€${totalBalance.toFixed(2)}`} icon={<Wallet size={20} />} color="text-blue-400" />
+                        <SmartStatCard title={t('finance.income')} amount={`€${totalIncome.toFixed(2)}`} icon={<TrendingUp size={20} />} color="text-success-start" />
+                        <SmartStatCard title={t('finance.expense')} amount={`€${totalExpenses.toFixed(2)}`} icon={<TrendingDown size={20} />} color="text-danger-start" />
+                        <SmartStatCard title={t('finance.balance')} amount={`€${totalBalance.toFixed(2)}`} icon={<Wallet size={20} />} color="text-primary-start" />
                         
                         {analyticsData && (
-                            <div className="pt-4 border-t border-white/5 mt-4">
+                            <div className="pt-4 border-t border-main mt-4">
                                 <h4 className="text-[10px] font-bold text-primary-start uppercase tracking-wider mb-2">{t('finance.analytics.periodTitle')}</h4>
                                 <div className="grid grid-cols-2 gap-2">
-                                    <div className="bg-primary-start/10 p-2 rounded-lg text-center border border-primary-start/20"><p className="text-[10px] text-primary-300">{t('finance.analytics.totalSales')}</p><p className="font-bold text-white">€{analyticsData.total_revenue_period.toFixed(2)}</p></div>
-                                    <div className="bg-primary-start/10 p-2 rounded-lg text-center border border-primary-start/20"><p className="text-[10px] text-primary-300">{t('finance.analytics.invoiceCount')}</p><p className="font-bold text-white">{analyticsData.total_transactions_period}</p></div>
+                                    <div className="bg-primary-start/10 p-2 rounded-lg text-center border border-primary-start/20"><p className="text-[10px] text-primary-start">{t('finance.analytics.totalSales')}</p><p className="font-bold text-text-primary">€{analyticsData.total_revenue_period.toFixed(2)}</p></div>
+                                    <div className="bg-primary-start/10 p-2 rounded-lg text-center border border-primary-start/20"><p className="text-[10px] text-primary-start">{t('finance.analytics.invoiceCount')}</p><p className="font-bold text-text-primary">{analyticsData.total_transactions_period}</p></div>
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    <div className="glass-panel rounded-3xl p-6 space-y-3 flex-1 flex flex-col justify-start">
+                    <div className="glass-panel border border-main rounded-3xl p-6 space-y-3 flex-1 flex flex-col justify-start">
                         <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">{t('finance.quickActions')}</h3>
-                        <QuickActionButton icon={<Plus size={18} />} label={t('finance.createInvoice')} onClick={() => { setEditingInvoice(null); setShowInvoiceModal(true); }} color="text-emerald-400" />
-                        <QuickActionButton icon={<MinusCircle size={18} />} label={t('finance.addExpense')} onClick={() => { setEditingExpense(null); setShowExpenseModal(true); }} color="text-rose-400" />
+                        <QuickActionButton icon={<Plus size={18} />} label={t('finance.createInvoice')} onClick={() => { setEditingInvoice(null); setShowInvoiceModal(true); }} color="text-success-start" />
+                        <QuickActionButton icon={<MinusCircle size={18} />} label={t('finance.addExpense')} onClick={() => { setEditingExpense(null); setShowExpenseModal(true); }} color="text-danger-start" />
                         
                         {/* PHOENIX: LOCKED IF NOT PRO */}
                         <QuickActionButton 
@@ -275,15 +273,15 @@ export const FinanceTab: React.FC = () => {
                             label={t('finance.monthlyClose')} 
                             onClick={() => isPro && navigate('/finance/wizard')} 
                             color="text-text-secondary" 
-                            locked={!isPro} // Pass locked state
+                            locked={!isPro}
                         />
                     </div>
                 </div>
 
-                <div className="lg:col-span-2 glass-panel rounded-3xl p-6 flex flex-col h-full min-w-0 overflow-hidden">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-white/5 pb-4 flex-none">
-                        <h2 className="text-lg font-bold text-white shrink-0">{t('finance.activityAndReports')}</h2>
-                        <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center gap-2 bg-white/5 p-1 rounded-xl border border-white/5">
+                <div className="lg:col-span-2 glass-panel border border-main rounded-3xl p-6 flex flex-col h-full min-w-0 overflow-hidden">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4 border-b border-main pb-4 flex-none">
+                        <h2 className="text-lg font-bold text-text-primary shrink-0">{t('finance.activityAndReports')}</h2>
+                        <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center gap-2 bg-surface/20 p-1 rounded-xl border border-main">
                             <TabButton label={t('finance.tabTransactions')} icon={<Activity size={16} />} isActive={activeTab === 'transactions'} onClick={() => setActiveTab('transactions')} />
                             <TabButton label={t('finance.tabReports')} icon={<BarChart2 size={16} />} isActive={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
                             <TabButton label={t('finance.tabHistory')} icon={<History size={16} />} isActive={activeTab === 'history'} onClick={() => setActiveTab('history')} />
@@ -294,27 +292,27 @@ export const FinanceTab: React.FC = () => {
                         {activeTab === 'transactions' && (
                             <div className="flex flex-col h-full space-y-4">
                                 <div className="relative flex-none">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-500" /></div>
-                                    <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="glass-input w-full pl-10 pr-3 py-2.5 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-text-muted" /></div>
+                                    <input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="glass-input w-full pl-10 pr-3 py-2.5 rounded-xl border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1 overflow-y-auto custom-finance-scroll pr-2 pb-4 content-start">
-                                    {filteredTransactions.length === 0 ? <p className="text-gray-500 italic text-sm text-center col-span-full py-10">{t('finance.noTransactions')}</p> : filteredTransactions.map(tx => (
-                                        <div key={`${tx.type}-${tx.id}`} className="group relative glass-panel rounded-2xl overflow-hidden hover:bg-white/10 transition-all duration-300 flex flex-col border border-white/5 hover:border-white/20 h-fit">
-                                            <div className={`absolute left-0 top-0 bottom-0 w-1 ${tx.type === 'invoice' ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                                    {filteredTransactions.length === 0 ? <p className="text-text-muted italic text-sm text-center col-span-full py-10">{t('finance.noTransactions')}</p> : filteredTransactions.map(tx => (
+                                        <div key={`${tx.type}-${tx.id}`} className="group relative glass-panel border border-main rounded-2xl overflow-hidden hover:bg-surface/20 transition-all duration-300 flex flex-col h-fit">
+                                            <div className={`absolute left-0 top-0 bottom-0 w-1 ${tx.type === 'invoice' ? 'bg-success-start' : 'bg-danger-start'}`} />
                                             <div className="p-4 flex-1">
                                                 <div className="flex items-start justify-between mb-3">
-                                                    <div className={`p-2.5 rounded-xl ${tx.type === 'invoice' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>{tx.type === 'invoice' ? <FileText size={20} /> : getCategoryIcon(tx.category)}</div>
-                                                    <div className="text-right"><p className={`text-lg font-bold ${tx.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'}`}>{tx.type === 'invoice' ? '+' : '-'}€{tx.type === 'invoice' ? tx.total_amount.toFixed(2) : tx.amount.toFixed(2)}</p><span className="text-[10px] text-gray-500 font-mono">{new Date(tx.date).toLocaleDateString()}</span></div>
+                                                    <div className={`p-2.5 rounded-xl ${tx.type === 'invoice' ? 'bg-success-start/10 text-success-start' : 'bg-danger-start/10 text-danger-start'}`}>{tx.type === 'invoice' ? <FileText size={20} /> : getCategoryIcon(tx.category)}</div>
+                                                    <div className="text-right"><p className={`text-lg font-bold ${tx.type === 'invoice' ? 'text-success-start' : 'text-danger-start'}`}>{tx.type === 'invoice' ? '+' : '-'}€{tx.type === 'invoice' ? tx.total_amount.toFixed(2) : tx.amount.toFixed(2)}</p><span className="text-[10px] text-text-muted font-mono">{new Date(tx.date).toLocaleDateString()}</span></div>
                                                 </div>
-                                                <h4 className="font-bold text-white text-sm truncate mb-1" title={tx.type === 'invoice' ? tx.client_name : tx.category}>{tx.type === 'invoice' ? tx.client_name : tx.category}</h4>
-                                                <p className="text-xs text-gray-400 truncate">{tx.type === 'invoice' ? `#${tx.invoice_number}` : (tx.description || t('finance.noDescription'))}</p>
+                                                <h4 className="font-bold text-text-primary text-sm truncate mb-1" title={tx.type === 'invoice' ? tx.client_name : tx.category}>{tx.type === 'invoice' ? tx.client_name : tx.category}</h4>
+                                                <p className="text-xs text-text-secondary truncate">{tx.type === 'invoice' ? `#${tx.invoice_number}` : (tx.description || t('finance.noDescription'))}</p>
                                             </div>
-                                            <div className="border-t border-white/5 p-2 flex items-center justify-end gap-1 bg-black/20">
-                                                <button onClick={() => { if(tx.type === 'invoice') { setEditingInvoice(tx); setShowInvoiceModal(true); } else { setEditingExpense(tx); setShowExpenseModal(true); } }} className="p-2 hover:bg-white/10 rounded-lg text-amber-400 transition-colors" title={t('general.edit')}><Edit2 size={14} /></button>
-                                                <button onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} disabled={openingDocId != null && openingDocId !== tx.id} className="p-2 hover:bg-white/10 rounded-lg text-blue-400 transition-colors disabled:opacity-50" title={t('general.view')}>{openingDocId === tx.id ? <Loader2 size={14} className="animate-spin"/> : <Eye size={14} />}</button>
-                                                <button onClick={() => tx.type === 'invoice' ? downloadInvoice(tx.id) : handleDownloadExpense(tx)} className="p-2 hover:bg-white/10 rounded-lg text-green-400 transition-colors" title={t('general.download')}><Download size={14} /></button>
-                                                <button onClick={() => { if (tx.type === 'invoice') { setSelectedInvoiceId(tx.id); setShowArchiveInvoiceModal(true); } else { setSelectedExpenseId(tx.id); setShowArchiveExpenseModal(true); } }} className="p-2 hover:bg-white/10 rounded-lg text-indigo-400 transition-colors" title={t('general.archive')}><Archive size={14} /></button>
-                                                <button onClick={() => tx.type === 'invoice' ? deleteInvoice(tx.id) : deleteExpense(tx.id)} className="p-2 hover:bg-white/10 rounded-lg text-red-400 transition-colors" title={t('general.delete')}><Trash2 size={14} /></button>
+                                            <div className="border-t border-main p-2 flex items-center justify-end gap-1 bg-canvas/20">
+                                                <button onClick={() => { if(tx.type === 'invoice') { setEditingInvoice(tx); setShowInvoiceModal(true); } else { setEditingExpense(tx); setShowExpenseModal(true); } }} className="p-2 hover:bg-surface/30 rounded-lg text-warning-start transition-colors" title={t('general.edit')}><Edit2 size={14} /></button>
+                                                <button onClick={() => tx.type === 'invoice' ? handleViewInvoice(tx) : handleViewExpense(tx)} disabled={openingDocId != null && openingDocId !== tx.id} className="p-2 hover:bg-surface/30 rounded-lg text-primary-start transition-colors disabled:opacity-50" title={t('general.view')}>{openingDocId === tx.id ? <Loader2 size={14} className="animate-spin"/> : <Eye size={14} />}</button>
+                                                <button onClick={() => tx.type === 'invoice' ? downloadInvoice(tx.id) : handleDownloadExpense(tx)} className="p-2 hover:bg-surface/30 rounded-lg text-success-start transition-colors" title={t('general.download')}><Download size={14} /></button>
+                                                <button onClick={() => { if (tx.type === 'invoice') { setSelectedInvoiceId(tx.id); setShowArchiveInvoiceModal(true); } else { setSelectedExpenseId(tx.id); setShowArchiveExpenseModal(true); } }} className="p-2 hover:bg-surface/30 rounded-lg text-indigo-400 transition-colors" title={t('general.archive')}><Archive size={14} /></button>
+                                                <button onClick={() => tx.type === 'invoice' ? deleteInvoice(tx.id) : deleteExpense(tx.id)} className="p-2 hover:bg-surface/30 rounded-lg text-danger-start transition-colors" title={t('general.delete')}><Trash2 size={14} /></button>
                                             </div>
                                         </div>
                                     ))}
@@ -322,12 +320,12 @@ export const FinanceTab: React.FC = () => {
                             </div>
                         )}
                         {activeTab === 'reports' && (<div className="h-full overflow-y-auto custom-finance-scroll pr-2 space-y-6">{!analyticsData ? <div className="space-y-6"><SkeletonChart /><SkeletonGrid /></div> : <FinanceAnalytics data={analyticsData} />}</div>)}
-                        {activeTab === 'history' && (<div className="flex flex-col h-full space-y-4"><div className="relative flex-none"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-gray-500" /></div><input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="glass-input w-full pl-10 pr-3 py-2.5 rounded-xl" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><div className="space-y-4 flex-1 overflow-y-auto custom-finance-scroll pr-2">{filteredHistory.length === 0 ? (<div className="flex justify-center items-center h-full text-gray-500 text-center flex-col"><div className="bg-white/5 p-4 rounded-full mb-3"><Briefcase size={32} className="text-gray-600" /></div><p className="font-bold text-gray-400">{t('finance.noHistoryData', "Nuk ka të dhëna historike")}</p><p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime ose fatura të lidhura me lëndë për të parë pasqyrën këtu.")}</p></div>) : (filteredHistory.map((item) => (<div key={item.caseData.id} className="bg-white/5 border border-white/10 rounded-xl overflow-hidden"><div className="p-4 flex items-center justify-between cursor-pointer hover:bg-white/5 transition-colors" onClick={() => setExpandedCaseId(expandedCaseId === item.caseData.id ? null : item.caseData.id)}><div className="flex items-center gap-3"><div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg"><Briefcase size={18} /></div><div><h4 className="font-bold text-white text-sm">{item.caseData.title}</h4><p className="text-xs text-gray-500">{item.caseData.case_number}</p></div></div><div className="flex items-center gap-4"><div className="text-right"><p className="text-xs text-gray-400 uppercase">{t('finance.balance', 'Bilanci')}</p><p className={`font-bold ${item.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{item.balance >= 0 ? '+' : ''}€{item.balance.toFixed(2)}</p></div>{expandedCaseId === item.caseData.id ? <ChevronDown size={18} className="text-gray-500"/> : <ChevronRight size={18} className="text-gray-500"/>}</div></div>{expandedCaseId === item.caseData.id && (<div className="bg-black/20 p-4 border-t border-white/5 space-y-2"><h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>{item.activity.map((act, idx) => (<div key={`${act.type}-${idx}`} className="flex justify-between items-center text-sm py-1 border-b border-white/5 last:border-0"><div className="flex items-center gap-3"><span className="text-gray-400 text-xs font-mono">{new Date(act.date).toLocaleDateString('sq-AL')}</span><div className="flex flex-col"><span className="text-white font-medium">{act.label || act.type}</span><span className={`text-[10px] uppercase ${act.type === 'invoice' ? 'text-emerald-500/70' : 'text-rose-500/70'}`}>{act.type === 'invoice' ? t('finance.invoice') : t('finance.expense')}</span></div></div><span className={`${act.type === 'invoice' ? 'text-emerald-400' : 'text-rose-400'} font-mono`}>{act.type === 'invoice' ? '+' : '-'}€{act.amount.toFixed(2)}</span></div>))}</div>)}</div>)))}</div></div>)}</div></div></div>
+                        {activeTab === 'history' && (<div className="flex flex-col h-full space-y-4"><div className="relative flex-none"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Search className="h-5 w-5 text-text-muted" /></div><input type="text" placeholder={t('header.searchPlaceholder') || "Kërko..."} className="glass-input w-full pl-10 pr-3 py-2.5 rounded-xl border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div><div className="space-y-4 flex-1 overflow-y-auto custom-finance-scroll pr-2">{filteredHistory.length === 0 ? (<div className="flex justify-center items-center h-full text-text-muted text-center flex-col"><div className="bg-surface/30 p-4 rounded-full mb-3"><Briefcase size={32} className="text-text-muted" /></div><p className="font-bold text-text-secondary">{t('finance.noHistoryData', "Nuk ka të dhëna historike")}</p><p className="text-sm max-w-xs mt-2">{t('finance.historyHelper', "Shtoni shpenzime ose fatura të lidhura me lëndë për të parë pasqyrën këtu.")}</p></div>) : (filteredHistory.map((item) => (<div key={item.caseData.id} className="bg-surface/20 border border-main rounded-xl overflow-hidden"><div className="p-4 flex items-center justify-between cursor-pointer hover:bg-surface/30 transition-colors" onClick={() => setExpandedCaseId(expandedCaseId === item.caseData.id ? null : item.caseData.id)}><div className="flex items-center gap-3"><div className="p-2 bg-primary-start/20 text-primary-start rounded-lg"><Briefcase size={18} /></div><div><h4 className="font-bold text-text-primary text-sm">{item.caseData.title}</h4><p className="text-xs text-text-muted">{item.caseData.case_number}</p></div></div><div className="flex items-center gap-4"><div className="text-right"><p className="text-xs text-text-muted uppercase">{t('finance.balance', 'Bilanci')}</p><p className={`font-bold ${item.balance >= 0 ? 'text-success-start' : 'text-danger-start'}`}>{item.balance >= 0 ? '+' : ''}€{item.balance.toFixed(2)}</p></div>{expandedCaseId === item.caseData.id ? <ChevronDown size={18} className="text-text-muted"/> : <ChevronRight size={18} className="text-text-muted"/>}</div></div>{expandedCaseId === item.caseData.id && (<div className="bg-canvas/40 p-4 border-t border-main space-y-2"><h5 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">{t('finance.details', 'Detajet Financiare')}</h5>{item.activity.map((act, idx) => (<div key={`${act.type}-${idx}`} className="flex justify-between items-center text-sm py-1 border-b border-main last:border-0"><div className="flex items-center gap-3"><span className="text-text-muted text-xs font-mono">{new Date(act.date).toLocaleDateString('sq-AL')}</span><div className="flex flex-col"><span className="text-text-primary font-medium">{act.label || act.type}</span><span className={`text-[10px] uppercase ${act.type === 'invoice' ? 'text-success-start/70' : 'text-danger-start/70'}`}>{act.type === 'invoice' ? t('finance.invoice') : t('finance.expense')}</span></div></div><span className={`${act.type === 'invoice' ? 'text-success-start' : 'text-danger-start'} font-mono`}>{act.type === 'invoice' ? '+' : '-'}€{act.amount.toFixed(2)}</span></div>))}</div>)}</div>)))}</div></div>)}</div></div></div>
 
             <InvoiceModal isOpen={showInvoiceModal} onClose={() => setShowInvoiceModal(false)} onSuccess={handleInvoiceSuccess} cases={cases} editingInvoice={editingInvoice} />
             <ExpenseModal isOpen={showExpenseModal} onClose={() => setShowExpenseModal(false)} onSuccess={handleExpenseSuccess} cases={cases} editingExpense={editingExpense} />
-            {showArchiveInvoiceModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="glass-high w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200"><h2 className="text-xl font-bold text-white mb-6">{t('finance.archiveInvoice')}</h2><div className="mb-8"><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel')}</label><select className="glass-input w-full px-4 py-2.5 rounded-xl" value={selectedCaseForArchive} onChange={(e) => setSelectedCaseForArchive(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="px-8 py-2.5 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-lg">{t('general.save')}</button></div></div></div>)}
-            {showArchiveExpenseModal && (<div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="glass-high w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200"><h2 className="text-xl font-bold text-white mb-6">{t('finance.archiveExpenseTitle')}</h2><div className="mb-8"><label className="block text-xs text-gray-400 mb-1 font-bold uppercase">{t('drafting.selectCaseLabel')}</label><select className="glass-input w-full px-4 py-2.5 rounded-xl" value={selectedCaseForArchive} onChange={(e) => setSelectedCaseForArchive(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id} className="bg-gray-900">{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveExpenseModal(false)} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-white hover:bg-white/10">{t('general.cancel')}</button><button onClick={submitArchiveExpense} className="px-8 py-2.5 bg-primary-start hover:bg-primary-end text-white rounded-xl font-bold shadow-lg">{t('general.save')}</button></div></div></div>)}
+            {showArchiveInvoiceModal && (<div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="glass-panel border border-main w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200"><h2 className="text-xl font-bold text-text-primary mb-6">{t('finance.archiveInvoice')}</h2><div className="mb-8"><label className="block text-xs text-text-muted mb-1 font-bold uppercase">{t('drafting.selectCaseLabel')}</label><select className="glass-input w-full px-4 py-2.5 rounded-xl border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40" value={selectedCaseForArchive} onChange={(e) => setSelectedCaseForArchive(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id} className="bg-canvas text-text-primary">{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveInvoiceModal(false)} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-text-primary hover:bg-surface/30">{t('general.cancel')}</button><button onClick={submitArchiveInvoice} className="btn-primary px-8 py-2.5 rounded-xl font-bold shadow-lg">{t('general.save')}</button></div></div></div>)}
+            {showArchiveExpenseModal && (<div className="fixed inset-0 bg-canvas/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="glass-panel border border-main w-full max-w-md p-8 rounded-3xl animate-in fade-in zoom-in-95 duration-200"><h2 className="text-xl font-bold text-text-primary mb-6">{t('finance.archiveExpenseTitle')}</h2><div className="mb-8"><label className="block text-xs text-text-muted mb-1 font-bold uppercase">{t('drafting.selectCaseLabel')}</label><select className="glass-input w-full px-4 py-2.5 rounded-xl border border-main bg-surface focus:border-primary-start focus:ring-1 focus:ring-primary-start/40" value={selectedCaseForArchive} onChange={(e) => setSelectedCaseForArchive(e.target.value)}><option value="">{t('archive.generalNoCase')}</option>{cases.map(c => (<option key={c.id} value={c.id} className="bg-canvas text-text-primary">{c.title}</option>))}</select></div><div className="flex justify-end gap-3"><button onClick={() => setShowArchiveExpenseModal(false)} className="px-6 py-2.5 rounded-xl text-text-secondary hover:text-text-primary hover:bg-surface/30">{t('general.cancel')}</button><button onClick={submitArchiveExpense} className="btn-primary px-8 py-2.5 rounded-xl font-bold shadow-lg">{t('general.save')}</button></div></div></div>)}
             {viewingDoc && <FileViewerModal documentData={viewingDoc} onClose={closePreview} onMinimize={closePreview} t={t} directUrl={viewingUrl} isAuth={true} />}
         </motion.div>
     );

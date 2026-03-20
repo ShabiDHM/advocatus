@@ -1,8 +1,8 @@
 // FILE: src/components/BrandLogo.tsx
-// PHOENIX PROTOCOL - PLATFORM IDENTITY V2.1 (SEMANTIC COLORS)
-// 1. UPDATED: Hardcoded white colors replaced with semantic variables.
-// 2. ICON: Uses primary-start for consistent brand accent.
-// 3. TEXT: Uses gradient from primary-start to primary-end for modern look.
+// PHOENIX PROTOCOL - PLATFORM IDENTITY V6.0 (EXECUTIVE DESIGN SYSTEM)
+// 1. All classes are semantic (bg-surface, border-main, text-primary-start, gradient from-primary-start to-primary-end).
+// 2. Icon uses primary-start accent.
+// 3. Text uses gradient for modern look.
 
 import React from 'react';
 import { Scale } from 'lucide-react';

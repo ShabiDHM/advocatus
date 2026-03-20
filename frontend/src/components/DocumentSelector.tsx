@@ -1,7 +1,8 @@
 // FILE: src/components/DocumentSelector.tsx
-// PHOENIX PROTOCOL - DOCUMENT SELECTOR V2.0 (SEMANTIC DESIGN SYSTEM)
-// 1. UPDATED: Uses new semantic color classes: canvas, surface, text-primary, border-main, primary-start, etc.
-// 2. RETAINED: Multi‑select functionality.
+// PHOENIX PROTOCOL - DOCUMENT SELECTOR V6.0 (EXECUTIVE DESIGN SYSTEM)
+// 1. Uses semantic classes: glass-panel, glass-input, border-main, text-text-primary, text-text-secondary, text-text-muted, primary-start.
+// 2. Multi‑select functionality preserved.
+// 3. Fully consistent with the global design system.
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';

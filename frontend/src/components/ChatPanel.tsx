@@ -1,15 +1,15 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V7.1 (EXECUTIVE DOMAIN SELECTOR & UNIFIED BUTTON)
-// 1. RESTYLED: Domain selector now matches action bar cards (same height, border, bg-surface/10, hover-lift).
-// 2. UNIFIED: Send button uses bg-primary-start with brightness hover.
-// 3. FIXED: All colors use semantic variables.
-// 4. RETAINED: All features (document badge, export, retry, feedback).
+// PHOENIX PROTOCOL - CHAT PANEL V8.1 (TYPESCRIPT ERRORS FIXED & LOGIC RESTORED)
+// 1. FIXED: Restored 'handleRetry' and 'showThinking' logic.
+// 2. FIXED: 'lastUserMessage' is now correctly utilized by the retry function.
+// 3. RETAINED: 100% of the "World Class" semantic UI (Executive Cards, Symmetrical Layout).
+// 4. RETAINED: 100% of original logic (Streaming, Feedback, Markdown, Tooltips).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     Send, BrainCircuit, Trash2, User, Copy, Check, Zap, GraduationCap, Scale, Lock, Eye,
-    ThumbsUp, ThumbsDown, RefreshCw, Download
+    ThumbsUp, ThumbsDown, RefreshCw, Download, ChevronDown
 } from 'lucide-react';
 import { ChatMessage } from '../data/types';
 import { TFunction } from 'i18next';
@@ -23,7 +23,6 @@ export type ReasoningMode = 'FAST' | 'DEEP';
 export type Jurisdiction = 'ks' | 'al';
 export type LegalDomain = 'automatic' | 'family' | 'corporate' | 'property' | 'labor' | 'obligations' | 'administrative' | 'criminal';
 
-// Map for display labels
 const domainLabels: Record<LegalDomain, string> = {
   automatic: 'Automatik',
   family: 'Familjar',
@@ -53,10 +52,10 @@ interface ChatPanelProps {
 // --- SUB-COMPONENTS ---
 
 const ThinkingDots = () => (
-    <span className="inline-flex items-center ml-1">
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
-        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1 h-1 bg-current rounded-full mx-0.5" />
+    <span className="inline-flex items-center ml-2">
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1] }} className="w-1.5 h-1.5 bg-primary-start rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.2 }} className="w-1.5 h-1.5 bg-primary-start rounded-full mx-0.5" />
+        <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, times: [0, 0.5, 1], delay: 0.4 }} className="w-1.5 h-1.5 bg-primary-start rounded-full mx-0.5" />
     </span>
 );
 
@@ -66,8 +65,8 @@ const MessageCopyButton: React.FC<{ text: string, isUser: boolean }> = ({ text, 
         try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch (err) { console.error(err); }
     };
     return (
-        <button onClick={handleCopy} className={`absolute top-2 right-2 p-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100 ${
-            copied ? 'bg-success-start/20 text-success-start' : isUser ? 'bg-white/10 text-white/70' : 'bg-surface/10 text-text-secondary hover:text-text-primary'
+        <button onClick={handleCopy} className={`absolute top-2 right-2 p-2 rounded-xl transition-all opacity-0 group-hover:opacity-100 shadow-sm ${
+            copied ? 'bg-success-start/20 text-success-start' : isUser ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-surface border border-border-main text-text-muted hover:text-text-primary'
         }`}>
             {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
@@ -99,28 +98,27 @@ const FeedbackButtons: React.FC<{
     };
 
     return (
-        <div className="flex items-center gap-1 mt-2">
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border-main/50">
             <button
                 onClick={() => handleFeedback('up')}
                 disabled={!!submitting || disabled || success}
-                className={`p-1.5 rounded-lg transition-all ${success ? 'bg-success-start/20 text-success-start' : 'bg-surface/10 text-text-secondary hover:text-text-primary hover:bg-surface/20'}`}
+                className={`p-2 rounded-xl transition-all border ${success ? 'bg-success-start/20 text-success-start border-success-start/30' : 'bg-surface text-text-muted border-border-main hover:text-success-start hover:border-success-start/50 shadow-sm'}`}
                 title="Përgjigje e dobishme"
             >
-                {submitting === 'up' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin" /> : <ThumbsUp size={14} />}
+                {submitting === 'up' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin block" /> : <ThumbsUp size={14} />}
             </button>
             <button
                 onClick={() => handleFeedback('down')}
                 disabled={!!submitting || disabled || success}
-                className={`p-1.5 rounded-lg transition-all ${success ? 'bg-success-start/20 text-success-start' : 'bg-surface/10 text-text-secondary hover:text-text-primary hover:bg-surface/20'}`}
+                className={`p-2 rounded-xl transition-all border ${success ? 'bg-success-start/20 text-success-start border-success-start/30' : 'bg-surface text-text-muted border-border-main hover:text-danger-start hover:border-danger-start/50 shadow-sm'}`}
                 title="Përgjigje e padobishme"
             >
-                {submitting === 'down' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin" /> : <ThumbsDown size={14} />}
+                {submitting === 'down' ? <span className="w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin block" /> : <ThumbsDown size={14} />}
             </button>
         </div>
     );
 };
 
-// Tooltip component for law preview
 const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; t: TFunction }> = ({ chunkId, children, t }) => {
     const [preview, setPreview] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -137,16 +135,8 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
         }
     }, [show, chunkId, preview, loading, t]);
 
-    const handleMouseEnter = () => {
-        timeoutRef.current = setTimeout(() => setShow(true), 400);
-    };
-    const handleMouseLeave = () => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setShow(false);
-    };
-
     return (
-        <div className="relative inline-block" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+        <div className="relative inline-block" onMouseEnter={() => { timeoutRef.current = setTimeout(() => setShow(true), 400); }} onMouseLeave={() => { if (timeoutRef.current) clearTimeout(timeoutRef.current); setShow(false); }}>
             {children}
             <AnimatePresence>
                 {show && (
@@ -154,8 +144,11 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}
-                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-64 p-3 glass-panel text-xs text-text-secondary rounded-xl border border-main shadow-2xl z-50"
+                        className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-72 p-4 bg-surface text-xs text-text-secondary rounded-2xl border border-border-main shadow-lawyer-dark z-50 leading-relaxed"
                     >
+                        <p className="text-[10px] font-black text-primary-start uppercase tracking-widest mb-2 border-b border-border-main pb-2 flex items-center gap-2">
+                            <Scale size={12}/> Referencë Ligjore
+                        </p>
                         {loading ? t('lawPreview.loading', 'Duke ngarkuar...') : preview}
                     </motion.div>
                 )}
@@ -164,35 +157,30 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
     );
 };
 
-// Custom markdown components
 const MarkdownComponents = (t: TFunction) => ({
-    h1: ({node, ...props}: any) => <h1 className="text-xl font-bold text-text-primary mb-4 mt-6 border-b border-main pb-2 uppercase tracking-wider" {...props} />,
-    h2: ({node, ...props}: any) => <h2 className="text-lg font-bold text-primary-start mb-3 mt-5" {...props} />,
-    h3: ({node, ...props}: any) => <h3 className="text-md font-bold text-primary-start mb-2 mt-4 flex items-center gap-2" {...props} />,
-    p: ({node, ...props}: any) => <p className="mb-3 last:mb-0 leading-relaxed text-text-secondary" {...props} />, 
+    h1: ({node, ...props}: any) => <h1 className="text-lg font-black text-text-primary mb-4 mt-6 border-b border-border-main pb-2 uppercase tracking-tighter" {...props} />,
+    h2: ({node, ...props}: any) => <h2 className="text-base font-bold text-primary-start mb-3 mt-5" {...props} />,
+    h3: ({node, ...props}: any) => <h3 className="text-sm font-bold text-text-primary mb-2 mt-4 flex items-center gap-2" {...props} />,
+    p: ({node, ...props}: any) => <p className="mb-4 last:mb-0 leading-relaxed text-text-primary/90" {...props} />, 
+    li: ({node, ...props}: any) => <li className="mb-1.5 leading-relaxed text-text-primary/90" {...props} />, 
     a: ({href, children}: any) => {
         if (href?.startsWith('/laws/')) {
             const chunkId = href.split('/').pop();
             return (
-                <LawPreviewTooltip chunkId={chunkId} t={t}>
+                <LawPreviewTooltip chunkId={chunkId || ''} t={t}>
                     <Link
                         to={href}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all hover:shadow-lg hover:scale-105 bg-primary-start/10 text-primary-start border-primary-start/30"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-black uppercase tracking-widest border transition-all hover:shadow-sm hover:scale-[1.02] bg-primary-start/5 text-primary-start border-primary-start/20 hover:bg-primary-start/10"
                     >
                         <Scale size={12} />
                         {children}
-                        <Eye size={12} className="opacity-70" />
+                        <Eye size={12} className="opacity-50" />
                     </Link>
                 </LawPreviewTooltip>
             );
         }
         return (
-            <a
-                href={href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary-start hover:underline cursor-pointer"
-            >
+            <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary-start font-bold underline decoration-primary-start/30 hover:decoration-primary-start transition-colors">
                 {children}
             </a>
         );
@@ -207,6 +195,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [selectedDomain, setSelectedDomain] = useState<LegalDomain>('automatic');
   const [feedbackGiven, setFeedbackGiven] = useState<Set<number>>(new Set());
   const [lastUserMessage, setLastUserMessage] = useState<string>('');
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -222,86 +211,123 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setInput('');
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } };
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => { 
+      if (e.key === 'Enter' && !e.shiftKey) { 
+          e.preventDefault(); 
+          sendMessage(input); 
+      } 
+  };
   
   const handleFeedback = (index: number, _feedback: 'up' | 'down') => {
     setFeedbackGiven(prev => new Set(prev).add(index));
   };
 
+  // RESTORED: Logic for retry mechanism using the stored lastUserMessage
   const handleRetry = () => {
     if (lastUserMessage) {
       sendMessage(lastUserMessage);
     }
   };
 
+  // RESTORED: Logic for conditional thinking indicator rendering
   const lastMessage = messages[messages.length - 1];
   const showThinking = isSendingMessage && (!lastMessage || lastMessage.role !== 'ai' || !lastMessage.content.trim());
 
   return (
-    <div className={`flex flex-col glass-panel rounded-panel overflow-hidden h-full w-full ${className}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-main bg-surface/5 backdrop-blur-sm z-50">
+    <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border-border-main shadow-lawyer-light ${className}`}>
+      
+      {/* Executive Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border-main bg-canvas/40 z-50 shrink-0">
+        <div className="flex flex-col">
+          <h3 className="text-xs font-black text-text-primary uppercase tracking-widest leading-none">{t('chatPanel.title')}</h3>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-success-start ring-4 ring-success-start/10' : 'bg-danger-start animate-pulse'}`} />
+            <span className="text-[9px] font-black text-text-muted uppercase tracking-widest">{connectionStatus}</span>
+          </div>
+        </div>
+
         <div className="flex items-center gap-3">
-          <div className={`w-2.5 h-2.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-success-start shadow-[0_0_10px_#10b981]' : 'bg-danger-start'}`} />
-          <h3 className="text-sm font-black text-text-primary">{t('chatPanel.title')}</h3>
-          {activeContextId !== 'general' && selectedDocumentCount > 0 && (
-            <div className="flex items-center gap-1 bg-surface/20 border border-main rounded-full px-2 py-0.5 text-xs text-text-secondary">
-              <span>{selectedDocumentCount} dokumente</span>
+          
+          {/* Executive Domain Selector */}
+          {reasoningMode === 'DEEP' && (
+            <div className="relative group">
+                <select
+                value={selectedDomain}
+                onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
+                className="appearance-none h-9 rounded-xl border border-border-main bg-surface text-text-primary text-[10px] font-black uppercase tracking-widest pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-primary-start/20 hover-lift shadow-sm cursor-pointer"
+                >
+                {Object.entries(domainLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                ))}
+                </select>
+                <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
             </div>
           )}
-        </div>
-        <div className="flex items-center gap-2">
-          {/* Domain selection dropdown – only visible in deep mode, styled like action cards */}
-          {reasoningMode === 'DEEP' && (
-            <select
-              value={selectedDomain}
-              onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
-              className="h-8 md:h-7 rounded-lg border border-main bg-surface/10 text-text-secondary text-xs font-medium px-2 focus:outline-none focus:ring-1 focus:ring-primary-start/40 hover:bg-surface/20 hover-lift transition-all"
-            >
-              {Object.entries(domainLabels).map(([value, label]) => (
-                <option key={value} value={value} className="bg-surface text-text-primary">{label}</option>
-              ))}
-            </select>
-          )}
-          {/* Mode toggle */}
-          <div className="flex items-center bg-surface/10 rounded-lg p-0.5 border border-main">
-            <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
-                reasoningMode === 'FAST' ? 'bg-blue-500/20 text-blue-400' : 'text-text-secondary'
+          
+          {/* Mode Toggle */}
+          <div className="flex items-center bg-canvas rounded-xl p-1 border border-border-main shadow-inner">
+            <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                reasoningMode === 'FAST' ? 'bg-surface text-primary-start shadow-sm border border-border-main' : 'text-text-muted hover:text-text-primary'
             }`}>
               <Zap size={12} /> {t('chatPanel.modeFast')}
             </button>
-            <button onClick={() => isPro && setReasoningMode('DEEP')} disabled={!isPro} className={`flex items-center gap-1 px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
-                reasoningMode === 'DEEP' ? 'bg-purple-500/20 text-purple-400' : 'text-text-secondary'
+            <button onClick={() => isPro && setReasoningMode('DEEP')} disabled={!isPro} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                reasoningMode === 'DEEP' ? 'bg-surface text-primary-start shadow-sm border border-border-main' : 'text-text-muted hover:text-text-primary disabled:opacity-30'
             }`}>
-              {!isPro ? <Lock size={10} className="mr-1" /> : <GraduationCap size={12} className="mr-1" />}
+              {!isPro ? <Lock size={10} /> : <GraduationCap size={12} />}
               {t('chatPanel.modeDeep')}
             </button>
           </div>
-          {/* Export button */}
-          {onExportChat && (
-            <button onClick={onExportChat} className="p-2 text-text-secondary hover:text-primary-start transition-colors" title="Shkarko bisedën">
-              <Download size={16} />
+
+          <div className="h-6 w-px bg-border-main mx-1"></div>
+
+          {/* Actions */}
+          <div className="flex gap-1">
+            {onExportChat && (
+                <button onClick={onExportChat} className="p-2.5 text-text-muted hover:text-primary-start hover:bg-surface-secondary rounded-xl transition-all" title="Shkarko bisedën">
+                <Download size={16} />
+                </button>
+            )}
+            <button onClick={onClearChat} className="p-2.5 text-text-muted hover:text-danger-start hover:bg-danger-start/10 rounded-xl transition-all" title="Pastro bisedën">
+                <Trash2 size={16} />
             </button>
-          )}
-          <button onClick={onClearChat} className="p-2 text-text-secondary hover:text-danger-start transition-colors"><Trash2 size={16} /></button>
+          </div>
         </div>
       </div>
 
-      {/* Message area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-10 bg-surface custom-scrollbar">
+      {/* Message Stream */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-canvas/10 custom-scrollbar shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)]">
+        
+        {activeContextId !== 'general' && selectedDocumentCount > 0 && (
+          <div className="flex justify-center mb-6">
+            <div className="flex items-center gap-2 px-4 py-2 bg-primary-start/5 border border-primary-start/10 rounded-full shadow-sm">
+                <div className="w-2 h-2 rounded-full bg-primary-start animate-pulse"></div>
+                <span className="text-[10px] font-black text-primary-start uppercase tracking-widest">Analizimi i {selectedDocumentCount} dokumenteve</span>
+            </div>
+          </div>
+        )}
+
         <AnimatePresence initial={false}>
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
-            <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'ai' && <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-start to-primary-end flex items-center justify-center shadow-lg shrink-0"><BrainCircuit className="w-4 h-4 text-white" /></div>}
-              <div className={`relative group max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-xl ${
+            <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`flex gap-4 group ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+              
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border shadow-sm ${
+                  msg.role === 'ai' ? 'bg-primary-start text-white border-primary-start' : 'bg-surface border-border-main text-text-secondary'
+              }`}>
+                {msg.role === 'ai' ? <BrainCircuit size={20} /> : <User size={20} />}
+              </div>
+              
+              <div className={`relative max-w-[85%] rounded-[1.5rem] p-6 text-sm shadow-lawyer-light border ${
                   msg.role === 'user' 
-                      ? 'bg-gradient-to-br from-primary-start to-primary-end text-white rounded-br-none' 
-                      : 'bg-surface/80 backdrop-blur-sm border border-main text-text-primary rounded-bl-none'
+                      ? 'bg-primary-start text-white border-primary-start rounded-tr-sm' 
+                      : 'bg-surface border-border-main text-text-primary rounded-tl-sm'
               }`}>
                 <MessageCopyButton text={msg.content} isUser={msg.role === 'user'} />
-                <div className="markdown-content select-text">
+                
+                <div className="markdown-content select-text prose prose-slate max-w-none">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{msg.content}</ReactMarkdown>
                 </div>
+                
                 {msg.role === 'ai' && activeContextId !== 'general' && !msg.content.startsWith('[Gabim Teknik') && (
                   <FeedbackButtons
                     messageIndex={idx}
@@ -310,27 +336,30 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     disabled={feedbackGiven.has(idx)}
                   />
                 )}
+                
+                {/* RESTORED: Implementation of handleRetry */}
                 {msg.role === 'ai' && msg.content.startsWith('[Gabim Teknik') && (
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="mt-4 pt-4 border-t border-danger-start/20">
                     <button
                       onClick={handleRetry}
-                      className="px-3 py-1 bg-primary-start/20 hover:bg-primary-start/30 text-primary-start rounded-lg text-xs font-medium transition-all flex items-center gap-1"
+                      className="px-4 py-2 bg-danger-start/10 hover:bg-danger-start/20 text-danger-start rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2"
                     >
-                      <RefreshCw size={12} />
-                      {t('chat.retry', 'Provo përsëri')}
+                      <RefreshCw size={14} />
+                      {t('chat.retry', 'Riprovo')}
                     </button>
                   </div>
                 )}
               </div>
-              {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-surface/20 flex items-center justify-center border border-main shrink-0"><User className="w-4 h-4 text-text-secondary" /></div>}
             </motion.div>
           ))}
 
+          {/* RESTORED: Implementation of showThinking */}
           {showThinking && (
-            <motion.div key="thinking-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-primary-start flex items-center justify-center shadow-lg"><BrainCircuit className="w-4 h-4 text-white" /></div>
-              <div className="bg-surface border border-blue-500/20 text-blue-400 font-bold rounded-2xl px-5 py-3.5 text-sm flex items-center gap-1 shadow-blue-500/5">
-                {t('chat.thinking', 'Sokrati duke menduar')}<ThinkingDots />
+            <motion.div key="thinking-state" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="flex items-start gap-4">
+              <div className="w-10 h-10 rounded-xl bg-primary-start flex items-center justify-center shadow-accent-glow text-white"><BrainCircuit size={20} /></div>
+              <div className="bg-surface border border-border-main rounded-[1.5rem] rounded-tl-sm px-6 py-4 flex items-center gap-3 shadow-lawyer-light">
+                <span className="text-[11px] font-black text-primary-start uppercase tracking-widest">{t('chat.thinking', 'Asistenti po analizon')}</span>
+                <ThinkingDots />
               </div>
             </motion.div>
           )}
@@ -339,12 +368,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
-      <div className="p-4 border-t border-main bg-surface/5 backdrop-blur-md">
-        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex items-end gap-2">
-          <textarea ref={textareaRef} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={t('chatPanel.inputPlaceholder')} className="glass-input w-full p-4 rounded-xl text-sm resize-none custom-scrollbar" rows={1} />
-          <button type="submit" disabled={!input.trim() || isSendingMessage} className="h-12 w-12 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-accent-glow hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-            <Send size={18} />
+      {/* Input Form */}
+      <div className="p-5 border-t border-border-main bg-surface shrink-0">
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex items-end gap-3">
+          <textarea 
+            ref={textareaRef} 
+            value={input} 
+            onChange={(e) => setInput(e.target.value)} 
+            onKeyDown={handleKeyDown} 
+            placeholder={t('chatPanel.inputPlaceholder')} 
+            className="glass-input w-full p-4 pr-16 rounded-2xl text-sm leading-relaxed resize-none custom-scrollbar min-h-[60px] shadow-sm focus:shadow-md" 
+            rows={1} 
+          />
+          <button 
+            type="submit" 
+            disabled={!input.trim() || isSendingMessage} 
+            className="absolute right-2.5 bottom-2.5 h-10 w-10 flex items-center justify-center bg-primary-start text-white rounded-xl shadow-accent-glow hover:brightness-110 active:scale-95 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <Send size={18} className="ml-0.5" />
           </button>
         </form>
       </div>
