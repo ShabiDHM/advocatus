@@ -1,10 +1,10 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V8.2 (EXECUTIVE POLISH)
-// 1. REMOVED redundant "CONNECTED" label; kept only status dot.
-// 2. CONVERTED Fast/Deep modes to a unified Segmented Control (single pill with two buttons).
-// 3. ALIGNED domain selector height with reasoning toggle (consistent h-9).
-// 4. FIXED input area collision: send button now uses flex layout, no absolute positioning.
-// 5. All original logic (streaming, feedback, retry) preserved.
+// PHOENIX PROTOCOL - CHAT PANEL V8.3 (EXECUTIVE POLISH – FINAL)
+// 1. Header: title spacing and minimalist status dot (matching Documents panel).
+// 2. Unified Segmented Control for reasoning modes (single pill with active/inactive states).
+// 3. TextArea: removed native resize handle, added custom scrollbar, no overflow arrows unless needed.
+// 4. Aligned domain selector and reasoning toggle with consistent height and gap.
+// 5. All original logic preserved.
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -235,18 +235,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border-border-main shadow-lawyer-light ${className}`}>
       
-      {/* Executive Header - removed redundant "CONNECTED" label */}
+      {/* Header – minimalist status dot, title spacing */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border-main bg-canvas/40 z-50 shrink-0">
-        <div className="flex flex-col">
-          <h3 className="text-xs font-black text-text-primary uppercase tracking-widest leading-none">{t('chatPanel.title')}</h3>
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-success-start ring-4 ring-success-start/10' : 'bg-danger-start animate-pulse'}`} />
+        <div className="flex items-center gap-3">
+          <div className="flex flex-col">
+            <h3 className="text-xs font-black text-text-primary uppercase tracking-widest leading-none">
+              {t('chatPanel.title')}
+            </h3>
+          </div>
+          <div className="relative">
+            <span className={`w-1.5 h-1.5 rounded-full block ${connectionStatus === 'CONNECTED' ? 'bg-success-start ring-4 ring-success-start/10 animate-pulse' : 'bg-danger-start'}`} />
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           
-          {/* Executive Domain Selector - aligned height with toggle */}
+          {/* Executive Domain Selector – aligns with toggle */}
           {reasoningMode === 'DEEP' && (
             <div className="relative group">
                 <select
@@ -262,13 +266,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
           )}
           
-          {/* Mode Toggle - Unified Segmented Control */}
-          <div className="flex bg-canvas rounded-xl p-1 border border-border-main shadow-inner">
+          {/* Unified Segmented Control for reasoning modes */}
+          <div className="flex bg-surface rounded-xl p-1 border border-border-main shadow-inner">
             <button
               onClick={() => setReasoningMode('FAST')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
                 reasoningMode === 'FAST'
-                  ? 'bg-surface text-primary-start shadow-sm border border-border-main'
+                  ? 'bg-canvas text-primary-start shadow-sm'
                   : 'text-text-muted hover:text-text-primary'
               }`}
             >
@@ -279,7 +283,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               disabled={!isPro}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
                 reasoningMode === 'DEEP'
-                  ? 'bg-surface text-primary-start shadow-sm border border-border-main'
+                  ? 'bg-canvas text-primary-start shadow-sm'
                   : 'text-text-muted hover:text-text-primary disabled:opacity-30'
               }`}
             >
@@ -375,7 +379,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form - Fixed layout without absolute positioning overlap */}
+      {/* Input Form – no native resize, no scroll arrows clutter */}
       <div className="p-5 border-t border-border-main bg-surface shrink-0">
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="relative flex gap-3">
           <textarea 
@@ -384,7 +388,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             onChange={(e) => setInput(e.target.value)} 
             onKeyDown={handleKeyDown} 
             placeholder={t('chatPanel.inputPlaceholder')} 
-            className="glass-input flex-1 p-4 rounded-2xl text-sm leading-relaxed resize-none custom-scrollbar min-h-[60px] shadow-sm focus:shadow-md" 
+            className="glass-input flex-1 p-4 rounded-2xl text-sm leading-relaxed resize-none overflow-y-auto custom-scrollbar min-h-[60px] shadow-sm focus:shadow-md"
             rows={1} 
           />
           <button 
