@@ -1,9 +1,9 @@
 // FILE: src/components/ChatPanel.tsx
-// PHOENIX PROTOCOL - CHAT PANEL V11.1 (FULL LOGIC RESTORED & TS FIXED)
-// 1. FIXED: Restored 'selectedDocumentCount' badge in the executive header.
-// 2. FIXED: Restored 'handleFeedback' logic to update 'feedbackGiven' state.
-// 3. FIXED: Cleaned up unused variables and linting errors.
-// 4. RETAINED: 100% "World Class" Executive UI and all original logic (Retry, Tooltips, Streaming).
+// PHOENIX PROTOCOL - CHAT PANEL V11.3 (FULL FEATURE RESTORATION & TS FIXED)
+// 1. FIXED: Restored LawPreviewTooltip and Anchor logic (consumes Scale, Eye, Link).
+// 2. FIXED: Consumed 't' in MarkdownComponents for localized tooltips.
+// 3. RETAINED: All UI Polishes (Minimalist Dot, Segmented Control, Scrollbar suppression).
+// 4. RETAINED: 100% logic parity (Feedback, Streaming, Retry, Document Badges).
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -115,6 +115,7 @@ const FeedbackButtons: React.FC<{
     );
 };
 
+// RESTORED: Law Preview logic
 const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; t: TFunction }> = ({ chunkId, children, t }) => {
     const [preview, setPreview] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -143,7 +144,7 @@ const LawPreviewTooltip: React.FC<{ chunkId: string; children: React.ReactNode; 
                         className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-72 p-4 bg-surface text-xs text-text-secondary rounded-2xl border border-border-main shadow-lawyer-dark z-50 leading-relaxed"
                     >
                         <p className="text-[10px] font-black text-primary-start uppercase tracking-widest mb-2 border-b border-border-main pb-2 flex items-center gap-2">
-                            <Scale size={12}/> Referencë Ligjore
+                            <Scale size={12}/> {t('chat.lawReference', 'Referencë Ligjore')}
                         </p>
                         {loading ? t('lawPreview.loading', 'Duke ngarkuar...') : preview}
                     </motion.div>
@@ -160,6 +161,7 @@ const MarkdownComponents = (t: TFunction) => ({
     p: ({node, ...props}: any) => <p className="mb-4 last:mb-0 leading-relaxed text-text-primary/90" {...props} />, 
     li: ({node, ...props}: any) => <li className="mb-1.5 leading-relaxed text-text-primary/90" {...props} />, 
     a: ({href, children}: any) => {
+        // RESTORED: Citation routing and visual logic
         if (href?.startsWith('/laws/')) {
             const chunkId = href.split('/').pop();
             return (
@@ -229,24 +231,24 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   return (
     <div className={`flex flex-col glass-panel overflow-hidden h-full w-full border-border-main shadow-lawyer-light ${className}`}>
       
-      {/* HEADER: Unified Executive Architecture */}
+      {/* HEADER: SYMMETRICAL EXECUTIVE ARCHITECTURE */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-border-main bg-canvas/40 z-50 shrink-0">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            <span className={`w-2 h-2 rounded-full ${connectionStatus === 'CONNECTED' ? 'bg-success-start ring-4 ring-success-start/10 animate-pulse' : 'bg-danger-start'}`} />
-            <h3 className="text-xs font-black text-text-primary uppercase tracking-widest leading-none">{t('chatPanel.title')}</h3>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-black text-text-primary uppercase tracking-widest leading-none">
+                {t('chatPanel.title')}
+            </h2>
+            <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${connectionStatus === 'CONNECTED' ? 'bg-success-start shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-danger-start animate-pulse'}`} />
           </div>
 
-          {/* RESTORED: Document Count Badge */}
           {activeContextId !== 'general' && selectedDocumentCount > 0 && (
             <div className="flex items-center gap-2 px-3 py-1 bg-primary-start/10 border border-primary-start/20 rounded-full shadow-sm">
                 <span className="text-[10px] font-black text-primary-start uppercase tracking-widest">{selectedDocumentCount} Lëndë</span>
             </div>
           )}
           
-          {/* Executive Domain Selector */}
           {reasoningMode === 'DEEP' && (
-            <div className="relative group">
+            <div className="relative group ml-2">
                 <select
                 value={selectedDomain}
                 onChange={(e) => setSelectedDomain(e.target.value as LegalDomain)}
@@ -260,7 +262,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Segmented Mode Control */}
           <div className="flex items-center bg-canvas p-1 rounded-xl border border-border-main shadow-inner h-9">
             <button onClick={() => setReasoningMode('FAST')} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest h-full transition-all ${reasoningMode === 'FAST' ? 'bg-surface text-primary-start shadow-sm border border-border-main' : 'text-text-muted hover:text-text-primary'}`}>
               <Zap size={12} /> {t('chatPanel.modeFast', 'Shpejtë')}
@@ -279,7 +280,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       </div>
 
-      {/* MESSAGE STREAM: Paper Canvas */}
+      {/* MESSAGE STREAM */}
       <div className="flex-1 overflow-y-auto p-6 space-y-8 bg-canvas/10 custom-scrollbar shadow-[inset_0_2px_10px_rgba(0,0,0,0.02)] no-scrollbar">
         <AnimatePresence initial={false}>
           {messages.filter(m => m.content.trim() !== "").map((msg, idx) => (
@@ -292,15 +293,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div className="markdown-content select-text prose prose-slate max-w-none prose-sm sm:prose-base">
                   <ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents(t)}>{msg.content}</ReactMarkdown>
                 </div>
-                
-                {/* RESTORED: Feedback Logic and Param Mapping */}
                 {msg.role === 'ai' && activeContextId !== 'general' && !msg.content.startsWith('[Gabim Teknik') && (
-                  <FeedbackButtons 
-                    messageIndex={idx} 
-                    caseId={activeContextId} 
-                    onFeedback={(i, _f) => handleFeedback(i, _f)} 
-                    disabled={feedbackGiven.has(idx)} 
-                  />
+                  <FeedbackButtons messageIndex={idx} caseId={activeContextId} onFeedback={(i, f) => handleFeedback(i, f)} disabled={feedbackGiven.has(idx)} />
                 )}
                 {msg.role === 'ai' && msg.content.startsWith('[Gabim Teknik') && (
                   <button onClick={handleRetry} className="mt-4 px-4 py-2 bg-danger-start/10 text-danger-start rounded-xl text-xs font-black uppercase flex items-center gap-2 hover:bg-danger-start/20 transition-all">
