@@ -1,40 +1,36 @@
-/* /home/user/advocatus-frontend/src/index.css */
+/* src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* --- WORLD CLASS LIGHT: "Modern Courtroom" (Indigo Prestige) --- */
-    /* Background hierarchy – no pure white */
-    --bg-base: #F4F6F9;           /* Page canvas */
-    --bg-surface: #ECEEF3;        /* Sidebar, nav panels */
-    --bg-card: #FFFFFF;           /* Cards, modals */
+    /* --- LIGHT THEME (default) --- */
+    --bg-base: #F4F6F9;
+    --bg-surface: #ECEEF3;
+    --bg-card: #FFFFFF;
     --bg-glass: rgba(255, 255, 255, 0.65);
     --bg-input: #EDF0F5;
-    --bg-hover: rgba(99, 115, 255, 0.07);      /* NEW */
+    --bg-hover: rgba(99, 115, 255, 0.07);
 
-    /* Typography – high contrast */
     --text-primary: #0F1623;
     --text-secondary: #3D4A5C;
     --text-muted: #6B7A90;
     --text-disabled: #A3AFBF;
     --text-inverse: #FFFFFF;
 
-    /* Accent – Indigo (same in both modes) */
     --accent-primary: #6366F1;
     --accent-hover: #4F52D9;
     --accent-subtle: rgba(99, 102, 241, 0.10);
     --accent-text: #4345B5;
     --accent-primary-rgb: 99, 102, 241;
 
-    /* Status colours */
     --status-success: #059669;
     --status-warning: #D97706;
     --status-danger: #DC2626;
     --status-neutral: #475569;
 
-    /* Multi‑layer directional shadows */
+    /* Multi-layer directional shadows */
     --shadow-xs: 0 1px 2px rgba(15, 22, 35, 0.04), 0 1px 3px rgba(15, 22, 35, 0.06);
     --shadow-sm: 0 2px 4px rgba(15, 22, 35, 0.04), 0 4px 12px rgba(15, 22, 35, 0.06);
     --shadow-md: 0 4px 8px rgba(15, 22, 35, 0.05), 0 8px 24px rgba(15, 22, 35, 0.08), 0 0 0 1px rgba(99, 102, 241, 0.06);
@@ -45,17 +41,17 @@
     --glass-border: 1px solid rgba(255, 255, 255, 0.85);
     --glass-border-bottom: 1px solid rgba(203, 213, 225, 0.50);
     --glass-border-right: 1px solid rgba(203, 213, 225, 0.50);
-    --border-main: #E2E8F0;      /* fallback for non‑glass elements */
+    --border-main: #E2E8F0;
   }
 
   .dark {
-    /* --- WORLD CLASS DARK: "Executive Suite" (Indigo Prestige) --- */
+    /* --- DARK THEME (override) --- */
     --bg-base: #020617;
     --bg-surface: #0B1120;
     --bg-card: #1C1F35;
     --bg-glass: rgba(11, 17, 32, 0.7);
     --bg-input: #111827;
-    --bg-hover: rgba(99, 115, 255, 0.12);      /* NEW */
+    --bg-hover: rgba(99, 115, 255, 0.12);
 
     --text-primary: #F8FAFC;
     --text-secondary: #94A3B8;
@@ -63,14 +59,12 @@
     --text-disabled: #334155;
     --text-inverse: #0F1623;
 
-    /* Indigo remains – brand continuity */
     --accent-primary: #6366F1;
     --accent-hover: #818CF8;
     --accent-subtle: rgba(99, 102, 241, 0.15);
     --accent-text: #8183F5;
     --accent-primary-rgb: 99, 102, 241;
 
-    /* Dark shadows – glow style (still multi‑layer) */
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
     --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.2);
     --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(99, 102, 241, 0.15);
@@ -91,18 +85,20 @@
     transition: background-color 0.4s ease, color 0.4s ease;
   }
 
-  /* Light mode – subtle dot‑grid texture for glass depth */
+  /* Light mode texture and gradient mesh */
   :root body {
-    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366F1' fill-opacity='0.025'%3E%3Ccircle cx='7' cy='7' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    background-image: 
+      radial-gradient(ellipse at 15% 20%, rgba(99,102,241,0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 85% 75%, rgba(99,102,241,0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(148,163,184,0.05) 0%, transparent 70%),
+      url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%236366F1' fill-opacity='0.025'%3E%3Ccircle cx='7' cy='7' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   }
 
-  /* Dark mode – radial atmosphere (preserved) */
   .dark body {
     background-image: radial-gradient(circle at 50% -20%, rgba(99, 102, 241, 0.08) 0%, transparent 60%);
     background-attachment: fixed;
   }
 
-  /* Reduced motion – respect user preference */
   @media (prefers-reduced-motion: reduce) {
     *, ::before, ::after {
       animation-duration: 0.01ms !important;
@@ -119,7 +115,7 @@
 }
 
 @layer components {
-  /* THE EXECUTIVE PANEL (WORLD CLASS) – light & dark aware */
+  /* Executive Glass Panel */
   .glass-panel {
     background-color: var(--bg-glass);
     backdrop-filter: blur(20px) saturate(160%);
@@ -131,7 +127,7 @@
     @apply rounded-panel transition-all duration-300;
   }
 
-  /* Fallback for non‑glass panels (cards, etc.) */
+  /* Card (non‑glass) */
   .card-panel {
     background-color: var(--bg-card);
     border: 1px solid var(--border-main);
@@ -139,7 +135,7 @@
     @apply rounded-panel transition-all duration-300;
   }
 
-  /* Hover lift (for cards, interactive panels) */
+  /* Hover lift */
   .hover-lift {
     transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   }
@@ -149,7 +145,7 @@
     border-color: rgba(var(--accent-primary-rgb), 0.2);
   }
 
-  /* THE PRECISION INPUT – sunken trough effect */
+  /* Input fields */
   .glass-input {
     background-color: var(--bg-input);
     border: 1.5px solid rgba(203, 213, 225, 0.8);
@@ -166,7 +162,7 @@
     color: var(--text-disabled);
   }
 
-  /* BUTTONS */
+  /* Buttons */
   .btn-primary {
     background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-hover) 100%);
     color: var(--text-inverse);
@@ -209,7 +205,7 @@
     transform: translateY(-1px);
   }
 
-  /* STATUS BADGES – legal‑grade */
+  /* Status badges */
   .badge {
     @apply text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border inline-flex items-center gap-1;
   }
@@ -249,11 +245,31 @@
     border-color: var(--border-main);
   }
 
-  /* Background hover utility */
+  /* Document reader */
+  .document-reader {
+    background: #FFFEF7;
+    border: 1px solid rgba(203, 213, 225, 0.6);
+    border-radius: 8px;
+    box-shadow: var(--shadow-md), inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+    font-family: 'Georgia', 'Palatino', serif;
+    line-height: 1.75;
+    color: #1A2332;
+    @apply p-12 max-w-2xl mx-auto;
+  }
+  .doc-highlight-primary {
+    background: rgba(99, 102, 241, 0.12);
+    border-bottom: 2px solid rgba(99, 102, 241, 0.5);
+    border-radius: 2px;
+  }
+  .doc-highlight-risk {
+    background: rgba(220, 38, 38, 0.08);
+    border-bottom: 2px solid rgba(220, 38, 38, 0.45);
+  }
+
+  /* Utility classes for background hover and borders */
   .bg-hover {
     background-color: var(--bg-hover);
   }
-  /* Border utility */
   .border-border-main {
     border-color: var(--border-main);
   }
