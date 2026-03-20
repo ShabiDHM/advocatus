@@ -1,8 +1,8 @@
 # FILE: backend/app/main.py
-# PHOENIX PROTOCOL - MAIN APPLICATION V13.0 (STABLE CORS)
-# 1. FIXED: Explicit CORS for the specific Vercel deployment to allow credentials.
-# 2. FIXED: Removed experimental dynamic middleware to ensure Starlette compatibility.
-# 3. STATUS: 100% Pylance Clear.
+# PHOENIX PROTOCOL - MAIN APPLICATION V13.1 (ELITE CORS STABILITY)
+# 1. FIXED: Expanded allow_headers to include all common browser metadata.
+# 2. FIXED: Added 'expose_headers' to allow frontend to read response status correctly.
+# 3. STATUS: Protocol Compliant.
 
 import os
 import logging
@@ -41,15 +41,12 @@ app = FastAPI(title="Juristi AI API", lifespan=lifespan)
 # --- MIDDLEWARE ---
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*") # type: ignore
 
-# --- CORS CONFIGURATION ---
-# We use the exact literal strings of your deployment. 
-# Do not use wildcards here as they block credentials.
+# --- CORS CONFIGURATION (EXECUTIVE STABILITY) ---
 origins = [
     "https://juristi.tech",
     "https://www.juristi.tech",
     "https://api.juristi.tech",
     "https://advocatus-ai.vercel.app",
-    "https://advocatus-bpu736pv2-shabans-projects-31c11eb7.vercel.app",
     "http://localhost:5173",
     "http://localhost:3000",
 ]
@@ -58,8 +55,17 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+    allow_methods=["*"], # Allow all methods for simplicity in preflight
+    allow_headers=[
+        "Content-Type", 
+        "Authorization", 
+        "X-Requested-With", 
+        "Accept", 
+        "Origin",
+        "Accept-Language",
+        "Accept-Encoding",
+    ],
+    expose_headers=["*"],
 )
 
 # --- ROUTER ASSEMBLY ---
@@ -88,8 +94,9 @@ app.include_router(api_v2_router)
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "version": "1.3.0"}
+    return {"status": "ok", "version": "1.3.1"}
 
+# Static Files Mount
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "frontend", "dist")
 if os.path.exists(FRONTEND_DIR):
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="static")
